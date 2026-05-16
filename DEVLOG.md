@@ -15,3 +15,8 @@ End-to-end verification completed. Fixed log_server.py missing MQTT credentials
 matching subfolder (Arduino IDE requirement). Confirmed: ESP publishes to new topics,
 Node-RED responds with status, log dashboard displays messages, Pi reboot survival
 verified. JCTsh.local mDNS alias deferred — use http://raspberrypi.local/ for now.
+
+Added hourly watchdog heartbeat to log_server.py. Publishes
+{"component":"jctsh-core","category":"System","message":"Watchdog: alive."} to
+jctsh/core/log-server/log every hour — confirms log server and MQTT broker are alive
+between 12-hour sensor readings. Core infrastructure concern, not salt-sensor specific.

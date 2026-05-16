@@ -65,12 +65,19 @@ scp core/logging/log_server.py pi@raspberrypi.local:/home/pi/jctsh/core/logging/
 ssh pi@raspberrypi.local "sudo systemctl restart jctsh-logging"
 ```
 
-## Open Question — Do Not Implement Until Resolved
-Home Assistant is running in Docker on the Pi with minimal configuration. Its role
-as a SmartThings bridge has not been confirmed. Before implementing any JCTsh ↔ HA
-integration beyond what salt-sensor already uses, confirm:
-- Is HA the active SmartThings bridge, or is SmartThings accessed another way?
-- Should future components route through HA or communicate independently via MQTT?
+## SmartThings Integration
+Home Assistant is the bridge to SmartThings — there is no other path. Any JCTsh
+component that needs to reach a SmartThings device must go through HA:
+
+```
+Node-RED → HA REST API (port 8123) → SmartThings integration → SmartThings device
+```
+
+HA is confirmed connected with the SmartThings integration active. The salt sensor
+switches (`switch.salt_critical_alert`, `switch.salt_low_alert`, `switch.salt_full_reset`,
+`switch.salt_test_mode`) are HA entities that HA syncs to SmartThings. Future components
+that need SmartThings alerts or control should follow the same pattern: create virtual
+switches in SmartThings, expose them as HA entities, control via Node-RED → HA REST API.
 
 ## Future Components
 Use **ESPHome YAML** (not Arduino C++) for new ESP-based components:

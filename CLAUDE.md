@@ -41,6 +41,14 @@ All components publish logs as JSON to `jctsh/<type>/<component>/log`:
 Valid categories: `MQTT`, `System`, `Sensor`, `Alert`, `Test`
 Timestamps are added by the log server on receipt — do not include them in the payload.
 
+## Watchdog Heartbeat
+`core/logging/log_server.py` publishes an hourly heartbeat to `jctsh/core/log-server/log`:
+```json
+{ "component": "jctsh-core", "category": "System", "message": "Watchdog: alive." }
+```
+This confirms the log server and MQTT broker are alive. It appears in the dashboard under
+component `jctsh-core`. No Node-RED involvement — core infrastructure only.
+
 ## Core Files (Pi runtime — not directly editable here)
 These files under `core/` are version-controlled snapshots only. The live copies
 are on the Pi. To update: edit on Pi, then copy back here.

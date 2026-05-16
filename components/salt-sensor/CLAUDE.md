@@ -87,5 +87,4 @@ Three rapid LED flashes confirm successful OTA reboot.
 
 ## Next Steps
 - MQTT TLS hardening
-- Node-RED watchdog heartbeat (hourly publish to `jctsh/sensors/salt-sensor/log`)
 - Confirm Home Assistant role (SmartThings bridge vs. other) before deeper JCTsh integration

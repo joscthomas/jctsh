@@ -20,6 +20,8 @@ import paho.mqtt.client as mqtt
 # ── Config ────────────────────────────────────────────────────────────────────
 MQTT_BROKER = "localhost"
 MQTT_PORT   = 1883
+MQTT_USER   = "salt-sensor"
+MQTT_PASS   = "raspberry"
 MQTT_TOPIC  = "jctsh/+/+/log"
 HTTP_PORT   = 80
 LOG_DIR     = "/home/pi/jctsh/logs"
@@ -219,6 +221,7 @@ def _mqtt_thread():
         client = mqtt.Client()  # paho-mqtt < 2.0
     client.on_connect = _on_connect
     client.on_message = _on_message
+    client.username_pw_set(MQTT_USER, MQTT_PASS)
     client.reconnect_delay_set(min_delay=1, max_delay=30)
     while True:
         try:

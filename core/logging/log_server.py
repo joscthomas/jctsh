@@ -20,18 +20,21 @@ import paho.mqtt.client as mqtt
 # ── Config ────────────────────────────────────────────────────────────────────
 MQTT_BROKER = "localhost"
 MQTT_PORT   = 1883
-MQTT_USER   = "salt-sensor"
-MQTT_PASS   = "raspberry"
-MQTT_TOPIC  = "jctsh/+/+/log"
+MQTT_USER          = "salt-sensor"
+MQTT_PASS          = "raspberry"
+MQTT_TOPIC         = "jctsh/+/+/log"
+HEARTBEAT_TOPIC    = "jctsh/core/log-server/log"
+HEARTBEAT_INTERVAL = 3600
 HTTP_PORT   = 80
 LOG_DIR     = "/home/pi/jctsh/logs"
 LOG_FILE    = os.path.join(LOG_DIR, "jctsh.log")
 MAX_ENTRIES = 200
 
 # ── Shared state ─────────────────────────────────────────────────────────────
-_lock    = threading.Lock()
-_entries = deque(maxlen=MAX_ENTRIES)   # flushed, displayable entries
-_pending = None                         # current repeat group (not yet flushed)
+_lock        = threading.Lock()
+_entries     = deque(maxlen=MAX_ENTRIES)   # flushed, displayable entries
+_pending     = None                         # current repeat group (not yet flushed)
+_mqtt_client = None
 
 # ── File logging ─────────────────────────────────────────────────────────────
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -213,8 +216,23 @@ class _Handler(BaseHTTPRequestHandler):
         pass  # suppress HTTP access log noise
 
 
+# ── Heartbeat thread ──────────────────────────────────────────────────────────
+def _heartbeat_thread():
+    time.sleep(HEARTBEAT_INTERVAL)
+    while True:
+        if _mqtt_client and _mqtt_client.is_connected():
+            payload = json.dumps({
+                "component": "jctsh-core",
+                "category":  "System",
+                "message":   "Watchdog: alive."
+            })
+            _mqtt_client.publish(HEARTBEAT_TOPIC, payload)
+        time.sleep(HEARTBEAT_INTERVAL)
+
+
 # ── MQTT thread ───────────────────────────────────────────────────────────────
 def _mqtt_thread():
+    global _mqtt_client
     try:
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
     except AttributeError:
@@ -223,6 +241,7 @@ def _mqtt_thread():
     client.on_message = _on_message
     client.username_pw_set(MQTT_USER, MQTT_PASS)
     client.reconnect_delay_set(min_delay=1, max_delay=30)
+    _mqtt_client = client
     while True:
         try:
             client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
@@ -237,6 +256,7 @@ if __name__ == "__main__":
     print(f"[JCTsh] Log server starting — MQTT {MQTT_BROKER}:{MQTT_PORT}, HTTP :{HTTP_PORT}")
     t = threading.Thread(target=_mqtt_thread, daemon=True)
     t.start()
+    threading.Thread(target=_heartbeat_thread, daemon=True).start()
     httpd = HTTPServer(("", HTTP_PORT), _Handler)
     print("[JCTsh] Dashboard at http://JCTsh.local/")
     try:

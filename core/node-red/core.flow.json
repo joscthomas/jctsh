@@ -1,0 +1,30 @@
+[
+  {
+    "id": "mqtt_broker",
+    "type": "mqtt-broker",
+    "name": "Mosquitto (Pi)",
+    "broker": "localhost",
+    "port": "1883",
+    "clientid": "nodered-saltlevel",
+    "autoConnect": true,
+    "usetls": false,
+    "compatmode": false,
+    "protocolVersion": 4,
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthPayload": "",
+    "birthMsg": {},
+    "closeTopic": "",
+    "closePayload": "",
+    "closeMsg": {},
+    "willTopic": "",
+    "willQos": "0",
+    "willPayload": "",
+    "willMsg": {},
+    "userProps": "",
+    "sessionExpiry": ""
+  }
+]

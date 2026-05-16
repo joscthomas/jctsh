@@ -1,0 +1,9 @@
+# Credentials - never commit these 
+secrets.h 
+# Arduino build artifacts 
+build/ 
+*.bin 
+*.elf 
+# OS files 
+.DS_Store 
+Thumbs.db 

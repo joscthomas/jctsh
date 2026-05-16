@@ -1,0 +1,251 @@
+[
+  {
+    "id": "tab_saltlevel",
+    "type": "tab",
+    "label": "Salt Level Sensor",
+    "disabled": false,
+    "info": "Receives ESP32 salt sensor readings via MQTT, applies alert thresholds, controls SmartThings virtual switches via Home Assistant REST API, and handles test mode and reset."
+  },
+
+  {
+    "id": "mqtt_in_reading",
+    "type": "mqtt in",
+    "z": "tab_saltlevel",
+    "name": "jctsh/sensors/salt-sensor/data",
+    "topic": "jctsh/sensors/salt-sensor/data",
+    "qos": "1",
+    "datatype": "json",
+    "broker": "mqtt_broker",
+    "x": 120,
+    "y": 100,
+    "wires": [["fn_threshold"]]
+  },
+
+  {
+    "id": "fn_threshold",
+    "type": "function",
+    "z": "tab_saltlevel",
+    "name": "Threshold logic",
+    "func": "const WARNING_PERCENT  = 33.0;\nconst CRITICAL_PERCENT = 15.0;\n\nconst percent  = msg.payload.percent;\nconst distance = msg.payload.distance_cm;\n\nlet criticalSent = flow.get('criticalSent') || false;\nlet warningSent  = flow.get('warningSent')  || false;\nlet testMode     = flow.get('testMode')     || false;\n\nif (testMode && !msg._fromTest) {\n    return null;\n}\nif (msg._fromTest && !testMode) {\n    return null;\n}\n\nnode.status({ fill: 'blue', shape: 'dot',\n    text: `${percent}% / ${distance}cm` });\n\nlet status = 'ok';\nlet haCommands = [];\nlet notifyMessages = [];\n\nif (percent < CRITICAL_PERCENT) {\n    status = 'critical';\n    if (!criticalSent) {\n        haCommands.push({ entity: 'switch.salt_critical_alert', state: true });\n        criticalSent = true;\n        node.warn('CRITICAL alert sent');\n        notifyMessages.push({ payload: `CRITICAL — salt at ${percent}%. Alert sent to SmartThings.` });\n    }\n    if (warningSent) {\n        haCommands.push({ entity: 'switch.salt_low_alert', state: false });\n        warningSent = false;\n        notifyMessages.push({ payload: '[System] Warning alert cleared.' });\n    }\n} else if (percent <= WARNING_PERCENT) {\n    status = 'warning';\n    if (!warningSent) {\n        haCommands.push({ entity: 'switch.salt_low_alert', state: true });\n        warningSent = true;\n        node.warn('WARNING alert sent');\n        notifyMessages.push({ payload: `WARNING — salt at ${percent}%. Alert sent to SmartThings.` });\n    }\n    if (criticalSent) {\n        haCommands.push({ entity: 'switch.salt_critical_alert', state: false });\n        criticalSent = false;\n        notifyMessages.push({ payload: '[System] Critical alert cleared.' });\n    }\n} else {\n    if (criticalSent) {\n        haCommands.push({ entity: 'switch.salt_critical_alert', state: false });\n        criticalSent = false;\n        notifyMessages.push({ payload: '[System] Critical alert cleared — salt level OK.' });\n    }\n    if (warningSent) {\n        haCommands.push({ entity: 'switch.salt_low_alert', state: false });\n        warningSent = false;\n        notifyMessages.push({ payload: '[System] Warning alert cleared — salt level OK.' });\n    }\n}\n\nflow.set('criticalSent', criticalSent);\nflow.set('warningSent',  warningSent);\n\nconst statusMsg = { payload: status, topic: 'jctsh/sensors/salt-sensor/status' };\nconst haMessages = haCommands.map(cmd => ({ payload: cmd }));\n\nreturn [statusMsg, haMessages.length > 0 ? haMessages : null, notifyMessages.length > 0 ? notifyMessages : null];",
+    "outputs": 3,
+    "x": 340,
+    "y": 100,
+    "wires": [["mqtt_out_status"], ["fn_ha_command"], ["fn_format_log"]]
+  },
+
+  {
+    "id": "mqtt_out_status",
+    "type": "mqtt out",
+    "z": "tab_saltlevel",
+    "name": "jctsh/sensors/salt-sensor/status",
+    "topic": "jctsh/sensors/salt-sensor/status",
+    "qos": "1",
+    "retain": "true",
+    "broker": "mqtt_broker",
+    "x": 600,
+    "y": 60,
+    "wires": []
+  },
+
+  {
+    "id": "fn_format_log",
+    "type": "function",
+    "z": "tab_saltlevel",
+    "name": "Format log message",
+    "func": "const text = String(msg.payload);\n\nlet category = 'System';\nlet message = text;\n\nif (text.startsWith('[TEST]')) {\n    category = 'Test';\n    message = text.slice(7).trim();\n} else if (text.startsWith('[ERROR]')) {\n    category = 'System';\n    message = text.slice(8).trim();\n} else if (text.startsWith('[System]')) {\n    category = 'System';\n    message = text.slice(9).trim();\n} else if (text.startsWith('[MQTT]')) {\n    category = 'MQTT';\n    message = text.slice(7).trim();\n} else if (text.indexOf('CRITICAL') >= 0 || text.indexOf('WARNING') >= 0) {\n    category = 'Alert';\n}\n\nmsg.payload = JSON.stringify({\n    component: 'salt-sensor',\n    category: category,\n    message: message\n});\nreturn msg;",
+    "outputs": 1,
+    "x": 420,
+    "y": 200,
+    "wires": [["mqtt_out_log"]]
+  },
+
+  {
+    "id": "mqtt_out_log",
+    "type": "mqtt out",
+    "z": "tab_saltlevel",
+    "name": "jctsh/sensors/salt-sensor/log",
+    "topic": "jctsh/sensors/salt-sensor/log",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker",
+    "x": 620,
+    "y": 200,
+    "wires": []
+  },
+
+  {
+    "id": "fn_ha_command",
+    "type": "function",
+    "z": "tab_saltlevel",
+    "name": "Build HA request",
+    "func": "const HA_URL   = 'http://localhost:8123';\nconst HA_TOKEN = env.get('HA_TOKEN') || flow.get('haToken') || global.get('haToken');\n\nconst cmd    = msg.payload;\nconst action = cmd.state ? 'turn_on' : 'turn_off';\n\nmsg.url     = `${HA_URL}/api/services/switch/${action}`;\nmsg.method  = 'POST';\nmsg.headers = {\n    'Authorization': 'Bearer ' + HA_TOKEN,\n    'Content-Type': 'application/json'\n};\nmsg.payload = JSON.stringify({ entity_id: cmd.entity });\nreturn msg;",
+    "outputs": 1,
+    "x": 580,
+    "y": 140,
+    "wires": [["http_ha"]]
+  },
+
+  {
+    "id": "http_ha",
+    "type": "http request",
+    "z": "tab_saltlevel",
+    "name": "HA REST API",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "x": 790,
+    "y": 140,
+    "wires": [["fn_ha_log"]]
+  },
+
+  {
+    "id": "fn_ha_log",
+    "type": "function",
+    "z": "tab_saltlevel",
+    "name": "Log HA response",
+    "func": "if (msg.statusCode !== 200 && msg.statusCode !== 207) {\n    node.warn('HA API error ' + msg.statusCode + ': ' + msg.payload);\n    return [null, { payload: '[ERROR] HA API error ' + msg.statusCode + ' — alerts may not have reached SmartThings.' }];\n}\nreturn null;",
+    "outputs": 2,
+    "x": 1010,
+    "y": 140,
+    "wires": [[], ["fn_format_log"]]
+  },
+
+  {
+    "id": "comment_testmode",
+    "type": "comment",
+    "z": "tab_saltlevel",
+    "name": "── Test Mode ──────────────────────────────────────────",
+    "info": "",
+    "x": 200,
+    "y": 260,
+    "wires": []
+  },
+
+  {
+    "id": "inject_ha_poll",
+    "type": "inject",
+    "z": "tab_saltlevel",
+    "name": "Poll HA switches (60s)",
+    "props": [{"p": "payload"}],
+    "repeat": "60",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "5",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 150,
+    "y": 320,
+    "wires": [["fn_poll_ha"]]
+  },
+
+  {
+    "id": "fn_poll_ha",
+    "type": "function",
+    "z": "tab_saltlevel",
+    "name": "Build HA poll requests",
+    "func": "const HA_URL   = 'http://localhost:8123';\nconst HA_TOKEN = env.get('HA_TOKEN') || flow.get('haToken') || global.get('haToken');\n\nconst headers = {\n    'Authorization': 'Bearer ' + HA_TOKEN\n};\n\nreturn [\n    { payload: null, url: `${HA_URL}/api/states/switch.salt_test_mode`,\n      method: 'GET', headers, _check: 'testmode' },\n    { payload: null, url: `${HA_URL}/api/states/switch.salt_full_reset`,\n      method: 'GET', headers, _check: 'reset' }\n];",
+    "outputs": 1,
+    "x": 390,
+    "y": 320,
+    "wires": [["http_ha_poll"]]
+  },
+
+  {
+    "id": "http_ha_poll",
+    "type": "http request",
+    "z": "tab_saltlevel",
+    "name": "HA state GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "x": 620,
+    "y": 320,
+    "wires": [["fn_handle_poll"]]
+  },
+
+  {
+    "id": "fn_handle_poll",
+    "type": "function",
+    "z": "tab_saltlevel",
+    "name": "Handle HA poll response",
+    "func": "if (msg.statusCode !== 200) return null;\n\nconst state = msg.payload.state;\nconst check = msg._check;\n\nif (check === 'testmode') {\n    const wasOn = flow.get('testMode') || false;\n    const isOn  = (state === 'on');\n    if (isOn !== wasOn) {\n        flow.set('testMode', isOn);\n        node.warn('Test mode: ' + (isOn ? 'ON' : 'OFF'));\n        if (!isOn) {\n            flow.set('testStep', 0);\n            flow.set('criticalSent', false);\n            flow.set('warningSent', false);\n            node.warn('Test mode OFF — clearing HA alert switches, publishing ok to ESP32');\n            node.status({ fill: 'grey', shape: 'ring', text: 'test mode off' });\n            return [\n                { payload: 'reset' },\n                { payload: 'ok', topic: 'jctsh/sensors/salt-sensor/status' },\n                [\n                    { payload: '[System] ─────────────────────────────────────' },\n                    { payload: '[System] TEST MODE OFF' },\n                    { payload: '[System] Normal operational mode restored.' },\n                    { payload: '[System] Readings resume on 12-hour schedule.' },\n                    { payload: '[System] ─────────────────────────────────────' }\n                ]\n            ];\n        }\n        node.status({ fill: 'blue', shape: 'dot', text: 'test mode on' });\n        return [null, null, { payload: '[TEST] TEST MODE ON — simulating salt levels at 1s intervals' }];\n    }\n\n} else if (check === 'reset') {\n    const alertActive = flow.get('criticalSent') || flow.get('warningSent');\n    if (state === 'on' && alertActive) {\n        node.warn('Reset switch ON — triggering alert cleanup');\n        return [{ payload: 'reset' }, null, null];\n    }\n}\n\nreturn null;",
+    "outputs": 3,
+    "x": 860,
+    "y": 320,
+    "wires": [["fn_reset"], ["mqtt_out_status"], ["fn_format_log"]]
+  },
+
+  {
+    "id": "comment_testinject",
+    "type": "comment",
+    "z": "tab_saltlevel",
+    "name": "── Test Mode Injection ─────────────────────────────────",
+    "info": "",
+    "x": 210,
+    "y": 400,
+    "wires": []
+  },
+
+  {
+    "id": "inject_test",
+    "type": "inject",
+    "z": "tab_saltlevel",
+    "name": "Test cycle (1s)",
+    "props": [{"p": "payload"}],
+    "repeat": "1",
+    "crontab": "",
+    "once": false,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 130,
+    "y": 460,
+    "wires": [["fn_test_inject"]]
+  },
+
+  {
+    "id": "fn_test_inject",
+    "type": "function",
+    "z": "tab_saltlevel",
+    "name": "Simulate test reading",
+    "func": "if (!flow.get('testMode')) return null;\n\nconst step = flow.get('testStep') || 0;\nif (step >= 2) return null;\n\nconst FULL  = 20.4;\nconst EMPTY = 43.0;\n\nlet distance, label;\nif (step === 0) {\n    distance = 37.0;\n    label = 'Step 1/2: WARNING zone';\n} else {\n    distance = 43.0;\n    label = 'Step 2/2: CRITICAL zone';\n}\n\nconst percent = Math.round(100 * (EMPTY - distance) / (EMPTY - FULL));\nflow.set('testStep', step + 1);\n\nnode.warn(`TEST MODE ${label} — ${percent}%`);\n\nreturn [\n    { payload: { distance_cm: distance, percent: percent }, _fromTest: true },\n    { payload: `[TEST] ${label} — ${distance.toFixed(1)}cm / ${percent}%` }\n];",
+    "outputs": 2,
+    "x": 340,
+    "y": 460,
+    "wires": [["fn_threshold"], ["fn_format_log"]]
+  },
+
+  {
+    "id": "comment_reset",
+    "type": "comment",
+    "z": "tab_saltlevel",
+    "name": "── Reset / Refill ──────────────────────────────────────",
+    "info": "",
+    "x": 200,
+    "y": 540,
+    "wires": []
+  },
+
+  {
+    "id": "fn_reset",
+    "type": "function",
+    "z": "tab_saltlevel",
+    "name": "Handle reset",
+    "func": "const HA_URL   = 'http://localhost:8123';\nconst HA_TOKEN = env.get('HA_TOKEN') || flow.get('haToken') || global.get('haToken');\n\nconst headers = {\n    'Authorization': 'Bearer ' + HA_TOKEN,\n    'Content-Type': 'application/json'\n};\n\nflow.set('criticalSent', false);\nflow.set('warningSent',  false);\nnode.warn('Reset triggered - clearing all alerts');\n\nreturn [\n    [\n        { payload: JSON.stringify({ entity_id: 'switch.salt_critical_alert' }),\n          url: `${HA_URL}/api/services/switch/turn_off`,\n          method: 'POST', headers },\n        { payload: JSON.stringify({ entity_id: 'switch.salt_low_alert' }),\n          url: `${HA_URL}/api/services/switch/turn_off`,\n          method: 'POST', headers },\n        { payload: JSON.stringify({ entity_id: 'switch.salt_full_reset' }),\n          url: `${HA_URL}/api/services/switch/turn_off`,\n          method: 'POST', headers }\n    ],\n    { payload: '[System] Reset acknowledged — all alerts cleared.' }\n];",
+    "outputs": 2,
+    "x": 340,
+    "y": 600,
+    "wires": [["http_ha"], ["fn_format_log"]]
+  }
+]

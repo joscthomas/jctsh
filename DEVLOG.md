@@ -14,7 +14,9 @@ End-to-end verification completed. Fixed log_server.py missing MQTT credentials
 (MQTT_USER/MQTT_PASS + username_pw_set) — broker requires auth. Sketch moved into
 matching subfolder (Arduino IDE requirement). Confirmed: ESP publishes to new topics,
 Node-RED responds with status, log dashboard displays messages, Pi reboot survival
-verified. JCTsh.local mDNS alias deferred — use http://raspberrypi.local/ for now.
+verified. JCTsh.local mDNS alias closed out — Avahi CNAME not supported on this Pi;
+address record causes local name collision; cosmetic value not worth the complexity.
+Use http://raspberrypi.local/ for the dashboard.
 
 Added hourly watchdog heartbeat to log_server.py. Publishes
 {"component":"jctsh-core","category":"System","message":"Watchdog: alive."} to

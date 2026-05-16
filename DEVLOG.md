@@ -22,3 +22,8 @@ Added hourly watchdog heartbeat to log_server.py. Publishes
 {"component":"jctsh-core","category":"System","message":"Watchdog: alive."} to
 jctsh/core/log-server/log every hour — confirms log server and MQTT broker are alive
 between 12-hour sensor readings. Core infrastructure concern, not salt-sensor specific.
+
+Confirmed Home Assistant is the SmartThings bridge — no other path exists. HA is
+connected with the SmartThings integration active. Salt sensor switches verified as
+HA entities synced to SmartThings. All future components requiring SmartThings alerts
+or control must route through Node-RED → HA REST API → SmartThings integration.

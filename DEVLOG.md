@@ -27,3 +27,11 @@ Confirmed Home Assistant is the SmartThings bridge — no other path exists. HA 
 connected with the SmartThings integration active. Salt sensor switches verified as
 HA entities synced to SmartThings. All future components requiring SmartThings alerts
 or control must route through Node-RED → HA REST API → SmartThings integration.
+
+Added Garage Presence component (components/garage-presence/). HA-only — no ESP32,
+no Node-RED. Two HA helpers created via UI: timer.garage_presence_timer (countdown)
+and input_number.garage_timer_duration (duration in minutes, default 20). Two
+automations: restart timer on any garage activity (motion/door/cam); on expiry turn
+off Garage Presence Vswitch and optionally trigger garage door close if auto-close
+enabled and door is open. ST Garage Timer Duration dimmer (49a4fa15) had no HA
+entities — replaced by input_number helper. Automations pending live test.

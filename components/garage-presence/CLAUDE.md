@@ -79,6 +79,37 @@ actions:
 mode: single
 ```
 
+**Garage Presence - Sync timer to vswitch** (`mode: single`)
+
+Ensures the timer is always running when the Garage Presence Vswitch is on. Covers
+two cases: vswitch turned on externally (e.g. by a SmartThings routine), and HA
+restarting with the vswitch already on. Conditions prevent interference when
+Automation 1 has already started the timer.
+
+```yaml
+alias: Garage Presence - Sync timer to vswitch
+triggers:
+  - entity_id: switch.garage_presence_vswitch
+    to: "on"
+    trigger: state
+  - trigger: homeassistant
+    event: start
+conditions:
+  - condition: state
+    entity_id: switch.garage_presence_vswitch
+    state: "on"
+  - condition: state
+    entity_id: timer.garage_presence_timer
+    state: idle
+actions:
+  - target:
+      entity_id: timer.garage_presence_timer
+    data:
+      duration: "{{ (states('input_number.garage_timer_duration') | int) * 60 }}"
+    action: timer.start
+mode: single
+```
+
 ## Adding More Triggers
 Edit the automation in HA UI → Edit in YAML → add a new `state` trigger entry.
 

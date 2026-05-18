@@ -29,7 +29,7 @@ Both created via HA UI (Settings → Devices & Services → Helpers). Not in con
 |---|---|---|---|
 | Garage Sensor (motion) | eae7580a-66cb-476f-b5a5-f0672b2a76aa | `binary_sensor.garage_motion_motion` | Trigger ✅ |
 | Back Door Sensor (door) | 15597627-aec7-4e51-baec-7d106c7ee092 | `binary_sensor.back_door_door` | Trigger ✅ |
-| Garage Cam (motion) | b11a8e19-87da-4ca3-b062-a8a95254548b | `binary_sensor.garage_cam_motion` | Trigger (cam sensitivity issue — wired up, unreliable) |
+| Garage Cam (motion) | b11a8e19-87da-4ca3-b062-a8a95254548b | `binary_sensor.garage_cam_motion` | Trigger (PIR heat detector — unreliable when garage is hot; Arizona summers may cause false negatives) |
 
 Note: Garage Timer Duration (ST 49a4fa15-940d-45e8-a644-acbd4c0d3b67) was not exposed
 as an HA entity by the SmartThings integration. Replaced by `input_number.garage_timer_duration`.

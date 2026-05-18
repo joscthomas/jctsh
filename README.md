@@ -4,6 +4,8 @@ Joseph C Thomas | Tucson, AZ
 A monorepo for JCT smart home automation components running on
 Raspberry Pi with MQTT, Node-RED, and a centralized Python log server.
 
+See [ENVIRONMENT.md](./ENVIRONMENT.md) for the full smart home device inventory.
+
 ## Components
 - [salt-sensor](./components/salt-sensor/) — Water softener salt level sensor
 - [garage-presence](./components/garage-presence/) — Garage presence countdown timer (HA-only)

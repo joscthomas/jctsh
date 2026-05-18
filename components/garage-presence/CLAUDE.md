@@ -1,19 +1,20 @@
 # Garage Presence — Component Context
 
-HA-only component. No ESP32, no Node-RED. Automatically closes the garage door when
-no activity has been detected for a configurable duration.
+HA-only component. No ESP32, no Node-RED. Tracks presence in the garage by running
+a countdown timer that resets on any activity. The timer expiry signal is available
+to other automations via `timer.garage_presence_timer` — what happens on expiry is
+intentionally decoupled from this component.
 See `jctsh/CLAUDE.md` for monorepo-wide conventions.
 
 ## Architecture
-- **Home Assistant** runs the countdown timer and automations
-- **SmartThings** provides trigger sensors and receives output signals via virtual switches
+- **Home Assistant** runs the countdown timer and automation
+- **SmartThings** provides trigger sensors
 - Path to SmartThings: HA REST API → SmartThings integration (see jctsh/CLAUDE.md)
 
 ## How It Works
 1. Any garage activity (motion, door, camera) restarts the HA timer
 2. Timer duration is read from `input_number.garage_timer_duration` (default 20 min)
-3. When timer expires: Garage Presence Vswitch is turned off; if auto-close is enabled
-   and the door is open, the garage door is triggered to close
+3. Timer expiry is available as a `timer.finished` event — consumed by other automations
 
 ## HA Helpers
 | Helper | Entity ID | Purpose |
@@ -26,37 +27,63 @@ Both created via HA UI (Settings → Devices & Services → Helpers). Not in con
 ## SmartThings Devices
 | Device | ST ID | HA Entity ID | Role |
 |---|---|---|---|
-| Garage Sensor | eae7580a-66cb-476f-b5a5-f0672b2a76aa | `binary_sensor.garage_motion_motion` | Trigger |
-| Garage Door Sensor | 15597627-aec7-4e51-baec-7d106c7ee092 | `binary_sensor.garage_door_sensor_door` | Trigger |
-| Garage Cam | b11a8e19-87da-4ca3-b062-a8a95254548b | `binary_sensor.garage_cam_motion` | Trigger |
-| Garage Presence Vswitch | a3185dc5-13c1-4a64-85b5-4784312baa72 | `switch.garage_presence_vswitch` | Output — turned off on expiry |
-| Garage Door Auto Close Enable | 284c6997-af09-4be7-9d39-e03ab7f8190a | `switch.garage_door_auto_close_enable_vswitch` | Gate — must be on to auto-close |
-| Garage Door Open Vswitch | c3edbefa-e4fe-494a-aeca-01282bd4cbb4 | `switch.garage_door_open_vswitch` | Gate — must be on to auto-close |
-| Open/Close Garage Door | 89d71ace-151d-41aa-866f-0290e22bfb91 | `switch.open_close_garage_door` | Output — triggered to close door |
+| Garage Sensor (motion) | eae7580a-66cb-476f-b5a5-f0672b2a76aa | `binary_sensor.garage_motion_motion` | Trigger ✅ |
+| Back Door Sensor (door) | 15597627-aec7-4e51-baec-7d106c7ee092 | `binary_sensor.back_door_door` | Trigger ✅ |
+| Garage Cam (motion) | b11a8e19-87da-4ca3-b062-a8a95254548b | `binary_sensor.garage_cam_motion` | Trigger (cam sensitivity issue — wired up, unreliable) |
 
 Note: Garage Timer Duration (ST 49a4fa15-940d-45e8-a644-acbd4c0d3b67) was not exposed
 as an HA entity by the SmartThings integration. Replaced by `input_number.garage_timer_duration`.
+
+Note: `binary_sensor.garage_door_sensor_door` was the originally assumed HA entity ID
+for the door sensor — the actual entity is `binary_sensor.back_door_door`.
 
 ## HA Automations
 Both created via HA UI (Settings → Automations & Scenes → Edit in YAML).
 
 **Garage Presence - Restart timer on activity** (`mode: restart`)
-- Triggers: any of the 3 sensors above
-- Action: `timer.start` with duration from `input_number.garage_timer_duration`
+```yaml
+alias: Garage Presence - Restart timer on activity
+triggers:
+  - entity_id: binary_sensor.garage_motion_motion
+    to: "on"
+    trigger: state
+  - entity_id: binary_sensor.back_door_door
+    trigger: state
+  - entity_id: binary_sensor.garage_cam_motion
+    to: "on"
+    trigger: state
+actions:
+  - target:
+      entity_id: timer.garage_presence_timer
+    data:
+      duration: "{{ (states('input_number.garage_timer_duration') | int) * 60 }}"
+    action: timer.start
+  - action: switch.turn_on
+    target:
+      entity_id: switch.garage_presence_vswitch
+mode: restart
+```
 
 **Garage Presence - Timer expired** (`mode: single`)
-- Trigger: `timer.finished` event on `timer.garage_presence_timer`
-- Action: turn off `switch.garage_presence_vswitch`; if auto-close enabled and door
-  open, turn on `switch.open_close_garage_door`
+```yaml
+alias: Garage Presence - Timer expired
+triggers:
+  - event_type: timer.finished
+    event_data:
+      entity_id: timer.garage_presence_timer
+    trigger: event
+actions:
+  - action: switch.turn_off
+    target:
+      entity_id: switch.garage_presence_vswitch
+mode: single
+```
 
 ## Adding More Triggers
-To add more devices to Automation 1, edit the automation in HA UI and add a new
-`state` trigger with the device's HA entity ID.
+Edit the automation in HA UI → Edit in YAML → add a new `state` trigger entry.
 
 ## Testing
-1. Set `input_number.garage_timer_duration` to `1` (1 minute)
-2. Trigger any sensor
-3. Developer Tools → States → filter `timer.garage_presence_timer` → confirm `active`
-4. To force expiry without waiting: Developer Tools → Services → `timer.finish` →
-   `timer.garage_presence_timer`
-5. Confirm `switch.garage_presence_vswitch` turned off in SmartThings
+1. Set `input_number.garage_timer_duration` to `3` in Developer Tools → States
+2. Trigger back door or motion sensor
+3. Confirm timer card on Overview dashboard starts at 3 minutes
+4. To force expiry: Developer Tools → Actions → `timer.finish` → `timer.garage_presence_timer`

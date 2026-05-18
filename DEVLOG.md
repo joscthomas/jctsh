@@ -30,8 +30,17 @@ or control must route through Node-RED → HA REST API → SmartThings integrati
 
 Added Garage Presence component (components/garage-presence/). HA-only — no ESP32,
 no Node-RED. Two HA helpers created via UI: timer.garage_presence_timer (countdown)
-and input_number.garage_timer_duration (duration in minutes, default 20). Two
-automations: restart timer on any garage activity (motion/door/cam); on expiry turn
-off Garage Presence Vswitch and optionally trigger garage door close if auto-close
-enabled and door is open. ST Garage Timer Duration dimmer (49a4fa15) had no HA
-entities — replaced by input_number helper. Automations pending live test.
+and input_number.garage_timer_duration (duration in minutes, default 20). ST Garage
+Timer Duration dimmer (49a4fa15) had no HA entities — replaced by input_number helper.
+
+## 2026-05-18
+Garage Presence component tested and refined. Automation 1 (restart timer on activity)
+confirmed working with back door sensor and garage motion sensor. Garage cam trigger
+wired up but unreliable due to cam sensitivity — left in place. Correct HA entity for
+door sensor is binary_sensor.back_door_door (not binary_sensor.garage_door_sensor_door
+as originally assumed). Timer duration template fixed — seconds formula used instead
+of HH:MM:SS to avoid zero-padding issues.
+
+Automation 2 (timer expiry → turn off Garage Presence Vswitch + auto-close door)
+removed by design — garage door control intentionally decoupled from presence detection.
+Timer expiry signal available via timer.finished event for future automations to consume.

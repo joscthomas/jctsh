@@ -6,8 +6,7 @@ Tucson, AZ | Joseph C Thomas
 | Device | Role |
 |---|---|
 | SmartThings Hub | Primary smart home controller — manages Zigbee, Z-Wave, and virtual switches |
-| Raspberry Pi 3B+ | JCTsh automation server — runs Mosquitto, Node-RED, Home Assistant (Docker), Python log server |
-| Home Assistant | SmartThings bridge; runs in Docker on Pi |
+| Raspberry Pi 3B+ | JCTsh automation server — see [CLAUDE.md](./CLAUDE.md) for services, ports, and access |
 
 ## Lighting & Power
 - Zigbee and Z-Wave switches and plug adapters throughout the home
@@ -72,8 +71,4 @@ Tucson, AZ | Joseph C Thomas
 - **Control system:** Firefly network
 
 ## JCTsh Custom Components
-| Component | Hardware | Description |
-|---|---|---|
-| salt-sensor | ESP32 + JSN-SR04T ultrasonic | Water softener salt level monitor — see `components/salt-sensor/` |
-| garage-presence | HA timer + SmartThings sensors | Garage presence countdown timer — see `components/garage-presence/` |
-| automatic-garage-door-opener-closer | Zigbee switch + CreaCity remote | Automated garage door control — see `components/automatic-garage-door-opener-closer/` |
+See [README.md](./README.md) for the full component list.

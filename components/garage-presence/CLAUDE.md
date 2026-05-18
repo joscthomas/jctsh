@@ -82,8 +82,24 @@ mode: single
 ## Adding More Triggers
 Edit the automation in HA UI → Edit in YAML → add a new `state` trigger entry.
 
+## Setting the Timer Duration
+The timer reads `input_number.garage_timer_duration` at the moment a trigger fires.
+Changing the value takes effect on the next trigger — it does not affect a currently
+running timer.
+
+To set the duration:
+1. **Settings → Devices & Services → Helpers → Garage Timer Duration** → adjust value, or
+2. **Developer Tools → States** → filter `input_number.garage_timer_duration` → click the
+   entity → type the new value → **Set State**
+
+If the Overview card shows a different value than Developer Tools → States, trust the
+States view — the card can lag. Use Set State to force the correct value.
+
+To change the duration of a currently running timer, cancel it first (Developer Tools →
+Actions → `timer.cancel` → `timer.garage_presence_timer`), then re-trigger a sensor.
+
 ## Testing
-1. Set `input_number.garage_timer_duration` to `3` in Developer Tools → States
+1. Set `input_number.garage_timer_duration` to `3` via Developer Tools → States → Set State
 2. Trigger back door or motion sensor
 3. Confirm timer card on Overview dashboard starts at 3 minutes
 4. To force expiry: Developer Tools → Actions → `timer.finish` → `timer.garage_presence_timer`

@@ -27,9 +27,9 @@ Both created via HA UI (Settings → Devices & Services → Helpers). Not in con
 ## SmartThings Devices
 | Device | ST ID | HA Entity ID | Role |
 |---|---|---|---|
-| Garage Sensor (motion) | eae7580a-66cb-476f-b5a5-f0672b2a76aa | `binary_sensor.garage_motion_motion` | Trigger ✅ |
-| Back Door Sensor (door) | 15597627-aec7-4e51-baec-7d106c7ee092 | `binary_sensor.back_door_door` | Trigger ✅ |
-| Garage Cam (motion) | b11a8e19-87da-4ca3-b062-a8a95254548b | `binary_sensor.garage_cam_motion` | Trigger (PIR heat detector — unreliable when garage is hot; Arizona summers may cause false negatives) |
+| Garage Sensor (motion) | eae7580a-66cb-476f-b5a5-f0672b2a76aa | `binary_sensor.garage_motion_motion` | Trigger ✅ — PIR heat detector; may stay stuck `on` in hot Arizona summers, preventing `off`→`on` transition trigger from firing |
+| Back Door Sensor (door) | 15597627-aec7-4e51-baec-7d106c7ee092 | `binary_sensor.back_door_door` | Trigger — SmartThings → HA sync unreliable for real-time state triggers; state_changed events fire but automation trigger doesn't always catch them |
+| Garage Cam (motion) | b11a8e19-87da-4ca3-b062-a8a95254548b | `binary_sensor.garage_cam_motion` | Trigger — PIR heat detector; unreliable in hot garage (same issue as motion sensor) |
 
 Note: Garage Timer Duration (ST 49a4fa15-940d-45e8-a644-acbd4c0d3b67) was not exposed
 as an HA entity by the SmartThings integration. Replaced by `input_number.garage_timer_duration`.
@@ -37,8 +37,14 @@ as an HA entity by the SmartThings integration. Replaced by `input_number.garage
 Note: `binary_sensor.garage_door_sensor_door` was the originally assumed HA entity ID
 for the door sensor — the actual entity is `binary_sensor.back_door_door`.
 
+## Architecture Decision — HA Owns Presence
+HA is the sole manager of `switch.garage_presence_vswitch`. SmartThings routines must
+NOT turn on the Garage Presence Vswitch directly — the SmartThings → HA sync is
+unreliable for real-time state triggers, so HA would not detect the change. All
+presence state changes flow through HA automations only.
+
 ## HA Automations
-Both created via HA UI (Settings → Automations & Scenes → Edit in YAML).
+All created via HA UI (Settings → Automations & Scenes → Edit in YAML).
 
 **Garage Presence - Restart timer on activity** (`mode: restart`)
 ```yaml
@@ -81,10 +87,9 @@ mode: single
 
 **Garage Presence - Sync timer to vswitch** (`mode: single`)
 
-Ensures the timer is always running when the Garage Presence Vswitch is on. Covers
-two cases: vswitch turned on externally (e.g. by a SmartThings routine), and HA
-restarting with the vswitch already on. Conditions prevent interference when
-Automation 1 has already started the timer.
+Recovery automation for HA restart only. If HA restarts while the Garage Presence
+Vswitch is on and the timer is idle, this starts the timer. The vswitch-on trigger
+is not used for real-time SmartThings events (ST → HA sync is unreliable).
 
 ```yaml
 alias: Garage Presence - Sync timer to vswitch

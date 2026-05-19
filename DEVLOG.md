@@ -44,3 +44,14 @@ of HH:MM:SS to avoid zero-padding issues.
 Automation 2 (timer expiry → turn off Garage Presence Vswitch + auto-close door)
 removed by design — garage door control intentionally decoupled from presence detection.
 Timer expiry signal available via timer.finished event for future automations to consume.
+
+## 2026-05-18 (continued)
+Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage
+Presence Vswitch) and Automation 3 (sync timer to vswitch — HA restart recovery).
+Discovered SmartThings → HA sync is unreliable for real-time state triggers: virtual
+switch and sensor state changes made in SmartThings do not reliably reach HA's event
+system. Adopted Option A: HA owns Garage Presence Vswitch exclusively — no SmartThings
+routines may turn it on. Removed ST routine that turned on vswitch on back door open.
+PIR sensors (garage motion, garage cam) unreliable in hot Arizona garage — stay stuck
+`on` preventing off→on transition triggers. Confirmed working in cooler morning
+temperatures.

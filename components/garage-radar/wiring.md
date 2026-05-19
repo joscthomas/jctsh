@@ -2,12 +2,17 @@
 
 ## Connection Table
 
-| LD2412 Pin | ESP32 Pin | Notes |
-|---|---|---|
-| VCC | 3.3V | Do NOT use 5V pin — 3.3V is sufficient and avoids level-shifting concerns |
-| GND | GND | Any GND pin on the ESP32 |
-| TX | GPIO16 (RX2) | LD2412 **transmits** → ESP32 **receives** |
-| RX | GPIO17 (TX2) | ESP32 **transmits** → LD2412 **receives** |
+| LD2412 Pin | ESP32 Pin       | Notes |
+|---|-----------------|---|
+| 5V | 5V (VIN) pin 19 | Module has onboard regulator — requires 5V input, not 3.3V |
+| GND | GND             | Any GND pin on the ESP32 |
+| TX | GPIO16 (RX2)    | LD2412 **transmits** → ESP32 **receives** |
+| RX | GPIO17 (TX2)    | ESP32 **transmits** → LD2412 **receives** |
+
+> **Power note:** The LD2412 module uses an onboard 5V→3.3V regulator. Power it from
+> the ESP32 5V (VIN) pin, which is connected to USB 5V when the ESP32 is powered via USB.
+> The UART TX/RX lines operate at 3.3V logic despite the 5V supply — no level shifter
+> is needed for GPIO16/17.
 
 > **TX/RX warning — most common wiring error:**
 > TX and RX labels are from the perspective of each device.
@@ -75,7 +80,7 @@ Place the LD2412 module in an open area of the breadboard, away from the ESP32.
 Leave enough space to route 4 wires cleanly.
 
 **3. Wire power first**
-- Red wire: LD2412 VCC → ESP32 3.3V rail
+- Red wire: LD2412 5V → ESP32 5V (VIN) pin
 - Black wire: LD2412 GND → ESP32 GND pin (or ground rail)
 
 **4. Wire UART**
@@ -84,7 +89,7 @@ Leave enough space to route 4 wires cleanly.
 
 **5. Visual verification before powering on**
 Before connecting USB, verify:
-- [ ] LD2412 VCC is connected to ESP32 3.3V (not 5V)
+- [ ] LD2412 5V is connected to ESP32 5V (VIN) pin
 - [ ] LD2412 GND is connected to ESP32 GND
 - [ ] LD2412 TX is connected to GPIO16 (labeled RX2)
 - [ ] LD2412 RX is connected to GPIO17 (labeled TX2)
@@ -99,7 +104,7 @@ typically labeled on the module silkscreen:
 
 | Label on module | Connect to |
 |---|---|
-| VCC or 3V3 | ESP32 3.3V |
+| 5V | ESP32 5V (VIN) |
 | GND | ESP32 GND |
 | TX | ESP32 GPIO16 (RX2) |
 | RX | ESP32 GPIO17 (TX2) |

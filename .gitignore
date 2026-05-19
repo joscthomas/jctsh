@@ -1,5 +1,7 @@
-# Credentials - never commit these 
-secrets.h 
+# Credentials - never commit these
+secrets.h
+secrets.yaml
+
 # Arduino build artifacts 
 build/ 
 *.bin 

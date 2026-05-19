@@ -1,0 +1,115 @@
+# JCTsh Garage Radar — ESPHome Configuration
+# Hardware: HLK-LD2412 24GHz mmWave radar + ESP32 DevKitC-32 (38-pin, CP2102 USB-C)
+# ESPHome version required: 2025.8.0 or later (first version with native ld2412 support)
+#
+# UART wiring (hardware UART2):
+#   LD2412 TX → ESP32 GPIO16 (RX2)
+#   LD2412 RX → ESP32 GPIO17 (TX2)
+#   LD2412 VCC → ESP32 3.3V
+#   LD2412 GND → ESP32 GND
+#
+# MQTT topics (prefix: jctsh/components/garage-radar):
+#   .../binary_sensor/presence/state         — has_target (primary presence signal)
+#   .../binary_sensor/moving_target/state    — has_moving_target
+#   .../binary_sensor/still_target/state     — has_still_target
+#   .../sensor/moving_distance/state         — cm
+#   .../sensor/still_distance/state          — cm
+#   .../sensor/moving_energy/state           — %
+#   .../sensor/still_energy/state            — %
+#   .../sensor/detection_distance/state      — cm
+#
+# Timeouts:
+#   30s  — ESPHome ld2412 timeout: smooths momentary radar detection gaps (sensor level)
+#   20m  — HA presence timeout: actual presence decision (automation level)
+
+esphome:
+  name: garage-radar
+  friendly_name: Garage Radar
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# ── WiFi ──────────────────────────────────────────────────────────────────────
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "garage-radar-fallback"
+    password: !secret ap_password
+
+captive_portal:
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logger:
+  level: INFO
+
+# ── OTA updates ───────────────────────────────────────────────────────────────
+# First flash: USB. All subsequent updates: OTA via ESPHome dashboard or CLI.
+#   esphome run garage-radar.yaml
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# ── MQTT ──────────────────────────────────────────────────────────────────────
+# Note: topic convention jctsh/components/garage-radar intentionally uses
+# "components" as the type segment for this multi-sensor ESPHome device.
+mqtt:
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  topic_prefix: jctsh/components/garage-radar
+  discovery: true
+  discovery_prefix: homeassistant
+
+# ── UART (hardware UART2) ─────────────────────────────────────────────────────
+# Do not use UART0 (USB) or UART1 (may conflict with flash).
+# TX/RX are from the perspective of each device — LD2412 TX → ESP32 RX.
+uart:
+  id: uart_ld2412
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 115200
+  parity: NONE
+  stop_bits: 1
+
+# ── LD2412 radar ──────────────────────────────────────────────────────────────
+# 30-second timeout smooths momentary detection gaps at the sensor level.
+# This is NOT the presence decision timeout — that is 20 minutes in HA.
+ld2412:
+  uart_id: uart_ld2412
+  timeout: 30s
+
+# ── Binary sensors ────────────────────────────────────────────────────────────
+binary_sensor:
+  - platform: ld2412
+    has_target:
+      name: "Presence"
+      id: presence
+      device_class: occupancy
+    has_moving_target:
+      name: "Moving Target"
+      id: moving_target
+    has_still_target:
+      name: "Still Target"
+      id: still_target
+
+# ── Numeric sensors ───────────────────────────────────────────────────────────
+sensor:
+  - platform: ld2412
+    moving_distance:
+      name: "Moving Distance"
+      unit_of_measurement: "cm"
+    still_distance:
+      name: "Still Distance"
+      unit_of_measurement: "cm"
+    moving_energy:
+      name: "Moving Energy"
+      unit_of_measurement: "%"
+    still_energy:
+      name: "Still Energy"
+      unit_of_measurement: "%"
+    detection_distance:
+      name: "Detection Distance"
+      unit_of_measurement: "cm"

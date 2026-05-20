@@ -136,6 +136,7 @@ Mosquitto requires auth (`allow_anonymous false`). Each component has its own ac
 |---|---|
 | `jctsh-log-server` | Python log server |
 | `nodered` | Node-RED |
+| `homeassistant` | Home Assistant MQTT integration |
 | `garage-radar` | garage-radar ESPHome device |
 | `salt-sensor` | salt-sensor ESP32 sketch |
 

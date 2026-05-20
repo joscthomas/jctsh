@@ -1,12 +1,15 @@
 # JCTsh — Monorepo Context
 
-Smart home automation monorepo. One component deployed: `salt-sensor`.
-See `components/<name>/CLAUDE.md` for component-specific context.
+Smart home automation monorepo. See `components/<name>/CLAUDE.md` for component-specific context.
 
 ## Repository Layout
 ```
 jctsh/
-├── components/salt-sensor/   — ESP32 water softener salt level sensor
+├── components/
+│   ├── salt-sensor/          — ESP32 water softener salt level sensor
+│   ├── garage-radar/         — 24GHz mmWave workbench presence radar (ESPHome + LD2412)
+│   ├── garage-presence/      — Garage presence countdown timer (HA-only)
+│   └── automatic-garage-door-opener-closer/  — Automated garage door
 └── core/
     ├── logging/              — Python MQTT log server (runs on Pi)
     ├── node-red/             — Node-RED settings + broker config (version control copies)
@@ -62,7 +65,7 @@ Every component produces two message streams:
 |---|---|---|
 | MQTT broker (Mosquitto) | `raspberrypi.local` | port 1883 |
 | Node-RED | `raspberrypi.local` | `http://raspberrypi.local:1880/` |
-| Log dashboard | `raspberrypi.local` | `http://raspberrypi.local/` |
+| Log dashboard | `raspberrypi.local` | `http://raspberrypi.local/` — requires Basic Auth (user: `jctsh`) |
 | Home Assistant | `raspberrypi.local` | `http://raspberrypi.local:8123/` |
 
 Pi primary hostname: `raspberrypi.local` — do not change. Fixed IP: `192.168.1.117` (DHCP reservation set on router). Use the IP directly if `.local` resolution fails.
@@ -122,6 +125,38 @@ switches (`switch.salt_critical_alert`, `switch.salt_low_alert`, `switch.salt_fu
 that need SmartThings alerts or control should follow the same pattern: create virtual
 switches in SmartThings, expose them as HA entities, control via Node-RED → HA REST API.
 
+## Credentials
+
+All credentials are kept off-disk and out of source control.
+
+### MQTT
+Mosquitto requires auth (`allow_anonymous false`). Each component has its own account:
+
+| Account | Used by |
+|---|---|
+| `jctsh-log-server` | Python log server |
+| `nodered` | Node-RED |
+| `garage-radar` | garage-radar ESPHome device |
+| `salt-sensor` | salt-sensor ESP32 sketch |
+
+Passwords are stored in:
+- **Log server** — `/etc/jctsh/log-server.env` on the Pi (injected via systemd `EnvironmentFile`)
+- **ESPHome components** — `components/<name>/secrets.yaml` (gitignored)
+- **Arduino components** — `components/<name>/secrets.h` (gitignored)
+- **Node-RED** — broker node credentials stored encrypted by Node-RED
+
+**Mosquitto passwd ownership gotcha:** `sudo mosquitto_passwd` resets `/etc/mosquitto/passwd` group to `root`. After any password change, run:
+```bash
+sudo chown root:mosquitto /etc/mosquitto/passwd
+sudo systemctl restart mosquitto
+```
+
+### Log Dashboard
+HTTP Basic Auth — username `jctsh`, password in `/etc/jctsh/log-server.env` as `DASHBOARD_PASS`.
+
+### SSH
+Passwordless SSH from this machine via key auth (`~/.ssh/id_ed25519`). Pi password is set but not needed for normal use — store it securely offline.
+
 ## Future Components
 Use **ESPHome YAML** (not Arduino C++) for new ESP-based components:
 1. Create `components/<name>/` with a `.yaml` file
@@ -129,3 +164,5 @@ Use **ESPHome YAML** (not Arduino C++) for new ESP-based components:
 3. Use MQTT namespace: `jctsh/<type>/<name>/<message-type>`
 4. Publish logs to `jctsh/<type>/<name>/log` in standard JSON format
 5. Add `<name>.flow.json` for Node-RED logic
+6. Create a dedicated MQTT account: `sudo mosquitto_passwd -b /etc/mosquitto/passwd <name> <password>`, then fix ownership (see Credentials section)
+7. Add credentials to `components/<name>/secrets.yaml` (gitignored)

@@ -65,7 +65,7 @@ Every component produces two message streams:
 | Log dashboard | `raspberrypi.local` | `http://raspberrypi.local/` |
 | Home Assistant | `raspberrypi.local` | `http://raspberrypi.local:8123/` |
 
-Pi primary hostname: `raspberrypi.local` — do not change.
+Pi primary hostname: `raspberrypi.local` — do not change. Fixed IP: `192.168.1.117` (DHCP reservation set on router). Use the IP directly if `.local` resolution fails.
 
 ## MQTT Topic Convention
 ```

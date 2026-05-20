@@ -2,9 +2,14 @@
 
 ## What this does
 
-Adds `binary_sensor.garage_radar_presence` as a new trigger in the existing
-"Garage Presence - Restart timer on activity" automation. The radar becomes an
-additive presence input — nothing existing is removed or modified.
+Two changes to the existing garage presence system:
+
+1. Adds `binary_sensor.garage_radar_presence` as a trigger in the existing
+   "Garage Presence - Restart timer on activity" automation — fires on `off` → `on` transition
+2. Creates a new "Garage Presence - Radar keepalive" automation — fires every 10 minutes
+   while the radar is detecting presence, preventing timer expiry during extended still presence
+
+The radar is additive — nothing existing is removed or modified.
 
 ---
 
@@ -66,6 +71,40 @@ actions:
       entity_id: switch.garage_presence_vswitch
 mode: restart
 ```
+
+Click **Save**.
+
+---
+
+## Create the keepalive automation
+
+HA → Settings → Automations → **Create Automation** → Edit in YAML, paste:
+
+```yaml
+alias: Garage Presence - Radar keepalive
+triggers:
+  - trigger: time_pattern
+    minutes: "/10"
+conditions:
+  - condition: state
+    entity_id: binary_sensor.garage_radar_presence
+    state: "on"
+actions:
+  - target:
+      entity_id: timer.garage_presence_timer
+    data:
+      duration: "{{ (states('input_number.garage_timer_duration') | int) * 60 }}"
+    action: timer.start
+  - action: switch.turn_on
+    target:
+      entity_id: switch.garage_presence_vswitch
+mode: single
+```
+
+**Why this is needed:** the `to: "on"` trigger fires only on state transitions. If someone
+sits completely still at the workbench for 20+ minutes, the radar stays continuously `on`
+with no transition — the timer would expire and turn off the lights. The keepalive fires
+every 10 minutes to prevent this as long as presence is detected.
 
 Click **Save**.
 

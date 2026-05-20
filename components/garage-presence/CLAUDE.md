@@ -58,6 +58,9 @@ triggers:
   - entity_id: binary_sensor.garage_cam_motion
     to: "on"
     trigger: state
+  - entity_id: binary_sensor.garage_radar_presence
+    to: "on"
+    trigger: state
 actions:
   - target:
       entity_id: timer.garage_presence_timer
@@ -112,6 +115,33 @@ actions:
     data:
       duration: "{{ (states('input_number.garage_timer_duration') | int) * 60 }}"
     action: timer.start
+mode: single
+```
+
+**Garage Presence - Radar keepalive** (`mode: single`)
+
+Fires every 10 minutes while `binary_sensor.garage_radar_presence` is `on`. Prevents
+timer expiry during extended still presence at the workbench — the `to: "on"` trigger
+alone would not re-fire if the radar stayed continuously on for 20+ minutes.
+
+```yaml
+alias: Garage Presence - Radar keepalive
+triggers:
+  - trigger: time_pattern
+    minutes: "/10"
+conditions:
+  - condition: state
+    entity_id: binary_sensor.garage_radar_presence
+    state: "on"
+actions:
+  - target:
+      entity_id: timer.garage_presence_timer
+    data:
+      duration: "{{ (states('input_number.garage_timer_duration') | int) * 60 }}"
+    action: timer.start
+  - action: switch.turn_on
+    target:
+      entity_id: switch.garage_presence_vswitch
 mode: single
 ```
 

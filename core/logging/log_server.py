@@ -20,8 +20,8 @@ import paho.mqtt.client as mqtt
 # ── Config ────────────────────────────────────────────────────────────────────
 MQTT_BROKER = "localhost"
 MQTT_PORT   = 1883
-MQTT_USER          = "salt-sensor"
-MQTT_PASS          = "raspberry"
+MQTT_USER          = os.environ["MQTT_USER"]
+MQTT_PASS          = os.environ["MQTT_PASS"]
 MQTT_TOPIC         = "jctsh/+/+/log"
 HEARTBEAT_TOPIC    = "jctsh/core/log-server/log"
 HEARTBEAT_INTERVAL = 3600

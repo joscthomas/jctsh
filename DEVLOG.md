@@ -136,6 +136,22 @@ assessed as low risk for a home LAN not exposed to the internet — deferred
 indefinitely. Log dashboard Basic Auth confirmed working from browser; credentials
 saved in browser so no repeated prompts.
 
+Post-hardening follow-up. Garage radar presence dropped while user was actively
+working at workbench — garage door closed. Root cause: HA's MQTT integration was
+using the old salt-sensor/raspberry credentials; when those were changed during
+MQTT hardening, HA lost its broker connection. With no MQTT, garage radar entities
+went unavailable, presence dropped, and the door closed. Fix: added dedicated
+homeassistant MQTT account, updated HA MQTT integration via UI (Settings →
+Devices & Services → MQTT → Configure). Presence restored immediately.
+
+Lesson: HA MQTT integration credentials are configured through the UI only (not
+in any config file) — easy to miss during MQTT password rotations. Always update
+HA alongside Node-RED, ESPHome, and sketch secrets.
+
+Pi timezone fixed from EDT to America/Phoenix (MST, UTC-7, no DST). Log server
+restarted to clear EDT-timestamped entries. Passwordless sudo restored for pi
+user after password change had revoked it.
+
 ## 2026-05-18 (continued)
 Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage
 Presence Vswitch) and Automation 3 (sync timer to vswitch — HA restart recovery).

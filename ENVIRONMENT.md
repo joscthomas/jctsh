@@ -40,24 +40,23 @@ Tucson, AZ | Joseph C Thomas
 | TV | Samsung 4K UHD |
 | Front L/R Speakers | 2× Polk |
 | Center Speaker | 1× Polk |
-| High L/R Speakers | 2× Polk (ceiling-mounted) |
-| Back L/R Speakers | 2× Polk (ceiling-mounted) |
-| Back Center L/R Speakers | 2× Polk (ceiling-mounted) |
+| High L/R Speakers | 2× (ceiling-mounted) |
+| Back L/R Speakers | 2× (ceiling-mounted) |
+| Back Center L/R Speakers | 2× (ceiling-mounted) |
 | Headphones | Bowers & Wilkins Px7 S2e (Bluetooth) |
 | DVD Player | Rarely used |
 | Chromecast / Google TV | Local TV channels, Amazon Prime, Peacock, other streaming, Amazon Music |
 
 ## Voice & Media
-| Device | Location | Integration |
-|---|---|---|
-| Google Home | Garage | Google Home + SmartThings |
-| Google Home | Master bedroom | Google Home + SmartThings |
-| Google Home | Gathering room | Google Home + SmartThings |
-| Google Home | Back porch | Google Home + SmartThings |
-| Google Nest Display | Master bath | Google Home |
-| Google Pixel Tablet + Dock | — | Google Home |
-| Chromecast | — | Google Home |
-| Google TV | — | Google Home |
+| Device | Location        | Integration                       |
+|---|-----------------|-----------------------------------|
+| Google Home | Garage          | Google Home Speaker |
+| Google Home | Gathering room  | Google Home |
+| Google Home | Back porch      | Google Home     |
+| Google Nest Display | Master bath     | Google Home                       |
+| Google Pixel Tablet + Dock | Gathering room  | Google Home                       |
+| Chromecast | Gathering room  | Google Home                       |
+| Google TV | Gathering room | Google Home                       |
 
 ## Mobile
 | Device | Owner |

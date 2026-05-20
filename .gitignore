@@ -6,6 +6,9 @@ secrets.yaml
 build/ 
 *.bin 
 *.elf 
-# OS files 
-.DS_Store 
-Thumbs.db 
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/

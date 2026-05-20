@@ -152,6 +152,11 @@ Pi timezone fixed from EDT to America/Phoenix (MST, UTC-7, no DST). Log server
 restarted to clear EDT-timestamped entries. Passwordless sudo restored for pi
 user after password change had revoked it.
 
+Documented ST routine triggered by Garage Presence Vswitch turning off: closes
+garage door and turns off lights. Added to garage-presence/CLAUDE.md with a note
+that any false "presence off" (MQTT outage, HA restart, radar gap) will trigger it
+unexpectedly — as confirmed by today's incident.
+
 ## 2026-05-18 (continued)
 Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage
 Presence Vswitch) and Automation 3 (sync timer to vswitch — HA restart recovery).

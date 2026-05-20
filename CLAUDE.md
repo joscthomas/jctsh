@@ -14,6 +14,49 @@ jctsh/
     └── homeassistant/        — Home Assistant config (version control copy, do not modify)
 ```
 
+## Architecture
+
+### Component Roles
+
+| Component | Role |
+|---|---|
+| **ESP32 / ESPHome** | Edge sensor. Reads physical hardware (distance, temperature, contact, etc.) and publishes readings to MQTT. No logic beyond "take a reading and report it." |
+| **Mosquitto MQTT broker** | Message bus. Decouples every component from every other. Nothing talks directly to anything else — everything publishes to a topic and subscribes to topics. |
+| **Node-RED** | The brain. Subscribes to MQTT topics, applies logic (thresholds, timing, transformations), triggers actions, and publishes results. Also routes sensor log messages to the Python log server. |
+| **Python log server** | The record keeper. Receives log messages and makes them browsable at `http://raspberrypi.local/`. Provides persistent history of what every component has reported. |
+| **Home Assistant** | Integration layer only — not logic. Bridges the local JCTsh ecosystem to SmartThings → Google Home, Pixels, and voice control. |
+
+### Message Flow
+
+```
+Physical world
+      ↓
+  ESP32 sensor
+      ↓  (MQTT publish)
+  jctsh/<type>/<component>/<message-type>
+      ↓
+  Mosquitto broker
+      ↓  (subscribed)
+  Node-RED
+      ↓              ↓
+  Logic/actions    Log topic
+                      ↓
+               Python log server
+               (http://raspberrypi.local/)
+      ↓
+  Home Assistant
+      ↓
+  SmartThings
+      ↓
+  Google Home / Pixels / Automations
+```
+
+### Two Parallel Flows
+
+Every component produces two message streams:
+- **Data flow** — `jctsh/<type>/<component>/<message-type>` — sensor readings and state that drive automations.
+- **Log flow** — `jctsh/<type>/<component>/log` — diagnostic and status messages routed by Node-RED to the Python log server for visibility and troubleshooting.
+
 ## Infrastructure
 | Service | Host | Access |
 |---|---|---|

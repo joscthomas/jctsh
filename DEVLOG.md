@@ -93,12 +93,12 @@ HTTPServer blocks all new connections if a client connects and drops mid-respons
 HA was unaffected. Fix: switched HTTPServer to ThreadingHTTPServer — each request
 now handled in its own thread. Deployed and confirmed working from phone.
 
-Log dashboard tweaks. Timestamp color changed from #444 to #888 to match
-Component column. Repeat count color changed from fixed #444 to match the
-message color. Watchdog message now reports active components seen since last
-restart (e.g. "Watchdog: alive. Active: salt-sensor, garage-radar.") instead
-of the generic "Watchdog: alive." Fixed log server hang (ThreadingHTTPServer)
-deployed and confirmed working from phone.
+Log dashboard tweaks deployed and confirmed. Timestamp color changed from #444
+to #888 to match Component column. Repeat count color changed from fixed #444
+to match the message color. Watchdog message now reports active components seen
+since last restart (e.g. "Watchdog: alive. Active: salt-sensor, garage-radar.")
+instead of the generic "Watchdog: alive." Log server hang fix (ThreadingHTTPServer)
+also deployed — confirmed working from phone.
 
 ## 2026-05-18 (continued)
 Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage

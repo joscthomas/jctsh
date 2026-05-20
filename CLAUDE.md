@@ -68,7 +68,7 @@ Every component produces two message streams:
 | Log dashboard | `raspberrypi.local` | `http://raspberrypi.local/` — requires Basic Auth (user: `jctsh`) |
 | Home Assistant | `raspberrypi.local` | `http://raspberrypi.local:8123/` |
 
-Pi primary hostname: `raspberrypi.local` — do not change. Fixed IP: `192.168.1.117` (DHCP reservation set on router). Use the IP directly if `.local` resolution fails.
+Pi primary hostname: `raspberrypi.local` — do not change. Fixed IP: `192.168.1.117` (DHCP reservation set on router). Use the IP directly if `.local` resolution fails. Timezone: `America/Phoenix` (MST, UTC-7, no DST).
 
 ## MQTT Topic Convention
 ```
@@ -151,6 +151,8 @@ Passwords are stored in:
 sudo chown root:mosquitto /etc/mosquitto/passwd
 sudo systemctl restart mosquitto
 ```
+
+**HA MQTT integration gotcha:** HA's MQTT broker credentials are configured through the UI only (Settings → Devices & Services → MQTT → Configure) — not in any config file. Easy to miss during password rotations. If HA MQTT credentials are wrong, all ESPHome entities go unavailable and automations that depend on them will misbehave. Always update HA alongside Node-RED and device secrets when rotating MQTT passwords.
 
 ### Log Dashboard
 HTTP Basic Auth — username `jctsh`, password in `/etc/jctsh/log-server.env` as `DASHBOARD_PASS`.

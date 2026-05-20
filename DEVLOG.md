@@ -115,6 +115,16 @@ password changes, otherwise Mosquitto fails to start.
 SSH key auth set up on Pi — passwordless SSH now works from this machine,
 eliminating interactive password prompts for deployment commands.
 
+Security hardening continued. Pi user password changed from default "raspberry"
+to strong random password via chpasswd. Log dashboard secured with HTTP Basic
+Auth (username: jctsh) — credentials injected via DASHBOARD_USER/DASHBOARD_PASS
+env vars in /etc/jctsh/log-server.env alongside MQTT credentials. Verified 401
+without auth, 200 with auth.
+
+ESPHome/Arduino OTA passwords (currently "OTA"/"ota") deferred — changing OTA
+password via OTA is a chicken-and-egg problem; requires USB flash. Low risk as
+OTA is LAN-only. Defer to next time hardware is on the bench.
+
 ## 2026-05-18 (continued)
 Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage
 Presence Vswitch) and Automation 3 (sync timer to vswitch — HA restart recovery).

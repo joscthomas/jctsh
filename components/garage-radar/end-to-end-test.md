@@ -45,17 +45,24 @@ To monitor the SmartThings side: open the SmartThings app → Devices →
 
 **Scenario:** someone sitting still at the workbench for an extended period.
 
+> **This test uses a different timer value.** The keepalive fires every 10 minutes.
+> The timer must be set longer than 10 minutes so you can observe the keepalive reset
+> it before it expires. Set the timer to **11 minutes** for this test only.
+
+**Setup:**
+- HA → Developer Tools → Actions → `input_number.set_value` → value: `11`
+
+**Steps:**
 1. Stand or sit in front of the radar — confirm `garage_radar_presence` = `on`
-2. Confirm `timer.garage_presence_timer` starts and `garage_presence_vswitch` = `on`
-3. Remain still and in the detection zone for **at least 12 minutes**
-   (this crosses the 10-minute keepalive boundary twice)
-4. Confirm the timer resets every 10 minutes (keepalive automation firing)
+2. Confirm `timer.garage_presence_timer` starts at 11 minutes and `garage_presence_vswitch` = `on`
+3. Remain in the detection zone and watch the timer count down
+4. At the next clock time divisible by 10 (:00, :10, :20, :30, :40, or :50) the keepalive
+   fires — the timer resets back to 11 minutes
 5. Confirm `garage_presence_vswitch` stays `on` throughout
 
-**Pass:** timer never expires, vswitch stays on the entire time.
+**Pass:** timer resets at the 10-minute clock boundary; vswitch never turns off.
 
-> **Shortcut:** Set `input_number.garage_timer_duration` to `1` and wait 12 minutes.
-> The keepalive should fire at minute 10 and reset the 1-minute timer before it expires.
+**After Test 1:** set timer back to `2` for Tests 2–4.
 
 ---
 

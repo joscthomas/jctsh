@@ -125,6 +125,12 @@ ESPHome/Arduino OTA passwords (currently "OTA"/"ota") deferred — changing OTA
 password via OTA is a chicken-and-egg problem; requires USB flash. Low risk as
 OTA is LAN-only. Defer to next time hardware is on the bench.
 
+Updated CLAUDE.md: repo layout corrected to list all four components, added
+Credentials section covering MQTT accounts, secrets file locations, mosquitto_passwd
+ownership gotcha, dashboard Basic Auth, and SSH key auth. Log dashboard
+infrastructure entry updated to note auth required. Future Components checklist
+updated to include MQTT account creation.
+
 ## 2026-05-18 (continued)
 Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage
 Presence Vswitch) and Automation 3 (sync timer to vswitch — HA restart recovery).

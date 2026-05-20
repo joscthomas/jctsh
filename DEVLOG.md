@@ -45,6 +45,36 @@ Automation 2 (timer expiry → turn off Garage Presence Vswitch + auto-close doo
 removed by design — garage door control intentionally decoupled from presence detection.
 Timer expiry signal available via timer.finished event for future automations to consume.
 
+## 2026-05-19
+Started Garage Radar component (components/garage-radar/). Hardware: HLK-LD2412 24GHz
+mmWave radar + ESP32 DevKitC-32 (38-pin, CP2102 USB-C), firmware via ESPHome. ESPHome
+YAML created (Step 1). Breadboard wired and verified (Step 2) — corrected wiring doc:
+LD2412 pin is labeled 5V (not VCC) and connects to ESP32 VIN, not 3.3V; onboard
+regulator handles the step-down; UART logic is 3.3V, no level shifter needed.
+
+## 2026-05-20
+Garage Radar Steps 3–10 completed with breadboard prototype. ESPHome flashed via USB
+(Step 3) — fixed ESPHome 2026.x breaking change: ld2412 timeout option removed, replaced
+with delayed_off: 30s filter on has_target binary sensor. Fixed whitespace-in-path issue
+by copying files to C:\esphome\garage-radar\ for flash. Fixed raspberrypi.local resolving
+to IPv6 link-local — used 192.168.1.117 (IPv4) for MQTT and HA MQTT integration setup.
+All 8 HA entities confirmed (Presence, Moving Target, Still Target, 5 distance/energy sensors).
+
+Sensor validation passed (Step 4): baseline, moving presence, still presence, 30s delayed_off
+holdoff, and detection range all confirmed.
+
+Steps 5–7 (perfboard transfer, soldered board validation, physical mount) deferred —
+system fully functional on breadboard prototype. Perfboard layout and wiring docs complete
+for when soldering is ready.
+
+HA integration complete (Steps 8–9). 20-minute presence timeout confirmed as HA-only —
+no Node-RED involvement. Two automations added: (1) garage_radar_presence added as trigger
+to existing Garage Presence - Restart timer on activity automation; (2) new Garage Presence
+- Radar keepalive automation fires every 10 minutes while radar detects presence, preventing
+timer expiry during extended still workbench use. End-to-end tests 1–4 all passed.
+
+Final documentation complete (Step 10): component README.md created, root README updated.
+
 ## 2026-05-18 (continued)
 Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage
 Presence Vswitch) and Automation 3 (sync timer to vswitch — HA restart recovery).

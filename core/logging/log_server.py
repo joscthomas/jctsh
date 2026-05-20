@@ -4,6 +4,7 @@ JCTsh Log Server
 Subscribes to jctsh/+/+/log, serves a live dashboard at http://JCTsh.local/
 """
 
+import base64
 import json
 import os
 import logging
@@ -22,6 +23,8 @@ MQTT_BROKER = "localhost"
 MQTT_PORT   = 1883
 MQTT_USER          = os.environ["MQTT_USER"]
 MQTT_PASS          = os.environ["MQTT_PASS"]
+DASHBOARD_USER     = os.environ["DASHBOARD_USER"]
+DASHBOARD_PASS     = os.environ["DASHBOARD_PASS"]
 MQTT_TOPIC         = "jctsh/+/+/log"
 HEARTBEAT_TOPIC    = "jctsh/core/log-server/log"
 HEARTBEAT_INTERVAL = 3600
@@ -196,7 +199,26 @@ def _build_html(snapshot):
 
 
 class _Handler(BaseHTTPRequestHandler):
+    def _check_auth(self):
+        auth = self.headers.get("Authorization", "")
+        if not auth.startswith("Basic "):
+            return False
+        try:
+            user, _, pw = base64.b64decode(auth[6:]).decode("utf-8").partition(":")
+        except Exception:
+            return False
+        return user == DASHBOARD_USER and pw == DASHBOARD_PASS
+
+    def _send_auth_challenge(self):
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="JCTsh"')
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self):
+        if not self._check_auth():
+            self._send_auth_challenge()
+            return
         if self.path != "/":
             self.send_response(404)
             self.end_headers()

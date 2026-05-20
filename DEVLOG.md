@@ -100,6 +100,21 @@ since last restart (e.g. "Watchdog: alive. Active: salt-sensor, garage-radar.")
 instead of the generic "Watchdog: alive." Log server hang fix (ThreadingHTTPServer)
 also deployed — confirmed working from phone.
 
+MQTT hardening. Replaced single shared account (salt-sensor/raspberry) with
+per-component accounts: jctsh-log-server, garage-radar, nodered, salt-sensor.
+All passwords are strong random strings. Log server credentials moved out of
+source code into /etc/jctsh/log-server.env on the Pi, injected via systemd
+EnvironmentFile. garage-radar and salt-sensor secrets files (gitignored) updated
+with new credentials. Node-RED broker node updated via UI. All four clients
+confirmed connected in Mosquitto log.
+
+Note: sudo mosquitto_passwd resets /etc/mosquitto/passwd group back to root —
+always run sudo chown root:mosquitto /etc/mosquitto/passwd after any future
+password changes, otherwise Mosquitto fails to start.
+
+SSH key auth set up on Pi — passwordless SSH now works from this machine,
+eliminating interactive password prompts for deployment commands.
+
 ## 2026-05-18 (continued)
 Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage
 Presence Vswitch) and Automation 3 (sync timer to vswitch — HA restart recovery).

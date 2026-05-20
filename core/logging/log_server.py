@@ -13,7 +13,7 @@ import time
 from collections import deque
 from datetime import datetime
 from html import escape
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 
 import paho.mqtt.client as mqtt
 
@@ -257,7 +257,7 @@ if __name__ == "__main__":
     t = threading.Thread(target=_mqtt_thread, daemon=True)
     t.start()
     threading.Thread(target=_heartbeat_thread, daemon=True).start()
-    httpd = HTTPServer(("", HTTP_PORT), _Handler)
+    httpd = ThreadingHTTPServer(("", HTTP_PORT), _Handler)
     print("[JCTsh] Dashboard at http://JCTsh.local/")
     try:
         httpd.serve_forever()

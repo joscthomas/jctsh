@@ -44,8 +44,8 @@ Place it so the USB-C port faces one end of the breadboard.
               TXD0 │ •   │  GPIO39
              GPIO22│ •   │  GPIO36
              GPIO23│ •   │  GPIO23
-          GPIO16/RX2│ •  │  GPIO1
-          GPIO17/TX2│ •  │  GPIO3
+         GPIO16/RX2│ •   │  GPIO1
+         GPIO17/TX2│ •   │  GPIO3
              GPIO5 │ •   │  EN
               GPIO5│ •   │  GND
               5V   │ •   │  VIN
@@ -55,7 +55,7 @@ Place it so the USB-C port faces one end of the breadboard.
 > **Note:** Pin numbering varies slightly between ESP32 DevKit breakouts.
 > Before wiring, verify GPIO16 and GPIO17 locations on your specific board using
 > the silk-screen labels. GPIO16 is labeled **RX2** and GPIO17 is labeled **TX2**
-> on most DevKitC-32 boards.
+> on most DevKitC-32 boards. See `ESP32pins.png` in this directory for the full pinout.
 
 ---
 

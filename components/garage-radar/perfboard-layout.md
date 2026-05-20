@@ -76,8 +76,8 @@ before soldering headers.
 
 > **Verify exact pin positions:** The row numbers for GPIO16, GPIO17, and VIN are
 > approximate. Before soldering wire bridges, confirm the actual hole position for each
-> pin using the ESP32 DevKitC-32 pinout image in this directory and count from the USB
-> end of the inserted board.
+> pin using `ESP32pins.png` in this directory and count from the USB end of the inserted
+> board.
 
 ---
 

@@ -177,11 +177,11 @@ def _build_html(snapshot):
         components.add(e["component"])
         color     = _entry_color(e)
         msg_html  = escape(e["message"])
-        count_tag = (f' <span style="color:#444">(×{e["count"]})</span>'
+        count_tag = (f' <span style="color:{color}">(×{e["count"]})</span>'
                      if e["count"] > 1 else "")
         rows.append(
             f'      <tr data-c="{escape(e["component"])}" data-k="{escape(e["category"])}">'
-            f'<td style="color:#444;white-space:nowrap">{escape(e["ts"])}</td>'
+            f'<td style="color:#888;white-space:nowrap">{escape(e["ts"])}</td>'
             f'<td style="color:#888">{escape(e["component"])}</td>'
             f'<td style="color:{color}">{escape(e["category"])}</td>'
             f'<td style="color:{color}">{msg_html}{count_tag}</td>'
@@ -221,10 +221,17 @@ def _heartbeat_thread():
     time.sleep(HEARTBEAT_INTERVAL)
     while True:
         if _mqtt_client and _mqtt_client.is_connected():
+            with _lock:
+                active = sorted({e["component"] for e in _entries
+                                 if e["component"] != "jctsh-core"})
+            if active:
+                msg = "Watchdog: alive. Active: " + ", ".join(active) + "."
+            else:
+                msg = "Watchdog: alive. No component activity."
             payload = json.dumps({
                 "component": "jctsh-core",
                 "category":  "System",
-                "message":   "Watchdog: alive."
+                "message":   msg,
             })
             _mqtt_client.publish(HEARTBEAT_TOPIC, payload)
         time.sleep(HEARTBEAT_INTERVAL)

@@ -75,6 +75,24 @@ timer expiry during extended still workbench use. End-to-end tests 1–4 all pas
 
 Final documentation complete (Step 10): component README.md created, root README updated.
 
+Infrastructure and documentation session. Added Architecture section to CLAUDE.md
+covering component roles (ESP32 = edge sensor, no logic; Mosquitto = message bus;
+Node-RED = brain/logic; Python log server = record keeper; HA = integration layer
+only), full end-to-end message flow diagram, and the two parallel flows concept
+(data flow vs. log flow) that every component produces.
+
+Fixed raspberrypi.local resolution on Windows — hostname was always intermittent
+due to Windows mDNS unreliability. Set DHCP reservation on router for
+192.168.1.117, added hosts file entry on Windows to bypass mDNS entirely.
+IP documented in CLAUDE.md as fallback reference.
+
+Fixed log server hang (ThreadingHTTPServer). Phone on 5G could reach HA (port 8123,
+Docker) but not the log dashboard (port 80, Python). Root cause: single-threaded
+HTTPServer blocks all new connections if a client connects and drops mid-response
+(phone browsers do this frequently). Docker punches through iptables directly so
+HA was unaffected. Fix: switched HTTPServer to ThreadingHTTPServer — each request
+now handled in its own thread. Deployed and confirmed working from phone.
+
 ## 2026-05-18 (continued)
 Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage
 Presence Vswitch) and Automation 3 (sync timer to vswitch — HA restart recovery).

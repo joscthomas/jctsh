@@ -131,6 +131,10 @@ ownership gotcha, dashboard Basic Auth, and SSH key auth. Log dashboard
 infrastructure entry updated to note auth required. Future Components checklist
 updated to include MQTT account creation.
 
+Security hardening complete. Remaining items (MQTT ACLs, MQTT TLS, OTA passwords)
+assessed as low risk for a home LAN not exposed to the internet — deferred
+indefinitely.
+
 ## 2026-05-18 (continued)
 Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage
 Presence Vswitch) and Automation 3 (sync timer to vswitch — HA restart recovery).

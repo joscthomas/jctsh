@@ -19,7 +19,7 @@
 #   .../sensor/detection_distance/state      — cm
 #
 # Timeouts:
-#   30s  — ESPHome ld2412 timeout: smooths momentary radar detection gaps (sensor level)
+#   30s  — delayed_off filter on has_target: smooths momentary radar detection gaps (sensor level)
 #   20m  — HA presence timeout: actual presence decision (automation level)
 
 esphome:
@@ -75,11 +75,8 @@ uart:
   stop_bits: 1
 
 # ── LD2412 radar ──────────────────────────────────────────────────────────────
-# 30-second timeout smooths momentary detection gaps at the sensor level.
-# This is NOT the presence decision timeout — that is 20 minutes in HA.
 ld2412:
   uart_id: uart_ld2412
-  timeout: 30s
 
 # ── Binary sensors ────────────────────────────────────────────────────────────
 binary_sensor:
@@ -88,6 +85,8 @@ binary_sensor:
       name: "Presence"
       id: presence
       device_class: occupancy
+      filters:
+        - delayed_off: 30s
     has_moving_target:
       name: "Moving Target"
       id: moving_target

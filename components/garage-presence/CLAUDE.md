@@ -43,6 +43,17 @@ NOT turn on the Garage Presence Vswitch directly — the SmartThings → HA sync
 unreliable for real-time state triggers, so HA would not detect the change. All
 presence state changes flow through HA automations only.
 
+## SmartThings Routine — Presence Off
+A ST routine triggers when `switch.garage_presence_vswitch` turns off:
+- Closes the garage door
+- Turns off the garage lights
+
+This means any false "presence off" signal — whether from a radar detection gap,
+an MQTT outage, or an HA restart — will close the door and kill the lights. Keep
+this in mind when diagnosing unexpected door closures. Confirmed cause on 2026-05-20:
+HA MQTT integration lost credentials after password rotation, ESPHome entities went
+unavailable, presence dropped, Vswitch turned off, ST routine fired.
+
 ## HA Automations
 All created via HA UI (Settings → Automations & Scenes → Edit in YAML).
 

@@ -162,6 +162,12 @@ jctsh-parts-inventory.md, and components/front-porch-temp-sensor/ (instructions
 in progress). Added .claude/settings.local.json to .gitignore — file contains
 machine-specific absolute paths and should not be version controlled.
 
+## 2026-05-21
+Installed Tailscale on Pi for remote access. Pi Tailscale IP: 100.70.162.24.
+All local services (log dashboard, HA, Node-RED) now reachable from anywhere via
+the Tailscale IP — no port forwarding, no public IP exposure. Install Tailscale on
+any device and sign in with the same account to get access.
+
 ## 2026-05-18 (continued)
 Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage
 Presence Vswitch) and Automation 3 (sync timer to vswitch — HA restart recovery).

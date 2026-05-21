@@ -63,12 +63,23 @@ Every component produces two message streams:
 ## Infrastructure
 | Service | Host | Access |
 |---|---|---|
-| MQTT broker (Mosquitto) | `raspberrypi.local` | port 1883 |
-| Node-RED | `raspberrypi.local` | `http://raspberrypi.local:1880/` |
-| Log dashboard | `raspberrypi.local` | `http://raspberrypi.local/` — requires Basic Auth (user: `jctsh`) |
-| Home Assistant | `raspberrypi.local` | `http://raspberrypi.local:8123/` |
+| MQTT broker (Mosquitto) | `raspberrypi.local` / `100.70.162.24` | port 1883 |
+| Node-RED | `raspberrypi.local` / `100.70.162.24` | port 1880 |
+| Log dashboard | `raspberrypi.local` / `100.70.162.24` | port 80 — requires Basic Auth (user: `jctsh`) |
+| Home Assistant | `raspberrypi.local` / `100.70.162.24` | port 8123 |
 
-Pi primary hostname: `raspberrypi.local` — do not change. Fixed IP: `192.168.1.117` (DHCP reservation set on router). Use the IP directly if `.local` resolution fails. Timezone: `America/Phoenix` (MST, UTC-7, no DST).
+Pi primary hostname: `raspberrypi.local` — do not change. Fixed IP: `192.168.1.117` (DHCP reservation set on router). Use the IP directly if `.local` resolution fails. Timezone: `America/Phoenix` (MST, UTC-7, no DST). Tailscale IP: `100.70.162.24` — use this for remote access from outside the home network.
+
+## Remote Access
+Tailscale is installed on the Pi. Connect any device to the same Tailscale account
+to access all local services remotely — no port forwarding, no public IP exposure.
+
+| Device | Access |
+|---|---|
+| Pi (server) | Tailscale IP `100.70.162.24` — always reachable when Tailscale is running |
+
+Install Tailscale: tailscale.com/download (Windows/Mac/Linux) or app store (iOS/Android).
+Sign in with the same account and all services are reachable via `100.70.162.24`.
 
 ## MQTT Topic Convention
 ```

@@ -92,7 +92,7 @@ Developer Tools → States → filter by `garage_radar` → watch values update 
 **Option B — MQTT:**
 From the Pi or any machine with mosquitto_sub:
 ```
-mosquitto_sub -h 192.168.1.117 -u salt-sensor -P raspberry \
+mosquitto_sub -h 192.168.1.117 -u jctsh-log-server -P <password-from-log-server.env> \
   -t "jctsh/components/garage-radar/#" -v
 ```
 

@@ -1,17 +1,19 @@
 # JCTsh Garage Radar — Claude Code Instructions
-**Author:** Joseph C Thomas (JCT)  
-**Purpose:** Claude Code instruction set for building and integrating the garage workbench presence radar component  
-**Version:** 1.1  
-**Version description:** Added LD2412 antenna orientation, vertical perfboard mounting, pinout PNG reference, breadboard pin label workaround, and end-to-end test procedure improvements from Phase 5 build session.  
+**Author:** Joseph C Thomas (JCT)
+**Purpose:** Claude Code instruction set for building and integrating the garage workbench presence radar component
+**Version:** 1.3
+**Version description:** Corrected logging, watchdog, and SmartThings integration based on CLAUDE.md. Log format is JSON to /log topic. Watchdog is a new Node-RED flow built as part of this project. SmartThings path is Node-RED → HA REST API → virtual switch. Added MQTT account creation step. Added Node-RED watchdog flow build to Step 4.5. Added HA companion app phone notification as watchdog alert.
 **Project:** JCTsh — Smart Home Automation
-**Status:** In progress — Step 3 complete  
-**Related files:** README.md, JCTsh-Component-Planning-Pattern.md
+**Status:** In progress — Step 4 complete, Step 4.5 ready to begin
+**Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md, JCTsh-Build-Standards.md
 
 ---
 
 ## Overview
 
 This component adds a 24GHz mmWave radar sensor (HLK-LD2412) to the garage workbench area. It solves a specific gap in the existing garage presence detection system: the ability to detect someone sitting still at the workbench for extended periods without triggering any motion-based sensor. The radar feeds into the existing garage presence automation as an additive input — nothing in the current system is removed or replaced.
+
+This project also builds the JCTsh Node-RED watchdog flow — a new infrastructure component that monitors all ESP32 component heartbeats and alerts via the HA companion app on Joseph's Pixel 10 Pro if any component goes silent.
 
 ---
 
@@ -33,14 +35,20 @@ Claude Code creates documentation and configuration files. Joseph follows those 
 | Standoffs | Hilitchi M3 brass, male-female, 10mm length for board mounting |
 | Power | USB-A or USB-C to the ESP32 from a nearby garage outlet |
 | Mounting location | Pegboard or shelf above workbench, wall-mounted vertically, LD2412 antenna face pointing horizontally toward workbench |
+| Green LED | 5mm green, GPIO25, 330Ω resistor — presence detected indicator |
+| Yellow LED | 5mm yellow, GPIO26, 330Ω resistor — garage presence virtual switch status indicator |
+| Enclosure | None — open standoff mount. See JCTsh-Build-Standards.md Section 1.1. |
+| Parts reference | See JCTsh-Parts-Inventory.md for on-hand parts before adding to BOM |
 
 **Key hardware constraints:**
-- The LD2412 requires hardware UART — do not use software UART (SoftwareSerial). The ESP32 DevKitC-32 has three hardware UART ports; UART2 (GPIO16 RX, GPIO17 TX) is recommended as UART0 is used for USB and UART1 may conflict with flash.
+- The LD2412 requires hardware UART — do not use software UART (SoftwareSerial). Use UART2 (GPIO16 RX, GPIO17 TX).
 - LD2412 UART settings: 115200 baud, 8 data bits, no parity, 1 stop bit.
 - LD2412 operates at 3.3V or 5V. Power from the ESP32 3.3V pin is sufficient.
-- The LD2412 TX connects to ESP32 RX (GPIO16), and LD2412 RX connects to ESP32 TX (GPIO17). TX/RX are from the perspective of each device.
-- The LD2412 antenna face is the blank side of the module (no components). This face must point toward the detection zone — horizontally toward the workbench when mounted.
-- Detection range: 9 meters maximum. Detection angle: ±75° cone (150° total). Aim carefully to avoid picking up the garage door or driveway through an open door.
+- The LD2412 TX connects to ESP32 RX (GPIO16), and LD2412 RX connects to ESP32 TX (GPIO17).
+- The LD2412 antenna face is the blank side of the module (no components). It must point horizontally toward the workbench when mounted.
+- Detection range: 9 meters maximum. Detection angle: ±75° cone (150° total).
+- GPIO25 and GPIO26 are clean output GPIOs with no boot conflicts — reserved for green and yellow LEDs.
+- Use 330Ω current-limiting resistors for both LEDs at 3.3V.
 
 ---
 
@@ -51,9 +59,21 @@ LD2412 radar sensor
     ↓ UART (115200 baud, hardware UART2: GPIO16/GPIO17)
 ESP32 DevKitC-32 running ESPHome
     ↓ 30-second smoothing timeout (ESPHome native LD2412 timeout parameter)
-    ↓ WiFi → Mosquitto MQTT broker (jctsh-core, raspberrypi.local)
-MQTT topic: jctsh/components/garage-radar
+    ↓ WiFi → Mosquitto MQTT broker (raspberrypi.local, port 1883)
+MQTT topics published:
+    jctsh/components/garage-radar/state        (has_target: ON/OFF)
+    jctsh/components/garage-radar/still        (has_still_target: ON/OFF)
+    jctsh/components/garage-radar/moving       (has_moving_target: ON/OFF)
+    jctsh/components/garage-radar/log          (JSON log messages → Python log server)
+    jctsh/components/garage-radar/heartbeat    (5-minute heartbeat → Node-RED watchdog)
+MQTT topic subscribed:
+    jctsh/components/garage-presence-vswitch/state  (drives yellow LED)
     ↓
+Node-RED
+    ↓ /log → Python log server (http://raspberrypi.local/)
+    ↓ /heartbeat → Node-RED watchdog flow → HA REST API → Pixel 10 Pro (if silent)
+    ↓ /state → garage presence automation (additive input)
+    ↓ HA REST API (port 8123) → SmartThings motion sensor
 Home Assistant
     ↓ 20-minute presence timeout (existing garage presence automation)
 SmartThings virtual switch (existing garage presence switch)
@@ -61,110 +81,147 @@ SmartThings virtual switch (existing garage presence switch)
 Garage lights + garage door automation (existing, unchanged)
 ```
 
+**Two parallel message flows (per CLAUDE.md architecture):**
+- **Data flow:** `jctsh/components/garage-radar/state` — drives automations
+- **Log flow:** `jctsh/components/garage-radar/log` — routed by Node-RED to Python log server
+
 **Integration notes:**
-- The radar is additive. Existing inputs (Ring camera motion, back door open/close sensor) continue to feed the garage presence automation unchanged.
-- ESPHome publishes `has_target` (true/false) — the logical OR of `has_still_target` and `has_moving_target`. This is the primary published value.
-- The 30-second ESPHome timeout smooths over momentary radar detection gaps. It is a sensor-level parameter, not a presence decision.
-- The 20-minute timeout is the actual presence decision and lives in Home Assistant (or Node-RED — see Step 8 investigation note).
-- Log dashboard: http://JCTsh.local
-- Pi access: raspberrypi.local
+- The radar is additive. Existing inputs (Ring camera motion, back door open/close sensor) unchanged.
+- The 30-second ESPHome timeout smooths sensor gaps — it is not a presence decision.
+- The 20-minute timeout is the actual presence decision (Node-RED or HA — investigate in Step 8).
+- The yellow LED subscribes to the garage presence virtual switch MQTT topic via ESPHome mqtt_subscribe.
+- SmartThings integration path: Node-RED → HA REST API → HA entity → SmartThings. No other path.
+- Log dashboard: http://raspberrypi.local/ (Basic Auth, user: jctsh)
+- Node-RED: http://raspberrypi.local:1880/
+- Home Assistant: http://raspberrypi.local:8123/
+- Pi fixed IP: 192.168.1.117 (use if .local resolution fails)
+- Pi Tailscale IP: 100.70.162.24 (use for remote access — same ports apply)
 
 ---
 
 ## Step 1 — ESPHome YAML Configuration
 ✅ Complete
 
-**Claude Code does:**
-Create `components/garage-radar/garage-radar.yaml` — the complete ESPHome configuration file including:
-- Device name, WiFi credentials (use `!secret` references), MQTT broker address
-- UART configuration: hardware UART2, GPIO16 (RX), GPIO17 (TX), 115200 baud, no parity, 1 stop bit
-- LD2412 component with 30-second timeout
-- Binary sensor for `has_target` — this is the primary published sensor
-- Binary sensors for `has_still_target` and `has_moving_target` — published but not used in automation yet (available for future use)
-- Numeric sensors for moving distance, still distance, moving energy, still energy, detection distance
-- OTA update configuration
-- Logger at INFO level
-
-**Joseph does:**
-Review the YAML for accuracy. Confirm WiFi SSID, MQTT broker address (raspberrypi.local or IP), and GPIO pin assignments look correct before flashing.
-
-**Joseph confirms:**
-YAML review complete and approved, or flags any corrections needed.
-
-**Claude Code does (if needed):**
-Update YAML based on Joseph's corrections before proceeding to Step 2.
-
 ---
 
 ## Step 2 — Wiring Diagram and Breadboard Assembly Guide
 ✅ Complete
-
-**Claude Code does:**
-Create `components/garage-radar/wiring.md` — a clear wiring reference including:
-- Pin-by-pin connection table (LD2412 pin → ESP32 GPIO)
-- Breadboard layout description (which rows/columns each component occupies)
-- Notes on TX/RX orientation (common source of wiring errors)
-- Notes on power: LD2412 VCC to ESP32 3.3V pin, shared GND
-- Reference to the ESP32 DevKitC-32 pinout PNG in the component directory for GPIO16 and GPIO17 location
-- Note: ESP32 DevKit pin labels face down when board is inserted in breadboard — mark GPIO16 and GPIO17 rows on the breadboard with masking tape before inserting the board to avoid repeated pin counting
-
-Connection table (for reference — include in the document):
-
-| LD2412 Pin | ESP32 Pin | Notes |
-|---|---|---|
-| VCC | 3.3V | Do not use 5V pin |
-| GND | GND | Any GND pin |
-| TX | GPIO16 (RX2) | LD2412 transmits → ESP32 receives |
-| RX | GPIO17 (TX2) | ESP32 transmits → LD2412 receives |
-
-**Joseph does:**
-Assemble the circuit on the breadboard following wiring.md. Do not flash yet.
-
-**Joseph confirms:**
-Breadboard assembly complete. Visually verify TX/RX orientation before powering on.
 
 ---
 
 ## Step 3 — Flash ESPHome and Confirm MQTT
 ✅ Complete
 
-**Claude Code does:**
-Create `components/garage-radar/flashing.md` — step-by-step ESPHome flash instructions including:
-- First-time flash via USB (subsequent updates via OTA)
-- ESPHome CLI commands to compile and upload
-- How to monitor serial output to confirm successful boot, WiFi connection, and MQTT connection
-- Expected log output on successful startup
-- OTA update command for all subsequent flashes
-
-**Joseph does:**
-Flash the ESP32 via USB following flashing.md. Monitor serial output. Confirm WiFi connects and MQTT broker connection is established.
-
-**Joseph confirms:**
-Report back: Did it boot cleanly? Did WiFi connect? Did MQTT connect? Paste any error output if not.
-
-**Claude Code does (if needed):**
-Diagnose errors from Joseph's report and update flashing.md or garage-radar.yaml as needed.
-
 ---
 
 ## Step 4 — Sensor Validation
+✅ Complete
+
+---
+
+## Step 4.5 — Enhancements: LEDs, Logging, Heartbeat, Watchdog, SmartThings
 
 **Claude Code does:**
-Create `components/garage-radar/testing.md` — sensor validation procedure including:
-- How to monitor MQTT topic `jctsh/components/garage-radar` using mosquitto_sub or MQTT Explorer
-- Test cases: walk in front of sensor (has_moving_target), sit still at workbench for 2+ minutes (has_still_target), leave the area (all targets clear after 30-second timeout)
-- Expected MQTT payloads for each state
-- How to simulate nobody present: step behind or to the side of the sensor beyond the ±75° detection cone — presence clears after the 30-second ESPHome timeout. Alternatively, cover the LD2412 antenna face with cardboard to immediately block detection.
-- How to use the LD2412 ESPHome configuration tool to adjust detection range and sensitivity if needed
+
+**1. Confirm MQTT account exists**
+The `garage-radar` MQTT account is listed in the CLAUDE.md credentials table, indicating it was created during Steps 1–4. Verify the account exists and is working (confirmed by the fact that Steps 1–4 are complete). Document the account name in integration-notes.md. If for any reason it needs to be created:
+```bash
+sudo mosquitto_passwd -b /etc/mosquitto/passwd garage-radar <password>
+sudo chown root:mosquitto /etc/mosquitto/passwd
+sudo systemctl restart mosquitto
+```
+
+**2. Update `components/garage-radar/garage-radar.yaml`** to add:
+
+LED outputs:
+- Green LED on GPIO25 — on when `has_target` is ON, off when OFF
+- Yellow LED on GPIO26 — driven by MQTT subscription to `jctsh/components/garage-presence-vswitch/state`
+- Both LEDs use 330Ω current-limiting resistors at 3.3V
+
+Log messages (JSON format, published to `jctsh/components/garage-radar/log`):
+```json
+{ "component": "garage-radar", "category": "System", "message": "Garage radar online — ESPHome vX.X.X, IP: x.x.x.x" }
+{ "component": "garage-radar", "category": "MQTT", "message": "MQTT broker connected — publishing to jctsh/components/garage-radar/state" }
+{ "component": "garage-radar", "category": "MQTT", "message": "MQTT disconnected" }
+{ "component": "garage-radar", "category": "MQTT", "message": "MQTT reconnected" }
+{ "component": "garage-radar", "category": "Sensor", "message": "Presence detected — has_target: ON (still: ON/OFF, moving: ON/OFF, distance: Xm)" }
+{ "component": "garage-radar", "category": "Sensor", "message": "Presence cleared — has_target: OFF, timeout elapsed" }
+{ "component": "garage-radar", "category": "System", "message": "Heartbeat — uptime: Xh Xm, RSSI: -XXdBm, presence: ON/OFF" }
+```
+
+Heartbeat (every 5 minutes, published to two topics):
+- `jctsh/components/garage-radar/log` — heartbeat as standard log JSON (visible in dashboard)
+- `jctsh/components/garage-radar/heartbeat` — heartbeat as JSON for Node-RED watchdog:
+  ```json
+  { "component": "garage-radar", "uptime": "Xh Xm", "rssi": -XX, "presence": "ON/OFF" }
+  ```
+
+**3. Update `components/garage-radar/wiring.md`** to add:
+- Green LED wiring: GPIO25 → 330Ω resistor → LED anode → LED cathode → GND
+- Yellow LED wiring: GPIO26 → 330Ω resistor → LED anode → LED cathode → GND
+- Updated breadboard layout diagram showing LED positions
+- Note: mark GPIO25 and GPIO26 rows on breadboard with masking tape before wiring
+
+**4. Build the Node-RED watchdog flow**
+
+This is a new JCTsh infrastructure component. Create `core/node-red/watchdog.flow.json` and document the build in `components/garage-radar/watchdog-build.md`.
+
+The watchdog flow:
+- Subscribes to `jctsh/+/+/heartbeat` (MQTT wildcard — catches all component heartbeats automatically)
+- On receipt of any heartbeat message, extracts the component name from the topic and resets a per-component timer node (10-minute timeout — 2× the 5-minute heartbeat interval)
+- If a timer expires without receiving a new heartbeat, publishes an alert
+- Alert path: Node-RED function node → HA REST API POST to `http://raspberrypi.local:8123/api/services/notify/mobile_app_pixel_10_pro` → HA companion app → Joseph's Pixel 10 Pro
+- Alert message: `JCTsh alert: <component-name> has not reported in 10 minutes`
+- Also logs the alert: publish to `jctsh/core/watchdog/log` as `{ "component": "watchdog", "category": "Alert", "message": "Component <name> silent for 10 minutes" }`
+
+Before building: examine existing Node-RED flows in `core/node-red/` to understand the established flow structure, MQTT broker node configuration, and HA REST API call pattern. Match the existing style.
+
+The HA long-lived access token for the REST API call is stored in Node-RED credentials — do not hardcode it. Use the existing credential pattern from the salt sensor Node-RED flow.
+
+**5. Build SmartThings motion sensor integration**
+
+Before writing: examine `components/salt-sensor/` Node-RED flow and integration files to understand the established Node-RED → HA REST API → SmartThings pattern.
+
+Create `components/garage-radar/smartthings-integration.md` documenting:
+- Create a virtual motion sensor device in SmartThings named "Garage Radar"
+- Expose it as an HA entity (HA syncs to SmartThings automatically via the existing SmartThings integration)
+- Add a Node-RED flow node that subscribes to `jctsh/components/garage-radar/state` and calls the HA REST API to set the motion sensor Active (ON) or Inactive (OFF)
+- Motion Active = has_target ON; Motion Inactive = has_target OFF
+
+**6. Create `components/garage-radar/integration-notes.md`** documenting:
+- MQTT account confirmation
+- Log routing: Node-RED wildcard `jctsh/+/+/log` subscription routes to Python log server — no per-component changes needed
+- Watchdog: new flow built, wildcard `jctsh/+/+/heartbeat` catches garage-radar automatically
+- SmartThings: pattern examined from salt sensor, followed for garage radar
+- HA REST API endpoint and notification service name confirmed
 
 **Joseph does:**
-Run the validation procedure from testing.md. Test all three cases. Note any detection gaps, false positives, or range/sensitivity issues.
+Review the updated YAML. Add the two LEDs and resistors to the existing breadboard. Import and activate the watchdog flow in Node-RED. Implement the SmartThings motion sensor integration.
 
 **Joseph confirms:**
-Report results: Does has_still_target fire reliably while sitting at the workbench? Does has_target clear correctly after leaving? Any tuning needed?
+Updated breadboard assembly complete. Watchdog flow active. SmartThings motion sensor created and integration implemented.
+
+---
+
+## Step 4.6 — Enhancement Validation on Breadboard
+
+**Claude Code does:**
+Update `components/garage-radar/testing.md` to add enhancement validation:
+- Green LED: confirm it lights when presence detected, extinguishes after 30-second timeout
+- Yellow LED: confirm it reflects the garage presence virtual switch state
+- Log messages: confirm each message appears at `http://raspberrypi.local/` under component `garage-radar`
+- Heartbeat: confirm heartbeat appears in log dashboard every 5 minutes
+- Watchdog: confirm heartbeat topic is being received by the Node-RED watchdog flow — monitor in Node-RED debug panel. Simulate a missed heartbeat by temporarily disabling the ESP32 and confirm a phone notification arrives within 10 minutes.
+- SmartThings: confirm "Garage Radar" motion sensor appears in SmartThings and state changes correctly when presence is detected and cleared
+
+**Joseph does:**
+Run the enhancement validation procedure. Test all items above. Report any failures.
+
+**Joseph confirms:**
+All enhancements validated on breadboard, including phone notification received for watchdog test.
 
 **Claude Code does (if needed):**
-Update garage-radar.yaml with sensitivity or range adjustments based on Joseph's findings. Document any tuning changes and rationale.
+Diagnose any failures and update YAML, Node-RED flows, or integration configuration as needed.
 
 ---
 
@@ -176,13 +233,14 @@ Create `components/garage-radar/perfboard-layout.md` — permanent build instruc
 - Sequence for soldering: headers first, then wire bridges, then verify continuity before inserting components
 - Notes on soldering the two 19-pin female header strips for the ESP32 (critical: keep strips parallel and aligned)
 - Notes on the 4-pin female header strip for the LD2412 UART connection
+- LED and resistor placement — both LEDs and 330Ω resistors included in layout
 - Standoff mounting hole locations on the 5×7cm perfboard
 - Continuity check procedure before powering the soldered board
-- Antenna orientation note: the LD2412 antenna face (blank side, no components) must point outward toward the detection zone. Mount the LD2412 at one end of the perfboard with its antenna face pointing off the edge. The ESP32 sits alongside it — never directly in front of the antenna face (the ESP32 WiFi shield is metal and will obstruct detection).
-- Mounting orientation note: the perfboard will be mounted vertically (perpendicular to the pegboard surface). Orient all components during layout with this final vertical mounting position in mind — LD2412 antenna face pointing horizontally outward, USB connector accessible from the back or bottom edge.
+- Antenna orientation: LD2412 blank face (antenna) points off the edge toward the workbench. ESP32 alongside — never in front of the antenna face.
+- Mounting orientation: perfboard mounts vertically (perpendicular to pegboard). LD2412 antenna face points horizontally outward. USB connector accessible from back or bottom edge. LEDs visible from front.
 
 **Joseph does:**
-Transfer the validated breadboard circuit to perfboard following perfboard-layout.md. Perform continuity checks before inserting the ESP32 and LD2412.
+Transfer the validated breadboard circuit to perfboard following perfboard-layout.md. Perform continuity checks before inserting components.
 
 **Joseph confirms:**
 Perfboard build complete and continuity checks passed.
@@ -192,16 +250,16 @@ Perfboard build complete and continuity checks passed.
 ## Step 6 — Soldered Board Validation
 
 **Claude Code does:**
-Nothing new to create — Joseph re-runs the testing.md procedure from Step 4 against the soldered board.
+Nothing new — Joseph re-runs the full testing.md procedure (Steps 4 and 4.6) against the soldered board.
 
 **Joseph does:**
-Power up the soldered board. Re-run the full sensor validation from testing.md. Confirm behavior is identical to the breadboard build.
+Power up the soldered board. Re-run full sensor and enhancement validation. Confirm behavior identical to breadboard.
 
 **Joseph confirms:**
-Soldered board validated. Report any differences from breadboard behavior.
+Soldered board validated. Report any differences.
 
 **Claude Code does (if needed):**
-Document any differences or fixes required.
+Document any differences or fixes.
 
 ---
 
@@ -210,102 +268,119 @@ Document any differences or fixes required.
 **Claude Code does:**
 Create `components/garage-radar/mounting.md` — physical installation guide including:
 - Recommended mounting height and angle for workbench coverage
-- Mount the perfboard vertically — standing perpendicular to the pegboard surface — so the LD2412 antenna face points horizontally toward the workbench area
-- Standoff assembly sequence: M3 male-female standoffs through perfboard corner holes, secured to a backing piece or directly to pegboard. Standoffs serve double duty — spacing the perfboard away from the pegboard surface for USB cable clearance, and acting as the mounting attachment points.
+- Mount the perfboard vertically — perpendicular to the pegboard surface — LD2412 antenna face pointing horizontally toward workbench
+- LEDs visible from the workbench — confirm orientation during layout
+- Standoff assembly: M3 male-female standoffs through perfboard corner holes to pegboard. Standoffs space the board away from surface for USB cable clearance and serve as mounting attachment points.
 - USB cable routing notes
-- Notes on LD2412 detection angle (±75°, 150° total cone) and how mounting position affects coverage — aim to avoid picking up the garage door or driveway through an open door
+- Detection angle: ±75° (150° total) — aim to avoid picking up garage door or driveway
 
 **Joseph does:**
-Mount the assembly on the pegboard above the workbench following mounting.md. Route and secure the USB cable to the nearby outlet.
+Mount on pegboard following mounting.md. Route and secure USB cable.
 
 **Joseph confirms:**
-Unit mounted. Confirm MQTT is still publishing correctly after physical installation (cable flex during mounting can dislodge connections on soldered boards).
+Unit mounted. MQTT still publishing correctly after installation.
 
 ---
 
 ## Step 8 — Home Assistant / Node-RED Integration
 
 **Claude Code does:**
-Before writing any automation code, investigate the existing garage presence automation:
-- Examine the current Node-RED flows to determine if the 20-minute presence timeout lives there
-- Examine Home Assistant automations for any garage presence timeout logic
-- Identify exactly where and how the existing Ring camera and back door sensor inputs are wired into the presence virtual switch
-- Document findings in `components/garage-radar/integration-notes.md`
+Before writing any automation code, investigate:
+- Examine Node-RED flows for the 20-minute presence timeout
+- Examine HA automations for any garage presence timeout logic
+- Identify how Ring camera and back door sensor inputs feed the presence virtual switch
+- Document findings in `components/garage-radar/integration-notes.md` (append to existing)
 
-Then, based on findings, create `components/garage-radar/integration.md` — integration instructions to add the radar as an additive input including:
-- Where to add the `jctsh/components/garage-radar` MQTT topic as a new presence input
-- How to wire it in parallel with existing inputs (Ring camera, back door sensor)
-- Confirmation that the 20-minute timeout applies to all inputs equally
-- Any Node-RED flow changes or HA automation changes required
+Then create `components/garage-radar/integration.md`:
+- Where to add `jctsh/components/garage-radar/state` as a new additive presence input
+- How to wire in parallel with existing inputs
+- Confirmation that the 20-minute timeout applies equally to all inputs
+- Any Node-RED flow or HA automation changes required
 
 **Joseph does:**
-Implement the integration following integration.md. Do not remove or modify any existing presence inputs.
+Implement integration following integration.md. Do not remove or modify existing inputs.
 
 **Joseph confirms:**
-Integration complete. The garage-radar MQTT topic is wired in as an additive presence input.
+Integration complete. Garage-radar wired in as additive presence input.
 
 ---
 
 ## Step 9 — End-to-End Validation
 
 **Claude Code does:**
-Create `components/garage-radar/end-to-end-test.md` — full system validation procedure including:
-- Test case 1: Enter garage, sit still at workbench for 25 minutes — garage door should remain open, lights should remain on
-- Test case 2: Leave garage, confirm presence clears after 20 minutes and automation triggers correctly
-- Test case 3: Robin enters while Joseph is at workbench — confirm lights do not toggle off
-- How to monitor the SmartThings virtual switch state during testing
+Create `components/garage-radar/end-to-end-test.md` — full system validation including:
+- Test case 1: Sit still at workbench for 25 minutes — garage door stays open, lights stay on
+- Test case 2: Leave garage, confirm presence clears after 20 minutes, automation triggers
+- Test case 3: Robin enters while Joseph is at workbench — lights do not toggle off
+- How to monitor SmartThings virtual switch state during testing
 - What to check if any test case fails
-- Note: Temporarily reduce the HA presence timeout to 1–2 minutes during end-to-end testing to avoid waiting 20 minutes per test cycle — restore to 20 minutes after validation is complete
-- Note: To simulate nobody present quickly, step behind or to the side of the sensor beyond the ±75° detection cone — presence clears after the 30-second ESPHome timeout. Alternatively, cover the LD2412 antenna face with cardboard to immediately block detection.
+- Note: Temporarily reduce HA presence timeout to 1–2 minutes during testing — restore to 20 minutes after
+- Note: Simulate nobody present by stepping outside ±75° detection cone or covering LD2412 antenna face with cardboard
 
 **Joseph does:**
-Run all three test cases from end-to-end-test.md.
+Run all three test cases.
 
 **Joseph confirms:**
 Report results for each test case.
 
 **Claude Code does (if needed):**
-Diagnose any failures and update integration.md or automation configuration.
+Diagnose failures and update integration.md or automation configuration.
 
 ---
 
 ## Step 10 — Final Documentation
 
 **Claude Code does:**
-- Create `components/garage-radar/README.md` — the permanent component reference including: what the component does, hardware summary, wiring summary, ESPHome configuration notes, MQTT topic, integration point, known behaviors, tuning notes, and a reference to the ESP32 DevKitC-32 pinout PNG in the component directory
-- Update the top-level `README.md` to add the garage-radar component to the Components list
-- Archive any deviations from the plan captured during Steps 1–9 into the README
+- Create `components/garage-radar/README.md` — permanent component reference: what it does, hardware, wiring, GPIO assignments, MQTT topics (data and log flows), LED indicators, integration points, watchdog, SmartThings device, known behaviors, tuning notes, pinout PNG reference
+- Create `core/node-red/watchdog-README.md` — permanent reference for the watchdog flow: what it monitors, how it works, how to add new components (automatic via wildcard — no action needed), alert path, how to test
+- Update root `README.md` — add garage-radar to Components list
+- Update root `CLAUDE.md` — confirm garage-radar account is in credentials table; add watchdog flow to the repo layout and architecture sections
+- Update `JCTsh-Parts-Inventory.md` — add inventory update log entry for this project
 
 ---
 
 ## Future Enhancement — Split Still vs. Moving Targets as Separate Inputs
 
-Currently `has_target` (the OR of still and moving) is the single published presence signal. In the future, `has_still_target` and `has_moving_target` are already being published as separate MQTT sensors and could be used independently for finer-grained automation — for example, only closing the garage door if no moving target is detected (someone leaving) regardless of still target state. Defer until the basic presence detection is proven stable.
+`has_still_target` and `has_moving_target` are already published as separate MQTT topics. Could be used independently for finer-grained automation (e.g. only close door if no moving target regardless of still target). Defer until basic presence detection is proven stable.
 
 ## Future Enhancement — Enclosure Lid
 
-The current open standoff mount has no dust cover. If dust accumulation on the ESP32 or LD2412 becomes an issue in the garage environment, a simple acrylic top panel held by the same standoffs can be added. Requires cutting a piece of acrylic to the perfboard footprint and drilling four corner holes. Defer until there is evidence of a dust problem.
+Add acrylic top panel if dust accumulation becomes a problem. Cut to perfboard footprint, held by same standoffs. Defer until evidence of dust problem.
 
-## Future Enhancement — Detection Zone Tuning via LD2412 Configuration Tool
+## Future Enhancement — Detection Zone Tuning
 
-The LD2412 ESPHome component supports per-zone sensitivity configuration. If the sensor picks up the garage door opening/closing as a false positive, the detection range can be narrowed to focus on the workbench area only. The ESPHome YAML `ld2412` component exposes these parameters. Defer until there is evidence of false positives from the garage door or other sources.
+ESPHome LD2412 component supports per-zone sensitivity. Tune if false positives from garage door or driveway occur. Defer until evidence of false positives.
+
+## Future Enhancement — Salt Sensor Watchdog Retrofit
+
+The salt sensor (Arduino C++) does not currently publish a heartbeat. Add a heartbeat to its sketch so it benefits from the Node-RED watchdog flow. Separate project — do not block garage radar on it.
 
 ---
 
 ## Notes for Claude Code
 
-- **ESPHome version requirement:** The native `ld2412` component was added in ESPHome 2025.8.0. Verify ESPHome version before flashing. If the version is older, update ESPHome first.
-- **UART pin assignment:** Use hardware UART2 (GPIO16 RX, GPIO17 TX). Do not use UART0 (USB) or UART1 (may conflict with flash on some ESP32 boards).
-- **TX/RX orientation:** This is the most common wiring error. LD2412 TX → ESP32 RX (GPIO16). LD2412 RX → ESP32 TX (GPIO17). Label the wires before assembly.
-- **3.3V power only:** The LD2412 accepts 3.3V or 5V but power from the ESP32 3.3V pin is sufficient and avoids any level-shifting concerns.
-- **LD2412 antenna orientation:** The blank face of the LD2412 module (no components) is the antenna face. It must point toward the detection zone — horizontally toward the workbench when mounted. Do not place the ESP32 or any metal directly in front of this face.
-- **Perfboard mounting orientation:** The perfboard mounts vertically, perpendicular to the pegboard surface. LD2412 antenna face points horizontally outward. USB connector must be accessible from the back or bottom edge.
-- **Detection range and angle:** 9 meters maximum, ±75° cone (150° total). In a garage workbench application, aim carefully to avoid picking up the garage door or driveway activity through an open door. Range and zone sensitivity can be tuned via ESPHome YAML parameters if false positives occur.
-- **ESP32 pin labels:** The ESP32 DevKitC-32 pin labels face down when inserted in a breadboard. A pinout PNG has been placed in the component directory for reference. Mark GPIO16 and GPIO17 rows on the breadboard with masking tape before inserting the board.
-- **MQTT topic convention:** `jctsh/components/garage-radar` — follows the JCTsh pattern `jctsh/<type>/<component>`.
-- **ESPHome secrets:** WiFi credentials and MQTT broker address must use `!secret` references. Do not hardcode credentials in the YAML.
-- **30-second vs. 20-minute timeouts:** These serve different purposes. The 30-second ESPHome timeout smooths over momentary radar detection gaps at the sensor level. The 20-minute HA/Node-RED timeout is the actual presence decision. Document both clearly in the README so they are not confused.
-- **Step 8 investigation:** The location of the 20-minute presence timeout (Node-RED vs. Home Assistant) was not confirmed during planning. Claude Code must investigate the existing flows before writing any integration code. Do not assume.
-- **Additive integration:** The radar is a new input alongside existing Ring camera and back door sensor inputs. Nothing existing is removed or modified.
-- **OTA updates:** After first USB flash, all subsequent ESPHome updates can be delivered OTA. Document the OTA update command in flashing.md.
-- **Testing shortcut:** For end-to-end testing, temporarily reduce the HA presence timeout to 1–2 minutes to avoid waiting 20 minutes per test cycle. Restore to 20 minutes after validation is complete.
+- **Read first:** JCTsh-Build-Standards.md and CLAUDE.md before beginning any step
+- **ESPHome version:** Native LD2412 component requires 2025.8.0 or later. Verify before flashing.
+- **UART:** Hardware UART2 only. GPIO16 RX, GPIO17 TX. TX/RX orientation is the most common wiring error — LD2412 TX → ESP32 RX (GPIO16), LD2412 RX → ESP32 TX (GPIO17).
+- **3.3V power:** LD2412 from ESP32 3.3V pin only — no level shifting needed.
+- **LD2412 antenna:** Blank face (no components) is the antenna. Points horizontally toward workbench. Nothing metal in front of it.
+- **Perfboard orientation:** Vertical mount, perpendicular to pegboard. Antenna faces outward. USB accessible from back/bottom. LEDs visible from front.
+- **Detection:** 9m max, ±75° cone. Aim to avoid garage door and driveway.
+- **ESP32 pin labels:** Face down in breadboard. Pinout PNG in component directory. Mark GPIO16, GPIO17, GPIO25, GPIO26 with masking tape.
+- **LED GPIOs:** GPIO25 = green (presence). GPIO26 = yellow (virtual switch status). 330Ω resistors. Clean output GPIOs, no boot conflicts.
+- **Yellow LED source:** ESPHome mqtt_subscribe to `jctsh/components/garage-presence-vswitch/state`.
+- **Log format:** JSON to `jctsh/components/garage-radar/log` — `{ "component": "garage-radar", "category": "<cat>", "message": "<text>" }`. Do NOT include timestamps. Valid categories: MQTT, System, Sensor, Alert, Test. Node-RED wildcard handles routing automatically — no per-component Node-RED changes needed for logging.
+- **Heartbeat:** Publish every 5 minutes to both `/log` (as System log entry) and `/heartbeat` (as JSON for watchdog). Node-RED watchdog wildcard `jctsh/+/+/heartbeat` catches it automatically.
+- **Watchdog flow:** New infrastructure — does not yet exist. Build it as part of Step 4.5. Lives at `core/node-red/watchdog.flow.json`. Uses wildcard heartbeat subscription. Alerts via HA REST API → HA companion app → Pixel 10 Pro. Examine existing Node-RED flows before building to match established style.
+- **HA REST API notification endpoint:** `POST http://raspberrypi.local:8123/api/services/notify/mobile_app_pixel_10_pro`. HA long-lived access token stored in Node-RED credentials — do not hardcode.
+- **SmartThings path:** Node-RED → HA REST API (port 8123) → HA entity → SmartThings. No other path. Examine salt sensor implementation as reference before writing.
+- **MQTT account:** `garage-radar` account listed in CLAUDE.md credentials table — confirmed created during Steps 1–4. If recreation needed: `sudo mosquitto_passwd -b /etc/mosquitto/passwd garage-radar <password>` then `sudo chown root:mosquitto /etc/mosquitto/passwd` then `sudo systemctl restart mosquitto`.
+- **MQTT topics:** Primary `jctsh/components/garage-radar/state`. Sub-topics: `/still`, `/moving`, `/log`, `/heartbeat`.
+- **ESPHome secrets:** Use `!secret` references. Stored in `components/garage-radar/secrets.yaml` (gitignored).
+- **Timeouts:** 30-second ESPHome timeout = sensor smoothing only. 20-minute HA/Node-RED timeout = presence decision. Document both distinctly — do not confuse them.
+- **Step 8 investigation:** Where the 20-minute timer lives (Node-RED vs HA) was not confirmed during planning. Investigate before writing integration code.
+- **Additive integration:** Radar is new input alongside Ring camera and back door sensor. Nothing existing removed or modified.
+- **OTA:** After first USB flash, all subsequent updates via OTA. Document OTA command in flashing.md.
+- **Testing shortcut:** Temporarily reduce HA presence timeout to 1–2 minutes for end-to-end testing. Restore to 20 minutes after.
+- **Parts inventory:** Green/yellow LEDs confirmed on hand. 330Ω resistors confirmed on hand. M3 standoffs selection on hand. Female headers selection on hand. Consult JCTsh-Parts-Inventory.md before adding to BOM.
+- **Step 10:** Update JCTsh-Parts-Inventory.md log, root README.md, and root CLAUDE.md (credentials table + architecture sections for watchdog flow).

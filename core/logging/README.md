@@ -24,11 +24,8 @@ pip install -r requirements.txt --break-system-packages
 python3 log_server.py
 ```
 
-Open `http://raspberrypi.local/` to see the dashboard.
-
-> **Note:** `http://JCTsh.local/` was intended as a vanity alias but Avahi address
-> aliasing is not supported by the installed avahi-utils version. Use
-> `http://raspberrypi.local/` until a working alias mechanism is found.
+Open `http://raspberrypi.local/` to see the dashboard (requires Basic Auth, user: `jctsh`).
+Remote access via Tailscale: `http://100.70.162.24/`
 
 > **Note:** Port 80 requires elevated privileges. The systemd service below grants the
 > capability using `AmbientCapabilities`. To test manually as `pi`, use `sudo`:

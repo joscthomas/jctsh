@@ -1,8 +1,49 @@
 # JCT Smart Home (JCTsh) Component Planning Pattern
+**Author:** Joseph C Thomas (JCT)
+**Purpose:** Defines the five-phase process for planning and building JCTsh smart home components, from discovery through execution.
+**Version:** 1.4
+**Version description:** Added ENVIRONMENT.md and jctsh-parts-inventory.md to the Step 1 required context table. These files must be loaded at the start of every planning session alongside the root README.md.
+
+---
 
 ## Core Principle
 
 Use Claude chat for **thinking, researching, and planning**. Use Claude Code for **implementation, documentation, and execution**. The two work in sequence, not in parallel — the chat session produces the blueprint that Claude Code builds from.
+
+---
+
+## Context Files Required
+
+Before any component planning session can begin, load the following files into the Claude chat session. Claude will not proceed with Phase 1 until all required files are present.
+
+### Step 1 — Load first
+
+| File | Location | Purpose |
+|---|---|---|
+| `README.md` | repo root | JCTsh infrastructure overview, naming conventions, and the authoritative list of existing components |
+| `ENVIRONMENT.md` | repo root | Full smart home device inventory — all hubs, sensors, switches, and integrations |
+| `jctsh-parts-inventory.md` | repo root | On-hand parts inventory — hardware available for use before any purchasing decisions are made |
+| `JCTsh-Component-Planning-Pattern.md` | repo root | This document — the planning process itself |
+
+### Step 2 — Claude reads the root README and requests these
+
+After reading the root README, Claude identifies every listed component and requests:
+
+| File | Location | Purpose |
+|---|---|---|
+| `README.md` for each component | `components/<name>/` | Full ecosystem picture — understanding what exists before designing what's new |
+
+### Step 3 — Required in addition when an existing component is the closest reference model
+
+| File | Location | Purpose |
+|---|---|---|
+| Claude Code instruction file | `components/<name>/` | The step-by-step build instructions produced in Phase 4 |
+| ESPHome YAML or source code | `components/<name>/` | Actual implementation for reference |
+| Node-RED flow export (if applicable) | `components/<name>/` | Flow logic for the component |
+
+### How to load files
+
+Paste file contents directly into the chat, or use the file upload feature. State which file each paste represents. Claude will confirm when it has sufficient context to begin Phase 1.
 
 ---
 
@@ -31,6 +72,7 @@ Once the technology is understood, make specific hardware decisions with full co
 
 ### What happens in this phase
 - Identify every physical component needed
+- Check the parts inventory first — use on-hand parts before purchasing
 - Research specific products, part numbers, and sources
 - Compare options on price, compatibility, availability, and suitability
 - Flag any components that are hard to source or have known issues (counterfeits, supply problems)
@@ -109,6 +151,8 @@ If something doesn't work as expected during execution, bring it back to the Cla
 **Separation of concerns.** Chat is for thinking. Code is for building. Mixing them produces confusion.
 
 **Research before purchase.** Every hardware decision is made with full compatibility context. No buying something only to discover it doesn't work with something else.
+
+**Parts inventory first.** On-hand parts are checked before any purchasing decisions. No buying something you already have.
 
 **Deliberate deferral.** Explicitly deciding what not to build yet is as important as deciding what to build. Future enhancements are documented so they aren't lost, but they don't complicate the current build.
 

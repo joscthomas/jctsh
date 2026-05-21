@@ -157,6 +157,11 @@ garage door and turns off lights. Added to garage-presence/CLAUDE.md with a note
 that any false "presence off" (MQTT outage, HA restart, radar gap) will trigger it
 unexpectedly — as confirmed by today's incident.
 
+Repo cleanup. Added JCTsh-Component-Planning-Pattern.md (v1.4),
+jctsh-parts-inventory.md, and components/front-porch-temp-sensor/ (instructions
+in progress). Added .claude/settings.local.json to .gitignore — file contains
+machine-specific absolute paths and should not be version controlled.
+
 ## 2026-05-18 (continued)
 Garage Presence further refined. Added Automation 2 (timer expired → turn off Garage
 Presence Vswitch) and Automation 3 (sync timer to vswitch — HA restart recovery).

@@ -134,7 +134,7 @@ _HTML_TEMPLATE = """\
 </head>
 <body>
   <h2>JCTsh Log Dashboard</h2>
-  <p class="sub">Updates every 5s &nbsp;|&nbsp; Last %%MAX%% entries</p>
+  <p class="sub">Updates every 5s &nbsp;|&nbsp; Last %%MAX%% entries &nbsp;|&nbsp; <a href="/log" style="color:#555">%%LOG%%</a></p>
   <div class="controls">
     <label>Component:</label>
     <select id="fc" onchange="f()"><option value="">All</option>%%COMP%%</select>
@@ -244,6 +244,7 @@ def _build_html(snapshot):
     html = html.replace("%%ROWS%%",  "\n".join(rows))
     html = html.replace("%%COMP%%",  comp_opts)
     html = html.replace("%%MAX%%",   str(MAX_ENTRIES))
+    html = html.replace("%%LOG%%",   escape(LOG_FILE))
     return html
 
 
@@ -267,6 +268,20 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self._check_auth():
             self._send_auth_challenge()
+            return
+        if self.path == "/log":
+            try:
+                with open(LOG_FILE, "rb") as f:
+                    body = f.read()
+            except OSError:
+                self.send_response(404)
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return
         if self.path == "/data":
             snap = _snapshot()

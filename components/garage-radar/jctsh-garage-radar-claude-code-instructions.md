@@ -4,7 +4,7 @@
 **Version:** 1.3
 **Version description:** Corrected logging, watchdog, and SmartThings integration based on CLAUDE.md. Log format is JSON to /log topic. Watchdog is a new Node-RED flow built as part of this project. SmartThings path is Node-RED → HA REST API → virtual switch. Added MQTT account creation step. Added Node-RED watchdog flow build to Step 4.5. Added HA companion app phone notification as watchdog alert.
 **Project:** JCTsh — Smart Home Automation
-**Status:** In progress — Step 4 complete, Step 4.5 ready to begin
+**Status:** In progress — Step 4.5 complete, Step 4.6 ready to begin
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md, JCTsh-Build-Standards.md
 
 ---

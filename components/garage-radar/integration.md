@@ -84,7 +84,7 @@ HA → Settings → Automations → **Create Automation** → Edit in YAML, past
 alias: Garage Presence - Radar keepalive
 triggers:
   - trigger: time_pattern
-    minutes: "/10"
+    minutes: "/5"
 conditions:
   - condition: state
     entity_id: binary_sensor.garage_radar_presence
@@ -104,7 +104,9 @@ mode: single
 **Why this is needed:** the `to: "on"` trigger fires only on state transitions. If someone
 sits completely still at the workbench for 20+ minutes, the radar stays continuously `on`
 with no transition — the timer would expire and turn off the lights. The keepalive fires
-every 10 minutes to prevent this as long as presence is detected.
+every 5 minutes to prevent this as long as presence is detected. Five minutes is half
+the minimum practical timer duration (10 min), ensuring the keepalive always fires well
+before the timer could expire regardless of how `garage_timer_duration` is set.
 
 Click **Save**.
 

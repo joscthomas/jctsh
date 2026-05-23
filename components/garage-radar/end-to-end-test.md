@@ -45,22 +45,22 @@ To monitor the SmartThings side: open the SmartThings app → Devices →
 
 **Scenario:** someone sitting still at the workbench for an extended period.
 
-> **This test uses a different timer value.** The keepalive fires every 10 minutes.
-> The timer must be set longer than 10 minutes so you can observe the keepalive reset
-> it before it expires. Set the timer to **11 minutes** for this test only.
+> **This test uses a different timer value.** The keepalive fires every 5 minutes.
+> The timer must be set longer than 5 minutes so you can observe the keepalive reset
+> it before it expires. Set the timer to **6 minutes** for this test only.
 
 **Setup:**
-- HA → Developer Tools → Actions → `input_number.set_value` → value: `11`
+- HA → Developer Tools → Actions → `input_number.set_value` → value: `6`
 
 **Steps:**
 1. Stand or sit in front of the radar — confirm `garage_radar_presence` = `on`
 2. Confirm `timer.garage_presence_timer` starts at 11 minutes and `garage_presence_vswitch` = `on`
 3. Remain in the detection zone and watch the timer count down
-4. At the next clock time divisible by 10 (:00, :10, :20, :30, :40, or :50) the keepalive
-   fires — the timer resets back to 11 minutes
+4. At the next clock time divisible by 5 (:00, :05, :10, :15, etc.) the keepalive
+   fires — the timer resets back to 6 minutes
 5. Confirm `garage_presence_vswitch` stays `on` throughout
 
-**Pass:** timer resets at the 10-minute clock boundary; vswitch never turns off.
+**Pass:** timer resets at the 5-minute clock boundary; vswitch never turns off.
 
 **After Test 1:** set timer back to `2` for Tests 2–4.
 
@@ -102,7 +102,7 @@ should not flicker or turn off.
 2. Step out of detection zone — wait for `garage_radar_presence` to go `off`
 3. Wait for the timer to expire (do not re-enter the detection zone)
 4. Confirm `garage_presence_vswitch` turns `off`
-5. Confirm it does NOT turn back on at the next 10-minute mark
+5. Confirm it does NOT turn back on at the next 5-minute mark
 
 **Pass:** keepalive stops firing once radar is off; vswitch stays off.
 
@@ -113,7 +113,7 @@ should not flicker or turn off.
 | Symptom | Check |
 |---|---|
 | Timer not starting | Automation trace: Settings → Automations → Garage Presence - Restart timer on activity → last triggered |
-| Timer not resetting every 10 min | Automation trace: Garage Presence - Radar keepalive → last triggered |
+| Timer not resetting every 5 min | Automation trace: Garage Presence - Radar keepalive → last triggered |
 | Vswitch not turning off | Automation trace: Garage Presence - Timer expired → last triggered |
 | Vswitch off in SmartThings but not HA (or vice versa) | ST→HA sync lag — wait 30s and recheck both |
 | `garage_radar_presence` not going off | Check `delayed_off: 30s` filter in `garage-radar.yaml`; confirm person is outside ±75° cone |
@@ -126,9 +126,9 @@ Restore timer duration:
 
 HA → Developer Tools → Actions → `input_number.set_value`:
 - Entity: `input_number.garage_timer_duration`
-- Value: `20`
+- Value: `15`
 
-Confirm via States that `input_number.garage_timer_duration` = `20.0`.
+Confirm via States that `input_number.garage_timer_duration` = `15.0`.
 
 ---
 

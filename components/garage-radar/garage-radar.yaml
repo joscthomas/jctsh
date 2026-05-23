@@ -5,18 +5,27 @@
 # UART wiring (hardware UART2):
 #   LD2412 TX → ESP32 GPIO16 (RX2)
 #   LD2412 RX → ESP32 GPIO17 (TX2)
-#   LD2412 VCC → ESP32 3.3V
+#   LD2412 VCC → ESP32 5V (VIN) — module has onboard 5V→3.3V regulator
 #   LD2412 GND → ESP32 GND
 #
-# MQTT topics (prefix: jctsh/components/garage-radar):
-#   .../binary_sensor/presence/state         — has_target (primary presence signal)
-#   .../binary_sensor/moving_target/state    — has_moving_target
-#   .../binary_sensor/still_target/state     — has_still_target
+# LED wiring:
+#   GPIO33 → 330Ω → green LED anode → cathode → GND  (presence indicator)
+#   GPIO32 → 330Ω → yellow LED anode → cathode → GND (garage presence vswitch mirror)
+#
+# MQTT topics published (prefix: jctsh/components/garage-radar):
+#   .../binary_sensor/presence/state         — has_target (primary presence signal, ON/OFF)
+#   .../binary_sensor/moving_target/state    — has_moving_target (ON/OFF)
+#   .../binary_sensor/still_target/state     — has_still_target (ON/OFF)
 #   .../sensor/moving_distance/state         — cm
 #   .../sensor/still_distance/state          — cm
 #   .../sensor/moving_energy/state           — %
 #   .../sensor/still_energy/state            — %
 #   .../sensor/detection_distance/state      — cm
+#   .../log                                  — JSON log messages (routed by Node-RED to log server)
+#   .../heartbeat                            — JSON heartbeat (Node-RED watchdog, every 5 min)
+#
+# MQTT topic subscribed:
+#   jctsh/components/garage-presence-vswitch/state  — drives yellow LED
 #
 # Timeouts:
 #   30s  — delayed_off filter on has_target: smooths momentary radar detection gaps (sensor level)
@@ -25,6 +34,19 @@
 esphome:
   name: garage-radar
   friendly_name: Garage Radar
+  on_boot:
+    priority: -100
+    then:
+      - delay: 2s
+      - repeat:
+          count: 3
+          then:
+            - output.turn_on: led_green
+            - output.turn_on: led_yellow
+            - delay: 200ms
+            - output.turn_off: led_green
+            - output.turn_off: led_yellow
+            - delay: 200ms
 
 esp32:
   board: esp32dev
@@ -40,6 +62,14 @@ wifi:
     password: !secret ap_password
 
 captive_portal:
+
+# ── Globals ───────────────────────────────────────────────────────────────────
+# led_holdoff: countdown timer (seconds) for green LED delayed-off behavior.
+# Counts down 30s after detection_dist drops to 0, mirrors delayed_off: 30s.
+globals:
+  - id: led_holdoff
+    type: uint32_t
+    initial_value: '0'
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logger:
@@ -62,6 +92,37 @@ mqtt:
   topic_prefix: jctsh/components/garage-radar
   discovery: true
   discovery_prefix: homeassistant
+  # will_message is sent by the broker when the ESP32 disconnects unexpectedly (LWT)
+  will_message:
+    topic: jctsh/components/garage-radar/log
+    payload: '{"component":"garage-radar","category":"MQTT","message":"MQTT disconnected"}'
+    retain: false
+    qos: 0
+  on_connect:
+    - mqtt.publish:
+        topic: jctsh/components/garage-radar/log
+        payload: !lambda |-
+          char buf[256];
+          snprintf(buf, sizeof(buf),
+            "{\"component\":\"garage-radar\",\"category\":\"System\","
+            "\"message\":\"Garage radar online - ESPHome " ESPHOME_VERSION ", IP: %s\"}",
+            id(wifi_ip).state.c_str());
+          return std::string(buf);
+    - mqtt.publish:
+        topic: jctsh/components/garage-radar/log
+        payload: '{"component":"garage-radar","category":"MQTT","message":"MQTT broker connected - publishing to jctsh/components/garage-radar/binary_sensor/presence/state"}'
+  on_message:
+    # Yellow LED mirrors garage presence virtual switch state
+    - topic: jctsh/components/garage-presence-vswitch/state
+      qos: 0
+      then:
+        - if:
+            condition:
+              lambda: 'return x == "ON" || x == "on";'
+            then:
+              - output.turn_on: led_yellow
+            else:
+              - output.turn_off: led_yellow
 
 # ── UART (hardware UART2) ─────────────────────────────────────────────────────
 # Do not use UART0 (USB) or UART1 (may conflict with flash).
@@ -78,6 +139,19 @@ uart:
 ld2412:
   uart_id: uart_ld2412
 
+# ── LED outputs ───────────────────────────────────────────────────────────────
+# GPIO33: green LED — on when presence detected (detection_dist > 0, 30s holdoff)
+# GPIO32: yellow LED — mirrors garage-presence-vswitch state via MQTT subscription
+# id(presence).state is unreliable for nested ld2412 binary sensors in ESPHome 2026.x;
+# green LED uses detection_dist + manual holdoff counter instead.
+output:
+  - platform: gpio
+    id: led_green
+    pin: GPIO33
+  - platform: gpio
+    id: led_yellow
+    pin: GPIO32
+
 # ── Binary sensors ────────────────────────────────────────────────────────────
 binary_sensor:
   - platform: ld2412
@@ -87,6 +161,34 @@ binary_sensor:
       device_class: occupancy
       filters:
         - delayed_off: 30s
+      on_state:
+        then:
+          - if:
+              condition:
+                lambda: 'return x;'
+              then:
+                - mqtt.publish:
+                    topic: jctsh/components/garage-radar/log
+                    payload: !lambda |-
+                      const char* still_str  = id(still_target).state  ? "ON" : "OFF";
+                      const char* moving_str = id(moving_target).state ? "ON" : "OFF";
+                      float dist = id(detection_dist).state;
+                      char dist_buf[16];
+                      if (isnan(dist) || dist <= 0) {
+                        snprintf(dist_buf, sizeof(dist_buf), "unknown");
+                      } else {
+                        snprintf(dist_buf, sizeof(dist_buf), "%.1fm", dist / 100.0f);
+                      }
+                      char buf[256];
+                      snprintf(buf, sizeof(buf),
+                        "{\"component\":\"garage-radar\",\"category\":\"Sensor\","
+                        "\"message\":\"Presence detected - has_target: ON (still: %s, moving: %s, distance: %s)\"}",
+                        still_str, moving_str, dist_buf);
+                      return std::string(buf);
+              else:
+                - mqtt.publish:
+                    topic: jctsh/components/garage-radar/log
+                    payload: '{"component":"garage-radar","category":"Sensor","message":"Presence cleared - has_target: OFF, timeout elapsed"}'
     has_moving_target:
       name: "Moving Target"
       id: moving_target
@@ -111,4 +213,70 @@ sensor:
       unit_of_measurement: "%"
     detection_distance:
       name: "Detection Distance"
+      id: detection_dist
       unit_of_measurement: "cm"
+  - platform: uptime
+    id: uptime_sec
+    internal: true
+  - platform: wifi_signal
+    id: wifi_rssi
+    internal: true
+    update_interval: 60s
+
+# ── WiFi info (used in log messages) ──────────────────────────────────────────
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: wifi_ip
+      internal: true
+
+# ── Intervals ─────────────────────────────────────────────────────────────────
+# 1s  — green LED: drives GPIO33 from detection_distance with manual 30s holdoff.
+#        id(presence).state is unreliable for nested ld2412 binary sensors in
+#        ESPHome 2026.x, so detection_dist (numeric sensor) is used instead.
+# 5min — heartbeat to /log (dashboard) and /heartbeat (Node-RED watchdog)
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          float dist = id(detection_dist).state;
+          bool detected = !isnan(dist) && dist > 0;
+          if (detected) {
+            id(led_holdoff) = 30;
+          } else if (id(led_holdoff) > 0) {
+            id(led_holdoff)--;
+          }
+          if (id(led_holdoff) > 0) {
+            id(led_green)->turn_on();
+          } else {
+            id(led_green)->turn_off();
+          }
+  - interval: 5min
+    then:
+      - mqtt.publish:
+          topic: jctsh/components/garage-radar/log
+          payload: !lambda |-
+            uint32_t secs = (uint32_t)id(uptime_sec).state;
+            uint32_t h = secs / 3600;
+            uint32_t m = (secs % 3600) / 60;
+            int rssi = (int)id(wifi_rssi).state;
+            const char* pres_str = id(led_holdoff) > 0 ? "ON" : "OFF";
+            char buf[256];
+            snprintf(buf, sizeof(buf),
+              "{\"component\":\"garage-radar\",\"category\":\"System\","
+              "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, presence: %s\"}",
+              h, m, rssi, pres_str);
+            return std::string(buf);
+      - mqtt.publish:
+          topic: jctsh/components/garage-radar/heartbeat
+          payload: !lambda |-
+            uint32_t secs = (uint32_t)id(uptime_sec).state;
+            uint32_t h = secs / 3600;
+            uint32_t m = (secs % 3600) / 60;
+            int rssi = (int)id(wifi_rssi).state;
+            const char* pres_str = id(led_holdoff) > 0 ? "ON" : "OFF";
+            char buf[256];
+            snprintf(buf, sizeof(buf),
+              "{\"component\":\"garage-radar\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"presence\":\"%s\"}",
+              h, m, rssi, pres_str);
+            return std::string(buf);

@@ -109,7 +109,103 @@ All 5 tests pass when:
 
 ---
 
-## Next Step
+## Next Step (after Step 4 only)
 
-If all tests pass, proceed to `perfboard-layout.md` (Step 5) to plan the permanent
-soldered build. If repositioning is needed, adjust now before soldering.
+If all Step 4 tests pass, proceed to Step 4.5 enhancements, then run the Step 4.6
+validation below before moving to `perfboard-layout.md` (Step 5).
+
+---
+
+# Enhancement Validation (Step 4.6)
+
+Run these tests after completing Step 4.5 (LEDs added, YAML reflashed, watchdog flow
+imported into Node-RED).
+
+---
+
+## Test 6 — Green LED (presence indicator)
+
+Walk in front of the radar and confirm:
+- [ ] Green LED lights when `Presence` goes `on`
+- [ ] Green LED extinguishes approximately 30 seconds after you leave the detection zone
+  (it follows the `delayed_off: 30s` filter, not the raw radar state)
+
+If the LED does not light: check GPIO25 wiring — resistor orientation, LED polarity
+(flat side / short leg = cathode = GND side).
+
+---
+
+## Test 7 — Yellow LED (garage presence vswitch mirror)
+
+The yellow LED mirrors the `garage-presence-vswitch` MQTT state. To test:
+
+1. In HA, manually turn `switch.garage_presence_vswitch` **on**
+   (Developer Tools → Services → `switch.turn_on` → entity: `switch.garage_presence_vswitch`)
+2. Confirm yellow LED lights
+3. Turn the switch **off** — confirm yellow LED extinguishes
+
+If the LED does not respond: the ESP32 may not yet have received a retained message on
+`jctsh/components/garage-presence-vswitch/state`. Confirm that topic is being published
+(check with MQTT explorer or `mosquitto_sub`). If the topic is not published, HA may need
+to be configured to publish the switch state to MQTT — investigate the garage-presence
+component setup.
+
+---
+
+## Test 8 — Log messages
+
+Open the log dashboard at `http://raspberrypi.local/` and filter by component `garage-radar`.
+
+Trigger each condition and confirm the corresponding log entry appears:
+
+| Action | Expected log message |
+|---|---|
+| ESP32 boot / MQTT connect | `Garage radar online — ESPHome vX.X.X, IP: x.x.x.x` |
+| MQTT connect | `MQTT broker connected — publishing to ...` |
+| Walk in front of radar | `Presence detected — has_target: ON (still: ..., moving: ..., distance: ...m)` |
+| Leave detection zone (after 30s) | `Presence cleared — has_target: OFF, timeout elapsed` |
+| Wait up to 5 minutes | `Heartbeat — uptime: Xh Xm, RSSI: -XXdBm, presence: ON/OFF` |
+
+If log messages are not appearing: confirm Node-RED is routing `jctsh/+/+/log` to the
+Python log server. Check Node-RED debug panel for MQTT subscription errors.
+
+---
+
+## Test 9 — Heartbeat
+
+Wait up to 5 minutes after boot. Confirm:
+- [ ] A heartbeat log entry appears in the dashboard under `garage-radar` (System category)
+- [ ] In Node-RED, open the watchdog flow tab and enable the debug node — confirm a
+  message arrives on `jctsh/components/garage-radar/heartbeat` within 5 minutes
+
+---
+
+## Test 10 — Watchdog alert
+
+> **Duration:** up to 12 minutes. Run when you have time to wait.
+
+1. Note the time
+2. Power off the ESP32 (unplug USB)
+3. Wait — the watchdog timer starts counting from the last heartbeat received
+4. Within 10 minutes of the last heartbeat, a push notification should arrive on the
+   Pixel 10 Pro: `JCTsh alert: garage-radar has not reported in 10 minutes`
+5. An alert entry should also appear in the log dashboard under component `watchdog`
+6. Power the ESP32 back on — confirm the watchdog timer resets (no further alerts)
+
+If the notification does not arrive: check Node-RED watchdog flow for errors. Confirm
+`HA_TOKEN` environment variable is set in Node-RED and is a valid HA long-lived access
+token. Confirm the HA notify service name `mobile_app_pixel_10_pro` matches the device
+name in HA (Settings → Companion App).
+
+---
+
+## Step 4.6 pass criteria
+
+- [ ] Green LED lights on presence, extinguishes after 30s timeout
+- [ ] Yellow LED mirrors garage presence vswitch state
+- [ ] All log message types appear in the dashboard
+- [ ] Heartbeat appears every 5 minutes
+- [ ] Watchdog push notification received within 10 minutes of ESP32 power-off
+- [ ] Watchdog resets when ESP32 comes back online
+
+If all pass, proceed to `perfboard-layout.md` (Step 5).

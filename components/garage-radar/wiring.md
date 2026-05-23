@@ -9,6 +9,16 @@
 | TX | GPIO16 (RX2)    | LD2412 **transmits** → ESP32 **receives** |
 | RX | GPIO17 (TX2)    | ESP32 **transmits** → LD2412 **receives** |
 
+## LED Connection Table (Step 4.5 addition)
+
+| Signal | ESP32 Pin | Resistor | LED | Notes |
+|---|---|----------|---|---|
+| Presence indicator | GPIO25 | 220Ω     | Green, 5mm | ON when `has_target` ON |
+| Garage presence vswitch | GPIO26 | 220Ω     | Yellow, 5mm | Mirrors `garage-presence-vswitch` MQTT state |
+
+Both LEDs: GPIO pin → 220Ω resistor → LED **anode** (+) (long leg) → LED **cathode** (–) (short leg) → GND.
+The flat side of the LED base and the shorter leg mark the cathode.
+
 > **Power note:** The LD2412 module uses an onboard 5V→3.3V regulator. Power it from
 > the ESP32 5V (VIN) pin, which is connected to USB 5V when the ESP32 is powered via USB.
 > The UART TX/RX lines operate at 3.3V logic despite the 5V supply — no level shifter
@@ -67,6 +77,10 @@ Place it so the USB-C port faces one end of the breadboard.
 - HLK-LD2412 module
 - 4 jumper wires (use different colors: red=VCC, black=GND, green=TX→RX, yellow=RX→TX)
 - USB-C cable for power and first flash
+- Green LED, 5mm (GPIO25 — presence indicator)
+- Yellow LED, 5mm (GPIO26 — garage presence vswitch mirror)
+- Two 330Ω resistors (one per LED)
+- Two additional jumper wires for LEDs (or short solid-core wire)
 
 ### Assembly sequence
 
@@ -87,13 +101,36 @@ Leave enough space to route 4 wires cleanly.
 - Green wire: LD2412 TX → ESP32 GPIO16 (RX2)
 - Yellow wire: LD2412 RX → ESP32 GPIO17 (TX2)
 
-**5. Visual verification before powering on**
+**5. Wire the green LED (GPIO25 — presence indicator)**
+
+Before wiring: mark the GPIO25 row on the breadboard with a small piece of masking tape.
+
+- Run a wire from GPIO25 to a free row.
+- Insert the 330Ω resistor from that row to the next row.
+- Insert the green LED: anode (longer leg, round side of base) into the resistor row, cathode (shorter leg, flat side of base) into the next row.
+- Run a GND wire from the cathode row to the ESP32 GND (or ground rail).
+
+**6. Wire the yellow LED (GPIO26 — garage presence vswitch)**
+
+Before wiring: mark the GPIO26 row on the breadboard with masking tape.
+
+- Same pattern as green LED, using GPIO26.
+- Run a wire from GPIO26 → 330Ω resistor → yellow LED anode → LED cathode → GND.
+
+> **LED polarity warning:** LEDs will not light if installed backwards, but they also
+> will not be damaged at 3.3V with a 330Ω resistor. If an LED does not light when
+> expected, flip it before investigating further.
+
+**7. Visual verification before powering on**
 Before connecting USB, verify:
 - [ ] LD2412 5V is connected to ESP32 5V (VIN) pin
 - [ ] LD2412 GND is connected to ESP32 GND
 - [ ] LD2412 TX is connected to GPIO16 (labeled RX2)
 - [ ] LD2412 RX is connected to GPIO17 (labeled TX2)
 - [ ] No wires crossed between TX and RX on the same device
+- [ ] Green LED: GPIO25 → resistor → LED anode → cathode → GND
+- [ ] Yellow LED: GPIO26 → resistor → LED anode → cathode → GND
+- [ ] LED anodes (longer legs) face the resistors, cathodes face GND
 
 ---
 

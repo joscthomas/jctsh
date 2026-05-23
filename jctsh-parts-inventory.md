@@ -63,6 +63,15 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 ---
 
+## LEDs and Resistors
+
+| Component | Description | Qty On Hand | Notes |
+|---|---|---|---|
+| 5mm LED Assortment | 200pcs, 5 colors (red, green, yellow, blue, white), 40 of each color | Selection on hand | Not tracked by count. Check inventory before planning a project. Green and yellow confirmed available for ESP32 status indicators. |
+| Resistor Assortment | 600pcs, 30 values, 10Ω to 1MΩ, 20 of each value | Selection on hand | Not tracked by count. Check inventory before planning a project. 330Ω confirmed available for LED current limiting at 3.3V. |
+
+---
+
 ## Enclosures and Cases
 
 | Component | Description | Qty On Hand | Notes |

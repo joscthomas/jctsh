@@ -1,0 +1,131 @@
+[
+  {
+    "id": "tab_watchdog",
+    "type": "tab",
+    "label": "Watchdog",
+    "disabled": false,
+    "info": "Monitors all JCTsh component heartbeats via wildcard subscription (jctsh/+/+/heartbeat). If any component stops reporting for 10 minutes (2x the 5-minute heartbeat interval), sends a push notification via HA companion app (Pixel 10 Pro XL) and logs the alert. New components are picked up automatically — no changes to this flow needed when new components are added."
+  },
+
+  {
+    "id": "comment_heartbeat_header",
+    "type": "comment",
+    "z": "tab_watchdog",
+    "name": "── Heartbeat Monitor ──────────────────────────────────",
+    "info": "",
+    "x": 210,
+    "y": 40,
+    "wires": []
+  },
+
+  {
+    "id": "mqtt_in_heartbeat",
+    "type": "mqtt in",
+    "z": "tab_watchdog",
+    "name": "jctsh/+/+/heartbeat",
+    "topic": "jctsh/+/+/heartbeat",
+    "qos": "1",
+    "datatype": "auto",
+    "broker": "mqtt_broker",
+    "x": 130,
+    "y": 100,
+    "wires": [["fn_timer_manager", "debug_heartbeat"]]
+  },
+
+  {
+    "id": "debug_heartbeat",
+    "type": "debug",
+    "z": "tab_watchdog",
+    "name": "heartbeat received",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "topic",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 370,
+    "y": 140,
+    "wires": []
+  },
+
+  {
+    "id": "fn_timer_manager",
+    "type": "function",
+    "z": "tab_watchdog",
+    "name": "Timer manager (per component)",
+    "func": "// Extract component name from topic: jctsh/<type>/<component>/heartbeat\nconst parts = msg.topic.split('/');\nconst component = parts.length >= 3 ? parts[2] : 'unknown';\n\n// Reset the 10-minute timer for this component\nconst existing = context.get(component + '_timer');\nif (existing) clearTimeout(existing);\n\nnode.warn('Timer set for ' + component + ' — will fire in 10 min');\n\nconst timer = setTimeout(function() {\n    context.set(component + '_timer', null);\n    node.warn('Timer fired for ' + component);\n    node.send({ payload: component });\n}, 10 * 60 * 1000);\n\ncontext.set(component + '_timer', timer);\n\n// No output on receipt — only fires on timeout\nreturn null;",
+    "outputs": 1,
+    "x": 370,
+    "y": 100,
+    "wires": [["fn_build_alert"]]
+  },
+
+  {
+    "id": "comment_alert_header",
+    "type": "comment",
+    "z": "tab_watchdog",
+    "name": "── Alert (fires only on 10-minute silence) ────────────",
+    "info": "",
+    "x": 230,
+    "y": 160,
+    "wires": []
+  },
+
+  {
+    "id": "fn_build_alert",
+    "type": "function",
+    "z": "tab_watchdog",
+    "name": "Build alert",
+    "func": "const component = msg.payload;\nconst HA_URL   = 'http://localhost:8123';\nconst HA_TOKEN = env.get('HA_TOKEN') || flow.get('haToken') || global.get('haToken');\n\n// Output 1: HA notification request\nconst haMsg = {\n    url: HA_URL + '/api/services/notify/mobile_app_pixel_10_pro_xl',\n    method: 'POST',\n    headers: {\n        'Authorization': 'Bearer ' + HA_TOKEN,\n        'Content-Type': 'application/json'\n    },\n    payload: JSON.stringify({\n        message: 'JCTsh alert: ' + component + ' has not reported in 10 minutes',\n        title: 'JCTsh Watchdog'\n    }),\n    _component: component\n};\n\n// Output 2: watchdog log message (published regardless of HA result)\nconst logMsg = {\n    payload: JSON.stringify({\n        component: 'watchdog',\n        category: 'Alert',\n        message: 'Component ' + component + ' silent for 10 minutes'\n    })\n};\n\nreturn [haMsg, logMsg];",
+    "outputs": 2,
+    "x": 370,
+    "y": 220,
+    "wires": [["http_ha_notify"], ["mqtt_out_watchdog_log"]]
+  },
+
+  {
+    "id": "http_ha_notify",
+    "type": "http request",
+    "z": "tab_watchdog",
+    "name": "HA notify (Pixel 10 Pro XL)",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "x": 610,
+    "y": 200,
+    "wires": [["fn_log_ha_response"]]
+  },
+
+  {
+    "id": "fn_log_ha_response",
+    "type": "function",
+    "z": "tab_watchdog",
+    "name": "Log HA response",
+    "func": "const component = msg._component || 'unknown';\nnode.warn('HA notify status: ' + msg.statusCode + ' | payload: ' + JSON.stringify(msg.payload));\nif (msg.statusCode !== 200 && msg.statusCode !== 201) {\n    node.warn('HA notify error ' + msg.statusCode + ': ' + msg.payload);\n    return { payload: JSON.stringify({\n        component: 'watchdog',\n        category: 'Alert',\n        message: 'HA notify error ' + msg.statusCode + ' — alert for ' + component + ' may not have delivered'\n    })};\n}\nreturn null;",
+    "outputs": 1,
+    "x": 840,
+    "y": 200,
+    "wires": [["mqtt_out_watchdog_log"]]
+  },
+
+  {
+    "id": "mqtt_out_watchdog_log",
+    "type": "mqtt out",
+    "z": "tab_watchdog",
+    "name": "jctsh/core/watchdog/log",
+    "topic": "jctsh/core/watchdog/log",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker",
+    "x": 1070,
+    "y": 220,
+    "wires": []
+  }
+]

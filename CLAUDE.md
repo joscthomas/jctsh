@@ -60,6 +60,17 @@ Every component produces two message streams:
 - **Data flow** — `jctsh/<type>/<component>/<message-type>` — sensor readings and state that drive automations.
 - **Log flow** — `jctsh/<type>/<component>/log` — diagnostic and status messages routed by Node-RED to the Python log server for visibility and troubleshooting.
 
+## Environmental Data Architecture
+
+JCTsh includes a multi-source environmental sensor platform. The payload schema,
+Google Sheets archive design, Node-RED wildcard data handler pattern, Weather
+Underground integration, and planned device family are defined in:
+
+`JCTsh-Environmental-Data-Architecture.md` (repo root)
+
+All environmental sensor components must conform to the standard defined there
+before Phase 3 planning is considered complete.
+
 ## Infrastructure
 | Service | Host | Access |
 |---|---|---|
@@ -123,8 +134,9 @@ ssh pi@raspberrypi.local "sudo systemctl restart jctsh-logging"
 ```
 
 ## SmartThings Integration
-Home Assistant is the bridge to SmartThings — there is no other path. Any JCTsh
-component that needs to reach a SmartThings device must go through HA:
+Home Assistant is the bridge to SmartThings — **there is no other path.** Do not call
+the SmartThings REST API (api.smartthings.com) directly. That API requires a SmartThings
+Personal Access Token, which we do not use. All SmartThings interaction goes through HA:
 
 ```
 Node-RED → HA REST API (port 8123) → SmartThings integration → SmartThings device
@@ -135,6 +147,11 @@ switches (`switch.salt_critical_alert`, `switch.salt_low_alert`, `switch.salt_fu
 `switch.salt_test_mode`) are HA entities that HA syncs to SmartThings. Future components
 that need SmartThings alerts or control should follow the same pattern: create virtual
 switches in SmartThings, expose them as HA entities, control via Node-RED → HA REST API.
+
+To expose a sensor (not a switch) to SmartThings — e.g. a motion sensor — use the HA
+SmartThings integration's entity-exposure feature (Settings → Devices & Services →
+SmartThings → Configure) to push the existing HA entity to SmartThings directly. No
+virtual device and no SmartThings PAT required.
 
 ## Credentials
 
@@ -180,3 +197,21 @@ Use **ESPHome YAML** (not Arduino C++) for new ESP-based components:
 5. Add `<name>.flow.json` for Node-RED logic
 6. Create a dedicated MQTT account: `sudo mosquitto_passwd -b /etc/mosquitto/passwd <name> <password>`, then fix ownership (see Credentials section)
 7. Add credentials to `components/<name>/secrets.yaml` (gitignored)
+
+### ESP32 GPIO pin guidance
+Safe pins for digital output: **GPIO32, GPIO33**, GPIO18, GPIO19, GPIO21, GPIO22, GPIO23, GPIO27.
+
+Pins to avoid:
+| Pin(s) | Reason |
+|---|---|
+| GPIO25, GPIO26 | DAC1/DAC2 — GPIO25 confirmed broken for digital output in ESPHome/Arduino framework (post-boot DAC init reconfigures the pin). Avoid both as a precaution. |
+| GPIO34–39 | Input-only — no output capability |
+| GPIO6–11 | Connected to flash — do not use |
+| GPIO0, GPIO2, GPIO12, GPIO15 | Strapping pins — affect boot mode if driven at reset |
+
+## Backlog for Future work
+For the next time we open a component for changing.
+- Add time zone to log messages.
+- The component and category filters at the top of the log page get cleared back to all after a few seconds.
+- It's really difficult to select a particular line on the log, the cursor movement has to be perfect or it deselects and you have to start selecting again.
+- garage-radar: closing garage door triggers a false presence detection (moving door passes through radar detection cone). Options: (a) adjust radar tilt angle to exclude the door path — need a method to determine correct angle during calibration; (b) accept it — 15-minute timer means lights go off eventually regardless.

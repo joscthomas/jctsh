@@ -88,3 +88,6 @@ Three rapid LED flashes confirm successful OTA reboot.
 ## Next Steps
 - MQTT TLS hardening
 - Confirm Home Assistant role (SmartThings bridge vs. other) before deeper JCTsh integration
+- What is the current set of messages written to the log?
+- Two external parameters for calibrating the sensor: one for the 100% sensor value (equal or greater than), and one for the 0% sensor value (equal or less than)
+- Write entries to the message log everytime a sensor reading is done and report the percent full

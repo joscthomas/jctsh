@@ -1,8 +1,8 @@
 # JCT Smart Home (JCTsh) Component Planning Pattern
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the five-phase process for planning and building JCTsh smart home components, from discovery through execution.
-**Version:** 1.4
-**Version description:** Added ENVIRONMENT.md and jctsh-parts-inventory.md to the Step 1 required context table. These files must be loaded at the start of every planning session alongside the root README.md.
+**Version:** 1.6
+**Version description:** Added CLAUDE.md to required context files (Step 1). Updated Phase 3 checklist watchdog row to reflect that the Node-RED watchdog is a new JCTsh infrastructure component, not an existing process. Updated Notes for Claude Code template to remove "examine existing watchdog" and replace with correct watchdog build instruction.
 
 ---
 
@@ -21,8 +21,10 @@ Before any component planning session can begin, load the following files into t
 | File | Location | Purpose |
 |---|---|---|
 | `README.md` | repo root | JCTsh infrastructure overview, naming conventions, and the authoritative list of existing components |
+| `CLAUDE.md` | repo root | Architecture, message flow, MQTT conventions, log format, SmartThings integration path, credentials patterns, and infrastructure details |
 | `ENVIRONMENT.md` | repo root | Full smart home device inventory — all hubs, sensors, switches, and integrations |
-| `jctsh-parts-inventory.md` | repo root | On-hand parts inventory — hardware available for use before any purchasing decisions are made |
+| `JCTsh-Parts-Inventory.md` | repo root | On-hand parts inventory — hardware available for use before any purchasing decisions are made |
+| `JCTsh-Build-Standards.md` | repo root | Required build, integration, and documentation standards for all JCTsh components |
 | `JCTsh-Component-Planning-Pattern.md` | repo root | This document — the planning process itself |
 
 ### Step 2 — Claude reads the root README and requests these
@@ -72,7 +74,8 @@ Once the technology is understood, make specific hardware decisions with full co
 
 ### What happens in this phase
 - Identify every physical component needed
-- Check the parts inventory first — use on-hand parts before purchasing
+- Check JCTsh-Parts-Inventory.md first — use on-hand parts before purchasing
+- Consult JCTsh-Build-Standards.md enclosure convention before specifying any enclosure
 - Research specific products, part numbers, and sources
 - Compare options on price, compatibility, availability, and suitability
 - Flag any components that are hard to source or have known issues (counterfeits, supply problems)
@@ -99,6 +102,22 @@ Define how the new component fits into the existing JCTsh ecosystem before writi
 
 ### How it works
 Draw out the architecture in the conversation — even in plain text. Discuss each integration point explicitly. Deliberately defer anything that would complicate the initial build. The goal is a clean, minimal first version that works, not a complete system on day one.
+
+### Phase 3 Required Checklist
+
+Phase 3 is not complete until every item in this checklist has been explicitly decided and documented. These items are not optional and are not subject to deferral.
+
+| Item | Required decision |
+|---|---|
+| MQTT topic naming | Confirm primary topic and all sub-topics following `jctsh/<type>/<component>/<message-type>` convention — including `/log` and `/heartbeat` |
+| MQTT account | Confirm a dedicated Mosquitto account will be created for this component (see JCTsh-Build-Standards.md Section 2.7) |
+| Heartbeat | Confirm 5-minute heartbeat publishing to both `/log` and `/heartbeat` topics in standard JSON format |
+| Message logging | Confirm logs publish to `/log` topic in standard JSON format — Node-RED wildcard subscription handles routing automatically |
+| Watchdog | Confirm heartbeat topic matches `jctsh/<type>/<name>/heartbeat` — Node-RED watchdog wildcard subscription catches it automatically. If the watchdog flow does not yet exist, it must be built as part of this project (see JCTsh-Build-Standards.md Section 4.4) |
+| SmartThings device type | Decide: motion sensor, virtual switch, contact sensor, presence sensor, or other — consult JCTsh-Build-Standards.md Section 5.1 |
+| SmartThings integration path | Confirm Node-RED → HA REST API → virtual switch/entity → SmartThings — no other path exists |
+| Timeout / timer logic | Decide where each timeout lives: ESPHome (smoothing), Node-RED (flow logic), or HA (automation logic) — document all timeouts with their distinct purposes |
+| LED indicators | Decide whether LEDs are included, which GPIOs, and what state each reflects — consult JCTsh-Build-Standards.md Section 8 |
 
 ### Example (RV component)
 Mapped the full path from Firefly RV-C bus through PiCAN2 to eRVin to MQTT to Home Assistant to SmartThings to Google Home, then deliberately deferred everything from Home Assistant onward until the RV component itself is proven.
@@ -154,7 +173,13 @@ If something doesn't work as expected during execution, bring it back to the Cla
 
 **Parts inventory first.** On-hand parts are checked before any purchasing decisions. No buying something you already have.
 
+**Build standards first.** JCTsh-Build-Standards.md is loaded at the start of every session. Enclosure convention, GPIO rules, MQTT conventions, and documentation requirements are applied from the start — not retrofitted at the end.
+
+**Architecture context first.** CLAUDE.md is a required context file. It contains the actual message flow, log format, SmartThings integration path, and credentials patterns. Without it, integration decisions are made on incorrect assumptions.
+
 **Deliberate deferral.** Explicitly deciding what not to build yet is as important as deciding what to build. Future enhancements are documented so they aren't lost, but they don't complicate the current build.
+
+**Observability is not optional.** Every component publishes to the `/log` topic in standard JSON format and publishes a 5-minute heartbeat. The Node-RED watchdog monitors heartbeats and alerts via the HA companion app on Joseph's Pixel 10 Pro. SmartThings exposure is decided during Phase 3, not deferred.
 
 **Real-world steps are first-class.** The instruction set treats physical assembly, wiring, and testing as formal steps equal in importance to software configuration. Nothing is hand-waved with "then install the hardware."
 
@@ -185,18 +210,22 @@ Use this structure when producing the instruction set at the end of Phase 4:
 [What this component does and how it fits into JCTsh]
 
 ## Working Pattern
-Claude Code creates documentation and configuration files. Joseph follows 
-those documents to perform physical assembly, wiring, and software 
-configuration work outside of Claude Code. Joseph reports results back, 
-and Claude Code updates documentation to reflect actual findings, 
-deviations, and lessons learned. Do not proceed to the next step until 
+Claude Code creates documentation and configuration files. Joseph follows
+those documents to perform physical assembly, wiring, and software
+configuration work outside of Claude Code. Joseph reports results back,
+and Claude Code updates documentation to reflect actual findings,
+deviations, and lessons learned. Do not proceed to the next step until
 Joseph confirms the current step is complete.
 
 ## Hardware Context
-[Specific hardware, part numbers, key constraints]
+[Specific hardware, part numbers, key constraints, GPIO assignments,
+LED assignments, enclosure decision]
 
 ## Network / Integration Architecture
-[Data flow, connectivity scenarios, integration points]
+[Data flow, MQTT topics including /log and /heartbeat, connectivity
+scenarios, integration points — SmartThings device type and integration
+path via Node-RED → HA REST API, timeout locations and their distinct
+purposes]
 
 ## Step N — [Step Name]
 
@@ -219,6 +248,24 @@ Joseph confirms the current step is complete.
 
 ## Notes for Claude Code
 [Non-obvious constraints, gotchas, naming conventions, cross-references]
+
+--- Required notes for every ESP32 component ---
+- Read JCTsh-Build-Standards.md and CLAUDE.md before beginning
+- Log format: JSON to jctsh/<type>/<component>/log —
+  { "component": "<name>", "category": "<cat>", "message": "<text>" }
+  Node-RED wildcard subscription handles routing automatically
+- Heartbeat: publish to both /log and /heartbeat topics every 5 minutes
+  Node-RED watchdog wildcard subscription catches /heartbeat automatically
+- If Node-RED watchdog flow does not yet exist, build it as part of
+  this project — see JCTsh-Build-Standards.md Section 4.4
+- SmartThings path: Node-RED → HA REST API (port 8123) → virtual
+  switch/entity → SmartThings — no other path exists
+- Examine salt sensor implementation as SmartThings reference pattern
+- MQTT account: create dedicated Mosquitto account before first flash —
+  see JCTsh-Build-Standards.md Section 2.7 for commands and ownership gotcha
+- Add new account to credentials table in root CLAUDE.md
+- Consult JCTsh-Parts-Inventory.md before adding any item to the BOM
+- Update JCTsh-Parts-Inventory.md inventory update log at final step
 ```
 
 ---

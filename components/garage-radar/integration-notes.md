@@ -1,4 +1,51 @@
-# Garage Radar — Integration Investigation Notes (Step 8)
+# Garage Radar — Integration Notes
+
+## Step 4.5 — Enhancement Integration Notes
+
+### MQTT account
+`garage-radar` account confirmed in CLAUDE.md credentials table. Created during Steps
+1–4 and verified working (Steps 1–4 complete, MQTT publishing confirmed). No action
+needed unless account is deleted and must be recreated:
+```
+sudo mosquitto_passwd -b /etc/mosquitto/passwd garage-radar <password>
+sudo chown root:mosquitto /etc/mosquitto/passwd
+sudo systemctl restart mosquitto
+```
+
+### Log routing
+Node-RED (or the core log server) subscribes to the wildcard `jctsh/+/+/log`
+(or `jctsh/#`). All garage-radar log messages published to
+`jctsh/components/garage-radar/log` are routed to the Python log server automatically.
+No per-component Node-RED changes are needed for logging — the wildcard handles it.
+
+### Watchdog
+`core/node-red/watchdog.flow.json` builds the new JCTsh watchdog flow. It subscribes
+to `jctsh/+/+/heartbeat` — the garage-radar heartbeat (`jctsh/components/garage-radar/heartbeat`,
+every 5 minutes) is caught automatically by this wildcard. If no heartbeat arrives
+within 10 minutes, a push notification fires via HA companion app (Pixel 10 Pro) and
+an alert is logged to `jctsh/core/watchdog/log`. No changes to this flow are needed
+when new components are added — the wildcard picks them up automatically.
+
+### SmartThings
+The garage radar has no direct SmartThings device. The radar integrates with SmartThings
+indirectly: it triggers the HA garage presence timer, which controls the existing
+`switch.garage_presence_vswitch` that SmartThings already knows about. SmartThings sees
+the outcome (garage presence on/off) without needing to know the radar exists.
+
+Rejected alternatives: direct SmartThings API calls (requires a PAT — not used in this
+project), additional virtual switch (redundant alongside existing Garage Presence Vswitch),
+HA entity exposure (standard HA SmartThings integration does not push HA entities to ST).
+See `smartthings-integration.md` for the full rationale.
+
+### HA REST API notification endpoint
+`POST http://localhost:8123/api/services/notify/mobile_app_pixel_10_pro`
+Used by the watchdog flow for Pixel 10 Pro alerts. Confirmed from architecture
+document; validate the service name in HA Developer Tools → Services if the
+notification does not arrive during watchdog testing.
+
+---
+
+## Step 8 — Integration Investigation Notes (Step 8)
 
 ## Where the 20-minute timeout lives
 

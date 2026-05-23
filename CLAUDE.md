@@ -211,6 +211,5 @@ Pins to avoid:
 
 ## Backlog for Future work
 For the next time we open a component for changing.
-- Add time zone to log messages.
 - It's really difficult to select a particular line on the log, the cursor movement has to be perfect or it deselects and you have to start selecting again.
 - garage-radar: closing garage door triggers a false presence detection (moving door passes through radar detection cone). Options: (a) adjust radar tilt angle to exclude the door path — need a method to determine correct angle during calibration; (b) accept it — 15-minute timer means lights go off eventually regardless.

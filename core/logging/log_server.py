@@ -13,6 +13,7 @@ import threading
 import time
 from collections import deque
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from html import escape
 from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 
@@ -26,6 +27,7 @@ MQTT_PASS          = os.environ["MQTT_PASS"]
 DASHBOARD_USER     = os.environ["DASHBOARD_USER"]
 DASHBOARD_PASS     = os.environ["DASHBOARD_PASS"]
 MQTT_TOPIC         = "jctsh/+/+/log"
+_TZ                = ZoneInfo("America/Phoenix")
 HEARTBEAT_TOPIC    = "jctsh/core/log-server/log"
 HEARTBEAT_INTERVAL = 3600
 HTTP_PORT   = 80
@@ -82,7 +84,7 @@ def _on_message(client, userdata, msg):
         component = str(data.get("component", "unknown"))
         category  = str(data.get("category",  "System"))
         message   = str(data.get("message",   ""))
-        ts        = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ts        = datetime.now(_TZ).strftime("%Y-%m-%d %H:%M:%S %Z")
         key       = (component, category, message)
         with _lock:
             if (_pending and

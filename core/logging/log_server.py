@@ -156,11 +156,20 @@ _HTML_TEMPLATE = """\
     function f() {
       var comp = document.getElementById('fc').value;
       var cat  = document.getElementById('fk').value;
+      localStorage.setItem('jctsh_fc', comp);
+      localStorage.setItem('jctsh_fk', cat);
       document.querySelectorAll('#log tbody tr').forEach(function(r) {
         r.classList.toggle('hidden',
           (comp && r.dataset.c !== comp) || (cat && r.dataset.k !== cat));
       });
     }
+    window.addEventListener('DOMContentLoaded', function() {
+      var fc = localStorage.getItem('jctsh_fc') || '';
+      var fk = localStorage.getItem('jctsh_fk') || '';
+      if (fc) document.getElementById('fc').value = fc;
+      if (fk) document.getElementById('fk').value = fk;
+      f();
+    });
   </script>
 </body>
 </html>"""

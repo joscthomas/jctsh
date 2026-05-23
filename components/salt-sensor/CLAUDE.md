@@ -59,7 +59,7 @@ without re-measuring.
 ## MQTT Topics
 | Topic | Direction | Purpose |
 |---|---|---|
-| `jctsh/sensors/salt-sensor/data` | ESP32 → Node-RED | `{"distance_cm":25.3,"percent":78}` retained |
+| `jctsh/sensors/salt-sensor/data` | ESP32 → Node-RED | `{"distance_cm":25.3}` retained |
 | `jctsh/sensors/salt-sensor/status` | Node-RED → ESP32 | `ok` / `warning` / `critical` / `error` |
 | `jctsh/sensors/salt-sensor/log` | ESP32 → log server | `{"component":"salt-sensor","category":"...","message":"..."}` |
 
@@ -74,6 +74,19 @@ via the `Format log message` function node.
 | `critical` | blink | off | off |
 | `error` | blink | blink | blink |
 | `unknown` | off | off | slow blink (alive) |
+
+## Calibration
+Calibration values are HA input_number helpers, polled by Node-RED every 60 seconds and
+stored in flow context. Node-RED calculates the salt percentage — the ESP32 publishes raw
+distance only.
+
+| Helper entity ID | Default | Meaning |
+|---|---|---|
+| `input_number.salt_full_distance_cm` | 20.4 | Sensor-to-salt distance (cm) when tank is 100% full |
+| `input_number.salt_empty_distance_cm` | 43.0 | Sensor-to-salt distance (cm) when tank is 0% empty |
+
+To create in HA: Settings → Helpers → + Create Helper → Number. Set min/max/step
+appropriate for your installation. Values take effect within 60 seconds of being saved.
 
 ## After Editing the Flow
 1. In Node-RED, import `jctsh/core/node-red/core.flow.json` first (broker config) if not already present

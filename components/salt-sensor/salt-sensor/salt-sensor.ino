@@ -1,5 +1,5 @@
 /*
- * Water Softener Salt Level Sensor  v3
+ * Water Softener Salt Level Sensor
  * Board:   ESP32 Dev Module
  * Sensor:  JSN-SR04T Waterproof Ultrasonic
  *
@@ -17,7 +17,7 @@
  *   to the ESP32 which drives the LEDs.
  *
  * MQTT Topics:
- *   Publish:   jctsh/sensors/salt-sensor/data   {"distance_cm":25.3,"percent":78}
+ *   Publish:   jctsh/sensors/salt-sensor/data   {"distance_cm":25.3}
  *   Publish:   jctsh/sensors/salt-sensor/log    {"component":"salt-sensor","category":"...","message":"..."}
  *   Subscribe: jctsh/sensors/salt-sensor/status "ok" | "warning" | "critical" | "error"
  *
@@ -38,10 +38,6 @@ const int redLedPin    = 2;
 const int yellowLedPin = 15;
 const int greenLedPin  = 4;
 
-// ================== CALIBRATION ==================
-const float FULL_DISTANCE_CM  = 20.4;
-const float EMPTY_DISTANCE_CM = 43.0;
-
 // ================== TIMING ==================
 const unsigned long READING_INTERVAL    = 43200000UL;  // 12 hours
 const unsigned long MQTT_RETRY_INTERVAL = 30000UL;     // 30 s between reconnect attempts
@@ -54,7 +50,6 @@ const char* TOPIC_LOG    = "jctsh/sensors/salt-sensor/log";
 // ================== GLOBALS ==================
 String currentStatus = "unknown";
 float  lastDistance  = 0.0;
-float  lastPercent   = 0.0;
 
 unsigned long lastReadingTime = 0;
 unsigned long lastMqttAttempt = 0;
@@ -97,10 +92,9 @@ bool mqttConnect() {
   return false;
 }
 
-void publishReading(float distCm, float percent) {
+void publishReading(float distCm) {
   if (!mqtt.connected()) return;
-  String payload = "{\"distance_cm\":" + String(distCm, 1) +
-                   ",\"percent\":"     + String((int)percent) + "}";
+  String payload = "{\"distance_cm\":" + String(distCm, 1) + "}";
   mqtt.publish(TOPIC_DATA, payload.c_str(), true);  // retained
   publishLog("MQTT", "Reading published to " + String(TOPIC_DATA));
 }
@@ -126,11 +120,6 @@ float getFilteredDistance() {
     readings[j+1] = key;
   }
   return readings[count / 2];
-}
-
-float calculatePercent(float dist) {
-  dist = constrain(dist, FULL_DISTANCE_CM, EMPTY_DISTANCE_CM);
-  return 100.0 * (EMPTY_DISTANCE_CM - dist) / (EMPTY_DISTANCE_CM - FULL_DISTANCE_CM);
 }
 
 // ================== LEDs ==================
@@ -177,7 +166,7 @@ void checkWiFi() {
 void setup() {
   Serial.begin(115200);
   delay(2000);
-  Serial.println("\n\n=== Water Softener Salt Sensor v3 ===");
+  Serial.println("\n\n=== Water Softener Salt Sensor ===");
 
   pinMode(trigPin,      OUTPUT);
   pinMode(echoPin,      INPUT);
@@ -223,7 +212,7 @@ void setup() {
   mqtt.setCallback(mqttCallback);
   mqttConnect();
 
-  publishLog("System", "Salt Sensor v3 ready. IP: " + WiFi.localIP().toString());
+  publishLog("System", "Salt Sensor ready. IP: " + WiFi.localIP().toString());
 }
 
 // ================== LOOP ==================
@@ -257,9 +246,8 @@ void loop() {
       currentStatus = "error";
     } else {
       lastDistance = dist;
-      lastPercent  = calculatePercent(dist);
-      publishLog("Sensor", "Distance: " + String(dist, 1) + " cm  ->  Salt: " + String((int)lastPercent) + "%");
-      publishReading(dist, lastPercent);
+      publishLog("Sensor", "Distance: " + String(dist, 1) + " cm");
+      publishReading(dist);
     }
   }
 

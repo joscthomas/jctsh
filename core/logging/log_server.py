@@ -113,7 +113,6 @@ _HTML_TEMPLATE = """\
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="5">
   <title>JCTsh Log Dashboard</title>
   <style>
     body { background:#1a1a1a; color:#e0e0e0; font-family:monospace;
@@ -128,14 +127,14 @@ _HTML_TEMPLATE = """\
     table { border-collapse:collapse; width:100%; }
     th    { color:#555; font-size:11px; text-align:left; padding:4px 8px;
             border-bottom:1px solid #2a2a2a; }
-    td    { padding:3px 8px; vertical-align:top; }
+    td    { padding:3px 8px; vertical-align:top; cursor:text; }
     tr:hover td { background:#1f1f1f; }
     .hidden { display:none; }
   </style>
 </head>
 <body>
   <h2>JCTsh Log Dashboard</h2>
-  <p class="sub">Auto-refreshes every 5s &nbsp;|&nbsp; Last %%MAX%% entries</p>
+  <p class="sub">Updates every 5s &nbsp;|&nbsp; Last %%MAX%% entries</p>
   <div class="controls">
     <label>Component:</label>
     <select id="fc" onchange="f()"><option value="">All</option>%%COMP%%</select>
@@ -155,6 +154,24 @@ _HTML_TEMPLATE = """\
     </tbody>
   </table>
   <script>
+    var _COLORS = {MQTT:'#00ccff',System:'#00cc99',Sensor:'#e0e0e0',Test:'#ffaa00'};
+    function _color(e) {
+      if (e.category === 'Alert') return e.message.indexOf('CRITICAL') !== -1 ? '#ff4444' : '#ffaa00';
+      return _COLORS[e.category] || '#e0e0e0';
+    }
+    function _esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function _row(e) {
+      var c = _color(e);
+      var x = e.count > 1 ? ' <span style="color:'+c+'">(×'+e.count+')</span>' : '';
+      return '<tr data-c="'+_esc(e.component)+'" data-k="'+_esc(e.category)+'">'
+        +'<td style="color:#888;white-space:nowrap">'+_esc(e.ts)+'</td>'
+        +'<td style="color:#888">'+_esc(e.component)+'</td>'
+        +'<td style="color:'+c+'">'+_esc(e.category)+'</td>'
+        +'<td style="color:'+c+'">'+_esc(e.message)+x+'</td>'
+        +'</tr>';
+    }
     function f() {
       var comp = document.getElementById('fc').value;
       var cat  = document.getElementById('fk').value;
@@ -165,16 +182,37 @@ _HTML_TEMPLATE = """\
           (comp && r.dataset.c !== comp) || (cat && r.dataset.k !== cat));
       });
     }
+    function _render(data) {
+      document.querySelector('#log tbody').innerHTML = data.entries.map(_row).join('');
+      var fc  = document.getElementById('fc');
+      var sel = fc.value;
+      fc.innerHTML = '<option value="">All</option>'
+        + data.components.map(function(c){return '<option>'+_esc(c)+'</option>';}).join('');
+      fc.value = sel;
+      f();
+    }
+    function _poll() {
+      fetch('/data').then(function(r){return r.json();}).then(_render).catch(function(){});
+    }
     window.addEventListener('DOMContentLoaded', function() {
       var fc = localStorage.getItem('jctsh_fc') || '';
       var fk = localStorage.getItem('jctsh_fk') || '';
       if (fc) document.getElementById('fc').value = fc;
       if (fk) document.getElementById('fk').value = fk;
       f();
+      setInterval(_poll, 5000);
     });
   </script>
 </body>
 </html>"""
+
+
+def _snapshot():
+    with _lock:
+        entries = list(_entries)
+        if _pending:
+            entries.append(dict(_pending))
+    return entries
 
 
 def _entry_color(e):
@@ -230,15 +268,23 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._check_auth():
             self._send_auth_challenge()
             return
+        if self.path == "/data":
+            snap = _snapshot()
+            body = json.dumps({
+                "entries":    snap,
+                "components": sorted({e["component"] for e in snap}),
+            }).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path != "/":
             self.send_response(404)
             self.end_headers()
             return
-        with _lock:
-            snapshot = list(_entries)
-            if _pending:
-                snapshot.append(dict(_pending))
-        body = _build_html(snapshot).encode("utf-8")
+        body = _build_html(_snapshot()).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))

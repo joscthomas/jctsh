@@ -1,6 +1,6 @@
-# Water Softener Salt Level Sensor — v3
+# Water Softener Salt Level Sensor
 
-An ESP32-based ultrasonic salt level monitor for residential water softeners. The ESP32 publishes readings over MQTT; Node-RED applies threshold logic and bridges to SmartThings via Home Assistant.
+An ESP32-based ultrasonic salt level monitor for residential water softeners. Part of the [jctsh monorepo](../../README.md).
 
 ---
 
@@ -9,37 +9,38 @@ An ESP32-based ultrasonic salt level monitor for residential water softeners. Th
 ```
 ESP32 (JSN-SR04T sensor)
   │
-  │  MQTT (saltlevel/reading)
+  │  MQTT  jctsh/sensors/salt-sensor/data  {"distance_cm":25.3}
   ▼
 Mosquitto broker (Raspberry Pi)
   │
   ├──► Node-RED
-  │      │  applies threshold logic
-  │      │  controls HA virtual switches
-  │      │  publishes status + notify back to ESP32
+  │      │  reads calibration from HA input_number helpers
+  │      │  calculates salt percent
+  │      │  applies alert thresholds
+  │      │  controls HA virtual switches → SmartThings
+  │      │  publishes status back to ESP32
   │      ▼
   │    Home Assistant ──► SmartThings
   │                         (alerts, test mode, reset switches)
   │
   └──► ESP32 subscribes
-         saltlevel/status  → drives LEDs
-         saltlevel/notify  → writes to web monitor log
+         jctsh/sensors/salt-sensor/status  → drives LEDs
 ```
+
+Log dashboard: `http://raspberrypi.local/` — primary diagnostic tool.
 
 ---
 
 ## Features
 
 - **Ultrasonic distance sensing** — JSN-SR04T waterproof sensor, 15-sample median filtering
-- **Three-LED status display** — Green (good), Yellow blinking (warning), Red blinking (critical)
-- **MQTT integration** — publishes readings every 12 hours; status driven by Node-RED
-- **Web monitor** — live log at `http://salt-sensor.local`, auto-refreshes every 5 seconds
+- **Three-LED status display** — Green solid (good), Yellow blinking (warning), Red blinking (critical)
+- **MQTT integration** — publishes raw distance every 12 hours; percent and status driven by Node-RED
+- **Calibration via HA** — full/empty distances set as HA input_number helpers; no reflash needed
 - **OTA firmware updates** — password-protected, no USB required after initial flash
 - **Test mode** — triggered via SmartThings switch, simulates warning and critical readings
 - **Reset switch** — triggered via SmartThings after refilling, clears active alerts
-- **Node-RED notify log** — key events (alerts sent/cleared, test mode, errors) pushed directly to the web monitor
 - **WiFi auto-reconnect** — recovers from dropped connections automatically
-- **mDNS** — `salt-sensor.local` resolves regardless of dynamic IP
 
 ---
 
@@ -93,8 +94,6 @@ LEDs:
 |---|---|
 | WiFi | Built-in (ESP32 core) |
 | ArduinoOTA | Built-in (ESP32 core) |
-| WebServer | Built-in (ESP32 core) |
-| ESPmDNS | Built-in (ESP32 core) |
 | PubSubClient | Library Manager — search "PubSubClient" by Nick O'Leary |
 
 ### Arduino IDE Board Settings
@@ -110,7 +109,7 @@ LEDs:
 
 ### ESP32 — secrets.h
 
-Create `secrets.h` in the sketch folder (excluded from version control via `.gitignore`):
+Create `secrets.h` in the sketch folder (gitignored — never commit):
 
 ```cpp
 #ifndef SECRETS_H
@@ -121,7 +120,7 @@ Create `secrets.h` in the sketch folder (excluded from version control via `.git
 
 #define MQTT_HOST      "raspberrypi.local"
 #define MQTT_PORT      1883
-#define MQTT_USER      "your_mqtt_user"
+#define MQTT_USER      "salt-sensor"
 #define MQTT_PASS      "your_mqtt_password"
 
 #define OTA_PASSWORD   "your_ota_password"
@@ -131,18 +130,15 @@ Create `secrets.h` in the sketch folder (excluded from version control via `.git
 
 ### Calibration
 
-Update these constants in the sketch before flashing:
-
-```cpp
-const float FULL_DISTANCE_CM  = 20.4;  // sensor-to-salt when tank is full
-const float EMPTY_DISTANCE_CM = 43.0;  // sensor-to-salt when tank is empty
-```
+Calibration is set in Home Assistant — no reflash required.
 
 1. Mount the sensor at the top of the salt tank facing down
-2. Fill the tank to its normal maximum level
-3. Note the distance in the web monitor → set as `FULL_DISTANCE_CM`
-4. Measure from the sensor face to the tank floor → set as `EMPTY_DISTANCE_CM`
-5. Flash via OTA
+2. Fill the tank to its normal maximum level and note the distance in the log dashboard
+3. Measure from the sensor face to the tank floor
+4. In HA: **Settings → Helpers** and set:
+   - `input_number.salt_full_distance_cm` — sensor-to-salt distance when full
+   - `input_number.salt_empty_distance_cm` — sensor-to-salt distance when empty
+5. Changes take effect within 60 seconds (next Node-RED poll)
 
 ---
 
@@ -150,9 +146,9 @@ const float EMPTY_DISTANCE_CM = 43.0;  // sensor-to-salt when tank is empty
 
 | Topic | Direction | Payload |
 |---|---|---|
-| `saltlevel/reading` | ESP32 → Node-RED | `{"distance_cm":25.3,"percent":78}` |
-| `saltlevel/status` | Node-RED → ESP32 | `ok` \| `warning` \| `critical` \| `error` |
-| `saltlevel/notify` | Node-RED → ESP32 | Plain text log messages |
+| `jctsh/sensors/salt-sensor/data` | ESP32 → Node-RED | `{"distance_cm":25.3}` retained |
+| `jctsh/sensors/salt-sensor/status` | Node-RED → ESP32 | `ok` \| `warning` \| `critical` \| `error` |
+| `jctsh/sensors/salt-sensor/log` | both → log server | `{"component":"salt-sensor","category":"...","message":"..."}` |
 
 ---
 
@@ -161,47 +157,41 @@ const float EMPTY_DISTANCE_CM = 43.0;  // sensor-to-salt when tank is empty
 ### Import the flow
 
 1. Open Node-RED at `http://raspberrypi.local:1880`
-2. **≡ menu → Import** → select `nodered_saltlevel_flow.json` → **Replace existing nodes**
-3. Open the **Mosquitto (Pi)** broker node, go to the **Security** tab, enter MQTT username and password, click **Update**
+2. Import `core/node-red/core.flow.json` first if the MQTT broker node is not already present
+3. **≡ menu → Import** → select `salt-sensor.flow.json` → **Replace existing nodes**
 4. Click **Deploy**
 
 ### HA token
 
-The flow reads the Home Assistant long-lived access token from the `HA_TOKEN` environment variable. Set it in the Node-RED systemd service:
-
-```bash
-sudo systemctl edit nodered
-```
-
-Add:
-```
-[Service]
-Environment="HA_TOKEN=your_ha_long_lived_token"
-```
-
-Then:
-```bash
-sudo systemctl daemon-reload && sudo systemctl restart nodered
-```
+The flow reads the Home Assistant long-lived access token from the `HA_TOKEN` environment variable. Set it in Node-RED UI: **Settings → Environment Variables → HA_TOKEN**.
 
 ---
 
 ## Home Assistant Setup
 
-Create four virtual switches in Home Assistant (synced from/to SmartThings):
+### Virtual switches (synced to SmartThings)
 
 | Entity ID | Purpose |
 |---|---|
-| `switch.salt_low_alert` | Turned ON by Node-RED when salt reaches warning level |
-| `switch.salt_critical_alert` | Turned ON by Node-RED when salt reaches critical level |
+| `switch.salt_low_alert` | Turned ON by Node-RED at warning level |
+| `switch.salt_critical_alert` | Turned ON by Node-RED at critical level |
 | `switch.salt_test_mode` | Turn ON in SmartThings to activate test mode |
 | `switch.salt_full_reset` | Turn ON in SmartThings after refilling to clear alerts |
+
+### Calibration helpers
+
+| Entity ID | Default | Purpose |
+|---|---|---|
+| `input_number.salt_full_distance_cm` | 20.4 | Sensor-to-salt distance (cm) at 100% full |
+| `input_number.salt_empty_distance_cm` | 43.0 | Sensor-to-salt distance (cm) at 0% empty |
+
+Create via: Settings → Helpers → + Create Helper → Number.
 
 ---
 
 ## Alert Thresholds
 
-Thresholds are set in the Node-RED `fn_threshold` function node:
+Set in the Node-RED `fn_threshold` function node:
 
 ```js
 const WARNING_PERCENT  = 33.0;   // yellow LED / warning alert
@@ -210,49 +200,30 @@ const CRITICAL_PERCENT = 15.0;   // red LED / critical alert
 
 ---
 
-## Web Monitor
+## Log Dashboard
 
-Open a browser on any device on the same network:
+Open `http://raspberrypi.local/` on any device on the network. Each reading produces two log entries:
 
-```
-http://salt-sensor.local       <- recommended, always works
-http://<esp32-ip-address>      <- direct IP fallback
-```
-
-The monitor page:
-- Auto-refreshes every 5 seconds
-- Shows the last 100 log lines, color-coded:
-  - **Red** — Critical alerts
-  - **Orange** — Warning alerts
-  - **Cyan** — MQTT events and Node-RED notify messages (test mode, alerts sent, errors)
-  - **Grey** — Boot messages
-  - **Red bold** — Errors
-- Displays current status, distance, and salt percentage at the top
-
-### Operational log messages from Node-RED
-
-Key events are pushed to the web monitor via `saltlevel/notify` so it remains the single place to check for problems:
-
-| Message | Meaning |
-|---|---|
-| `WARNING — salt at X%. Alert sent to SmartThings.` | Warning alert fired |
-| `CRITICAL — salt at X%. Alert sent to SmartThings.` | Critical alert fired |
-| `Warning/Critical alert cleared — salt level OK.` | Alert cleared after refill |
-| `Reset acknowledged — all alerts cleared.` | Reset switch was triggered |
-| `HA API error 5xx — alerts may not have reached SmartThings.` | Node-RED → HA call failed |
+| Category | Message | Source |
+|---|---|---|
+| Sensor | `Distance: 20.3 cm` | ESP32 |
+| Sensor | `Salt: 100% (20.3 cm)` | Node-RED |
 
 ---
 
 ## OTA Updates
 
-After the initial USB flash:
+After the initial USB flash, update via OTA. Arduino IDE 2 has a port substitution bug on Windows — use espota directly instead:
 
-1. Power the ESP32
-2. In Arduino IDE → **Tools → Port** → select `salt-sensor at <ip-address>`
-3. Click **Upload**
-4. Enter OTA password when prompted
+1. In Arduino IDE: **Sketch → Export Compiled Binary** to produce `salt-sensor.ino.bin`
+2. Power-cycle the ESP32
+3. Immediately run:
 
-> The 3 rapid LED flashes at boot confirm a successful OTA reboot.
+```
+"C:\Users\...\Arduino15\packages\esp32\hardware\esp32\3.3.8\tools\espota.exe" -i <esp32-ip> -p 3232 -a <OTA_PASSWORD> -f salt-sensor.ino.bin
+```
+
+> Three rapid LED flashes at boot confirm a successful OTA reboot.
 
 ---
 
@@ -272,10 +243,10 @@ After the initial USB flash:
 
 1. Turn ON **Salt Test Mode** switch in SmartThings
 2. Wait up to 60 seconds for Node-RED to detect it
-3. Node-RED alternates between two simulated readings every second:
-   - **Step 1:** ~37cm → ~27% → warning zone (yellow LED, warning alert to SmartThings)
-   - **Step 2:** 43cm → 0% → critical zone (red LED, critical alert to SmartThings)
-4. Progress appears in the web monitor log in real time
+3. Node-RED simulates two readings at 1-second intervals:
+   - **Step 1:** warning zone (~27%) — yellow LED, warning alert to SmartThings
+   - **Step 2:** critical zone (0%) — red LED, critical alert to SmartThings
+4. Progress appears in the log dashboard in real time
 5. Turn OFF the switch — Node-RED clears all alerts and publishes `ok` to the ESP32
 
 ---
@@ -287,7 +258,7 @@ When salt is refilled and **Salt Full Reset** is turned ON in SmartThings:
 1. Node-RED turns off `switch.salt_critical_alert` and `switch.salt_low_alert` in HA
 2. Publishes `ok` status to the ESP32 — green LED goes solid
 3. Turns the reset switch back OFF automatically
-4. Logs `Reset acknowledged — all alerts cleared.` in the web monitor
+4. Logs `Reset acknowledged — all alerts cleared.`
 
 The reset switch is only acted on when a warning or critical alert is active.
 
@@ -296,11 +267,14 @@ The reset switch is only acted on when a warning or critical alert is active.
 ## Project Structure
 
 ```
-Salt Sensor/
-├── salt-sensor.ino                      # ESP32 sketch
-├── water_softener_salt_sensor_v2.ino   # Previous version (direct SmartThings API)
-├── nodered_saltlevel_flow.json         # Node-RED flow
-├── secrets.h                           # Credentials — gitignored, never commit
+salt-sensor/
+├── salt-sensor/
+│   ├── salt-sensor.ino     # ESP32 sketch
+│   └── secrets.h           # Credentials — gitignored, never commit
+├── salt-sensor.flow.json   # Node-RED flow
+├── archive/
+│   └── water_softener_salt_sensor_v2.ino  # Previous version (reference only)
+├── CLAUDE.md
 └── README.md
 ```
 
@@ -308,8 +282,7 @@ Salt Sensor/
 
 ## Future Plans
 
-- [ ] Node-RED watchdog heartbeat — periodic publish to `saltlevel/notify` (e.g. every hour) so a Node-RED outage becomes visible in the web monitor without needing to check the Pi
-- [ ] MQTT broker authentication hardening — move from plaintext credentials to TLS client certificates
+- [ ] MQTT broker authentication hardening — TLS client certificates
 
 ---
 

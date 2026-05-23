@@ -211,4 +211,4 @@ Pins to avoid:
 
 ## Backlog for Future work
 For the next time we open a component for changing.
-- garage-radar: closing garage door triggers a false presence detection (moving door passes through radar detection cone). Options: (a) adjust radar tilt angle to exclude the door path — need a method to determine correct angle during calibration; (b) accept it — 15-minute timer means lights go off eventually regardless.
+- garage-radar: closing garage door triggers a false presence detection (moving door passes through radar detection cone). Deferred until after perfboard build. Options: (a) adjust radar tilt angle to exclude the door path — need a method to determine correct angle during calibration; (b) accept it — 15-minute timer means lights go off eventually regardless.

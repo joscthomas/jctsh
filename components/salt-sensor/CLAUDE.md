@@ -51,7 +51,7 @@ without re-measuring.
 - OTA hostname: `salt-sensor` — password in `secrets.h`
 
 ## Key Files
-- `water_softener_salt_sensor_v3.ino` — ESP32 sketch
+- `salt-sensor.ino` — ESP32 sketch
 - `salt-sensor.flow.json` — Node-RED flow (sensor logic only; import after `core.flow.json`)
 - `secrets.h` — gitignored; WiFi/MQTT/OTA credentials. Never commit.
 - `archive/water_softener_salt_sensor_v2.ino` — old direct SmartThings version (reference only)

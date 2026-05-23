@@ -297,7 +297,7 @@ The reset switch is only acted on when a warning or critical alert is active.
 
 ```
 Salt Sensor/
-├── water_softener_salt_sensor_v3.ino   # ESP32 sketch (current)
+├── salt-sensor.ino                      # ESP32 sketch
 ├── water_softener_salt_sensor_v2.ino   # Previous version (direct SmartThings API)
 ├── nodered_saltlevel_flow.json         # Node-RED flow
 ├── secrets.h                           # Credentials — gitignored, never commit

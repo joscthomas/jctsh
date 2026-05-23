@@ -102,7 +102,7 @@ void publishReading(float distCm, float percent) {
   String payload = "{\"distance_cm\":" + String(distCm, 1) +
                    ",\"percent\":"     + String((int)percent) + "}";
   mqtt.publish(TOPIC_DATA, payload.c_str(), true);  // retained
-  publishLog("MQTT", "Published: " + payload);
+  publishLog("MQTT", "Reading published to " + String(TOPIC_DATA));
 }
 
 // ================== SENSOR ==================

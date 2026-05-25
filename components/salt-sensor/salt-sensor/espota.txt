@@ -1,0 +1,1 @@
+espota.exe -i 192.168.1.181 -p 3232 -a <OTA_PASSWORD> -f <path-to-binary>.bin

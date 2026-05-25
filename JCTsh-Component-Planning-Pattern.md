@@ -1,8 +1,8 @@
 # JCT Smart Home (JCTsh) Component Planning Pattern
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the five-phase process for planning and building JCTsh smart home components, from discovery through execution.
-**Version:** 1.6
-**Version description:** Added CLAUDE.md to required context files (Step 1). Updated Phase 3 checklist watchdog row to reflect that the Node-RED watchdog is a new JCTsh infrastructure component, not an existing process. Updated Notes for Claude Code template to remove "examine existing watchdog" and replace with correct watchdog build instruction.
+**Version:** 1.7
+**Version description:** Added bench-first prototyping as an explicit principle in "What Makes This Pattern Work", in Phase 4 critical rules, in the Phase 3 required checklist, and in the Claude Code instructions template. This principle requires that all steps verifiable on the workbench are completed and confirmed before the component is installed in its final location. The bench/install boundary must be made explicit in every instruction set with a dividing section header.
 
 ---
 
@@ -118,6 +118,7 @@ Phase 3 is not complete until every item in this checklist has been explicitly d
 | SmartThings integration path | Confirm Node-RED → HA REST API → virtual switch/entity → SmartThings — no other path exists |
 | Timeout / timer logic | Decide where each timeout lives: ESPHome (smoothing), Node-RED (flow logic), or HA (automation logic) — document all timeouts with their distinct purposes |
 | LED indicators | Decide whether LEDs are included, which GPIOs, and what state each reflects — consult JCTsh-Build-Standards.md Section 8 |
+| Bench/install boundary | Identify explicitly which steps are bench work and which require the component to be in its final installed location. Document the dividing line. |
 
 ### Example (RV component)
 Mapped the full path from Firefly RV-C bus through PiCAN2 to eRVin to MQTT to Home Assistant to SmartThings to Google Home, then deliberately deferred everything from Home Assistant onward until the RV component itself is proven.
@@ -134,6 +135,7 @@ Convert everything learned in Phases 1–3 into a structured instruction set for
 - Hardware context and network architecture are documented at the top so Claude Code has full project context without needing to re-research
 - Future enhancements are explicitly called out and deferred — not forgotten, just sequenced
 - Notes for Claude Code capture non-obvious things that would otherwise go wrong (bitrates, jumper settings, counterfeit warnings, etc.)
+- Bench steps are sequenced before install steps — the bench/install boundary is marked with an explicit dividing section header
 
 ### The step structure
 Each step follows this pattern:
@@ -147,6 +149,7 @@ Each step follows this pattern:
 - Claude Code does not proceed until Joseph confirms each step
 - Real-world deviations get captured in the documentation immediately
 - The instructions are living documents, not static guides
+- **All steps that can be completed on the workbench must be sequenced before any step that requires the component to be in its final installed location.** The bench/install boundary must appear as an explicit dividing section header in the instruction set. Do not proceed to install steps until all bench steps are confirmed complete.
 
 ---
 
@@ -180,6 +183,8 @@ If something doesn't work as expected during execution, bring it back to the Cla
 **Deliberate deferral.** Explicitly deciding what not to build yet is as important as deciding what to build. Future enhancements are documented so they aren't lost, but they don't complicate the current build.
 
 **Observability is not optional.** Every component publishes to the `/log` topic in standard JSON format and publishes a 5-minute heartbeat. The Node-RED watchdog monitors heartbeats and alerts via the HA companion app on Joseph's Pixel 10 Pro. SmartThings exposure is decided during Phase 3, not deferred.
+
+**Bench-first prototyping.** All steps that can be performed on the workbench — hardware assembly, image flashing, software configuration, WiFi testing, integration verification, and end-to-end testing — are completed and confirmed on the bench before the component is installed in its final location. Physical installation is the final phase of the build, not an early step. This applies to all component types: ESP32/ESPHome components (bench before perfboard transfer and permanent mounting), Pi-based components (bench before coach or wall installation), and any other hardware. The instruction set must make the bench/install boundary explicit with a dedicated dividing section header. Do not proceed to installation steps until all bench steps are confirmed complete.
 
 **Real-world steps are first-class.** The instruction set treats physical assembly, wiring, and testing as formal steps equal in importance to software configuration. Nothing is hand-waved with "then install the hardware."
 
@@ -227,6 +232,15 @@ scenarios, integration points — SmartThings device type and integration
 path via Node-RED → HA REST API, timeout locations and their distinct
 purposes]
 
+---
+
+## BENCH PHASE
+
+All steps in this section are performed on the workbench. No step in
+this section requires the component to be in its final installed
+location. Do not proceed to the Install Phase until every bench step
+below is confirmed complete.
+
 ## Step N — [Step Name]
 
 **Claude Code does:**
@@ -240,6 +254,26 @@ purposes]
 
 **Claude Code does:** (if needed)
 [Documentation updates based on Joseph's findings]
+
+---
+
+## Bench Phase Complete — Install Phase Begins
+
+All bench steps above are confirmed complete. The component has been:
+[Bullet summary of what was verified on the bench]
+
+Do not proceed to Step N+1 until all bench steps are confirmed complete.
+
+---
+
+## INSTALL PHASE
+
+All steps in this section require the component to be in its final
+installed location.
+
+## Step N+1 — [Step Name]
+
+[Same step structure as bench phase]
 
 ---
 
@@ -266,6 +300,8 @@ purposes]
 - Add new account to credentials table in root CLAUDE.md
 - Consult JCTsh-Parts-Inventory.md before adding any item to the BOM
 - Update JCTsh-Parts-Inventory.md inventory update log at final step
+- Bench-first: all bench steps must be confirmed complete before any
+  install step begins — enforce the bench/install boundary strictly
 ```
 
 ---

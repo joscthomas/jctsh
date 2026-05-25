@@ -1,0 +1,1 @@
+"C:\Users\jcthomas\AppData\Local\Arduino15\packages\esp32\hardware\esp32\3.3.8\tools\espota.exe" -i 192.168.1.181 -p 3232 -a ota -f "C:\Users\jcthomas\Documents\JCT Documents\SmartHome\jctsh\components\salt-sensor\salt-sensor\salt-sensor.ino.bin"

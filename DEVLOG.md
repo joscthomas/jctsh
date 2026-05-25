@@ -162,6 +162,41 @@ jctsh-parts-inventory.md, and components/front-porch-temp-sensor/ (instructions
 in progress). Added .claude/settings.local.json to .gitignore — file contains
 machine-specific absolute paths and should not be version controlled.
 
+## 2026-05-25
+Started and completed front-porch-temp-sensor component. Breadboard prototype
+fully built and tested (Steps 1–11). Hardware: ESP32 DevKitC-32 (microcontroller)
++ BMP280 (counterfeit BME280) + BH1750 (light sensor) sharing an I2C bus on
+GPIO21 (SDA) / GPIO22 (SCL). ESPHome firmware with MQTT discovery, 60-second
+sensor updates, and a 5-minute heartbeat.
+
+Counterfeit BME280 issue: all three Podazz BME280 modules in the first batch
+are actually BMP280s (no humidity support). Deployed with bmp280_i2c platform;
+genuine BME280s ordered. Humidity shows Unknown in HA — expected. YAML has a
+TODO comment to swap back when genuine modules arrive.
+
+Whitespace-in-path issue (ESP-IDF compiler): "JCT Documents" path blocked
+flashing. Fix: copy YAML + secrets to C:\esphome\front-porch-temp-sensor\ for
+all flash operations. Established as standard for all ESPHome components going
+forward.
+
+Dedicated MQTT account created: front-porch-temp-sensor. Per-component MQTT
+accounts are the established standard.
+
+Two HA automations: Front Porch Temp Alert + Reminder (fires on temp >= threshold
+6am–10pm; sends reminder 15 min later, once, via mode: single) and Front Porch
+Temp Dropping (fires on temp < threshold 6am–10pm). Both notify
+notify.mobile_app_pixel_10_pro_xl and notify.mobile_app_pixel_7_pro. Door sensor
+condition removed at Robin's request — temperature and time window only. Lux
+threshold removed in favor of explicit 6am–10pm time window.
+
+End-to-end test complete (Steps 1–11). All 10 tests pass; time-window suppression
+test (Step 6) skipped. Sensor readings confirmed in HA: 85–90°F, 13.46 psi,
+illuminance responsive to light changes; humidity Unknown as expected.
+
+Step 12 (perfboard transfer) deferred pending perfboard delivery. perfboard-layout.md
+complete. mounting.md and component README.md written. Root README.md, parts
+inventory, and CLAUDE.md credentials section updated.
+
 ## 2026-05-21
 Installed Tailscale on Pi for remote access. Pi Tailscale IP: 100.70.162.24.
 All local services (log dashboard, HA, Node-RED) now reachable from anywhere via

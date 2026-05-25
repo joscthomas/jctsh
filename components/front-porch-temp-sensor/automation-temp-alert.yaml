@@ -1,0 +1,37 @@
+alias: Front Porch Temp Alert + Reminder
+mode: single
+trigger:
+  - platform: template
+    value_template: >
+      {{ states('sensor.front_porch_temp_sensor_temperature') | float(0) >=
+         states('input_number.front_porch_temp_threshold') | float(80) }}
+condition:
+  - condition: time
+    after: "06:00:00"
+    before: "22:00:00"
+action:
+  - service: notify.mobile_app_pixel_10_pro_xl
+    data:
+      title: Front Porch Temp Alert
+      message: >
+        Front porch temperature is {{ states('sensor.front_porch_temp_sensor_temperature') | round(1) }}°F.
+        Consider closing the door.
+  - service: notify.mobile_app_pixel_7_pro
+    data:
+      title: Front Porch Temp Alert
+      message: >
+        Front porch temperature is {{ states('sensor.front_porch_temp_sensor_temperature') | round(1) }}°F.
+        Consider closing the door.
+  - delay: "00:15:00"
+  - service: notify.mobile_app_pixel_10_pro_xl
+    data:
+      title: Front Porch Temp Reminder
+      message: >
+        Front porch is still {{ states('sensor.front_porch_temp_sensor_temperature') | round(1) }}°F
+        and the front door is still open.
+  - service: notify.mobile_app_pixel_7_pro
+    data:
+      title: Front Porch Temp Reminder
+      message: >
+        Front porch is still {{ states('sensor.front_porch_temp_sensor_temperature') | round(1) }}°F
+        and the front door is still open.

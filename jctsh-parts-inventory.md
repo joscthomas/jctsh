@@ -20,7 +20,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Component | Description | Qty On Hand | Notes |
 |---|---|---|---|
-| ESP32 DevKitC-32 | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT | 4 | 1 used: garage radar. 1 allocated: front porch sensor (in planning). |
+| ESP32 DevKitC-32 | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT | 3 | 1 used: garage radar. 1 used: front-porch-temp-sensor. |
 | ESP32 (salt sensor) | Separate board, not from 6-pack | 1 (deployed) | Deployed on salt sensor project. |
 
 ---
@@ -38,8 +38,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Component | Description | Qty On Hand | Notes |
 |---|---|---|---|
 | HLK-LD2412 | EC Buying, 24GHz mmWave radar, UART, ±75°, 9m range | 2 | 1 used: garage radar project. |
-| BH1750 (GY-302) | hiBCTR 3-pack, illumination/light sensor, I2C | 3 | All on hand. No project assigned yet. |
-| BME280 | Podazz 3-pack, temperature/humidity/pressure, I2C, 5V | 6 | 2 packs (6 total) on hand. No project assigned yet. |
+| BH1750 (GY-302) | hiBCTR 3-pack, illumination/light sensor, I2C | 2 | 1 used: front-porch-temp-sensor. |
+| BME280 | Podazz 3-pack, temperature/humidity/pressure, I2C, 5V | 5 | 1 used: front-porch-temp-sensor (counterfeit BMP280 — deployed as bmp280_i2c; genuine BME280 ordered to replace). |
 
 ---
 
@@ -85,3 +85,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Date | Project | Change |
 |---|---|---|
 | 2026-05 | Garage radar | ESP32 ×1 used; LD2412 ×1 used; perfboard ×1 used |
+| 2026-05 | front-porch-temp-sensor | ESP32 ×1 used; BH1750 ×1 used; BMP280 ×1 used (counterfeit BME280 — genuine on order); perfboard ×1 reserved (deferred to Step 12) |

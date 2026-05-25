@@ -12,3 +12,4 @@ See [CLAUDE.md](./CLAUDE.md) for infrastructure details, MQTT conventions, and d
 - [garage-presence](./components/garage-presence/) — Garage presence countdown timer (HA-only)
 - [automatic-garage-door-opener-closer](./components/automatic-garage-door-opener-closer/) — Automatic garage door opener/closer
 - [garage-radar](./components/garage-radar/) — 24GHz mmWave workbench presence radar (ESPHome + LD2412)
+- [front-porch-temp-sensor](./components/front-porch-temp-sensor/) — Front porch temperature, pressure, and light sensor with push notifications (ESPHome)

@@ -1,0 +1,11 @@
+type: entities
+title: Front Porch
+entities:
+  - entity: sensor.front_porch_temp_sensor_temperature
+    name: Temperature
+  - entity: sensor.front_porch_temp_sensor_illuminance
+    name: Illuminance
+  - entity: sensor.front_porch_temp_sensor_pressure
+    name: Pressure
+  - entity: input_number.front_porch_temp_threshold
+    name: Temp Threshold

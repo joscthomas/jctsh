@@ -22,7 +22,7 @@
 #   .../sensor/still_energy/state            — %
 #   .../sensor/detection_distance/state      — cm
 #   .../log                                  — JSON log messages (routed by Node-RED to log server)
-#   .../heartbeat                            — JSON heartbeat (Node-RED watchdog, every 5 min)
+#   .../heartbeat                            — JSON heartbeat (Node-RED watchdog, every 30 min)
 #
 # MQTT topic subscribed:
 #   jctsh/components/garage-presence-vswitch/state  — drives yellow LED
@@ -234,7 +234,7 @@ text_sensor:
 # 1s  — green LED: drives GPIO33 from detection_distance with manual 30s holdoff.
 #        id(presence).state is unreliable for nested ld2412 binary sensors in
 #        ESPHome 2026.x, so detection_dist (numeric sensor) is used instead.
-# 5min — heartbeat to /log (dashboard) and /heartbeat (Node-RED watchdog)
+# 30min — heartbeat to /log (dashboard) and /heartbeat (Node-RED watchdog)
 interval:
   - interval: 1s
     then:
@@ -251,7 +251,7 @@ interval:
           } else {
             id(led_green)->turn_off();
           }
-  - interval: 5min
+  - interval: 30min
     then:
       - mqtt.publish:
           topic: jctsh/components/garage-radar/log

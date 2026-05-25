@@ -38,7 +38,8 @@ MAX_ENTRIES = 200
 # ── Shared state ─────────────────────────────────────────────────────────────
 _lock        = threading.Lock()
 _entries     = deque(maxlen=MAX_ENTRIES)   # flushed, displayable entries
-_pending     = None                         # current repeat group (not yet flushed)
+_pending     = None                         # current non-heartbeat repeat group (not yet flushed)
+_hb_groups   = {}                           # component -> active heartbeat collapse group
 _mqtt_client = None
 
 # ── File logging ─────────────────────────────────────────────────────────────
@@ -52,11 +53,34 @@ _fh.setFormatter(logging.Formatter("%(message)s"))
 _file_logger.addHandler(_fh)
 
 
+def _heartbeat_state_key(message):
+    """Return the collapse key for a heartbeat message.
+
+    For discrete ON/OFF states (e.g. presence), breaks the group on state change.
+    For continuous values (e.g. temp), always returns the same key so all
+    heartbeats from that component collapse into one group.
+    """
+    parts = message.rsplit(", ", 1)
+    if len(parts) > 1:
+        last = parts[-1]
+        if last.endswith(": ON") or last.endswith(": OFF"):
+            return last
+    return "heartbeat"
+
+
 def _format_line(e):
-    line = f"{e['ts']} | {e['component']:<15} | {e['category']:<8} | {e['message']}"
-    if e["count"] > 1:
-        line += f"  (×{e['count']})"
-    return line
+    count = e["count"]
+    msg   = e["message"]
+    if count > 1 and "first_ts" in e:
+        details  = msg[len("Heartbeat - "):] if msg.startswith("Heartbeat - ") else msg
+        first_hm = e["first_ts"][11:16]
+        last_hm  = e["ts"][11:16]
+        display  = f"Heartbeat ×{count} [{first_hm}–{last_hm}] — {details}"
+    else:
+        display = msg
+        if count > 1:
+            display += f"  (×{count})"
+    return f"{e['ts']} | {e['component']:<15} | {e['category']:<8} | {display}"
 
 
 def _flush_pending():
@@ -66,6 +90,21 @@ def _flush_pending():
         _entries.append(dict(_pending))
         _file_logger.info(_format_line(_pending))
         _pending = None
+
+
+def _flush_hb_group(component):
+    """Flush heartbeat group for a component into _entries and file. Caller must hold _lock."""
+    group = _hb_groups.pop(component, None)
+    if group:
+        entry = {k: v for k, v in group.items() if k != "_state_key"}
+        _entries.append(entry)
+        _file_logger.info(_format_line(entry))
+
+
+def _flush_all_hb_groups():
+    """Flush all active heartbeat groups. Caller must hold _lock."""
+    for comp in list(_hb_groups.keys()):
+        _flush_hb_group(comp)
 
 
 # ── MQTT callbacks ────────────────────────────────────────────────────────────
@@ -85,17 +124,40 @@ def _on_message(client, userdata, msg):
         category  = str(data.get("category",  "System"))
         message   = str(data.get("message",   ""))
         ts        = datetime.now(_TZ).strftime("%Y-%m-%d %H:%M:%S %Z")
-        key       = (component, category, message)
+
         with _lock:
-            if (_pending and
-                    (_pending["component"], _pending["category"], _pending["message"]) == key):
-                _pending["count"] += 1
+            if message.startswith("Heartbeat - "):
+                state_key = _heartbeat_state_key(message)
+                existing  = _hb_groups.get(component)
+                if existing and existing["_state_key"] == state_key:
+                    # Same state: extend the group with latest values
+                    existing["ts"]      = ts
+                    existing["message"] = message
+                    existing["count"]  += 1
+                else:
+                    # State changed or new component: flush old group, start fresh
+                    if existing:
+                        _flush_hb_group(component)
+                    _hb_groups[component] = {
+                        "ts": ts, "first_ts": ts,
+                        "component": component, "category": category,
+                        "message": message, "count": 1,
+                        "_state_key": state_key,
+                    }
             else:
-                _flush_pending()
-                _pending = {
-                    "ts": ts, "component": component,
-                    "category": category, "message": message, "count": 1
-                }
+                # Non-heartbeat: flush any open heartbeat group for this component first
+                if component in _hb_groups:
+                    _flush_hb_group(component)
+                key = (component, category, message)
+                if (_pending and
+                        (_pending["component"], _pending["category"], _pending["message"]) == key):
+                    _pending["count"] += 1
+                else:
+                    _flush_pending()
+                    _pending = {
+                        "ts": ts, "component": component,
+                        "category": category, "message": message, "count": 1
+                    }
     except (json.JSONDecodeError, UnicodeDecodeError, KeyError):
         pass
 
@@ -164,12 +226,20 @@ _HTML_TEMPLATE = """\
     }
     function _row(e) {
       var c = _color(e);
-      var x = e.count > 1 ? ' <span style="color:'+c+'">(×'+e.count+')</span>' : '';
+      var msg, x = '';
+      if (e.count > 1 && e.first_ts) {
+        var details = e.message.indexOf('Heartbeat - ') === 0 ? e.message.slice(12) : e.message;
+        var ft = e.first_ts.slice(11,16), lt = e.ts.slice(11,16);
+        msg = 'Heartbeat \xd7' + e.count + ' [' + ft + '–' + lt + '] — ' + details;
+      } else {
+        msg = e.message;
+        if (e.count > 1) x = ' <span style="color:'+c+'">\xd7'+e.count+'</span>';
+      }
       return '<tr data-c="'+_esc(e.component)+'" data-k="'+_esc(e.category)+'">'
         +'<td style="color:#888;white-space:nowrap">'+_esc(e.ts)+'</td>'
         +'<td style="color:#888">'+_esc(e.component)+'</td>'
         +'<td style="color:'+c+'">'+_esc(e.category)+'</td>'
-        +'<td style="color:'+c+'">'+_esc(e.message)+x+'</td>'
+        +'<td style="color:'+c+'">'+_esc(msg)+x+'</td>'
         +'</tr>';
     }
     function f() {
@@ -212,6 +282,9 @@ def _snapshot():
         entries = list(_entries)
         if _pending:
             entries.append(dict(_pending))
+        for group in _hb_groups.values():
+            entries.append({k: v for k, v in group.items() if k != "_state_key"})
+    entries.sort(key=lambda e: e["ts"])
     return entries
 
 
@@ -227,10 +300,18 @@ def _build_html(snapshot):
     components = set()
     for e in snapshot:
         components.add(e["component"])
-        color     = _entry_color(e)
-        msg_html  = escape(e["message"])
-        count_tag = (f' <span style="color:{color}">(×{e["count"]})</span>'
-                     if e["count"] > 1 else "")
+        color = _entry_color(e)
+        count = e["count"]
+        if count > 1 and "first_ts" in e:
+            details   = e["message"][len("Heartbeat - "):] if e["message"].startswith("Heartbeat - ") else e["message"]
+            first_hm  = e["first_ts"][11:16]
+            last_hm   = e["ts"][11:16]
+            msg_html  = escape(f"Heartbeat ×{count} [{first_hm}–{last_hm}] — {details}")
+            count_tag = ""
+        else:
+            msg_html  = escape(e["message"])
+            count_tag = (f' <span style="color:{color}">×{count}</span>'
+                         if count > 1 else "")
         rows.append(
             f'      <tr data-c="{escape(e["component"])}" data-k="{escape(e["category"])}">'
             f'<td style="color:#888;white-space:nowrap">{escape(e["ts"])}</td>'
@@ -365,4 +446,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         with _lock:
             _flush_pending()
+            _flush_all_hb_groups()
         print("\n[JCTsh] Stopped.")

@@ -4,7 +4,7 @@
     "type": "tab",
     "label": "Watchdog",
     "disabled": false,
-    "info": "Monitors all JCTsh component heartbeats via wildcard subscription (jctsh/+/+/heartbeat). If any component stops reporting for 10 minutes (2x the 5-minute heartbeat interval), sends a push notification via HA companion app (Pixel 10 Pro XL) and logs the alert. New components are picked up automatically — no changes to this flow needed when new components are added."
+    "info": "Monitors all JCTsh component heartbeats via wildcard subscription (jctsh/+/+/heartbeat). If any component stops reporting for 35 minutes (30-minute heartbeat interval + 5-minute buffer), sends a push notification via HA companion app (Pixel 10 Pro XL) and logs the alert. New components are picked up automatically — no changes to this flow needed when new components are added."
   },
 
   {
@@ -55,7 +55,7 @@
     "type": "function",
     "z": "tab_watchdog",
     "name": "Timer manager (per component)",
-    "func": "// Extract component name from topic: jctsh/<type>/<component>/heartbeat\nconst parts = msg.topic.split('/');\nconst component = parts.length >= 3 ? parts[2] : 'unknown';\n\n// Reset the 10-minute timer for this component\nconst existing = context.get(component + '_timer');\nif (existing) clearTimeout(existing);\n\nnode.warn('Timer set for ' + component + ' — will fire in 10 min');\n\nconst timer = setTimeout(function() {\n    context.set(component + '_timer', null);\n    node.warn('Timer fired for ' + component);\n    node.send({ payload: component });\n}, 10 * 60 * 1000);\n\ncontext.set(component + '_timer', timer);\n\n// No output on receipt — only fires on timeout\nreturn null;",
+    "func": "// Extract component name from topic: jctsh/<type>/<component>/heartbeat\nconst parts = msg.topic.split('/');\nconst component = parts.length >= 3 ? parts[2] : 'unknown';\n\n// Reset the 35-minute timer for this component\nconst existing = context.get(component + '_timer');\nif (existing) clearTimeout(existing);\n\nnode.warn('Timer set for ' + component + ' — will fire in 35 min');\n\nconst timer = setTimeout(function() {\n    context.set(component + '_timer', null);\n    node.warn('Timer fired for ' + component);\n    node.send({ payload: component });\n}, 35 * 60 * 1000);\n\ncontext.set(component + '_timer', timer);\n\n// No output on receipt — only fires on timeout\nreturn null;",
     "outputs": 1,
     "x": 370,
     "y": 100,
@@ -66,7 +66,7 @@
     "id": "comment_alert_header",
     "type": "comment",
     "z": "tab_watchdog",
-    "name": "── Alert (fires only on 10-minute silence) ────────────",
+    "name": "── Alert (fires only on 35-minute silence) ────────────",
     "info": "",
     "x": 230,
     "y": 160,
@@ -78,7 +78,7 @@
     "type": "function",
     "z": "tab_watchdog",
     "name": "Build alert",
-    "func": "const component = msg.payload;\nconst HA_URL   = 'http://localhost:8123';\nconst HA_TOKEN = env.get('HA_TOKEN') || flow.get('haToken') || global.get('haToken');\n\n// Output 1: HA notification request\nconst haMsg = {\n    url: HA_URL + '/api/services/notify/mobile_app_pixel_10_pro_xl',\n    method: 'POST',\n    headers: {\n        'Authorization': 'Bearer ' + HA_TOKEN,\n        'Content-Type': 'application/json'\n    },\n    payload: JSON.stringify({\n        message: 'JCTsh alert: ' + component + ' has not reported in 10 minutes',\n        title: 'JCTsh Watchdog'\n    }),\n    _component: component\n};\n\n// Output 2: watchdog log message (published regardless of HA result)\nconst logMsg = {\n    payload: JSON.stringify({\n        component: 'watchdog',\n        category: 'Alert',\n        message: 'Component ' + component + ' silent for 10 minutes'\n    })\n};\n\nreturn [haMsg, logMsg];",
+    "func": "const component = msg.payload;\nconst HA_URL   = 'http://localhost:8123';\nconst HA_TOKEN = env.get('HA_TOKEN') || flow.get('haToken') || global.get('haToken');\n\n// Output 1: HA notification request\nconst haMsg = {\n    url: HA_URL + '/api/services/notify/mobile_app_pixel_10_pro_xl',\n    method: 'POST',\n    headers: {\n        'Authorization': 'Bearer ' + HA_TOKEN,\n        'Content-Type': 'application/json'\n    },\n    payload: JSON.stringify({\n        message: 'JCTsh alert: ' + component + ' has not reported in 35 minutes',\n        title: 'JCTsh Watchdog'\n    }),\n    _component: component\n};\n\n// Output 2: watchdog log message (published regardless of HA result)\nconst logMsg = {\n    payload: JSON.stringify({\n        component: 'watchdog',\n        category: 'Alert',\n        message: 'Component ' + component + ' silent for 35 minutes'\n    })\n};\n\nreturn [haMsg, logMsg];",
     "outputs": 2,
     "x": 370,
     "y": 220,

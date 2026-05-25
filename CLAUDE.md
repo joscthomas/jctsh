@@ -167,6 +167,7 @@ Mosquitto requires auth (`allow_anonymous false`). Each component has its own ac
 | `homeassistant` | Home Assistant MQTT integration |
 | `garage-radar` | garage-radar ESPHome device |
 | `salt-sensor` | salt-sensor ESP32 sketch |
+| `front-porch-temp-sensor` | front-porch-temp-sensor ESPHome device |
 
 Passwords are stored in:
 - **Log server** — `/etc/jctsh/log-server.env` on the Pi (injected via systemd `EnvironmentFile`)
@@ -212,3 +213,4 @@ Pins to avoid:
 ## Backlog for Future work
 For the next time we open a component for changing.
 - garage-radar: closing garage door triggers a false presence detection (moving door passes through radar detection cone). Deferred until after perfboard build. Options: (a) adjust radar tilt angle to exclude the door path — need a method to determine correct angle during calibration; (b) accept it — 15-minute timer means lights go off eventually regardless.
+- salt-sensor: migrate from Arduino C++ to ESPHome. Device side maps cleanly (ultrasonic platform, median filter, 12h interval, LED blink via globals). Logic side: threshold/percentage calculation + SmartThings switch control moves from Node-RED to HA automations; Node-RED flow deleted. Hard part: test mode needs redesign (Node-RED injects fake readings — ESPHome has no equivalent; replace with an HA script that triggers the threshold automation with a synthetic distance value). GPIO 2 and 15 are strapping pins but currently working — not a blocker. Do this migration before perfboard transfer: ESPHome initializes hardware differently than Arduino and if either strapping pin causes a boot issue it's much easier to rewire on breadboard than cut perfboard traces.

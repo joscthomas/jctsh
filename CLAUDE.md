@@ -109,6 +109,8 @@ All components publish logs as JSON to `jctsh/<type>/<component>/log`:
 Valid categories: `MQTT`, `System`, `Sensor`, `Alert`, `Test`
 Timestamps are added by the log server on receipt — do not include them in the payload.
 
+**Collapsing convention:** Any repeating status message that should be collapsed into a single dashboard row (count + time range) must start with `"Heartbeat - "`. The log server groups consecutive same-state messages with this prefix per component. Messages without this prefix only collapse when consecutive identical runs are uninterrupted — unreliable for high-frequency or long-lived repeats.
+
 ## Watchdog Heartbeat
 `core/logging/log_server.py` publishes an hourly heartbeat to `jctsh/core/log-server/log`:
 ```json

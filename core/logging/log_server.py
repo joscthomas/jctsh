@@ -9,6 +9,7 @@ import json
 import os
 import logging
 import logging.handlers
+import signal
 import threading
 import time
 from collections import deque
@@ -54,12 +55,15 @@ _file_logger.addHandler(_fh)
 
 
 def _heartbeat_state_key(message):
-    """Return the collapse key for a heartbeat message.
+    """Return the collapse key for a collapsible message.
 
-    For discrete ON/OFF states (e.g. presence), breaks the group on state change.
-    For continuous values (e.g. temp), always returns the same key so all
-    heartbeats from that component collapse into one group.
+    Watchdog messages: key is the full message so a changing active list
+    starts a new group.  Device heartbeats with discrete ON/OFF state break
+    on state change.  Continuous values (e.g. temp) always return the same
+    key so all heartbeats from that component collapse into one group.
     """
+    if message.startswith("Watchdog: "):
+        return message
     parts = message.rsplit(", ", 1)
     if len(parts) > 1:
         last = parts[-1]
@@ -72,10 +76,13 @@ def _format_line(e):
     count = e["count"]
     msg   = e["message"]
     if count > 1 and "first_ts" in e:
-        details  = msg[len("Heartbeat - "):] if msg.startswith("Heartbeat - ") else msg
         first_hm = e["first_ts"][11:16]
         last_hm  = e["ts"][11:16]
-        display  = f"Heartbeat ×{count} [{first_hm}–{last_hm}] — {details}"
+        if msg.startswith("Heartbeat - "):
+            details = msg[len("Heartbeat - "):]
+            display = f"Heartbeat ×{count} [{first_hm}–{last_hm}] — {details}"
+        else:
+            display = f"{msg}  ×{count} [{first_hm}–{last_hm}]"
     else:
         display = msg
         if count > 1:
@@ -126,7 +133,7 @@ def _on_message(client, userdata, msg):
         ts        = datetime.now(_TZ).strftime("%Y-%m-%d %H:%M:%S %Z")
 
         with _lock:
-            if message.startswith("Heartbeat - "):
+            if message.startswith("Heartbeat - ") or message.startswith("Watchdog: "):
                 state_key = _heartbeat_state_key(message)
                 existing  = _hb_groups.get(component)
                 if existing and existing["_state_key"] == state_key:
@@ -228,9 +235,13 @@ _HTML_TEMPLATE = """\
       var c = _color(e);
       var msg, x = '';
       if (e.count > 1 && e.first_ts) {
-        var details = e.message.indexOf('Heartbeat - ') === 0 ? e.message.slice(12) : e.message;
         var ft = e.first_ts.slice(11,16), lt = e.ts.slice(11,16);
-        msg = 'Heartbeat \xd7' + e.count + ' [' + ft + '–' + lt + '] — ' + details;
+        if (e.message.indexOf('Heartbeat - ') === 0) {
+          var details = e.message.slice(12);
+          msg = 'Heartbeat \xd7' + e.count + ' [' + ft + '–' + lt + '] — ' + details;
+        } else {
+          msg = e.message + '  \xd7' + e.count + ' [' + ft + '–' + lt + ']';
+        }
       } else {
         msg = e.message;
         if (e.count > 1) x = ' <span style="color:'+c+'">\xd7'+e.count+'</span>';
@@ -303,10 +314,13 @@ def _build_html(snapshot):
         color = _entry_color(e)
         count = e["count"]
         if count > 1 and "first_ts" in e:
-            details   = e["message"][len("Heartbeat - "):] if e["message"].startswith("Heartbeat - ") else e["message"]
             first_hm  = e["first_ts"][11:16]
             last_hm   = e["ts"][11:16]
-            msg_html  = escape(f"Heartbeat ×{count} [{first_hm}–{last_hm}] — {details}")
+            if e["message"].startswith("Heartbeat - "):
+                details  = e["message"][len("Heartbeat - "):]
+                msg_html = escape(f"Heartbeat ×{count} [{first_hm}–{last_hm}] — {details}")
+            else:
+                msg_html = escape(f"{e['message']}  ×{count} [{first_hm}–{last_hm}]")
             count_tag = ""
         else:
             msg_html  = escape(e["message"])
@@ -441,9 +455,12 @@ if __name__ == "__main__":
     threading.Thread(target=_heartbeat_thread, daemon=True).start()
     httpd = ThreadingHTTPServer(("", HTTP_PORT), _Handler)
     print("[JCTsh] Dashboard at http://JCTsh.local/")
+    signal.signal(signal.SIGTERM, lambda *_: httpd.shutdown())
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
+        pass
+    finally:
         with _lock:
             _flush_pending()
             _flush_all_hb_groups()

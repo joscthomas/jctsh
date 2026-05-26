@@ -197,6 +197,7 @@ void setup() {
 
   // WiFi
   Serial.printf("[WiFi] Connecting to %s...\n", WIFI_SSID);
+  WiFi.setHostname("salt-sensor");
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
   Serial.println("\n[WiFi] Connected.  IP: " + WiFi.localIP().toString());

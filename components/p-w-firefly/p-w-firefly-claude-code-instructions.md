@@ -2,8 +2,8 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step build instructions for the p-w-firefly component — eRVin-based coach control interface for the 2018 Pleasure-Way Lexor FL.
 **Project:** JCT Smart Home (JCTsh)
-**Version:** 1.1
-**Version description:** Added explicit bench/install phase boundary per JCTsh-Component-Planning-Pattern v1.7. All bench-verifiable steps (hardware assembly, image flash, driver config, first boot, eRVin configuration, WiFi hotspot, Tailscale) are now grouped in the Bench Phase. Physical RV installation and in-coach testing are in the Install Phase. MicroSD swap moved to Install Phase. Bench power note promoted from Notes section into Step 6 directly.
+**Version:** 1.2
+**Version description:** Added Future Enhancement — GPS Location section covering two independent GPS capabilities: eRVin GPS via USB dongle (GlobalSat BU-353S4 recommended) for coach automation and tracking, and the planned Pleasure-Way environmental sensor node (separate future component per JCTsh-Environmental-Data-Architecture.md). Documented phone-as-GPS alternative (ShareGPS) and explained why USB dongle is preferred. Previous version (1.1): Added explicit bench/install phase boundary per JCTsh-Component-Planning-Pattern v1.7.
 **Related files:** README.md, CLAUDE.md, ENVIRONMENT.md, JCTsh-Build-Standards.md, JCTsh-Component-Planning-Pattern.md, jctsh-parts-inventory.md
 
 ---
@@ -115,6 +115,37 @@ The following items are deferred until all build steps are complete and the RV c
 - Build HA dashboard card for RV systems
 - Define SmartThings device types and integration path (Node-RED → HA REST API → SmartThings)
 - Add JCTsh heartbeat/watchdog/log topics per Build Standards Section 4
+
+---
+
+## Future Enhancement — GPS Location
+
+GPS location is deferred until the core eRVin build (Steps 1–14) is complete and working. Two separate GPS capabilities are planned — they serve different purposes and are independent of each other.
+
+**eRVin GPS — coach automation and tracking:**
+
+eRVin version 0.3 and newer supports GPS by plugging a USB GPS receiver directly into one of the RV Pi's USB ports. No software installation required for current eRVin versions — gpsd is pre-configured in the image.
+
+Recommended hardware: **GlobalSat BU-353S4 USB GPS receiver** (~$30, Amazon) — widely used with Raspberry Pi and confirmed compatible with gpsd.
+
+GPS enables the following eRVin capabilities:
+- Automatic sunrise/sunset calculations for location-aware lighting automations (e.g. turn on porch light at sunset, wherever the coach is parked)
+- Presence detection — eRVin knows if you are "home" (at the RV) or "away" and can take appropriate actions (e.g. turn off water heater when away, turn on porch lights on arrival after sunset)
+- Geo-fence security alerting — notification if the RV moves when it should be stationary (e.g. storage facility)
+- Trip logging — track movement, speed, and route history
+
+**Phone-as-GPS alternative (not recommended for this build):** An Android app called ShareGPS can stream NMEA data over TCP/IP to gpsd on the Pi, allowing the Pixel's built-in GPS to substitute for a hardware receiver. This works technically but requires the app to be running actively on the phone and the phone to be on the same network as the Pi. It is less reliable than a dedicated hardware receiver for continuous coach automation and is not the approach myervin.com is designed for. Use the USB dongle instead.
+
+**Pleasure-Way environmental sensor node — separate future component:**
+
+The JCTsh Environmental Data Architecture (JCTsh-Environmental-Data-Architecture.md) lists the Pleasure-Way as a planned mobile environmental sensor node: an ESP32 with BME280 (temperature/humidity/pressure) and a dedicated NEO-6M GPS module, publishing on the standard JCTsh environmental data payload schema to `jctsh/components/pleasure-way-sensor/data`. This is entirely independent of the eRVin system and the Firefly interface — it is its own future component planned in a separate Claude chat session following the JCTsh Component Planning Pattern.
+
+**When ready to implement eRVin GPS:**
+- Purchase GlobalSat BU-353S4 or equivalent USB GPS receiver
+- Plug into RV Pi USB port
+- Verify gpsd is active and receiving NMEA data: `cgps -s`
+- Configure eRVin location-aware automations via the dashboard
+- Document GPS receiver model and configuration in physical-installation.md
 
 ---
 

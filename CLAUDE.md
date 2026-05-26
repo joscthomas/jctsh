@@ -87,7 +87,8 @@ to access all local services remotely — no port forwarding, no public IP expos
 
 | Device | Access |
 |---|---|
-| Pi (server) | Tailscale IP `100.70.162.24` — always reachable when Tailscale is running |
+| Home Pi (server) | Tailscale IP `100.70.162.24` — always reachable when Tailscale is running |
+| RV Pi (coachproxyos) | Tailscale IP `100.90.246.43` — eRVin dashboard at `http://100.90.246.43` |
 
 Install Tailscale: tailscale.com/download (Windows/Mac/Linux) or app store (iOS/Android).
 Sign in with the same account and all services are reachable via `100.70.162.24`.

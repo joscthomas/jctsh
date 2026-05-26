@@ -201,7 +201,7 @@ Use **ESPHome YAML** (not Arduino C++) for new ESP-based components:
 6. Create a dedicated MQTT account: `sudo mosquitto_passwd -b /etc/mosquitto/passwd <name> <password>`, then fix ownership (see Credentials section)
 7. Add credentials to `components/<name>/secrets.yaml` (gitignored)
 
-**Hostname convention:** Every ESP32 component must set its network hostname to match its component name so it is discoverable as `<name>.local`. ESPHome does this automatically via `esphome: name:`. For any Arduino sketch, call `WiFi.setHostname("<name>");` before `WiFi.begin()`. Reserve the DHCP IP on the router and record the IP, hostname, and MAC in `jctsh-parts-inventory.md` (or the device table in project memory).
+**Hostname convention:** Every ESP32 component must set its network hostname to match its component name so it is discoverable as `<name>.local`. ESPHome does this automatically via `esphome: name:`. For any Arduino sketch, call `WiFi.setHostname("<name>");` before `WiFi.begin()`. Reserve the DHCP IP on the router and record the IP, hostname, and MAC in `jctsh-network.md`.
 
 ### ESP32 GPIO pin guidance
 Safe pins for digital output: **GPIO32, GPIO33**, GPIO18, GPIO19, GPIO21, GPIO22, GPIO23, GPIO27.

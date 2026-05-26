@@ -1,5 +1,5 @@
 # JCTsh Front Porch Temp Sensor — ESPHome Configuration
-# Hardware: ESP32 DevKitC-32 (38-pin, CP2102 USB-C) + BME280 (I2C 0x76) + BH1750 (I2C 0x23)
+# Hardware: ESP32 DevKitC-32 (38-pin, CP2102 USB-C) + GY-BME280 (I2C 0x76) + BH1750 (I2C 0x23)
 #
 # I2C wiring (shared bus):
 #   SDA → GPIO21    SCL → GPIO22
@@ -82,9 +82,8 @@ i2c:
 
 # ── Sensors ───────────────────────────────────────────────────────────────────
 sensor:
-  # BMP280 — temperature, pressure (temporary substitution for BME280 — Podazz 3-pack are counterfeit)
-  # Swap back to bme280_i2c and re-add humidity sensor when genuine BME280 modules arrive
-  - platform: bmp280_i2c
+  # BME280 — temperature, humidity, pressure
+  - platform: bme280_i2c
     address: 0x76
     update_interval: 60s
     temperature:
@@ -93,6 +92,8 @@ sensor:
       filters:
         - lambda: return x * 9.0/5.0 + 32.0;
       unit_of_measurement: "°F"
+    humidity:
+      name: "Humidity"
     pressure:
       name: "Pressure"
 

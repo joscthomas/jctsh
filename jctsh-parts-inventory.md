@@ -39,8 +39,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 |---|---|---|---|
 | HLK-LD2412 | EC Buying, 24GHz mmWave radar, UART, ±75°, 9m range | 2 | 1 used: garage radar project. |
 | BH1750 (GY-302) | hiBCTR 3-pack, illumination/light sensor, I2C | 2 | 1 used: front-porch-temp-sensor. |
-| BMP280 (sold as BME280) | Podazz 3-pack, counterfeit — pressure/temp only, no humidity, I2C, 5V | 2 | 3 returned 2026-05-26. 1 deployed: front-porch-temp-sensor (running as bmp280_i2c). 1 spare. |
-| BME280 (GY-BME280) | 2PCS packs, genuine — temp/humidity/pressure, I2C/SPI, 5V breakout | 4 | Received 2026-05-26. Genuine modules confirmed (not BMP280). Swap into front-porch-temp-sensor pending. |
+| BMP280 (sold as BME280) | Podazz 3-pack, counterfeit — pressure/temp only, no humidity, I2C, 5V | 2 | 3 returned 2026-05-26. 2 spares (removed from front-porch-temp-sensor 2026-05-26). |
+| BME280 (GY-BME280) | 2PCS packs, genuine — temp/humidity/pressure, I2C/SPI, 5V breakout | 4 | 1 deployed: front-porch-temp-sensor (swapped in 2026-05-26). 3 spares. |
 
 ---
 
@@ -88,3 +88,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-05 | Garage radar | ESP32 ×1 used; LD2412 ×1 used; perfboard ×1 used |
 | 2026-05 | front-porch-temp-sensor | ESP32 ×1 used; BH1750 ×1 used; BMP280 ×1 used (counterfeit BME280 — genuine on order); perfboard ×1 reserved (deferred to Step 12) |
 | 2026-05-26 | BME280 order received | GY-BME280 ×4 received (2 × 2PCS packs); Podazz BMP280 ×3 returned (counterfeit); 1 genuine BME280 to replace front-porch-temp-sensor module |
+| 2026-05-26 | front-porch-temp-sensor | GY-BME280 ×1 deployed (replaced counterfeit BMP280); humidity now active |

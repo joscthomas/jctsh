@@ -82,5 +82,5 @@ The eRVin image may support a read-only overlay filesystem, which protects the S
 | Hostname | coachproxyos |
 | SSH credentials | pi / ervin2020 — see secrets.md |
 | eRVin dashboard accessible | Yes — port 80 shows coach dashboard; port 1880 is Node-RED editor |
-| Overlay filesystem available | |
-| Overlay filesystem enabled | |
+| Overlay filesystem available | raspi-config on eRVin image has no overlay option |
+| Overlay filesystem enabled | No — deferred to backlog; SanDisk MAX Endurance provides interim protection |

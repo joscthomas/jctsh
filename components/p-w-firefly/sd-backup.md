@@ -23,17 +23,32 @@ ssh pi@192.168.1.219 "sudo shutdown -h now"
 
 3. Insert the SD card into your PC card reader.
 
-4. Open **Win32DiskImager** (free — [sourceforge.net/projects/win32diskimager](https://sourceforge.net/projects/win32diskimager/)).
+4. Open **USB Image Tool** (free, portable — [alexpage.de/usb-image-tool](https://www.alexpage.de/usb-image-tool/download/)). Run as Administrator.
 
-5. Select the SD card drive. Click **Read**. Save as:
+   Note: Win32DiskImager does not work on this Windows 11 setup (crashes after UAC prompt). USB Image Tool is the confirmed working tool.
+
+5. Select the SD card from the device list. Click **Device → Image** and save as:
 
 ```
 ervin-coachproxyos-backup-YYYYMMDD.img
 ```
 
-6. The image will be ~32GB. Store in Documents or a backup drive.
+6. The image will be ~30GB. Store in Documents or a backup drive.
 
 7. Reinsert the SD card and power the Pi back up.
+
+---
+
+## Windows 11 Imaging Tool Notes
+
+Tested on this machine (Windows 11 Home, May 2026):
+
+| Tool | Result |
+|---|---|
+| **USB Image Tool** | Works — confirmed. Run as Administrator. Device → Image. |
+| Win32DiskImager | Fails — crashes silently after UAC prompt on Windows 11 |
+| PowerShell FileStream (`\\.\PhysicalDrive2`) | Fails — .NET `Read()` returns 0 prematurely at sector boundaries, produces a partial image (~1.2GB) |
+| WSL `dd` with sudo | Fails — WSL2 block device reads return 0 bytes despite exit code 0 |
 
 ---
 
@@ -47,6 +62,7 @@ If the card fails, flash the backup image to a new SanDisk MAX Endurance 32GB us
 
 | Item | Value |
 |---|---|
-| Backup taken | |
-| Backup filename | |
-| Backup stored at | |
+| Backup taken | 2026-05-26 |
+| Backup filename | ervin-coachproxyos-backup-20260526.img |
+| Backup stored at | C:\Users\jcthomas\Documents\JCT Documents\SmartHome\ |
+| Tool used | USB Image Tool (run as Administrator) |

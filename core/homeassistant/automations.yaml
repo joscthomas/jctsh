@@ -1,0 +1,165 @@
+- id: '1778983120577'
+  alias: Garage Presence - Restart timer on activity
+  triggers:
+  - entity_id: binary_sensor.garage_motion_motion
+    to: 'on'
+    trigger: state
+  - entity_id: binary_sensor.back_door_door
+    trigger: state
+  - entity_id: binary_sensor.garage_cam_motion
+    to: 'on'
+    trigger: state
+  - entity_id: binary_sensor.back_door_acceleration
+    to: 'on'
+    trigger: state
+  - entity_id: binary_sensor.garage_radar_presence
+    to: 'on'
+    trigger: state
+  conditions:
+  - condition: template
+    value_template: >
+      {{ trigger.entity_id == 'binary_sensor.garage_radar_presence'
+         or is_state('binary_sensor.garage_radar_presence', 'unavailable')
+         or is_state('binary_sensor.garage_radar_presence', 'unknown') }}
+  actions:
+  - target:
+      entity_id: timer.garage_presence_timer
+    data:
+      duration: '{{ (states(''input_number.garage_timer_duration'') | int) * 60 }}'
+    action: timer.start
+  - action: switch.turn_on
+    target:
+      entity_id: switch.garage_presence_vswitch
+  mode: restart
+- id: '1778983177377'
+  alias: Garage Presence - Timer expired
+  triggers:
+  - event_type: timer.finished
+    event_data:
+      entity_id: timer.garage_presence_timer
+    trigger: event
+  actions:
+  - action: switch.turn_off
+    target:
+      entity_id: switch.garage_presence_vswitch
+  mode: single
+- id: '1779139332231'
+  alias: Garage Presence - Sync timer to vswitch
+  triggers:
+  - entity_id: switch.garage_presence_vswitch
+    to: 'on'
+    trigger: state
+  - trigger: homeassistant
+    event: start
+  conditions:
+  - condition: state
+    entity_id: switch.garage_presence_vswitch
+    state: 'on'
+  actions:
+  - target:
+      entity_id: timer.garage_presence_timer
+    data:
+      duration: '{{ (states(''input_number.garage_timer_duration'') | int) * 60 }}'
+    action: timer.start
+  mode: single
+- id: '1779303195499'
+  alias: Garage Presence - Radar keepalive
+  description: ''
+  triggers:
+  - trigger: time_pattern
+    minutes: /5
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.garage_radar_presence
+    state: 'on'
+  actions:
+  - target:
+      entity_id: timer.garage_presence_timer
+    data:
+      duration: '{{ (states(''input_number.garage_timer_duration'') | int) * 60 }}'
+    action: timer.start
+  - action: switch.turn_on
+    target:
+      entity_id: switch.garage_presence_vswitch
+  mode: single
+- id: '1779459034707'
+  alias: Garage Presence Vswitch → MQTT
+  description: ''
+  triggers:
+  - entity_id: switch.garage_presence_vswitch
+    trigger: state
+  actions:
+  - data:
+      topic: jctsh/components/garage-presence-vswitch/state
+      payload: '{{ ''ON'' if trigger.to_state.state == ''on'' else ''OFF'' }}'
+      retain: true
+      qos: 0
+    action: mqtt.publish
+  mode: single
+- id: '1779726459999'
+  alias: Front Porch Temp Alert + Reminder
+  triggers:
+  - value_template: "{{ states('sensor.front_porch_temp_sensor_temperature') | float(0)
+      >=\n   states('input_number.front_porch_temp_threshold') | float(80) }}\n"
+    trigger: template
+  conditions:
+  - condition: time
+    after: 06:00:00
+    before: '22:00:00'
+  actions:
+  - data:
+      title: Front Porch Temp Alert
+      message: 'Front porch temperature is {{ states(''sensor.front_porch_temp_sensor_temperature'')
+        | round(1) }}°F. Consider closing the door.
+
+        '
+    action: notify.mobile_app_pixel_10_pro_xl
+  - data:
+      title: Front Porch Temp Alert
+      message: 'Front porch temperature is {{ states(''sensor.front_porch_temp_sensor_temperature'')
+        | round(1) }}°F. Consider closing the door.
+
+        '
+    action: notify.mobile_app_pixel_7_pro
+  - delay: 00:15:00
+  - data:
+      title: Front Porch Temp Reminder
+      message: 'Front porch is still {{ states(''sensor.front_porch_temp_sensor_temperature'')
+        | round(1) }}°F and the front door is still open.
+
+        '
+    action: notify.mobile_app_pixel_10_pro_xl
+  - data:
+      title: Front Porch Temp Reminder
+      message: 'Front porch is still {{ states(''sensor.front_porch_temp_sensor_temperature'')
+        | round(1) }}°F and the front door is still open.
+
+        '
+    action: notify.mobile_app_pixel_7_pro
+  mode: single
+- id: '1779726497318'
+  alias: Front Porch Temp Dropping
+  triggers:
+  - value_template: "{{ states('sensor.front_porch_temp_sensor_temperature') | float(0)
+      <\n   states('input_number.front_porch_temp_threshold') | float(80) }}\n"
+    trigger: template
+  conditions:
+  - condition: time
+    after: 06:00:00
+    before: '22:00:00'
+  actions:
+  - data:
+      title: Front Porch Temp Dropping
+      message: 'Front porch temperature is {{ states(''sensor.front_porch_temp_sensor_temperature'')
+        | round(1) }}°F. Consider opening the door.
+
+        '
+    action: notify.mobile_app_pixel_10_pro_xl
+  - data:
+      title: Front Porch Temp Dropping
+      message: 'Front porch temperature is {{ states(''sensor.front_porch_temp_sensor_temperature'')
+        | round(1) }}°F. Consider opening the door.
+
+        '
+    action: notify.mobile_app_pixel_7_pro
+  mode: single

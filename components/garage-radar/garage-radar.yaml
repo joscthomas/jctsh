@@ -99,6 +99,7 @@ mqtt:
     retain: false
     qos: 0
   on_connect:
+    - delay: 500ms
     - mqtt.publish:
         topic: jctsh/components/garage-radar/log
         payload: !lambda |-
@@ -153,48 +154,58 @@ output:
     pin: GPIO32
 
 # ── Binary sensors ────────────────────────────────────────────────────────────
+# Presence uses a template sensor filtered to detection_dist <= 375cm (~12 ft)
+# to exclude false still-target detections from the far wall (~600cm).
+# has_target (raw) is kept internal for LD2412 component operation.
 binary_sensor:
   - platform: ld2412
     has_target:
-      name: "Presence"
-      id: presence
-      device_class: occupancy
-      filters:
-        - delayed_off: 30s
-      on_state:
-        then:
-          - if:
-              condition:
-                lambda: 'return x;'
-              then:
-                - mqtt.publish:
-                    topic: jctsh/components/garage-radar/log
-                    payload: !lambda |-
-                      const char* still_str  = id(still_target).state  ? "ON" : "OFF";
-                      const char* moving_str = id(moving_target).state ? "ON" : "OFF";
-                      float dist = id(detection_dist).state;
-                      char dist_buf[16];
-                      if (isnan(dist) || dist <= 0) {
-                        snprintf(dist_buf, sizeof(dist_buf), "unknown");
-                      } else {
-                        snprintf(dist_buf, sizeof(dist_buf), "%.1fm", dist / 100.0f);
-                      }
-                      char buf[256];
-                      snprintf(buf, sizeof(buf),
-                        "{\"component\":\"garage-radar\",\"category\":\"Sensor\","
-                        "\"message\":\"Presence detected - has_target: ON (still: %s, moving: %s, distance: %s)\"}",
-                        still_str, moving_str, dist_buf);
-                      return std::string(buf);
-              else:
-                - mqtt.publish:
-                    topic: jctsh/components/garage-radar/log
-                    payload: '{"component":"garage-radar","category":"Sensor","message":"Presence cleared - has_target: OFF, timeout elapsed"}'
+      id: presence_raw
+      internal: true
     has_moving_target:
       name: "Moving Target"
       id: moving_target
     has_still_target:
       name: "Still Target"
       id: still_target
+
+  - platform: template
+    name: "Presence"
+    id: presence
+    device_class: occupancy
+    lambda: |-
+      float dist = id(detection_dist).state;
+      return !isnan(dist) && dist > 0 && dist <= 375;
+    filters:
+      - delayed_off: 30s
+    on_state:
+      then:
+        - if:
+            condition:
+              lambda: 'return x;'
+            then:
+              - mqtt.publish:
+                  topic: jctsh/components/garage-radar/log
+                  payload: !lambda |-
+                    const char* still_str  = id(still_target).state  ? "ON" : "OFF";
+                    const char* moving_str = id(moving_target).state ? "ON" : "OFF";
+                    float dist = id(detection_dist).state;
+                    char dist_buf[16];
+                    if (isnan(dist) || dist <= 0) {
+                      snprintf(dist_buf, sizeof(dist_buf), "unknown");
+                    } else {
+                      snprintf(dist_buf, sizeof(dist_buf), "%.1fm", dist / 100.0f);
+                    }
+                    char buf[256];
+                    snprintf(buf, sizeof(buf),
+                      "{\"component\":\"garage-radar\",\"category\":\"Sensor\","
+                      "\"message\":\"Presence detected (distance: %s, still: %s, moving: %s)\"}",
+                      dist_buf, still_str, moving_str);
+                    return std::string(buf);
+            else:
+              - mqtt.publish:
+                  topic: jctsh/components/garage-radar/log
+                  payload: '{"component":"garage-radar","category":"Sensor","message":"Presence cleared - timeout elapsed"}'
 
 # ── Numeric sensors ───────────────────────────────────────────────────────────
 sensor:

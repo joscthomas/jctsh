@@ -1,8 +1,8 @@
 # JCT Smart Home (JCTsh) Component Planning Pattern
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the five-phase process for planning and building JCTsh smart home components, from discovery through execution.
-**Version:** 1.7
-**Version description:** Added bench-first prototyping as an explicit principle in "What Makes This Pattern Work", in Phase 4 critical rules, in the Phase 3 required checklist, and in the Claude Code instructions template. This principle requires that all steps verifiable on the workbench are completed and confirmed before the component is installed in its final location. The bench/install boundary must be made explicit in every instruction set with a dividing section header.
+**Version:** 1.8
+**Version description:** Added `JCTsh-Environmental-Data-Architecture.md` and `jctsh-network.md` to the required context file list in Step 1. Added explicit file confirmation rule: Claude must name all missing files and confirm receipt of all required files before asking any planning questions. Both changes identified during the hiking monitor planning session (May 2026).
 
 ---
 
@@ -16,6 +16,8 @@ Use Claude chat for **thinking, researching, and planning**. Use Claude Code for
 
 Before any component planning session can begin, load the following files into the Claude chat session. Claude will not proceed with Phase 1 until all required files are present.
 
+**File confirmation rule:** When a session begins, Claude must immediately identify which required files are present and which are missing, name the missing files explicitly, and wait for them to be loaded before asking any planning questions. Claude must not proceed with Phase 1 — not even a single clarifying question — until all required files are confirmed received.
+
 ### Step 1 — Load first
 
 | File | Location | Purpose |
@@ -26,6 +28,8 @@ Before any component planning session can begin, load the following files into t
 | `JCTsh-Parts-Inventory.md` | repo root | On-hand parts inventory — hardware available for use before any purchasing decisions are made |
 | `JCTsh-Build-Standards.md` | repo root | Required build, integration, and documentation standards for all JCTsh components |
 | `JCTsh-Component-Planning-Pattern.md` | repo root | This document — the planning process itself |
+| `JCTsh-Environmental-Data-Architecture.md` | repo root | Standard environmental sensor payload schema, Google Sheets archive design, Node-RED wildcard handler pattern, Weather Underground integration, and the planned environmental sensor family. Required for all components — contains pre-existing architectural decisions that shape integration design. |
+| `jctsh-network.md` | repo root | DHCP reservations, hostname conventions, WiFi SSIDs, and all assigned device IPs and MACs. Required for Phase 3 network topology decisions and Phase 4 instruction writing. |
 
 ### Step 2 — Claude reads the root README and requests these
 
@@ -180,6 +184,10 @@ If something doesn't work as expected during execution, bring it back to the Cla
 
 **Architecture context first.** CLAUDE.md is a required context file. It contains the actual message flow, log format, SmartThings integration path, and credentials patterns. Without it, integration decisions are made on incorrect assumptions.
 
+**Environmental architecture context first.** JCTsh-Environmental-Data-Architecture.md is a required context file. It contains pre-existing architectural decisions for the entire environmental sensor family — payload schema, MQTT topic conventions, Google Sheets archive design, and the planned device family. Without it, a new environmental sensor component will contradict or duplicate decisions already made.
+
+**Network context first.** jctsh-network.md is a required context file. It contains DHCP reservations, hostname conventions, and all assigned device IPs and MACs. Without it, network topology decisions in Phase 3 and hostname/IP assignments in Phase 4 are made without visibility into what is already allocated.
+
 **Deliberate deferral.** Explicitly deciding what not to build yet is as important as deciding what to build. Future enhancements are documented so they aren't lost, but they don't complicate the current build.
 
 **Observability is not optional.** Every component publishes to the `/log` topic in standard JSON format and publishes a 5-minute heartbeat. The Node-RED watchdog monitors heartbeats and alerts via the HA companion app on Joseph's Pixel 10 Pro. SmartThings exposure is decided during Phase 3, not deferred.
@@ -285,6 +293,9 @@ installed location.
 
 --- Required notes for every ESP32 component ---
 - Read JCTsh-Build-Standards.md and CLAUDE.md before beginning
+- Read JCTsh-Environmental-Data-Architecture.md if this is an
+  environmental sensor — payload schema and MQTT topic convention
+  are defined there and must be followed exactly
 - Log format: JSON to jctsh/<type>/<component>/log —
   { "component": "<name>", "category": "<cat>", "message": "<text>" }
   Node-RED wildcard subscription handles routing automatically
@@ -298,6 +309,7 @@ installed location.
 - MQTT account: create dedicated Mosquitto account before first flash —
   see JCTsh-Build-Standards.md Section 2.7 for commands and ownership gotcha
 - Add new account to credentials table in root CLAUDE.md
+- Record new device IP, hostname, and MAC in jctsh-network.md
 - Consult JCTsh-Parts-Inventory.md before adding any item to the BOM
 - Update JCTsh-Parts-Inventory.md inventory update log at final step
 - Bench-first: all bench steps must be confirmed complete before any

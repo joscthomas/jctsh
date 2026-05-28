@@ -49,6 +49,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Component | Description | Qty On Hand | Notes |
 |---|---|---|---|
 | 18650 Battery Charger Module + Holder | AEDIKO 5-pack (charger + holder pairs), fast charge boost, PCB protection | 10 | 2 packs (10 pairs) on hand. No project assigned yet. |
+| EVE 3.3V 18650 Cell | 18650BatteryStore.com, 3200mAh, 10A, flat top | 5 | No project assigned yet. |
 | Mini Solar Panel | SUNYIMA, 5.5V 80mA, 2.36"×2.36", DIY photovoltaic | 10 | All on hand. No project assigned yet. |
 
 ---
@@ -89,3 +90,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-05 | front-porch-temp-sensor | ESP32 ×1 used; BH1750 ×1 used; BMP280 ×1 used (counterfeit BME280 — genuine on order); perfboard ×1 reserved (deferred to Step 12) |
 | 2026-05-26 | BME280 order received | GY-BME280 ×4 received (2 × 2PCS packs); Podazz BMP280 ×3 returned (counterfeit); 1 genuine BME280 to replace front-porch-temp-sensor module |
 | 2026-05-26 | front-porch-temp-sensor | GY-BME280 ×1 deployed (replaced counterfeit BMP280); humidity now active |
+| 2026-05-27 | Stock | EVE 3.3V 18650 3200mAh 10A ×5 received (18650BatteryStore.com) |

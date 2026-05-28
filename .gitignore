@@ -1,6 +1,7 @@
 # Credentials - never commit these
 secrets.h
 secrets.yaml
+credentials.local.md
 
 # Arduino build artifacts 
 build/ 

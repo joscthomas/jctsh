@@ -64,12 +64,11 @@ wifi:
 captive_portal:
 
 # ── Globals ───────────────────────────────────────────────────────────────────
-# led_holdoff: countdown timer (seconds) for green LED delayed-off behavior.
-# Counts down 30s after detection_dist drops to 0, mirrors delayed_off: 30s.
+# presence_active: true while presence is detected; used by heartbeat for reporting.
 globals:
-  - id: led_holdoff
-    type: uint32_t
-    initial_value: '0'
+  - id: presence_active
+    type: bool
+    initial_value: 'false'
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logger:
@@ -141,10 +140,8 @@ ld2412:
   uart_id: uart_ld2412
 
 # ── LED outputs ───────────────────────────────────────────────────────────────
-# GPIO33: green LED — on when presence detected (detection_dist > 0, 30s holdoff)
+# GPIO33: green LED — blink×2 then solid (moving) or 1s pulse (still-only) on detected; off on cleared
 # GPIO32: yellow LED — mirrors garage-presence-vswitch state via MQTT subscription
-# id(presence).state is unreliable for nested ld2412 binary sensors in ESPHome 2026.x;
-# green LED uses detection_dist + manual holdoff counter instead.
 output:
   - platform: gpio
     id: led_green
@@ -152,6 +149,41 @@ output:
   - platform: gpio
     id: led_yellow
     pin: GPIO32
+
+# ── LED scripts ───────────────────────────────────────────────────────────────
+script:
+  - id: led_green_moving
+    mode: restart
+    then:
+      - output.turn_on: led_green
+      - delay: 200ms
+      - output.turn_off: led_green
+      - delay: 200ms
+      - output.turn_on: led_green
+      - delay: 200ms
+      - output.turn_off: led_green
+      - delay: 200ms
+      - output.turn_on: led_green
+
+  - id: led_green_still
+    mode: restart
+    then:
+      - output.turn_on: led_green
+      - delay: 200ms
+      - output.turn_off: led_green
+      - delay: 200ms
+      - output.turn_on: led_green
+      - delay: 200ms
+      - output.turn_off: led_green
+      - delay: 200ms
+      - while:
+          condition:
+            lambda: 'return true;'
+          then:
+            - output.turn_on: led_green
+            - delay: 1s
+            - output.turn_off: led_green
+            - delay: 1s
 
 # ── Binary sensors ────────────────────────────────────────────────────────────
 # Presence uses a template sensor filtered to detection_dist <= 375cm (~12 ft)
@@ -184,6 +216,14 @@ binary_sensor:
             condition:
               lambda: 'return x;'
             then:
+              - lambda: 'id(presence_active) = true;'
+              - if:
+                  condition:
+                    lambda: 'return id(moving_target).state;'
+                  then:
+                    - script.execute: led_green_moving
+                  else:
+                    - script.execute: led_green_still
               - mqtt.publish:
                   topic: jctsh/components/garage-radar/log
                   payload: !lambda |-
@@ -203,6 +243,10 @@ binary_sensor:
                       dist_buf, still_str, moving_str);
                     return std::string(buf);
             else:
+              - lambda: 'id(presence_active) = false;'
+              - script.stop: led_green_moving
+              - script.stop: led_green_still
+              - output.turn_off: led_green
               - mqtt.publish:
                   topic: jctsh/components/garage-radar/log
                   payload: '{"component":"garage-radar","category":"Sensor","message":"Presence cleared - timeout elapsed"}'
@@ -242,26 +286,8 @@ text_sensor:
       internal: true
 
 # ── Intervals ─────────────────────────────────────────────────────────────────
-# 1s  — green LED: drives GPIO33 from detection_distance with manual 30s holdoff.
-#        id(presence).state is unreliable for nested ld2412 binary sensors in
-#        ESPHome 2026.x, so detection_dist (numeric sensor) is used instead.
 # 30min — heartbeat to /log (dashboard) and /heartbeat (Node-RED watchdog)
 interval:
-  - interval: 1s
-    then:
-      - lambda: |-
-          float dist = id(detection_dist).state;
-          bool detected = !isnan(dist) && dist > 0;
-          if (detected) {
-            id(led_holdoff) = 30;
-          } else if (id(led_holdoff) > 0) {
-            id(led_holdoff)--;
-          }
-          if (id(led_holdoff) > 0) {
-            id(led_green)->turn_on();
-          } else {
-            id(led_green)->turn_off();
-          }
   - interval: 30min
     then:
       - mqtt.publish:
@@ -271,7 +297,7 @@ interval:
             uint32_t h = secs / 3600;
             uint32_t m = (secs % 3600) / 60;
             int rssi = (int)id(wifi_rssi).state;
-            const char* pres_str = id(led_holdoff) > 0 ? "ON" : "OFF";
+            const char* pres_str = id(presence_active) ? "ON" : "OFF";
             char buf[256];
             snprintf(buf, sizeof(buf),
               "{\"component\":\"garage-radar\",\"category\":\"System\","
@@ -285,7 +311,7 @@ interval:
             uint32_t h = secs / 3600;
             uint32_t m = (secs % 3600) / 60;
             int rssi = (int)id(wifi_rssi).state;
-            const char* pres_str = id(led_holdoff) > 0 ? "ON" : "OFF";
+            const char* pres_str = id(presence_active) ? "ON" : "OFF";
             char buf[256];
             snprintf(buf, sizeof(buf),
               "{\"component\":\"garage-radar\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"presence\":\"%s\"}",

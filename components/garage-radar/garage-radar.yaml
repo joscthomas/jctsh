@@ -140,7 +140,7 @@ ld2412:
   uart_id: uart_ld2412
 
 # ── LED outputs ───────────────────────────────────────────────────────────────
-# GPIO33: green LED — blink×2 then solid (moving) or 1s pulse (still-only) on detected; off on cleared
+# GPIO33: green LED — fast blink 200ms (moving) or slow pulse 1s (still-only) on detected; off on cleared
 # GPIO32: yellow LED — mirrors garage-presence-vswitch state via MQTT subscription
 output:
   - platform: gpio
@@ -155,15 +155,14 @@ script:
   - id: led_green_moving
     mode: restart
     then:
-      - output.turn_on: led_green
-      - delay: 200ms
-      - output.turn_off: led_green
-      - delay: 200ms
-      - output.turn_on: led_green
-      - delay: 200ms
-      - output.turn_off: led_green
-      - delay: 200ms
-      - output.turn_on: led_green
+      - while:
+          condition:
+            lambda: 'return true;'
+          then:
+            - output.turn_on: led_green
+            - delay: 200ms
+            - output.turn_off: led_green
+            - delay: 200ms
 
   - id: led_green_still
     mode: restart

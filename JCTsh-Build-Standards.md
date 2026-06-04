@@ -242,7 +242,7 @@ Log file path: `/spiffs/<component>_log.jsonl` (JSON Lines — one payload objec
 
 **Naming:** Name the custom header and documentation files by their function, not by the library. Use `<component>_logger.h` and `<component>-logger.md`, not `littlefs_logger.h` or `spiffs_logger.h`. The library choice is an implementation detail.
 
-**Reference implementation:** `components/hiking-sensor/hiking_logger.h`, `components/hiking-sensor/hiking-logger.md`
+**Reference implementation:** `components/hiking-sensor/hiking_logger.h` — see `components/hiking-sensor/hiking-logger.md` for a complete description of the API, operating modes, replay flow, capacity, and troubleshooting.
 
 ---
 

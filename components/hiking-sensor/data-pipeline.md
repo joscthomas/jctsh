@@ -204,6 +204,12 @@ Before deploying, store the secret key in Script Properties:
 4. Click **Deploy**
 5. Copy the deployment URL — format:
    `https://script.google.com/macros/s/<SCRIPT_ID>/exec`
+
+**Deployed (2026-06-04):**
+`https://script.google.com/macros/s/AKfycbx75Gu307dCZ6qWUd2_yUXwbE_Hkwsc-Yvgwc6GNQ4hk2yrRZevzlUg3l_LgGmfAbeEpw/exec`
+
+API key and URL stored in `credentials.local.md`.
+
 6. Store the URL in Node-RED environment variables (see Step 11)
 
 > **Anyone access is required** — Node-RED cannot use OAuth to authenticate as your

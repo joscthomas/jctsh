@@ -338,7 +338,7 @@ Section 9 of data-pipeline.md covers Google Sheets setup:
 5. Choose a secret key (random string, 16+ chars)
 6. Store URL and key in Node-RED environment variables: `APPS_SCRIPT_URL` and `APPS_SCRIPT_KEY`
 
-**Joseph confirms:** Apps Script deployed. Test POST successful (manually test with curl or Postman per data-pipeline.md procedure). URL and key stored in Node-RED.
+**STATUS: COMPLETE (2026-06-04)** — Apps Script deployed, test POST confirmed `{"status":"ok"}`, row appeared in Environmental Data sheet. URL and API key stored in `credentials.local.md`.
 
 ---
 

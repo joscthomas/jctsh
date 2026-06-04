@@ -211,12 +211,10 @@ Before deploying, store the secret key in Script Properties:
 
 ### Test the Deployment
 
-Test with curl from PowerShell before wiring up Node-RED:
+Test from PowerShell before wiring up Node-RED:
 
-```
-curl -X POST "https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<YOUR_KEY>" `
-  -H "Content-Type: application/json" `
-  -d '{"component":"hiking-monitor","ts":"2026-06-04T12:00:00Z","source":"hiking-monitor","lat":null,"lon":null,"temp_f":95.0,"humidity_pct":18.0,"pressure_hpa":926.0,"dew_point_f":28.5,"heat_index_f":88.2,"uv_index":0.5,"battery_v":3.85,"rssi_dbm":-37}'
+```powershell
+Invoke-RestMethod -Uri "https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<YOUR_KEY>" -Method POST -ContentType "application/json" -Body '{"component":"hiking-monitor","ts":"2026-06-04T12:00:00Z","source":"hiking-monitor","lat":null,"lon":null,"temp_f":95.0,"humidity_pct":18.0,"pressure_hpa":926.0,"dew_point_f":28.5,"heat_index_f":88.2,"uv_index":0.5,"battery_v":3.85,"rssi_dbm":-37}'
 ```
 
 Expected response: `{"status":"ok"}`

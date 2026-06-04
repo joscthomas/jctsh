@@ -96,7 +96,7 @@ With polarity confirmed and voltage divider rewired:
 
 ## Step 4 — USB Charging
 
-**Confirmed (2026-06-04):** Connecting Micro USB to the TP4056 module's USB port lights the red LED — charging in progress. LED turns off or blue when charge complete (exact behavior depends on module revision).
+**Confirmed (2026-06-04):** Connecting Micro USB to the TP4056 module's USB port lights the red LED — charging in progress. Charge complete indicated by a different green LED (not blue — module-specific behavior). Charge completed same session.
 
 ---
 

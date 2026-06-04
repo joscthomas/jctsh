@@ -377,7 +377,9 @@ Where T = temp_f, H = humidity_pct. Use simple formula (T + H/5 - 10.3) when tem
 4. Trigger a test MQTT message on `jctsh/components/hiking-monitor/data` with a valid payload
 5. Confirm the row appears in the Google Sheet with correct values including computed dew_point_f and heat_index_f
 
-**Joseph confirms:** Flow deployed. Test row appears in Sheets with correct data. Log message confirming success visible in log dashboard.
+**STATUS: COMPLETE (2026-06-04)** — Flow deployed via direct flows.json injection. Env vars set in `/home/pi/.node-red/environment`. Rows appearing in Google Sheets with dew_point_f and heat_index_f populated. Key rotated to alphanumeric to avoid URL encoding issues with `&` characters.
+
+**Note:** `env.get()` reads OS environment variables correctly in Node-RED v4.1.10. The initial errors were from queued messages with the old bad key — not a Node-RED env var issue.
 
 ---
 

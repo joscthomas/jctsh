@@ -134,12 +134,13 @@ SUNYIMA panel + lead → Solar+ terminal on TP4056 module
 SUNYIMA panel - lead → Solar- terminal on TP4056 module
 ```
 
-**Before connecting the panel, verify its output voltage under load:**
+**Confirmed (2026-06-04):** 60×60mm panel tested in sunlight — open-circuit voltage up to 5.5V. TP4056 IN+ accepts up to 8V so this is well within range. No series diode needed. Under-load voltage (when connected to IN+) will be somewhat lower than 5.5V — acceptable for charging.
+
+**Before connecting the panel:**
 1. Set multimeter to DC voltage (10V range)
 2. Point panel at direct sunlight
-3. Measure across the panel leads under load (connect a ~100Ω resistor across the leads while measuring)
-4. Target: 4.5–6V under load. The TP4056 input accepts up to 8V but is designed for 5V sources.
-5. If open-circuit voltage is significantly above 6V, add a small Schottky diode in series (IN5819) to drop ~0.3V and protect the module
+3. Confirm open-circuit voltage is below 8V (TP4056 input limit)
+4. Connect + lead to IN+, − lead to IN− on the module
 
 **JST connector:** The SUNYIMA panel has a JST connector. Verify polarity matches the module's `Solar+`/`Solar-` terminals with a multimeter before connecting — same procedure as the LiPo polarity check.
 

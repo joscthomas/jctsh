@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.3
-**Version description:** Added ESPHome boilerplate, sensor coding standards, will_message pattern, MQTT discovery rule, and heartbeat prefix requirement: log format is JSON to /log topic, watchdog is a new Node-RED flow (not an existing process). Added SmartThings actual integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation as a required step. Added phone notification via HA companion app as watchdog alert method.
+**Version:** 1.4
+**Version description:** Added onboard flash logging standard (SPIFFS not LittleFS); fixed LittleFS reference in §2.7: log format is JSON to /log topic, watchdog is a new Node-RED flow (not an existing process). Added SmartThings actual integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation as a required step. Added phone notification via HA companion app as watchdog alert method.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -85,7 +85,7 @@ Document all GPIO assignments in the Hardware Context table of the instruction s
 
 These patterns are derived from garage-radar and front-porch-temp-sensor — the two reference implementations. Always diff one of those YAMLs before writing MQTT publish code in a new component.
 
-**Rule: never use `id(mqtt_client).publish()` inside a raw lambda for anything other than the LittleFS replay loop.** Use native `mqtt.publish` actions instead. Raw lambda publishes in `on_connect` are silently dropped before the broker session is fully ready. Native actions are queued correctly by ESPHome.
+**Rule: never use `id(mqtt_client).publish()` inside a raw lambda for anything other than the SPIFFS replay loop (see §2.10).** Use native `mqtt.publish` actions instead. Raw lambda publishes in `on_connect` are silently dropped before the broker session is fully ready. Native actions are queued correctly by ESPHome.
 
 **`on_connect` pattern:**
 ```yaml
@@ -214,7 +214,39 @@ All three of these sensors are required in every component that publishes a hear
 
 ---
 
-### 2.10 MQTT Account Creation
+### 2.10 Onboard Flash Logging (Field Mode)
+
+For components that log sensor readings to flash when WiFi is unavailable, use **ESP-IDF native SPIFFS VFS** (`esp_spiffs.h`), not the Arduino LittleFS library (`LittleFS.h`).
+
+**Why SPIFFS, not LittleFS:**
+- SPIFFS is bundled with the ESP-IDF — no external library declaration or download needed
+- LittleFS offers better wear-leveling and directory support, but neither matters for this use case (sequential append and read of a single `.jsonl` file)
+- SPIFFS mounts reliably under the ESPHome Arduino framework and supports standard POSIX file I/O (`fopen`, `fprintf`, `fgets`, `remove`)
+
+**Implementation pattern** (`hiking_logger.h` is the reference):
+```cpp
+#include <esp_spiffs.h>
+
+esp_vfs_spiffs_conf_t conf = {
+  .base_path              = "/spiffs",
+  .partition_label        = NULL,   // first SPIFFS partition
+  .max_files              = 5,
+  .format_if_mount_failed = true,   // auto-format on first use
+};
+esp_vfs_spiffs_register(&conf);
+```
+
+Log file path: `/spiffs/<component>_log.jsonl` (JSON Lines — one payload object per line).
+
+**Capacity:** The default ESPHome ESP32 partition table allocates ~1.47 MB to SPIFFS. At ~200 bytes per reading and a 2-minute interval, a 6-hour hike produces ~180 readings (~36 KB) — well within limits.
+
+**Naming:** Name the custom header and documentation files by their function, not by the library. Use `<component>_logger.h` and `<component>-logger.md`, not `littlefs_logger.h` or `spiffs_logger.h`. The library choice is an implementation detail.
+
+**Reference implementation:** `components/hiking-sensor/hiking_logger.h`, `components/hiking-sensor/hiking-logger.md`
+
+---
+
+### 2.11 MQTT Account Creation
 
 Every new ESP32 component requires its own dedicated Mosquitto account. Create it before first flash:
 
@@ -480,6 +512,7 @@ When LED indicators are included in a component:
 | Version | Change |
 |---|---|
 | 1.0 | Initial release. Enclosure convention, ESP32/ESPHome standards, MQTT conventions, observability standards, SmartThings integration, LED standards, documentation standards. |
+| 1.4 | Added §2.10 onboard flash logging standard: use ESP-IDF SPIFFS not Arduino LittleFS; name files by function not library. Fixed §2.7 reference from "LittleFS replay loop" to "SPIFFS replay loop". Renumbered MQTT account creation to §2.11. |
 | 1.3 | Added §2.8 ESPHome component boilerplate (board, framework, logger, captive_portal, WiFi AP fallback naming, component naming consistency, flash path). Added §2.9 sensor coding standards (NaN guards, standard I2C pins GPIO21/22, internal: true housekeeping sensors). Added §3.4 will_message pattern (retain: false critical). Added §3.5 MQTT discovery rule. Fixed §4.1 heartbeat message format and added "Heartbeat - " prefix requirement. Fixed §4.3 log event message formats (hyphen throughout, removed MQTT reconnected event, clarified LWT). |
 | 1.2 | Added §2.7 ESPHome MQTT publishing patterns (on_connect and heartbeat). Fixed §4.3 online message format (hyphen not em dash). Added §4.1 note on heartbeat interval discrepancy between standard (5 min) and existing components (30 min). Renumbered MQTT account creation to §2.8/§2.10. |
 | 1.1 | Corrected observability section: log format is JSON to /log topic routed by Node-RED (not a separate process to examine). Watchdog is a new Node-RED flow built as part of garage-radar project, not an existing process. Added actual SmartThings integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation procedure (Section 2.7) including Mosquitto passwd ownership gotcha. Added phone notification via HA companion app as watchdog alert method. Added CLAUDE.md credentials table update to documentation standards. |

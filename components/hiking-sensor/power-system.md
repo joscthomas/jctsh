@@ -127,11 +127,15 @@ The SUNYIMA panel (Bag 6) is not needed for day hikes — the 1100mAh LiPo is su
 Solar charging is only relevant for multi-day backpacking trips where the LiPo cannot be
 recharged via USB overnight.
 
-**Wiring (when needed):**
+**Perfboard build (Step 14):** Solder a JST female receptacle on the perfboard with leads going to the TP4056 IN+ and IN− pads. The solar panel JST plug connects to this receptacle, allowing the panel to be attached for backpacking trips and removed for day hikes.
+
+Before the perfboard build, identify the JST connector type on the SUNYIMA panel (likely JST PH 2.0mm or JST XH 2.54mm) and source a matching female receptacle. Verify polarity — solder + lead to IN+, − lead to IN−.
+
+**Breadboard wiring (when needed):**
 
 ```
-SUNYIMA panel + lead → Solar+ terminal on TP4056 module
-SUNYIMA panel - lead → Solar- terminal on TP4056 module
+SUNYIMA panel + lead → IN+ pad on TP4056 module
+SUNYIMA panel - lead → IN− pad on TP4056 module
 ```
 
 **Confirmed (2026-06-04):** 60×60mm panel tested in sunlight — 5.5V under 100Ω load (~55mA), consistent with rated 80mA. This is loaded output, not open-circuit — the panel will maintain ~5.5V when connected to the TP4056 IN+. Well within the 8V input limit. No series diode needed.

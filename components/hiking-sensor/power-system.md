@@ -94,12 +94,9 @@ With polarity confirmed and voltage divider rewired:
 
 ---
 
-## Step 4 — Initial Charge and Power-On
+## Step 4 — USB Charging (Not Yet Tested)
 
-1. Connect Micro USB to the TP4056 module's USB port (not the ESP32 USB-C)
-2. Confirm charge LED lights (red = charging)
-3. The ESP32 powers on from the 5V boost output — confirm display activates and MQTT connects
-4. Let charge complete (blue LED) if battery was low
+To charge the LiPo via USB, connect a Micro USB cable to the TP4056 module's USB port (not the ESP32 USB-C). Charge LED should light red while charging and blue when complete. This has not yet been tested — verify at next opportunity.
 
 ---
 

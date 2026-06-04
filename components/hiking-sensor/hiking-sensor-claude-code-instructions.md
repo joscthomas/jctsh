@@ -295,6 +295,7 @@ Display shows "P ->" (ASCII steady arrow) after the device ran for several hours
 - Device running from LiPo without USB ✓
 - `battery_v` in MQTT: 3.85V (matches multimeter 3.84V) ✓
 - Full data payload confirmed. See `power-system.md` for complete readings.
+- USB charging via TP4056 micro-USB port: not yet tested (deferred)
 
 ---
 

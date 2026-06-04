@@ -1,0 +1,56 @@
+[
+  {
+    "id": "env-data-mqtt-in",
+    "type": "mqtt in",
+    "name": "jctsh/components/+/data",
+    "topic": "jctsh/components/+/data",
+    "qos": "0",
+    "datatype": "auto",
+    "broker": "",
+    "wires": [["env-data-process"]]
+  },
+  {
+    "id": "env-data-process",
+    "type": "function",
+    "name": "Compute derived fields + build POST",
+    "func": "// Parse payload\nvar d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\n\n// Add source field\nd.source = d.component;\n\n// Compute dew point and heat index if temp + humidity available\nif (d.temp_f != null && d.humidity_pct != null) {\n    var temp_c = (d.temp_f - 32) * 5 / 9;\n    var a = 17.27, b = 237.7;\n    var gamma = (a * temp_c / (b + temp_c)) + Math.log(d.humidity_pct / 100);\n    var dew_c = (b * gamma) / (a - gamma);\n    d.dew_point_f = Math.round((dew_c * 9/5 + 32) * 10) / 10;\n\n    var T = d.temp_f, H = d.humidity_pct;\n    if (T >= 80 && H >= 40) {\n        d.heat_index_f = Math.round((\n            -42.379 + 2.04901523*T + 10.14333127*H\n            - 0.22475541*T*H - 0.00683783*T*T - 0.05481717*H*H\n            + 0.00122874*T*T*H + 0.00085282*T*H*H\n            - 0.00000199*T*T*H*H\n        ) * 10) / 10;\n    } else {\n        d.heat_index_f = Math.round((T + H/5 - 10.3) * 10) / 10;\n    }\n}\n\n// Build HTTP POST\nmsg.url = env.get('APPS_SCRIPT_URL') + '?key=' + env.get('APPS_SCRIPT_KEY');\nmsg.method = 'POST';\nmsg.headers = {'Content-Type': 'application/json'};\nmsg.payload = d;\nmsg._component = d.component;\nreturn msg;",
+    "wires": [["env-data-http-post"]]
+  },
+  {
+    "id": "env-data-http-post",
+    "type": "http request",
+    "name": "POST to Apps Script",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "wires": [["env-data-check-response"]]
+  },
+  {
+    "id": "env-data-check-response",
+    "type": "function",
+    "name": "Check response",
+    "func": "var component = msg._component || 'unknown';\ntry {\n    var resp = JSON.parse(msg.payload);\n    if (resp.status === 'ok') {\n        msg.payload = JSON.stringify({\n            component: 'node-red',\n            category: 'System',\n            message: 'Sheets row appended for ' + component\n        });\n        return [msg, null];\n    } else {\n        msg.payload = JSON.stringify({\n            component: 'node-red',\n            category: 'Alert',\n            message: 'Sheets append failed for ' + component + ': ' + (resp.message || msg.payload)\n        });\n        return [null, msg];\n    }\n} catch(e) {\n    msg.payload = JSON.stringify({\n        component: 'node-red',\n        category: 'Alert',\n        message: 'Sheets response parse error for ' + component + ': ' + msg.payload\n    });\n    return [null, msg];\n}",
+    "wires": [["env-data-log-success"], ["env-data-log-error"]]
+  },
+  {
+    "id": "env-data-log-success",
+    "type": "mqtt out",
+    "name": "Log success",
+    "topic": "jctsh/core/log-server/log",
+    "qos": "0",
+    "retain": "false",
+    "broker": "",
+    "wires": []
+  },
+  {
+    "id": "env-data-log-error",
+    "type": "mqtt out",
+    "name": "Log error",
+    "topic": "jctsh/core/log-server/log",
+    "qos": "0",
+    "retain": "false",
+    "broker": "",
+    "wires": []
+  }
+]

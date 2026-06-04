@@ -157,19 +157,27 @@ Already confirmed in Step 8 (3.85V). Re-confirm current value is still in range.
 
 ## Results
 
-*To be filled in during Step 12.*
+**Completed: 2026-06-04. All tests passed.**
 
 | Test | Result | Notes |
 |---|---|---|
-| 1 — Sensor validation | | |
-| 2 — Display validation | | |
-| 3 — Button validation | | |
-| 4 — Log dashboard | | |
-| 5 — Heartbeat | | |
-| 6 — Field mode simulation | | |
-| 7 — Google Sheets validation | | |
-| 8 — Battery validation | | |
-| 9 — Power cycle test | | |
+| 1 — Sensor validation | PASS | temp_f, humidity_pct, pressure_hpa, uv_index, battery_v, rssi_dbm all present and plausible |
+| 2 — Display validation | PASS | All four fields rendering correctly; refreshes every 2 minutes |
+| 3 — Button validation | PASS | Button press triggers immediate display refresh |
+| 4 — Log dashboard | PASS | Heartbeat, boot, and MQTT connected messages all visible |
+| 5 — Heartbeat | PASS | Heartbeat appearing every 5 minutes |
+| 6 — Field mode simulation | PASS | Readings replayed with original timestamps; rssi_dbm=0 in replayed rows. Bug found and fixed: SPIFFS remove() not persisting across power cuts caused duplicate replays. Fix: truncate before replay + size-based has_data() check. |
+| 7 — Google Sheets validation | PASS | dew_point_f and heat_index_f populated; lat/lon blank; source=hiking-monitor |
+| 8 — Battery validation | PASS | battery_v 3.85–4.08V across session; fully charged at start of Step 12 |
+| 9 — Power cycle test | PASS | LiPo disconnected and reconnected; device rebooted and MQTT reconnected cleanly |
+
+---
+
+## Step 12 Findings
+
+- **SPIFFS duplicate replay bug (fixed):** `remove()` on SPIFFS does not always persist to flash before a power cut. On next boot, the file reappears and replays again. Fix: `hike_log_clear()` now truncates to 0 bytes (fopen "w") instead of calling `remove()`; `hike_log_has_data()` now checks file size > 0. Replay also clears the log before the loop, not after — so a mid-replay power cut leaves an empty file, not a full one.
+- **Loose BAT- wire caused power dropouts:** TP4056 BAT- was not firmly seated on breadboard during testing — caused multiple unintended power cuts and triggered the duplicate replay bug. Reseat all TP4056 wires before perfboard build.
+- **Google Sheets View tab:** A "View" tab was added to the Environmental Data spreadsheet. Uses ARRAYFORMULA to mirror Environmental Data with timestamps converted from UTC to MST (UTC-7, fixed offset — no DST in Arizona). The Apps Script writes only to Environmental Data; View is display-only.
 
 ---
 

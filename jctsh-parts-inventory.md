@@ -33,7 +33,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
-| ESP32 DevKitC-32 | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT | 3 | Bag 1 | 1 used: garage radar. 1 used: front-porch-temp-sensor. |
+| ESP32 DevKitC-32 | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT | 2 | Bag 1 | 1 used: garage radar. 1 used: front-porch-temp-sensor. 1 used: hiking-sensor. |
 | ESP32 (salt sensor) | Separate board, not from 6-pack | 1 | Deployed | Deployed on salt sensor project. |
 
 ---
@@ -55,8 +55,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | HLK-LD2412 | EC Buying, 24GHz mmWave radar, UART, ±75°, 9m range | 1 | Bag 18 | 1 used: garage radar project. |
 | BH1750 (GY-302) | hiBCTR 3-pack, illumination/light sensor, I2C | 5 | Bag 19 | 1 used: front-porch-temp-sensor. |
 | BMP280 (sold as BME280) | Podazz 3-pack, counterfeit — pressure/temp only, no humidity, I2C, 5V | 2 | Bag 2 | 3 returned 2026-05-26. 2 spares removed from front-porch-temp-sensor. |
-| BME280 (GY-BME280) | 2PCS packs, genuine — temp/humidity/pressure, I2C/SPI, 5V breakout | 4 | Bag 3 | 1 deployed: front-porch-temp-sensor (2026-05-26). 3 spares. |
-| LTR390 UV Light Sensor | Adafruit #4831, STEMMA QT / Qwiic I2C, UV and ambient light, 3.3V/5V. https://www.amazon.com/dp/B0BPR31P59 | 2 | Bag 22 | No project assigned. |
+| BME280 (GY-BME280) | 2PCS packs, genuine — temp/humidity/pressure, I2C/SPI, 5V breakout | 3 | Bag 3 | 1 deployed: front-porch-temp-sensor (2026-05-26). 1 used: hiking-sensor. 2 spares. |
+| LTR390 UV Light Sensor | Adafruit #4831, STEMMA QT / Qwiic I2C, UV and ambient light, 3.3V/5V. https://www.amazon.com/dp/B0BPR31P59 | 1 | Bag 22 | 1 used: hiking-sensor. 1 spare. |
 | Greekcreit Sensor Module Kit for Arduino | Kit of 37 modules including: active/passive buzzer, LED modules (common cathode red/green, two-color, RGB, colorful auto flash), knock/shock/tilt/magnet-ring/hall/analogy hall/magnetic spring sensors, photo resistor, push button, infrared TX/RX, rotate encoder, light break sensor, finger pulse sensor, obstacle avoidance, tracking, microphone, laser TX, relay, analog/digital/18b20 temperature, flame, voice, humidity, joystick PS2, touch sensor | — | Plastic Box | |
 
 ---
@@ -68,8 +68,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 18650 Battery Charger Module + Holder | AEDIKO 5-pack (charger + holder pairs), fast charge boost, PCB protection | 10 | Bag 4 | No project assigned. |
 | EVE 3.3V 18650 Cell | 18650BatteryStore.com, 3200mAh, 10A, flat top | 5 | Bag 5 | No project assigned. |
 | Mini Solar Panel | SUNYIMA, 5.5V 80mA, 2.36"×2.36", DIY photovoltaic | 10 | Bag 6 | No project assigned. |
-| LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 4 | Bag 7 | No project assigned. |
-| TP4056 Battery Charger Modules | USB TP4056, 3.7V–4.2V to 9V/5V, 2A, charge/discharge integrated step-up. https://www.amazon.com/dp/B098989NRZ | 6 | Bag 8 | No project assigned. |
+| LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 3 | Bag 7 | 1 used: hiking-sensor. |
+| TP4056 Battery Charger Modules | USB TP4056, 3.7V–4.2V to 9V/5V, 2A, charge/discharge integrated step-up. https://www.amazon.com/dp/B098989NRZ | 5 | Bag 8 | 1 used: hiking-sensor. |
 | DC Buck Converter 12V→5V 3A | 2pcs, 15W, USB-C output, compatible with Raspberry Pi 4. https://www.amazon.com/dp/B0CMZWN7WS | 2 | Bag 21 | No project assigned. |
 | Power Supply Module 3.3V/5V | HiLetgo, dual output 3.3V and 5V, breadboard-compatible. | 5 | Music Response bin | No project assigned. |
 | 9V Battery Clips I-Type DC Plug | HiLetgo, I-type DC barrel connector. | 10 | Music Response bin | No project assigned. |
@@ -145,7 +145,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
-| E-Ink Display | Waveshare 2.13" HAT V4, 250×122, SPI, partial refresh, compatible with Pi Zero W/2W/3B/4B/5/Pico. https://www.amazon.com/dp/B071S8HT76 | 1 | Bag 30 | Allocated to hiking sensor project. |
+| E-Ink Display | Waveshare 2.13" HAT V4, 250×122, SPI, partial refresh, compatible with Pi Zero W/2W/3B/4B/5/Pico. https://www.amazon.com/dp/B071S8HT76 | 0 | Deployed | 1 used: hiking-sensor. |
 
 ---
 
@@ -186,3 +186,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-06-01 | Stock | Silicone hookup wire 24 AWG ×6 rolls (Shelf); USB-C to Micro USB adapters ×4 (Bag 20); DC buck converters 12V→5V ×2 (Bag 21). Wire and Cables and Adapters sections added. Duplicate rows removed. |
 | 2026-06-02 | Stock | LTR390 UV light sensor ×2 added (Sensors, Bag 22) |
 | 2026-06-04 | Stock | Music Response bin added to Location Key. BC557B ×10, BC547B ×50, 1N4148 ×50 (Discrete Semiconductors, new section); 100Ω resistors ×50, 10K trim pots ×24, LED assortment (LEDs and Resistors); power supply module ×5, 9V battery clips ×10 (Power Components); all in Music Response bin |
+| 2026-06-04 | hiking-sensor | ESP32 ×1 used; BME280 ×1 used; LTR-390 ×1 used; e-ink display ×1 used; push button ×1 used; EEMB LiPo ×1 used; TP4056+boost ×1 used |

@@ -10,7 +10,8 @@
       "Bash(git -C \"C:\\\\Users\\\\jcthomas\\\\Documents\\\\JCT Documents\\\\SmartHome\\\\jctsh\" add CLAUDE.md)",
       "Bash(git -C 'C:\\\\Users\\\\jcthomas\\\\Documents\\\\JCT Documents\\\\SmartHome\\\\jctsh' commit -m ' *)",
       "Bash(git -C \"C:\\\\Users\\\\jcthomas\\\\Documents\\\\JCT Documents\\\\SmartHome\\\\jctsh\" add .gitignore ENVIRONMENT.md .claude/settings.local.json \"components/garage-radar/jctsh-garage-radar-claude-code-instructions.md\" \"components/garage-radar/.gitignore\" \"components/garage-radar/ESP32pins.png\")",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(Remove-Item *)"
     ]
   }
 }

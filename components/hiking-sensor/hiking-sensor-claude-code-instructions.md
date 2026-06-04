@@ -425,6 +425,8 @@ Where T = temp_f, H = humidity_pct. Use simple formula (T + H/5 - 10.3) when tem
 
 ## Step 13 — Parts Inventory Update
 
+**STATUS: COMPLETE (2026-06-04)**
+
 **Claude Code does:** Update `jctsh-parts-inventory.md` Inventory Update Log:
 - ESP32 ×1 used (hiking-sensor)
 - BME280 ×1 used (hiking-sensor)
@@ -461,7 +463,9 @@ The hiking sensor install phase is primarily a physical enclosure build, not a l
 
 ## Step 14 — Perfboard Build
 
-**Claude Code does:** Create `components/hiking-sensor/perfboard-layout.md`:
+**Claude Code does:** Create `components/hiking-sensor/perfboard-layout.md` — COMPLETE (2026-06-04)
+
+
 - ESP32 DevKit on two 19-pin female header strips (removable — do not solder directly)
 - BME280 on female header strip, positioned away from ESP32 (ESP32 generates slight heat)
 - LTR-390 on female header strip, positioned for top-face mounting in enclosure (must face sky)

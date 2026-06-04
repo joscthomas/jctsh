@@ -75,7 +75,11 @@ std::vector<std::string> hike_log_get_all() {
 
 void hike_log_clear() {
   if (!hike_spiffs_mounted) return;
-  remove(HIKE_LOG_FILE);
+  // Truncate rather than remove — SPIFFS remove() may not persist across a power
+  // cut before SPIFFS commits the metadata deletion. Truncating to 0 bytes is
+  // durable: the file exists but is empty, and hike_log_has_data() checks size.
+  FILE* f = fopen(HIKE_LOG_FILE, "w");
+  if (f) fclose(f);
   ESP_LOGI("HikeLog", "Log file cleared");
 }
 
@@ -83,6 +87,8 @@ bool hike_log_has_data() {
   if (!hike_spiffs_mounted) return false;
   FILE* f = fopen(HIKE_LOG_FILE, "r");
   if (!f) return false;
+  fseek(f, 0, SEEK_END);
+  long size = ftell(f);
   fclose(f);
-  return true;
+  return size > 0;
 }

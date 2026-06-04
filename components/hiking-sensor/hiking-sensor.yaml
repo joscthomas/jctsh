@@ -41,9 +41,12 @@ esphome:
   includes:
     - hiking_logger.h
   on_boot:
-    priority: 600.0
-    then:
-      - lambda: 'hike_log_begin();'
+    - priority: 600.0
+      then:
+        - lambda: 'hike_log_begin();'
+    - priority: -100.0
+      then:
+        - component.update: hiking_display
 
 esp32:
   board: esp32dev
@@ -114,6 +117,9 @@ mqtt:
         if (hike_log_has_data()) {
           auto readings = hike_log_get_all();
           if (!readings.empty()) {
+            // Clear before replaying so a power cut mid-replay leaves an empty
+            // file — prevents the same readings from replaying on next reconnect.
+            hike_log_clear();
             char log_buf[128];
             snprintf(log_buf, sizeof(log_buf),
               "{\"component\":\"hiking-monitor\",\"category\":\"System\","
@@ -125,7 +131,6 @@ mqtt:
               id(mqtt_client).publish("jctsh/components/hiking-monitor/data", r, 0, false);
               delay(50);
             }
-            hike_log_clear();
             id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
               std::string("{\"component\":\"hiking-monitor\",\"category\":\"System\","
                          "\"message\":\"Hike log replay complete.\"}"), 0, false);
@@ -264,7 +269,10 @@ display:
       // 2-line layout, 250×122 landscape
       // Line 1: temp (left)  humidity (right)
       // Line 2: P trend (left)  UVI (right)
-      if (!isnan(temp) && !isnan(hum) && !isnan(uv)) {
+      if (isnan(temp) || isnan(hum) || isnan(uv)) {
+        it.print(5, 10, id(font_data), "Hiking monitor");
+        it.print(5, 72, id(font_data), "initializing");
+      } else {
         char l1a[16], l1b[16], l2a[8], l2b[16];
         snprintf(l1a, sizeof(l1a), "%.0f°", temp);
         snprintf(l1b, sizeof(l1b), "%.0f%%", hum);

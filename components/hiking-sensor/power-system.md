@@ -94,9 +94,9 @@ With polarity confirmed and voltage divider rewired:
 
 ---
 
-## Step 4 — USB Charging (Not Yet Tested)
+## Step 4 — USB Charging
 
-To charge the LiPo via USB, connect a Micro USB cable to the TP4056 module's USB port (not the ESP32 USB-C). Charge LED should light red while charging and blue when complete. This has not yet been tested — verify at next opportunity.
+**Confirmed (2026-06-04):** Connecting Micro USB to the TP4056 module's USB port lights the red LED — charging in progress. LED turns off or blue when charge complete (exact behavior depends on module revision).
 
 ---
 

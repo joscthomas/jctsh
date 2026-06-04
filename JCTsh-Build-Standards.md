@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.4
-**Version description:** Added onboard flash logging standard (SPIFFS not LittleFS); fixed LittleFS reference in §2.7: log format is JSON to /log topic, watchdog is a new Node-RED flow (not an existing process). Added SmartThings actual integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation as a required step. Added phone notification via HA companion app as watchdog alert method.
+**Version:** 1.5
+**Version description:** Added §5.4 Node-RED flow deployment patterns (MQTT v5 field issue, flows.json injection, Apps Script 405 redirect, alphanumeric API keys, env vars via EnvironmentFile), watchdog is a new Node-RED flow (not an existing process). Added SmartThings actual integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation as a required step. Added phone notification via HA companion app as watchdog alert method.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -432,6 +432,28 @@ There is no direct MQTT-to-SmartThings path. Do not attempt to create one.
 ### 5.3 HA REST API
 
 Node-RED calls HA at `http://raspberrypi.local:8123/`. The HA long-lived access token is stored in Node-RED credentials (not in source control). Do not hardcode the token.
+
+---
+
+## 5.4 Node-RED Flow Deployment Patterns
+
+Lessons from the hiking-monitor environmental data pipeline (2026-06-04):
+
+**Do not inject flows directly into `flows.json` via Python/SSH.** The correct method is Node-RED UI → Import → Clipboard. Direct injection has subtle failure modes that the UI avoids.
+
+**Every node must have a `z` property pointing to a tab node.** Nodes without `z` are orphaned — they load silently but never execute. Always include a `type: "tab"` node in the flow JSON and set `z` on every other node to match its `id`.
+
+**MQTT v5 fields silently break MQTT v3 brokers.** The JCTsh broker runs MQTT v3.1.1 (`protocolVersion: 4`). Node-RED v4 UI imports add MQTT v5 fields to MQTT In and Out nodes that are not present in existing working nodes:
+- MQTT In: `nl` (No Local), `rap` (Retain As Published) — causes subscription to silently fail
+- MQTT Out: `respTopic`, `contentType`, `userProps`, `correl`, `expiry` — causes publish to silently fail
+
+After any UI import of MQTT nodes, verify these fields are absent. The working reference nodes (`mqtt_in_reading`, `mqtt_out_log`, etc.) have only: `id`, `type`, `z`, `name`, `topic`, `qos`, `retain` (out only), `broker`, `wires`.
+
+**Google Apps Script returns 405 on redirect — treat it as success.** When Node-RED POSTs to an Apps Script web app URL, Google executes the script and appends the row, then returns a 302 redirect. Node-RED follows the redirect with POST; the redirect destination returns 405 (Method Not Allowed). The row WAS appended. The check response function must treat `statusCode === 405` as success, not as an error.
+
+**Apps Script API keys must be alphanumeric.** Special characters (`&`, `@`, `*`) in URL query parameters break parsing even with `encodeURIComponent`. Generate keys using only `[a-zA-Z0-9]`.
+
+**Node-RED env vars via systemd EnvironmentFile.** The Node-RED service on the Pi reads `/home/pi/.node-red/environment` via `EnvironmentFile=` in the systemd unit. Add `KEY=value` lines to this file for secrets passed to function nodes via `env.get('KEY')`. Restart Node-RED after editing.
 
 ---
 

@@ -2,8 +2,8 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step build instructions for the hiking-sensor (hiking-monitor) component.
 **Project:** JCT Smart Home (JCTsh)
-**Version:** 1.0
-**Version description:** Initial build instructions for Phase 5 execution. Covers ESPHome firmware, custom LittleFS logging component, e-ink display, power system, data pipeline (first JCTsh environmental pipeline), and 3D-printed enclosure.
+**Version:** 1.1
+**Version description:** Added Steps 19–22: GPSLogger configuration and Node-RED GPS pipeline (Step 19), Node-RED lat/lon population in wildcard data handler (Step 20), Pixel hotspot second WiFi network (Step 21), and Harvest New Patterns into Build Standards (Step 22). These steps are a post-Step-18 iterative refinement — the core build (Steps 1–18) is completed and field-tested first.
 **Related files:** JCTsh-hiking-sensor-phase1.md, JCTsh-Environmental-Data-Architecture.md, JCTsh-Build-Standards.md, CLAUDE.md, components/front-porch-temp-sensor/
 
 ---
@@ -287,31 +287,14 @@ Display shows "P ->" (ASCII steady arrow) after the device ran for several hours
 
 ## Step 8 — Power System Integration
 
-**Claude Code does:** Create `components/hiking-sensor/power-system.md` documenting:
-- TP4056+boost module connections: solar input, micro USB input, LiPo JST, 5V output
-- Voltage divider wiring (resistor values, GPIO35 connection)
-- Polarity verification procedure
-- Initial charge-up procedure
+**STATUS: COMPLETE (2026-06-04)**
 
-**Joseph does:**
-1. Assemble power circuit on breadboard per power-system.md:
-   - Wire voltage divider (100kΩ + 100kΩ) between TP4056 output and GND, midpoint to GPIO35
-   - Wire TP4056 5V output → ESP32 VIN
-   - Do NOT connect LiPo until polarity is confirmed (Step 1 polarity check is prerequisite)
-2. Connect LiPo to TP4056 module JST connector — **only after confirming polarity matches**
-3. Confirm TP4056 charge LED behavior (charging indicator)
-4. Switch from USB power to LiPo power: disconnect USB-C from PC, confirm ESP32 continues running from LiPo
-5. Check battery voltage reading in MQTT:
-   - Expected: ~3.7–4.2V for fresh charge; lower if partially discharged
-   - If reading is wildly off (e.g., 0V or >5V), check voltage divider wiring
-
-**Joseph confirms:** Report:
-- LiPo polarity verified before connection: yes/no
-- Device runs from LiPo without USB: yes/no
-- Battery voltage reading (V): actual reading
-- Expected: 3.7–4.2V range for charged LiPo
-
-**Claude Code does:** Update power-system.md with actual readings and any voltage divider adjustment needed.
+- LiPo polarity verified: red = positive (3.84V multimeter reading) ✓
+- TP4056 module has solder pads (not JST) — wire leads soldered to pads
+- VOUT+: 5.7V (boost running slightly high — acceptable)
+- Device running from LiPo without USB ✓
+- `battery_v` in MQTT: 3.85V (matches multimeter 3.84V) ✓
+- Full data payload confirmed. See `power-system.md` for complete readings.
 
 ---
 
@@ -598,3 +581,173 @@ Voice observations via Google Recorder → Google Docs → Apps Script → Hikin
 - **Network entry:** After first successful boot, retrieve hiking-monitor IP and MAC from the ESPHome log or router DHCP table. Add to jctsh-network.md. Reserve the DHCP IP on the router.
 - **Bench-first rule:** Steps 14–18 (enclosure, field test) come after all bench steps are confirmed. Do not skip to enclosure before the full end-to-end test (Step 12) passes.
 - **Build Standards reference:** JCTsh-Build-Standards.md appears to have incorrect content (parts inventory instead of build standards). Standards are derived from existing component patterns (front-porch-temp-sensor, garage-radar) throughout these instructions. Joseph should investigate and restore the correct file.
+
+---
+
+## ITERATIVE REFINEMENT PHASE
+
+Steps 19–21 add GPS correlation and Pixel hotspot sync as a discrete layer on top of the proven core build. Do not begin this phase until Step 18 (field test) is confirmed complete. The core pipeline (Google Sheets receiving data, timestamps accurate, LittleFS replay working) must be proven before adding GPS infrastructure on top of it.
+
+These steps involve no firmware changes to the core hiking monitor logic. The `lat`/`lon` fields are already reserved as `null` in the payload schema — they are populated by Node-RED at upload time, not by the device. The only firmware change is adding the Pixel hotspot as a second WiFi network in Step 21.
+
+The Node-RED GPS pipeline built in Steps 19–20 is shared infrastructure. The air quality monitor inherits it automatically via the existing `jctsh/components/+/data` wildcard handler — no air quality monitor changes needed. The van sensor project (future) inherits it the same way.
+
+---
+
+## Step 19 — GPSLogger Configuration and Node-RED GPS Pipeline
+
+**Claude Code does:** Create `components/hiking-sensor/gps-pipeline.md` documenting the full GPS correlation architecture:
+
+Section 1 — GPSLogger Android app configuration:
+- App: GPSLogger for Android (open source, F-Droid or Play Store)
+- Logging: enabled, passive background operation
+- Custom URL logger: POST to `http://<home-pi-public-ip-or-ddns>:<port>/gps` (Node-RED HTTP-in endpoint)
+- POST body format (JSON): `{ "lat": <lat>, "lon": <lon>, "ts": "<ISO8601>", "accuracy": <meters>, "altitude": <meters> }`
+- Retry on failure: enabled — GPSLogger queues failed POSTs and retries when connectivity returns
+- Posting interval: every 30 seconds (configurable — balance between track resolution and cellular data use; 30s is appropriate for hiking pace)
+- Document: GPSLogger does not need to be running GaiaGPS — both apps run independently; GPSLogger is background-only
+
+Section 2 — Home Pi public access:
+- Node-RED HTTP-in listener must be reachable from cellular (not just home WiFi)
+- Options: static public IP, dynamic DNS (e.g., DuckDNS), or port forwarding on home router
+- Document whichever approach is in use in `jctsh-network.md`
+- Port: choose an available port not already in use; document in `jctsh-network.md`
+
+Section 3 — Node-RED HTTP-in listener and trackpoint store:
+- HTTP-in node: `POST /gps`
+- Parse incoming JSON body: extract `lat`, `lon`, `ts`, `accuracy`, `altitude`
+- Store to flat file: `/home/pi/jctsh/gps-track.jsonl` — one JSON object per line, appended
+- File format per line: `{ "ts": "<ISO8601>", "lat": <lat>, "lon": <lon>, "accuracy": <meters>, "altitude": <meters> }`
+- HTTP response: `200 OK` with `{"status":"ok"}` — required for GPSLogger retry logic
+- No pruning logic yet — flat file grows indefinitely; size is trivial (one hike per week at 30s interval = ~1,200 trackpoints/hike = ~100KB/hike)
+
+Section 4 — Timestamp lookup function (for Step 20):
+- Document the lookup algorithm: given a sensor reading timestamp `ts`, find the trackpoint in `gps-track.jsonl` with the nearest timestamp; return its `lat`/`lon`
+- Acceptable match window: ±5 minutes (sensor reads every 2 minutes; GPS posts every 30 seconds — nearest trackpoint is always within 2 minutes under normal conditions)
+- If no trackpoint within ±5 minutes: return `null`/`null` — do not interpolate
+
+**Joseph does:**
+1. Install GPSLogger on Pixel 10 Pro XL
+2. Configure custom URL logger per gps-pipeline.md Section 1
+3. Configure home router port forwarding per gps-pipeline.md Section 2
+4. Import and deploy the Node-RED HTTP-in listener flow per gps-pipeline.md Section 3
+5. Take a short outdoor walk with GPSLogger active
+6. Verify trackpoints appearing in `/home/pi/jctsh/gps-track.jsonl` on the Pi
+
+**Joseph confirms:** GPSLogger posting successfully. Trackpoints visible in `gps-track.jsonl`. Report: number of trackpoints logged, approximate duration of test walk.
+
+**Claude Code does:** Update gps-pipeline.md with actual configuration findings (port used, DDNS or IP approach, any GPSLogger settings that differed from defaults).
+
+---
+
+## Step 20 — Node-RED lat/lon Population in Wildcard Data Handler
+
+**Claude Code does:** Update the Node-RED wildcard data handler flow (built in Step 11) to populate `lat`/`lon` from the GPS trackpoint store. Update `data-pipeline.md` Section 11 to reflect the change.
+
+The updated flow:
+1. MQTT In: `jctsh/components/+/data` (unchanged)
+2. Function node — **GPS lookup** (new, inserted before derived fields computation):
+   - Read `gps-track.jsonl` from disk
+   - Parse all trackpoints into an array
+   - Find the trackpoint with the timestamp nearest to `msg.payload.ts`
+   - If nearest trackpoint is within ±5 minutes: set `msg.payload.lat` and `msg.payload.lon`
+   - If no match within ±5 minutes (or file doesn't exist): leave `lat` and `lon` as `null`
+3. Function node — derived fields (`dew_point_f`, `heat_index_f`) (unchanged, now runs after GPS lookup)
+4. HTTP Request: POST to Apps Script (unchanged)
+5. Success/error logging (unchanged)
+
+Implementation note for Claude Code: Node-RED function nodes can read files synchronously using `require('fs')`. Use `fs.readFileSync` with a try/catch — if the file doesn't exist (device never traveled), catch the error and continue with `lat`/`lon` null. Do not let a missing GPS file break the data pipeline.
+
+**Joseph does:**
+1. Import the updated Node-RED flow
+2. Deploy
+3. Trigger a test MQTT message on `jctsh/components/hiking-monitor/data` with a timestamp that falls within the GPS track logged in Step 19
+4. Confirm `lat` and `lon` columns in Google Sheets are populated with plausible coordinates
+5. Trigger a test message with a timestamp outside the GPS track
+6. Confirm `lat` and `lon` are null (not an error, not blank from a crash)
+
+**Joseph confirms:** lat/lon populated correctly for matched timestamps. Null returned correctly for unmatched timestamps. Data pipeline otherwise unchanged — dew_point_f, heat_index_f, all other fields unaffected.
+
+**Claude Code does:** Update data-pipeline.md Section 11 with the GPS lookup function code and the test results.
+
+---
+
+## Step 21 — Pixel Hotspot Second WiFi Network
+
+**Claude Code does:** Update `hiking-sensor.yaml` to add the Pixel hotspot as a second WiFi network. Update `wiring.md` (or create a `wifi-config.md` note if wiring.md is not the right home) to document the two-network configuration.
+
+ESPHome `wifi:` block change:
+```yaml
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+    - ssid: !secret hotspot_ssid
+      password: !secret hotspot_password
+  ap:
+    ssid: "hiking-monitor-fallback"
+    password: !secret ap_password
+```
+
+Add to `secrets.yaml`:
+```yaml
+hotspot_ssid: "<Pixel hotspot SSID>"
+hotspot_password: "<Pixel hotspot password>"
+```
+
+Add to `secrets.yaml.template`:
+```yaml
+hotspot_ssid: "<Pixel hotspot SSID>"
+hotspot_password: "<Pixel hotspot password>"
+```
+
+Important constraints to document:
+- Pixel hotspot SSID and password must be fixed — do not change them after this step
+- ESP32 tries networks in order: home WiFi first, hotspot second — hotspot only connects when home WiFi is not in range
+- When connected via hotspot, the device connects to the home Mosquitto broker over cellular using the same broker hostname/IP as always — no broker configuration change needed
+- LittleFS replay triggers on any MQTT connect, regardless of which network connected — hotspot sync works identically to home sync
+- Heartbeat publishes on hotspot connection — Node-RED watchdog will show device online during hotspot sync; this is correct behavior
+- Cellular data volume: trivially small — ~200 bytes/reading × 180 readings/6-hour hike = ~36KB per hike replay
+
+**Joseph does:**
+1. Set a fixed Pixel hotspot SSID and password on the Pixel 10 Pro XL (note: changing these later requires re-flashing the device)
+2. Add hotspot credentials to `secrets.yaml`
+3. OTA flash updated YAML from `C:\esphome\hiking-sensor\`
+4. With home WiFi unavailable (or temporarily disabled on the device), enable Pixel hotspot
+5. Confirm device connects to hotspot
+6. Confirm device connects to home Mosquitto broker over cellular
+7. With a few readings in LittleFS (log a short field mode session first), confirm replay occurs over hotspot connection
+8. Confirm replayed readings appear in Google Sheets with correct timestamps
+
+**Joseph confirms:** Hotspot connection confirmed. LittleFS replay over hotspot confirmed. Readings in Google Sheets with correct timestamps. Report: approximate time from hotspot enable to replay complete.
+
+**Claude Code does:** Update `wifi-config.md` (or equivalent) with actual hotspot SSID (not password), confirmed replay behavior, and timing note. Update `secrets.yaml.template` to reflect the new field.
+
+---
+
+## Step 22 — Harvest New Patterns into Build Standards
+
+**Claude Code does:** Review the completed hiking monitor build in full — ESPHome YAML, `hiking_logger.h`, Node-RED flows (wildcard data handler, GPS lookup, GPS HTTP-in listener), Apps Script, wiring decisions, power system, and any deviations from original plans captured in step confirmations. Identify coding patterns, configuration decisions, or integration approaches not yet captured in `JCTsh-Build-Standards.md` or that supersede existing entries.
+
+For each candidate pattern, state:
+- (a) What the pattern is
+- (b) Where it appeared in this build (file and step)
+- (c) Proposed addition or update to `JCTsh-Build-Standards.md`
+
+Likely candidates (Claude Code confirms or adds to this list after reviewing the actual build):
+- LittleFS offline logging + WiFi replay pattern (custom C++ ESPHome component)
+- Multi-network WiFi with ordered fallback (home → hotspot)
+- GPS trackpoint store (flat JSONL file) and timestamp-nearest lookup in Node-RED
+- Node-RED file read in function node (`fs.readFileSync` with try/catch)
+- `rssi_dbm = 0` convention for field-mode readings
+- `on_connect` timing fix (native `mqtt.publish` + 500ms delay before raw lambda replay)
+- E-ink display model string confirmation (SSD1680 → `2.13in-ttgo-b74`)
+- ASCII pressure trend arrows as fallback for e-ink Unicode rendering
+
+Do not write changes to `JCTsh-Build-Standards.md` until Joseph reviews and approves.
+
+**Joseph does:** Review proposed additions. Approve, modify, or reject each one.
+
+**Joseph confirms:** Approved additions identified. Proceed to update `JCTsh-Build-Standards.md`.
+
+**Claude Code does:** Write approved additions and updates to `JCTsh-Build-Standards.md`. Bump the version number and update the version description to reflect what was added.

@@ -105,14 +105,22 @@ With polarity confirmed and voltage divider rewired:
 
 ## Step 5 — Switch to Battery Power
 
-1. Disconnect Micro USB from TP4056 module
-2. Disconnect USB-C from ESP32 (if still connected)
-3. Confirm ESP32 continues running from LiPo via boost output
-4. Check `battery_v` in MQTT data topic — expect 3.7–4.2V for a charged LiPo
+**STATUS: COMPLETE (2026-06-04)**
 
-If `battery_v` reads 0V: voltage divider R1 is not connected to B+.
-If `battery_v` reads ~6–8V: divider is connected to OUT+ (5V boost) instead of B+ — rewire to B+.
-If `battery_v` reads ~3.3V: divider is still on the 3.3V rail placeholder — rewire to B+.
+Device running from LiPo without USB. Confirmed readings:
+
+| Measurement | Expected | Actual |
+|---|---|---|
+| BAT+ to GND | 3.5–4.2V | 3.84V |
+| VOUT+ to GND | ~5V | 5.7V (boost converters run slightly high — acceptable) |
+| ESP32 3.3V to GND | ~3.3V | 3.35V |
+| Voltage divider midpoint to GND | ~1.92V | 1.89V |
+| `battery_v` in MQTT | ~3.84V | 3.85V ✓ |
+
+Full MQTT data payload confirmed:
+```json
+{"component":"hiking-monitor","ts":"2026-06-04T18:11:48Z","lat":null,"lon":null,"temp_f":95.8,"humidity_pct":18.2,"pressure_hpa":926.9,"uv_index":0.01,"battery_v":3.85,"rssi_dbm":-37}
+```
 
 ---
 

@@ -2,15 +2,15 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step build instructions for the p-w-firefly component — eRVin-based coach control interface for the 2018 Pleasure-Way Lexor FL.
 **Project:** JCT Smart Home (JCTsh)
-**Version:** 1.2
-**Version description:** Added Future Enhancement — GPS Location section covering two independent GPS capabilities: eRVin GPS via USB dongle (GlobalSat BU-353S4 recommended) for coach automation and tracking, and the planned Pleasure-Way environmental sensor node (separate future component per JCTsh-Environmental-Data-Architecture.md). Documented phone-as-GPS alternative (ShareGPS) and explained why USB dongle is preferred. Previous version (1.1): Added explicit bench/install phase boundary per JCTsh-Component-Planning-Pattern v1.7.
+**Version:** 1.4
+**Version description:** Corrected 3M Mini-Clamp connector pinout per Firefly CAN Connector Pinout/Wire Order diagram: Pin 1 Red = 12V+, Pin 2 White = CAN-H, Pin 3 Green or Blue = CAN-L, Pin 4 Black = GND. Previous instructions had CAN-H and CAN-L reversed and incorrectly identified Red as CAN-L and Blue as CAN-H. Updated PiCAN2 screw terminal table — +Vin removed (no SMPS on this board), GND terminal now receives two wires: coach 12V ground and drop cable Pin 4 Black. Updated physical installation wiring accordingly. Previous version (1.3): PiCAN2 confirmed no SMPS, buck converter power solution added.
 **Related files:** README.md, CLAUDE.md, ENVIRONMENT.md, JCTsh-Build-Standards.md, JCTsh-Component-Planning-Pattern.md, jctsh-parts-inventory.md
 
 ---
 
 ## Overview
 
-The Pleasure-Way Firefly Interface connects a Raspberry Pi 3B+ with a PiCAN2 SMPS CAN-Bus HAT to the Firefly Integrations Vegatouch RV-C network in the 2018 Pleasure-Way Lexor FL (Ram ProMaster 3500, VIN 3C6URVJG9JE113400). The eRVin software (myervin.com) provides a web dashboard accessible from both household Pixels for monitoring and controlling coach systems — tanks, battery, lights, generator, awning, water pump, shore power, and inverter.
+The Pleasure-Way Firefly Interface connects a Raspberry Pi 3B+ with a PiCAN2 CAN-Bus HAT to the Firefly Integrations Vegatouch RV-C network in the 2018 Pleasure-Way Lexor FL (Ram ProMaster 3500, VIN 3C6URVJG9JE113400). The eRVin software (myervin.com) provides a web dashboard accessible from both household Pixels for monitoring and controlling coach systems — tanks, battery, lights, generator, awning, water pump, shore power, and inverter.
 
 This is a Pi-based component, not ESP32/ESPHome. The eRVin image owns the RV Pi entirely. JCTsh standards for ESP32 components (ESPHome, MQTT accounts, heartbeat, watchdog, Node-RED flows) do not apply to the initial build. Smart home integration — MQTT bridging to the home Pi, HA entities, SmartThings, Google Home — is explicitly deferred to a future phase.
 
@@ -27,33 +27,35 @@ Claude Code creates documentation and configuration files. Joseph follows those 
 | Component | Detail |
 |---|---|
 | Single-board computer | Raspberry Pi 3B+ |
-| CAN-Bus HAT | Copperhill Technologies PiCAN2 SMPS (MCP2515/MCP2551) |
+| CAN-Bus HAT | Copperhill Technologies PiCAN2 (MCP2515/MCP2551) — no SMPS fitted |
 | Case | Geekworm Universal HAT acrylic sandwich case |
 | MicroSD card (bench/setup) | On-hand card — used for Bench Phase only |
 | MicroSD card (permanent) | SanDisk MAX Endurance 32GB microSDHC (ASIN B084CJLNM4) |
 | RV-C connector | 3M Mini-Clamp 37104-A165-00E, 4-position, 2mm pitch IDC |
 | Drop cable | 4-conductor stranded 20–24AWG or CAT5 (on hand) |
 | 12V power tap | From coach 12V bus, downstream of LCD panel power switch |
-| Fuse | Inline fuse on 12V tap wire |
+| Fuse | 1A inline fuse on 12V tap wire |
+| 12V-to-5V power supply | DC buck converter 12V to 5V 3A 15W with USB-C output (2pcs, Amazon) |
+| Power connector | USB-C to micro-USB adapter or cable — buck converter output to Pi power port |
 | Software | eRVin OS image (myervin.com) |
 
 **PiCAN2 screw terminal pinout (left to right):**
 
 | Terminal | Connection |
 |---|---|
-| +Vin | 12V coach power (via inline fuse) |
-| GND | Coach ground |
-| CAN-H | 3M connector Blue wire (pin 3) |
-| CAN-L | 3M connector Red wire (pin 1) |
+| +Vin | Not used — no SMPS fitted on this board, leave unconnected |
+| GND | Two wires: (1) coach 12V ground from tap, (2) drop cable Pin 4 Black |
+| CAN-H | Drop cable Pin 2 White |
+| CAN-L | Drop cable Pin 3 Green or Blue |
 
-**3M Mini-Clamp connector wire order (clip blue-side up, pin 1 at left):**
+**3M Mini-Clamp connector wire order (locking tab up, pin 1 at left — per Firefly CAN Connector Pinout diagram):**
 
-| Pin | Color | Connect to |
-|---|---|---|
-| 1 | Red | CAN-L → PiCAN2 screw terminal |
-| 2 | White | Firefly 12V bus — do NOT connect to PiCAN2 |
-| 3 | Blue | CAN-H → PiCAN2 screw terminal |
-| 4 | Black | Ground — share with PiCAN2 GND terminal |
+| Pin | Color | Signal | Connect to |
+|---|---|---|---|
+| 1 | Red | 12V+ Firefly bus | Leave unconnected — tape off end |
+| 2 | White | CAN-H | PiCAN2 CAN-H screw terminal |
+| 3 | Green or Blue | CAN-L | PiCAN2 CAN-L screw terminal |
+| 4 | Black | Ground | PiCAN2 GND screw terminal |
 
 **Critical:** Do NOT install the JP3 termination jumper on the PiCAN2. Connecting as a Drop, not a Trunk endpoint. The Firefly network already has two termination resistors — adding a third will disrupt the RV-C bus.
 
@@ -444,24 +446,25 @@ Create `components/p-w-firefly/physical-installation.md` covering:
 
 **Crimping the 3M Mini-Clamp drop cable:**
 - Cut drop cable to length — measure from Firefly Net Port to intended Pi mounting location, add 6 inches for slack
-- Strip outer jacket if using CAT5 — select one pair for CAN-H/CAN-L, one wire for ground, leave pin 2 (White) unconnected
-- Wire order in 3M connector (clip blue-side up, pin 1 at left): Red (pin 1 / CAN-L), White (pin 2 / leave unconnected and tape off end), Blue (pin 3 / CAN-H), Black (pin 4 / GND)
+- Strip outer jacket if using CAT5 — select one pair for CAN-H/CAN-L, one wire for ground; pin 1 (Red) is left unconnected
+- Wire order in 3M connector (locking tab up, pin 1 at left per Firefly pinout diagram): Red (pin 1 / 12V+ — leave unconnected, tape off end), White (pin 2 / CAN-H), Green or Blue (pin 3 / CAN-L), Black (pin 4 / GND)
 - Use pliers to seat IDC connector — no special crimp tool required
 - Verify wire seating before closing connector
 - Make a minimum of 2 connectors — one for use, one spare for crimping errors
 
 **Connecting drop cable to PiCAN2 screw terminal:**
-- CAN-H: Blue wire (pin 3) → PiCAN2 CAN-H terminal
-- CAN-L: Red wire (pin 1) → PiCAN2 CAN-L terminal
-- GND: Black wire (pin 4) → PiCAN2 GND terminal
-- White wire (pin 2, Firefly 12V bus): leave unconnected — tape off the end
+- CAN-H: White wire (pin 2) → PiCAN2 CAN-H terminal
+- CAN-L: Green or Blue wire (pin 3) → PiCAN2 CAN-L terminal
+- GND: Black wire (pin 4) → PiCAN2 GND terminal (shares terminal with coach 12V ground — see below)
+- Red wire (pin 1, Firefly 12V+ bus): leave unconnected — tape off the end
 
-**12V coach power tap:**
+**12V coach power tap and Pi power:**
 - Identify a 12V tap point at the DC bus or battery terminals in the rear seat compartment
 - This circuit must go off when coach power is switched off at the LCD panel
-- Add an inline fuse (1A or 2A) on the positive wire close to the tap point
-- Connect 12V+ (fused) to PiCAN2 +Vin screw terminal
-- Connect GND to PiCAN2 GND screw terminal (can share with drop cable GND)
+- Add a 1A inline fuse on the positive wire close to the tap point
+- Connect 12V+ (fused) to the buck converter 12V input
+- Connect coach GND to both the buck converter GND input AND the PiCAN2 GND screw terminal (two wires on one terminal — one from the coach ground tap, one from the drop cable Pin 4 Black)
+- Connect buck converter USB-C output → USB-C to micro-USB adapter/cable → Pi micro-USB power port
 
 **Mounting the Geekworm assembly:**
 - Mount inside the rear seat compartment wall
@@ -672,11 +675,11 @@ README accurate and complete. All four housekeeping files updated correctly.
 - **eRVin image owns the RV Pi.** Do not attempt to install additional software that conflicts with the eRVin image without first researching compatibility at myervin.com.
 - **Tailscale account is the existing JCTsh account.** Do not create a new account. RV Pi joins the same account as the home Pi at `100.70.162.24`.
 - **Static IP reservation.** Document the confirmed reserved IP in first-boot.md and reference it consistently in every subsequent step requiring SSH access.
-- **Bench power for Steps 6–9.** Power the Pi via micro-USB directly for all bench steps. Do not connect the PiCAN2 screw terminal to anything during bench work. The screw terminal is wired to coach 12V only during Step 10 (physical installation).
+- **Bench power for Steps 6–9.** Power the Pi via micro-USB directly for all bench steps. Do not connect the PiCAN2 screw terminal to anything during bench work. The buck converter and screw terminal GND wiring are connected only during Step 10 (physical installation).
 - **Secrets file.** `components/p-w-firefly/secrets.md` contains the JCT-RV hotspot password. Confirm this file is in `.gitignore` before Joseph enters any credentials. Follow the same gitignore pattern as other components.
 - **Vehicle VIN is 3C6URVJG9JE113400.** Include in README and physical-installation.md.
 - **Power switch clarification.** The LCD panel power switch cuts coach power for storage. The red battery disconnect key prevents solar charging during near-freezing weather only — it is NOT used for routine storage. Document this distinction correctly in physical-installation.md and README.
-- **3M connector pin 2 (White wire) is the Firefly 12V bus supply.** It must NOT be connected to the PiCAN2. Tape off the end. Document clearly in hardware-assembly.md and physical-installation.md.
+- **3M connector pinout per Firefly diagram:** Pin 1 Red = 12V+ (leave unconnected, tape off), Pin 2 White = CAN-H → PiCAN2 CAN-H, Pin 3 Green or Blue = CAN-L → PiCAN2 CAN-L, Pin 4 Black = GND → PiCAN2 GND terminal. Previous instructions had CAN-H and CAN-L reversed — this is the corrected version.
 - **Bench/install boundary.** Enforce strictly — do not proceed to Step 10 until Joseph confirms all of Steps 1–9 are complete.
 - **Do not proceed to the next step until Joseph confirms the current step is complete.**
 - **Update documentation immediately when Joseph reports deviations.** Do not defer documentation updates to a later step.

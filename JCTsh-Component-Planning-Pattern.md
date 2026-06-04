@@ -1,8 +1,8 @@
 # JCT Smart Home (JCTsh) Component Planning Pattern
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the five-phase process for planning and building JCTsh smart home components, from discovery through execution.
-**Version:** 1.8
-**Version description:** Added `JCTsh-Environmental-Data-Architecture.md` and `jctsh-network.md` to the required context file list in Step 1. Added explicit file confirmation rule: Claude must name all missing files and confirm receipt of all required files before asking any planning questions. Both changes identified during the hiking monitor planning session (May 2026).
+**Version:** 2.1
+**Version description:** Replaced single upfront file-loading gate with a phased loading model that matches when each file actually becomes necessary. Phase 1 requires only the planning pattern itself and the environmental architecture doc — enough to discuss feasibility and approach. CLAUDE.md, ENVIRONMENT.md, README.md, JCTsh-Build-Standards.md, and jctsh-network.md are now Phase 2/3 prerequisites loaded before integration design begins. JCTsh-Parts-Inventory.md remains a Phase 2 prerequisite (established in v2.0). Component READMEs and reference implementation files are Phase 2/3 prerequisites. Removed the hard gate rule requiring all files before any Phase 1 question. Change rationale: the strict load-everything-first rule created friction without adding value — Phase 1 feasibility discussion does not depend on most of those files, as confirmed by the van sensor suite planning session which completed Phase 1 successfully without them.
 
 ---
 
@@ -12,34 +12,38 @@ Use Claude chat for **thinking, researching, and planning**. Use Claude Code for
 
 ---
 
-## Context Files Required
+## Context Files — Phased Loading
 
-Before any component planning session can begin, load the following files into the Claude chat session. Claude will not proceed with Phase 1 until all required files are present.
+Files are loaded when they become necessary, not all at once before anything begins. Loading files before they are needed adds friction without adding value. The tables below define what is needed at each phase and why.
 
-**File confirmation rule:** When a session begins, Claude must immediately identify which required files are present and which are missing, name the missing files explicitly, and wait for them to be loaded before asking any planning questions. Claude must not proceed with Phase 1 — not even a single clarifying question — until all required files are confirmed received.
+### Phase 1 — Load before beginning Phase 1
 
-### Step 1 — Load first
+Phase 1 is about feasibility and approach. Only two files are needed: the planning pattern itself (this document) and the environmental architecture doc. The environmental architecture doc is required early because it defines the payload schema and data pipeline that all environmental sensor components must conform to — these constraints shape the feasibility discussion from the start.
+
+| File | Location | Purpose |
+|---|---|---|
+| `JCTsh-Component-Planning-Pattern.md` | repo root | This document — the planning process itself |
+| `JCTsh-Environmental-Data-Architecture.md` | repo root | Standard environmental sensor payload schema, Google Sheets archive design, Node-RED wildcard handler pattern, Weather Underground integration, and the planned environmental sensor family. Shapes feasibility and approach from the start — all environmental sensor components must conform to decisions already made here. |
+
+If a prior component's Phase 1 planning document exists and is relevant (e.g., hiking monitor as reference for van sensor suite), load it as well. It carries architectural decisions and context that would otherwise have to be reconstructed.
+
+Claude may begin Phase 1 discussion as soon as these files are confirmed received.
+
+### Phase 2 — Load before beginning Phase 2 hardware discussion
+
+Phase 2 is about hardware selection and integration design. These files are needed before any purchasing decisions are made or BOM items are confirmed.
 
 | File | Location | Purpose |
 |---|---|---|
 | `README.md` | repo root | JCTsh infrastructure overview, naming conventions, and the authoritative list of existing components |
 | `CLAUDE.md` | repo root | Architecture, message flow, MQTT conventions, log format, SmartThings integration path, credentials patterns, and infrastructure details |
 | `ENVIRONMENT.md` | repo root | Full smart home device inventory — all hubs, sensors, switches, and integrations |
-| `JCTsh-Parts-Inventory.md` | repo root | On-hand parts inventory — hardware available for use before any purchasing decisions are made |
 | `JCTsh-Build-Standards.md` | repo root | Required build, integration, and documentation standards for all JCTsh components |
-| `JCTsh-Component-Planning-Pattern.md` | repo root | This document — the planning process itself |
-| `JCTsh-Environmental-Data-Architecture.md` | repo root | Standard environmental sensor payload schema, Google Sheets archive design, Node-RED wildcard handler pattern, Weather Underground integration, and the planned environmental sensor family. Required for all components — contains pre-existing architectural decisions that shape integration design. |
-| `jctsh-network.md` | repo root | DHCP reservations, hostname conventions, WiFi SSIDs, and all assigned device IPs and MACs. Required for Phase 3 network topology decisions and Phase 4 instruction writing. |
+| `jctsh-network.md` | repo root | DHCP reservations, hostname conventions, WiFi SSIDs, and all assigned device IPs and MACs. Required for network topology decisions and hostname/IP assignments. |
+| `JCTsh-Parts-Inventory.md` | repo root | On-hand parts inventory. Must be loaded and scanned before any purchasing decisions are made or any BOM is finalized — on-hand parts must be identified before ordering anything. |
+| `README.md` for each existing component | `components/<name>/` | Full ecosystem picture — understanding what exists before designing what's new. Claude reads the root README to identify all listed components, then requests each component README. |
 
-### Step 2 — Claude reads the root README and requests these
-
-After reading the root README, Claude identifies every listed component and requests:
-
-| File | Location | Purpose |
-|---|---|---|
-| `README.md` for each component | `components/<name>/` | Full ecosystem picture — understanding what exists before designing what's new |
-
-### Step 3 — Required in addition when an existing component is the closest reference model
+### Phase 2 — Additional files when an existing component is the closest reference model
 
 | File | Location | Purpose |
 |---|---|---|
@@ -49,7 +53,7 @@ After reading the root README, Claude identifies every listed component and requ
 
 ### How to load files
 
-Paste file contents directly into the chat, or use the file upload feature. State which file each paste represents. Claude will confirm when it has sufficient context to begin Phase 1.
+Paste file contents directly into the chat, or use the file upload feature. State which file each paste represents. Claude will confirm receipt before proceeding.
 
 ---
 
@@ -76,9 +80,12 @@ Started with "I'm considering building an eRVin interface" and worked through co
 
 Once the technology is understood, make specific hardware decisions with full context.
 
+### Prerequisite
+`JCTsh-Parts-Inventory.md` must be loaded before Phase 2 begins. If it was not loaded in Phase 1, load it now. The inventory scan is the first action in Phase 2 — no hardware direction is assumed and no purchasing decisions are made until on-hand parts are identified.
+
 ### What happens in this phase
+- **Scan JCTsh-Parts-Inventory.md first** — identify every on-hand compute platform and sensor that could fulfill the component's requirements. State findings explicitly before any purchasing discussion begins. On-hand parts must be used before new parts are sourced.
 - Identify every physical component needed
-- Check JCTsh-Parts-Inventory.md first — use on-hand parts before purchasing
 - Consult JCTsh-Build-Standards.md enclosure convention before specifying any enclosure
 - Research specific products, part numbers, and sources
 - Compare options on price, compatibility, availability, and suitability
@@ -180,13 +187,17 @@ If something doesn't work as expected during execution, bring it back to the Cla
 
 **Parts inventory first.** On-hand parts are checked before any purchasing decisions. No buying something you already have.
 
-**Build standards first.** JCTsh-Build-Standards.md is loaded at the start of every session. Enclosure convention, GPIO rules, MQTT conventions, and documentation requirements are applied from the start — not retrofitted at the end.
+**Inventory scan at the start of Phase 2.** The inventory scan is the first action in Phase 2 — before hardware discussion begins. On-hand compute platforms and sensors are identified and stated explicitly so no purchasing decision is made without awareness of what is already available. Phase 1 is about feasibility and approach; the inventory check is a purchasing constraint that belongs in Phase 2.
 
-**Architecture context first.** CLAUDE.md is a required context file. It contains the actual message flow, log format, SmartThings integration path, and credentials patterns. Without it, integration decisions are made on incorrect assumptions.
+**Build standards before hardware selection.** JCTsh-Build-Standards.md is loaded at the start of Phase 2. Enclosure convention, GPIO rules, MQTT conventions, and documentation requirements are applied from the start of hardware selection — not retrofitted at the end.
 
-**Environmental architecture context first.** JCTsh-Environmental-Data-Architecture.md is a required context file. It contains pre-existing architectural decisions for the entire environmental sensor family — payload schema, MQTT topic conventions, Google Sheets archive design, and the planned device family. Without it, a new environmental sensor component will contradict or duplicate decisions already made.
+**Phased file loading.** Context files are loaded when they become necessary, not all at once before anything begins. Phase 1 needs only the planning pattern and the environmental architecture doc. Hardware, integration, network, and inventory files are loaded at Phase 2 when they actually drive decisions. Loading files before they are needed adds friction without adding value.
 
-**Network context first.** jctsh-network.md is a required context file. It contains DHCP reservations, hostname conventions, and all assigned device IPs and MACs. Without it, network topology decisions in Phase 3 and hostname/IP assignments in Phase 4 are made without visibility into what is already allocated.
+**Architecture context before integration design.** CLAUDE.md is a required Phase 2 context file. It contains the actual message flow, log format, SmartThings integration path, and credentials patterns. Without it, integration decisions in Phase 3 are made on incorrect assumptions.
+
+**Environmental architecture context before payload design.** JCTsh-Environmental-Data-Architecture.md is a required Phase 1 context file. It contains pre-existing architectural decisions for the entire environmental sensor family — payload schema, MQTT topic conventions, Google Sheets archive design, and the planned device family. Without it, a new environmental sensor component will contradict or duplicate decisions already made.
+
+**Network context before topology decisions.** jctsh-network.md is a required Phase 2 context file. It contains DHCP reservations, hostname conventions, and all assigned device IPs and MACs. Without it, network topology decisions in Phase 3 and hostname/IP assignments in Phase 4 are made without visibility into what is already allocated.
 
 **Deliberate deferral.** Explicitly deciding what not to build yet is as important as deciding what to build. Future enhancements are documented so they aren't lost, but they don't complicate the current build.
 

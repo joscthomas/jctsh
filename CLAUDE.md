@@ -171,6 +171,7 @@ Mosquitto requires auth (`allow_anonymous false`). Each component has its own ac
 | `garage-radar` | garage-radar ESPHome device |
 | `salt-sensor` | salt-sensor ESP32 sketch |
 | `front-porch-temp-sensor` | front-porch-temp-sensor ESPHome device |
+| `hiking-monitor` | hiking-sensor ESPHome device |
 
 Passwords are stored in:
 - **Log server** — `/etc/jctsh/log-server.env` on the Pi (injected via systemd `EnvironmentFile`)

@@ -14,5 +14,6 @@ Thumbs.db
 # IDE
 .idea/
 
-# Claude Code local settings (machine-specific paths)
+# Claude Code local settings and memory (machine-specific)
 .claude/settings.local.json
+.claude/memory/

@@ -37,10 +37,10 @@ Node-RED also publishes a log message to MQTT confirming each row appended.
 
 ### Create the Workbook
 
-1. Go to Google Drive → New → Google Sheets
-2. Name the workbook: **JCTsh Environmental Data**
-3. Note the spreadsheet ID from the URL:
-   `https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/edit`
+**Workbook created (2026-06-04):**
+- Name: JCTsh Environmental Data
+- URL: `https://docs.google.com/spreadsheets/d/1aEgW3NDlu43uUM4Wtx1Hq3LjKm6hz2Lpc82LQZRO8L8/edit`
+- Spreadsheet ID: `1aEgW3NDlu43uUM4Wtx1Hq3LjKm6hz2Lpc82LQZRO8L8`
 
 ### Environmental Data Sheet
 

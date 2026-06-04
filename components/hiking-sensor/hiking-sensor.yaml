@@ -1,0 +1,414 @@
+# JCTsh Hiking Monitor — ESPHome Configuration
+# Hardware: ESP32 DevKitC-32 (38-pin, CP2102 USB-C)
+#           + GY-BME280 (I2C 0x76) — temp, humidity, pressure
+#           + Adafruit LTR-390 (I2C 0x53) — UV index
+#           + Waveshare 2.13" e-ink V4 SSD1680 (SPI)
+#           + Tactile push button (GPIO32)
+#           + Voltage divider → battery ADC (GPIO35)
+#           + EEMB 1100mAh LiPo + TP4056+boost module
+#
+# GPIO assignments:
+#   GPIO18  SPI CLK (e-ink)
+#   GPIO23  SPI MOSI/DIN (e-ink)
+#   GPIO5   SPI CS (e-ink, active-low)
+#   GPIO17  DC (e-ink data/command select)
+#   GPIO16  RST (e-ink reset, active-low)
+#   GPIO4   BUSY (e-ink busy input)
+#   GPIO21  I2C SDA (BME280 + LTR-390 shared bus)
+#   GPIO22  I2C SCL (BME280 + LTR-390 shared bus)
+#   GPIO32  Button (active-low, internal pull-up)
+#   GPIO35  Battery voltage ADC (voltage divider output, input-only pin)
+#
+# MQTT topics (prefix: jctsh/components/hiking-monitor):
+#   .../data       — sensor readings (JSON payload per JCTsh-Environmental-Data-Architecture.md)
+#   .../log        — diagnostic messages (JSON, wildcard routed to Python log server)
+#   .../heartbeat  — 5-min heartbeat when home WiFi connected (wildcard monitored by Node-RED watchdog)
+#
+# Operating modes:
+#   Field mode (no WiFi): read sensors → write JSON to LittleFS /hike_log.jsonl
+#   Home mode  (WiFi+MQTT connected): replay LittleFS log → MQTT; live readings → MQTT directly
+#
+# Sensor update interval: 2 minutes
+# Heartbeat interval: 5 minutes (home mode only)
+#
+# NOTE on e-ink model string: 2.13in-ttgo-b74 is the expected SSD1680 model.
+# If the display shows garbage or doesn't initialize, try 2.13in-b74 or check
+# current ESPHome docs for the SSD1680 model string. Confirm at Step 5.
+
+esphome:
+  name: hiking-monitor
+  friendly_name: Hiking Monitor
+  includes:
+    - hiking_logger.h
+  on_boot:
+    priority: 600.0
+    then:
+      - lambda: 'hike_log_begin();'
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# ── WiFi ──────────────────────────────────────────────────────────────────────
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "hiking-monitor-fallback"
+    password: !secret ap_password
+
+captive_portal:
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logger:
+  level: INFO
+
+# ── OTA updates ───────────────────────────────────────────────────────────────
+# First flash: USB from C:\esphome\hiking-sensor\
+# All subsequent updates: OTA  — esphome run hiking-sensor.yaml
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# ── NTP time sync ─────────────────────────────────────────────────────────────
+# No RTC hardware. Device stays powered in cradle; NTP keeps clock accurate.
+# Timezone: America/Phoenix (MST, UTC-7, no DST)
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: America/Phoenix
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+
+# ── MQTT ──────────────────────────────────────────────────────────────────────
+mqtt:
+  id: mqtt_client
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  topic_prefix: jctsh/components/hiking-monitor
+  # No HA discovery — hiking-monitor has no Home Assistant integration
+  discovery: false
+  will_message:
+    topic: jctsh/components/hiking-monitor/log
+    payload: '{"component":"hiking-monitor","category":"MQTT","message":"MQTT disconnected"}'
+    retain: false
+    qos: 0
+  on_connect:
+    - delay: 500ms
+    - mqtt.publish:
+        topic: jctsh/components/hiking-monitor/log
+        payload: !lambda |-
+          char buf[256];
+          snprintf(buf, sizeof(buf),
+            "{\"component\":\"hiking-monitor\",\"category\":\"System\","
+            "\"message\":\"Hiking monitor online - ESPHome " ESPHOME_VERSION ", IP: %s\"}",
+            id(wifi_ip).state.c_str());
+          return std::string(buf);
+    - mqtt.publish:
+        topic: jctsh/components/hiking-monitor/log
+        payload: '{"component":"hiking-monitor","category":"MQTT","message":"MQTT connected"}'
+    - lambda: |-
+        if (hike_log_has_data()) {
+          auto readings = hike_log_get_all();
+          if (!readings.empty()) {
+            char log_buf[128];
+            snprintf(log_buf, sizeof(log_buf),
+              "{\"component\":\"hiking-monitor\",\"category\":\"System\","
+              "\"message\":\"Replaying %u hike readings...\"}",
+              (unsigned)readings.size());
+            id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
+                                    std::string(log_buf), 0, false);
+            for (auto& r : readings) {
+              id(mqtt_client).publish("jctsh/components/hiking-monitor/data", r, 0, false);
+              delay(50);
+            }
+            hike_log_clear();
+            id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
+              std::string("{\"component\":\"hiking-monitor\",\"category\":\"System\","
+                         "\"message\":\"Hike log replay complete.\"}"), 0, false);
+          }
+        }
+
+# ── I2C ───────────────────────────────────────────────────────────────────────
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+
+# ── SPI ───────────────────────────────────────────────────────────────────────
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+
+# ── Globals ───────────────────────────────────────────────────────────────────
+globals:
+  # Circular buffer for pressure trend calculation (16 slots × 2-min = 32 min of history)
+  - id: pressure_buf
+    type: float[16]
+    restore_value: false
+    initial_value: '{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}'
+  - id: pressure_buf_idx
+    type: int
+    restore_value: false
+    initial_value: '0'
+  # Trend arrow character: ↑ rising / → steady / ↓ falling
+  # Using ASCII fallback by default; update to Unicode if display font supports it
+  - id: pressure_trend
+    type: std::string
+    restore_value: false
+    initial_value: '"=>"'
+
+# ── Sensors ───────────────────────────────────────────────────────────────────
+sensor:
+  # BME280 — temperature, humidity, barometric pressure
+  - platform: bme280_i2c
+    address: 0x76
+    update_interval: 2min
+    temperature:
+      name: "Temperature"
+      id: bme_temp
+      filters:
+        - lambda: return x * 9.0/5.0 + 32.0;
+      unit_of_measurement: "°F"
+      internal: true
+    humidity:
+      name: "Humidity"
+      id: bme_humidity
+      internal: true
+    pressure:
+      name: "Pressure"
+      id: bme_pressure
+      internal: true
+
+  # LTR-390 — UV index
+  # I2C address 0x53 (fixed, no configurable address pin)
+  - platform: ltr390
+    id: ltr390_sensor
+    address: 0x53
+    update_interval: 2min
+    uv_index:
+      name: "UV Index"
+      id: ltr_uv_index
+      internal: true
+
+  # Battery voltage — voltage divider on GPIO35 (100kΩ + 100kΩ → 2:1 divider)
+  # ADC reads Vbatt/2; multiply by 2 to get actual battery voltage
+  - platform: adc
+    pin: GPIO35
+    name: "Battery Voltage"
+    id: battery_voltage
+    attenuation: 12db
+    update_interval: 2min
+    filters:
+      - multiply: 2.0
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+    internal: true
+
+  # Internal sensors used in heartbeat and log lambdas
+  - platform: uptime
+    id: uptime_sec
+    internal: true
+
+  - platform: wifi_signal
+    id: wifi_rssi
+    internal: true
+    update_interval: 60s
+
+# ── WiFi IP (used in on_connect log message) ──────────────────────────────────
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: wifi_ip
+      internal: true
+
+# ── Button ────────────────────────────────────────────────────────────────────
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO32
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Display Button"
+    id: display_button
+    filters:
+      - delayed_on: 20ms
+    on_press:
+      - component.update: hiking_display
+
+# ── E-ink Display ─────────────────────────────────────────────────────────────
+# Waveshare 2.13" HAT V4, 250×122, SSD1680
+# Model string: 2.13in-ttgo-b74 (confirm at Step 5 — try alternatives if wrong)
+# Rotation: 90° so 250px is horizontal (landscape)
+# update_interval: never — manual updates only (2-min interval + button)
+display:
+  - platform: waveshare_epaper
+    id: hiking_display
+    cs_pin: GPIO5
+    dc_pin: GPIO17
+    busy_pin: GPIO4
+    reset_pin: GPIO16
+    model: 2.13in-ttgo-b74
+    rotation: 90
+    update_interval: never
+    full_update_every: 1
+    lambda: |-
+      float temp = id(bme_temp).state;
+      float hum  = id(bme_humidity).state;
+      float uv   = id(ltr_uv_index).state;
+      const char* trend = id(pressure_trend).c_str();
+
+      // 2-line layout, 250×122 landscape
+      // Line 1: temp (left)  humidity (right)
+      // Line 2: P trend (left)  UVI (right)
+      if (!isnan(temp) && !isnan(hum) && !isnan(uv)) {
+        char l1a[16], l1b[16], l2a[8], l2b[16];
+        snprintf(l1a, sizeof(l1a), "%.0f°", temp);
+        snprintf(l1b, sizeof(l1b), "%.0f%%", hum);
+        snprintf(l2a, sizeof(l2a), "P %s", trend);
+        snprintf(l2b, sizeof(l2b), "UVI %.2f", uv);
+        it.print(5,   10, id(font_data), l1a);
+        it.print(245, 10, id(font_data), TextAlign::TOP_RIGHT, l1b);
+        it.print(5,   72, id(font_data), l2a);
+        it.print(245, 72, id(font_data), TextAlign::TOP_RIGHT, l2b);
+      }
+
+# ── Fonts ─────────────────────────────────────────────────────────────────────
+font:
+  - file: "gfonts://Oswald"
+    id: font_data
+    size: 32
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~°"
+
+# ── Heartbeat + sensor read + log interval ────────────────────────────────────
+interval:
+  # 2-minute sensor cycle: read sensors, log to LittleFS or publish to MQTT
+  - interval: 2min
+    then:
+      - lambda: |-
+          float temp = id(bme_temp).state;
+          float hum  = id(bme_humidity).state;
+          float pres = id(bme_pressure).state;
+          float uv   = id(ltr_uv_index).state;
+          float batt = id(battery_voltage).state;
+
+          // Update pressure trend circular buffer
+          int idx = id(pressure_buf_idx) % 16;
+          id(pressure_buf)[idx] = pres;
+          id(pressure_buf_idx)++;
+          // Compare to reading 15 slots ago (15 × 2 min = 30 min)
+          int old_idx = (id(pressure_buf_idx) + 1) % 16;
+          float old_pres = id(pressure_buf)[old_idx];
+          if (old_pres > 0 && !isnan(pres) && !isnan(old_pres)) {
+            float delta = pres - old_pres;
+            if      (delta >  0.5f) id(pressure_trend) = "^";
+            else if (delta < -0.5f) id(pressure_trend) = "v";
+            else                    id(pressure_trend) = "=>";
+          }
+
+          // Build ISO 8601 UTC timestamp from NTP-synced clock
+          ESPTime now = id(sntp_time).now();
+          if (!now.is_valid()) {
+            ESP_LOGW("HikeLog", "NTP not synced — skipping reading");
+            return;
+          }
+          time_t epoch = (time_t)now.timestamp;
+          struct tm utc_tm;
+          gmtime_r(&epoch, &utc_tm);
+          char ts[25];
+          strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
+
+          // Handle NaN sensor values gracefully
+          if (isnan(temp) || isnan(hum) || isnan(pres)) {
+            ESP_LOGW("HikeLog", "Sensor read incomplete — skipping logging");
+            return;
+          }
+
+          // Build JSON payload per JCTsh-Environmental-Data-Architecture.md
+          char payload[320];
+          if (isnan(uv) || isnan(batt)) {
+            snprintf(payload, sizeof(payload),
+              "{\"component\":\"hiking-monitor\","
+              "\"ts\":\"%s\","
+              "\"lat\":null,\"lon\":null,"
+              "\"temp_f\":%.1f,"
+              "\"humidity_pct\":%.1f,"
+              "\"pressure_hpa\":%.1f,"
+              "\"uv_index\":null,"
+              "\"battery_v\":null,"
+              "\"rssi_dbm\":0}",
+              ts, temp, hum, pres);
+          } else {
+            int rssi = id(mqtt_client).is_connected() ? (int)id(wifi_rssi).state : 0;
+            snprintf(payload, sizeof(payload),
+              "{\"component\":\"hiking-monitor\","
+              "\"ts\":\"%s\","
+              "\"lat\":null,\"lon\":null,"
+              "\"temp_f\":%.1f,"
+              "\"humidity_pct\":%.1f,"
+              "\"pressure_hpa\":%.1f,"
+              "\"uv_index\":%.2f,"
+              "\"battery_v\":%.2f,"
+              "\"rssi_dbm\":%d}",
+              ts, temp, hum, pres, uv, batt, rssi);
+          }
+
+          // Field mode or home mode?
+          if (id(mqtt_client).is_connected()) {
+            id(mqtt_client).publish("jctsh/components/hiking-monitor/data",
+                                    std::string(payload), 0, false);
+          } else {
+            hike_log_write(std::string(payload));
+          }
+      - component.update: hiking_display
+
+  # 5-minute heartbeat — only when home WiFi + MQTT connected
+  - interval: 5min
+    then:
+      - if:
+          condition:
+            lambda: 'return id(mqtt_client).is_connected();'
+          then:
+            - mqtt.publish:
+                topic: jctsh/components/hiking-monitor/log
+                payload: !lambda |-
+                  uint32_t secs = (uint32_t)id(uptime_sec).state;
+                  uint32_t h = secs / 3600;
+                  uint32_t m = (secs % 3600) / 60;
+                  int rssi = (int)id(wifi_rssi).state;
+                  float temp = id(bme_temp).state;
+                  char buf[256];
+                  if (isnan(temp)) {
+                    snprintf(buf, sizeof(buf),
+                      "{\"component\":\"hiking-monitor\",\"category\":\"System\","
+                      "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, temp: unavailable\"}",
+                      h, m, rssi);
+                  } else {
+                    snprintf(buf, sizeof(buf),
+                      "{\"component\":\"hiking-monitor\",\"category\":\"System\","
+                      "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, temp: %.1f\xc2\xb0""F\"}",
+                      h, m, rssi, temp);
+                  }
+                  return std::string(buf);
+            - mqtt.publish:
+                topic: jctsh/components/hiking-monitor/heartbeat
+                payload: !lambda |-
+                  uint32_t secs = (uint32_t)id(uptime_sec).state;
+                  uint32_t h = secs / 3600;
+                  uint32_t m = (secs % 3600) / 60;
+                  int rssi = (int)id(wifi_rssi).state;
+                  float temp = id(bme_temp).state;
+                  char buf[128];
+                  if (isnan(temp)) {
+                    snprintf(buf, sizeof(buf),
+                      "{\"component\":\"hiking-monitor\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"temp\":null}",
+                      h, m, rssi);
+                  } else {
+                    snprintf(buf, sizeof(buf),
+                      "{\"component\":\"hiking-monitor\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"temp\":%.1f}",
+                      h, m, rssi, temp);
+                  }
+                  return std::string(buf);

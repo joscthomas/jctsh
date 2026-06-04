@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.1
-**Version description:** Corrected observability section based on CLAUDE.md: log format is JSON to /log topic, watchdog is a new Node-RED flow (not an existing process). Added SmartThings actual integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation as a required step. Added phone notification via HA companion app as watchdog alert method.
+**Version:** 1.3
+**Version description:** Added ESPHome boilerplate, sensor coding standards, will_message pattern, MQTT discovery rule, and heartbeat prefix requirement: log format is JSON to /log topic, watchdog is a new Node-RED flow (not an existing process). Added SmartThings actual integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation as a required step. Added phone notification via HA companion app as watchdog alert method.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -81,7 +81,140 @@ Before assigning GPIOs, exclude the following on ESP32 DevKitC-32 38-pin:
 
 Document all GPIO assignments in the Hardware Context table of the instruction set. Note the pin label orientation issue: ESP32 DevKit pin labels face down when inserted in a breadboard. Mark key GPIO rows with masking tape before wiring. A pinout PNG should be placed in the component directory for reference.
 
-### 2.7 MQTT Account Creation
+### 2.7 ESPHome MQTT Publishing Patterns
+
+These patterns are derived from garage-radar and front-porch-temp-sensor — the two reference implementations. Always diff one of those YAMLs before writing MQTT publish code in a new component.
+
+**Rule: never use `id(mqtt_client).publish()` inside a raw lambda for anything other than the LittleFS replay loop.** Use native `mqtt.publish` actions instead. Raw lambda publishes in `on_connect` are silently dropped before the broker session is fully ready. Native actions are queued correctly by ESPHome.
+
+**`on_connect` pattern:**
+```yaml
+on_connect:
+  - delay: 500ms
+  - mqtt.publish:
+      topic: jctsh/<type>/<component>/log
+      payload: !lambda |-
+        char buf[256];
+        snprintf(buf, sizeof(buf),
+          "{\"component\":\"<name>\",\"category\":\"System\","
+          "\"message\":\"<Name> online - ESPHome " ESPHOME_VERSION ", IP: %s\"}",
+          id(wifi_ip).state.c_str());
+        return std::string(buf);
+  - mqtt.publish:
+      topic: jctsh/<type>/<component>/log
+      payload: '{"component":"<name>","category":"MQTT","message":"MQTT connected"}'
+```
+
+The `delay: 500ms` gives the broker session time to fully settle before publishing. The `wifi_info` text sensor (`id: wifi_ip`, `internal: true`) must be declared for the IP lambda.
+
+**Heartbeat pattern (home-mode-only guard):**
+
+For components that have a field mode (no WiFi), wrap heartbeat publishes in a `condition` so they are suppressed when MQTT is not connected:
+```yaml
+- interval: 5min
+  then:
+    - if:
+        condition:
+          lambda: 'return id(mqtt_client).is_connected();'
+        then:
+          - mqtt.publish:
+              topic: jctsh/<type>/<component>/log
+              payload: !lambda |-
+                # ... build heartbeat log message ...
+                return std::string(buf);
+          - mqtt.publish:
+              topic: jctsh/<type>/<component>/heartbeat
+              payload: !lambda |-
+                # ... build heartbeat payload ...
+                return std::string(buf);
+```
+
+For components that are always home (garage-radar, front-porch), the `if` guard is not needed — the interval fires without a condition check. The `mqtt_client` `id:` must be declared on the `mqtt:` component block for `is_connected()` to be callable.
+
+**Reference implementations:** `components/garage-radar/garage-radar.yaml`, `components/front-porch-temp-sensor/front-porch-temp-sensor.yaml`
+
+---
+
+### 2.8 ESPHome Component Boilerplate
+
+Every new ESPHome component uses this exact boilerplate. Do not deviate without a documented reason.
+
+**Board and framework:**
+```yaml
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+```
+
+**Logger:** Always `INFO`. Debug and verbose levels produce excessive serial output that obscures real issues.
+```yaml
+logger:
+  level: INFO
+```
+
+**captive_portal:** Always include. Allows browser-based recovery when WiFi credentials are wrong.
+```yaml
+captive_portal:
+```
+
+**WiFi AP fallback:** Name the fallback AP `<component-name>-fallback`. Makes it identifiable on the network if the device can't reach JCTnet1.
+```yaml
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "<component-name>-fallback"
+    password: !secret ap_password
+```
+
+**Component naming:** The ESPHome `name:` field determines the device hostname (`<name>.local`) and the ESPHome auto-generated MQTT sub-topics. It must match the component name used in the MQTT topic prefix. All three must be consistent:
+- `esphome: name: hiking-monitor` → hostname `hiking-monitor.local`
+- `mqtt: topic_prefix: jctsh/components/hiking-monitor`
+- Log messages: `"component": "hiking-monitor"`
+
+**Flash path:** ESPHome must be run from `C:\esphome\<component-name>\`. Spaces in `JCT Documents` break the ESP-IDF compiler mid-build with no useful error. Copy `<name>.yaml`, `secrets.yaml`, and any custom headers to that directory before every flash. Do not run `esphome` from inside the repo path.
+
+---
+
+### 2.9 Sensor Coding Standards
+
+**NaN guards:** Always check `isnan()` before using sensor values in lambdas. BME280, LTR-390, and other I2C sensors return NaN on the first read cycle while they initialize. Publishing NaN produces malformed JSON and can crash the log server parser.
+
+```cpp
+float temp = id(bme_temp).state;
+if (isnan(temp)) {
+  // skip or use fallback
+}
+```
+
+**Standard I2C pins:** Use GPIO21 (SDA) and GPIO22 (SCL) for all I2C buses. This is the consistent choice across all JCTsh I2C components. Only deviate if a GPIO conflict forces it, and document the reason.
+
+**Internal sensors:** Mark housekeeping sensors `internal: true` to suppress automatic MQTT publishing. These sensors are used in lambdas only — their values should not appear as independent MQTT topics.
+
+```yaml
+- platform: uptime
+  id: uptime_sec
+  internal: true
+
+- platform: wifi_signal
+  id: wifi_rssi
+  internal: true
+  update_interval: 60s
+
+# Required for IP address in on_connect message:
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: wifi_ip
+      internal: true
+```
+
+All three of these sensors are required in every component that publishes a heartbeat or an on_connect log message.
+
+---
+
+### 2.10 MQTT Account Creation
 
 Every new ESP32 component requires its own dedicated Mosquitto account. Create it before first flash:
 
@@ -123,6 +256,32 @@ For ESP32 components, the following sub-topics are standard:
 
 Mosquitto broker on `raspberrypi.local`, port 1883. Fixed IP: `192.168.1.117` (use if `.local` resolution fails). Tailscale IP: `100.70.162.24` (use for remote access). Reference by hostname in configuration files.
 
+### 3.4 Will Message
+
+Every ESP32 component configures an MQTT Last Will and Testament (LWT). The broker publishes it automatically when the device disconnects unexpectedly. This is how `"MQTT disconnected"` appears in the log dashboard without the device sending it.
+
+Required pattern — no deviations:
+```yaml
+will_message:
+  topic: jctsh/<type>/<component>/log
+  payload: '{"component":"<name>","category":"MQTT","message":"MQTT disconnected"}'
+  retain: false
+  qos: 0
+```
+
+`retain: false` is critical. A retained will message would re-appear in the log every time a new subscriber connects to the broker, producing phantom "disconnected" entries long after the device is back online.
+
+### 3.5 MQTT Discovery
+
+Set `discovery:` based on whether the component has Home Assistant integration:
+
+| HA integration? | Setting |
+|---|---|
+| Yes (entities visible in HA) | `discovery: true` + `discovery_prefix: homeassistant` |
+| No (MQTT only, no HA entities) | `discovery: false` |
+
+Do not leave `discovery:` at its ESPHome default (`true`) for components that have no HA integration. Auto-discovery would create unwanted HA entities for every sensor value the device publishes.
+
 ---
 
 ## 4. Observability Standards
@@ -133,10 +292,12 @@ Observability is **not optional**. Every ESP32 component implements message logg
 
 All ESP32 components publish a heartbeat every **5 minutes** to two topics:
 
+> **Note:** garage-radar and front-porch-temp-sensor currently use a 30-minute interval — they predate this standard. New components use 5 minutes per this standard. The hiking-monitor is the first component built to the 5-minute standard.
+
 **Log topic** (visible in dashboard):
 ```
 topic: jctsh/<type>/<component>/log
-payload: { "component": "<name>", "category": "System", "message": "Heartbeat — uptime: Xh Xm, RSSI: -XXdBm, <state-key>: <value>" }
+payload: { "component": "<name>", "category": "System", "message": "Heartbeat - uptime: Xh Xm, RSSI: -XXdBm, <state-key>: <value>" }
 ```
 
 **Heartbeat topic** (monitored by Node-RED watchdog):
@@ -146,6 +307,8 @@ payload: { "component": "<name>", "uptime": "Xh Xm", "rssi": -XX, "<state-key>":
 ```
 
 Both are published on the same 5-minute interval. The log topic entry makes the heartbeat visible in the dashboard. The heartbeat topic is what the Node-RED watchdog monitors.
+
+> **Critical:** The log topic heartbeat message **must begin with `"Heartbeat - "`** (with a space and hyphen). The log server uses this prefix to collapse consecutive same-state heartbeats into a single dashboard row showing count and time range. Any other prefix causes each heartbeat to appear as a separate row, filling the dashboard with noise.
 
 ### 4.2 Log Message Format
 
@@ -166,13 +329,12 @@ Every ESP32 component logs the following events:
 
 | Event | Category | Message format |
 |---|---|---|
-| Boot | System | `<Component name> online — ESPHome vX.X.X, IP: x.x.x.x` |
-| MQTT connected | MQTT | `MQTT broker connected — publishing to <primary topic>` |
-| MQTT disconnected | MQTT | `MQTT disconnected` |
-| MQTT reconnected | MQTT | `MQTT reconnected` |
-| Primary state ON | Sensor | `<State name> detected — <key>: ON (<detail>)` |
-| Primary state OFF | Sensor | `<State name> cleared — <key>: OFF, timeout elapsed` |
-| Heartbeat | System | `Heartbeat — uptime: Xh Xm, RSSI: -XXdBm, <state-key>: <value>` |
+| Boot | System | `<Component name> online - ESPHome vX.X.X, IP: x.x.x.x` |
+| MQTT connected | MQTT | `MQTT connected` |
+| MQTT disconnected | MQTT | `MQTT disconnected` (sent by broker as LWT — not by device) |
+| Primary state ON | Sensor | `<State name> detected - <key>: ON (<detail>)` |
+| Primary state OFF | Sensor | `<State name> cleared - <key>: OFF, timeout elapsed` |
+| Heartbeat | System | `Heartbeat - uptime: Xh Xm, RSSI: -XXdBm, <state-key>: <value>` |
 | OTA started | System | Handled natively by ESPHome |
 | OTA completed | System | Handled natively by ESPHome |
 
@@ -318,4 +480,6 @@ When LED indicators are included in a component:
 | Version | Change |
 |---|---|
 | 1.0 | Initial release. Enclosure convention, ESP32/ESPHome standards, MQTT conventions, observability standards, SmartThings integration, LED standards, documentation standards. |
+| 1.3 | Added §2.8 ESPHome component boilerplate (board, framework, logger, captive_portal, WiFi AP fallback naming, component naming consistency, flash path). Added §2.9 sensor coding standards (NaN guards, standard I2C pins GPIO21/22, internal: true housekeeping sensors). Added §3.4 will_message pattern (retain: false critical). Added §3.5 MQTT discovery rule. Fixed §4.1 heartbeat message format and added "Heartbeat - " prefix requirement. Fixed §4.3 log event message formats (hyphen throughout, removed MQTT reconnected event, clarified LWT). |
+| 1.2 | Added §2.7 ESPHome MQTT publishing patterns (on_connect and heartbeat). Fixed §4.3 online message format (hyphen not em dash). Added §4.1 note on heartbeat interval discrepancy between standard (5 min) and existing components (30 min). Renumbered MQTT account creation to §2.8/§2.10. |
 | 1.1 | Corrected observability section: log format is JSON to /log topic routed by Node-RED (not a separate process to examine). Watchdog is a new Node-RED flow built as part of garage-radar project, not an existing process. Added actual SmartThings integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation procedure (Section 2.7) including Mosquitto passwd ownership gotcha. Added phone notification via HA companion app as watchdog alert method. Added CLAUDE.md credentials table update to documentation standards. |

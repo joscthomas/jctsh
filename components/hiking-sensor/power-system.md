@@ -11,24 +11,22 @@ The power system consists of three elements:
 
 ## TP4056+Boost Module Terminals
 
-The 33×23mm combined module has labeled solder pads or screw terminals on two ends:
+Confirmed terminal layout on this module:
 
-**Charging inputs (one end):**
+- **Micro-USB port** — USB charger input (5V). No separate solder pads — the port itself is the connection.
+- **IN+ / IN-** — on either side of the micro-USB port — solar/auxiliary charging input. SUNYIMA panel connects here (see Solar section below).
+- **VOUT+ / VOUT-** — 5V boost output → ESP32 VIN and GND.
+- **BAT+ / BAT-** — LiPo JST battery connection.
 
-| Terminal | Connection |
+| Terminal | Function |
 |---|---|
-| `IN+` / `IN-` | Micro USB 5V charging input (built-in Micro USB port handles this automatically) |
-| `Solar+` / `Solar-` | SUNYIMA 5.5V 80mA solar panel (Bag 6) — see Solar section below |
+| Micro-USB | USB charger input — plug standard USB charger here to charge the LiPo |
+| `IN+` / `IN-` | Solar/auxiliary input — SUNYIMA 5.5V 80mA panel (Bag 6) connects here |
+| `VOUT+` / `VOUT-` | 5V boost output → ESP32 VIN / GND |
+| `BAT+` / `BAT-` | LiPo JST connection — battery positive and negative |
 
-**Battery and output (other end):**
-
-| Terminal | Connection |
-|---|---|
-| `B+` / `B-` | LiPo JST connector — battery positive and negative |
-| `OUT+` / `OUT-` | 5V boosted output → ESP32 VIN and GND |
-
-> **Note:** `OUT+` is a fixed 5V boost output — it does not reflect battery charge level.
-> The voltage divider must connect to `B+`, not `OUT+`, to read actual battery voltage.
+> **Critical:** `VOUT+` is a fixed regulated 5V regardless of battery charge state — useless for monitoring.
+> The voltage divider must connect to **`BAT+`**, not `VOUT+`, to track actual LiPo voltage (3.5–4.2V).
 
 **Charge indicator LEDs (typical for this module):**
 - Red LED on: charging in progress
@@ -39,20 +37,15 @@ The 33×23mm combined module has labeled solder pads or screw terminals on two e
 
 ## Step 1 — Polarity Verification (Do Before Connecting LiPo)
 
-**Parts inventory (Step 1) confirmed:** EEMB LiPo red lead = positive. Standard polarity.
+This module has solder pads, not a JST connector on the battery side. The pads are labeled
+`BAT+` and `BAT-`, so polarity is confirmed by verifying the LiPo leads directly:
 
-You must still verify the **module side** before inserting the LiPo. JST connectors can be
-wired either way and the module's JST header polarity is not guaranteed to match the battery.
+1. Set multimeter to DC voltage (10V range)
+2. Red probe on LiPo red wire, black probe on LiPo black wire
+3. Confirm reading is positive (~3.7–4.2V for a charged cell)
+4. Connect red wire to `BAT+` pad, black wire to `BAT-` pad
 
-1. Do not connect the LiPo yet
-2. Set multimeter to DC voltage (10V range)
-3. Probe the module's JST header pins — note which pin reads positive when you probe across them with a known voltage source, OR
-4. Visually trace the PCB: the `B+` pad traces to the JST header pin — identify which physical pin that is
-5. Confirm it matches the LiPo's red (positive) lead
-6. Only insert the LiPo after confirming polarity matches
-
-If polarity is reversed, do not force the connector — swap the JST crimped pins or use a
-JST pin removal tool to swap the wires in the housing.
+**Confirmed (2026-06-04):** Red probe on red wire reads +3.88V → red = positive. Connect red → `BAT+`, black → `BAT-`.
 
 ---
 
@@ -61,15 +54,25 @@ JST pin removal tool to swap the wires in the housing.
 During Steps 4–7, the voltage divider was temporarily connected to the ESP32 3.3V rail
 as a placeholder (reads ~3.3V in ESPHome — not useful for battery monitoring).
 
-For Step 8, rewire R1 from the 3.3V rail to the TP4056 `B+` terminal:
+For Step 8, rewire R1 from the 3.3V rail to the TP4056 `BAT+` terminal:
 
 ```
-LiPo B+ ──── R1 (100kΩ) ──┬──── R2 (100kΩ) ──── GND
-                           │
-                        GPIO35 (ADC input)
+TP4056 BAT+ wire lead ──── R1 (100kΩ) ──┬──── R2 (100kΩ) ──── GND rail
+                                         │
+                                      GPIO35 (ADC input)
 ```
 
-R2 connects GPIO35 to GND (same as before). Only the top end of R1 changes.
+**Physical breadboard wiring — three rows:**
+
+| Row | What connects here |
+|---|---|
+| Row A | TP4056 `BAT+` wire lead + R1 top leg |
+| Row B (midpoint) | R1 bottom leg + R2 top leg + jumper wire to GPIO35 |
+| GND rail | R2 bottom leg |
+
+R1 bridges from the `BAT+` wire coming off the module to the midpoint node.
+R2 bridges from the midpoint node to GND.
+GPIO35 taps the midpoint — reads half the battery voltage; ESPHome multiplies by 2.
 
 **Expected reading after rewire:**
 - LiPo fully charged: ~4.2V → ADC reads ~2.1V → ESPHome × 2 = ~4.2V
@@ -83,8 +86,8 @@ R2 connects GPIO35 to GND (same as before). Only the top end of R1 changes.
 With polarity confirmed and voltage divider rewired:
 
 1. Place TP4056+boost module on breadboard (or connect via jumper wires)
-2. Wire `B+` → voltage divider R1 top (and to LiPo JST positive after polarity confirmed)
-3. Wire `B-` → GND rail
+2. Wire `BAT+` → voltage divider R1 top (and to LiPo JST positive after polarity confirmed)
+3. Wire `BAT-` → GND rail
 4. Wire `OUT+` → ESP32 VIN
 5. Wire `OUT-` → ESP32 GND (already on GND rail)
 6. Connect LiPo JST to module JST header (polarity confirmed in Step 1)

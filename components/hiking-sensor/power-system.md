@@ -127,7 +127,7 @@ The SUNYIMA panel (Bag 6) is not needed for day hikes — the 1100mAh LiPo is su
 Solar charging is only relevant for multi-day backpacking trips where the LiPo cannot be
 recharged via USB overnight.
 
-**Perfboard build (Step 14):** The SUNYIMA panel has bare wire leads (no connector). Add a mating JST connector pair: solder a JST male plug to the panel leads and a JST female receptacle on the perfboard with leads going to the TP4056 IN+ and IN− pads. Choose a JST pitch (PH 2.0mm or XH 2.54mm) and use it consistently for both ends. Verify polarity before soldering — mark + and − on both ends.
+**Perfboard build (Step 14):** The SUNYIMA panel has bare wire leads (no connector). JST connectors are on hand. Solder a JST male plug to the panel leads and a JST female receptacle on the perfboard with leads going to the TP4056 IN+ and IN− pads. Confirm pitch and use it consistently for both ends. Verify polarity before soldering — mark + and − on both ends.
 
 **Breadboard wiring (when needed):**
 

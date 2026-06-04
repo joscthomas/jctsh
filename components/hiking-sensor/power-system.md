@@ -134,7 +134,7 @@ SUNYIMA panel + lead → Solar+ terminal on TP4056 module
 SUNYIMA panel - lead → Solar- terminal on TP4056 module
 ```
 
-**Confirmed (2026-06-04):** 60×60mm panel tested in sunlight — open-circuit voltage up to 5.5V. TP4056 IN+ accepts up to 8V so this is well within range. No series diode needed. Under-load voltage (when connected to IN+) will be somewhat lower than 5.5V — acceptable for charging.
+**Confirmed (2026-06-04):** 60×60mm panel tested in sunlight — 5.5V under 100Ω load (~55mA), consistent with rated 80mA. This is loaded output, not open-circuit — the panel will maintain ~5.5V when connected to the TP4056 IN+. Well within the 8V input limit. No series diode needed.
 
 **Before connecting the panel:**
 1. Set multimeter to DC voltage (10V range)

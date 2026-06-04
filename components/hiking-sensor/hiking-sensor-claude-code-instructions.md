@@ -301,7 +301,7 @@ Display shows "P ->" (ASCII steady arrow) after the device ran for several hours
 
 ## Step 9 — Data Pipeline: Google Sheets Setup
 
-**Claude Code does:** Create `components/hiking-sensor/data-pipeline.md` — comprehensive documentation for the full environmental data pipeline. This document covers Steps 9–12 and becomes the permanent reference for all future environmental sensor pipeline work.
+**Claude Code does:** ✓ COMPLETE — `components/hiking-sensor/data-pipeline.md` created. Covers Steps 9–11: Google Sheets setup, Apps Script code and deployment, and Node-RED flow JSON.
 
 Section 9 of data-pipeline.md covers Google Sheets setup:
 - Create "JCTsh Environmental Data" Google Sheets workbook in Joseph's Google Drive

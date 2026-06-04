@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 1.7
-**Version description:** Added LTR390 UV light sensor ×2 (Sensors, Bag 22).
+**Version:** 1.8
+**Version description:** Added Music Response plastic bin to Location Key. Added 8 items to that bin: BC557B PNP and BC547B NPN transistors, 1N4148 diodes (new Discrete Semiconductors section); 100Ω resistors, 10K trim pots, LED assortment (LEDs and Resistors); 3.3V/5V power supply module, 9V battery clips (Power Components).
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -16,6 +16,7 @@
 | Bag N     | Numbered zip-lock or parts bag; label bag with number to match this inventory                                                 |
 | Shelf     | Workshop shelf — larger or allocated items not yet deployed                                                                   |
 | Bench     | Primary work surface / soldering station area                                                                                 |
+| Music Response bin | Plastic storage bin labeled "Music Response" — houses discrete components and supplies for the music response project |
 | Deployed  | Installed in a live JCTsh component; not on hand                                                                              |
 
 ---
@@ -70,6 +71,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 4 | Bag 7 | No project assigned. |
 | TP4056 Battery Charger Modules | USB TP4056, 3.7V–4.2V to 9V/5V, 2A, charge/discharge integrated step-up. https://www.amazon.com/dp/B098989NRZ | 6 | Bag 8 | No project assigned. |
 | DC Buck Converter 12V→5V 3A | 2pcs, 15W, USB-C output, compatible with Raspberry Pi 4. https://www.amazon.com/dp/B0CMZWN7WS | 2 | Bag 21 | No project assigned. |
+| Power Supply Module 3.3V/5V | HiLetgo, dual output 3.3V and 5V, breadboard-compatible. | 5 | Music Response bin | No project assigned. |
+| 9V Battery Clips I-Type DC Plug | HiLetgo, I-type DC barrel connector. | 10 | Music Response bin | No project assigned. |
 
 ---
 
@@ -106,12 +109,25 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 ---
 
+## Discrete Semiconductors
+
+| Component | Description | Qty | Location | Notes |
+|---|---|---|---|---|
+| BC557B PNP Transistor | Diotec, PNP 45V 0.1A TO-92. DigiKey 4878-BC557BCT-ND | 10 | Music Response bin | General-purpose small-signal PNP. |
+| BC547B NPN Transistor | Diotec, NPN 45V 0.1A TO-92. DigiKey 4878-BC547BCT-ND | 50 | Music Response bin | General-purpose small-signal NPN. |
+| 1N4148 Signal Diode | onsemi, 100V 200mA DO-35. DigiKey 1N4148FS-ND | 50 | Music Response bin | Fast switching signal diode. |
+
+---
+
 ## LEDs and Resistors
 
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
 | 5mm LED Assortment | 200pcs, 5 colors (red, green, yellow, blue, white), 40 each | Assortment | Plastic Box | 330Ω confirmed available for current limiting at 3.3V. |
+| 5mm LED Assortment | Greekcreit, red/yellow/green/blue/clear assortment | Assortment | Music Response bin | No project assigned. |
 | Resistor Assortment | 600pcs, 30 values, 10Ω–1MΩ, 20 each | Assortment | Bag 17 | Verify selection before planning. |
+| Resistor 100Ω 1/4W | Stackpole, 1% axial. DigiKey RNF14FTD100RCT-ND | 50 | Music Response bin | Precision 1% tolerance. |
+| 10K Ohm Trim Potentiometer | Flutesan kit, 10K ohm | 24 | Music Response bin | No project assigned. |
 
 ---
 
@@ -169,3 +185,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-05-30 | Structure | Source cleanup: normalized table spacing, shortened placeholder text |
 | 2026-06-01 | Stock | Silicone hookup wire 24 AWG ×6 rolls (Shelf); USB-C to Micro USB adapters ×4 (Bag 20); DC buck converters 12V→5V ×2 (Bag 21). Wire and Cables and Adapters sections added. Duplicate rows removed. |
 | 2026-06-02 | Stock | LTR390 UV light sensor ×2 added (Sensors, Bag 22) |
+| 2026-06-04 | Stock | Music Response bin added to Location Key. BC557B ×10, BC547B ×50, 1N4148 ×50 (Discrete Semiconductors, new section); 100Ω resistors ×50, 10K trim pots ×24, LED assortment (LEDs and Resistors); power supply module ×5, 9V battery clips ×10 (Power Components); all in Music Response bin |

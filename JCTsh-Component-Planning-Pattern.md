@@ -1,8 +1,8 @@
 # JCT Smart Home (JCTsh) Component Planning Pattern
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the five-phase process for planning and building JCTsh smart home components, from discovery through execution.
-**Version:** 2.1
-**Version description:** Replaced single upfront file-loading gate with a phased loading model that matches when each file actually becomes necessary. Phase 1 requires only the planning pattern itself and the environmental architecture doc — enough to discuss feasibility and approach. CLAUDE.md, ENVIRONMENT.md, README.md, JCTsh-Build-Standards.md, and jctsh-network.md are now Phase 2/3 prerequisites loaded before integration design begins. JCTsh-Parts-Inventory.md remains a Phase 2 prerequisite (established in v2.0). Component READMEs and reference implementation files are Phase 2/3 prerequisites. Removed the hard gate rule requiring all files before any Phase 1 question. Change rationale: the strict load-everything-first rule created friction without adding value — Phase 1 feasibility discussion does not depend on most of those files, as confirmed by the van sensor suite planning session which completed Phase 1 successfully without them.
+**Version:** 2.2
+**Version description:** Added two explicit Build Standards integration steps to Phase 5: Step 0 (Read Build Standards — Claude Code reads JCTsh-Build-Standards.md at session start and states which standards apply before writing any code or config) and a final step (Harvest New Patterns — Claude Code reviews the completed build for patterns not yet in Build Standards and proposes additions). Both steps added to the Phase 5 narrative section and to the Claude Code Instructions template.
 
 ---
 
@@ -169,10 +169,12 @@ Each step follows this pattern:
 Hand off to Claude Code with the full instruction set and execute step by step.
 
 ### What happens in this phase
+- **Step 0 — Read Build Standards first.** Before writing any code, config, or documentation, Claude Code reads `JCTsh-Build-Standards.md` in full and identifies every section relevant to the anticipated technologies for this build (ESPHome YAML, Node-RED flows, MQTT conventions, LED wiring, enclosures, SmartThings integration, etc.). Claude Code states explicitly which standards apply and confirms it will follow them before any build work begins.
 - Claude Code works through the instructions sequentially
 - Joseph performs physical and configuration work guided by Claude Code's documents
 - Results feed back into the documentation in real time
 - Unexpected issues come back to the Claude chat session if they need deeper research
+- **Final step — Harvest new patterns.** After the build is confirmed complete, Claude Code reviews the completed implementation for coding patterns, configuration decisions, or integration approaches that are not yet captured in `JCTsh-Build-Standards.md`. Claude Code proposes specific additions or updates to the standards document. Joseph reviews and approves before any changes are written.
 
 ### The feedback loop
 If something doesn't work as expected during execution, bring it back to the Claude chat session for research and diagnosis, then take the solution back to Claude Code for documentation and continuation. The chat session remains available as a research resource throughout the build.
@@ -189,7 +191,7 @@ If something doesn't work as expected during execution, bring it back to the Cla
 
 **Inventory scan at the start of Phase 2.** The inventory scan is the first action in Phase 2 — before hardware discussion begins. On-hand compute platforms and sensors are identified and stated explicitly so no purchasing decision is made without awareness of what is already available. Phase 1 is about feasibility and approach; the inventory check is a purchasing constraint that belongs in Phase 2.
 
-**Build standards before hardware selection.** JCTsh-Build-Standards.md is loaded at the start of Phase 2. Enclosure convention, GPIO rules, MQTT conventions, and documentation requirements are applied from the start of hardware selection — not retrofitted at the end.
+**Build standards before hardware selection — and before first line of code.** `JCTsh-Build-Standards.md` is loaded at the start of Phase 2 so enclosure convention, GPIO rules, MQTT conventions, and documentation requirements are applied from the start of hardware selection — not retrofitted at the end. In Phase 5, Claude Code re-reads Build Standards as Step 0 and states which sections apply before writing any code or config. At the end of Phase 5, Claude Code reviews the completed build for patterns not yet captured in Build Standards and proposes additions for Joseph's approval.
 
 **Phased file loading.** Context files are loaded when they become necessary, not all at once before anything begins. Phase 1 needs only the planning pattern and the environmental architecture doc. Hardware, integration, network, and inventory files are loaded at Phase 2 when they actually drive decisions. Loading files before they are needed adds friction without adding value.
 
@@ -251,6 +253,14 @@ scenarios, integration points — SmartThings device type and integration
 path via Node-RED → HA REST API, timeout locations and their distinct
 purposes]
 
+## Step 0 — Read Build Standards
+
+**Claude Code does:**
+Read `JCTsh-Build-Standards.md` in full. Identify every section relevant to the technologies anticipated for this build: ESPHome YAML conventions, Node-RED flow patterns, MQTT topic and log format standards, LED wiring rules, enclosure convention, SmartThings integration path, MQTT account creation, and any other applicable sections. State explicitly which standards apply to this build and confirm they will be followed before any code, config, or documentation is written.
+
+**Joseph confirms:**
+Acknowledged — proceed.
+
 ---
 
 ## BENCH PHASE
@@ -294,6 +304,20 @@ installed location.
 
 [Same step structure as bench phase]
 
+## Step [Final] — Harvest New Patterns into Build Standards
+
+**Claude Code does:**
+Review the completed build in full — ESPHome YAML, Node-RED flows, HA config, wiring decisions, integration approaches, and any deviations from original plans. Identify coding patterns, configuration decisions, or integration approaches that are not yet captured in `JCTsh-Build-Standards.md` or that supersede existing entries. For each candidate, state: (a) what the pattern is, (b) where it appeared in this build, and (c) the proposed addition or update to Build Standards. Do not write changes to `JCTsh-Build-Standards.md` until Joseph reviews and approves.
+
+**Joseph does:**
+Review proposed additions. Approve, modify, or reject each one.
+
+**Joseph confirms:**
+Approved additions identified. Proceed to update `JCTsh-Build-Standards.md`.
+
+**Claude Code does:**
+Write approved additions and updates to `JCTsh-Build-Standards.md`. Bump the version number and update the version description to reflect what was added.
+
 ---
 
 ## Future Enhancement — [Deferred Feature Name]
@@ -303,7 +327,7 @@ installed location.
 [Non-obvious constraints, gotchas, naming conventions, cross-references]
 
 --- Required notes for every ESP32 component ---
-- Read JCTsh-Build-Standards.md and CLAUDE.md before beginning
+- Step 0 is mandatory: read JCTsh-Build-Standards.md in full, state which sections apply, and confirm before writing any code or config — CLAUDE.md must also be read before beginning
 - Read JCTsh-Environmental-Data-Architecture.md if this is an
   environmental sensor — payload schema and MQTT topic convention
   are defined there and must be followed exactly

@@ -1,10 +1,10 @@
 # JCTsh Hiking Monitor — Phase 1 Planning Document
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Phase 1 discovery and feature decisions for the JCTsh hiking environmental sensor (hiking-monitor component). Covers feature analysis, all resolved decisions, deferred items, BOM, shopping list, and open questions for Phase 2.
-**Version:** 2.4
-**Version description:** Added future project note for hiking observations pipeline — voice observations via Google Recorder, keyword trigger, category classification, Google Apps Script processor, separate Observations sheet. Path A (manual share) and Path B (Tasker automation) implementation paths noted. No other changes from v2.3.
+**Version:** 2.5
+**Version description:** GPS correlation and Pixel hotspot sync updated from deferred/manual to planned iterative additions. GPS correlation approach updated: GPSLogger automatic lat/lon population via Node-RED pipeline (Steps 19–20) replaces manual post-hike GaiaGPS timestamp matching. Pixel hotspot sync added as Step 21 — second WiFi network in ESPHome YAML. Both added as post-Step-18 iterative refinements in the Claude Code instructions. Motivation updated: hiking sensor used while traveling, not just at home. No other changes from v2.4.
 **Project:** JCTsh Hiking Monitor
-**Status:** Phase 1 Complete — Parts Ordered — Ready for Phase 2
+**Status:** Phase 1 Complete — Parts Ordered — Build In Progress (Steps 1–7 complete)
 **Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`, `jctsh-parts-inventory.md`
 
 ---
@@ -36,7 +36,9 @@ The device operates in two modes:
 
 **Home mode (in cradle):** Connected to JCTnet1 WiFi. Publishes stored hike readings to MQTT in sequence using original hike timestamps. Node-RED wildcard handler routes to Google Sheets automatically. Publishes 5-minute heartbeat per JCTsh standards.
 
-**GaiaGPS correlation:** GaiaGPS tracks every hike independently on the Pixel 10 Pro XL. Sensor readings are correlated to GPS track by matching timestamps after the hike. No GPS hardware on the device. No phone hotspot required during the hike.
+**GPS correlation:** GPSLogger runs passively on the Pixel 10 Pro XL and posts coordinates to a Node-RED HTTP-in listener on the home Pi over cellular. Node-RED populates `lat`/`lon` in each sensor reading payload by matching the nearest GPS trackpoint by timestamp at upload time. No GPS hardware on the device. GaiaGPS continues to run independently for hike navigation. This pipeline is built as Steps 19–20 (iterative refinement after core build is proven).
+
+**Pixel hotspot sync:** When the Pixel hotspot is active during travel, the device connects and replays its LittleFS buffer to the home Mosquitto broker over cellular. Built as Step 21. Not needed for local day hikes; valuable when hiking while traveling away from home.
 
 **Clock synchronization:** Device stays powered in charging cradle between hikes, connected to WiFi, clock synced via NTP. Clock remains accurate across any hike duration — no RTC hardware needed.
 
@@ -117,14 +119,15 @@ AEDIKO modules and 18650 cells remain in inventory for future projects.
 ### GPS and Track Correlation
 | Decision | Rationale |
 |---|---|
-| No GPS hardware on device | GaiaGPS on Pixel 10 Pro XL tracks every hike independently; phone always carried |
-| No phone hotspot during hike | Not needed; sensor data and GPS track are independent streams correlated by timestamp after the hike |
-| Timestamp correlation | Each sensor reading timestamp matched to nearest GaiaGPS trackpoint timestamp after hike; at 2.5 mph and NTP-synced clock, position accuracy is well within acceptable range |
+| No GPS hardware on device | GPSLogger on Pixel 10 Pro XL provides the GPS track; phone always carried |
+| GPSLogger automatic lat/lon population | GPSLogger posts to Node-RED HTTP-in listener over cellular; Node-RED matches nearest trackpoint by timestamp and populates `lat`/`lon` at upload time. Built as Steps 19–20 (iterative refinement after core build). Replaces earlier manual GaiaGPS correlation approach. |
+| Pixel hotspot sync | Second WiFi network in ESPHome YAML — device connects to Pixel hotspot when home WiFi unavailable, replaying LittleFS buffer over cellular. Built as Step 21. Valuable when traveling; not needed for local day hikes. |
+| Timestamp correlation | Each sensor reading timestamp matched to nearest GPSLogger trackpoint (±5 minute window); NTP-synced clock ensures timestamp accuracy |
 
 ### lat/lon Fields
 | Decision | Rationale |
 |---|---|
-| `"lat": null, "lon": null` in all hiking readings | No GPS on device; JSON null is unambiguous and filterable in Sheets; avoids confusion with real coordinates including 0,0 (Gulf of Guinea) |
+| `"lat": null, "lon": null` initially; populated by Node-RED pipeline in Steps 19–20 | No GPS on device; Node-RED populates from GPSLogger trackpoint store at upload time. Null for readings where no GPS trackpoint is available within ±5 minutes (e.g., before pipeline is built, or when GPSLogger is not running). |
 
 ### UI
 | Decision | Rationale |

@@ -162,6 +162,35 @@ jctsh-parts-inventory.md, and components/front-porch-temp-sensor/ (instructions
 in progress). Added .claude/settings.local.json to .gitignore — file contains
 machine-specific absolute paths and should not be version controlled.
 
+## 2026-06-05
+Infrastructure maintenance. SmartThings integration had stopped working — root cause
+traced to HA Docker container DNS failure. The container's /etc/resolv.conf had been
+baked in at creation time (2026-05-15) with a stale DHCP-assigned DNS server
+(192.168.1.222) that no longer existed. The Pi restarted on 2026-06-03 and Tailscale
+overwrote the host's resolv.conf with its own DNS (100.100.100.100), but the container
+kept its frozen copy — leaving HA unable to resolve any external hostnames.
+
+Fix: pinned container DNS to 8.8.8.8/8.8.4.4 in both /etc/docker/daemon.json and a
+new core/homeassistant/docker-compose.yml. The compose file also documents the full
+container configuration (network_mode: host, volume mount, TZ, restart policy) which
+was previously undocumented — container had been started with a bare docker run.
+
+With DNS restored, set up Nabu Casa (HA Cloud, account joscthomas@gmail.com) to
+provide an external HTTPS URL. This is required for the SmartThings integration's
+OAuth setup flow — even though SmartThings communicates locally with the hub once
+configured, the initial OAuth callback needs an externally reachable URL. SmartThings
+re-added successfully; all devices visible.
+
+Also cleared a stale production_auth.json from the HA cloud config directory that was
+blocking Nabu Casa login with "Cannot login if already logged in."
+
+Network housekeeping: jctsh-network.md updated to add SmartThings hub (192.168.1.112,
+MAC 24-FD-5B-01-72-23), hiking-monitor (192.168.1.161, MAC 04-B2-47-97-DF-2C), and
+coachproxyos (192.168.1.219, MAC B8-27-EB-BD-C6-63). DHCP reservations confirmed for
+all three. SOFTWARE-ENVIRONMENT.md created to document all Pi services (Mosquitto,
+Node-RED, HA Docker, log server, Tailscale) with versions, config paths, and
+management commands.
+
 ## 2026-05-25
 Started and completed front-porch-temp-sensor component. Breadboard prototype
 fully built and tested (Steps 1–11). Hardware: ESP32 DevKitC-32 (microcontroller)

@@ -48,7 +48,7 @@ row 6  |  .  L  .  .  .  .  .  .  .   .   R   .   .   .   .   .   .   .  |
 row 20 |  .  L  .  .  .  .  .  .  .   .   R   .  [BME280 header       ]  |
 row 21 |  .  .  .  .  .  .  .  .  .   .   .   .   .   .   .   .   .   .  |
 row 22 |  .  .  .  .  .  .  .  .  .   .   .   .   .   .   .   .   .   .  |
-row 23 |  .  .  [power in header: VIN GND]  .   .  [btn header: G32 GND]  |
+row 23 |  .  .  [power in header: VIN GND]  .   .  [dock: R3 mid R4 GND] |
 row 24 |  .  .  .  .  .  .  .  .  .   .   .   .   .   .   .   .   .   .  |
 row 25 |  .  .  .  .  .  .  .  .  .   .   .   .   .   .   .   .   .   .  |
 row 26 |  .  .  .  .  .  .  .  .  .   .   .   .   .   .   .   .   .   .  |
@@ -68,8 +68,8 @@ R = right ESP32 female header (col 11, 19 pins, 9-hole spacing from L)
 | Voltage divider (R1+R2) | Right zone, rows 8–14 | Center of board; short wire to BAT+ harness |
 | E-ink harness header | Right zone, rows 15–18 | 8-pin male header; labeled wires connect to display |
 | BME280 breakout | Right zone, rows 17–20 | Bottom of board = farthest from ESP32 (minimizes self-heating error) |
-| Power-in header (VIN/GND) | Bottom zone, cols 3–5, row 23 | 2-pin JST or male header; TP4056 VOUT+/VOUT- connect here |
-| Button header (GPIO32/GND) | Bottom zone, cols 14–16, row 23 | 2-pin JST or male header; button wires connect here |
+| Power-in header (VIN/GND) | Bottom zone, cols 3–5, row 23 | 2-pin JST or male header; slide switch output → VIN, VOUT- → GND |
+| Dock detect divider (R3+R4) | Bottom zone, cols 14–18, row 23 | R3=68kΩ (top), R4=100kΩ (bottom); top to TP4056 IN+, midpoint to GPIO32 |
 
 ---
 
@@ -79,13 +79,15 @@ R = right ESP32 female header (col 11, 19 pins, 9-hole spacing from L)
 
 | From | To | Notes |
 |---|---|---|
-| TP4056 VOUT+ | Power-in header pin 1 | 5.7V boost output |
+| TP4056 VOUT+ | Slide switch input | 5.7V boost output; switch mounted on enclosure |
+| Slide switch output | Power-in header pin 1 | Switched 5.7V to ESP32 VIN |
 | Power-in header pin 1 | ESP32 VIN | Via perfboard trace or jumper |
 | TP4056 VOUT− | Power-in header pin 2 | Common ground |
 | Power-in header pin 2 | ESP32 GND | Via perfboard trace or jumper |
-| TP4056 BAT+ | R1 top leg (voltage divider) | Battery voltage sense — separate wire from TP4056 to divider |
+| TP4056 BAT+ | R1 top leg (battery voltage divider) | Battery voltage sense — separate wire from TP4056 to divider |
+| TP4056 IN+ | R3 top leg (dock detect divider) | USB VBUS tap — separate wire from TP4056 to dock detect divider |
 | ESP32 3.3V | LTR-390 VIN, BME280 VCC | Short jumpers to sensor header VCC pins |
-| ESP32 GND | LTR-390 GND, BME280 GND, R2 bottom leg | Short jumpers to sensor header GND pins |
+| ESP32 GND | LTR-390 GND, BME280 GND, R2 bottom leg, R4 bottom leg | Short jumpers to sensor header GND pins |
 
 ### I2C (BME280 + LTR-390)
 
@@ -143,13 +145,33 @@ Four solder pads, roughly in a line:
 
 ---
 
+## Dock Detect Divider Detail
+
+R3 (68kΩ) and R4 (100kΩ) are through-hole axial resistors soldered directly to the perfboard. Layout:
+
+```
+[IN+ pad] ── R3 (68kΩ) ── [midpoint pad] ── R4 (100kΩ) ── [GND pad]
+                                  │
+                             [GPIO32 pad]
+```
+
+Four solder pads, roughly in a line:
+- Pad 1: IN+ (wire runs off-board to TP4056 IN+/USB VBUS pad)
+- Pad 2: midpoint (GPIO32 jumper + R3 bottom + R4 top)
+- Pad 3: GND
+- Pad 4 (optional): tie to GPIO32 jumper wire anchor
+
+Measured voltages: IN+ = 0.47V (USB absent) → midpoint ≈ 0.28V (LOW). IN+ = 5.1V (USB present) → midpoint ≈ 3.04V (HIGH). GPIO32 configured as INPUT (no pull-up or pull-down).
+
+---
+
 ## Off-Board Components
 
 | Component | Connection method | Notes |
 |---|---|---|
 | Waveshare 2.13" e-ink display | 8-wire harness (GPIO4/5/16/17/18/23 + 3.3V + GND) | Display mounts on enclosure face; harness loops inside enclosure to perfboard |
-| Tactile push button | 2-wire harness (GPIO32 + GND) | Button mounts on enclosure side; short harness to perfboard button header |
-| TP4056+boost module | 2-wire power harness (VOUT+/VOUT−) + 1-wire BAT+ tap | TP4056 mounts separately in enclosure; 3 wires run to main perfboard |
+| Slide switch | 2-wire harness (VOUT+ in/out) | Switch mounts on enclosure side; interrupts VOUT+ between TP4056 and power-in header |
+| TP4056+boost module | VOUT+/VOUT− harness + BAT+ tap + IN+ tap | TP4056 mounts separately in enclosure; 4 wires total to main perfboard |
 | LiPo battery | Wired directly to TP4056 BAT+/BAT− pads | Battery sits in enclosure; wires to TP4056 (not to main perfboard directly) |
 
 ---
@@ -170,9 +192,9 @@ Four solder pads, roughly in a line:
 
 7. **Solder e-ink harness header** — 8-pin male header. Label each pin with a fine-tip marker or small paper flags before attaching wires.
 
-8. **Solder button harness header** — 2-pin male header or JST receptacle.
+8. **Solder dock detect divider** — R3 (68kΩ) and R4 (100kΩ) in-line in bottom zone. Top pad connects to TP4056 IN+ tap wire; midpoint pad connects to GPIO32 jumper; bottom pad connects to GND.
 
-9. **Solder power-in header** — 2-pin for VOUT+/VOUT−.
+9. **Solder power-in header** — 2-pin for switched VOUT+ and VOUT−.
 
 10. **Run point-to-point jumpers** — connect sensor headers to ESP32 GPIO pins per wiring table above. Use short silicone wire; route along perfboard rows/columns neatly.
 

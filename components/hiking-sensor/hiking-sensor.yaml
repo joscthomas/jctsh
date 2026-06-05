@@ -3,7 +3,7 @@
 #           + GY-BME280 (I2C 0x76) — temp, humidity, pressure
 #           + Adafruit LTR-390 (I2C 0x53) — UV index
 #           + Waveshare 2.13" e-ink V4 SSD1680 (SPI)
-#           + Tactile push button (GPIO32)
+#           + Dock detect: TP4056 IN+ → 68kΩ+100kΩ divider → GPIO32
 #           + Voltage divider → battery ADC (GPIO35)
 #           + EEMB 1100mAh LiPo + TP4056+boost module
 #
@@ -16,7 +16,7 @@
 #   GPIO4   BUSY (e-ink busy input)
 #   GPIO21  I2C SDA (BME280 + LTR-390 shared bus)
 #   GPIO22  I2C SCL (BME280 + LTR-390 shared bus)
-#   GPIO32  Button (active-low, internal pull-up)
+#   GPIO32  Dock detect (TP4056 IN+ → 68kΩ+100kΩ divider, HIGH=docked, LOW=field)
 #   GPIO35  Battery voltage ADC (voltage divider output, input-only pin)
 #
 # MQTT topics (prefix: jctsh/components/hiking-monitor):
@@ -230,19 +230,26 @@ text_sensor:
       id: wifi_ip
       internal: true
 
-# ── Button ────────────────────────────────────────────────────────────────────
+# ── Dock detect ───────────────────────────────────────────────────────────────
+# TP4056 IN+ (USB VBUS) → 68kΩ → midpoint → 100kΩ → GND; midpoint to GPIO32.
+# Measured: IN+ = 0.47V (USB absent), 5.1V (USB present).
+# After divider: ~0.28V (LOW, field) / ~3.04V (HIGH, docked).
 binary_sensor:
   - platform: gpio
     pin:
       number: GPIO32
-      mode: INPUT_PULLUP
-      inverted: true
-    name: "Display Button"
-    id: display_button
-    filters:
-      - delayed_on: 20ms
-    on_press:
-      - component.update: hiking_display
+      mode: INPUT
+    name: "Dock Detect"
+    id: dock_detect
+    internal: true
+    on_state:
+      - mqtt.publish:
+          topic: jctsh/components/hiking-monitor/log
+          payload: !lambda |-
+            if (x)
+              return "{\"component\":\"hiking-monitor\",\"category\":\"System\",\"message\":\"Docked — data suppressed while charging\"}";
+            else
+              return "{\"component\":\"hiking-monitor\",\"category\":\"System\",\"message\":\"Undocked — field mode active\"}";
 
 # ── E-ink Display ─────────────────────────────────────────────────────────────
 # Waveshare 2.13" HAT V4, 250×122, SSD1680
@@ -364,8 +371,10 @@ interval:
               ts, temp, hum, pres, uv, batt, rssi);
           }
 
-          // Field mode or home mode?
-          if (id(mqtt_client).is_connected()) {
+          // Docked, home mode, or field mode?
+          if (id(dock_detect).state) {
+            // Docked (charging) — suppress publish and log write; display still refreshes
+          } else if (id(mqtt_client).is_connected()) {
             id(mqtt_client).publish("jctsh/components/hiking-monitor/data",
                                     std::string(payload), 0, false);
           } else {

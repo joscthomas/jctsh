@@ -10,7 +10,7 @@
 |                                 | 4 | GPIO39 *(input only)* | GPIO1 (TXD) | 35 |                                                    |
 |                                 | 5 | GPIO34 *(input only)* | GPIO3 (RXD) | 34 |                                                    |
 | ADC (batt voltage)              | 6 | GPIO35 *(input only)* | GPIO21 | 33 | SDA (BME280 temp sensor, LTR-390 UV sensor) yellow |
-| Button                          | 7 | GPIO32 | GND | 32 | GND rail                                           |
+| Dock detect (TP4056 IN+ divider) | 7 | GPIO32 | GND | 32 | GND rail                                           |
 |                                 | 8 | GPIO33 | GPIO19 | 31 |                                                    |
 |                                 | 9 | GPIO25 | GPIO18 | 30 | CLK (e-ink) yellow                                 |
 |                                 | 10 | GPIO26 | GPIO5 | 29 | CS (e-ink) orange                                  |

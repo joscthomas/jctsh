@@ -10,6 +10,8 @@
 
 Rows to label: GPIO4, GPIO5, GPIO16, GPIO17, GPIO18, GPIO21, GPIO22, GPIO23, GPIO32, GPIO35
 
+GPIO32 note: configured as INPUT (no pull-up or pull-down) — the dock detect voltage divider provides defined state.
+
 Copy `components/garage-radar/ESP32pins.png` to this directory for reference during wiring.
 
 ---
@@ -26,7 +28,7 @@ Copy `components/garage-radar/ESP32pins.png` to this directory for reference dur
 | GPIO21 | I2C SDA | BME280 + LTR-390 (shared) |
 | GPIO22 | I2C SCL | BME280 + LTR-390 (shared) |
 | GPIO23 | SPI MOSI / DIN | E-ink display (VSPI) |
-| GPIO32 | Button input (pull-up, active-low) | Tactile push button |
+| GPIO32 | Dock detect (divider midpoint, INPUT) | TP4056 IN+ → 68kΩ → midpoint → 100kΩ → GND |
 | GPIO35 | Battery ADC (input-only) | Voltage divider midpoint |
 
 ---
@@ -89,16 +91,27 @@ The HAT has a connector with pre-attached color wires, each labeled. Connect eac
 
 ---
 
-## Push Button Wiring
+## Dock Detect Wiring (GPIO32)
 
-| Button Pin | ESP32 Pin | Notes |
-|---|---|---|
-| One leg | GPIO32 | |
-| Other leg | GND | |
+TP4056 IN+ (USB VBUS) is divided down to a safe GPIO level. Measured values: 0.47V (USB absent), 5.1V (USB present).
 
-ESPHome configures GPIO32 as `INPUT_PULLUP`. Button press pulls GPIO32 LOW (active-low). No external pull-up resistor needed.
+```
+TP4056 IN+ ──── R3 (68kΩ) ──┬──── R4 (100kΩ) ──── GND
+                             │
+                         GPIO32 (INPUT, no pull)
+```
 
-4-pin QTEATAK buttons: two pins on each side are internally connected. Connect one side pair to GPIO32 and the other side pair to GND.
+After divider:
+- USB absent: 0.47V × 100/(68+100) ≈ **0.28V → LOW** (field mode)
+- USB present: 5.1V × 100/(68+100) ≈ **3.04V → HIGH** (docked/charging)
+
+| Connection | Notes |
+|---|---|
+| TP4056 IN+ → R3 (68kΩ) → midpoint | Top half of divider |
+| Midpoint → R4 (100kΩ) → GND | Bottom half; ensures LOW when IN+ absent |
+| Midpoint → GPIO32 | No pull-up or pull-down — divider provides defined state |
+
+On breadboard: R3 and R4 are through-hole resistors placed in the breadboard. Run a jumper from the TP4056 IN+ pin to R3, a jumper from R4 to GND rail, and a jumper from the midpoint to the GPIO32 breadboard row.
 
 ---
 
@@ -156,7 +169,7 @@ BME280 SDA ───┤ GPIO21 (I2C SDA)       GPIO17 ────┼───�
 LTR-390 SDA──┘                        GPIO18 ────┼──── CLK (e-ink)
               │                        GPIO23 ────┼──── DIN (e-ink)
 BME280 SCL ───┤ GPIO22 (I2C SCL)
-LTR-390 SCL──┘                         GPIO32 ────┼──── Button → GND
+LTR-390 SCL──┘                         GPIO32 ────┼──── R3/R4 dock divider midpoint (TP4056 IN+)
 
               │                        GPIO35 ────┼──── R1/R2 divider midpoint
               └───────────────────────────────────┘

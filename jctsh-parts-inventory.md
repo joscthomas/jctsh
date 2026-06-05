@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 1.8
-**Version description:** Added Music Response plastic bin to Location Key. Added 8 items to that bin: BC557B PNP and BC547B NPN transistors, 1N4148 diodes (new Discrete Semiconductors section); 100Ω resistors, 10K trim pots, LED assortment (LEDs and Resistors); 3.3V/5V power supply module, 9V battery clips (Power Components).
+**Version:** 1.9
+**Version description:** Added iCrimp SN-28B Dupont crimping tool (Tools — Bench Equipment, Shelf) and Taiss 600pc Dupont connector kit (Prototyping and Build Hardware, Plastic Box).
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -10,14 +10,14 @@
 
 ## Location Key
 
-| Location  | Description                                                                                                                   |
-|-----------|-------------------------------------------------------------------------------------------------------------------------------|
-| Box Label | Plastic storage box with a label (like "Arduino") — houses Pi Zero W kit, other computing devices, and associated accessories |
-| Bag N     | Numbered zip-lock or parts bag; label bag with number to match this inventory                                                 |
-| Shelf     | Workshop shelf — larger or allocated items not yet deployed                                                                   |
-| Bench     | Primary work surface / soldering station area                                                                                 |
-| Music Response bin | Plastic storage bin labeled "Music Response" — houses discrete components and supplies for the music response project |
-| Deployed  | Installed in a live JCTsh component; not on hand                                                                              |
+| Location           | Description                                                                                                                   |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------|
+| Box Label          | Plastic storage box with a label (like "Arduino") — houses Pi Zero W kit, other computing devices, and associated accessories |
+| Bag N              | Numbered zip-lock or parts bag; label bag with number to match this inventory                                                 |
+| Shelf              | Workshop shelf — larger or allocated items not yet deployed                                                                   |
+| Bench              | Primary work surface / soldering station area                                                                                 |
+| Music Response bin | Plastic storage bin labeled "Music Response" — houses discrete components and supplies for the music response project         |
+| Deployed           | Installed in a live JCTsh component; not on hand                                                                              |
 
 ---
 
@@ -31,10 +31,10 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 ## Microcontrollers
 
-| Component | Description | Qty | Location | Notes |
-|---|---|---|---|---|
-| ESP32 DevKitC-32 | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT | 2 | Bag 1 | 1 used: garage radar. 1 used: front-porch-temp-sensor. 1 used: hiking-sensor. |
-| ESP32 (salt sensor) | Separate board, not from 6-pack | 1 | Deployed | Deployed on salt sensor project. |
+| Component           | Description                                  | Qty | Location | Notes                                                                         |
+|---------------------|----------------------------------------------|-----|----------|-------------------------------------------------------------------------------|
+| ESP32 DevKitC-32    | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT | 2   | Bag 1    | 1 used: garage radar. 1 used: front-porch-temp-sensor. 1 used: hiking-sensor. |
+| ESP32 (salt sensor) | Separate board, not from 6-pack              | 1   | Deployed | Deployed on salt sensor project.                                              |
 
 ---
 
@@ -87,6 +87,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Push Buttons | QTEATAK, 10 values, 4-pin, 6×6mm micro momentary tact. https://www.amazon.com/dp/B07VQF8P2Y | Assortment | Plastic Box | Verify selection before build. |
 | JST SM 2-Pin Connectors | Male/female pairs, EL wire cable style. https://www.amazon.com/dp/B00T2U76V0 | Assortment | Bag 14 | Verify selection before build. |
 | Pin Header JST Plug Connectors | QTEATAK, 2P/3P/4P/5P, right angle, 2.54mm pitch. https://www.amazon.com/dp/B0CH8G2XN9 | Assortment | Plastic Box | Verify selection before build. |
+| Dupont Connector Kit 2.54mm | Taiss 600pcs, 1–7 pin housing, male/female crimp pins, 2.54mm pitch. https://www.amazon.com/dp/B0B11SX39B | Assortment | Plastic Box | Use with SN-28B crimping tool. Verify selection before build. |
 | Wire Lever Connectors | 32Pcs Lever Wire Connectors, DIY Mini Compact Splicing Assortment Quick Electrical Connector Kit for 24-12 AWG https://www.amazon.com/dp/B0B28GQVVG | Assortment | Plastic Box | Verify selection before build. |
 | Jumper Wires | Jumper Wire Kit - 840 Piece Breadboard Jumper Wire Set, 22ga 14 Assorted Lengths for Prototyping https://www.amazon.com/dp/B07WLPN929 | Assortment | Plastic Box | Suitable for perfboard use, but not breadboards. |
 
@@ -156,6 +157,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Soaiy Soldering Kit | Soldering station kit | Bench | Primary soldering station. |
 | Power Probe Butane Soldering Kit | Portable butane-powered soldering iron | Bench | For fieldwork or when bench station is impractical. |
 | Solder Sucker | Desoldering pump | Bench | |
+| iCrimp SN-28B Dupont Crimping Tool | AWG 18–28, 2.54mm/2.5mm/3.96mm pitch, JST XH/VH and Dupont connectors. https://www.amazon.com/dp/B00OMM4YUY | Shelf | Use with Taiss Dupont connector kit. |
 | TP88A Piercing Needle Test Probes | Non-destructive multimeter test probes, piercing needle tip. https://www.amazon.com/dp/B01LYVHFDK | Shelf | For probing insulated wires without stripping. |
 
 ---
@@ -186,4 +188,5 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-06-01 | Stock | Silicone hookup wire 24 AWG ×6 rolls (Shelf); USB-C to Micro USB adapters ×4 (Bag 20); DC buck converters 12V→5V ×2 (Bag 21). Wire and Cables and Adapters sections added. Duplicate rows removed. |
 | 2026-06-02 | Stock | LTR390 UV light sensor ×2 added (Sensors, Bag 22) |
 | 2026-06-04 | Stock | Music Response bin added to Location Key. BC557B ×10, BC547B ×50, 1N4148 ×50 (Discrete Semiconductors, new section); 100Ω resistors ×50, 10K trim pots ×24, LED assortment (LEDs and Resistors); power supply module ×5, 9V battery clips ×10 (Power Components); all in Music Response bin |
+| 2026-06-05 | Stock | iCrimp SN-28B crimping tool added (Tools — Bench Equipment, Shelf); Taiss 600pc Dupont connector kit added (Prototyping and Build Hardware, Plastic Box) |
 | 2026-06-04 | hiking-sensor | ESP32 ×1 used; BME280 ×1 used; LTR-390 ×1 used; e-ink display ×1 used; push button ×1 used; EEMB LiPo ×1 used; TP4056+boost ×1 used |

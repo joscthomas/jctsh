@@ -1,0 +1,16 @@
+services:
+  homeassistant:
+    container_name: homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    network_mode: host
+    volumes:
+      - /home/pi/homeassistant:/config
+    restart: unless-stopped
+    privileged: true
+    security_opt:
+      - label:disable
+    environment:
+      - TZ=America/Phoenix
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4

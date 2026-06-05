@@ -1,6 +1,6 @@
 # JCTsh — Monorepo Context
 
-Smart home automation monorepo. See `components/<name>/CLAUDE.md` for component-specific context.
+Smart home automation monorepo. See `components/<name>/CLAUDE.md` for component-specific context. For what's installed and running on the Pi, see `SOFTWARE-ENVIRONMENT.md`.
 
 ## Repository Layout
 ```

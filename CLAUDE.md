@@ -81,6 +81,25 @@ before Phase 3 planning is considered complete.
 
 Pi primary hostname: `raspberrypi.local` — do not change. Fixed IP: `192.168.1.117` (DHCP reservation set on router). Use the IP directly if `.local` resolution fails. Timezone: `America/Phoenix` (MST, UTC-7, no DST). Tailscale IP: `100.70.162.24` — use this for remote access from outside the home network.
 
+### Home Assistant Docker Setup
+HA runs in a Docker container (`ghcr.io/home-assistant/home-assistant:stable`) managed by Docker's `unless-stopped` restart policy. The authoritative configuration is in `core/homeassistant/docker-compose.yml`.
+
+Config volume: `/home/pi/homeassistant:/config` (this is what the repo's `core/homeassistant/` snapshots).
+
+To manage the container:
+```bash
+# Restart HA (e.g. after config change)
+docker restart homeassistant
+
+# Recreate from compose file (e.g. after image update or docker-compose.yml change)
+cd /home/pi && docker compose up -d
+
+# View live logs
+docker logs -f homeassistant
+```
+
+DNS is explicitly pinned to `8.8.8.8` / `8.8.4.4` in both `docker-compose.yml` and `/etc/docker/daemon.json`. This prevents a recurrence of the June 2026 outage where HA lost all cloud connectivity because the container had a stale DHCP-assigned DNS server (`192.168.1.222`) baked in at creation time.
+
 ## Remote Access
 Tailscale is installed on the Pi. Connect any device to the same Tailscale account
 to access all local services remotely — no port forwarding, no public IP exposure.
@@ -92,6 +111,11 @@ to access all local services remotely — no port forwarding, no public IP expos
 
 Install Tailscale: tailscale.com/download (Windows/Mac/Linux) or app store (iOS/Android).
 Sign in with the same account and all services are reachable via `100.70.162.24`.
+
+### Nabu Casa (Home Assistant Cloud)
+Nabu Casa is active on this HA instance (account: `joscthomas@gmail.com`). It provides an external HTTPS URL for HA and is **required** for the SmartThings integration — SmartThings uses OAuth during setup, and OAuth needs an externally reachable callback URL that only Nabu Casa (or a manual tunnel) can provide.
+
+If HA ever needs to be re-set-up from scratch, confirm Nabu Casa is signed in (Settings → Home Assistant Cloud) before attempting to re-add SmartThings, or the integration setup will fail with "No OAuth services available."
 
 ## MQTT Topic Convention
 ```

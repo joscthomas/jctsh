@@ -324,7 +324,7 @@ Observability is **not optional**. Every ESP32 component implements message logg
 
 All ESP32 components publish a heartbeat every **5 minutes** to two topics:
 
-> **Note:** garage-radar and front-porch-temp-sensor currently use a 30-minute interval — they predate this standard. New components use 5 minutes per this standard. The hiking-monitor is the first component built to the 5-minute standard.
+> **Note:** garage-radar currently uses a 30-minute interval — it predates this standard. front-porch-temp-sensor was corrected to 5 minutes (June 2026). New components use 5 minutes per this standard.
 
 **Log topic** (visible in dashboard):
 ```
@@ -395,6 +395,34 @@ The JCTsh watchdog is a Node-RED flow that monitors the heartbeat topic of each 
 Node-RED already subscribes to `jctsh/+/+/log` (wildcard) and routes all matching messages to the Python log server. No per-component Node-RED changes are needed for logging — publish to the `/log` topic in the correct JSON format and it appears in the dashboard automatically.
 
 Verify logging is working by checking `http://raspberrypi.local/` (Basic Auth, user: `jctsh`) after first flash.
+
+### 4.6 Sensor Health Detection
+
+ESPHome components with **I2C or SPI sensors** must publish explicit error log messages when a sensor read fails (returns NaN). This makes hardware faults visible in the dashboard instead of silently showing stale retained MQTT values in HA.
+
+**When to apply:** Any component where a physical sensor failure would cause `sensor.state` to return NaN — typically BME280, BH1750, LTR390, and similar I2C/SPI sensor platforms.
+
+**Pattern:** Add one `if` block per sensor at the end of the 5-minute heartbeat interval, after the heartbeat publishes:
+
+```yaml
+      - if:
+          condition:
+            lambda: 'return isnan(id(<sensor_id>).state);'
+          then:
+            - mqtt.publish:
+                topic: jctsh/<type>/<component>/log
+                payload: '{"component":"<name>","category":"Sensor","message":"<SensorName> read failed — check I2C wiring (SDA GPIO<X> / SCL GPIO<Y>)"}'
+```
+
+**Reference implementation:** `components/front-porch-temp-sensor/front-porch-temp-sensor.yaml` — checks `bme280_temp` and `bh1750_lux`, publishes under category `Sensor`.
+
+**Rules:**
+- One `if` block per sensor ID — do not combine into a single message
+- Category must be `Sensor` (not `System`) so it appears as a distinct row type in the dashboard
+- Message must name the specific sensor and the GPIO pins, not just "sensor error"
+- Check is run every 5 minutes — if the sensor recovers, the error stops appearing automatically
+
+**Backlog:** hiking-monitor has BME280 (`bme_temp`) and LTR390 (`ltr_uv_index`) — both need this pattern added. See `components/hiking-sensor/hiking-sensor-claude-code-instructions.md`.
 
 ---
 

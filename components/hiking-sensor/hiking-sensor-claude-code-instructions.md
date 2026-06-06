@@ -558,6 +558,17 @@ Also do the following final housekeeping:
 
 ---
 
+## Backlog
+
+### Sensor Health Detection (§4.6)
+Per JCTsh-Build-Standards.md §4.6, ESPHome components with I2C sensors must publish explicit error log messages when a sensor read returns NaN. This component has two I2C sensors that need health checks added to the 5-minute heartbeat interval:
+- BME280: check `id(bme_temp).state` — message: `"BME280 read failed — check I2C wiring"`
+- LTR390: check `id(ltr_uv_index).state` — message: `"LTR390 read failed — check I2C wiring"`
+
+Pattern: see `components/front-porch-temp-sensor/front-porch-temp-sensor.yaml` interval block. Add after the heartbeat `mqtt.publish` actions. Category: `Sensor`.
+
+---
+
 ## Future Enhancements
 
 ### Deep Sleep Mode

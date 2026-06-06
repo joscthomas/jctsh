@@ -15,7 +15,7 @@
 #   .../heartbeat                 — JSON heartbeat (Node-RED watchdog wildcard, every 30 min)
 #
 # Update interval: 60s (all sensors)
-# Heartbeat interval: 30 min
+# Heartbeat interval: 5 min
 
 esphome:
   name: front-porch-temp-sensor
@@ -61,6 +61,7 @@ mqtt:
     retain: false
     qos: 0
   on_connect:
+    - delay: 500ms
     - mqtt.publish:
         topic: jctsh/components/front-porch-temp-sensor/log
         payload: !lambda |-
@@ -79,6 +80,7 @@ i2c:
   sda: GPIO21
   scl: GPIO22
   scan: true
+  frequency: 10khz
 
 # ── Sensors ───────────────────────────────────────────────────────────────────
 sensor:
@@ -100,6 +102,7 @@ sensor:
   # BH1750 — illuminance
   - platform: bh1750
     name: "Illuminance"
+    id: bh1750_lux
     address: 0x23
     update_interval: 60s
 
@@ -120,13 +123,18 @@ text_sensor:
       id: wifi_ip
       internal: true
 
+# ── Restart button ────────────────────────────────────────────────────────────
+button:
+  - platform: restart
+    name: "Restart"
+
 # ── Heartbeat interval ────────────────────────────────────────────────────────
-# Publishes every 30 minutes to:
+# Publishes every 5 minutes to:
 #   .../log      — picked up by Python log server wildcard (jctsh/+/+/log)
 #   .../heartbeat — picked up by Node-RED watchdog wildcard (jctsh/+/+/heartbeat)
 # No Node-RED or log server changes needed — wildcards catch this automatically.
 interval:
-  - interval: 30min
+  - interval: 5min
     then:
       - mqtt.publish:
           topic: jctsh/components/front-porch-temp-sensor/log
@@ -168,3 +176,17 @@ interval:
                 h, m, rssi, temp);
             }
             return std::string(buf);
+      - if:
+          condition:
+            lambda: 'return isnan(id(bme280_temp).state);'
+          then:
+            - mqtt.publish:
+                topic: jctsh/components/front-porch-temp-sensor/log
+                payload: '{"component":"front-porch-temp-sensor","category":"Sensor","message":"BME280 read failed — check I2C wiring (SDA GPIO21 / SCL GPIO22)"}'
+      - if:
+          condition:
+            lambda: 'return isnan(id(bh1750_lux).state);'
+          then:
+            - mqtt.publish:
+                topic: jctsh/components/front-porch-temp-sensor/log
+                payload: '{"component":"front-porch-temp-sensor","category":"Sensor","message":"BH1750 read failed — check I2C wiring (SDA GPIO21 / SCL GPIO22)"}'

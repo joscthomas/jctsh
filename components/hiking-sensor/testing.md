@@ -49,11 +49,7 @@ P [=>|^|v]       UVI [value]
 
 ### 3 — Button Validation
 
-**Check:** Button press triggers immediate display refresh.
-
-Press the button on GPIO32. The e-ink display should refresh within ~2 seconds (full e-ink cycle).
-
-**Pass criteria:** Display refreshes on button press without waiting for the 2-minute interval.
+**Superseded (2026-06-05):** Button removed. GPIO32 repurposed for dock detect. See test 10.
 
 ---
 
@@ -155,6 +151,45 @@ Already confirmed in Step 8 (3.85V). Re-confirm current value is still in range.
 
 ---
 
+### 10 — Dock Detect
+
+**Check:** USB charger connected to TP4056 suppresses data collection; removal resumes it. Log messages fire on transitions.
+
+**Prerequisites:** `hiking-hike-events.flow.json` deployed in Node-RED (see Step 11b in `data-pipeline.md`).
+
+**Steps:**
+
+1. With device running and MQTT connected, confirm data rows appearing in Sheets every 2 minutes (`rssi_dbm ≠ 0`)
+2. Plug USB charger into TP4056 IN+
+3. Confirm log dashboard shows: `Docked — data suppressed while charging`
+4. Wait one full 2-minute cycle — confirm **no** new row appears in Sheets
+5. Unplug USB charger
+6. Confirm log dashboard shows: `Undocked — field mode active`
+7. Wait one full 2-minute cycle — confirm new row appears in Sheets with `rssi_dbm ≠ 0`
+
+**Pass criteria:** Data publish suppressed while docked. Resumes immediately on undock. Both log messages appear in dashboard.
+
+---
+
+### 11 — Hike Start / End Event Detection
+
+**Check:** Node-RED hike events flow fires correct log messages when rssi_dbm transitions between 0 and non-zero.
+
+**Prerequisites:** `hiking-hike-events.flow.json` imported and deployed in Node-RED with broker selected. Test inject nodes visible in Node-RED editor.
+
+**Steps (use inject nodes in Node-RED — run in order):**
+
+1. Click `Test: home reading (rssi=-45)` → no event expected (initialises state)
+2. Click `Test: field reading 1 — hike start (rssi=0)` → log dashboard should show: `Hike started at 2026-06-07T15:00:00Z`
+3. Click `Test: field reading 2 — mid-hike (rssi=0)` → no event expected
+4. Click `Test: home reading — hike end (rssi=-31)` → log dashboard should show: `Hike ended at 2026-06-07T15:02:00Z`
+
+**After test:** Reset function node context in Node-RED: hamburger menu → Context Data → select `hike-events-detect` node → delete `lastRssi` and `lastTs`.
+
+**Pass criteria:** Hike started fires once (on inject 2). No event on inject 3. Hike ended fires with timestamp of last field reading (inject 3's ts, not inject 4's).
+
+---
+
 ## Results
 
 **Completed: 2026-06-04. All tests passed.**
@@ -163,13 +198,15 @@ Already confirmed in Step 8 (3.85V). Re-confirm current value is still in range.
 |---|---|---|
 | 1 — Sensor validation | PASS | temp_f, humidity_pct, pressure_hpa, uv_index, battery_v, rssi_dbm all present and plausible |
 | 2 — Display validation | PASS | All four fields rendering correctly; refreshes every 2 minutes |
-| 3 — Button validation | PASS | Button press triggers immediate display refresh |
+| 3 — Button validation | N/A | Button removed 2026-06-05; GPIO32 repurposed for dock detect (see test 10) |
 | 4 — Log dashboard | PASS | Heartbeat, boot, and MQTT connected messages all visible |
 | 5 — Heartbeat | PASS | Heartbeat appearing every 5 minutes |
 | 6 — Field mode simulation | PASS | Readings replayed with original timestamps; rssi_dbm=0 in replayed rows. Bug found and fixed: SPIFFS remove() not persisting across power cuts caused duplicate replays. Fix: truncate before replay + size-based has_data() check. |
 | 7 — Google Sheets validation | PASS | dew_point_f and heat_index_f populated; lat/lon blank; source=hiking-monitor |
 | 8 — Battery validation | PASS | battery_v 3.85–4.08V across session; fully charged at start of Step 12 |
 | 9 — Power cycle test | PASS | LiPo disconnected and reconnected; device rebooted and MQTT reconnected cleanly |
+| 10 — Dock detect | PENDING | |
+| 11 — Hike start/end event detection | PENDING | |
 
 ---
 

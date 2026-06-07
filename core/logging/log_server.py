@@ -152,8 +152,10 @@ def _on_message(client, userdata, msg):
                         "_state_key": state_key,
                     }
             else:
-                # Non-heartbeat: flush any open heartbeat group for this component first
-                if component in _hb_groups:
+                # Non-heartbeat: flush any open heartbeat group for this component first.
+                # Sensor-category messages are health checks co-scheduled with the heartbeat
+                # interval — don't let them break up heartbeat collapsing.
+                if component in _hb_groups and category != "Sensor":
                     _flush_hb_group(component)
                 key = (component, category, message)
                 if (_pending and

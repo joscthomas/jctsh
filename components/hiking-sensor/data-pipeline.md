@@ -295,6 +295,56 @@ Where T = temp_f, H = humidity_pct.
 
 ---
 
+## Hike Start / End Event Detection (Step 11b)
+
+A separate Node-RED flow detects hike start and end events by watching for transitions
+in `rssi_dbm` on the hiking-monitor data stream.
+
+### How it works
+
+Each hiking-monitor data payload includes `rssi_dbm`:
+- `rssi_dbm = 0` — device had no WiFi; reading was stored in field mode
+- `rssi_dbm ≠ 0` — device was connected to home WiFi; live reading
+
+The flow tracks the previous message's rssi value and fires on transitions:
+
+| Transition | Event | Timestamp used |
+|---|---|---|
+| `rssi ≠ 0` → `rssi = 0` | **Hike started** | `ts` of first field reading |
+| `rssi = 0` → `rssi ≠ 0` | **Hike ended** | `ts` of last field reading |
+
+Events are published to `jctsh/components/hiking-monitor/log` and appear in the log dashboard.
+
+### Flow file
+
+`core/node-red/hiking-hike-events.flow.json`
+
+Import via Node-RED UI → hamburger menu → **Import → Clipboard**, paste the file contents.
+
+### After Import
+
+1. Open the **MQTT In** node → select the existing JCTsh MQTT broker
+2. Open the **MQTT Out** node → select the same broker
+3. Click **Deploy**
+
+### Test Procedure
+
+The flow includes four inject nodes for testing. Run them **in sequence** after importing
+and deploying. Watch the debug sidebar and log dashboard.
+
+| Step | Inject node | Expected output |
+|---|---|---|
+| 1 | `Test: home reading (rssi=-45)` | No event (initialises state) |
+| 2 | `Test: field reading 1 — hike start (rssi=0)` | `Hike started at 2026-06-07T15:00:00Z` |
+| 3 | `Test: field reading 2 — mid-hike (rssi=0)` | No event |
+| 4 | `Test: home reading — hike end (rssi=-31)` | `Hike ended at 2026-06-07T15:02:00Z` |
+
+After the test, **reset the function node context** before going live: in Node-RED →
+hamburger menu → **Context Data** → select the `hike-events-detect` node → delete
+`lastRssi` and `lastTs`. This prevents the test state from interfering with real data.
+
+---
+
 ## Adding Future Environmental Sensors
 
 No changes to this pipeline are needed when a new environmental sensor is added. The

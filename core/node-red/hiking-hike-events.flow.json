@@ -2,8 +2,8 @@
   {
     "id": "hike-events-mqtt-in",
     "type": "mqtt in",
-    "name": "jctsh/components/hiking-monitor/data",
-    "topic": "jctsh/components/hiking-monitor/data",
+    "name": "jctsh/components/+/data",
+    "topic": "jctsh/components/+/data",
     "qos": "1",
     "datatype": "auto",
     "broker": "",
@@ -12,15 +12,15 @@
   {
     "id": "hike-events-detect",
     "type": "function",
-    "name": "Detect hike start / end",
-    "func": "// Parse payload\nvar d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\n\nvar rssi = d.rssi_dbm;\nvar ts   = d.ts;\n\nvar lastRssi = context.get('lastRssi');  // undefined on first message\nvar lastTs   = context.get('lastTs') || '';\n\n// Update stored state\ncontext.set('lastRssi', rssi);\ncontext.set('lastTs', ts);\n\n// First message ever — initialise state, no event\nif (lastRssi === undefined) {\n    return null;\n}\n\nvar logMsg = null;\n\nif (lastRssi !== 0 && rssi === 0) {\n    // Transition home → field: hike started\n    // ts is the timestamp of the first field reading = actual hike start time\n    logMsg = JSON.stringify({\n        component: 'hiking-monitor',\n        category:  'System',\n        message:   'Hike started at ' + ts\n    });\n} else if (lastRssi === 0 && rssi !== 0) {\n    // Transition field → home: hike ended\n    // lastTs is the timestamp of the last field reading = actual hike end time\n    logMsg = JSON.stringify({\n        component: 'hiking-monitor',\n        category:  'System',\n        message:   'Hike ended at ' + lastTs\n    });\n}\n\nif (logMsg) {\n    msg.payload = logMsg;\n    msg.topic   = 'jctsh/components/hiking-monitor/log';\n    return msg;\n}\n\nreturn null;",
+    "name": "Detect field session start / end",
+    "func": "// Parse payload\nvar d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\n\nvar component = d.component;\nvar rssi      = d.rssi_dbm;\nvar ts        = d.ts;\n\nif (!component || rssi === undefined || !ts) return null;\n\n// Per-component state so multiple sensors don't interfere\nvar lastRssi = context.get('lastRssi_' + component);  // undefined on first message\nvar lastTs   = context.get('lastTs_'   + component) || '';\n\n// Update stored state\ncontext.set('lastRssi_' + component, rssi);\ncontext.set('lastTs_'   + component, ts);\n\n// First message for this component — initialise state, no event\nif (lastRssi === undefined) {\n    return null;\n}\n\nvar logMsg = null;\n\nif (lastRssi !== 0 && rssi === 0) {\n    // Transition home → field: session started\n    // ts is the timestamp of the first field reading = actual session start time\n    logMsg = JSON.stringify({\n        component: component,\n        category:  'System',\n        message:   'Field session started at ' + ts\n    });\n} else if (lastRssi === 0 && rssi !== 0) {\n    // Transition field → home: session ended\n    // lastTs is the timestamp of the last field reading = actual session end time\n    logMsg = JSON.stringify({\n        component: component,\n        category:  'System',\n        message:   'Field session ended at ' + lastTs\n    });\n}\n\nif (logMsg) {\n    msg.payload = logMsg;\n    msg.topic   = 'jctsh/components/' + component + '/log';\n    return msg;\n}\n\nreturn null;",
     "outputs": 1,
     "wires": [["hike-events-mqtt-out", "hike-events-debug"]]
   },
   {
     "id": "hike-events-mqtt-out",
     "type": "mqtt out",
-    "name": "Publish hike event to log",
+    "name": "Publish field session event to log",
     "topic": "",
     "qos": "0",
     "retain": "false",
@@ -30,7 +30,7 @@
   {
     "id": "hike-events-debug",
     "type": "debug",
-    "name": "Hike event output",
+    "name": "Field session event output",
     "active": true,
     "tosidebar": true,
     "console": false,
@@ -50,7 +50,7 @@
   {
     "id": "hike-test-field-start",
     "type": "inject",
-    "name": "Test: field reading 1 — hike start (rssi=0)",
+    "name": "Test: field reading 1 — session start (rssi=0)",
     "payload": "{\"component\":\"hiking-monitor\",\"ts\":\"2026-06-07T15:00:00Z\",\"lat\":null,\"lon\":null,\"temp_f\":88.0,\"humidity_pct\":22.0,\"pressure_hpa\":910.0,\"uv_index\":3.2,\"battery_v\":3.80,\"rssi_dbm\":0}",
     "payloadType": "str",
     "once": false,
@@ -59,7 +59,7 @@
   {
     "id": "hike-test-field-mid",
     "type": "inject",
-    "name": "Test: field reading 2 — mid-hike (rssi=0)",
+    "name": "Test: field reading 2 — mid-session (rssi=0)",
     "payload": "{\"component\":\"hiking-monitor\",\"ts\":\"2026-06-07T15:02:00Z\",\"lat\":null,\"lon\":null,\"temp_f\":87.5,\"humidity_pct\":23.0,\"pressure_hpa\":908.0,\"uv_index\":3.5,\"battery_v\":3.79,\"rssi_dbm\":0}",
     "payloadType": "str",
     "once": false,
@@ -68,7 +68,7 @@
   {
     "id": "hike-test-home-return",
     "type": "inject",
-    "name": "Test: home reading — hike end (rssi=-31)",
+    "name": "Test: home reading — session end (rssi=-31)",
     "payload": "{\"component\":\"hiking-monitor\",\"ts\":\"2026-06-07T17:00:00Z\",\"lat\":null,\"lon\":null,\"temp_f\":95.0,\"humidity_pct\":18.0,\"pressure_hpa\":926.0,\"uv_index\":0.0,\"battery_v\":3.72,\"rssi_dbm\":-31}",
     "payloadType": "str",
     "once": false,

@@ -171,22 +171,22 @@ Already confirmed in Step 8 (3.85V). Re-confirm current value is still in range.
 
 ---
 
-### 11 — Hike Start / End Event Detection
+### 11 — Field Session Start / End Event Detection
 
-**Check:** Node-RED hike events flow fires correct log messages when rssi_dbm transitions between 0 and non-zero.
+**Check:** Node-RED field session events flow fires correct log messages when rssi_dbm transitions between 0 and non-zero. Works for any sensor; tested here with hiking-monitor.
 
 **Prerequisites:** `hiking-hike-events.flow.json` imported and deployed in Node-RED with broker selected. Test inject nodes visible in Node-RED editor.
 
 **Steps (use inject nodes in Node-RED — run in order):**
 
 1. Click `Test: home reading (rssi=-45)` → no event expected (initialises state)
-2. Click `Test: field reading 1 — hike start (rssi=0)` → log dashboard should show: `Hike started at 2026-06-07T15:00:00Z`
-3. Click `Test: field reading 2 — mid-hike (rssi=0)` → no event expected
-4. Click `Test: home reading — hike end (rssi=-31)` → log dashboard should show: `Hike ended at 2026-06-07T15:02:00Z`
+2. Click `Test: field reading 1 — session start (rssi=0)` → log dashboard should show: `Field session started at 2026-06-07T15:00:00Z`
+3. Click `Test: field reading 2 — mid-session (rssi=0)` → no event expected
+4. Click `Test: home reading — session end (rssi=-31)` → log dashboard should show: `Field session ended at 2026-06-07T15:02:00Z`
 
-**After test:** Reset function node context in Node-RED: hamburger menu → Context Data → select `hike-events-detect` node → delete `lastRssi` and `lastTs`.
+**After test:** Reset function node context in Node-RED: hamburger menu → Context Data → select `hike-events-detect` node → delete `lastRssi_hiking-monitor` and `lastTs_hiking-monitor`.
 
-**Pass criteria:** Hike started fires once (on inject 2). No event on inject 3. Hike ended fires with timestamp of last field reading (inject 3's ts, not inject 4's).
+**Pass criteria:** Session started fires once (on inject 2). No event on inject 3. Session ended fires with timestamp of last field reading (inject 3's ts, not inject 4's).
 
 ---
 

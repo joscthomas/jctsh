@@ -295,25 +295,28 @@ Where T = temp_f, H = humidity_pct.
 
 ---
 
-## Hike Start / End Event Detection (Step 11b)
+## Field Session Start / End Event Detection (Step 11b)
 
-A separate Node-RED flow detects hike start and end events by watching for transitions
-in `rssi_dbm` on the hiking-monitor data stream.
+A separate Node-RED flow detects field session start and end events by watching for
+transitions in `rssi_dbm` across all environmental sensor data streams. It works for
+any sensor that uses field mode (rssi_dbm=0 when offline).
 
 ### How it works
 
-Each hiking-monitor data payload includes `rssi_dbm`:
+Each data payload includes `rssi_dbm`:
 - `rssi_dbm = 0` — device had no WiFi; reading was stored in field mode
 - `rssi_dbm ≠ 0` — device was connected to home WiFi; live reading
 
-The flow tracks the previous message's rssi value and fires on transitions:
+The flow tracks state per component and fires on transitions:
 
 | Transition | Event | Timestamp used |
 |---|---|---|
-| `rssi ≠ 0` → `rssi = 0` | **Hike started** | `ts` of first field reading |
-| `rssi = 0` → `rssi ≠ 0` | **Hike ended** | `ts` of last field reading |
+| `rssi ≠ 0` → `rssi = 0` | **Field session started** | `ts` of first field reading |
+| `rssi = 0` → `rssi ≠ 0` | **Field session ended** | `ts` of last field reading |
 
-Events are published to `jctsh/components/hiking-monitor/log` and appear in the log dashboard.
+Events are published to `jctsh/components/<component>/log` (derived from the payload)
+and appear in the log dashboard under the originating sensor. State is tracked
+per-component so multiple sensors don't interfere with each other.
 
 ### Flow file
 
@@ -335,13 +338,14 @@ and deploying. Watch the debug sidebar and log dashboard.
 | Step | Inject node | Expected output |
 |---|---|---|
 | 1 | `Test: home reading (rssi=-45)` | No event (initialises state) |
-| 2 | `Test: field reading 1 — hike start (rssi=0)` | `Hike started at 2026-06-07T15:00:00Z` |
-| 3 | `Test: field reading 2 — mid-hike (rssi=0)` | No event |
-| 4 | `Test: home reading — hike end (rssi=-31)` | `Hike ended at 2026-06-07T15:02:00Z` |
+| 2 | `Test: field reading 1 — session start (rssi=0)` | `Field session started at 2026-06-07T15:00:00Z` |
+| 3 | `Test: field reading 2 — mid-session (rssi=0)` | No event |
+| 4 | `Test: home reading — session end (rssi=-31)` | `Field session ended at 2026-06-07T15:02:00Z` |
 
 After the test, **reset the function node context** before going live: in Node-RED →
 hamburger menu → **Context Data** → select the `hike-events-detect` node → delete
-`lastRssi` and `lastTs`. This prevents the test state from interfering with real data.
+`lastRssi_hiking-monitor` and `lastTs_hiking-monitor`. This prevents the test state
+from interfering with real data.
 
 ---
 

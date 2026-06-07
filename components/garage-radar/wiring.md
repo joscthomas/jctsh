@@ -13,8 +13,8 @@
 
 | Signal | ESP32 Pin | Resistor | LED | Notes |
 |---|---|----------|---|---|
-| Presence indicator | GPIO25 | 220Ω     | Green, 5mm | ON when `has_target` ON |
-| Garage presence vswitch | GPIO26 | 220Ω     | Yellow, 5mm | Mirrors `garage-presence-vswitch` MQTT state |
+| Presence indicator | GPIO33 | 330Ω     | Green, 5mm | ON when `has_target` ON |
+| Garage presence vswitch | GPIO32 | 330Ω     | Yellow, 5mm | Mirrors `garage-presence-vswitch` MQTT state |
 
 Both LEDs: GPIO pin → 220Ω resistor → LED **anode** (+) (long leg) → LED **cathode** (–) (short leg) → GND.
 The flat side of the LED base and the shorter leg mark the cathode.
@@ -101,21 +101,21 @@ Leave enough space to route 4 wires cleanly.
 - Green wire: LD2412 TX → ESP32 GPIO16 (RX2)
 - Yellow wire: LD2412 RX → ESP32 GPIO17 (TX2)
 
-**5. Wire the green LED (GPIO25 — presence indicator)**
+**5. Wire the green LED (GPIO33 — presence indicator)**
 
-Before wiring: mark the GPIO25 row on the breadboard with a small piece of masking tape.
+Before wiring: mark the GPIO33 row on the breadboard with a small piece of masking tape.
 
-- Run a wire from GPIO25 to a free row.
+- Run a wire from GPIO33 to a free row.
 - Insert the 330Ω resistor from that row to the next row.
 - Insert the green LED: anode (longer leg, round side of base) into the resistor row, cathode (shorter leg, flat side of base) into the next row.
 - Run a GND wire from the cathode row to the ESP32 GND (or ground rail).
 
-**6. Wire the yellow LED (GPIO26 — garage presence vswitch)**
+**6. Wire the yellow LED (GPIO32 — garage presence vswitch)**
 
-Before wiring: mark the GPIO26 row on the breadboard with masking tape.
+Before wiring: mark the GPIO32 row on the breadboard with masking tape.
 
-- Same pattern as green LED, using GPIO26.
-- Run a wire from GPIO26 → 330Ω resistor → yellow LED anode → LED cathode → GND.
+- Same pattern as green LED, using GPIO32.
+- Run a wire from GPIO32 → 330Ω resistor → yellow LED anode → LED cathode → GND.
 
 > **LED polarity warning:** LEDs will not light if installed backwards, but they also
 > will not be damaged at 3.3V with a 330Ω resistor. If an LED does not light when
@@ -128,8 +128,8 @@ Before connecting USB, verify:
 - [ ] LD2412 TX is connected to GPIO16 (labeled RX2)
 - [ ] LD2412 RX is connected to GPIO17 (labeled TX2)
 - [ ] No wires crossed between TX and RX on the same device
-- [ ] Green LED: GPIO25 → resistor → LED anode → cathode → GND
-- [ ] Yellow LED: GPIO26 → resistor → LED anode → cathode → GND
+- [ ] Green LED: GPIO33 → resistor → LED anode → cathode → GND
+- [ ] Yellow LED: GPIO32 → resistor → LED anode → cathode → GND
 - [ ] LED anodes (longer legs) face the resistors, cathodes face GND
 
 ---

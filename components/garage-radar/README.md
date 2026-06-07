@@ -197,10 +197,10 @@ See `flashing.md` for full details and troubleshooting.
 | `smartthings-integration.md` | SmartThings integration notes |
 | `integration.md` | Step 8: HA automation setup instructions |
 | `end-to-end-test.md` | Step 9: full system validation test suite |
-| `perfboard-layout.md` | Step 5: permanent soldered build (deferred — waiting for parts) |
+| `perfboard-layout.md` | Step 5: permanent soldered build |
 
 ---
 
 ## Status
 
-Prototype (breadboard) deployed and fully validated (Steps 1–9 complete). Steps 5–7 (perfboard transfer and permanent mounting) deferred pending parts arrival. System is fully functional on the breadboard build.
+Steps 1–9 validated on breadboard. Step 5 (perfboard transfer) complete. Step 6 (soldered board validation) next — power via USB and run `testing.md`. Step 7 (permanent mounting) pending.

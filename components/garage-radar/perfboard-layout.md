@@ -8,6 +8,9 @@
 | Female headers | Glarks 2.54mm single-row — two 19-pin strips (ESP32), one 4-pin strip (LD2412) |
 | Standoffs | Hilitchi M3 brass male-female, 10mm |
 | Wire | Solid core jumper wire for back-of-board bridges |
+| Green LED | 5mm T-1¾ (presence indicator — GPIO33) |
+| Yellow LED | 5mm T-1¾ (vswitch mirror — GPIO32) |
+| Resistors | 330Ω ¼W × 2 (one per LED) |
 
 ---
 
@@ -43,8 +46,8 @@ cable hanging down and accessible without interfering with the detection zone.
   1  [M]                                              [M]
   2
   3           [5V][GN][TX][RX] ← 4-pin LD2412 header (cols D–G)
-  4
-  5
+  4  [YC][YA][YR]              ← Yellow LED (GPIO32 → vswitch): cathode col A, anode col B, 330Ω col B–C
+  5  [GC][GA][GR]              ← Green LED (GPIO33 → presence): cathode col A, anode col B, 330Ω col B–C
   6
   7           [L]                    [R]   ← ESP32 pin 1 (3.3V / GND)
   8           [L]                    [R]
@@ -69,10 +72,15 @@ cable hanging down and accessible without interfering with the detection zone.
  27
 ```
 
-`[M]` = M3 standoff mounting hole (corner holes). `[L]` = left ESP32 header row.
-`[R]` = right ESP32 header row. Column spacing between left and right rows depends on
-your specific ESP32 module — verify by measuring the pin-to-pin width across the board
-before soldering headers.
+`[M]` = M3 standoff mounting hole. `[L]` = left ESP32 header row. `[R]` = right ESP32 header row.
+`[YC]`/`[YA]`/`[YR]` = yellow LED cathode / anode / 330Ω resistor. `[GC]`/`[GA]`/`[GR]` = same for green.
+
+Column spacing between `[L]` and `[R]` depends on your specific ESP32 module — measure the
+pin-to-pin width across the board before soldering headers.
+
+**LED orientation:** long leg (anode) faces col B (toward resistor). Short leg (cathode, flat
+side of base) faces col A (toward GND). The 330Ω resistor bridges col B–C in the same row.
+Installing an LED backwards will not damage it at 3.3V/330Ω — if it does not light, flip it.
 
 > **Verify exact pin positions:** The row numbers for GPIO16, GPIO17, and VIN are
 > approximate. Before soldering wire bridges, confirm the actual hole position for each
@@ -105,6 +113,13 @@ on the back (solder side) of the board using solid-core wire.
 | Ground | LD2412 header pin 2 (GND) | ESP32 GND hole | Black |
 | UART data | LD2412 header pin 3 (TX) | ESP32 GPIO16/RX2 hole | Green |
 | UART data | LD2412 header pin 4 (RX) | ESP32 GPIO17/TX2 hole | Yellow |
+| Yellow LED signal | GPIO32 header hole (row 13, col C) | 330Ω resistor leg at row 4, col C | Yellow |
+| Green LED signal | GPIO33 header hole (row 14, col C) | 330Ω resistor leg at row 5, col C | Green |
+| LED GND | Yellow LED cathode (row 4, col A) → Green LED cathode (row 5, col A) | ESP32 GND header hole | Black |
+
+> **LED GND bridge:** daisy-chain — run one short wire from row 4 col A to row 5 col A to join the two
+> cathodes, then run a single GND wire from row 5 col A back to the ESP32 GND hole (left header, pin 14,
+> row 20 col C). Three short wires total for LED GND.
 
 Keep bridges short and flat against the board. Do not route bridges across mounting
 hole locations. Use the same TX→RX/RX→TX orientation as the breadboard build.
@@ -132,13 +147,20 @@ Mark the four corner mounting holes. Do not solder any component over these hole
 - Verify the column positions match where your wire bridges will run
 - Solder all 4 pins
 
-**4. Solder wire bridges**
-- Cut four wire segments to length — keep them short and routed cleanly
-- Strip and tin each end before soldering
-- Solder all four bridges on the back of the board
+**4. Solder LEDs and resistors**
+- Place yellow LED at row 4: long leg (anode) in col B, short leg (cathode) in col A
+- Place 330Ω resistor at row 4: one leg in col B (shared with LED anode), other leg in col C
+- Place green LED at row 5: same orientation
+- Place 330Ω resistor at row 5: same pattern
+- Solder all four components from the back; trim leads flush
 
-**5. Continuity checks — do not skip**
-Before inserting any component, use a multimeter in continuity mode:
+**5. Solder wire bridges**
+- Cut wire segments to length — keep them short and routed cleanly
+- Strip and tin each end before soldering
+- Solder all six bridges (four for LD2412, two LED signals, LED GND daisy-chain) on the back of the board
+
+**6. Continuity checks — do not skip**
+Before inserting any component, use a multimeter in continuity mode (and resistance mode for LED paths):
 
 | Check | Expected |
 |---|---|
@@ -149,10 +171,14 @@ Before inserting any component, use a multimeter in continuity mode:
 | LD2412 5V pin → LD2412 GND pin | No continuity (short check) |
 | ESP32 VIN pin → ESP32 GND pin | No continuity (short check) |
 | LD2412 TX pin → LD2412 RX pin | No continuity (cross-wire check) |
+| GPIO32 header hole → yellow LED anode | ~330Ω (use resistance mode) |
+| GPIO33 header hole → green LED anode | ~330Ω (use resistance mode) |
+| Yellow LED cathode → ESP32 GND | Continuity |
+| Green LED cathode → ESP32 GND | Continuity |
 
 **Do not power on until all continuity checks pass.**
 
-**6. Insert the ESP32 and LD2412**
+**7. Insert the ESP32 and LD2412**
 - Insert the ESP32 into the two 19-pin header strips — press firmly and evenly
 - Plug the LD2412 into the 4-pin header with the antenna face pointing away from
   the board surface

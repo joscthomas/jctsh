@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 1.9
-**Version description:** Added iCrimp SN-28B Dupont crimping tool (Tools — Bench Equipment, Shelf) and Taiss 600pc Dupont connector kit (Prototyping and Build Hardware, Plastic Box).
+**Version:** 2.0
+**Version description:** Added Gebildet 40pc slide switch assortment (Prototyping and Build Hardware, Plastic Box) and FEITA 900M-T soldering iron tips 5pc (Tools — Consumables, Bench).
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -88,6 +88,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | JST SM 2-Pin Connectors | Male/female pairs, EL wire cable style. https://www.amazon.com/dp/B00T2U76V0 | Assortment | Bag 14 | Verify selection before build. |
 | Pin Header JST Plug Connectors | QTEATAK, 2P/3P/4P/5P, right angle, 2.54mm pitch. https://www.amazon.com/dp/B0CH8G2XN9 | Assortment | Plastic Box | Verify selection before build. |
 | Dupont Connector Kit 2.54mm | Taiss 600pcs, 1–7 pin housing, male/female crimp pins, 2.54mm pitch. https://www.amazon.com/dp/B0B11SX39B | Assortment | Plastic Box | Use with SN-28B crimping tool. Verify selection before build. |
+| Slide Switch Assortment | Gebildet 40pcs, SS12D10 (SPDT 1P2T 3-pin, 250V/3A) and SS12F15 (mini panel SPDT 3-pin, 50V/0.5A). https://www.amazon.com/dp/B0D55ZSH8Y | Assortment | Plastic Box | Verify rating before build. |
 | Wire Lever Connectors | 32Pcs Lever Wire Connectors, DIY Mini Compact Splicing Assortment Quick Electrical Connector Kit for 24-12 AWG https://www.amazon.com/dp/B0B28GQVVG | Assortment | Plastic Box | Verify selection before build. |
 | Jumper Wires | Jumper Wire Kit - 840 Piece Breadboard Jumper Wire Set, 22ga 14 Assorted Lengths for Prototyping https://www.amazon.com/dp/B07WLPN929 | Assortment | Plastic Box | Suitable for perfboard use, but not breadboards. |
 
@@ -166,6 +167,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Item | Description | Qty / Amount | Location | Notes |
 |---|---|---|---|---|
+| Soldering Iron Tips | FEITA 900M-T conical replacement tips, 5pc, for 936/852D+/907 stations. https://www.amazon.com/dp/B07X7P8KMG | 5 | Bench | Compatible with Soaiy soldering station. |
 | Solder Wire | — | — | Bench | Update brand/gauge when known. |
 | Solder Wick | Desoldering braid | — | Bench | Update brand/width when known. |
 | Flux Pens | Rosin flux | — | Bench | Update brand/count when known. |
@@ -188,5 +190,6 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-06-01 | Stock | Silicone hookup wire 24 AWG ×6 rolls (Shelf); USB-C to Micro USB adapters ×4 (Bag 20); DC buck converters 12V→5V ×2 (Bag 21). Wire and Cables and Adapters sections added. Duplicate rows removed. |
 | 2026-06-02 | Stock | LTR390 UV light sensor ×2 added (Sensors, Bag 22) |
 | 2026-06-04 | Stock | Music Response bin added to Location Key. BC557B ×10, BC547B ×50, 1N4148 ×50 (Discrete Semiconductors, new section); 100Ω resistors ×50, 10K trim pots ×24, LED assortment (LEDs and Resistors); power supply module ×5, 9V battery clips ×10 (Power Components); all in Music Response bin |
+| 2026-06-06 | Stock | Gebildet slide switch assortment added (Prototyping and Build Hardware, Plastic Box); FEITA 900M-T soldering tips ×5 added (Tools — Consumables, Bench) |
 | 2026-06-05 | Stock | iCrimp SN-28B crimping tool added (Tools — Bench Equipment, Shelf); Taiss 600pc Dupont connector kit added (Prototyping and Build Hardware, Plastic Box) |
 | 2026-06-04 | hiking-sensor | ESP32 ×1 used; BME280 ×1 used; LTR-390 ×1 used; e-ink display ×1 used; push button ×1 used; EEMB LiPo ×1 used; TP4056+boost ×1 used |

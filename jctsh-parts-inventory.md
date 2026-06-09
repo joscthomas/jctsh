@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.0
-**Version description:** Added Gebildet 40pc slide switch assortment (Prototyping and Build Hardware, Plastic Box) and FEITA 900M-T soldering iron tips 5pc (Tools — Consumables, Bench).
+**Version:** 2.2
+**Version description:** Added 3M Mini-Clamp connectors for p-w-firefly project (Cables and Adapters, Bag 24).
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -57,6 +57,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | BMP280 (sold as BME280) | Podazz 3-pack, counterfeit — pressure/temp only, no humidity, I2C, 5V | 2 | Bag 2 | 3 returned 2026-05-26. 2 spares removed from front-porch-temp-sensor. |
 | BME280 (GY-BME280) | 2PCS packs, genuine — temp/humidity/pressure, I2C/SPI, 5V breakout | 3 | Bag 3 | 1 deployed: front-porch-temp-sensor (2026-05-26). 1 used: hiking-sensor. 2 spares. |
 | LTR390 UV Light Sensor | Adafruit #4831, STEMMA QT / Qwiic I2C, UV and ambient light, 3.3V/5V. https://www.amazon.com/dp/B0BPR31P59 | 1 | Bag 22 | 1 used: hiking-sensor. 1 spare. |
+| SparkFun SEN-23715 | Sensirion SEN54, particle (PM1/2.5/4/10), VOC, humidity, temperature, I2C/UART. SparkFun SEN-23715. | 1 | Plastic Box | No project assigned. |
 | Greekcreit Sensor Module Kit for Arduino | Kit of 37 modules including: active/passive buzzer, LED modules (common cathode red/green, two-color, RGB, colorful auto flash), knock/shock/tilt/magnet-ring/hall/analogy hall/magnetic spring sensors, photo resistor, push button, infrared TX/RX, rotate encoder, light break sensor, finger pulse sensor, obstacle avoidance, tracking, microphone, laser TX, relay, analog/digital/18b20 temperature, flame, voice, humidity, joystick PS2, touch sensor | — | Plastic Box | |
 
 ---
@@ -78,19 +79,19 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 ## Prototyping and Build Hardware
 
-| Component | Description | Qty | Location | Notes |
-|---|---|---|---|---|
-| Perfboard | Chanzon 34-pack, FR4 double-sided, 5 sizes: 2×8, 3×7, 4×6, 5×7, 7×9 cm, 2.54mm pitch, corner mounting holes | ~33 | Bag 9 | 1 used: garage radar. 5×7cm recommended for ESP32 projects. |
-| Female Pin Header Strips | Glarks 120-pack, 2.54mm single row, 2–40 pin, storage box | Assortment | Plastic Box | 40-pin strips can be cut to any length. Verify selection before planning. |
-| M3 Brass Standoff Kit | ZYAMY 150-pack, M3 only: female-female 6/10mm, male-female 6+6/10+6/15+6mm, M3 nuts and M3×6 screws | Assortment | Plastic Box | Default mounting hardware for ESP32 perfboard projects. Verify selection before planning. |
-| Breadboards | 2×830 point, 2×400 point, solderless | 4 | Bag 12 | Prototyping only — freed up when project moves to perfboard. |
-| Push Buttons | QTEATAK, 10 values, 4-pin, 6×6mm micro momentary tact. https://www.amazon.com/dp/B07VQF8P2Y | Assortment | Plastic Box | Verify selection before build. |
-| JST SM 2-Pin Connectors | Male/female pairs, EL wire cable style. https://www.amazon.com/dp/B00T2U76V0 | Assortment | Bag 14 | Verify selection before build. |
-| Pin Header JST Plug Connectors | QTEATAK, 2P/3P/4P/5P, right angle, 2.54mm pitch. https://www.amazon.com/dp/B0CH8G2XN9 | Assortment | Plastic Box | Verify selection before build. |
-| Dupont Connector Kit 2.54mm | Taiss 600pcs, 1–7 pin housing, male/female crimp pins, 2.54mm pitch. https://www.amazon.com/dp/B0B11SX39B | Assortment | Plastic Box | Use with SN-28B crimping tool. Verify selection before build. |
-| Slide Switch Assortment | Gebildet 40pcs, SS12D10 (SPDT 1P2T 3-pin, 250V/3A) and SS12F15 (mini panel SPDT 3-pin, 50V/0.5A). https://www.amazon.com/dp/B0D55ZSH8Y | Assortment | Plastic Box | Verify rating before build. |
-| Wire Lever Connectors | 32Pcs Lever Wire Connectors, DIY Mini Compact Splicing Assortment Quick Electrical Connector Kit for 24-12 AWG https://www.amazon.com/dp/B0B28GQVVG | Assortment | Plastic Box | Verify selection before build. |
-| Jumper Wires | Jumper Wire Kit - 840 Piece Breadboard Jumper Wire Set, 22ga 14 Assorted Lengths for Prototyping https://www.amazon.com/dp/B07WLPN929 | Assortment | Plastic Box | Suitable for perfboard use, but not breadboards. |
+| Component | Description | Qty | Location          | Notes |
+|---|---|---|-------------------|---|
+| Perfboard | Chanzon 34-pack, FR4 double-sided, 5 sizes: 2×8, 3×7, 4×6, 5×7, 7×9 cm, 2.54mm pitch, corner mounting holes | ~33 | Bag 9             | 1 used: garage radar. 5×7cm recommended for ESP32 projects. |
+| Female Pin Header Strips | Glarks 120-pack, 2.54mm single row, 2–40 pin, storage box | Assortment | Plastic Box       | 40-pin strips can be cut to any length. Verify selection before planning. |
+| M3 Brass Standoff Kit | ZYAMY 150-pack, M3 only: female-female 6/10mm, male-female 6+6/10+6/15+6mm, M3 nuts and M3×6 screws | Assortment | Plastic Box       | Default mounting hardware for ESP32 perfboard projects. Verify selection before planning. |
+| Breadboards | 2×830 point, 2×400 point, solderless | 4 | Bag 12            | Prototyping only — freed up when project moves to perfboard. |
+| Push Buttons | QTEATAK, 10 values, 4-pin, 6×6mm micro momentary tact. https://www.amazon.com/dp/B07VQF8P2Y | Assortment | Plastic Box       | Verify selection before build. |
+| JST SM 2-Pin Connectors | Male/female pairs, EL wire cable style. https://www.amazon.com/dp/B00T2U76V0 | Assortment | Bag 14            | Verify selection before build. |
+| Pin Header JST Plug Connectors | QTEATAK, 2P/3P/4P/5P, right angle, 2.54mm pitch. https://www.amazon.com/dp/B0CH8G2XN9 | Assortment | Plastic Box       | Verify selection before build. |
+| Dupont Connector Kit 2.54mm | Taiss 600pcs, 1–7 pin housing, male/female crimp pins, 2.54mm pitch. https://www.amazon.com/dp/B0B11SX39B | Assortment | Plastic Box       | Use with SN-28B crimping tool. Verify selection before build. |
+| Slide Switch Assortment | Gebildet 40pcs, SS12D10 (SPDT 1P2T 3-pin, 250V/3A) and SS12F15 (mini panel SPDT 3-pin, 50V/0.5A). https://www.amazon.com/dp/B0D55ZSH8Y | Assortment | Bag 23 | Verify rating before build. |
+| Wire Lever Connectors | 32Pcs Lever Wire Connectors, DIY Mini Compact Splicing Assortment Quick Electrical Connector Kit for 24-12 AWG https://www.amazon.com/dp/B0B28GQVVG | Assortment | Plastic Box       | Verify selection before build. |
+| Jumper Wires | Jumper Wire Kit - 840 Piece Breadboard Jumper Wire Set, 22ga 14 Assorted Lengths for Prototyping https://www.amazon.com/dp/B07WLPN929 | Assortment | Plastic Box       | Suitable for perfboard use, but not breadboards. |
 
 ---
 
@@ -108,6 +109,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
 | USB-C to Micro USB Adapter | JXMOX 4-pack, Type-C female to Micro USB male, supports charge and data sync, grey. https://www.amazon.com/dp/B07GH5KJH2 | 4 | Bag 20 | Useful for powering or connecting Micro USB devices from USB-C sources. |
+| 3M Mini-Clamp Connectors | 3M, 4-conductor. Pinout for p-w-firefly CAN bus: Red=12V+ (leave unconnected), White=CAN-H, Green/Blue=CAN-L, Black=GND. | 3 | Bag 24 | Allocated: p-w-firefly project. Do not connect Red (12V+) to PiCAN2. |
 
 ---
 
@@ -190,6 +192,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-06-01 | Stock | Silicone hookup wire 24 AWG ×6 rolls (Shelf); USB-C to Micro USB adapters ×4 (Bag 20); DC buck converters 12V→5V ×2 (Bag 21). Wire and Cables and Adapters sections added. Duplicate rows removed. |
 | 2026-06-02 | Stock | LTR390 UV light sensor ×2 added (Sensors, Bag 22) |
 | 2026-06-04 | Stock | Music Response bin added to Location Key. BC557B ×10, BC547B ×50, 1N4148 ×50 (Discrete Semiconductors, new section); 100Ω resistors ×50, 10K trim pots ×24, LED assortment (LEDs and Resistors); power supply module ×5, 9V battery clips ×10 (Power Components); all in Music Response bin |
+| 2026-06-08 | p-w-firefly | 3M Mini-Clamp connectors received, added to Cables and Adapters, Bag 24 |
+| 2026-06-07 | Stock | SparkFun SEN-23715 Sensirion sensor ×1 added (Sensors, Plastic Box) |
 | 2026-06-06 | Stock | Gebildet slide switch assortment added (Prototyping and Build Hardware, Plastic Box); FEITA 900M-T soldering tips ×5 added (Tools — Consumables, Bench) |
 | 2026-06-05 | Stock | iCrimp SN-28B crimping tool added (Tools — Bench Equipment, Shelf); Taiss 600pc Dupont connector kit added (Prototyping and Build Hardware, Plastic Box) |
 | 2026-06-04 | hiking-sensor | ESP32 ×1 used; BME280 ×1 used; LTR-390 ×1 used; e-ink display ×1 used; push button ×1 used; EEMB LiPo ×1 used; TP4056+boost ×1 used |

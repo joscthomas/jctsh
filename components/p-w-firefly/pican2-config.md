@@ -84,4 +84,4 @@ Document the finding in the Confirmed Details section below after first boot (St
 | Item | Value |
 |---|---|
 | config.txt lines added | Confirmed Step 5 |
-| can0 auto-up at boot | To be confirmed at Step 11 |
+| can0 auto-up at boot | Yes — eRVin image brings up can0 automatically at 250000 bps; no manual configuration needed |

@@ -78,19 +78,20 @@ Measured directly at the Firefly Net Port socket with a multimeter:
 
 | PiCAN2 Screw Terminal | Wire | 3M Pin |
 |---|---|---|
-| CAN-H | TBD — from same twisted pair | 2 |
-| CAN-L | TBD — from same twisted pair | 3 |
-| GND | TBD | 4 |
-| +Vin | 12V coach power wire (next section) | — |
+| CAN-H | Blue (Blue/Blue-White pair) | 2 |
+| CAN-L | Blue-White (Blue/Blue-White pair) | 3 |
+| GND | Brown; also coach 12V GND from buck converter (two wires, one terminal) | 4 |
+| +Vin | **Not used** — no SMPS fitted on this board; leave unconnected | — |
 
 ---
 
 ## 12V Coach Power Tap
 
 1. Identify a 12V tap point at the DC bus or battery terminals in the rear seat compartment. **This circuit must go off when coach power is switched off at the LCD panel** — verify this before committing to the tap point.
-2. Add an inline fuse (1A or 2A) on the positive wire, placed close to the tap point.
-3. Connect the fused positive wire to the PiCAN2 **+Vin** screw terminal.
-4. Connect GND to the PiCAN2 **GND** screw terminal — this can share with the drop cable GND.
+2. Add an inline fuse (1A) on the positive wire, placed close to the tap point.
+3. Connect the fused positive wire to the **buck converter 12V+ input**. Do NOT connect it to the PiCAN2 +Vin screw terminal — no SMPS is fitted on this board; that terminal does nothing.
+4. Connect coach GND to both the **buck converter GND input** and the **PiCAN2 GND screw terminal** (two wires on one terminal — shares with drop cable Pin 4 Brown).
+5. Connect the buck converter **USB-C output** via a USB-C to micro-USB cable to the **Pi micro-USB power port**.
 
 ---
 
@@ -115,11 +116,31 @@ Measured directly at the Firefly Net Port socket with a multimeter:
 
 ---
 
+## Troubleshooting — No 12V Coach Power
+
+If the coach 12V bus is dead — Vegatouch screen dark, Firefly NET LED not lit, Pi not booting — and all fuses in the DC power center look good:
+
+**Location:** Driver's side rear seat compartment. Remove the couch cushion, then remove the wooden access door on the driver's side.
+
+**What you'll see:** Two large circuit breakers with red trip buttons, visible once the door is removed. These are on the main positive cable and control all coach 12V power.
+
+**Reset procedure:**
+1. Remove the wooden door (driver's side, under the couch cushion)
+2. Locate the two red trip buttons
+3. Feel underneath each red button for a small hidden black lever
+4. Push the black lever firmly back to the ON position — it does not reset from the red button alone
+5. Repeat for the second breaker if needed
+6. Coach power should restore immediately
+
+These breakers are not obvious — the hidden black lever is the only reset mechanism and cannot be seen, only felt.
+
+---
+
 ## Troubleshooting — No CAN Traffic
 
 If Step 11 (`candump can0`) shows no output:
 
-1. **Check pair assignment first** — if CAN-H and CAN-L are on different twisted pairs, noise rejection is reduced. Rewire them onto the same pair (see Wire selection above) and retest before investigating anything else.
+1. **Check pin assignments first** — confirm CAN-H, CAN-L, and GND are in the correct 3M connector positions (pin 2, 3, 4; pin 1 empty). Incorrect pin assignment was the confirmed cause of no RV-C traffic during this build. Re-crimp if any wire is in the wrong pin.
 2. Check that the 3M connector is fully seated in the Firefly Net Port socket.
 3. Confirm can0 is up: `ip link show can0` — bring up manually if needed: `sudo ip link set can0 up type can bitrate 250000`
 4. Confirm JP3 jumper is absent on the PiCAN2.
@@ -136,7 +157,7 @@ If Step 11 (`candump can0`) shows no output:
 | Firefly Net Port socket used | Net port on the 12V power panel under the rear seat |
 | 12V tap point | Unused wire on the 12V power panel under the rear seat |
 | Drop cable length | ~3 feet |
-| Mounting method | Velcro on case bottom — planned mount under 12V panel, off to the side; deferred until RV-C connectivity confirmed |
+| Mounting method | Velcro — permanently mounted under 12V panel in rear seat compartment |
 | Pi boots from coach power | Yes — micro-USB from coach USB power outlet |
 | Power method | Micro-USB (coach USB outlet) — PiCAN2 SMPS non-functional (0V on GPIO 5V pins, no visible damage; bench steps always used micro-USB so SMPS was never tested) |
 | CAN-H/CAN-L wiring confirmed | Orange (pin 1) → CAN-L, Blue (pin 3) → CAN-H, Brown (pin 4) → GND; CAN-H and CAN-L on different CAT5 pairs |

@@ -33,6 +33,7 @@ Account `coachproxyos` added to home Pi Mosquitto (`/etc/mosquitto/passwd`). Pas
 
 - `paho-mqtt 1.6.1` required — version 2.x requires Python 3.8+ and the eRVin image has Python 3.7
 - `python3-pip` installed from `archive.raspberrypi.org/debian` source
+- paho-mqtt installed as the `pi` user lands at `/coachproxy/home/pi/.local/lib/python3.7/site-packages` — the eRVin image root is under `/coachproxy/`. Without `User=pi` in the service file, the service runs as root and cannot find the module. The service file must include `User=pi` under `[Service]`.
 
 ---
 

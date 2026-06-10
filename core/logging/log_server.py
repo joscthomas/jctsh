@@ -185,6 +185,7 @@ _HTML_TEMPLATE = """\
 <head>
   <meta charset="UTF-8">
   <title>JCTsh Log Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjMWExYTFhIi8+PHRleHQgeD0iMTYiIHk9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMDBjYzk5IiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjIyIiBmb250LXdlaWdodD0iYm9sZCI+SjwvdGV4dD48L3N2Zz4=">
   <style>
     body { background:#1a1a1a; color:#e0e0e0; font-family:monospace;
            font-size:13px; margin:20px; }
@@ -205,7 +206,7 @@ _HTML_TEMPLATE = """\
 </head>
 <body>
   <h2>JCTsh Log Dashboard</h2>
-  <p class="sub">Updates every 5s &nbsp;|&nbsp; Last %%MAX%% entries &nbsp;|&nbsp; <a href="/log" style="color:#555">%%LOG%%</a></p>
+  <p class="sub">Updates every 5s &nbsp;|&nbsp; Last %%MAX%% entries &nbsp;|&nbsp; <a href="/log" target="_blank" style="color:#555">%%LOG%%</a></p>
   <div class="controls">
     <label>Component:</label>
     <select id="fc" onchange="f()"><option value="">All</option>%%COMP%%</select>

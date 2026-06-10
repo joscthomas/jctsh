@@ -187,8 +187,8 @@ Python log server. Check Node-RED debug panel for MQTT subscription errors.
 ## Test 9 — Heartbeat
 
 Wait up to 5 minutes after boot. Confirm:
-- [ ] A heartbeat log entry appears in the dashboard under `garage-radar` (System category)
-- [ ] In Node-RED, open the watchdog flow tab and enable the debug node — confirm a
+- [x] A heartbeat log entry appears in the dashboard under `garage-radar` (System category)
+- [x] In Node-RED, open the watchdog flow tab and enable the debug node — confirm a
   message arrives on `jctsh/components/garage-radar/heartbeat` within 5 minutes
 
 ---
@@ -216,8 +216,8 @@ name in HA (Settings → Companion App).
 
 - [x] Green LED lights on presence, extinguishes after 30s timeout
 - [x] Yellow LED mirrors garage presence vswitch state
-- [ ] All log message types appear in the dashboard
-- [ ] Heartbeat appears every 5 minutes
+- [x] All log message types appear in the dashboard
+- [x] Heartbeat appears every 5 minutes
 - [ ] Watchdog push notification received within 10 minutes of ESP32 power-off
 - [ ] Watchdog resets when ESP32 comes back online
 

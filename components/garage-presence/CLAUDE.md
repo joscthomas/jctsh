@@ -131,15 +131,17 @@ mode: single
 
 **Garage Presence - Radar keepalive** (`mode: single`)
 
-Fires every 10 minutes while `binary_sensor.garage_radar_presence` is `on`. Prevents
+Fires every 5 minutes while `binary_sensor.garage_radar_presence` is `on`. Prevents
 timer expiry during extended still presence at the workbench — the `to: "on"` trigger
-alone would not re-fire if the radar stayed continuously on for 20+ minutes.
+alone would not re-fire if the radar stayed continuously on for 20+ minutes. Set to /5
+(not /10) so the keepalive fires within any timer duration, including short durations
+used during testing (e.g. 3 minutes).
 
 ```yaml
 alias: Garage Presence - Radar keepalive
 triggers:
   - trigger: time_pattern
-    minutes: "/10"
+    minutes: "/5"
 conditions:
   - condition: state
     entity_id: binary_sensor.garage_radar_presence

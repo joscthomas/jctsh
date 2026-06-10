@@ -123,11 +123,24 @@ imported into Node-RED).
 
 ---
 
+## LD2412 initialization note
+
+After flashing new LD2412 configuration (range, sensitivity, gate thresholds), the
+radar module may not apply the new settings on the first boot. Symptom: device is
+online and sending heartbeats but presence is never detected. The "Presence cleared —
+timeout elapsed" message on boot is a positive sign — it means the LD2412 initialized
+correctly and briefly detected something on startup.
+
+**Fix:** After any flash that changes LD2412 parameters, restart the device a second
+time from the ESPHome web UI (`http://192.168.1.119` → Restart). Confirmed 2026-06-09.
+
+---
+
 ## Test 6 — Green LED (presence indicator)
 
 Walk in front of the radar and confirm:
-- [ ] Green LED lights when `Presence` goes `on`
-- [ ] Green LED extinguishes approximately 30 seconds after you leave the detection zone
+- [x] Green LED lights when `Presence` goes `on`
+- [x] Green LED extinguishes approximately 30 seconds after you leave the detection zone
   (it follows the `delayed_off: 30s` filter, not the raw radar state)
 
 If the LED does not light: check GPIO33 wiring — resistor orientation, LED polarity
@@ -201,7 +214,7 @@ name in HA (Settings → Companion App).
 
 ## Step 4.6 pass criteria
 
-- [ ] Green LED lights on presence, extinguishes after 30s timeout
+- [x] Green LED lights on presence, extinguishes after 30s timeout
 - [ ] Yellow LED mirrors garage presence vswitch state
 - [ ] All log message types appear in the dashboard
 - [ ] Heartbeat appears every 5 minutes

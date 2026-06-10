@@ -62,6 +62,8 @@ To monitor the SmartThings side: open the SmartThings app → Devices →
 
 **Pass:** timer resets at the 5-minute clock boundary; vswitch never turns off.
 
+**Result:** ✅ Pass (2026-06-10)
+
 **After Test 1:** set timer back to `2` for Tests 2–4.
 
 ---
@@ -79,6 +81,8 @@ To monitor the SmartThings side: open the SmartThings app → Devices →
 
 **Pass:** vswitch turns off after timer expires with no one present.
 
+**Result:** ✅ Pass (2026-06-10)
+
 ---
 
 ## Test 3 — Second person enters while first is present
@@ -91,6 +95,8 @@ should not flicker or turn off.
 3. Confirm vswitch stays `on` throughout — no off→on toggle
 
 **Pass:** vswitch remains on without any interruption.
+
+**Result:** ✅ Pass (2026-06-10)
 
 ---
 

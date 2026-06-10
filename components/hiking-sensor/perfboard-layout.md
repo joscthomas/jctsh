@@ -176,6 +176,71 @@ Measured voltages: IN+ = 0.47V (USB absent) → midpoint ≈ 0.28V (LOW). IN+ = 
 
 ---
 
+## Connector and Harness Plan
+
+Connector types are decided below. Harness lengths, exact mounting positions, and
+micro USB access approach are all TBD pending enclosure design (Step 15).
+
+### Connection Summary
+
+| Connection | From | To | Connector | Status |
+|---|---|---|---|---|
+| Battery | LiPo JST plug | TP4056 BAT+/BAT− | JST PH 2.0mm receptacle soldered to BAT pads | Decided |
+| Solar input | SUNYIMA panel | TP4056 IN+/IN− | JST SM 2-pin (Bag 14) panel-mount on enclosure wall | Decided; position TBD |
+| VOUT+ (switched) | TP4056 VOUT+ | Slide switch → perfboard VIN | Silicone wire; switch panel-mounted on enclosure | Position TBD |
+| VOUT− | TP4056 VOUT− | Perfboard GND header | Silicone wire, direct (no switch) | Decided |
+| E-ink display | Perfboard 8-pin header | Waveshare display cable | 8-pin male header + female housing on display end | Decided; length ~10–15cm |
+| Dock detect tap | TP4056 IN+ pad | Perfboard R3 top pad | Single silicone wire, soldered at both ends — no connector | Decided |
+| Charging input | USB charger | TP4056 micro USB | Panel-mount micro USB extension or enclosure cutout | TBD |
+| TP4056 mounting | TP4056 module | Enclosure floor | M2 standoffs (preferred) or foam tape | TBD |
+
+### Battery Connector (BAT+/BAT−)
+
+The LiPo (EEMB 1100mAh) has a built-in JST PH 2.0mm plug. The TP4056 has bare BAT+/BAT− pads.
+Solder a JST PH 2.0mm female receptacle to the BAT pads. Polarity confirmed: red = BAT+, black = BAT−
+(see power-system.md Step 1).
+
+### Solar Input Connector (IN+/IN−)
+
+JST SM 2-pin panel-mount receptacle on enclosure wall — female receptacle mounted through the wall,
+short internal wire from receptacle to TP4056 IN+/IN− pads. The SUNYIMA panel connects via its
+existing JST plug to the external side of the receptacle.
+
+The IN+ pad also has a dock detect tap wire soldered to it — this is a solder junction at the pad,
+not a separate connector. Solar connected while hiking will read as docked and suppress data
+collection. Acceptable for now; revisit if solar-while-hiking use case arises.
+
+### VOUT+ Slide Switch Harness
+
+The switch interrupts VOUT+ only. VOUT− runs direct from TP4056 to perfboard.
+
+```
+TP4056 VOUT+ ── wire ── switch terminal 1
+                        switch terminal 2 ── wire ── perfboard VIN header pin 1
+TP4056 VOUT− ── wire ─────────────────────────────── perfboard GND header pin 2
+```
+
+Two wire segments on the VOUT+ side (TP4056→switch, switch→perfboard). Use silicone wire.
+Exact lengths TBD once enclosure dimensions and switch position are known.
+
+### Micro USB Charging Access
+
+Two options — decide when enclosure is selected:
+- **Panel-mount extension (preferred):** short male-to-female micro USB extension; female end
+  mounts through enclosure wall; TP4056 micro USB connects to the male end internally.
+  TP4056 position is flexible.
+- **Cutout:** opening in enclosure wall aligned with the TP4056 micro USB port. Requires
+  precise TP4056 positioning against the wall.
+
+### TP4056 Mounting
+
+Preferred: M2 standoffs screwed into enclosure floor — two screws, stable, removable.
+Alternative: double-sided foam tape — faster but not removable without damage.
+Position TBD pending enclosure selection; keep close to the USB charging port side to
+minimise the micro USB extension run.
+
+---
+
 ## Assembly Sequence
 
 1. **Mark header positions** — place ESP32 on bare perfboard, mark the two header rows with pencil. Verify 9-hole spacing matches your specific ESP32 before soldering anything.

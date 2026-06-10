@@ -112,6 +112,8 @@ should not flicker or turn off.
 
 **Pass:** keepalive stops firing once radar is off; vswitch stays off.
 
+**Result:** ✅ Pass (2026-06-10)
+
 ---
 
 ## If a test fails

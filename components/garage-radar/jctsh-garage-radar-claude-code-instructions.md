@@ -4,7 +4,7 @@
 **Version:** 1.3
 **Version description:** Corrected logging, watchdog, and SmartThings integration based on CLAUDE.md. Log format is JSON to /log topic. Watchdog is a new Node-RED flow built as part of this project. SmartThings path is Node-RED → HA REST API → virtual switch. Added MQTT account creation step. Added Node-RED watchdog flow build to Step 4.5. Added HA companion app phone notification as watchdog alert.
 **Project:** JCTsh — Smart Home Automation
-**Status:** In progress — Steps 1–7 complete, Step 8 (HA / Node-RED Integration) next
+**Status:** In progress — Steps 1–9 complete, Step 10 (Final Documentation) next
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md, JCTsh-Build-Standards.md
 
 ---
@@ -287,6 +287,7 @@ Unit mounted. MQTT still publishing correctly after installation.
 ---
 
 ## Step 8 — Home Assistant / Node-RED Integration
+✅ Complete
 
 **Claude Code does:**
 Before writing any automation code, investigate:
@@ -310,6 +311,7 @@ Integration complete. Garage-radar wired in as additive presence input.
 ---
 
 ## Step 9 — End-to-End Validation
+✅ Complete
 
 **Claude Code does:**
 Create `components/garage-radar/end-to-end-test.md` — full system validation including:

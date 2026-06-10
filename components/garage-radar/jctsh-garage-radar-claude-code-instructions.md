@@ -4,7 +4,7 @@
 **Version:** 1.3
 **Version description:** Corrected logging, watchdog, and SmartThings integration based on CLAUDE.md. Log format is JSON to /log topic. Watchdog is a new Node-RED flow built as part of this project. SmartThings path is Node-RED → HA REST API → virtual switch. Added MQTT account creation step. Added Node-RED watchdog flow build to Step 4.5. Added HA companion app phone notification as watchdog alert.
 **Project:** JCTsh — Smart Home Automation
-**Status:** In progress — Step 4.5 complete, Step 4.6 ready to begin
+**Status:** In progress — Steps 1–6 complete, Step 7 (Physical Mount) next
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md, JCTsh-Build-Standards.md
 
 ---
@@ -204,6 +204,7 @@ Updated breadboard assembly complete. Watchdog flow active. SmartThings motion s
 ---
 
 ## Step 4.6 — Enhancement Validation on Breadboard
+✅ Complete
 
 **Claude Code does:**
 Update `components/garage-radar/testing.md` to add enhancement validation:
@@ -226,6 +227,7 @@ Diagnose any failures and update YAML, Node-RED flows, or integration configurat
 ---
 
 ## Step 5 — Perfboard Transfer
+✅ Complete
 
 **Claude Code does:**
 Create `components/garage-radar/perfboard-layout.md` — permanent build instructions including:
@@ -248,6 +250,7 @@ Perfboard build complete and continuity checks passed.
 ---
 
 ## Step 6 — Soldered Board Validation
+✅ Complete
 
 **Claude Code does:**
 Nothing new — Joseph re-runs the full testing.md procedure (Steps 4 and 4.6) against the soldered board.

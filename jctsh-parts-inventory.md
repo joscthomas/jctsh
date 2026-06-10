@@ -197,3 +197,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-06-06 | Stock | Gebildet slide switch assortment added (Prototyping and Build Hardware, Plastic Box); FEITA 900M-T soldering tips ×5 added (Tools — Consumables, Bench) |
 | 2026-06-05 | Stock | iCrimp SN-28B crimping tool added (Tools — Bench Equipment, Shelf); Taiss 600pc Dupont connector kit added (Prototyping and Build Hardware, Plastic Box) |
 | 2026-06-04 | hiking-sensor | ESP32 ×1 used; BME280 ×1 used; LTR-390 ×1 used; e-ink display ×1 used; push button ×1 used; EEMB LiPo ×1 used; TP4056+boost ×1 used |
+| 2026-06-10 | garage-radar | Build complete. ESP32 ×1 used; HLK-LD2412 ×1 used; green LED ×1 used; yellow LED ×1 used; 330Ω resistors ×2 used; female headers (19-pin ×2, 4-pin ×1) used; M3 standoffs ×4 used; 5×7cm perfboard ×1 used |

@@ -148,6 +148,7 @@ component `jctsh-core`. No Node-RED involvement — core infrastructure only.
 These files under `core/` are version-controlled snapshots only. The live copies
 are on the Pi. To update: edit on Pi, then copy back here.
 - `core/node-red/core.flow.json` — MQTT broker node (import first when re-importing flows)
+- `core/node-red/watchdog.flow.json` — component heartbeat watchdog; wildcard `jctsh/+/+/heartbeat`; push notification via HA companion app if silent for 10 min. See `core/node-red/watchdog-README.md`.
 - `core/node-red/settings.js` — Node-RED settings (contains bcrypt password hash)
 - `core/mqtt/mosquitto.conf` — Mosquitto configuration
 - `core/homeassistant/configuration.yaml` — HA config (do not modify)

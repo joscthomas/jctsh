@@ -203,4 +203,4 @@ See `flashing.md` for full details and troubleshooting.
 
 ## Status
 
-Steps 1–9 validated on breadboard. Step 5 (perfboard transfer) complete. Step 6 (soldered board validation) next — power via USB and run `testing.md`. Step 7 (permanent mounting) pending.
+All steps complete (2026-06-10). Mounted in garage without enclosure. Running in production.

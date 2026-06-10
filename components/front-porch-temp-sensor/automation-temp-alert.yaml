@@ -27,11 +27,9 @@ action:
     data:
       title: Front Porch Temp Reminder
       message: >
-        Front porch is still {{ states('sensor.front_porch_temp_sensor_temperature') | round(1) }}°F
-        and the front door is still open.
+        Front porch is {{ states('sensor.front_porch_temp_sensor_temperature') | round(1) }}°F.
   - service: notify.mobile_app_pixel_7_pro
     data:
       title: Front Porch Temp Reminder
       message: >
-        Front porch is still {{ states('sensor.front_porch_temp_sensor_temperature') | round(1) }}°F
-        and the front door is still open.
+        Front porch is {{ states('sensor.front_porch_temp_sensor_temperature') | round(1) }}°F.

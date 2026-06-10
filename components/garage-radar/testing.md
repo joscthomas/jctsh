@@ -101,11 +101,11 @@ mosquitto_sub -h 192.168.1.117 -u jctsh-log-server -P <password-from-log-server.
 ## Pass criteria
 
 All 5 tests pass when:
-- [ ] Baseline shows no presence with empty detection zone
-- [ ] Moving presence detected within 1–3 meters
-- [ ] Still presence detected after stopping
-- [ ] 30-second holdoff confirmed on departure
-- [ ] Detection range appropriate for garage installation point
+- [x] Baseline shows no presence with empty detection zone
+- [x] Moving presence detected within 1–3 meters
+- [x] Still presence detected after stopping
+- [x] 30-second holdoff confirmed on departure
+- [x] Detection range appropriate for garage installation point
 
 ---
 
@@ -215,7 +215,7 @@ name in HA (Settings → Companion App).
 ## Step 4.6 pass criteria
 
 - [x] Green LED lights on presence, extinguishes after 30s timeout
-- [ ] Yellow LED mirrors garage presence vswitch state
+- [x] Yellow LED mirrors garage presence vswitch state
 - [ ] All log message types appear in the dashboard
 - [ ] Heartbeat appears every 5 minutes
 - [ ] Watchdog push notification received within 10 minutes of ESP32 power-off

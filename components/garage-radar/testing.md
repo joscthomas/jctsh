@@ -130,7 +130,7 @@ Walk in front of the radar and confirm:
 - [ ] Green LED extinguishes approximately 30 seconds after you leave the detection zone
   (it follows the `delayed_off: 30s` filter, not the raw radar state)
 
-If the LED does not light: check GPIO25 wiring — resistor orientation, LED polarity
+If the LED does not light: check GPIO33 wiring — resistor orientation, LED polarity
 (flat side / short leg = cathode = GND side).
 
 ---

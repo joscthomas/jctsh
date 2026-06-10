@@ -185,8 +185,8 @@ script:
             - delay: 1s
 
 # ── Binary sensors ────────────────────────────────────────────────────────────
-# Presence uses a template sensor filtered to detection_dist <= 375cm (~12 ft)
-# to exclude false still-target detections from the far wall (~600cm).
+# Presence uses a template sensor filtered to detection_dist <= 210cm (~7 ft)
+# to exclude false detections from the driveway and far wall.
 # has_target (raw) is kept internal for LD2412 component operation.
 binary_sensor:
   - platform: ld2412
@@ -206,7 +206,7 @@ binary_sensor:
     device_class: occupancy
     lambda: |-
       float dist = id(detection_dist).state;
-      return !isnan(dist) && dist > 0 && dist <= 375;
+      return !isnan(dist) && dist > 0 && dist <= 210;
     filters:
       - delayed_off: 30s
     on_state:

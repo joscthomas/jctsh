@@ -73,16 +73,16 @@ The Waveshare V4 HAT is designed for a Raspberry Pi 40-pin header. For the ESP32
 
 The HAT has a connector with pre-attached color wires, each labeled. Connect each wire directly to the corresponding ESP32 breadboard row:
 
-| Wire color | Label | ESP32 pin |
-|---|---|---|
-| Grey | VCC | 3.3V |
-| Brown | GND | GND |
-| Blue | DIN | GPIO23 |
-| Yellow | CLK | GPIO18 |
-| Orange | CS | GPIO5 |
-| Green | DC | GPIO17 |
-| White | RST | GPIO16 |
-| Purple | BUSY | GPIO4 |
+| Wire color | Label | ESP32 pin     |
+|---|---|---------------|
+| Grey | VCC | 3.3V          |
+| Brown | GND | GND           |
+| Blue | DIN | GPIO23 pin 37 |
+| Yellow | CLK | GPIO18 pin 30 |
+| Orange | CS | GPIO5 pin 29  |
+| Green | DC | GPIO17 pin 28 |
+| White | RST | GPIO16 pin27  |
+| Purple | BUSY | GPIO4 pin 26  |
 
 **Notes:**
 - Display operates at 3.3V logic — no level shifting needed with ESP32.

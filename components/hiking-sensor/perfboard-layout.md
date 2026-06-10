@@ -34,9 +34,9 @@ row 4  |  .  L  .  .  .  .  .  .  .   .   R   .   .   .   .   .   .   .  |
 row 5  |  .  L  .  .  .  .  .  .  .   .   R   .  [LTR-390 header      ]  |
 row 6  |  .  L  .  .  .  .  .  .  .   .   R   .   .   .   .   .   .   .  |
        |  .  L  .  .  .  .  .  .  .   .   R   .   .   .   .   .   .   .  |
-       |  .  L  .  .  .  .  .  .  .   .   R   .  [voltage divider R1  ]  |
+       |  .  L  .  .  .  .  .  .  .   .   R   .  [R1 100kΩ            ]  |
        |  .  L  . (ESP32 body)  .  .   .   R   .   .  R1..mid..R2      .  |
-       |  .  L  .  .  .  .  .  .  .   .   R   .  [voltage divider R2  ]  |
+       |  .  L  .  .  .  .  .  .  .   .   R   .  [R2 100kΩ            ]  |
        |  .  L  .  .  .  .  .  .  .   .   R   .   .   .   .   .   .   .  |
        |  .  L  .  .  .  .  .  .  .   .   R   .   .   .   .   .   .   .  |
        |  .  L  .  .  .  .  .  .  .   .   R   .  [e-ink harness hdr   ]  |
@@ -65,7 +65,7 @@ R = right ESP32 female header (col 11, 19 pins, 9-hole spacing from L)
 |---|---|---|
 | ESP32 female headers | Cols 2 and 11, rows 2–20 | Standard 19-pin removable headers |
 | LTR-390 breakout | Right zone, rows 2–5 | Top of board = closest to sky-facing enclosure opening |
-| Voltage divider (R1+R2) | Right zone, rows 8–14 | Center of board; short wire to BAT+ harness |
+| Voltage divider (R1+R2) | Right zone, rows 8–14 | R1=100kΩ (top), R2=100kΩ (bottom); short wire to BAT+ harness |
 | E-ink harness header | Right zone, rows 15–18 | 8-pin male header; labeled wires connect to display |
 | BME280 breakout | Right zone, rows 17–20 | Bottom of board = farthest from ESP32 (minimizes self-heating error) |
 | Power-in header (VIN/GND) | Bottom zone, cols 3–5, row 23 | 2-pin JST or male header; slide switch output → VIN, VOUT- → GND |
@@ -84,10 +84,10 @@ R = right ESP32 female header (col 11, 19 pins, 9-hole spacing from L)
 | Power-in header pin 1 | ESP32 VIN | Via perfboard trace or jumper |
 | TP4056 VOUT− | Power-in header pin 2 | Common ground |
 | Power-in header pin 2 | ESP32 GND | Via perfboard trace or jumper |
-| TP4056 BAT+ | R1 top leg (battery voltage divider) | Battery voltage sense — separate wire from TP4056 to divider |
-| TP4056 IN+ | R3 top leg (dock detect divider) | USB VBUS tap — separate wire from TP4056 to dock detect divider |
+| TP4056 BAT+ | R1 (100kΩ) top leg (battery voltage divider) | Battery voltage sense — separate wire from TP4056 to divider |
+| TP4056 IN+ | R3 (68kΩ) top leg (dock detect divider) | USB VBUS tap — separate wire from TP4056 to dock detect divider |
 | ESP32 3.3V | LTR-390 VIN, BME280 VCC | Short jumpers to sensor header VCC pins |
-| ESP32 GND | LTR-390 GND, BME280 GND, R2 bottom leg, R4 bottom leg | Short jumpers to sensor header GND pins |
+| ESP32 GND | LTR-390 GND, BME280 GND, R2 (100kΩ) bottom leg, R4 (100kΩ) bottom leg | Short jumpers to sensor header GND pins |
 
 ### I2C (BME280 + LTR-390)
 
@@ -139,7 +139,7 @@ R1 and R2 are through-hole 100kΩ 1/4W axial resistors soldered directly to the 
 
 Four solder pads, roughly in a line:
 - Pad 1: BAT+ (wire runs off-board to TP4056 BAT+)
-- Pad 2: midpoint (GPIO35 jumper + R1 bottom + R2 top)
+- Pad 2: midpoint (GPIO35 jumper + R1 (100kΩ) bottom + R2 (100kΩ) top)
 - Pad 3: GND
 - Pad 4 (optional): tie to GPIO35 jumper wire anchor
 
@@ -253,7 +253,7 @@ minimise the micro USB extension run.
 
 5. **Solder sensor headers** — 4-pin female headers for BME280 and LTR-390 in their respective zones. Confirm LTR-390 header is oriented so the sensor chip faces upward when the board is in its mounted position.
 
-6. **Solder voltage divider** — R1 and R2 in-line, midpoint pad to GPIO35 jumper.
+6. **Solder voltage divider** — R1 (100kΩ) and R2 (100kΩ) in-line, midpoint pad to GPIO35 jumper.
 
 7. **Solder e-ink harness header** — 8-pin male header. Label each pin with a fine-tip marker or small paper flags before attaching wires.
 

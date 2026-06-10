@@ -218,7 +218,7 @@ name in HA (Settings → Companion App).
 - [x] Yellow LED mirrors garage presence vswitch state
 - [x] All log message types appear in the dashboard
 - [x] Heartbeat appears every 5 minutes
-- [ ] Watchdog push notification received within 10 minutes of ESP32 power-off
-- [ ] Watchdog resets when ESP32 comes back online
+- [x] Watchdog push notification received within 10 minutes of ESP32 power-off
+- [x] Watchdog resets when ESP32 comes back online
 
 If all pass, proceed to `perfboard-layout.md` (Step 5).

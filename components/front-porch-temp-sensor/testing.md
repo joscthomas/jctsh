@@ -3,9 +3,8 @@
 Run all tests with the breadboard prototype before transferring to perfboard.
 
 **Automation logic summary:**
-- **Alert:** temp >= threshold AND time between 6am–10pm → notify both phones
-- **Reminder:** 15 minutes after alert, fires once (mode: single)
-- **Dropping:** temp < threshold AND time between 6am–10pm → notify both phones
+- **Warm/Close Door:** temp stays ≥ threshold for 10 min AND 6am–10pm → notify both phones once
+- **Cool/Open Door:** temp stays < threshold for 10 min AND 6am–1pm → notify both phones once
 
 ---
 
@@ -61,44 +60,33 @@ Open `http://raspberrypi.local/` (Basic Auth, user: `jctsh`).
 
 ---
 
-## 7. Full Alert Test
+## 7. Warm/Close Door Test
 
 1. Raise threshold to 95°F (forces a crossing when lowered)
-2. Lower threshold to 75°F — both phones should receive alert within 60 seconds:
-   - Title: "Front Porch Temp Alert"
-   - Message includes current temperature
+2. Lower threshold to 75°F — wait up to 10 minutes; both phones should receive one notification:
+   - Title: "Front Porch Warm"
+   - Message includes current temperature and "Consider closing the door."
+3. Confirm only one notification fires (no follow-up reminder)
 
-- [x] Alert received on both phones
-
----
-
-## 8. Reminder Test
-
-1. Leave conditions unchanged after alert fires in step 7
-2. Wait 15 minutes
-3. Both phones receive reminder:
-   - Title: "Front Porch Temp Reminder"
-   - Message includes current temperature
-
-- [x] Reminder received on both phones
+- [ ] Notification received on both phones
+- [ ] No second notification after waiting 15+ minutes
 
 ---
 
-## 9. Dropping Test
+## 8. Cool/Open Door Test
 
-1. Raise threshold above current temperature (forces a crossing)
-2. Both phones receive dropping notification:
-   - Title: "Front Porch Temp Dropping"
-   - Message includes current temperature
+1. Raise threshold above current temperature (forces a below crossing)
+2. Wait up to 10 minutes between 6am–1pm; both phones receive one notification:
+   - Title: "Front Porch Cool"
+   - Message includes current temperature and "Good time to open the door."
 
-- [x] Dropping notification received on both phones
+- [ ] Notification received on both phones
 
 ---
 
-## 10. Restore
+## 9. Restore
 
-- [x] Set temp threshold back to 80°F
-- [x] Close front door
+- [ ] Set temp threshold back to 80°F
 
 ---
 
@@ -112,7 +100,6 @@ Open `http://raspberrypi.local/` (Basic Auth, user: `jctsh`).
 | 4. Watchdog | Pass | |
 | 5. Lux sensor | Pass | Took ~30 seconds to rise after uncovering |
 | 6. Alert suppression — time window | Skipped | |
-| 7. Full alert | Pass | |
-| 8. Reminder | Pass | |
-| 9. Dropping | Pass | |
-| 10. Restore | Pass | |
+| 7. Warm/Close Door | | |
+| 8. Cool/Open Door | | |
+| 9. Restore | | |

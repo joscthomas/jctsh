@@ -73,21 +73,17 @@ Both phones must appear. If a phone is missing:
 > and sensor names `Temperature` / `Illuminance`. Verify in Developer Tools → States after
 > flashing — if the actual IDs differ, update this document before creating automations.
 
-### Automation 1 — Front Porch Temp Alert + Reminder
+### Automation 1 — Front Porch Warm - Close Door
 
-File: `automation-temp-alert.yaml`
+File: `automation-front-porch-warm-close-door.yaml`
 
-Create in HA: Settings → Automations → New Automation → Edit in YAML (top right) → paste contents of `automation-temp-alert.yaml`.
+Create in HA: Settings → Automations → New Automation → Edit in YAML (top right) → paste contents of `automation-front-porch-warm-close-door.yaml`.
 
-### Automation 2 — Front Porch Temp Dropping
+### Automation 2 — Front Porch Cool - Open Door
 
-File: `automation-temp-dropping.yaml`
+File: `automation-front-porch-cool-open-door.yaml`
 
-Create in HA: Settings → Automations → New Automation → Edit in YAML (top right) → paste contents of `automation-temp-dropping.yaml`.
-
-> **After Joseph confirms notify entity IDs in Step 8**, replace all instances of
-> `notify.mobile_app_pixel_10_pro_xl` and `notify.mobile_app_pixel_7_pro` with the actual entity IDs
-> (e.g. `notify.mobile_app_pixel_10_pro`).
+Create in HA: Settings → Automations → New Automation → Edit in YAML (top right) → paste contents of `automation-front-porch-cool-open-door.yaml`.
 
 ---
 

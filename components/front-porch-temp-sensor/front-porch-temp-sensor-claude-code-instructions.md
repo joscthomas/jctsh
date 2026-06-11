@@ -314,25 +314,20 @@ Creation path: HA Settings → Devices & Services → Helpers → Add Helper →
 
 **Claude Code does:** Using confirmed notify entity IDs from Step 8, add to `integration.md` — complete YAML for both automations, ready to paste into HA UI (Settings → Automations → Edit in YAML).
 
-### Automation 1 — Front Porch Temp Alert + Reminder (`mode: single`)
+### Automation 1 — Front Porch Warm - Close Door (`mode: single`)
 
-- **Trigger:** temperature sensor rises above `input_number.front_porch_temp_threshold`
-- **Conditions:**
-  - `binary_sensor.front_door_door` is `on` (open)
-  - illuminance sensor is above `input_number.front_porch_lux_threshold`
+- **Trigger:** `numeric_state` — temperature stays ≥ `input_number.front_porch_temp_threshold` for 10 minutes
+- **Condition:** time 6am–10pm
 - **Actions:**
-  1. Notify both phones — title: "Front Porch Temp Alert", message: "Front porch is {{ states('sensor.front_porch_temp_sensor_temperature') | round(1) }}°F and the front door is open. Consider closing the door."
-  2. `delay: 00:15:00`
-  3. Condition check: `binary_sensor.front_door_door` is still `on`
-  4. If condition met: notify both phones — title: "Front Porch Temp Reminder", message: "Front porch is still {{ states('sensor.front_porch_temp_sensor_temperature') | round(1) }}°F and the front door is still open."
+  1. Notify both phones — title: "Front Porch Warm", message includes current temperature and "Consider closing the door."
 - **Mode:** `single`
 
-### Automation 2 — Front Porch Temp Clear (`mode: single`)
+### Automation 2 — Front Porch Cool - Open Door (`mode: single`)
 
-- **Trigger:** temperature sensor drops below `input_number.front_porch_temp_threshold`
-- **Conditions:** None
+- **Trigger:** `numeric_state` — temperature stays < `input_number.front_porch_temp_threshold` for 10 minutes
+- **Condition:** time 6am–1pm
 - **Actions:**
-  1. Notify both phones — title: "Front Porch Temp OK", message: "Front porch temperature has dropped to {{ states('sensor.front_porch_temp_sensor_temperature') | round(1) }}°F."
+  1. Notify both phones — title: "Front Porch Cool", message includes current temperature and "Good time to open the door."
 - **Mode:** `single`
 
 **Joseph does:** Create both automations in HA UI per integration.md.

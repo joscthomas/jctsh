@@ -62,8 +62,8 @@ BME280 (temp/pressure sensor)  BH1750 (light sensor)
      Pressure sensor         .../log → log dashboard
      Illuminance sensor      watchdog: heartbeat monitor
           │
-          ├── Front Porch Temp Alert + Reminder automation
-          └── Front Porch Temp Dropping automation
+          ├── Front Porch Warm - Close Door automation
+          └── Front Porch Cool - Open Door automation
                     │
                     ▼
            notify.mobile_app_pixel_10_pro_xl
@@ -84,12 +84,12 @@ Every 5 minutes, the firmware publishes a heartbeat to `jctsh/components/front-p
 
 ### Notifications
 
-Two HA automations use template triggers for precise threshold crossing detection:
+Two HA automations use `numeric_state` triggers with a 10-minute stability buffer — each fires once per threshold crossing, no reminders:
 
-| Automation | Condition | Action |
-|---|---|---|
-| Front Porch Temp Alert + Reminder | temp ≥ threshold AND 6am–10pm | Alert both phones immediately; reminder both phones 15 min later (once) |
-| Front Porch Temp Dropping | temp < threshold AND 6am–10pm | Notify both phones |
+| Automation | Trigger | Time Window | Action |
+|---|---|---|---|
+| Front Porch Warm - Close Door | temp stays ≥ threshold for 10 min | 6am–10pm | Notify both phones once |
+| Front Porch Cool - Open Door | temp stays < threshold for 10 min | 6am–1pm | Notify both phones once |
 
 Threshold is configurable via `input_number.front_porch_temp_threshold` (default 80°F). Adjust in HA: Settings → Devices & Services → Helpers.
 
@@ -110,7 +110,7 @@ No door sensor dependency — notifications fire based on temperature and time w
 | `testing.md` | End-to-end test procedure (Step 11) |
 | `perfboard-layout.md` | Perfboard transfer instructions (Step 12) |
 | `mounting.md` | Physical mounting instructions (Step 13) |
-| `automation-temp-alert.yaml` | HA automation YAML — alert + reminder |
-| `automation-temp-dropping.yaml` | HA automation YAML — temp dropping |
+| `automation-front-porch-warm-close-door.yaml` | HA automation YAML — warm/close door |
+| `automation-front-porch-cool-open-door.yaml` | HA automation YAML — cool/open door |
 | `dashboard-card.yaml` | Reference entity list for HA Overview |
 | `ESP32pins.png` | ESP32 DevKitC-32 pinout reference |

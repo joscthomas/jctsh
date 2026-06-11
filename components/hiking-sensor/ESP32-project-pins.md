@@ -14,7 +14,7 @@
 |                                 | 8 | GPIO33 | GPIO19 | 31 |                                                    |
 |                                 | 9 | GPIO25 | GPIO18 | 30 | CLK (e-ink) yellow                                 |
 |                                 | 10 | GPIO26 | GPIO5 | 29 | CS (e-ink) orange                                  |
-|                                 | 11 | GPIO27 | GPIO17 | 28 | DC (e-ink) green                                   |
+| Slide switch (hiking mode)      | 11 | GPIO27 | GPIO17 | 28 | DC (e-ink) green                                   |
 |                                 | 12 | GPIO14 | GPIO16 | 27 | RST (e-ink) white                                  |
 |                                 | 13 | GPIO12 | GPIO4 | 26 | BUSY (e-ink) purple                                |
 |                                 | 14 | GND | GPIO0 ⚠️ | 25 |                                                    |

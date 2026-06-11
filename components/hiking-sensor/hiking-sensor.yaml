@@ -5,6 +5,7 @@
 #           + Waveshare 2.13" e-ink V4 SSD1680 (SPI)
 #           + Dock detect: TP4056 IN+ → 68kΩ+100kΩ divider → GPIO32
 #           + Voltage divider → battery ADC (GPIO35)
+#           + Slide switch → GPIO27 (hiking mode signal, active-LOW)
 #           + EEMB 1100mAh LiPo + TP4056+boost module
 #
 # GPIO assignments:
@@ -16,7 +17,8 @@
 #   GPIO4   BUSY (e-ink busy input)
 #   GPIO21  I2C SDA (BME280 + LTR-390 shared bus)
 #   GPIO22  I2C SCL (BME280 + LTR-390 shared bus)
-#   GPIO32  Dock detect (TP4056 IN+ → 68kΩ+100kΩ divider, HIGH=docked, LOW=field)
+#   GPIO27  Slide switch (internal pull-up; LOW = switch ON = hiking mode)
+#   GPIO32  Dock detect (TP4056 IN+ → 68kΩ+100kΩ divider, HIGH=USB present)
 #   GPIO35  Battery voltage ADC (voltage divider output, input-only pin)
 #
 # MQTT topics (prefix: jctsh/components/hiking-monitor):
@@ -25,11 +27,13 @@
 #   .../heartbeat  — 5-min heartbeat when home WiFi connected (wildcard monitored by Node-RED watchdog)
 #
 # Operating modes:
-#   Field mode (no WiFi): read sensors → write JSON to LittleFS /hike_log.jsonl
-#   Home mode  (WiFi+MQTT connected): replay LittleFS log → MQTT; live readings → MQTT directly
+#   Field mode  (switch ON, no WiFi): read sensors → write JSON to LittleFS /hike_log.jsonl
+#   Home mode   (switch ON, WiFi+MQTT): replay LittleFS log → MQTT; live readings → MQTT directly
+#   Upload mode (switch OFF, USB connected): auto-wake via dock detect → replay log → sleep
+#   Sleep mode  (switch OFF, no USB): deep sleep ~10µA
 #
 # Sensor update interval: 2 minutes
-# Heartbeat interval: 5 minutes (home mode only)
+# Heartbeat interval: 5 minutes (home/upload mode only)
 #
 # NOTE on e-ink model string: 2.13in-ttgo-b74 is the expected SSD1680 model.
 # If the display shows garbage or doesn't initialize, try 2.13in-b74 or check
@@ -47,6 +51,15 @@ esphome:
     - priority: -100.0
       then:
         - component.update: hiking_display
+    - priority: -200.0
+      then:
+        - if:
+            condition:
+              and:
+                - binary_sensor.is_off: slide_switch
+                - binary_sensor.is_off: dock_detect
+            then:
+              - deep_sleep.enter: deep_sleep_control
 
 esp32:
   board: esp32dev
@@ -73,6 +86,22 @@ logger:
 ota:
   - platform: esphome
     password: !secret ota_password
+
+# ── Deep sleep ────────────────────────────────────────────────────────────────
+# Wake sources:
+#   ext0 GPIO27 LOW  — slide switch turned ON → hiking mode
+#   ext1 GPIO32 HIGH — USB connected (dock detect) → upload mode
+# Sleep is triggered via deep_sleep.enter (never automatic).
+deep_sleep:
+  id: deep_sleep_control
+  wakeup_pin:
+    number: GPIO27
+    inverted: true      # ext0: wake when GPIO27 goes LOW (switch closed)
+  esp32_ext1_wakeup:
+    mode: ANY_HIGH
+    pins:
+      - number: GPIO32
+        allow_other_uses: true
 
 # ── NTP time sync ─────────────────────────────────────────────────────────────
 # No RTC hardware. Device stays powered in cradle; NTP keeps clock accurate.
@@ -136,6 +165,12 @@ mqtt:
                          "\"message\":\"Hike log replay complete.\"}"), 0, false);
           }
         }
+    - if:
+        condition:
+          binary_sensor.is_off: slide_switch   # Upload mode — sleep after replay
+        then:
+          - delay: 30s
+          - deep_sleep.enter: deep_sleep_control
 
 # ── I2C ───────────────────────────────────────────────────────────────────────
 i2c:
@@ -230,11 +265,31 @@ text_sensor:
       id: wifi_ip
       internal: true
 
-# ── Dock detect ───────────────────────────────────────────────────────────────
-# TP4056 IN+ (USB VBUS) → 68kΩ → midpoint → 100kΩ → GND; midpoint to GPIO32.
-# Measured: IN+ = 0.47V (USB absent), 5.1V (USB present).
-# After divider: ~0.28V (LOW, field) / ~3.04V (HIGH, docked).
+# ── Binary sensors ────────────────────────────────────────────────────────────
+# Slide switch: GPIO27 with internal pull-up. Switch ON (closed) pulls GPIO27 LOW.
+# inverted: true so sensor state TRUE = switch ON = hiking mode.
+# Turning switch OFF triggers deep sleep entry.
 binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO27
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "Slide Switch"
+    id: slide_switch
+    internal: true
+    on_state:
+      - if:
+          condition:
+            binary_sensor.is_off: slide_switch   # Switch turned OFF
+          then:
+            - deep_sleep.enter: deep_sleep_control
+
+  # Dock detect: TP4056 IN+ (USB VBUS) → 68kΩ → midpoint → 100kΩ → GND; midpoint to GPIO32.
+  # Measured: IN+ = 0.47V (USB absent) → 0.28V / 5.1V (USB present) → 3.04V.
+  # HIGH = USB connected (upload mode wake source). LOW = USB removed → return to sleep.
   - platform: gpio
     pin:
       number: GPIO32
@@ -243,19 +298,25 @@ binary_sensor:
     id: dock_detect
     internal: true
     on_state:
-      - mqtt.publish:
-          topic: jctsh/components/hiking-monitor/log
-          payload: !lambda |-
-            if (x)
-              return "{\"component\":\"hiking-monitor\",\"category\":\"System\",\"message\":\"Docked — data suppressed while charging\"}";
-            else
-              return "{\"component\":\"hiking-monitor\",\"category\":\"System\",\"message\":\"Undocked — field mode active\"}";
+      - if:
+          condition:
+            binary_sensor.is_on: dock_detect
+          then:
+            - mqtt.publish:
+                topic: jctsh/components/hiking-monitor/log
+                payload: '{"component":"hiking-monitor","category":"System","message":"Upload mode — USB connected, switch off"}'
+          else:
+            - if:
+                condition:
+                  binary_sensor.is_off: slide_switch
+                then:
+                  - deep_sleep.enter: deep_sleep_control
 
 # ── E-ink Display ─────────────────────────────────────────────────────────────
 # Waveshare 2.13" HAT V4, 250×122, SSD1680
 # Model string: 2.13in-ttgo-b74 (confirm at Step 5 — try alternatives if wrong)
 # Rotation: 90° so 250px is horizontal (landscape)
-# update_interval: never — manual updates only (2-min interval + button)
+# update_interval: never — triggered every 2-min cycle; full refresh each time
 display:
   - platform: waveshare_epaper
     id: hiking_display
@@ -371,9 +432,9 @@ interval:
               ts, temp, hum, pres, uv, batt, rssi);
           }
 
-          // Docked, home mode, or field mode?
-          if (id(dock_detect).state) {
-            // Docked (charging) — suppress publish and log write; display still refreshes
+          // Field mode, home mode, or upload mode (switch off)?
+          if (!id(slide_switch).state) {
+            // Switch OFF — upload mode or unexpected wake; no new data collection
           } else if (id(mqtt_client).is_connected()) {
             id(mqtt_client).publish("jctsh/components/hiking-monitor/data",
                                     std::string(payload), 0, false);

@@ -5,43 +5,48 @@
 | Component | Role |
 |---|---|
 | ESP32 + sensors | Reads temperature, humidity, pressure, UV index every 2 minutes |
-| LiPo battery + TP4056+boost | Power system — boost converter outputs 5.7V to ESP32 |
-| Slide switch (on VOUT+ line) | Powers ESP32 on/off — does not affect battery charging |
-| Dock detect (GPIO32 divider) | Detects USB charger connected; suppresses data collection when docked |
+| LiPo battery + TP4056+boost | Power system — boost converter outputs 5.7V directly to ESP32 VIN |
+| Slide switch (GPIO27 signal) | Signals hiking mode — switch ON pulls GPIO27 LOW; not in power path |
+| Dock detect (GPIO32 divider) | Detects USB charger connected; wakes ESP32 from deep sleep for upload |
 
 ---
 
 ## Operating Modes
 
-### Field Mode (WiFi unavailable)
+### Sleep Mode (switch OFF, no USB)
+- ESP32 in deep sleep (~10μA) — negligible battery drain
+- Wakes on: switch turned ON (GPIO27 LOW) or USB plugged in (GPIO32 HIGH)
+
+### Field Mode (switch ON, no WiFi)
 - ESP32 reads sensors every 2 minutes
 - Each reading is written to onboard storage (`/hike_log.jsonl`)
 - Data accumulates until the device reconnects to home WiFi
-- Display updates every 2 minutes with current readings
+- Display refreshes every 2 minutes with current readings
 
-### Home Mode (WiFi + MQTT connected)
+### Home Mode (switch ON, WiFi + MQTT connected)
 - On connect: all accumulated field readings are replayed to MQTT → Google Sheets immediately
 - Live readings every 2 minutes are published directly to MQTT → Google Sheets
 - Heartbeat published every 5 minutes (visible in log dashboard)
 
-### Docked Mode (USB charger connected)
-- Dock detect (GPIO32) goes HIGH when USB is plugged into the TP4056
-- Data collection and LittleFS writes are suppressed — no new readings logged or published
-- Heartbeat still fires every 5 minutes if WiFi is connected
-- Battery charges independently of the switch position
+### Upload Mode (switch OFF, USB connected)
+- Device auto-wakes when USB is plugged in (dock detect HIGH on GPIO32)
+- Connects to home WiFi and replays all accumulated hike data to Google Sheets
+- No new sensor readings collected or logged
+- Battery charges simultaneously
+- Returns to deep sleep when USB is unplugged
 
 ---
 
 ## Power Switch Behavior
 
-The slide switch interrupts VOUT+ between the TP4056 boost output and ESP32 VIN.
+The slide switch signals hiking mode via GPIO27. VOUT+ runs directly to ESP32 VIN — the switch is not in the power path. Deep sleep replaces the hard power cut.
 
 | Switch | USB to TP4056 | Result |
 |---|---|---|
-| OFF | Unplugged | ESP32 off, battery not charging |
-| OFF | Plugged in | ESP32 off, **battery charging** |
-| ON | Unplugged | ESP32 running from battery |
-| ON | Plugged in | ESP32 running, battery charging |
+| OFF | Unplugged | Deep sleep (~10μA); battery not charging |
+| OFF | Plugged in | Auto-wake → upload mode; battery charging |
+| ON | Unplugged | Active → field or home mode depending on WiFi |
+| ON | Plugged in | Active → home mode; battery charging |
 
 **Battery charges regardless of switch position when USB is connected.**
 
@@ -50,31 +55,28 @@ The slide switch interrupts VOUT+ between the TP4056 boost output and ESP32 VIN.
 ## Standard Workflow
 
 ### Before a Hike
-1. Turn switch **OFF**
-2. Unplug USB charger (undock)
-3. Take the device
+- Confirm switch is OFF (device sleeping)
+- To charge before leaving: plug in USB → device auto-wakes and charges → unplug when done → device returns to sleep
 
 ### Starting the Hike
 1. Turn switch **ON**
-2. Device boots — if no home WiFi in range, enters field mode automatically
+2. Device wakes — if no home WiFi in range, enters field mode automatically
 3. Sensor readings begin within 2 minutes; data written to onboard storage
 
 ### During the Hike
 - No action needed — device reads and logs every 2 minutes
-- Display shows current temp, humidity, pressure trend, and UV index
+- Display shows current temp, humidity, pressure trend, and UV index; refreshes every 2 minutes
 
 ### Ending the Hike
 1. Turn switch **OFF**
-2. Hike data is safely stored in onboard storage until next upload
+2. Device enters deep sleep; hike data safely stored in onboard storage
 
 ### Getting Home — Uploading Data
-1. Plug in USB charger (dock)
-2. Turn switch **ON**
-3. Device boots and connects to home WiFi
-4. Accumulated hike data replays automatically to Google Sheets
-5. Log dashboard shows "Hike log replay complete." when upload finishes
-6. Dock detect suppresses any further new readings
-7. Turn switch **OFF** when done, or leave ON while battery finishes charging
+1. Plug in USB charger — no switch action needed
+2. Device auto-wakes and connects to home WiFi
+3. Accumulated hike data replays automatically to Google Sheets
+4. Log dashboard shows "Hike log replay complete." when upload finishes
+5. Unplug USB — device returns to deep sleep
 
 ---
 
@@ -85,9 +87,8 @@ The slide switch interrupts VOUT+ between the TP4056 boost output and ESP32 VIN.
 | `Hiking monitor online - ESPHome ..., IP: ...` | Device booted and connected to WiFi |
 | `MQTT connected` | MQTT broker connection established |
 | `Replaying N hike readings...` | Uploading accumulated field data |
-| `Hike log replay complete.` | All field data uploaded to Sheets — safe to turn off |
-| `Docked — data suppressed while charging` | USB charger detected; collection paused |
-| `Undocked — field mode active` | USB charger removed; collection active |
+| `Hike log replay complete.` | All field data uploaded to Sheets |
+| `Upload mode — USB connected, switch off` | Auto-woke via dock detect; collecting suppressed |
 | `Heartbeat - uptime: Xh Ym, RSSI: ...` | Device alive, WiFi connected |
 | `MQTT disconnected` | WiFi or broker connection lost |
 

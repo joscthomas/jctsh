@@ -151,23 +151,44 @@ Already confirmed in Step 8 (3.85V). Re-confirm current value is still in range.
 
 ---
 
-### 10 — Dock Detect
+### 10 — Power Switch and Upload Mode
 
-**Check:** USB charger connected to TP4056 suppresses data collection; removal resumes it. Log messages fire on transitions.
+**Check:** Switch OFF → deep sleep. USB connect (switch OFF) → auto-wake → upload mode, no data collection. USB remove → returns to sleep. Switch ON → wakes into hiking mode.
 
-**Prerequisites:** `hiking-hike-events.flow.json` deployed in Node-RED (see Step 11b in `data-pipeline.md`).
+**Prerequisites:** LiPo charged. No USB connected to TP4056 at test start. Home WiFi in range.
 
-**Steps:**
+**Part A — Switch OFF enters deep sleep**
 
-1. With device running and MQTT connected, confirm data rows appearing in Sheets every 2 minutes (`rssi_dbm ≠ 0`)
-2. Plug USB charger into TP4056 IN+
-3. Confirm log dashboard shows: `Docked — data suppressed while charging`
-4. Wait one full 2-minute cycle — confirm **no** new row appears in Sheets
-5. Unplug USB charger
-6. Confirm log dashboard shows: `Undocked — field mode active`
-7. Wait one full 2-minute cycle — confirm new row appears in Sheets with `rssi_dbm ≠ 0`
+1. Turn switch ON → confirm device boots, heartbeats appear in log dashboard every 5 minutes
+2. Turn switch OFF → wait 6+ minutes
+3. Confirm **no** heartbeats appear after switch-off (device is sleeping)
 
-**Pass criteria:** Data publish suppressed while docked. Resumes immediately on undock. Both log messages appear in dashboard.
+**Part B — USB auto-wake → upload mode**
+
+4. Plug USB charger into TP4056 micro USB → wait up to 30 seconds
+5. Confirm log dashboard shows: `Upload mode — USB connected, switch off`
+6. If hike data is stored, confirm: `Replaying N hike readings...` then `Hike log replay complete.`
+7. Wait one full 2-minute cycle — confirm **no** new data rows appear in Sheets (switch is OFF; no collection)
+8. Confirm heartbeats appear while USB is connected and WiFi active
+
+**Part C — USB remove → returns to sleep**
+
+9. Unplug USB → wait 6+ minutes
+10. Confirm **no** heartbeats appear after unplug (device returned to sleep)
+11. Plug USB again → device wakes again (confirms it returned to sleep, not just WiFi dropout)
+12. Unplug USB
+
+**Part D — Switch ON → hiking mode**
+
+13. Turn switch ON → confirm device wakes and connects to WiFi
+14. Wait one full 2-minute cycle — confirm new data row appears in Sheets with `rssi_dbm ≠ 0`
+15. Turn switch OFF → device enters deep sleep
+
+**Pass criteria:**
+- Switch OFF → no heartbeats within 6 minutes
+- USB connect (switch OFF) → `Upload mode` log message; no new Sheets rows
+- USB remove → no heartbeats within 6 minutes; re-plug wakes device again
+- Switch ON → data rows resume in Sheets
 
 ---
 
@@ -205,7 +226,7 @@ Already confirmed in Step 8 (3.85V). Re-confirm current value is still in range.
 | 7 — Google Sheets validation | PASS | dew_point_f and heat_index_f populated; lat/lon blank; source=hiking-monitor |
 | 8 — Battery validation | PASS | battery_v 3.85–4.08V across session; fully charged at start of Step 12 |
 | 9 — Power cycle test | PASS | LiPo disconnected and reconnected; device rebooted and MQTT reconnected cleanly |
-| 10 — Dock detect | PENDING | |
+| 10 — Power switch and upload mode | PENDING | |
 | 11 — Hike start/end event detection | PENDING | |
 
 ---

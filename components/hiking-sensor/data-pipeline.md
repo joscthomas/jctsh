@@ -115,75 +115,9 @@ Leave it empty for now — this sheet is populated by the hiking observations pi
 
 ### Apps Script Code
 
-```javascript
-function doPost(e) {
-  try {
-    // Authenticate via secret key in URL query parameter
-    var expectedKey = PropertiesService.getScriptProperties().getProperty('API_KEY');
-    if (!expectedKey || e.parameter.key !== expectedKey) {
-      return ContentService
-        .createTextOutput(JSON.stringify({status: 'error', message: 'unauthorized'}))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    var payload = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    if (payload.component === 'hiking-observations') {
-      // Route to Hiking Observations sheet
-      var obsSheet = ss.getSheetByName('Hiking Observations');
-      obsSheet.appendRow([
-        payload.ts,
-        payload.observation,
-        JSON.stringify(payload.categories || []),
-        payload.source || 'voice'
-      ]);
-    } else {
-      // Route to Environmental Data sheet
-      var envSheet = ss.getSheetByName('Environmental Data');
-      var v = function(field) {
-        var val = payload[field];
-        return (val !== undefined && val !== null) ? val : '';
-      };
-      envSheet.appendRow([
-        v('ts'),           // A  timestamp
-        v('source'),       // B  source
-        v('lat'),          // C  lat
-        v('lon'),          // D  lon
-        v('temp_f'),       // E  temp_f
-        v('humidity_pct'), // F  humidity_pct
-        v('pressure_hpa'), // G  pressure_hpa
-        v('dew_point_f'),  // H  dew_point_f
-        v('heat_index_f'), // I  heat_index_f
-        v('uv_index'),     // J  uv_index
-        v('irradiance_wm2'),  // K
-        v('wind_speed_mph'),  // L
-        v('wind_dir_deg'),    // M
-        v('rain_tips'),       // N
-        v('rainin'),          // O
-        v('dailyrainin'),     // P
-        v('battery_v'),       // Q
-        v('rssi_dbm'),        // R
-        v('pm1_ug_m3'),       // S
-        v('pm25_ug_m3'),      // T
-        v('pm4_ug_m3'),       // U
-        v('pm10_ug_m3'),      // V
-        v('voc_index'),       // W
-        v('nox_index')        // X
-      ]);
-    }
-
-    return ContentService
-      .createTextOutput(JSON.stringify({status: 'ok'}))
-      .setMimeType(ContentService.MimeType.JSON);
-
-  } catch(err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({status: 'error', message: err.toString()}))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-```
+The complete, deployable source is in `components/hiking-sensor/environmental-data.gs`.
+Paste the entire contents of that file into the Apps Script editor. It contains both
+`doPost(e)` (environmental sensor data) and `doGet(e)` (GPS track write and lookup, Step 19).
 
 ### Set the API Key
 

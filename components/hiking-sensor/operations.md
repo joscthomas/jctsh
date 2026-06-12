@@ -83,16 +83,17 @@ The slide switch signals hiking mode via GPIO27. VOUT+ runs directly to ESP32 VI
 
 ### Starting the Hike
 1. Turn switch **ON**
-2. Device wakes — if no home WiFi in range, enters field mode automatically
-3. Sensor readings begin within 2 minutes; data written to onboard storage
+2. Open **GPSLogger** on the Pixel — logging starts automatically on app launch
+3. Device wakes — if no home WiFi in range, enters field mode automatically
+4. Sensor readings begin within 2 minutes; data written to onboard storage
 
 ### During the Hike
 - No action needed — device reads and logs every 2 minutes
 - Display shows current temp, humidity, pressure trend, and UV index; refreshes every 2 minutes
 
 ### Ending the Hike
-1. Turn switch **OFF**
-2. Device enters deep sleep; hike data safely stored in onboard storage
+1. Turn switch **OFF** — device enters deep sleep; hike data safely stored in onboard storage
+2. Close **GPSLogger** on the Pixel (or leave it — it stops posting when the app is closed)
 
 ### Getting Home — Uploading Data
 1. Plug in USB charger — no switch action needed
@@ -121,7 +122,8 @@ The slide switch signals hiking mode via GPIO27. VOUT+ runs directly to ESP32 VI
 ## Google Sheets
 
 Readings are archived in **JCTsh Environmental Data** (Google Sheets).
-- **Data tab** — raw readings with UTC timestamps
+- **Environmental Data tab** — raw readings with UTC timestamps; one row per sensor reading
 - **View tab** — MST timestamps for readability
+- **GPS Track tab** — trackpoints posted by GPSLogger every 30 seconds during a hike
 
-Each row: timestamp, component, temp (°F), humidity (%), pressure (hPa), UV index, battery voltage (V), RSSI (dBm).
+Each environmental data row: timestamp, component, lat, lon, temp (°F), humidity (%), pressure (hPa), UV index, battery voltage (V), RSSI (dBm). Lat/lon are populated from GPS Track on upload (Step 20).

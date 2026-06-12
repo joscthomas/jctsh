@@ -7,6 +7,30 @@
     "qos": "1",
     "datatype": "auto",
     "broker": "",
+    "wires": [["env-data-gps-prep"]]
+  },
+  {
+    "id": "env-data-gps-prep",
+    "type": "function",
+    "name": "Prepare GPS lookup",
+    "func": "var d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\nmsg._sensorData = d;\nvar ts = d.ts || '';\nmsg.url = env.get('APPS_SCRIPT_URL') + '?key=' + encodeURIComponent(env.get('APPS_SCRIPT_KEY')) + '&action=lookup&ts=' + encodeURIComponent(ts);\nmsg.payload = '';\nreturn msg;",
+    "wires": [["env-data-gps-lookup"]]
+  },
+  {
+    "id": "env-data-gps-lookup",
+    "type": "http request",
+    "name": "GPS lookup",
+    "method": "GET",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "wires": [["env-data-gps-apply"]]
+  },
+  {
+    "id": "env-data-gps-apply",
+    "type": "function",
+    "name": "Apply GPS coords",
+    "func": "var d = msg._sensorData;\nif (msg.statusCode === 200) {\n    try {\n        var gps = JSON.parse(msg.payload);\n        if (gps.lat !== null && gps.lat !== undefined) {\n            d.lat = gps.lat;\n            d.lon = gps.lon;\n        }\n    } catch(e) { }\n}\nmsg.payload = d;\nreturn msg;",
     "wires": [["env-data-process"]]
   },
   {

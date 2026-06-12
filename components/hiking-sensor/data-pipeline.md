@@ -180,11 +180,32 @@ The flow is stored in the repo at `core/node-red/environmental-data.flow.json`.
 
 Import via Node-RED UI → hamburger menu → **Import → Clipboard**, then paste the contents of that file.
 
+### Flow Architecture (Step 20 updated)
+
+```
+MQTT In (jctsh/components/+/data)
+    ↓
+Prepare GPS lookup       — parse payload, build action=lookup GET URL
+    ↓
+GPS lookup               — GET Apps Script action=lookup&ts=<ts>
+    ↓
+Apply GPS coords         — set lat/lon from nearest GPS trackpoint (±5 min); null if no match
+    ↓
+Compute derived fields   — dew_point_f, heat_index_f; build POST body
+    ↓
+POST to Apps Script      — writes row to Environmental Data sheet
+    ↓
+Check response           — log success or alert to MQTT
+    ↓
+Log success/error        — MQTT Out → log dashboard
+```
+
 ### After Import
 
 1. Open the **MQTT In** node (`jctsh/components/+/data`) → select the existing JCTsh MQTT broker
-2. Open both **MQTT Out** nodes → select the same broker
-3. Click **Deploy**
+2. Open the **GPS lookup** HTTP Request node → confirm URL is blank (uses `msg.url` set by function)
+3. Open the **MQTT Out** node → select the same broker
+4. Click **Deploy**
 
 ### Verify the Flow
 
@@ -193,6 +214,7 @@ Trigger a test message manually in Node-RED (inject node or MQTT Explorer) or wa
 - A new row appears in the Environmental Data sheet
 - `dew_point_f` and `heat_index_f` columns are populated
 - `source` column shows `hiking-monitor`
+- `lat`/`lon` populated for field-mode readings with GPS track; null for home-mode readings
 - Log dashboard shows `Sheets row appended for hiking-monitor`
 
 ---

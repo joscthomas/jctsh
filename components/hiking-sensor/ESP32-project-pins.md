@@ -4,17 +4,17 @@
 
 | Assignment                      | Left pin | Left | Right | Right pin | Assignment                                         |
 |---------------------------------|---|---|---|---|----------------------------------------------------|
-| 3.3V rail red                   | 1 | 3V3 | GND | 38 | GND rail black                                     |
+| 3.3V rail red (yellow dot ●)    | 1 | 3V3 | GND | 38 | GND rail black                                     |
 |                                 | 2 | EN | GPIO23 | 37 | DIN (e-ink) blue                                   |
 |                                 | 3 | GPIO36 *(input only)* | GPIO22 | 36 | SCL (BME280 temp sensor, LTR-390 UV sensor) blue   |
 |                                 | 4 | GPIO39 *(input only)* | GPIO1 (TXD) | 35 |                                                    |
 |                                 | 5 | GPIO34 *(input only)* | GPIO3 (RXD) | 34 |                                                    |
-| ADC (batt voltage)              | 6 | GPIO35 *(input only)* | GPIO21 | 33 | SDA (BME280 temp sensor, LTR-390 UV sensor) yellow |
-| Dock detect (TP4056 IN+ divider) | 7 | GPIO32 | GND | 32 | GND rail                                           |
+| ADC (batt voltage) white        | 6 | GPIO35 *(input only)* | GPIO21 | 33 | SDA (BME280 temp sensor, LTR-390 UV sensor) yellow |
+| Dock detect (TP4056 IN+) green  | 7 | GPIO32 | GND | 32 | GND rail                                           |
 |                                 | 8 | GPIO33 | GPIO19 | 31 |                                                    |
 |                                 | 9 | GPIO25 | GPIO18 | 30 | CLK (e-ink) yellow                                 |
 |                                 | 10 | GPIO26 | GPIO5 | 29 | CS (e-ink) orange                                  |
-| Slide switch (hiking mode)      | 11 | GPIO27 | GPIO17 | 28 | DC (e-ink) green                                   |
+| Slide switch (hiking mode) brown | 11 | GPIO27 | GPIO17 | 28 | DC (e-ink) green                                   |
 |                                 | 12 | GPIO14 | GPIO16 | 27 | RST (e-ink) white                                  |
 |                                 | 13 | GPIO12 | GPIO4 | 26 | BUSY (e-ink) purple                                |
 |                                 | 14 | GND | GPIO0 ⚠️ | 25 |                                                    |

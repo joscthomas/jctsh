@@ -35,12 +35,12 @@ Copy `components/garage-radar/ESP32pins.png` to this directory for reference dur
 
 ## BME280 (GY-BME280) Wiring
 
-| BME280 Pin | ESP32 Pin | Notes |
-|---|---|---|
-| VCC | 3.3V | The GY-BME280 has an onboard voltage regulator — connect to 3.3V, not 5V/VIN |
-| GND | GND | |
-| SDA | GPIO21 | I2C data — shared with LTR-390 |
-| SCL | GPIO22 | I2C clock — shared with LTR-390 |
+| BME280 Pin | Wire color | ESP32 Pin | Notes |
+|---|---|---|---|
+| VCC | Red | 3.3V | The GY-BME280 has an onboard voltage regulator — connect to 3.3V, not 5V/VIN |
+| GND | Black | GND | |
+| SDA | Yellow | GPIO21 | I2C data — shared with LTR-390 |
+| SCL | Blue | GPIO22 | I2C clock — shared with LTR-390 |
 
 I2C address: 0x76 (SDO/CSB pin is tied to GND on GY-BME280 breakout).
 
@@ -48,13 +48,13 @@ I2C address: 0x76 (SDO/CSB pin is tied to GND on GY-BME280 breakout).
 
 ## LTR-390 UV Sensor Wiring
 
-| LTR-390 Pin | ESP32 Pin | Notes |
-|---|---|---|
-| VIN | 3.3V | Adafruit breakout has onboard 3.3V regulator — VIN accepts 3.3V directly |
-| GND | GND | |
-| SDA | GPIO21 | I2C data — shared with BME280 |
-| SCL | GPIO22 | I2C clock — shared with BME280 |
-| INT | (not connected) | Interrupt pin — not used |
+| LTR-390 Pin | Wire color | ESP32 Pin | Notes |
+|---|---|---|---|
+| VIN | Red | 3.3V | Adafruit breakout has onboard 3.3V regulator — VIN accepts 3.3V directly |
+| GND | Black | GND | |
+| SDA | Yellow | GPIO21 | I2C data — shared with BME280 |
+| SCL | Blue | GPIO22 | I2C clock — shared with BME280 |
+| INT | — | (not connected) | Interrupt pin — not used |
 
 I2C address: 0x53 (fixed — no configurable address pin).
 No I2C address conflict with BME280 (0x76 ≠ 0x53).
@@ -88,6 +88,20 @@ The HAT has a connector with pre-attached color wires, each labeled. Connect eac
 - Display operates at 3.3V logic — no level shifting needed with ESP32.
 - Keep wires short and tidy — SPI signals can be noise-sensitive at breadboard distances.
 - The 40-pin Pi GPIO header on the HAT is not used.
+- On the perfboard harness header, grey (VCC) is pin 1 — marked with a yellow dot.
+
+---
+
+## TP4056 Perfboard Connector (4-pin)
+
+The TP4056+boost module connects to the main perfboard via a 4-pin female Dupont housing. Pin 1 is marked with a yellow dot on the perfboard header.
+
+| Pin | Signal | Wire color | Destination |
+|---|---|---|---|
+| 1 (yellow dot ●) | IN+ | Green | R3 (68kΩ) top leg — dock detect divider input |
+| 2 | BAT+ | White | R1 (100kΩ) top leg — battery voltage sense divider input |
+| 3 | VOUT− (GND) | Black | ESP32 GND (left pin 14) via power-in header |
+| 4 | VOUT+ | Red | ESP32 VIN (left pin 19) via power-in header — 5.7V boost output |
 
 ---
 
@@ -96,9 +110,9 @@ The HAT has a connector with pre-attached color wires, each labeled. Connect eac
 TP4056 IN+ (USB VBUS) is divided down to a safe GPIO level. Measured values: 0.47V (USB absent), 5.1V (USB present).
 
 ```
-TP4056 IN+ ──── R3 (68kΩ) ──┬──── R4 (100kΩ) ──── GND
-                             │
-                         GPIO32 (INPUT, no pull)
+TP4056 IN+ (green) ──── R3 (68kΩ) ──┬──── R4 (100kΩ) ──── GND
+                                     │
+                              GPIO32 (green, INPUT, no pull)
 ```
 
 After divider:
@@ -107,9 +121,9 @@ After divider:
 
 | Connection | Notes |
 |---|---|
-| TP4056 IN+ → R3 (68kΩ) → midpoint | Top half of divider |
+| TP4056 IN+ → R3 (68kΩ) → midpoint | Top half of divider; green wire |
 | Midpoint → R4 (100kΩ) → GND | Bottom half; ensures LOW when IN+ absent |
-| Midpoint → GPIO32 | No pull-up or pull-down — divider provides defined state |
+| Midpoint → GPIO32 | Green wire; no pull-up or pull-down — divider provides defined state |
 
 On breadboard: R3 and R4 are through-hole resistors placed in the breadboard. Run a jumper from the TP4056 IN+ pin to R3, a jumper from R4 to GND rail, and a jumper from the midpoint to the GPIO32 breadboard row.
 
@@ -118,19 +132,37 @@ On breadboard: R3 and R4 are through-hole resistors placed in the breadboard. Ru
 ## Battery Voltage Divider Wiring
 
 Divides LiPo voltage (3.5–4.2V) to fit ESP32 ADC range (0–3.9V at 11dB attenuation).
-Using two equal resistors: R1 = 100kΩ (top), R2 = 100kΩ (bottom) → 2:1 divider.
+Using two equal resistors: R1 = 68kΩ (top), R2 = 68kΩ (bottom) → 2:1 divider.
 Midpoint voltage = Vbatt / 2. ESPHome `filters: - multiply: 2.0` restores actual voltage.
 
 ```
-TP4056 5V out (or LiPo+) ──── R1 (100kΩ) ──┬── R2 (100kΩ) ──── GND
-                                             │
-                                          GPIO35 (ADC input)
+TP4056 BAT+ (white) ──── R1 (100kΩ) ──┬── R2 (100kΩ) ──── GND
+                                       │
+                               GPIO35 (white, ADC input)
 ```
 
 **Notes:**
 - During breadboard testing without LiPo connected: wire the divider from the 3.3V rail instead of battery+ as a placeholder. Reads ~1.65V (scaled to ~3.3V in ESPHome). Replace with actual battery+ when power system is integrated in Step 8.
 - High-value resistors (100kΩ) minimize current draw — total draw from divider is only ~40µA at 4V (3.7V / 200kΩ). Acceptable for battery-powered use.
 - GPIO35 is an input-only pin — do not drive it as output. ADC use only.
+
+---
+
+## Slide Switch Wiring (GPIO27)
+
+The slide switch signals hiking mode to the ESP32. It is not in the power path — the ESP32 runs continuously and uses deep sleep when not hiking.
+
+| Switch terminal | Wire color | ESP32 pin | Notes |
+|---|---|---|---|
+| Terminal 1 | Brown | GPIO27 (left pin 11) | Switch ON (closed) pulls GPIO27 LOW |
+| Terminal 2 | Black | GND | |
+
+Switch ON (closed): GPIO27 pulled LOW → hiking/data-collection mode. ON position marked with yellow dot ●.
+Switch OFF (open): GPIO27 floats HIGH via internal pull-up → sleep or upload mode.
+
+**Breadboard wiring:** Run a brown jumper from one switch terminal to the GPIO27 breadboard row and a black jumper from the other terminal to the GND rail. The switch can sit on the breadboard directly or be held off-board with loose wires during testing — either works for bench verification.
+
+**Perfboard:** brown wire connects to a 2-pin header pin 1 (GPIO27); black wire connects to the GND rail.
 
 ---
 
@@ -159,20 +191,29 @@ Enable `scan: true` in the ESPHome `i2c:` block during initial testing to confir
 ## Schematic Overview
 
 ```
-              ┌───────────────────────────────────┐
-              │     ESP32 DevKitC-32 (38-pin)     │
-              │                                   │
-3.3V ─────────┤ 3.3V                    GPIO4 ────┼──── BUSY (e-ink)
-GND  ─────────┤ GND             GPIO5/SPI_CS ────┼──── CS (e-ink)
-              │                        GPIO16 ────┼──── RST (e-ink)
-BME280 SDA ───┤ GPIO21 (I2C SDA)       GPIO17 ────┼──── DC (e-ink)
-LTR-390 SDA──┘                        GPIO18 ────┼──── CLK (e-ink)
-              │                        GPIO23 ────┼──── DIN (e-ink)
-BME280 SCL ───┤ GPIO22 (I2C SCL)
-LTR-390 SCL──┘                         GPIO32 ────┼──── R3/R4 dock divider midpoint (TP4056 IN+)
-
-              │                        GPIO35 ────┼──── R1/R2 divider midpoint
-              └───────────────────────────────────┘
-                                                    R1 (100kΩ) → Vbatt+
-                                                    R2 (100kΩ) → GND
+┌──────────────────┐                     ┌──────────────────────────────────┐
+│  TP4056 + boost  │                     │    ESP32 DevKitC-32 (38-pin)     │
+│   (● = pin 1)    │                     │                                  │
+│                  │                     │                                  │
+│ ●p1 IN+  (grn)   ├──R3(68kΩ)──┬────────┤ GPIO32                           │
+│                  │         R4(100kΩ)   │                                  │
+│                  │             │       │                                  │
+│                  │            GND      │                                  │
+│                  │                     │                                  │
+│  p2 BAT+ (wht)   ├──R1(100kΩ)──┬───────┤ GPIO35                           │
+│                  │         R2(100kΩ)   │                                  │
+│                  │             │       │                                  │
+│                  │            GND      │                                  │
+│                  │                     │                                  │
+│  p3 VOUT− (blk)  ├─────────────────────┤ GND               GPIO4 ─────────┼─ BUSY (e-ink)
+│  p4 VOUT+ (red)  ├─────────────────────┤ VIN (pin 19)      GPIO5 ─────────┼─ CS   (e-ink)
+└──────────────────┘                     │                   GPIO16 ────────┼─ RST  (e-ink)
+                                         │                   GPIO17 ────────┼─ DC   (e-ink)
+                                         │                   GPIO18 ────────┼─ CLK  (e-ink)
+                                         │                   GPIO23 ────────┼─ DIN  (e-ink)
+                                         │                                  │
+                                         │ GPIO27 ◄(brn) switch (blk)─ GND  │
+                                         │ GPIO21 (SDA) ◄─ BME280 + LTR-390 │
+                                         │ GPIO22 (SCL) ◄─ BME280 + LTR-390 │
+                                         └──────────────────────────────────┘
 ```

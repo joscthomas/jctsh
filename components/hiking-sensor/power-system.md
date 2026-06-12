@@ -18,12 +18,15 @@ Confirmed terminal layout on this module:
 - **VOUT+ / VOUT-** — 5V boost output → ESP32 VIN and GND.
 - **BAT+ / BAT-** — LiPo JST battery connection.
 
-| Terminal | Function |
-|---|---|
-| Micro-USB | USB charger input — plug standard USB charger here to charge the LiPo |
-| `IN+` / `IN-` | Solar/auxiliary input — SUNYIMA 5.5V 80mA panel (Bag 6) connects here |
-| `VOUT+` / `VOUT-` | 5V boost output → ESP32 VIN / GND |
-| `BAT+` / `BAT-` | LiPo JST connection — battery positive and negative |
+| Terminal | Function | Wire color |
+|---|---|---|
+| Micro-USB | USB charger input — plug standard USB charger here to charge the LiPo | — |
+| `IN+` | Solar/auxiliary input — SUNYIMA 5.5V 80mA panel (Bag 6) connects here | Green (perfboard harness pin 1) |
+| `IN-` | Solar/auxiliary input return | Direct to solar JST — no harness wire |
+| `VOUT+` | 5V boost output → ESP32 VIN | Red (perfboard harness pin 4) |
+| `VOUT-` | Boost output return → ESP32 GND | Black (perfboard harness pin 3) |
+| `BAT+` | LiPo positive; also tapped for voltage sense divider | White (perfboard harness pin 2) |
+| `BAT-` | LiPo negative | Direct to LiPo black wire — no harness wire |
 
 > **Critical:** `VOUT+` is a fixed regulated 5V regardless of battery charge state — useless for monitoring.
 > The voltage divider must connect to **`BAT+`**, not `VOUT+`, to track actual LiPo voltage (3.5–4.2V).
@@ -57,9 +60,9 @@ as a placeholder (reads ~3.3V in ESPHome — not useful for battery monitoring).
 For Step 8, rewire R1 from the 3.3V rail to the TP4056 `BAT+` terminal:
 
 ```
-TP4056 BAT+ wire lead ──── R1 (100kΩ) ──┬──── R2 (100kΩ) ──── GND rail
-                                         │
-                                      GPIO35 (ADC input)
+TP4056 BAT+ (white wire) ──── R1 (100kΩ) ──┬──── R2 (100kΩ) ──── GND rail
+                                            │
+                                         GPIO35 (ADC input)
 ```
 
 **Physical breadboard wiring — three rows:**
@@ -86,10 +89,10 @@ GPIO35 taps the midpoint — reads half the battery voltage; ESPHome multiplies 
 With polarity confirmed and voltage divider rewired:
 
 1. Place TP4056+boost module on breadboard (or connect via jumper wires)
-2. Wire `BAT+` → voltage divider R1 top (and to LiPo JST positive after polarity confirmed)
-3. Wire `BAT-` → GND rail
-4. Wire `OUT+` → ESP32 VIN
-5. Wire `OUT-` → ESP32 GND (already on GND rail)
+2. Wire `BAT+` (white) → voltage divider R1 top (and to LiPo JST positive after polarity confirmed)
+3. Wire `BAT-` → GND rail — LiPo black wire connects directly to module; no separate jumper needed
+4. Wire `VOUT+` (red) → ESP32 VIN
+5. Wire `VOUT-` (black) → ESP32 GND (already on GND rail)
 6. Connect LiPo JST to module JST header (polarity confirmed in Step 1)
 
 ---

@@ -73,15 +73,15 @@ module.exports = {
     /** To password protect the Node-RED editor and admin API, the following
      * property can be used. See https://nodered.org/docs/security.html for details.
      */
-        adminAuth: {
-                type: "credentials",
-                users: [{
-                        username: "admin",
-                        password: "$2y$08$bYPpPJvnKMRmXGM6b.d/oOaIJxznvHw34yIOocgG0XQCZOd.au9Mq",
-                        permissions: "*"
-                }]
-        },
-
+	adminAuth: {
+		type: "credentials",
+		users: [{
+			username: "admin",
+			password: "$2b$08$eAaA43X8cAaGEhcAPNB9o.Ha91SWZz.XIW4OlK3ld.yVz/E/W2qfC",
+			permissions: "*"
+		}]
+	},
+    
     /** The following property can be used to enable HTTPS
      * This property can be either an object, containing both a (private) key
      * and a (public) certificate, or a function that returns such an object.
@@ -226,7 +226,7 @@ module.exports = {
     /** When httpAdminRoot is used to move the UI to a different root path, the
      * following property can be used to identify a directory of static content
      * that should be served at http://localhost:1880/.
-     * When httpStaticRoot is set differently to httpAdminRoot, there is no need
+     * When httpStaticRoot is set differently to httpAdminRoot, there is no need 
      * to move httpAdminRoot
      */
     //httpStatic: '/home/nol/node-red-static/', //single static source
@@ -239,12 +239,12 @@ module.exports = {
      *  set a default cors policy across all static routes.
      */
     //httpStatic: [
-    //    {path: '/home/nol/pics/',    root: "/img/"},
-    //    {path: '/home/nol/reports/', root: "/doc/"},
+    //    {path: '/home/nol/pics/',    root: "/img/"}, 
+    //    {path: '/home/nol/reports/', root: "/doc/"}, 
     //    {path: '/home/nol/videos/',  root: "/vid/", options: {maxAge: '1d'}}
     //],
 
-    /**
+    /**  
      * All static routes will be appended to httpStaticRoot
      * e.g. if httpStatic = "/home/nol/docs" and  httpStaticRoot = "/static/"
      *      then "/home/nol/docs" will be served at "/static/"
@@ -313,15 +313,15 @@ module.exports = {
         ui: false,
     },
     telemetry: {
-        /**
+        /** 
          * By default, telemetry is disabled until the user provides consent the first
          * time they open the editor.
-         *
+         * 
          * The following property can be uncommented and set to true/false to enable/disable
          * telemetry without seeking further consent in the editor.
          * The user can override this setting via the user settings dialog within the editor
          */
-
+        
         enabled: true,
         /**
          * If telemetry is enabled, the editor will notify the user if a new version of Node-RED

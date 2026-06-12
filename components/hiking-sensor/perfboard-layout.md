@@ -65,7 +65,7 @@ R = right ESP32 female header (col 11, 19 pins, 9-hole spacing from L)
 |---|---|---|
 | ESP32 female headers | Cols 2 and 11, rows 2–20 | Standard 19-pin removable headers |
 | LTR-390 breakout | Right zone, rows 2–5 | Top of board = closest to sky-facing enclosure opening |
-| Voltage divider (R1+R2) | Right zone, rows 8–14 | R1=100kΩ (top), R2=100kΩ (bottom); short wire to BAT+ harness |
+| Voltage divider (R1+R2) | Right zone, rows 8–14 | R1=68kΩ (top), R2=68kΩ (bottom); short wire to BAT+ harness |
 | E-ink harness header | Right zone, rows 15–18 | 8-pin male header; labeled wires connect to display |
 | BME280 breakout | Right zone, rows 17–20 | Bottom of board = farthest from ESP32 (minimizes self-heating error) |
 | Power-in header (VIN/GND) | Bottom zone, cols 3–5, row 23 | 2-pin JST or male header; VOUT+ direct → VIN, VOUT− → GND |
@@ -82,7 +82,7 @@ R = right ESP32 female header (col 11, 19 pins, 9-hole spacing from L)
 
 | From | To | Notes |
 |---|---|---|
-| TP4056 BAT+ | R1 (100kΩ) top leg | Battery voltage sense — tap wire from TP4056 to voltage divider |
+| TP4056 BAT+ | R1 (68kΩ) top leg | Battery voltage sense — tap wire from TP4056 to voltage divider; white wire |
 
 *(BAT− wired directly from LiPo black wire to TP4056 BAT− pad — no perfboard connection)*
 
@@ -95,16 +95,16 @@ R = right ESP32 female header (col 11, 19 pins, 9-hole spacing from L)
 
 **Slide switch** — hiking mode signal to ESP32; no longer in power path
 
-| From | To | Notes |
-|---|---|---|
-| Switch terminal 1 | Switch header pin 1 (GPIO27) | Switch ON (closed) pulls GPIO27 LOW = hiking mode |
-| Switch terminal 2 | Switch header pin 2 (GND) | |
+| From | Wire | To | Notes |
+|---|---|---|---|
+| Switch terminal 1 | Brown | Switch header pin 1 (GPIO27) | Switch ON (closed) pulls GPIO27 LOW = hiking mode |
+| Switch terminal 2 | Black | Switch header pin 2 (GND) | |
 
 **IN+ / IN−** — solar/USB charging input; IN+ also tapped for dock detect
 
 | From | To | Notes |
 |---|---|---|
-| TP4056 IN+ | R3 (68kΩ) top leg | USB VBUS tap — dock detect divider input |
+| TP4056 IN+ | R3 (68kΩ) top leg | USB VBUS tap — dock detect divider input; green wire |
 
 *(IN− wired directly from solar panel JST connector to TP4056 IN− pad — no perfboard connection)*
 
@@ -112,8 +112,8 @@ R = right ESP32 female header (col 11, 19 pins, 9-hole spacing from L)
 
 | From | To | Notes |
 |---|---|---|
-| ESP32 3.3V | LTR-390 VIN, BME280 VCC | Short jumpers to sensor header VCC pins |
-| ESP32 GND | LTR-390 GND, BME280 GND, R2 (100kΩ) bottom leg, R4 (100kΩ) bottom leg | Short jumpers to sensor header GND pins |
+| ESP32 3.3V | LTR-390 VIN, BME280 VCC | Red jumpers to sensor header VCC pins |
+| ESP32 GND | LTR-390 GND, BME280 GND, R2 (100kΩ) bottom leg, R4 (100kΩ) bottom leg | Black jumpers to sensor header GND pins |
 
 ### I2C (BME280 + LTR-390)
 
@@ -134,11 +134,11 @@ Both resistors soldered directly to perfboard. Midpoint node connects to ESP32 G
 
 ### E-Ink Display Harness (8 wires)
 
-Solder an 8-pin male header to the perfboard. Label each pin. Attach matching female housing on the display cable end.
+Solder an 8-pin male header to the perfboard. Label each pin. Attach matching female housing on the display cable end. Pin 1 marked with yellow dot on perfboard header. Wire colors on the perfboard follow the display connector colors.
 
 | Header pin | ESP32 pin | Display wire color | Display label |
 |---|---|---|---|
-| 1 | 3.3V | Grey | VCC |
+| 1 (yellow dot) | 3.3V | Grey | VCC |
 | 2 | GND | Brown | GND |
 | 3 | GPIO23 | Blue | DIN |
 | 4 | GPIO18 | Yellow | CLK |
@@ -155,13 +155,13 @@ R1 and R2 are through-hole 100kΩ 1/4W axial resistors soldered directly to the 
 
 ```
 [BAT+ pad] ── R1 ── [midpoint pad] ── R2 ── [GND pad]
-                          │
-                     [GPIO35 pad]
+  (white)                 │
+                    [GPIO35 pad] (white)
 ```
 
 Four solder pads, roughly in a line:
-- Pad 1: BAT+ (wire runs off-board to TP4056 BAT+)
-- Pad 2: midpoint (GPIO35 jumper + R1 (100kΩ) bottom + R2 (100kΩ) top)
+- Pad 1: BAT+ (white wire runs off-board to TP4056 BAT+)
+- Pad 2: midpoint (white jumper to GPIO35 + R1 (68kΩ) bottom + R2 (68kΩ) top)
 - Pad 3: GND
 - Pad 4 (optional): tie to GPIO35 jumper wire anchor
 
@@ -173,17 +173,49 @@ R3 (68kΩ) and R4 (100kΩ) are through-hole axial resistors soldered directly to
 
 ```
 [IN+ pad] ── R3 (68kΩ) ── [midpoint pad] ── R4 (100kΩ) ── [GND pad]
-                                  │
-                             [GPIO32 pad]
+  (green)                        │
+                          [GPIO32 pad] (green)
 ```
 
 Four solder pads, roughly in a line:
-- Pad 1: IN+ (wire runs off-board to TP4056 IN+/USB VBUS pad)
-- Pad 2: midpoint (GPIO32 jumper + R3 bottom + R4 top)
+- Pad 1: IN+ (green wire runs off-board to TP4056 IN+/USB VBUS pad)
+- Pad 2: midpoint (green jumper to GPIO32 + R3 bottom + R4 top)
 - Pad 3: GND
 - Pad 4 (optional): tie to GPIO32 jumper wire anchor
 
 Measured voltages: IN+ = 0.47V (USB absent) → midpoint ≈ 0.28V (LOW). IN+ = 5.1V (USB present) → midpoint ≈ 3.04V (HIGH). GPIO32 configured as INPUT (no pull-up or pull-down).
+
+---
+
+## Schematic Overview
+
+```
+┌──────────────────┐                     ┌──────────────────────────────────┐
+│  TP4056 + boost  │                     │    ESP32 DevKitC-32 (38-pin)     │
+│   (● = pin 1)    │                     │                                  │
+│                  │                     │                                  │
+│ ●p1 IN+  (grn)   ├──R3(68kΩ)──┬────────┤ GPIO32                           │
+│                  │         R4(100kΩ)   │                                  │
+│                  │             │       │                                  │
+│                  │            GND      │                                  │
+│                  │                     │                                  │
+│  p2 BAT+ (wht)   ├──R1(100kΩ)──┬───────┤ GPIO35                           │
+│                  │         R2(100kΩ)   │                                  │
+│                  │             │       │                                  │
+│                  │            GND      │                                  │
+│                  │                     │                                  │
+│  p3 VOUT− (blk)  ├─────────────────────┤ GND               GPIO4 ─────────┼─ BUSY (e-ink)
+│  p4 VOUT+ (red)  ├─────────────────────┤ VIN (pin 19)      GPIO5 ─────────┼─ CS   (e-ink)
+└──────────────────┘                     │                   GPIO16 ────────┼─ RST  (e-ink)
+                                         │                   GPIO17 ────────┼─ DC   (e-ink)
+                                         │                   GPIO18 ────────┼─ CLK  (e-ink)
+                                         │                   GPIO23 ────────┼─ DIN  (e-ink)
+                                         │                                  │
+                                         │ GPIO27 ◄(brn) switch (blk)─ GND  │
+                                         │ GPIO21 (SDA) ◄─ BME280 + LTR-390 │
+                                         │ GPIO22 (SCL) ◄─ BME280 + LTR-390 │
+                                         └──────────────────────────────────┘
+```
 
 ---
 
@@ -192,8 +224,8 @@ Measured voltages: IN+ = 0.47V (USB absent) → midpoint ≈ 0.28V (LOW). IN+ = 
 | Component | Connection method | Notes |
 |---|---|---|
 | Waveshare 2.13" e-ink display | 8-wire harness (GPIO4/5/16/17/18/23 + 3.3V + GND) | Display mounts on enclosure face; harness loops inside enclosure to perfboard |
-| Slide switch | 2-wire harness (GPIO27 + GND) | Switch mounts on enclosure side; signals hiking mode to ESP32 |
-| TP4056+boost module | 4-pin male header + female Dupont | Single connector for all 4 TP4056→perfboard wires: VOUT+, VOUT−, BAT+, IN+; wire colors TBD |
+| Slide switch | 2-wire harness (GPIO27 + GND) | Switch mounts on enclosure side; brown → GPIO27, black → GND |
+| TP4056+boost module | 4-pin male header + female Dupont | Single connector: pin 1 IN+ (green), pin 2 BAT+ (white), pin 3 VOUT− (black), pin 4 VOUT+ (red); pin 1 marked with yellow dot |
 | LiPo battery | Wired directly to TP4056 BAT+/BAT− pads | Battery sits in enclosure; wires to TP4056 (not to main perfboard directly) |
 
 ---
@@ -209,8 +241,8 @@ micro USB access approach are all TBD pending enclosure design (Step 15).
 |---|---|---|---|---|
 | Battery | LiPo JST plug | TP4056 BAT+/BAT− | JST PH 2.0mm receptacle soldered to BAT pads | Decided |
 | Solar input | SUNYIMA panel | TP4056 IN+/IN− | JST SM 2-pin (Bag 14) panel-mount on enclosure wall | Decided; position TBD |
-| TP4056 harness (4-wire) | TP4056 VOUT+, VOUT−, BAT+, IN+ | Perfboard 4-pin header | 4-pin male header on perfboard + female Dupont housing; wire colors TBD | Decided |
-| Slide switch | Perfboard switch header (GPIO27 + GND) | Enclosure-mounted slide switch | 2-wire harness + female Dupont; switch ON pulls GPIO27 LOW | Position TBD |
+| TP4056 harness (4-wire) | TP4056 VOUT+, VOUT−, BAT+, IN+ | Perfboard 4-pin header | 4-pin male header on perfboard + female Dupont housing; pin 1 marked with yellow dot | Decided |
+| Slide switch | Perfboard switch header (GPIO27 + GND) | Enclosure-mounted slide switch | 2-wire harness + female Dupont; brown → GPIO27, black → GND; switch ON pulls GPIO27 LOW | Position TBD |
 | E-ink display | Perfboard 8-pin header | Waveshare display cable | 8-pin male header + female housing on display end | Decided; length ~10–15cm |
 | Charging input | USB charger | TP4056 micro USB | Panel-mount micro USB extension or enclosure cutout | TBD |
 | TP4056 mounting | TP4056 module | Enclosure floor | M2 standoffs (preferred) or foam tape | TBD |
@@ -236,17 +268,17 @@ longer suppresses data collection (switch state determines mode, not dock detect
 The switch is no longer in the power path. VOUT+ runs directly from TP4056 to the power-in header. The switch wires connect to the switch header (GPIO27 + GND).
 
 ```
-TP4056 VOUT+ ── wire ── 4-pin header pin 1  (→ ESP32 VIN)
-TP4056 VOUT− ── wire ── 4-pin header pin 2  (→ ESP32 GND)
-TP4056 BAT+  ── wire ── 4-pin header pin 3  (→ R1 top leg)
-TP4056 IN+   ── wire ── 4-pin header pin 4  (→ R3 top leg)
-  (all four via female Dupont housing — single connector, wire colors TBD)
+TP4056 IN+   ── green wire  ── 4-pin header pin 1  (→ R3 top leg)
+TP4056 BAT+  ── white wire  ── 4-pin header pin 2  (→ R1 top leg)
+TP4056 VOUT− ── black wire  ── 4-pin header pin 3  (→ ESP32 GND)
+TP4056 VOUT+ ── red wire    ── 4-pin header pin 4  (→ ESP32 VIN, left pin 19)
+  (all four via female Dupont housing — pin 1 marked with yellow dot on perfboard header)
 
-Switch terminal 1 ── wire ── switch header pin 1 (GPIO27)
-Switch terminal 2 ── wire ── switch header pin 2 (GND)
+Switch terminal 1 ── brown ── switch header pin 1 (GPIO27)
+Switch terminal 2 ── black ── switch header pin 2 (GND)
 ```
 
-Switch ON (closed): GPIO27 pulled LOW → firmware enters hiking/data-collection mode.
+Switch ON (closed): GPIO27 pulled LOW → firmware enters hiking/data-collection mode. ON position marked with yellow dot ●.
 Switch OFF (open): GPIO27 floats HIGH via internal pull-up → firmware enters sleep or upload mode.
 
 ESP32 deep sleep replaces the hard power cut. Sleep current ~10μA — negligible on a 1100mAh battery.
@@ -272,7 +304,16 @@ minimise the micro USB extension run.
 
 ## Pre-Power Checks
 
+**STATUS: COMPLETE (2026-06-12). All 32 checks passed.** Fixes found during testing: missing solder bridge on ESP32 VIN header (check 2), poor connection on e-ink harness GND (check 10), missing solder bridge on BME280 VCC (check 11), two missing solder bridges on LTR-390 SDA (check 24). R1/R2 battery divider found to be 68kΩ instead of 100kΩ — left as-is (equal values, divider ratio unchanged).
+
+**First power-on confirmed (2026-06-12):** Device booted, connected to WiFi (IP: 192.168.1.161), MQTT connected, e-ink display showing 95°F / 23% / pressure steady / UVI 0. Sheets row appended by Node-RED. All systems functional.
+
 Complete these before connecting the LiPo. Use a multimeter throughout. Remove the ESP32 and sensors from their headers for cleaner readings — re-seat for pin-to-pin checks if needed.
+
+**Visual prerequisites — do these before any probing:**
+
+1. Confirm TP4056 harness pin 1 (yellow dot on female housing) is seated on pin 1 (yellow dot on perfboard header). If reversed, VOUT+ would land on the IN+ circuit — 5.7V to GPIO32 on first power-up.
+2. Confirm e-ink harness header pin 1 (yellow dot) has the grey VCC wire seated in it before connecting the display.
 
 **Do the short circuit check first.** A VIN–GND short will damage the TP4056 or ESP32 on first power-up.
 
@@ -315,8 +356,8 @@ Complete these before connecting the LiPo. Use a multimeter throughout. Remove t
 |---|---|---|---|---|
 | 14 | TP4056 BAT+ pad | R1 top leg | Continuity | Beep |
 | 15 | R1/R2 midpoint | ESP32 left pin 6 (GPIO35) | Continuity | Beep |
-| 16 | TP4056 BAT+ tap | GND | Resistance | ~200kΩ (R1+R2 in series) |
-| 17 | R1/R2 midpoint | GND | Resistance | ~100kΩ (R2 only) |
+| 16 | TP4056 BAT+ tap | GND | Resistance | ~136kΩ (R1+R2 in series; both 68kΩ) |
+| 17 | R1/R2 midpoint | GND | Resistance | ~68kΩ (R2 only) |
 
 ### Dock Detect Divider (R3 + R4)
 

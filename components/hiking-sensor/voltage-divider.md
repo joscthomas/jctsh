@@ -42,9 +42,9 @@ V_out = V_in × R2 / (R1 + R2)
 
 ## Examples
 
-**Equal resistors (R1=100kΩ, R2=100kΩ) — battery monitor divider:**
+**Equal resistors (R1=68kΩ, R2=68kΩ) — battery monitor divider:**
 ```
-V_out = 3.8V × 100k / (100k + 100k) = 3.8V × 0.5 = 1.9V
+V_out = 3.8V × 68k / (68k + 68k) = 3.8V × 0.5 = 1.9V
 ```
 Equal resistors always give exactly half the input voltage.
 
@@ -60,7 +60,7 @@ R2 is larger than R1, so more than half the voltage appears at the output.
 
 **Battery monitor (GPIO35):**
 LiPo voltage (3.5–4.2V) is safe for the ESP32 ADC but we halve it for safety margin.
-Equal 100kΩ+100kΩ resistors divide it in half. Firmware multiplies the reading by 2
+Equal 68kΩ+68kΩ resistors divide it in half. Firmware multiplies the reading by 2
 to recover the real value.
 
 **Dock detect (GPIO32):**

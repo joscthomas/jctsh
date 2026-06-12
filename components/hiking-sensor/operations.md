@@ -11,6 +11,29 @@
 
 ---
 
+## Powering On (Perfboard)
+
+### Connectors to check before connecting LiPo
+- **TP4056 harness** — 4-pin female Dupont; yellow dot on housing aligns with yellow dot on perfboard header (pin 1 = IN+, green wire)
+- **E-ink display harness** — 8-pin; yellow dot on header pin 1 has grey VCC wire seated in it
+
+### Power-on sequence
+1. Confirm ESP32, BME280, and LTR-390 are seated in their headers
+2. Confirm both harnesses are connected with pin 1 yellow dots aligned
+3. Set switch to desired position — **ON** (yellow dot) for immediate use, **OFF** for sleep
+4. Connect LiPo JST to TP4056
+
+### Expected on boot
+- ESP32 power LED lights immediately
+- LTR-390 power LED lights (confirms 3.3V rail)
+- E-ink display refreshes within ~30 seconds showing sensor readings
+- Log dashboard shows `Hiking monitor online` and `MQTT connected` within ~30 seconds
+
+### To power off
+The switch is not in the power path — the device never fully powers down. Turn switch OFF to enter deep sleep (~10μA drain). Disconnect LiPo only for storage or transport.
+
+---
+
 ## Operating Modes
 
 ### Sleep Mode (switch OFF, no USB)
@@ -82,15 +105,16 @@ The slide switch signals hiking mode via GPIO27. VOUT+ runs directly to ESP32 VI
 
 ## Log Dashboard Messages
 
-| Message | Meaning |
-|---|---|
-| `Hiking monitor online - ESPHome ..., IP: ...` | Device booted and connected to WiFi |
-| `MQTT connected` | MQTT broker connection established |
-| `Replaying N hike readings...` | Uploading accumulated field data |
-| `Hike log replay complete.` | All field data uploaded to Sheets |
-| `Upload mode — USB connected, switch off` | Auto-woke via dock detect; collecting suppressed |
-| `Heartbeat - uptime: Xh Ym, RSSI: ...` | Device alive, WiFi connected |
-| `MQTT disconnected` | WiFi or broker connection lost |
+| Message | Category | Meaning |
+|---|---|---|
+| `Hiking monitor online - ESPHome ..., IP: ...` | System | Device booted and connected to WiFi |
+| `MQTT connected` | MQTT | MQTT broker connection established |
+| `Replaying N hike readings...` | Sensor | Uploading accumulated field data |
+| `Hike log replay complete.` | Sensor | All field data uploaded to Sheets |
+| `Upload mode — USB connected, switch off` | Sensor | Auto-woke via dock detect; collecting suppressed |
+| `Entering deep sleep` | Sensor | Device entering deep sleep (switch off or USB removed) |
+| `Heartbeat - uptime: Xh Ym, RSSI: ...` | System | Device alive, WiFi connected |
+| `MQTT disconnected` | MQTT | WiFi or broker connection lost |
 
 ---
 

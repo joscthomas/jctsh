@@ -51,6 +51,10 @@ esphome:
     - priority: -100.0
       then:
         - component.update: hiking_display
+        - component.update: bme_sensor
+        - component.update: ltr390_sensor
+        - delay: 10s
+        - component.update: hiking_display
     - priority: -200.0
       then:
         - if:
@@ -59,6 +63,7 @@ esphome:
                 - binary_sensor.is_off: slide_switch
                 - binary_sensor.is_off: dock_detect
             then:
+              - deep_sleep.allow: deep_sleep_control
               - deep_sleep.enter: deep_sleep_control
 
 esp32:
@@ -74,7 +79,7 @@ wifi:
     ssid: "hiking-monitor-fallback"
     password: !secret ap_password
 
-captive_portal:
+# captive_portal removed — was calling App.prevent_deep_sleep() and blocking deep sleep entry
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logger:
@@ -97,6 +102,7 @@ deep_sleep:
   wakeup_pin:
     number: GPIO27
     inverted: true      # ext0: wake when GPIO27 goes LOW (switch closed)
+    allow_other_uses: true
   esp32_ext1_wakeup:
     mode: ANY_HIGH
     pins:
@@ -151,7 +157,7 @@ mqtt:
             hike_log_clear();
             char log_buf[128];
             snprintf(log_buf, sizeof(log_buf),
-              "{\"component\":\"hiking-monitor\",\"category\":\"System\","
+              "{\"component\":\"hiking-monitor\",\"category\":\"Sensor\","
               "\"message\":\"Replaying %u hike readings...\"}",
               (unsigned)readings.size());
             id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
@@ -161,16 +167,30 @@ mqtt:
               delay(50);
             }
             id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
-              std::string("{\"component\":\"hiking-monitor\",\"category\":\"System\","
+              std::string("{\"component\":\"hiking-monitor\",\"category\":\"Sensor\","
                          "\"message\":\"Hike log replay complete.\"}"), 0, false);
           }
         }
     - if:
         condition:
-          binary_sensor.is_off: slide_switch   # Upload mode — sleep after replay
+          binary_sensor.is_off: slide_switch
         then:
-          - delay: 30s
-          - deep_sleep.enter: deep_sleep_control
+          - if:
+              condition:
+                binary_sensor.is_on: dock_detect   # USB connected — upload mode, stay awake
+              then:
+                - mqtt.publish:
+                    topic: jctsh/components/hiking-monitor/log
+                    payload: '{"component":"hiking-monitor","category":"Sensor","message":"Upload mode — USB connected, switch off"}'
+              else:
+                - mqtt.publish:
+                    topic: jctsh/components/hiking-monitor/log
+                    payload: '{"component":"hiking-monitor","category":"Sensor","message":"Entering deep sleep"}'
+                - delay: 500ms
+                - lambda: 'id(deep_sleep_pending) = true;'
+                - component.update: hiking_display
+                - deep_sleep.allow: deep_sleep_control
+                - deep_sleep.enter: deep_sleep_control
 
 # ── I2C ───────────────────────────────────────────────────────────────────────
 i2c:
@@ -200,11 +220,16 @@ globals:
     type: std::string
     restore_value: false
     initial_value: '"=>"'
+  - id: deep_sleep_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
 
 # ── Sensors ───────────────────────────────────────────────────────────────────
 sensor:
   # BME280 — temperature, humidity, barometric pressure
   - platform: bme280_i2c
+    id: bme_sensor
     address: 0x76
     update_interval: 2min
     temperature:
@@ -277,6 +302,7 @@ binary_sensor:
         input: true
         pullup: true
       inverted: true
+      allow_other_uses: true
     name: "Slide Switch"
     id: slide_switch
     internal: true
@@ -285,6 +311,13 @@ binary_sensor:
           condition:
             binary_sensor.is_off: slide_switch   # Switch turned OFF
           then:
+            - mqtt.publish:
+                topic: jctsh/components/hiking-monitor/log
+                payload: '{"component":"hiking-monitor","category":"Sensor","message":"Entering deep sleep"}'
+            - delay: 500ms
+            - lambda: 'id(deep_sleep_pending) = true;'
+            - component.update: hiking_display
+            - deep_sleep.allow: deep_sleep_control
             - deep_sleep.enter: deep_sleep_control
 
   # Dock detect: TP4056 IN+ (USB VBUS) → 68kΩ → midpoint → 100kΩ → GND; midpoint to GPIO32.
@@ -294,6 +327,7 @@ binary_sensor:
     pin:
       number: GPIO32
       mode: INPUT
+      allow_other_uses: true
     name: "Dock Detect"
     id: dock_detect
     internal: true
@@ -302,14 +336,25 @@ binary_sensor:
           condition:
             binary_sensor.is_on: dock_detect
           then:
-            - mqtt.publish:
-                topic: jctsh/components/hiking-monitor/log
-                payload: '{"component":"hiking-monitor","category":"System","message":"Upload mode — USB connected, switch off"}'
+            - if:
+                condition:
+                  binary_sensor.is_off: slide_switch   # USB plugged in while running — only log if switch is off
+                then:
+                  - mqtt.publish:
+                      topic: jctsh/components/hiking-monitor/log
+                      payload: '{"component":"hiking-monitor","category":"Sensor","message":"Upload mode — USB connected, switch off"}'
           else:
             - if:
                 condition:
-                  binary_sensor.is_off: slide_switch
+                  binary_sensor.is_off: slide_switch   # USB removed, switch off — return to sleep
                 then:
+                  - mqtt.publish:
+                      topic: jctsh/components/hiking-monitor/log
+                      payload: '{"component":"hiking-monitor","category":"Sensor","message":"Entering deep sleep"}'
+                  - delay: 500ms
+                  - lambda: 'id(deep_sleep_pending) = true;'
+                  - component.update: hiking_display
+                  - deep_sleep.allow: deep_sleep_control
                   - deep_sleep.enter: deep_sleep_control
 
 # ── E-ink Display ─────────────────────────────────────────────────────────────
@@ -337,13 +382,18 @@ display:
       // 2-line layout, 250×122 landscape
       // Line 1: temp (left)  humidity (right)
       // Line 2: P trend (left)  UVI (right)
+      if (id(deep_sleep_pending)) {
+        it.print(125, 45, id(font_data), TextAlign::CENTER, "Hiking monitor");
+        it.print(125, 77, id(font_data), TextAlign::CENTER, "off");
+        return;
+      }
       if (isnan(temp) || isnan(hum) || isnan(uv)) {
         it.print(5, 10, id(font_data), "Hiking monitor");
         it.print(5, 72, id(font_data), "initializing");
       } else {
         char l1a[16], l1b[16], l2a[8], l2b[16];
-        snprintf(l1a, sizeof(l1a), "%.0f°", temp);
-        snprintf(l1b, sizeof(l1b), "%.0f%%", hum);
+        snprintf(l1a, sizeof(l1a), "%.1f°", temp);
+        snprintf(l1b, sizeof(l1b), "%.1f%%", hum);
         snprintf(l2a, sizeof(l2a), "P %s", trend);
         snprintf(l2b, sizeof(l2b), "UVI %.2f", uv);
         it.print(5,   10, id(font_data), l1a);

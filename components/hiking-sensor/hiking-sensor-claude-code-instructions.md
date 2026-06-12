@@ -617,81 +617,85 @@ The Node-RED GPS pipeline built in Steps 19–20 is shared infrastructure. The a
 
 ---
 
-## Step 19 — GPSLogger Configuration and Node-RED GPS Pipeline
+## Step 19 — GPSLogger Configuration and Google Sheets GPS Track
 
 **Claude Code does:** Create `components/hiking-sensor/gps-pipeline.md` documenting the full GPS correlation architecture:
 
 Section 1 — GPSLogger Android app configuration:
 - App: GPSLogger for Android (open source, F-Droid or Play Store)
 - Logging: enabled, passive background operation
-- Custom URL logger: POST to `http://<home-pi-public-ip-or-ddns>:<port>/gps` (Node-RED HTTP-in endpoint)
-- POST body format (JSON): `{ "lat": <lat>, "lon": <lon>, "ts": "<ISO8601>", "accuracy": <meters>, "altitude": <meters> }`
-- Retry on failure: enabled — GPSLogger queues failed POSTs and retries when connectivity returns
-- Posting interval: every 30 seconds (configurable — balance between track resolution and cellular data use; 30s is appropriate for hiking pace)
-- Document: GPSLogger does not need to be running GaiaGPS — both apps run independently; GPSLogger is background-only
+- Custom URL logger: GET to Google Apps Script GPS endpoint (see Section 2)
+- URL format: `https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat=%LAT&lon=%LON&ts=%TIME&acc=%ACC&alt=%ALT`
+  - `%LAT`, `%LON`, `%ALT`, `%ACC`, `%TIME` are GPSLogger placeholders substituted at post time
+  - `%TIME` is a Unix epoch timestamp (seconds) — Apps Script converts to ISO8601
+- Retry on failure: enabled — GPSLogger queues failed GETs and retries when connectivity returns
+- Posting interval: every 30 seconds
+- No router port forwarding or public Pi access required — posts go directly to Google
 
-Section 2 — Home Pi public access:
-- Node-RED HTTP-in listener must be reachable from cellular (not just home WiFi)
-- Options: static public IP, dynamic DNS (e.g., DuckDNS), or port forwarding on home router
-- Document whichever approach is in use in `jctsh-network.md`
-- Port: choose an available port not already in use; document in `jctsh-network.md`
+Section 2 — Google Apps Script GPS endpoint:
+- Extend the existing Apps Script in "JCTsh Environmental Data" with a new `action=gps` branch in `doGet(e)`
+- When `action=gps`: parse `lat`, `lon`, `ts` (Unix epoch → ISO8601), `acc`, `alt` from query params
+- Append one row to "GPS Track" sheet: `timestamp`, `lat`, `lon`, `accuracy_m`, `altitude_m`
+- Authenticate via existing `API_KEY` query parameter — no new credentials needed
+- Return `{"status":"ok"}` — required for GPSLogger retry logic
 
-Section 3 — Node-RED HTTP-in listener and trackpoint store:
-- HTTP-in node: `POST /gps`
-- Parse incoming JSON body: extract `lat`, `lon`, `ts`, `accuracy`, `altitude`
-- Store to flat file: `/home/pi/jctsh/gps-track.jsonl` — one JSON object per line, appended
-- File format per line: `{ "ts": "<ISO8601>", "lat": <lat>, "lon": <lon>, "accuracy": <meters>, "altitude": <meters> }`
-- HTTP response: `200 OK` with `{"status":"ok"}` — required for GPSLogger retry logic
-- No pruning logic yet — flat file grows indefinitely; size is trivial (one hike per week at 30s interval = ~1,200 trackpoints/hike = ~100KB/hike)
+Section 3 — "GPS Track" sheet in "JCTsh Environmental Data":
+- Add "GPS Track" tab to the existing spreadsheet
+- Columns: `timestamp` (ISO8601 UTC), `lat`, `lon`, `accuracy_m`, `altitude_m`
+- No pruning needed — ~1,200 trackpoints per hike at 30s interval ≈ trivial size
 
-Section 4 — Timestamp lookup function (for Step 20):
-- Document the lookup algorithm: given a sensor reading timestamp `ts`, find the trackpoint in `gps-track.jsonl` with the nearest timestamp; return its `lat`/`lon`
-- Acceptable match window: ±5 minutes (sensor reads every 2 minutes; GPS posts every 30 seconds — nearest trackpoint is always within 2 minutes under normal conditions)
-- If no trackpoint within ±5 minutes: return `null`/`null` — do not interpolate
+Section 4 — Timestamp lookup (for Step 20):
+- Given a sensor reading timestamp `ts`, find the GPS Track row with the nearest timestamp
+- Acceptable match window: ±5 minutes
+- If no row within ±5 minutes: return `null`/`null` — do not interpolate
+- Lookup is performed by Node-RED via an Apps Script `action=lookup` GET endpoint (see Step 20)
 
 **Joseph does:**
 1. Install GPSLogger on Pixel 10 Pro XL
-2. Configure custom URL logger per gps-pipeline.md Section 1
-3. Configure home router port forwarding per gps-pipeline.md Section 2
-4. Import and deploy the Node-RED HTTP-in listener flow per gps-pipeline.md Section 3
+2. Add "GPS Track" sheet to "JCTsh Environmental Data" spreadsheet with correct columns
+3. Extend the Apps Script with the `action=gps` branch per gps-pipeline.md Section 2; redeploy as new version
+4. Configure GPSLogger custom URL per gps-pipeline.md Section 1
 5. Take a short outdoor walk with GPSLogger active
-6. Verify trackpoints appearing in `/home/pi/jctsh/gps-track.jsonl` on the Pi
+6. Verify trackpoints appearing in the "GPS Track" sheet
 
-**Joseph confirms:** GPSLogger posting successfully. Trackpoints visible in `gps-track.jsonl`. Report: number of trackpoints logged, approximate duration of test walk.
+**Joseph confirms:** GPSLogger posting successfully. Trackpoints visible in GPS Track sheet. Report: number of trackpoints logged, approximate duration of test walk.
 
-**Claude Code does:** Update gps-pipeline.md with actual configuration findings (port used, DDNS or IP approach, any GPSLogger settings that differed from defaults).
+**Claude Code does:** Update gps-pipeline.md with actual Apps Script deployment URL, any GPSLogger settings that differed from defaults, and confirmed sheet column layout.
 
 ---
 
 ## Step 20 — Node-RED lat/lon Population in Wildcard Data Handler
 
-**Claude Code does:** Update the Node-RED wildcard data handler flow (built in Step 11) to populate `lat`/`lon` from the GPS trackpoint store. Update `data-pipeline.md` Section 11 to reflect the change.
+**Claude Code does:** Update the Node-RED wildcard data handler flow (built in Step 11) to populate `lat`/`lon` from the GPS Track sheet. Update `data-pipeline.md` Section 11 to reflect the change.
 
-The updated flow:
+Also extend the Apps Script with an `action=lookup` GET endpoint:
+- Accepts `ts` (ISO8601 timestamp) query parameter
+- Reads all rows from "GPS Track" sheet
+- Finds the row with timestamp nearest to `ts`
+- If nearest row is within ±5 minutes: returns `{"lat": <lat>, "lon": <lon>}`
+- If no row within ±5 minutes or sheet is empty: returns `{"lat": null, "lon": null}`
+
+The updated Node-RED flow:
 1. MQTT In: `jctsh/components/+/data` (unchanged)
-2. Function node — **GPS lookup** (new, inserted before derived fields computation):
-   - Read `gps-track.jsonl` from disk
-   - Parse all trackpoints into an array
-   - Find the trackpoint with the timestamp nearest to `msg.payload.ts`
-   - If nearest trackpoint is within ±5 minutes: set `msg.payload.lat` and `msg.payload.lon`
-   - If no match within ±5 minutes (or file doesn't exist): leave `lat` and `lon` as `null`
-3. Function node — derived fields (`dew_point_f`, `heat_index_f`) (unchanged, now runs after GPS lookup)
-4. HTTP Request: POST to Apps Script (unchanged)
+2. HTTP Request node — **GPS lookup** (new, inserted before derived fields):
+   - GET `https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<KEY>&action=lookup&ts=<msg.payload.ts>`
+   - On success: set `msg.payload.lat` and `msg.payload.lon` from response
+   - On error or null response: leave `lat`/`lon` as `null` — do not break the pipeline
+3. Function node — derived fields (`dew_point_f`, `heat_index_f`) (unchanged)
+4. HTTP Request: POST to Apps Script environmental data endpoint (unchanged)
 5. Success/error logging (unchanged)
 
-Implementation note for Claude Code: Node-RED function nodes can read files synchronously using `require('fs')`. Use `fs.readFileSync` with a try/catch — if the file doesn't exist (device never traveled), catch the error and continue with `lat`/`lon` null. Do not let a missing GPS file break the data pipeline.
-
 **Joseph does:**
-1. Import the updated Node-RED flow
-2. Deploy
-3. Trigger a test MQTT message on `jctsh/components/hiking-monitor/data` with a timestamp that falls within the GPS track logged in Step 19
+1. Redeploy the Apps Script with the `action=lookup` branch added
+2. Import the updated Node-RED flow and deploy
+3. Trigger a test MQTT message with a timestamp that falls within the GPS track logged in Step 19
 4. Confirm `lat` and `lon` columns in Google Sheets are populated with plausible coordinates
 5. Trigger a test message with a timestamp outside the GPS track
-6. Confirm `lat` and `lon` are null (not an error, not blank from a crash)
+6. Confirm `lat` and `lon` are null
 
-**Joseph confirms:** lat/lon populated correctly for matched timestamps. Null returned correctly for unmatched timestamps. Data pipeline otherwise unchanged — dew_point_f, heat_index_f, all other fields unaffected.
+**Joseph confirms:** lat/lon populated correctly for matched timestamps. Null returned for unmatched timestamps. All other pipeline fields unaffected.
 
-**Claude Code does:** Update data-pipeline.md Section 11 with the GPS lookup function code and the test results.
+**Claude Code does:** Update data-pipeline.md Section 11 with the lookup endpoint code and test results.
 
 ---
 

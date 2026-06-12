@@ -42,8 +42,8 @@ No port forwarding. No public Pi access. GPSLogger posts directly to Google over
 
 1. Install GPSLogger on Pixel 10 Pro XL
 2. Open GPSLogger → General Options:
-   - **Start on bootup:** on
-   - **Keep screen on:** off
+   - **Start on bootup:** off
+   - **Start logging when app starts:** on
    - **Notification:** on (keeps service alive in background)
 3. Performance Options:
    - **Logging interval:** 30 seconds
@@ -62,7 +62,7 @@ In GPSLogger → Logging Details → Log to custom URL:
 | Body | (leave empty — all params are in the URL) |
 | Headers | (leave empty) |
 | Basic auth | disabled |
-| Retry on failure | **on** — queues failed GETs and retries when connectivity returns |
+| Discard offline locations | **off** — queues failed GETs and retries when connectivity returns |
 
 Replace `<SCRIPT_ID>` and `<API_KEY>` with values from `credentials.local.md`.
 
@@ -191,8 +191,8 @@ Step 20 wires it into Node-RED.
 
 | Item | Value |
 |---|---|
-| GPSLogger app version | — |
-| Test walk duration | — |
-| Trackpoints logged | — |
-| Deployment redeployed (new version) | — |
-| Any settings differing from above | — |
+| GPSLogger app version | F-Droid install (Play Store listing removed) |
+| Test walk duration | ~5 minutes (mailbox and back) |
+| Trackpoints logged | 23 |
+| Deployment redeployed (new version) | 2026-06-12 |
+| Any settings differing from above | "Retry on failure" is labeled "Discard offline locations" (set to off); "Keep screen on" not present; "Start on bootup" off; "Start logging when app starts" on |

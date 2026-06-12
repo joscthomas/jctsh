@@ -106,9 +106,17 @@ function doGet(e) {
       var lon     = parseFloat(e.parameter.lon);
       var acc     = parseFloat(e.parameter.acc);
       var alt     = parseFloat(e.parameter.alt);
-      // %TIME from GPSLogger is Unix epoch in seconds — convert to ISO8601 UTC
-      var tsEpoch = parseInt(e.parameter.ts);
-      var tsISO   = new Date(tsEpoch * 1000).toISOString();
+      // %TIME from GPSLogger may be a Unix epoch integer (seconds or ms) or an
+      // ISO date string depending on app version. Parse robustly:
+      var tsRaw = e.parameter.ts;
+      var tsDate;
+      if (/^\d+$/.test(tsRaw)) {
+        var n = Number(tsRaw);
+        tsDate = new Date(n.toString().length >= 13 ? n : n * 1000);
+      } else {
+        tsDate = new Date(tsRaw);
+      }
+      var tsISO = tsDate.toISOString();
 
       var ss = SpreadsheetApp.getActiveSpreadsheet();
       var gpsSheet = ss.getSheetByName('GPS Track');

@@ -98,17 +98,15 @@ Next step: write Claude Code build instructions.
 
 ### CARD-008 · [enhancement] Hiking-sensor Step 21 — Pixel hotspot second WiFi
 **Component:** hiking-sensor  
-**Notes:** Add `JCT Hotspot` as a second WiFi network in the ESPHome YAML (JCTnet1 priority 1, hotspot priority 2). Allows SPIFFS replay to the home broker over cellular when traveling — the hotspot does not need to stay on; you enable it when you want to sync, power-cycle the hiking monitor to trigger a connection, and turn it off when the replay completes (~36 KB per 6-hour hike).
+**Notes:** `JCT Hotspot` added as second WiFi network (JCTnet1 priority 1, hotspot priority 2). Broker changed to `jctsh.duckdns.org` (internet-routable via DuckDNS + port 1883 forward). Firmware OTA flashed 2026-06-12. Field test pending — first hotspot sync will happen on camping trip starting 2026-06-15.
 
-**Upload workflow:** Enable Pixel hotspot → switch hiking monitor off then on → device connects to hotspot → connects to home broker via DuckDNS hostname over cellular → SPIFFS replay fires automatically → log dashboard shows `Replaying N hike readings...` then `Hike log replay complete.` → turn off hotspot.
-
-**Key change needed:** broker address in `secrets.yaml` must be the DuckDNS hostname (internet-routable), not `192.168.1.117` (LAN-only). Port 1883 is already forwarded via DuckDNS + router port-forward. Design documented in `components/hiking-sensor/wifi-config.md`. Steps 1–14 and 19–20 complete. This is the next step before enclosure (CARD-009).
+**Upload workflow:** Enable Pixel hotspot → switch hiking monitor off then on → device connects to hotspot → reaches home broker over cellular → SPIFFS replay fires automatically → log dashboard shows `Replaying N hike readings...` then `Hike log replay complete.` → turn off hotspot. Confirm by watching IP in `Hiking monitor online` log message (hotspot DHCP ≠ 192.168.1.x).
 
 ---
 
 ### CARD-009 · [enhancement] Hiking-sensor Step 15 — Enclosure design and build
 **Component:** hiking-sensor  
-**Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-sensor/enclosure-prototype.md`. All prior steps and tests complete as of 2026-06-12. Follows CARD-008 (Pixel hotspot second WiFi).
+**Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-sensor/enclosure-prototype.md`. Standoffs arrive 2026-06-14; temp enclosure build before camping trip departure 2026-06-15. Device will be used in the field for ~2 weeks on that trip — hiking and van sensor simulation. Full 3D-printed permanent enclosure is a later step.
 
 ---
 

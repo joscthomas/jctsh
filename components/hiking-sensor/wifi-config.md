@@ -35,22 +35,25 @@ To set on Pixel 10 Pro XL: Settings → Network & internet → Hotspot & tetheri
 6. Log dashboard shows `Replaying N hike readings...` then `Hike log replay complete.`
 7. Turn switch OFF when done
 
-## Broker Reachability from Hotspot (open issue)
+## Broker Reachability from Hotspot
 
-The ESP32 is not a Tailscale client. When it connects via the Pixel hotspot, its traffic goes out over cellular as regular internet traffic — it cannot reach Tailscale IPs or private LAN IPs.
+The ESP32 is not a Tailscale client. When it connects via the Pixel hotspot, its traffic
+goes out over cellular as regular internet traffic — it cannot reach LAN IPs or Tailscale
+IPs. The broker address must be internet-routable.
 
 | Address | Reachable from hotspot? |
 |---|---|
 | `raspberrypi.local` | No — mDNS is link-local only |
 | `192.168.1.117` | No — private LAN, not internet-routable |
 | `100.70.162.24` (Tailscale) | No — only accessible from other Tailscale clients |
+| `jctsh.duckdns.org` | **Yes** — DuckDNS hostname + port 1883 forwarded to Pi |
 
-**Resolution options (not yet implemented):**
-- Port-forward port 1883 on the home router → Pi (requires dynamic DNS or static public IP)
-- Tailscale Funnel (exposes Pi services to the internet via Tailscale relay)
-- Accept limitation: hotspot only used at home for testing; hike data always syncs on returning home over JCTnet1
+**Resolution:** `mqtt_broker` in `secrets.yaml` is set to `jctsh.duckdns.org`. Port 1883
+is forwarded from the internet to the Pi at `192.168.1.117` via DuckDNS dynamic DNS and
+a router port-forward rule. fail2ban on the Pi watches for connection floods.
 
-**Current behavior:** If the ESP32 connects via hotspot and cannot reach the broker, MQTT connect will timeout. The device will stay connected to the hotspot but no replay will occur. No data is lost — SPIFFS log is intact and replays when JCTnet1 is available.
+This address also works on home WiFi (router hairpin NAT), so a single broker value
+covers both networks.
 
 - **Cellular data volume:** trivially small — ~200 bytes/reading × 180 readings/6-hour hike = ~36 KB per replay
 - **Heartbeat publishes on hotspot connection** — watchdog will show device online; this is correct

@@ -227,12 +227,12 @@ Observations publish to `jctsh/components/hiking-observations/data` using this s
 
 ### Keyword Trigger
 
-All observations must begin with the word **"observation"** (case-insensitive). The Apps Script processor checks this before processing. Recordings that do not begin with this keyword are ignored entirely — casual recordings, reminders, and other voice memos are never processed.
+All observations must begin with the word **"Selah"** (case-insensitive). The Apps Script strips this prefix before storing the observation text. The prefix is a deliberate pause signal — speaking "Selah" before the observation gives a natural beat before the real content begins.
 
 Examples of valid observation openings:
-- "Observation: saw first saguaro bloom today"
-- "Observation, large hawk circling above the ridge"
-- "observation feels significantly more humid than last week at this point"
+- "Selah, saw first saguaro bloom today"
+- "Selah: large hawk circling above the ridge"
+- "selah feels significantly more humid than last week at this point"
 
 ### Category Taxonomy
 

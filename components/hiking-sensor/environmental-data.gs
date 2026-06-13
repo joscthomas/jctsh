@@ -29,12 +29,42 @@ function doPost(e) {
 
     if (payload.component === 'hiking-observations') {
       var obsSheet = ss.getSheetByName('Hiking Observations');
-      obsSheet.appendRow([
-        payload.ts,
-        payload.observation,
-        JSON.stringify(payload.categories || []),
-        payload.source || 'voice'
-      ]);
+
+      // Strip "observation" keyword prefix — tolerates punctuation/spaces after keyword
+      var obsText = (payload.observation || '').trim();
+      obsText = obsText.replace(/^selah[:\s,]*/i, '').trim();
+
+      // Category keyword scan — assigns all matching categories
+      var taxonomy = {
+        'vegetation':  ['saguaro','bloom','cactus','tree','shrub','flower','plant','grass','palo verde','ocotillo'],
+        'wildlife':    ['bird','hawk','coyote','snake','rabbit','deer','javelina','lizard','butterfly','insect'],
+        'weather':     ['cloud','rain','wind','storm','thunder','lightning','temperature','hot','cold','warm','cool'],
+        'visibility':  ['clear','hazy','smoke','dust','fog','smoggy','murky'],
+        'sky':         ['moon','sun','stars','sunrise','sunset','rainbow','shadow'],
+        'air_quality': ['smoky','dusty','smell','odor','particulate','ash'],
+        'trail':       ['trail','path','wash','ridge','peak','summit','canyon','rock','boulder','erosion'],
+        'subjective':  ['feels','seems','appears','noticed','unusual','different','surprising']
+      };
+      var lower = obsText.toLowerCase();
+      var categories = [];
+      for (var cat in taxonomy) {
+        var keywords = taxonomy[cat];
+        for (var k = 0; k < keywords.length; k++) {
+          if (lower.indexOf(keywords[k]) !== -1) {
+            categories.push(cat);
+            break;
+          }
+        }
+      }
+
+      // Normalize timestamp — accept ISO string or Unix epoch seconds integer
+      var ts = payload.ts;
+      if (typeof ts === 'number' || /^\d{1,10}$/.test(String(ts))) {
+        ts = new Date(Number(ts) * 1000).toISOString();
+      }
+
+      obsSheet.appendRow([ts, obsText, JSON.stringify(categories), payload.source || 'voice']);
+
     } else {
       var envSheet = ss.getSheetByName('Environmental Data');
       var v = function(field) {

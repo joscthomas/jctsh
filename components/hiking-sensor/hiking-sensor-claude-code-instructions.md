@@ -2,8 +2,8 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step build instructions for the hiking-sensor (hiking-monitor) component.
 **Project:** JCT Smart Home (JCTsh)
-**Version:** 1.1
-**Version description:** Added Steps 19–22: GPSLogger configuration and Node-RED GPS pipeline (Step 19), Node-RED lat/lon population in wildcard data handler (Step 20), Pixel hotspot second WiFi network (Step 21), and Harvest New Patterns into Build Standards (Step 22). These steps are a post-Step-18 iterative refinement — the core build (Steps 1–18) is completed and field-tested first.
+**Version:** 1.2
+**Version description:** Added Steps 23–26: Hiking observations pipeline via Tasker — voice observations captured on the Pixel during hikes, posted directly to the Apps Script doPost endpoint, written to the Hiking Observations sheet with automatic category classification.
 **Related files:** JCTsh-hiking-sensor-phase1.md, JCTsh-Environmental-Data-Architecture.md, JCTsh-Build-Standards.md, CLAUDE.md, components/front-porch-temp-sensor/
 
 ---
@@ -778,3 +778,128 @@ Do not write changes to `JCTsh-Build-Standards.md` until Joseph reviews and appr
 **Joseph confirms:** Approved additions identified. Proceed to update `JCTsh-Build-Standards.md`.
 
 **Claude Code does:** Write approved additions and updates to `JCTsh-Build-Standards.md`. Bump the version number and update the version description to reflect what was added.
+
+---
+
+## Step 23 — Hiking Observations: Update Apps Script
+
+**Claude Code does:** Update `environmental-data.gs` to handle voice observations from Tasker — strip the "observation" keyword prefix, scan the text against the category taxonomy, normalize the timestamp, and append to the Hiking Observations sheet. The updated handler is already in `components/hiking-sensor/environmental-data.gs`.
+
+Paste the entire contents of `environmental-data.gs` into the Apps Script editor (Extensions → Apps Script), replacing what's there. Then redeploy:
+
+1. Click **Deploy → Manage deployments**
+2. Click the pencil icon on the existing deployment
+3. Change **Version** to **New version**
+4. Click **Save**
+
+The deployment URL does not change.
+
+**Claude Code does:** Construct a test POST from PowerShell to verify the updated handler. Retrieve `<SCRIPT_ID>` and `<KEY>` from `credentials.local.md`, then put the test command on the clipboard.
+
+```powershell
+$url = "https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<KEY>"
+$body = '{"component":"hiking-observations","ts":"2026-06-13T17:00:00Z","lat":null,"lon":null,"observation":"Selah, saw a hawk circling above the ridge, very clear sky today","categories":[],"source":"voice"}'
+Invoke-RestMethod -Uri $url -Method Post -ContentType "application/json" -Body $body
+```
+
+Expected response: `{"status":"ok"}`
+
+**Joseph does:** Run the test command. Then open the Hiking Observations sheet and confirm:
+- Row appeared with the hike timestamp (not the current time)
+- Observation text has the "Selah," prefix stripped: `saw a hawk circling above the ridge, very clear sky today`
+- Categories populated automatically: `["wildlife","visibility","sky"]`
+- Source: `voice`
+
+**Joseph confirms:** Row in sheet is correct. Proceed to Step 24.
+
+---
+
+## Step 24 — Hiking Observations: Create Tasker Task
+
+**Joseph does:** In Tasker on the Pixel 10 Pro XL, create a new task named **"Log Observation"**:
+
+1. Open Tasker → Tasks tab → **+** → name it `Log Observation`
+
+2. **Action 1 — Get Voice:**
+   - Tap **+** → Input → **Get Voice**
+   - Title: `Speak your observation`
+   - Variable: `%obs_text`
+   - Tap back (checkmark)
+
+3. **Action 2 — Stop if no input (user cancelled):**
+   - Tap **+** → Task → **Stop**
+   - If: `%obs_text` **~** *(leave blank — matches empty)*
+   - Tap back
+
+4. **Action 3 — Build JSON payload:**
+   - Tap **+** → Script → **JavaScript**
+   - Paste this code:
+   ```javascript
+   var obsText = local('obs_text').trim();
+   var ts = new Date().toISOString();
+   var payload = {
+     component: 'hiking-observations',
+     ts: ts,
+     lat: null,
+     lon: null,
+     observation: obsText,
+     categories: [],
+     source: 'voice'
+   };
+   setLocal('obs_json', JSON.stringify(payload));
+   ```
+   - Tap back
+
+5. **Action 4 — POST to Apps Script:**
+   - Tap **+** → Net → **HTTP Request**
+   - Method: `POST`
+   - URL: `https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<KEY>` *(from `credentials.local.md`)*
+   - Headers: `Content-Type: application/json`
+   - Body: `%obs_json`
+   - Output Variable: `%http_resp`
+   - Tap back
+
+6. **Action 5 — Notify on success:**
+   - Tap **+** → Alert → **Flash**
+   - Text: `Observation logged`
+   - Tap back
+
+7. Tap the checkmark to save the task.
+
+**Test the task manually:** In the Tasks list, tap the play button next to `Log Observation`. Speak an observation when prompted. Check the Hiking Observations sheet — a new row should appear within a few seconds.
+
+**Joseph confirms:** Manual task test produced a row in the sheet. Proceed to Step 25.
+
+---
+
+## Step 25 — Hiking Observations: Home Screen Widget
+
+**Joseph does:** Add the Tasker task as a one-tap home screen widget on the Pixel:
+
+1. Long-press an empty area of the home screen → **Widgets**
+2. Find **Tasker** in the widget list → select **Task Shortcut** (1×1)
+3. Drag it to a convenient home screen position
+4. When prompted, select task: **Log Observation**
+5. Icon and label: leave default or customize
+
+The widget is now a single tap to record an observation from anywhere on the home screen.
+
+**Joseph confirms:** Widget tapped, observation spoken, row appeared in sheet. Proceed to Step 26.
+
+---
+
+## Step 26 — Hiking Observations: End-to-End Field Simulation
+
+**Joseph does:** Simulate a hiking observation session:
+
+1. Tap the **Log Observation** widget
+2. Say: *"Selah, saguaro blooms are out on the south-facing slopes, first of the season"*
+3. Open the Hiking Observations sheet — confirm row with:
+   - Timestamp: current time in UTC
+   - Observation: `saguaro blooms are out on the south-facing slopes, first of the season` (prefix stripped)
+   - Categories: `["vegetation"]`
+4. Tap the widget a second time
+5. Say: *"Selah, coyote tracks crossing the wash near the boulder field, looks fresh"*
+6. Confirm row with categories: `["wildlife","trail"]`
+
+**Joseph confirms:** Both rows correct. CARD-007 is done — move to Done in backlog.

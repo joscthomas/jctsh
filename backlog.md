@@ -85,22 +85,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-## Design
+## Build
 
-### CARD-007 · [idea] Hiking observations pipeline (Google Recorder → Sheets)
+### CARD-007 · [idea] Hiking observations pipeline (Tasker → Sheets)
 **Component:** hiking-sensor  
-**Design doc:** `JCTsh-Environmental-Data-Architecture.md` §"Hiking Observations Architecture"  
-**Notes:** Keyword-triggered voice observation capture via Google Recorder on Pixel 10 Pro XL. Recordings beginning with "observation" are transcribed, classified by category, and archived in the Hiking Observations sheet. No ESP32 or hardware required — phone + Google Apps Script + Sheets pipeline.
-
-Two implementation paths documented in the architecture doc:
-- **Path A (manual share):** After the hike, share each relevant transcript from Google Recorder to Google Docs → Drive folder → Apps Script processes → Sheets → MQTT
-- **Path B (Tasker automation):** On reconnect to JCTnet1, Tasker scans Google Recorder transcripts via Android content provider → publishes directly to MQTT. Eliminates the manual share step. Build Path A first; upgrade to Path B once Path A is proven.
-
-Next step: write Claude Code build instructions.
+**Notes:** Voice observations captured on the Pixel during hikes via Tasker widget → Android speech recognition → HTTP POST to Apps Script doPost → Hiking Observations sheet with automatic category classification. Google Recorder dropped — no API. Implementation: Steps 23–26 in `hiking-sensor-claude-code-instructions.md`. Apps Script updated (`environmental-data.gs` — strips "observation" prefix, keyword-scans categories, normalizes timestamp).
 
 ---
-
-## Build
 
 ### CARD-008 · [enhancement] Hiking-sensor Step 21 — Pixel hotspot second WiFi
 **Component:** hiking-sensor  

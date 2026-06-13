@@ -28,7 +28,7 @@ To set on Pixel 10 Pro XL: Settings → Network & internet → Hotspot & tetheri
 1. At the trailhead or after returning from a hike: enable Pixel hotspot
 2. Turn hiking-monitor switch OFF then ON (or plug in USB for upload mode)
 3. Device connects to hotspot → connects to home Mosquitto broker over cellular
-4. LittleFS replay triggers automatically — identical to home sync
+4. SPIFFS replay triggers automatically — identical to home sync
 5. Replayed readings appear in Google Sheets with original hike timestamps
 6. Log dashboard shows `Replaying N hike readings...` then `Hike log replay complete.`
 7. Turn switch OFF when done
@@ -48,7 +48,7 @@ The ESP32 is not a Tailscale client. When it connects via the Pixel hotspot, its
 - Tailscale Funnel (exposes Pi services to the internet via Tailscale relay)
 - Accept limitation: hotspot only used at home for testing; hike data always syncs on returning home over JCTnet1
 
-**Current behavior:** If the ESP32 connects via hotspot and cannot reach the broker, MQTT connect will timeout. The device will stay connected to the hotspot but no replay will occur. No data is lost — LittleFS log is intact and replays when JCTnet1 is available.
+**Current behavior:** If the ESP32 connects via hotspot and cannot reach the broker, MQTT connect will timeout. The device will stay connected to the hotspot but no replay will occur. No data is lost — SPIFFS log is intact and replays when JCTnet1 is available.
 
 - **Cellular data volume:** trivially small — ~200 bytes/reading × 180 readings/6-hour hike = ~36 KB per replay
 - **Heartbeat publishes on hotspot connection** — watchdog will show device online; this is correct

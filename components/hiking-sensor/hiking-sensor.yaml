@@ -27,8 +27,8 @@
 #   .../heartbeat  — 5-min heartbeat when home WiFi connected (wildcard monitored by Node-RED watchdog)
 #
 # Operating modes:
-#   Field mode  (switch ON, no WiFi): read sensors → write JSON to LittleFS /hike_log.jsonl
-#   Home mode   (switch ON, WiFi+MQTT): replay LittleFS log → MQTT; live readings → MQTT directly
+#   Field mode  (switch ON, no WiFi): read sensors → write JSON to SPIFFS /hike_log.jsonl
+#   Home mode   (switch ON, WiFi+MQTT): replay SPIFFS log → MQTT; live readings → MQTT directly
 #   Upload mode (switch OFF, USB connected): auto-wake via dock detect → replay log → sleep
 #   Sleep mode  (switch OFF, no USB): deep sleep ~10µA
 #
@@ -414,7 +414,7 @@ font:
 
 # ── Heartbeat + sensor read + log interval ────────────────────────────────────
 interval:
-  # 2-minute sensor cycle: read sensors, log to LittleFS or publish to MQTT
+  # 2-minute sensor cycle: read sensors, log to SPIFFS or publish to MQTT
   - interval: 2min
     then:
       - lambda: |-

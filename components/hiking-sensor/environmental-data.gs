@@ -61,7 +61,8 @@ function doPost(e) {
         ts = new Date(Number(ts) * 1000).toISOString();
       }
 
-      obsSheet.appendRow([ts, obsText, JSON.stringify(categories), payload.source || 'voice']);
+      var obsCoords = _gpsLookup(ss, ts);
+      obsSheet.appendRow([ts, obsText, JSON.stringify(categories), payload.source || 'voice', obsCoords.lat, obsCoords.lon]);
 
     } else {
       var envSheet = ss.getSheetByName('Environmental Data');
@@ -106,6 +107,33 @@ function doPost(e) {
       .createTextOutput(JSON.stringify({status: 'error', message: err.toString()}))
       .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+// ---------------------------------------------------------------------------
+// _gpsLookup — shared helper used by doGet(action=lookup) and doPost(hiking-observations)
+// ---------------------------------------------------------------------------
+// Returns {lat, lon} of the nearest GPS trackpoint within ±5 minutes of tsISO,
+// or {lat: null, lon: null} if GPS Track is empty or no match within the window.
+
+function _gpsLookup(ss, tsISO) {
+  var gpsSheet = ss.getSheetByName('GPS Track');
+  if (!gpsSheet) return {lat: null, lon: null};
+  var data = gpsSheet.getDataRange().getValues();
+  if (data.length <= 1) return {lat: null, lon: null};
+
+  var targetTime = new Date(tsISO).getTime();
+  var fiveMin    = 5 * 60 * 1000;
+  var bestRow    = null;
+  var bestDiff   = Infinity;
+
+  for (var i = 1; i < data.length; i++) {
+    var diff = Math.abs(targetTime - new Date(data[i][0]).getTime());
+    if (diff < bestDiff) { bestDiff = diff; bestRow = data[i]; }
+  }
+
+  return (bestDiff <= fiveMin && bestRow !== null)
+    ? {lat: bestRow[1], lon: bestRow[2]}
+    : {lat: null, lon: null};
 }
 
 // ---------------------------------------------------------------------------
@@ -155,42 +183,12 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
 
     } else if (action === 'lookup') {
-      var ts         = e.parameter.ts;
-      var targetTime = new Date(ts).getTime();
-      var fiveMin    = 5 * 60 * 1000;
-
+      var ts = e.parameter.ts;
       var ss = SpreadsheetApp.getActiveSpreadsheet();
-      var gpsSheet = ss.getSheetByName('GPS Track');
-      var data = gpsSheet.getDataRange().getValues();
-
-      // data[0] is the header row
-      if (data.length <= 1) {
-        return ContentService
-          .createTextOutput(JSON.stringify({lat: null, lon: null}))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
-
-      var bestRow  = null;
-      var bestDiff = Infinity;
-
-      for (var i = 1; i < data.length; i++) {
-        var rowTime = new Date(data[i][0]).getTime();
-        var diff    = Math.abs(targetTime - rowTime);
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          bestRow  = data[i];
-        }
-      }
-
-      if (bestDiff <= fiveMin && bestRow !== null) {
-        return ContentService
-          .createTextOutput(JSON.stringify({lat: bestRow[1], lon: bestRow[2]}))
-          .setMimeType(ContentService.MimeType.JSON);
-      } else {
-        return ContentService
-          .createTextOutput(JSON.stringify({lat: null, lon: null}))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
+      var coords = _gpsLookup(ss, ts);
+      return ContentService
+        .createTextOutput(JSON.stringify(coords))
+        .setMimeType(ContentService.MimeType.JSON);
 
     } else {
       return ContentService

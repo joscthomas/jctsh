@@ -110,6 +110,86 @@ function doPost(e) {
 }
 
 // ---------------------------------------------------------------------------
+// onOpen — custom menu
+// ---------------------------------------------------------------------------
+
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('JCTsh')
+    .addItem('Refresh Timeline', 'refreshTimeline')
+    .addToUi();
+}
+
+// ---------------------------------------------------------------------------
+// refreshTimeline — merge Environmental Data + Hiking Observations → Timeline
+// ---------------------------------------------------------------------------
+// Run from the JCTsh menu after a hike to build a unified time-sorted view.
+// Timeline columns: timestamp_az | type | summary | categories | lat | lon
+
+function refreshTimeline() {
+  var ss           = SpreadsheetApp.getActiveSpreadsheet();
+  var envSheet     = ss.getSheetByName('Environmental Data');
+  var obsSheet     = ss.getSheetByName('Hiking Observations');
+  var timelineSheet = ss.getSheetByName('Timeline');
+  if (!timelineSheet) timelineSheet = ss.insertSheet('Timeline');
+
+  var rows = [];
+
+  // Environmental Data (row 0 = header, skip it)
+  var envData = envSheet.getDataRange().getValues();
+  for (var i = 1; i < envData.length; i++) {
+    var r = envData[i];
+    if (!r[0]) continue;
+    var tsDate = new Date(r[0]);
+    if (isNaN(tsDate.getTime())) continue;
+
+    var parts = [];
+    if (r[4] !== '') parts.push(Number(r[4]).toFixed(1) + '°F');
+    if (r[5] !== '') parts.push(Number(r[5]).toFixed(1) + '% hum');
+    if (r[9] !== '') parts.push('UV ' + Number(r[9]).toFixed(1));
+    if (r[16] !== '') parts.push(Number(r[16]).toFixed(2) + 'V');
+    if (Number(r[17]) === 0) parts.push('field');
+
+    rows.push([tsDate, _azString(tsDate), 'sensor', parts.join(' · '), '', r[2] || null, r[3] || null]);
+  }
+
+  // Hiking Observations (row 0 = header, skip it)
+  var obsData = obsSheet.getDataRange().getValues();
+  for (var j = 1; j < obsData.length; j++) {
+    var o = obsData[j];
+    if (!o[0]) continue;
+    var oDate = new Date(o[0]);
+    if (isNaN(oDate.getTime())) continue;
+
+    rows.push([oDate, _azString(oDate), 'observation', o[1], o[2], o[4] || null, o[5] || null]);
+  }
+
+  // Sort by UTC timestamp
+  rows.sort(function(a, b) { return a[0] - b[0]; });
+
+  // Write to Timeline sheet — drop sort key (col 0)
+  timelineSheet.clearContents();
+  timelineSheet.getRange(1, 1, 1, 6).setValues([['timestamp_az', 'type', 'summary', 'categories', 'lat', 'lon']]);
+  if (rows.length > 0) {
+    var output = rows.map(function(r) { return [r[1], r[2], r[3], r[4], r[5], r[6]]; });
+    timelineSheet.getRange(2, 1, output.length, 6).setValues(output);
+  }
+
+  SpreadsheetApp.getUi().alert('Timeline refreshed — ' + rows.length + ' rows.');
+}
+
+// ---------------------------------------------------------------------------
+// _azString — format a UTC Date as Arizona local time string (UTC-7, no DST)
+// ---------------------------------------------------------------------------
+
+function _azString(utcDate) {
+  var az = new Date(utcDate.getTime() - 7 * 60 * 60 * 1000);
+  var p  = function(n) { return n < 10 ? '0' + n : String(n); };
+  return az.getFullYear() + '-' + p(az.getMonth()+1) + '-' + p(az.getDate()) +
+         ' ' + p(az.getHours()) + ':' + p(az.getMinutes()) + ':' + p(az.getSeconds());
+}
+
+// ---------------------------------------------------------------------------
 // _gpsLookup — shared helper used by doGet(action=lookup) and doPost(hiking-observations)
 // ---------------------------------------------------------------------------
 // Returns {lat, lon} of the nearest GPS trackpoint within ±5 minutes of tsISO,

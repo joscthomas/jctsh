@@ -1,99 +1,103 @@
 # Front Porch Temp Sensor
 
-Environmental sensor for the front porch. Monitors temperature, pressure, and illuminance. Sends push notifications to both household phones when temperature crosses a configurable threshold — between 6am and 10pm only.
+ESP32 environmental sensor for the front porch — monitors temperature, pressure, and
+light level, and sends push notifications to household phones when the temperature
+crosses a configurable threshold.
+
+**Status:** Production — on perfboard, deployed at front porch
+**Hardware:** ESP32 + BME280 + BH1750 light sensor
+
+---
+
+## What It Solves
+
+Tucson summers are dangerously hot. This sensor monitors the front porch temperature
+and notifies when it's warm enough to close the door (≥ threshold) or cool enough to
+open windows (< threshold, morning hours only), so you don't have to remember to check.
+A configurable threshold and time window prevent false alerts.
 
 ---
 
 ## Hardware
 
-| Component | Detail |
+| Component | Details |
 |---|---|
-| Microcontroller | ESP32 DevKitC-32, 38-pin, CP2102 USB-C |
-| Temp/pressure sensor | BME280 — currently deployed as BMP280 (counterfeit module); genuine BME280 ordered |
-| Light sensor | BH1750 (GY-302), I2C |
-| Firmware | ESPHome |
+| Microcontroller | ESP32 DevKitC-32, 38-pin, CP2102, USB-C |
+| Temp / humidity / pressure | BME280 (genuine GY-BME280), I2C at GPIO21/22 |
+| Light | BH1750 (GY-302), I2C at GPIO21/22, ADDR pin → GND (address 0x23) |
 | Power | USB-C from porch outlet |
+| Firmware | ESPHome |
 
-See `ESP32pins.png` for the full ESP32 DevKitC-32 pinout reference.
-
-> **BME280 note:** All three Podazz BME280 modules in the initial batch are counterfeit BMP280s (no humidity support). The ESPHome config uses `bmp280_i2c` platform and omits the humidity sensor until genuine BME280s arrive. Humidity shows Unknown in HA — expected. When genuine BME280s arrive: swap module, change `bmp280_i2c` → `bme280_i2c` in `front-porch-temp-sensor.yaml`, uncomment the humidity sensor, and re-enable the Humidity favorite in the HA Overview page.
-
----
-
-## Wiring
-
-Both sensors share a single I2C bus.
-
-| Sensor | Pin | ESP32 Pin | Notes |
-|---|---|---|---|
-| BME280 (temp/pressure sensor) | VCC | 3.3V | |
-| BME280 (temp/pressure sensor) | GND | GND | |
-| BME280 (temp/pressure sensor) | SDA | GPIO21 | Shared I2C bus |
-| BME280 (temp/pressure sensor) | SCL | GPIO22 | Shared I2C bus |
-| BH1750 (light sensor) | VCC | 3.3V | |
-| BH1750 (light sensor) | GND | GND | |
-| BH1750 (light sensor) | SDA | GPIO21 | Shared I2C bus |
-| BH1750 (light sensor) | SCL | GPIO22 | Shared I2C bus |
-| BH1750 (light sensor) | ADDR | GND | Sets I2C address to 0x23 |
-
-Wire color convention: red = 3.3V, black = GND, blue = SDA, yellow = SCL.
-
-See `wiring.md` for the full breadboard wiring checklist.
+Both sensors share the I2C bus. See [wiring.md](wiring.md) for full wiring checklist
+and [ESP32-project-pins.md](ESP32-project-pins.md) for the complete pin table.
 
 ---
 
 ## Architecture
 
 ```
-BME280 (temp/pressure sensor)  BH1750 (light sensor)
-           │                          │
-           └──────── I2C bus ─────────┘
-                         │
-               ESP32 DevKitC-32
-                         │
-         MQTT: jctsh/components/front-porch-temp-sensor/...
-                         ▼
-               Mosquitto broker (Raspberry Pi)
-                         │
-              ┌──────────┴──────────┐
-              ▼                     ▼
-        Home Assistant          Node-RED
-     Temperature sensor      log router:
-     Pressure sensor         .../log → log dashboard
-     Illuminance sensor      watchdog: heartbeat monitor
+BME280 (temp/humidity/pressure)  +  BH1750 (light)
+                  │  I2C
+                  ▼
+        ESP32 / ESPHome
+                  │  MQTT: jctsh/components/front-porch-temp-sensor/...
+                  ▼
+        Mosquitto broker (Raspberry Pi)
+                  │
+          ┌───────┴───────┐
+          ▼               ▼
+   Home Assistant      Node-RED
+   sensor entities     log router + watchdog
           │
-          ├── Front Porch Warm - Close Door automation
-          └── Front Porch Cool - Open Door automation
-                    │
-                    ▼
-           notify.mobile_app_pixel_10_pro_xl
-           notify.mobile_app_pixel_7_pro
+   HA automations
+   ├── Front Porch Warm - Close Door
+   └── Front Porch Cool - Open Door
+          │
+          ▼
+   notify.mobile_app_pixel_10_pro_xl
+   notify.mobile_app_pixel_7_pro
 ```
+
+---
+
+## Quick Start
+
+1. Copy `secrets.yaml.template` → `secrets.yaml` and fill in credentials from
+   `credentials.local.md`
+2. See [flashing.md](flashing.md) for flash procedure
+3. See [integration.md](integration.md) for HA entity and automation setup
+4. See [testing.md](testing.md) to verify end-to-end operation
+
+---
+
+## Configuration
+
+| Setting | Where | Notes |
+|---|---|---|
+| WiFi / MQTT credentials | `secrets.yaml` | Template: `secrets.yaml.template` |
+| Alert temperature threshold | `input_number.front_porch_temp_threshold` | Default 80°F — set in HA Helpers |
+
+Threshold changes take effect immediately — no reflash needed.
 
 ---
 
 ## How It Works
 
-### Sensors
+Temperature, pressure, and illuminance are published to MQTT every 60 seconds.
+HA auto-discovers all entities via MQTT discovery.
 
-Temperature, pressure, and illuminance are published to MQTT every 60 seconds. Home Assistant auto-discovers all entities via MQTT discovery. Temperature is converted to °F in the ESPHome firmware.
+Two HA automations fire once per threshold crossing — no reminders:
 
-### Heartbeat
+| Automation | Trigger | Time window |
+|---|---|---|
+| Front Porch Warm - Close Door | Temp stays ≥ threshold for 10 min | 6am–10pm |
+| Front Porch Cool - Open Door | Temp stays < threshold for 10 min | 6am–1pm |
 
-Every 5 minutes, the firmware publishes a heartbeat to `jctsh/components/front-porch-temp-sensor/heartbeat` (JSON with uptime, RSSI, and temperature) and a log message to `jctsh/components/front-porch-temp-sensor/log`. The Node-RED watchdog and the Python log server pick up both automatically via wildcard subscriptions.
+The 10-minute stability buffer prevents spurious alerts from brief temperature spikes.
 
-### Notifications
-
-Two HA automations use `numeric_state` triggers with a 10-minute stability buffer — each fires once per threshold crossing, no reminders:
-
-| Automation | Trigger | Time Window | Action |
-|---|---|---|---|
-| Front Porch Warm - Close Door | temp stays ≥ threshold for 10 min | 6am–10pm | Notify both phones once |
-| Front Porch Cool - Open Door | temp stays < threshold for 10 min | 6am–1pm | Notify both phones once |
-
-Threshold is configurable via `input_number.front_porch_temp_threshold` (default 80°F). Adjust in HA: Settings → Devices & Services → Helpers.
-
-No door sensor dependency — notifications fire based on temperature and time window only.
+Every 5 minutes the device publishes a heartbeat to
+`jctsh/components/front-porch-temp-sensor/heartbeat`. The Node-RED watchdog monitors
+this and sends a push notification if silent for more than 35 minutes.
 
 ---
 
@@ -102,15 +106,16 @@ No door sensor dependency — notifications fire based on temperature and time w
 | File | Purpose |
 |---|---|
 | `front-porch-temp-sensor.yaml` | ESPHome firmware config |
-| `secrets.yaml` | Credentials (gitignored) |
-| `secrets.yaml.template` | Credential template (committed) |
+| `secrets.yaml` | Credentials — gitignored, never commit |
+| `secrets.yaml.template` | Credential template |
 | `wiring.md` | Breadboard wiring checklist |
-| `flashing.md` | Flash procedure (Steps 3–5) |
-| `integration.md` | HA setup steps (Steps 6–10) |
-| `testing.md` | End-to-end test procedure (Step 11) |
-| `perfboard-layout.md` | Perfboard transfer instructions (Step 12) |
-| `mounting.md` | Physical mounting instructions (Step 13) |
-| `automation-front-porch-warm-close-door.yaml` | HA automation YAML — warm/close door |
-| `automation-front-porch-cool-open-door.yaml` | HA automation YAML — cool/open door |
-| `dashboard-card.yaml` | Reference entity list for HA Overview |
-| `ESP32pins.png` | ESP32 DevKitC-32 pinout reference |
+| `ESP32-project-pins.md` | Full 38-pin assignment table |
+| `perfboard-layout.md` | Perfboard build layout |
+| `flashing.md` | Flash procedure |
+| `integration.md` | HA entity and automation setup |
+| `testing.md` | End-to-end test procedure |
+| `mounting.md` | Physical mounting instructions |
+| `automation-front-porch-warm-close-door.yaml` | HA automation YAML |
+| `automation-front-porch-cool-open-door.yaml` | HA automation YAML |
+| `CLAUDE.md` | Claude Code context — constraints and gotchas |
+| `front-porch-temp-sensor-claude-code-instructions.md` | Full build instructions |

@@ -1,45 +1,38 @@
 # Garage Radar
 
-24GHz mmWave presence sensor for the garage workbench. Detects still presence (someone sitting motionless) — a gap that PIR-based sensors cannot fill. Feeds into the existing garage presence automation as an additive trigger.
+24GHz mmWave presence sensor for the garage workbench — detects still presence that
+PIR-based sensors cannot, feeding into the garage presence automation to prevent the
+door closing on someone sitting motionless at the workbench.
+
+**Status:** Production — mounted in garage, running in production (June 2026)
+**Hardware:** ESP32 + HLK-LD2412 mmWave radar
+
+---
+
+## What It Solves
+
+PIR sensors detect heat movement — they miss someone sitting still. Arizona summer heat
+also causes PIR sensors to stick `on`, making them unreliable as a primary presence
+signal. The LD2412 mmWave radar detects both moving and still targets regardless of
+ambient temperature, making it the primary input to the garage presence timer and the
+safety interlock that prevents the auto-close routine from closing the door with someone
+inside.
 
 ---
 
 ## Hardware
 
-| Component | Detail |
+| Component | Details |
 |---|---|
 | Radar sensor | HLK-LD2412, 24GHz mmWave, UART interface |
 | Microcontroller | ESP32 DevKitC-32, 38-pin, CP2102 USB-C |
-| Firmware | ESPHome ≥ 2025.8.0 (first version with native ld2412 support) |
-| Power | USB-C to ESP32 from garage outlet |
+| Green LED | GPIO33, 330Ω — presence detected |
+| Yellow LED | GPIO32, 330Ω — garage lights on (mirrors vswitch) |
+| Power | USB-C from garage outlet |
+| Firmware | ESPHome ≥ 2025.8.0 (first version with native `ld2412` support) |
 
-See `ESP32pins.png` for the full ESP32 DevKitC-32 pinout reference.
-
----
-
-## Wiring
-
-**Radar (UART2 — hardware serial):**
-
-| LD2412 Pin | ESP32 Pin | Notes |
-|---|---|---|
-| TX | GPIO16 (RX2) | |
-| RX | GPIO17 (TX2) | |
-| VCC | VIN (5V) | LD2412 has onboard 5V→3.3V regulator — do not use 3.3V pin |
-| GND | GND | |
-
-UART logic operates at 3.3V — no level shifter needed.
-
-**LEDs:**
-
-| GPIO | Resistor | LED color | Meaning |
-|---|---|---|---|
-| GPIO33 | 330Ω | Green | Presence detected |
-| GPIO32 | 330Ω | Yellow | Garage presence vswitch on (lights on) |
-
-> **GPIO note:** GPIO25 and GPIO26 are broken for digital output — DAC post-boot initialization reconfigures them. Always use GPIO32/GPIO33 for LEDs on this board.
-
-See `wiring.md` for the full breadboard wiring checklist.
+See [wiring.md](wiring.md) for full wiring checklist and
+[ESP32-project-pins.md](ESP32-project-pins.md) for the complete pin table.
 
 ---
 
@@ -47,160 +40,148 @@ See `wiring.md` for the full breadboard wiring checklist.
 
 ```
 HLK-LD2412 radar
-  │  (UART)
-ESP32 DevKitC-32
-  │
-  │  MQTT: jctsh/components/garage-radar/...
-  ▼
+      │  UART (GPIO16 RX2 / GPIO17 TX2)
+      ▼
+ESP32 / ESPHome
+      │  MQTT: jctsh/components/garage-radar/...
+      ▼
 Mosquitto broker (Raspberry Pi)
-  │
-  ├──► Home Assistant
-  │      binary_sensor.garage_radar_presence
-  │      │
-  │      ├── Garage Presence - Restart timer on activity (off→on trigger)
-  │      ├── Garage Presence - Radar keepalive (fires every 5 min while present)
-  │      └── timer.garage_presence_timer (15 min)
-  │               │ on expire
-  │               ▼
-  │      switch.garage_presence_vswitch ──► SmartThings ──► lights off
-  │
-  └──► Node-RED
-         log router: .../log → log dashboard
-         watchdog: push notification if heartbeat stops for 10 min
+      │
+      ├──► Home Assistant
+      │      binary_sensor.garage_radar_presence
+      │      ├── Garage Presence - Restart timer on activity
+      │      ├── Garage Presence - Radar keepalive (every 5 min while present)
+      │      └── timer.garage_presence_timer
+      │               │ on expire
+      │               ▼
+      │      switch.garage_presence_vswitch ──► SmartThings ──► lights off / door close
+      │
+      └──► Log dashboard
 ```
+
+---
+
+## Quick Start
+
+1. Copy `secrets.yaml.template` → `secrets.yaml` and fill in credentials from
+   `credentials.local.md`
+2. See [flashing.md](flashing.md) for first flash — note the Windows path requirement
+3. See [integration.md](integration.md) for HA automation setup
+4. See [end-to-end-test.md](end-to-end-test.md) for full system validation
+
+---
+
+## Configuration
+
+| Setting | Where | Notes |
+|---|---|---|
+| WiFi / MQTT credentials | `secrets.yaml` | Template: `secrets.yaml.template` |
+| Presence timer duration | `input_number.garage_timer_duration` | Default 20 min — set in HA Helpers |
 
 ---
 
 ## How It Works
 
-### Presence detection
+### Presence Detection
 
-The LD2412 reports `has_target` (true when any target — still or moving — is in range). ESPHome applies a `delayed_off: 30s` filter so momentary detection gaps do not flicker the state. This drives `binary_sensor.garage_radar_presence` in Home Assistant.
+The LD2412 reports `has_target` (true when any target — still or moving — is in range).
+ESPHome applies a `delayed_off: 30s` filter so momentary detection gaps don't flicker
+the state. This drives `binary_sensor.garage_radar_presence` in HA.
 
-The LD2412 also reports `has_moving_target`, `has_still_target`, and distance/energy values — all published to MQTT and visible in HA — but only `has_target` drives the presence automations.
+### LEDs
 
-### Green LED
+The **green LED** mirrors the presence state using a 30-second manual holdoff driven by
+`detection_distance` rather than `id(presence).state` — necessary because nested ld2412
+binary sensors return unreliable state values in ESPHome 2026.x.
 
-The green LED mirrors the 30-second presence holdoff using `detection_distance` (a numeric sensor) and a manual countdown global, rather than `id(presence).state`. This workaround is needed because nested ld2412 binary sensors return unreliable state values in ESPHome 2026.x.
+The **yellow LED** mirrors `switch.garage_presence_vswitch` via MQTT subscription to
+`jctsh/components/garage-presence-vswitch/state`. On = garage lights on.
 
-### Yellow LED
-
-Mirrors `switch.garage_presence_vswitch` via MQTT subscription to `jctsh/components/garage-presence-vswitch/state`. On = lights are on; Off = lights are off (or timer has expired).
-
-### HA automations
+### HA Automations
 
 | Automation | Trigger | Action |
 |---|---|---|
-| Garage Presence - Restart timer on activity | `garage_radar_presence` off→on | Start 15-min timer; turn on vswitch |
-| Garage Presence - Radar keepalive | Every 5 min (while presence on) | Restart timer; confirm vswitch on |
-| Garage Presence - Timer expired | `timer.garage_presence_timer` finished | Turn off vswitch → lights off |
+| Restart timer on activity | `garage_radar_presence` off→on | Start 15-min timer; turn on vswitch |
+| Radar keepalive | Every 5 min while presence on | Restart timer; confirm vswitch on |
+| Timer expired | `timer.garage_presence_timer` finished | Turn off vswitch → lights off |
 
-The keepalive is needed because the `off→on` trigger fires only on state transitions. Someone sitting still at the workbench for 15+ minutes produces no transition — the timer would expire. The keepalive fires every 5 minutes (half the timer duration) to prevent this regardless of how `garage_timer_duration` is set.
+The keepalive prevents timer expiry during extended still presence — the `off→on`
+trigger won't re-fire if someone stays motionless for longer than the timer duration.
 
 ### Timeouts
 
 | Timeout | Location | Purpose |
 |---|---|---|
-| 30 seconds | ESPHome `delayed_off` filter | Smooths momentary radar detection gaps |
-| 5 minutes | HA keepalive automation | Resets timer during continuous still presence |
-| 15 minutes | HA `timer.garage_presence_timer` | Actual presence decision; turns off vswitch on expiry |
+| 30 seconds | ESPHome `delayed_off` | Smooths momentary detection gaps |
+| 5 minutes | HA keepalive | Resets timer during continuous still presence |
+| 20 minutes | HA timer (default) | Presence decision; turns off vswitch on expiry |
 
-Timer duration is controlled by `input_number.garage_timer_duration` in HA.
+### Heartbeat
 
-### Heartbeat and watchdog
-
-Every 5 minutes the ESP32 publishes to:
-- `.../log` — heartbeat message (uptime, RSSI, presence state) routed by Node-RED to the log dashboard
-- `.../heartbeat` — JSON payload consumed by the Node-RED watchdog
-
-Node-RED resets a 10-minute timer on each heartbeat. If the timer fires (no heartbeat for 10 minutes), Node-RED sends a push notification to the Pixel via HA companion app.
+Every 5 minutes the device publishes to `.../log` (uptime, RSSI, presence state) and
+`.../heartbeat` (JSON). The Node-RED watchdog alerts via push notification if silent for
+more than 35 minutes.
 
 ---
 
 ## MQTT Topics
 
-**Published (prefix: `jctsh/components/garage-radar`):**
+**Published** (prefix: `jctsh/components/garage-radar`):
 
-| Topic suffix | Payload | Notes |
-|---|---|---|
-| `.../binary_sensor/presence/state` | `ON` / `OFF` | Primary presence signal (has_target + 30s delayed_off) |
-| `.../binary_sensor/moving_target/state` | `ON` / `OFF` | |
-| `.../binary_sensor/still_target/state` | `ON` / `OFF` | |
-| `.../sensor/moving_distance/state` | cm | |
-| `.../sensor/still_distance/state` | cm | |
-| `.../sensor/moving_energy/state` | % | |
-| `.../sensor/still_energy/state` | % | |
-| `.../sensor/detection_distance/state` | cm | |
-| `.../log` | JSON | Log messages → log dashboard |
-| `.../heartbeat` | JSON | Node-RED watchdog input |
-
-**Subscribed:**
-
-| Topic | Purpose |
+| Topic suffix | Payload |
 |---|---|
-| `jctsh/components/garage-presence-vswitch/state` | Drives yellow LED |
+| `.../binary_sensor/presence/state` | `ON` / `OFF` — primary presence signal |
+| `.../binary_sensor/moving_target/state` | `ON` / `OFF` |
+| `.../binary_sensor/still_target/state` | `ON` / `OFF` |
+| `.../sensor/detection_distance/state` | cm |
+| `.../log` | JSON log messages |
+| `.../heartbeat` | JSON heartbeat |
+
+**Subscribed:** `jctsh/components/garage-presence-vswitch/state` — drives yellow LED.
 
 ---
 
 ## HA Entities
 
-| Entity | Type |
-|---|---|
-| `binary_sensor.garage_radar_presence` | Primary presence signal |
-| `binary_sensor.garage_radar_moving_target` | Moving target |
-| `binary_sensor.garage_radar_still_target` | Still target |
-| `sensor.garage_radar_moving_distance` | cm |
-| `sensor.garage_radar_still_distance` | cm |
-| `sensor.garage_radar_moving_energy` | % |
-| `sensor.garage_radar_still_energy` | % |
-| `sensor.garage_radar_detection_distance` | cm |
-| `input_number.garage_timer_duration` | Timer duration in minutes (15) |
-| `timer.garage_presence_timer` | Countdown timer |
-| `switch.garage_presence_vswitch` | Controls lights via SmartThings |
-
----
-
-## Flashing
-
-**Windows path note:** Spaces in the repo path break PlatformIO. Run all `esphome` commands from the junction `C:\jctsh\components\garage-radar\`, not the full repo path.
-
-**First flash (USB):**
-1. Copy `secrets.yaml.template` → `secrets.yaml`, fill in credentials
-2. Connect ESP32 via USB-C
-3. `esphome run garage-radar.yaml`
-
-**Subsequent flashes (OTA):**
-`esphome run garage-radar.yaml` — when prompted, choose the IP address option. mDNS (`.local`) does not work reliably on Windows.
-
-See `flashing.md` for full details and troubleshooting.
+| Entity | Type | Purpose |
+|---|---|---|
+| `binary_sensor.garage_radar_presence` | Binary sensor | Primary presence signal |
+| `sensor.garage_radar_detection_distance` | Sensor | Detection distance in cm |
+| `input_number.garage_timer_duration` | Helper | Timer duration in minutes |
+| `timer.garage_presence_timer` | Timer | Countdown timer |
+| `switch.garage_presence_vswitch` | Switch | Controls lights via SmartThings |
 
 ---
 
 ## Known Behaviors and Limitations
 
-- **Garage door false positive:** Closing the garage door sweeps through the radar's detection cone, triggering a brief presence detection. With a 15-minute timer this is harmless. Adjusting the tilt angle downward to exclude the door path is a possible fix but requires a calibration method.
-- **ESPHome 2026.x nested binary sensor:** `id(presence).state` returns unreliable values for binary sensors inside the `ld2412:` component. Green LED uses `detection_distance` + manual holdoff as a workaround.
-- **HA distance units:** HA displays distance sensors in imperial (inches) due to system unit settings — underlying values from ESPHome are in cm. Presence detection is unaffected.
-- **PIR sensors in Arizona summer heat:** PIR-based garage sensors may stick `on` in high ambient heat, blocking `off→on` transition triggers. The LD2412 is unaffected by ambient temperature.
-- **Antenna orientation:** The LD2412 antenna face is the blank side of the module (no components). It must face the detection zone. Do not place metal directly in front of it.
+- **Door false positive:** Closing the garage door sweeps through the radar cone,
+  triggering a brief presence detection. Harmless with a 15-minute timer.
+- **ESPHome 2026.x nested binary sensor:** `id(presence).state` returns unreliable
+  values for binary sensors inside the `ld2412:` component. Green LED uses
+  `detection_distance` + manual holdoff as a workaround.
+- **HA distance display:** HA shows distance in imperial (inches) due to system unit
+  settings — values from ESPHome are in cm. Presence detection is unaffected.
+- **Antenna orientation:** The LD2412 antenna face is the blank side (no components).
+  It must face the detection zone.
 
 ---
 
-## Build Documents
+## Files
 
 | File | Purpose |
 |---|---|
-| `wiring.md` | Breadboard wiring reference and checklist |
-| `flashing.md` | Step 3: first flash and OTA procedure |
-| `testing.md` | Step 4: sensor validation |
+| `garage-radar.yaml` | ESPHome firmware config |
+| `secrets.yaml` | Credentials — gitignored, never commit |
+| `secrets.yaml.template` | Credential template |
+| `wiring.md` | Breadboard wiring checklist |
+| `ESP32-project-pins.md` | Full 38-pin assignment table |
+| `perfboard-layout.md` | Permanent soldered build layout |
+| `flashing.md` | First flash and OTA procedure |
+| `integration.md` | HA automation setup |
 | `integration-notes.md` | HA integration investigation findings |
 | `smartthings-integration.md` | SmartThings integration notes |
-| `integration.md` | Step 8: HA automation setup instructions |
-| `end-to-end-test.md` | Step 9: full system validation test suite |
-| `perfboard-layout.md` | Step 5: permanent soldered build |
-
----
-
-## Status
-
-All steps complete (2026-06-10). Mounted in garage without enclosure. Running in production.
+| `testing.md` | Sensor validation procedure |
+| `end-to-end-test.md` | Full system validation test suite |
+| `CLAUDE.md` | Claude Code context — constraints and gotchas |
+| `jctsh-garage-radar-claude-code-instructions.md` | Full build instructions |

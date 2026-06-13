@@ -7,7 +7,7 @@ The device tries networks in order — home WiFi first, hotspot second.
 | Priority | SSID | When used |
 |---|---|---|
 | 1 | `JCTnet1` | At home — normal home mode, live data, replay |
-| 2 | `jct-pixel` | In the field — hotspot sync after a hike |
+| 2 | `JCT Pixel 10 Pro XL` | In the field — hotspot sync after a hike |
 
 Fallback AP (`hiking-monitor-fallback`) activates only if both networks fail at boot.
 
@@ -17,7 +17,7 @@ Fallback AP (`hiking-monitor-fallback`) activates only if both networks fail at 
 
 | Field | Value |
 |---|---|
-| SSID | `jct-pixel` |
+| SSID | `JCT Pixel 10 Pro XL` |
 | Band | 2.4 GHz (ESP32 does not support 5 GHz) |
 | Password | stored in `credentials.local.md` |
 
@@ -57,6 +57,6 @@ The ESP32 is not a Tailscale client. When it connects via the Pixel hotspot, its
 ## secrets.yaml Entries
 
 ```yaml
-hotspot_ssid: "jct-pixel"
+hotspot_ssid: "JCT Pixel 10 Pro XL"
 hotspot_password: "<from credentials.local.md>"
 ```

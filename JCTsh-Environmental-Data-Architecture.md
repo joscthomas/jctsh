@@ -402,7 +402,7 @@ Identified during hiking monitor Phase 1 planning (May 2026) as a natural compan
 **Recommended platform:** ESP32 (on hand) + Sensirion SEN55
 - PM1.0, PM2.5, PM4.0, PM10, VOC index, NOx index — all in one I2C module (43×43×23mm)
 - Native ESPHome `sen5x` platform support
-- Same LittleFS offline logging and WiFi replay pattern as the hiking monitor
+- Same onboard flash logging and WiFi replay pattern as the hiking monitor
 - Battery sized for higher draw — 2000–3000mAh LiPo or 18650 from inventory
 - Duty-cycle the SEN55 fan via GPIO transistor to reduce average draw
 

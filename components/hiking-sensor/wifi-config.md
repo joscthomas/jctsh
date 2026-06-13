@@ -7,21 +7,23 @@ The device tries networks in order — home WiFi first, hotspot second.
 | Priority | SSID | When used |
 |---|---|---|
 | 1 | `JCTnet1` | At home — normal home mode, live data, replay |
-| 2 | `JCT Pixel 10 Pro XL` | In the field — hotspot sync after a hike |
+| 2 | `JCT Hotspot` | In the field — hotspot sync after a hike |
 
 Fallback AP (`hiking-monitor-fallback`) activates only if both networks fail at boot.
 
-## Pixel Hotspot Setup
+## Hotspot Setup
 
 **SSID and password are fixed.** Changing them after flashing requires a re-flash.
 
+The SSID `JCT Hotspot` is device-independent — any phone's hotspot can be used as long as its SSID and password match what's in `secrets.yaml`. No re-flash needed to switch to a different phone.
+
 | Field | Value |
 |---|---|
-| SSID | `JCT Pixel 10 Pro XL` |
+| SSID | `JCT Hotspot` |
 | Band | 2.4 GHz (ESP32 does not support 5 GHz) |
 | Password | stored in `credentials.local.md` |
 
-To set on Pixel 10 Pro XL: Settings → Network & internet → Hotspot & tethering → Wi-Fi hotspot → set name and password → turn on.
+To set on Pixel 10 Pro XL: Settings → Network & internet → Hotspot & tethering → Wi-Fi hotspot → set name to `JCT Hotspot` → set password → turn on.
 
 ## Hotspot Sync Workflow
 
@@ -57,6 +59,6 @@ The ESP32 is not a Tailscale client. When it connects via the Pixel hotspot, its
 ## secrets.yaml Entries
 
 ```yaml
-hotspot_ssid: "JCT Pixel 10 Pro XL"
+hotspot_ssid: "JCT Hotspot"
 hotspot_password: "<from credentials.local.md>"
 ```

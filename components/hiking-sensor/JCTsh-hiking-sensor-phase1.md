@@ -32,13 +32,13 @@ This component is part of the JCTsh environmental sensor family defined in `JCTs
 
 The device operates in two modes:
 
-**Field mode (during hike):** No WiFi, no MQTT. Reads sensors every 2 minutes, timestamps each reading using NTP-synced system clock, stores to LittleFS onboard flash. Display updates every 2 minutes. Button wakes display on demand.
+**Field mode (during hike):** No WiFi, no MQTT. Reads sensors every 2 minutes, timestamps each reading using NTP-synced system clock, stores to onboard flash storage. Display updates every 2 minutes. Button wakes display on demand.
 
 **Home mode (in cradle):** Connected to JCTnet1 WiFi. Publishes stored hike readings to MQTT in sequence using original hike timestamps. Node-RED wildcard handler routes to Google Sheets automatically. Publishes 5-minute heartbeat per JCTsh standards.
 
 **GPS correlation:** GPSLogger runs passively on the Pixel 10 Pro XL and posts coordinates to a Node-RED HTTP-in listener on the home Pi over cellular. Node-RED populates `lat`/`lon` in each sensor reading payload by matching the nearest GPS trackpoint by timestamp at upload time. No GPS hardware on the device. GaiaGPS continues to run independently for hike navigation. This pipeline is built as Steps 19–20 (iterative refinement after core build is proven).
 
-**Pixel hotspot sync:** When the Pixel hotspot is active during travel, the device connects and replays its LittleFS buffer to the home Mosquitto broker over cellular. Built as Step 21. Not needed for local day hikes; valuable when hiking while traveling away from home.
+**Pixel hotspot sync:** When the Pixel hotspot is active during travel, the device connects and replays its onboard flash buffer to the home Mosquitto broker over cellular. Built as Step 21. Not needed for local day hikes; valuable when hiking while traveling away from home.
 
 **Clock synchronization:** Device stays powered in charging cradle between hikes, connected to WiFi, clock synced via NTP. Clock remains accurate across any hike duration — no RTC hardware needed.
 
@@ -57,7 +57,7 @@ The device operates in two modes:
 |---|---|
 | ESP32 DevKitC-32 (38-pin, CP2102, USB-C) | On hand (2 available); consistent with JCTsh ecosystem |
 | ESPHome firmware | Required per CLAUDE.md for all future ESP32 components |
-| One custom C++ ESPHome component | Required for LittleFS offline storage and WiFi replay — the only part ESPHome cannot handle declaratively |
+| One custom C++ ESPHome component | Required for onboard flash storage and WiFi replay — the only part ESPHome cannot handle declaratively |
 
 ### Display
 | Decision | Rationale |
@@ -106,7 +106,7 @@ AEDIKO modules and 18650 cells remain in inventory for future projects.
 ### Storage and Logging
 | Decision | Rationale |
 |---|---|
-| LittleFS onboard flash | Trivially small data volume (~36KB per 6-hour hike); no SD card hardware needed |
+| onboard flash storage | Trivially small data volume (~36KB per 6-hour hike); no SD card hardware needed |
 | 2-minute logging interval | Sufficient resolution for environmental variation; ~180 readings per 6-hour hike |
 | Original hike timestamps preserved | Readings published to MQTT with `ts` from time of measurement, not time of upload |
 
@@ -121,7 +121,7 @@ AEDIKO modules and 18650 cells remain in inventory for future projects.
 |---|---|
 | No GPS hardware on device | GPSLogger on Pixel 10 Pro XL provides the GPS track; phone always carried |
 | GPSLogger automatic lat/lon population | GPSLogger posts to Node-RED HTTP-in listener over cellular; Node-RED matches nearest trackpoint by timestamp and populates `lat`/`lon` at upload time. Built as Steps 19–20 (iterative refinement after core build). Replaces earlier manual GaiaGPS correlation approach. |
-| Pixel hotspot sync | Second WiFi network in ESPHome YAML — device connects to Pixel hotspot when home WiFi unavailable, replaying LittleFS buffer over cellular. Built as Step 21. Valuable when traveling; not needed for local day hikes. |
+| Pixel hotspot sync | Second WiFi network in ESPHome YAML — device connects to Pixel hotspot when home WiFi unavailable, replaying onboard flash buffer over cellular. Built as Step 21. Valuable when traveling; not needed for local day hikes. |
 | Timestamp correlation | Each sensor reading timestamp matched to nearest GPSLogger trackpoint (±5 minute window); NTP-synced clock ensures timestamp accuracy |
 
 ### lat/lon Fields
@@ -296,7 +296,7 @@ The natural solution is a dedicated wrist-worn companion device. The **LilyGO T-
 
 During Phase 1 planning, air quality sensing (PM2.5, VOC, NOx) was evaluated as a potential addition to the hiking monitor. The conclusion was that the PM sensor fan draws ~100mA — comparable to the entire rest of the device — and requires physical air intake/exhaust ports that complicate the enclosure. A separate device is the correct solution.
 
-**Recommended platform:** ESP32 (on hand) + Sensirion SEN55 — PM1.0, PM2.5, PM4.0, PM10, VOC index, NOx index all in one I2C module. Same LittleFS offline logging and WiFi replay pattern as the hiking monitor. Duty-cycle the fan via GPIO transistor to reduce average draw.
+**Recommended platform:** ESP32 (on hand) + Sensirion SEN55 — PM1.0, PM2.5, PM4.0, PM10, VOC index, NOx index all in one I2C module. Same onboard flash logging and WiFi replay pattern as the hiking monitor. Duty-cycle the fan via GPIO transistor to reduce average draw.
 
 **Motivation — Tucson-specific:** wildfire smoke, haboobs, trail dust (silica), and summer ozone are real and variable. A fixed AQI station miles away does not capture actual trail exposure.
 
@@ -335,7 +335,7 @@ Build Path A first; upgrade to Path B once proven.
 1. **Enclosure design:** What 3D printing approach — design from scratch or adapt an existing open-source Stevenson screen enclosure? Are STL files available for similar devices?
 2. **LTR-390 glazing:** Does the UV sensor need a UV-transparent window if recessed in the enclosure, or can it be flush-mounted on the top face without glazing?
 3. **Waveshare display connection:** The V4 HAT form factor is designed for Pi GPIO — confirm SPI wiring to ESP32 DevKitC-32 GPIO pins before finalizing enclosure layout.
-4. **ESPHome custom component scope:** Confirm LittleFS write/read/replay logic can be contained in a single custom component without requiring full Arduino framework migration.
+4. **ESPHome custom component scope:** Confirm onboard flash write/read/replay logic can be contained in a single custom component without requiring full Arduino framework migration.
 5. **Google Apps Script deployment:** Confirm Apps Script web app URL pattern and secret key approach before Node-RED flow is built.
 6. **TP4056+boost solar input:** Verify SUNYIMA panel voltage under load is within module's acceptable input range before finalizing solar wiring.
 7. **LiPo connector polarity:** Verify JST polarity match between EEMB pouch and TP4056+boost module before first connection.

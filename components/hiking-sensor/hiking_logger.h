@@ -1,6 +1,6 @@
-// hiking_logger.h — Custom SPIFFS logging component for hiking-monitor
-// Uses ESP-IDF native SPIFFS VFS (esp_spiffs.h) + POSIX file I/O.
-// SPIFFS is a bundled ESP-IDF component — no external library needed.
+// hiking_logger.h — Onboard flash logging component for hiking-monitor
+// Implements the ESP32 filesystem using SPIFFS (ESP-IDF native VFS, esp_spiffs.h) + POSIX file I/O.
+// SPIFFS chosen over LittleFS: bundled with ESP-IDF, no external library needed, sufficient for single-file sequential logging.
 //
 // Responsibilities:
 //   hike_log_begin()          — mount SPIFFS VFS on boot

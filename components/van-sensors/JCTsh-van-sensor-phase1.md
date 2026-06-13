@@ -37,11 +37,11 @@ GPS track correlation uses GPSLogger running passively on the Pixel 10 Pro XL, p
 
 Each node operates in two modes:
 
-**Field mode (traveling or camping):** No home WiFi. Reads sensors at configured interval (default 10 minutes), timestamps each reading using DS3231 RTC, stores to LittleFS onboard flash. DS3231 maintains accurate time regardless of WiFi or cellular availability.
+**Field mode (traveling or camping):** No home WiFi. Reads sensors at configured interval (default 10 minutes), timestamps each reading using DS3231 RTC, stores to onboard flash. DS3231 maintains accurate time regardless of WiFi or cellular availability.
 
-**Home mode (in driveway):** Connected to JCTnet1 home WiFi. Replays full LittleFS buffer to home Mosquitto broker in sequence using original timestamps. Node-RED wildcard handler routes to Google Sheets automatically. Publishes 5-minute heartbeat per JCTsh standards.
+**Home mode (in driveway):** Connected to JCTnet1 home WiFi. Replays full onboard flash buffer to home Mosquitto broker in sequence using original timestamps. Node-RED wildcard handler routes to Google Sheets automatically. Publishes 5-minute heartbeat per JCTsh standards.
 
-**Opportunistic sync (Pixel hotspot):** When the Pixel hotspot is active during a trip, both nodes connect and replay their full LittleFS buffers to the home Mosquitto broker over cellular. Cellular data volume is trivially small (~58KB/day for both nodes combined at 10-minute intervals). Hotspot sync is available but not required — nodes function fully without it.
+**Opportunistic sync (Pixel hotspot):** When the Pixel hotspot is active during a trip, both nodes connect and replay their full onboard flash buffers to the home Mosquitto broker over cellular. Cellular data volume is trivially small (~58KB/day for both nodes combined at 10-minute intervals). Hotspot sync is available but not required — nodes function fully without it.
 
 **GPS correlation:** GPSLogger runs passively on the Pixel 10 Pro XL for the entire trip — driving, hiking, and camp. Posts GPS coordinates to a Node-RED HTTP-in listener on the home Pi over cellular as connectivity allows. GPSLogger queues requests when offline and delivers when service returns. Sensor readings are correlated to GPS track by matching timestamps. GaiaGPS continues to run for hike navigation independently.
 
@@ -89,21 +89,21 @@ Each node operates in two modes:
 |---|---|
 | ESP32 DevKitC-32 (38-pin, CP2102, USB-C) | Consistent with JCTsh ecosystem; 1 on hand (1 more needed — see Phase 2 BOM) |
 | ESPHome firmware | Required per CLAUDE.md for all future ESP32 components |
-| Custom C++ ESPHome component | Required for LittleFS offline storage and WiFi replay — same pattern as hiking monitor |
+| Custom C++ ESPHome component | Required for onboard flash storage and WiFi replay — same pattern as hiking monitor |
 
 ### Storage and Logging — Both Nodes
 
 | Decision | Rationale |
 |---|---|
-| LittleFS onboard flash, 2MB partition | Default 1.5MB partition is tight for 2-month trip at 10-minute intervals; 2MB allocation gives ~15% headroom for a full 2-month trip |
+| Onboard flash storage, 2MB partition | Default 1.5MB partition is tight for 2-month trip at 10-minute intervals; 2MB allocation gives ~15% headroom for a full 2-month trip |
 | 10-minute logging interval (configurable) | Sufficient resolution for environmental variation in van context; conditions change slowly; configurable parameter for flexibility (shorter interval for testing, longer for extended trips) |
 | Original timestamps preserved | Readings published to MQTT with `ts` from time of measurement, not time of upload |
-| `storage_pct` field in payload | LittleFS usage as a percentage; published with each reading when on WiFi; visible in Google Sheets; enables monitoring of storage state without runtime adaptive logic |
+| `storage_pct` field in payload | flash storage usage as a percentage; published with each reading when on WiFi; visible in Google Sheets; enables monitoring of storage state without runtime adaptive logic |
 
 **Storage math (2-month trip, 10-minute interval):**
 - 6 readings/hour × 24 hours × 60 days = 8,640 readings per node
 - ~200 bytes per JSON reading = ~1.7MB per node
-- Fits in 2MB LittleFS partition with ~15% headroom
+- Fits in 2MB flash partition with ~15% headroom
 
 ### Power — Outdoor Node
 
@@ -145,9 +145,9 @@ Each node operates in two modes:
 
 | Network | Node behavior |
 |---|---|
-| Home WiFi (JCTnet1) | Replay full LittleFS buffer to home Mosquitto broker; resume normal logging; NTP sync via home network |
-| Pixel hotspot | Replay full LittleFS buffer to home Mosquitto broker over cellular; NTP sync; buffer cleared after successful replay |
-| No WiFi | Log to LittleFS; DS3231 maintains accurate timestamps |
+| Home WiFi (JCTnet1) | Replay full onboard flash buffer to home Mosquitto broker; resume normal logging; NTP sync via home network |
+| Pixel hotspot | Replay full onboard flash buffer to home Mosquitto broker over cellular; NTP sync; buffer cleared after successful replay |
+| No WiFi | Log to onboard flash; DS3231 maintains accurate timestamps |
 
 **Pixel hotspot SSID and password must be fixed** — configure once in ESPHome; do not change.
 
@@ -156,7 +156,7 @@ Each node operates in two modes:
 | Feature | Status |
 |---|---|
 | Dedicated GPS module on outdoor node (Approach B) | Deferred — requires external active antenna routed from under-seat Pi location to dash; GPSLogger approach sufficient for Phase 1 |
-| Adaptive logging interval based on storage usage | Deferred — solved at design time by 2MB LittleFS partition and 10-minute interval; runtime adaptive logic adds complexity for no practical benefit |
+| Adaptive logging interval based on storage usage | Deferred — solved at design time by 2MB flash partition and 10-minute interval; runtime adaptive logic adds complexity for no practical benefit |
 | Real-time dashboard while traveling | Out of scope — data pipeline is archive-oriented; no real-time display requirement |
 | Coach systems data (Firefly/eRVin RV-C) | Deferred — possible but not a priority; eRVin MQTT data could be archived if desired as a future enhancement |
 | OBD2 engine data | Explicitly out of scope — standard drivetrain data not of interest; propane coach use covered by MQ-6 |
@@ -209,7 +209,7 @@ Conforms to `JCTsh-Environmental-Data-Architecture.md`. Fields sent by each node
 
 `lat` and `lon` — populated by Node-RED from nearest GPSLogger trackpoint by timestamp; null if no GPS data available for that window.
 
-`storage_pct` — LittleFS usage percentage; diagnostic field visible in Google Sheets; allows monitoring of storage state during trip sync events.
+`storage_pct` — flash storage usage percentage; diagnostic field visible in Google Sheets; allows monitoring of storage state during trip sync events.
 
 `battery_v` — outdoor node only; indoor node is always on 12V USB.
 
@@ -251,7 +251,7 @@ Inventory scan is a required Phase 2 first step — confirm on-hand quantities b
 4. **SEN55 fan duty cycle:** What GPIO transistor circuit and what duty cycle? Balance measurement accuracy against average power draw for battery operation.
 5. **Outdoor node mounting at campsite:** How is it placed or attached outside? Stake, suction cup, velcro to van exterior? Needs to survive wind.
 6. **Indoor node permanent location:** Where in the van interior does it live? Near propane appliances? Near sleeping area? Both? One unit or two indoor nodes?
-7. **LittleFS partition table:** Confirm 2MB LittleFS partition is achievable with the ESP32 DevKitC-32 flash size and ESPHome partition tooling.
+7. **Flash partition table:** Confirm 2MB flash partition is achievable with the ESP32 DevKitC-32 flash size and ESPHome partition tooling.
 8. **GPSLogger home Pi endpoint:** Node-RED HTTP-in listener design — what does the Pi do with GPS coordinates? SQLite? Flat file? How does Node-RED correlate GPS trackpoints to sensor readings at upload time?
 9. **Pixel hotspot SSID/password:** Establish fixed values before ESPHome build.
 10. **Inventory scan:** Load `jctsh-parts-inventory.md` and confirm on-hand quantities before finalizing BOM or ordering anything.
@@ -267,4 +267,4 @@ Phase 1 is complete. Phase 2 (Hardware Selection) begins when:
 
 ---
 
-*Phase 1 completed through interactive planning session, May 2026. Two-node architecture (indoor/outdoor), ESP32/ESPHome/LittleFS pattern, DS3231 RTC, GPSLogger GPS correlation, opportunistic Pixel hotspot sync, and full data pipeline design all resolved in Phase 1.*
+*Phase 1 completed through interactive planning session, May 2026. Two-node architecture (indoor/outdoor), ESP32/ESPHome/onboard flash pattern, DS3231 RTC, GPSLogger GPS correlation, opportunistic Pixel hotspot sync, and full data pipeline design all resolved in Phase 1.*

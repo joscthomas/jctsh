@@ -58,7 +58,7 @@ Identical operating mode pattern to the hiking monitor. See `components/hiking-s
 |---|---|
 | ESP32 DevKitC-32 (38-pin, CP2102, USB-C) | On hand (Bag 1, 1 remaining after hiking sensor allocation). Consistent with JCTsh ecosystem. |
 | ESPHome firmware | Required per CLAUDE.md for all JCTsh ESP32 components. |
-| Custom C++ ESPHome component | Required for SEN55 (no native ESPHome platform) and for LittleFS offline storage and WiFi replay — follows hiking monitor pattern exactly. |
+| Custom C++ ESPHome component | Required for SEN55 (no native ESPHome platform) and for onboard flash storage and WiFi replay — follows hiking monitor pattern exactly. |
 
 ### Field Output
 | Decision | Rationale |
@@ -103,7 +103,7 @@ Identical operating mode pattern to the hiking monitor. See `components/hiking-s
 Follows hiking monitor pattern. See `components/hiking-sensor/hiking_logger.h` and associated firmware. Claude Code applies the same duty-cycle approach — do not re-derive.
 
 ### Offline Logging and WiFi Replay
-Follows hiking monitor pattern exactly. See `components/hiking-sensor/` for the reference implementation. Claude Code reads those files and applies the same LittleFS approach — do not re-derive.
+Follows hiking monitor pattern exactly. See `components/hiking-sensor/` for the reference implementation. Claude Code reads those files and applies the same onboard flash logging approach — do not re-derive.
 
 ### JCTsh Integration
 | Decision | Rationale |
@@ -214,7 +214,7 @@ Phase 1 is complete. Phase 2 (Hardware Selection) begins when:
 
 ## Implementation Note for Claude Code
 
-The firmware architecture for this component — LittleFS offline logging, WiFi replay, fan duty-cycle via transistor, custom C++ ESPHome component, heartbeat, MQTT log format, watchdog — follows the hiking monitor pattern. Read `components/hiking-sensor/` files before beginning any firmware work. Apply those patterns directly. Do not re-derive them from first principles.
+The firmware architecture for this component — onboard flash logging, WiFi replay, fan duty-cycle via transistor, custom C++ ESPHome component, heartbeat, MQTT log format, watchdog — follows the hiking monitor pattern. Read `components/hiking-sensor/` files before beginning any firmware work. Apply those patterns directly. Do not re-derive them from first principles.
 
 ---
 

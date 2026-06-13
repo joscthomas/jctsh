@@ -10,7 +10,7 @@
 
 ## Overview
 
-The hiking-monitor is a portable, body-carried ESP32 environmental sensor. It measures temperature, humidity, barometric pressure, and UV index every 2 minutes. Readings are displayed on a Waveshare 2.13" e-ink display. During hikes (no WiFi), readings are logged to onboard LittleFS flash with NTP-synced timestamps. On return home, the device connects to JCTnet1 WiFi and automatically replays all stored readings to MQTT using the original hike timestamps. This project also builds the JCTsh environmental data pipeline (Google Sheets + Apps Script + Node-RED) for the first time — this infrastructure will be inherited by all subsequent environmental sensors.
+The hiking-monitor is a portable, body-carried ESP32 environmental sensor. It measures temperature, humidity, barometric pressure, and UV index every 2 minutes. Readings are displayed on a Waveshare 2.13" e-ink display. During hikes (no WiFi), readings are logged to onboard flash with NTP-synced timestamps. On return home, the device connects to JCTnet1 WiFi and automatically replays all stored readings to MQTT using the original hike timestamps. This project also builds the JCTsh environmental data pipeline (Google Sheets + Apps Script + Node-RED) for the first time — this infrastructure will be inherited by all subsequent environmental sensors.
 
 MQTT component name: `hiking-monitor`
 
@@ -43,7 +43,7 @@ Claude Code creates documentation and configuration files. Joseph follows those 
 | Charge/boost module | TP4056 + boost combined, 33×23mm | Bag 8 |
 | Solar panel | SUNYIMA 5.5V 80mA (backpacking only) | Bag 6 |
 | Firmware | ESPHome (Arduino framework) | — |
-| Custom component | C++ LittleFS logger (hiking_logger.h) | — |
+| Custom component | C++ onboard flash logger (hiking_logger.h) | — |
 | Enclosure | 3D-printed, white or light PETG | Phase: Install |
 
 **GPIO Assignments:**
@@ -88,11 +88,11 @@ Battery ADC (GPIO35)─┘
         │ Two operating modes:
         │
         ├── FIELD MODE (no WiFi)
-        │       Every 2 min: read sensors → format JSON → write to LittleFS
+        │       Every 2 min: read sensors → format JSON → write to onboard flash
         │       Button press: update display immediately
         │
         └── HOME MODE (WiFi + MQTT connected)
-                On MQTT connect: replay LittleFS log → MQTT data topic
+                On MQTT connect: replay onboard flash log → MQTT data topic
                 Every 5 min: publish heartbeat
                 Every 2 min: publish live readings directly to MQTT
 
@@ -206,11 +206,11 @@ Confirmed findings:
 **STATUS: COMPLETE (2026-06-02)**
 
 Files created:
-- `hiking-sensor.yaml` — ESPHome config (BME280, LTR-390, e-ink display, button, battery ADC, LittleFS replay, heartbeat)
+- `hiking-sensor.yaml` — ESPHome config (BME280, LTR-390, e-ink display, button, battery ADC, onboard flash replay, heartbeat)
 - `secrets.yaml` — populated with all credentials (gitignored)
 - `secrets.yaml.template` — template for reference
 - `wiring.md` — complete breadboard wiring reference with STEMMA QT header note for LTR-390
-- `hiking_logger.h` — C++ LittleFS custom component
+- `hiking_logger.h` — C++ onboard flash logging component
 - `ESP32pins.png` — copied from garage-radar
 
 **STATUS: COMPLETE (2026-06-02)**
@@ -254,19 +254,19 @@ Findings:
 - "Hiking monitor online" and "MQTT connected" visible in log dashboard ✓
 - Heartbeat appearing every 5 minutes ✓
 
-**on_connect timing fix:** ESPHome drops `id(mqtt_client).publish()` calls made directly inside a raw lambda in `on_connect` — they fire before the broker session is fully ready. Fix: use native `mqtt.publish` actions with a `- delay: 500ms` prefix, matching the front-porch-temp-sensor pattern. Raw lambda calls in `on_connect` still work for the LittleFS replay (which runs after the native publishes).
+**on_connect timing fix:** ESPHome drops `id(mqtt_client).publish()` calls made directly inside a raw lambda in `on_connect` — they fire before the broker session is fully ready. Fix: use native `mqtt.publish` actions with a `- delay: 500ms` prefix, matching the front-porch-temp-sensor pattern. Raw lambda calls in `on_connect` still work for the onboard flash replay (which runs after the native publishes).
 
 ---
 
-## Step 6 — Custom LittleFS Component Integration
+## Step 6 — Custom Onboard Flash Logging Component Integration
 
 **STATUS: COMPLETE (2026-06-03)**
 
-Confirmed during Step 5 testing. When the device was disconnected from WiFi (during OTA flash cycles), it logged readings to LittleFS. On reconnect, the log dashboard showed:
+Confirmed during Step 5 testing. When the device was disconnected from WiFi (during OTA flash cycles), it logged readings to onboard flash. On reconnect, the log dashboard showed:
 - "Replaying 5 hike readings..."
 - "Hike log replay complete."
 
-All LittleFS behaviors confirmed working:
+All onboard flash behaviors confirmed working:
 - `hike_log_begin()` mounts on boot ✓
 - `hike_log_write()` logs to `/hike_log.jsonl` when WiFi disconnected ✓
 - `hike_log_get_all()` returns stored lines on reconnect ✓
@@ -415,7 +415,7 @@ Where T = temp_f, H = humidity_pct. Use simple formula (T + H/5 - 10.3) when tem
 9. **Power cycle test:**
    - Power off by disconnecting LiPo
    - Power on, confirm device reconnects and resumes normal operation
-   - Confirm LittleFS log survives power cycle (if data was logged before power-off, it replays after power-on + WiFi connect)
+   - Confirm onboard flash log survives power cycle (if data was logged before power-off, it replays after power-on + WiFi connect)
 
 **Joseph confirms:** Report results for each test item. Identify any failures.
 
@@ -446,7 +446,7 @@ Also update the LTR-390 Sensors table entry when confirmed received.
 
 All bench steps above are confirmed complete. The device has been:
 - Sensors validated (BME280, LTR-390, e-ink display, button)
-- LittleFS field logging and WiFi replay confirmed working
+- Onboard flash logging and WiFi replay confirmed working
 - Power system (LiPo + TP4056+boost) confirmed
 - Environmental data pipeline live (Google Sheets receiving data via Node-RED + Apps Script)
 - Full end-to-end test passed including field mode simulation
@@ -517,7 +517,7 @@ Research questions for enclosure.md:
 ## Step 17 — Field Test
 
 **Joseph does:** Take device on a real hike (or extended outdoor walk):
-1. Confirm device operates in field mode (no WiFi, logging to LittleFS)
+1. Confirm device operates in field mode (no WiFi, logging to onboard flash)
 2. Confirm display updates every 2 minutes
 3. Confirm button wakes/refreshes display
 4. Return home, dock in cradle (micro USB connected to charger)
@@ -539,7 +539,7 @@ Research questions for enclosure.md:
 - Wiring overview
 - MQTT topics (data, log, heartbeat)
 - Operating modes: field vs. home
-- LittleFS logging: file name, format, capacity
+- Onboard flash logging: file name, format, capacity
 - Replay behavior: trigger, throttle, log messages
 - Power system: TP4056+boost, LiPo, voltage divider
 - Display: layout, update interval, button behavior
@@ -572,7 +572,7 @@ Pattern: see `components/front-porch-temp-sensor/front-porch-temp-sensor.yaml` i
 ## Future Enhancements
 
 ### Deep Sleep Mode
-Deep sleep between 2-minute readings reduces average current draw significantly and could extend backpacking battery life considerably. Deferred until basic operation confirmed. Key challenge: LittleFS log file must be properly closed before sleep; NTP-synced clock must be re-synced after wake (or RTC used). Implement after first successful hike.
+Deep sleep between 2-minute readings reduces average current draw significantly and could extend backpacking battery life considerably. Deferred until basic operation confirmed. Key challenge: onboard flash log file must be properly closed before sleep; NTP-synced clock must be re-synced after wake (or RTC used). Implement after first successful hike.
 
 ### Solar Charging (Backpacking)
 SUNYIMA panel (Bag 6) connects to TP4056 VIN+ via JST connector. Verify panel voltage under load before finalizing wiring (target: 4.5–6V; module input range on datasheet). Enclosure design must include accessible JST port for solar input. Only needed for multi-day backpacking — not required for day hikes.
@@ -594,10 +594,10 @@ Voice observations via Google Recorder → Google Docs → Apps Script → Hikin
 - **ESPHome MQTT discovery:** Set `discovery: false` — the hiking monitor is not integrated with Home Assistant. No HA entities needed.
 - **E-ink display model string:** The Waveshare 2.13" V4 SSD1680 likely uses model `2.13in-ttgo-b74` in ESPHome `waveshare_epaper` platform. Confirm at Step 5 — try `2.13in-ttgo-b74` first; if display shows garbage or doesn't initialize, try `2.13in-b74` or check current ESPHome docs for SSD1680 model strings.
 - **Unicode arrows on e-ink:** ESPHome `waveshare_epaper` rendering uses bitmap fonts. Unicode arrows (↑ → ↓) require the font to include those glyphs. If rendering fails, fall back to ASCII: `^` / `=` / `v`. Confirm in Step 7.
-- **LittleFS in ESPHome/Arduino:** `LittleFS` is available from the Arduino ESP32 core — no external library needed. Include `"LittleFS.h"` in the custom header. Mount with `LittleFS.begin(true)` — the `true` parameter formats the partition if it's not already formatted.
+- **ESP32 filesystem in ESPHome/Arduino:** Use SPIFFS via the ESP-IDF native VFS (`esp_spiffs.h`) — bundled with ESP-IDF, no external library needed. LittleFS (`LittleFS.h`, Arduino ESP32 core) is the alternative with better wear-leveling and directory support, but neither advantage matters for a single-file sequential log. Reference implementation: `hiking_logger.h`.
 - **MQTT account:** Create before first flash. Account name: `hiking-monitor`. Commands: see mqtt-account-setup.md. Ownership gotcha: `mosquitto_passwd` resets file group to root — always run `sudo chown root:mosquitto /etc/mosquitto/passwd` immediately after.
 - **Heartbeat:** Only publish heartbeat when WiFi + MQTT connected. Guard the heartbeat interval with a `wifi.connected` condition. Do not publish heartbeats during field mode — they would pile up and replay incorrectly.
-- **rssi_dbm in field mode:** When logging to LittleFS (field mode, no WiFi), set `rssi_dbm` to `0` in the payload. Node-RED or Sheets analysis can filter `rssi_dbm = 0` to identify field-mode readings. Do not read wifi_signal sensor when WiFi is not connected — it returns NaN.
+- **rssi_dbm in field mode:** When logging to onboard flash in field mode (no WiFi), set `rssi_dbm` to `0` in the payload. Node-RED or Sheets analysis can filter `rssi_dbm = 0` to identify field-mode readings. Do not read wifi_signal sensor when WiFi is not connected — it returns NaN.
 - **Pressure trend calculation:** Store a circular buffer of 16 pressure readings. Compare current reading to the reading 15 cycles ago (15 × 2 min = 30 min). Initialize all buffer slots to 0; guard against comparing to uninitialized slots (value == 0 means no history yet).
 - **Node-RED flow:** The wildcard `jctsh/components/+/data` handler is new infrastructure — it does not exist yet. Build it in Step 11. The existing `jctsh/+/+/log` and `jctsh/+/+/heartbeat` wildcard handlers already exist and catch the hiking monitor automatically.
 - **Apps Script auth:** The secret key in the URL query parameter is sufficient for this use case. No OAuth needed. URL format: `https://script.google.com/macros/s/<ID>/exec?key=<SECRET>`. Node-RED uses env vars for both.
@@ -609,7 +609,7 @@ Voice observations via Google Recorder → Google Docs → Apps Script → Hikin
 
 ## ITERATIVE REFINEMENT PHASE
 
-Steps 19–21 add GPS correlation and Pixel hotspot sync as a discrete layer on top of the proven core build. Do not begin this phase until Step 18 (field test) is confirmed complete. The core pipeline (Google Sheets receiving data, timestamps accurate, LittleFS replay working) must be proven before adding GPS infrastructure on top of it.
+Steps 19–21 add GPS correlation and Pixel hotspot sync as a discrete layer on top of the proven core build. Do not begin this phase until Step 18 (field test) is confirmed complete. The core pipeline (Google Sheets receiving data, timestamps accurate, onboard flash replay working) must be proven before adding GPS infrastructure on top of it.
 
 These steps involve no firmware changes to the core hiking monitor logic. The `lat`/`lon` fields are already reserved as `null` in the payload schema — they are populated by Node-RED at upload time, not by the device. The only firmware change is adding the Pixel hotspot as a second WiFi network in Step 21.
 
@@ -732,7 +732,7 @@ Important constraints to document:
 - Pixel hotspot SSID and password must be fixed — do not change them after this step
 - ESP32 tries networks in order: home WiFi first, hotspot second — hotspot only connects when home WiFi is not in range
 - When connected via hotspot, the device connects to the home Mosquitto broker over cellular using the same broker hostname/IP as always — no broker configuration change needed
-- LittleFS replay triggers on any MQTT connect, regardless of which network connected — hotspot sync works identically to home sync
+- Onboard flash replay triggers on any MQTT connect, regardless of which network connected — hotspot sync works identically to home sync
 - Heartbeat publishes on hotspot connection — Node-RED watchdog will show device online during hotspot sync; this is correct behavior
 - Cellular data volume: trivially small — ~200 bytes/reading × 180 readings/6-hour hike = ~36KB per hike replay
 
@@ -743,10 +743,10 @@ Important constraints to document:
 4. With home WiFi unavailable (or temporarily disabled on the device), enable Pixel hotspot
 5. Confirm device connects to hotspot
 6. Confirm device connects to home Mosquitto broker over cellular
-7. With a few readings in LittleFS (log a short field mode session first), confirm replay occurs over hotspot connection
+7. With a few readings in onboard flash (log a short field mode session first), confirm replay occurs over hotspot connection
 8. Confirm replayed readings appear in Google Sheets with correct timestamps
 
-**Joseph confirms:** Hotspot connection confirmed. LittleFS replay over hotspot confirmed. Readings in Google Sheets with correct timestamps. Report: approximate time from hotspot enable to replay complete.
+**Joseph confirms:** Hotspot connection confirmed. Onboard flash replay over hotspot confirmed. Readings in Google Sheets with correct timestamps. Report: approximate time from hotspot enable to replay complete.
 
 **Claude Code does:** Update `wifi-config.md` (or equivalent) with actual hotspot SSID (not password), confirmed replay behavior, and timing note. Update `secrets.yaml.template` to reflect the new field.
 
@@ -762,7 +762,7 @@ For each candidate pattern, state:
 - (c) Proposed addition or update to `JCTsh-Build-Standards.md`
 
 Likely candidates (Claude Code confirms or adds to this list after reviewing the actual build):
-- LittleFS offline logging + WiFi replay pattern (custom C++ ESPHome component)
+- Onboard flash logging + WiFi replay pattern (custom C++ ESPHome component)
 - Multi-network WiFi with ordered fallback (home → hotspot)
 - GPS trackpoint store (flat JSONL file) and timestamp-nearest lookup in Node-RED
 - Node-RED file read in function node (`fs.readFileSync` with try/catch)

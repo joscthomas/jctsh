@@ -3,7 +3,7 @@
 ## Prerequisites
 
 All of the following must be confirmed before running this test:
-- Steps 5–11 complete (sensors, display, LittleFS, power system, data pipeline)
+- Steps 5–11 complete (sensors, display, onboard flash, power system, data pipeline)
 - Device running from LiPo, connected to JCTnet1 WiFi
 - Google Sheets "JCTsh Environmental Data" receiving rows
 - Log dashboard at `http://raspberrypi.local/` showing `hiking-monitor` entries
@@ -80,7 +80,7 @@ mosquitto_sub -h raspberrypi.local -u hiking-monitor -P <password> -t "jctsh/com
 
 ### 6 — Field Mode Simulation
 
-This test confirms LittleFS logging and replay work correctly with original timestamps.
+This test confirms onboard flash logging and replay work correctly with original timestamps.
 
 **Steps:**
 
@@ -147,7 +147,7 @@ Already confirmed in Step 8 (3.85V). Re-confirm current value is still in range.
 4. Restore WiFi credentials, OTA flash
 5. Confirm on reconnect: SPIFFS log survived power cycle and readings replay
 
-**Pass criteria:** Readings logged before power-off replay after power-on + WiFi reconnect. LittleFS/SPIFFS is non-volatile — data persists across power cycles.
+**Pass criteria:** Readings logged before power-off replay after power-on + WiFi reconnect. onboard flash/SPIFFS is non-volatile — data persists across power cycles.
 
 ---
 

@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.5
-**Version description:** Added §5.4 Node-RED flow deployment patterns (MQTT v5 field issue, flows.json injection, Apps Script 405 redirect, alphanumeric API keys, env vars via EnvironmentFile), watchdog is a new Node-RED flow (not an existing process). Added SmartThings actual integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation as a required step. Added phone notification via HA companion app as watchdog alert method.
+**Version:** 1.6
+**Version description:** Added §2.8 multi-network WiFi variant (`networks:` list) and captive_portal deep-sleep exception. Added §2.12 e-ink display pattern (update_interval never, deep_sleep_pending flag, NaN init screen). Added §2.13 multi-priority on_boot sequencing. Updated §3.3 with DuckDNS broker guidance for cellular-connected components. Added §3.6 rssi_dbm=0 field-mode sentinel convention. Added §5.5 GPS timestamp lookup pattern (GPSLogger → Apps Script → nearest trackpoint). Added §5.6 Node-RED per-component context isolation via component-name key suffix.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -158,7 +158,14 @@ logger:
 captive_portal:
 ```
 
+**Exception — deep sleep components:** Do NOT include `captive_portal:` when the component uses `deep_sleep:`. ESPHome's captive portal calls `App.prevent_deep_sleep()` internally, which permanently blocks sleep entry for the entire boot cycle. Omit `captive_portal:` and add a YAML comment documenting why:
+```yaml
+# captive_portal removed — calls App.prevent_deep_sleep() and blocks deep sleep entry
+```
+
 **WiFi AP fallback:** Name the fallback AP `<component-name>-fallback`. Makes it identifiable on the network if the device can't reach JCTnet1.
+
+**Single-network (home-only components):**
 ```yaml
 wifi:
   ssid: !secret wifi_ssid
@@ -167,6 +174,23 @@ wifi:
     ssid: "<component-name>-fallback"
     password: !secret ap_password
 ```
+
+**Multi-network variant (portable components — home WiFi + cellular hotspot):** Use the `networks:` list syntax. ESPHome tries networks in list order at boot — put home WiFi first so it takes priority when at home:
+```yaml
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+    - ssid: !secret hotspot_ssid
+      password: !secret hotspot_password
+  ap:
+    ssid: "<component-name>-fallback"
+    password: !secret ap_password
+```
+
+Add `hotspot_ssid` and `hotspot_password` to `secrets.yaml` and `secrets.yaml.template` when using this variant. The hotspot SSID and password are fixed at flash time — changing them after flashing requires a re-flash.
+
+**Hotspot SSID naming:** Use a device-independent name (e.g., `JCT Hotspot`) rather than a phone model name (e.g., `JCT Pixel 10 Pro XL`). A device-independent name means any phone can serve as the hotspot by matching the SSID and password — no re-flash needed to switch devices.
 
 **Component naming:** The ESPHome `name:` field determines the device hostname (`<name>.local`) and the ESPHome auto-generated MQTT sub-topics. It must match the component name used in the MQTT topic prefix. All three must be consistent:
 - `esphome: name: hiking-monitor` → hostname `hiking-monitor.local`
@@ -262,6 +286,86 @@ Store the password in `components/<name>/secrets.yaml` (gitignored). Add the acc
 
 ---
 
+### 2.12 E-ink Display Pattern
+
+For components with an e-ink display, three rules apply:
+
+**1. Set `update_interval: never`.** E-ink full refresh takes ~2 seconds. Letting it fire on every sensor update cycle produces constant flicker and wear. Drive it explicitly instead:
+```yaml
+display:
+  - platform: waveshare_epaper
+    update_interval: never
+    full_update_every: 1
+```
+
+**2. Use a `deep_sleep_pending` global to render a shutdown screen before sleep.** The display retains its last image with power off — make it show the right thing. Set the flag, update the display, then sleep:
+```yaml
+globals:
+  - id: deep_sleep_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+```
+Pre-sleep sequence (in `on_connect`, `on_state`, etc.):
+```yaml
+- lambda: 'id(deep_sleep_pending) = true;'
+- component.update: <display_id>
+- deep_sleep.allow: <sleep_id>
+- deep_sleep.enter: <sleep_id>
+```
+The display lambda checks `id(deep_sleep_pending)` first and renders a shutdown layout if true.
+
+**3. The display lambda must handle NaN during the first read cycle.** I2C sensors return NaN while they initialize. Render an "initializing" fallback rather than printing garbage or crashing:
+```cpp
+if (isnan(temp) || isnan(hum) || isnan(uv)) {
+  it.print(5, 10, id(font_data), "<Component name>");
+  it.print(5, 72, id(font_data), "initializing");
+} else {
+  // normal display
+}
+```
+
+**Reference implementation:** `components/hiking-sensor/hiking-sensor.yaml` display block.
+
+---
+
+### 2.13 Multi-priority `on_boot` Sequencing
+
+When boot requires ordered phases with dependencies, use multiple `on_boot:` blocks with different priority values. ESPHome runs higher priorities first:
+
+| Priority | Use |
+|---|---|
+| `600.0` | Early hardware setup — fires before component initialization. Use for SPIFFS mount, hardware reset, or anything that must happen before sensors start. |
+| `-100.0` | First sensor reads and display update — sensors are initialized and ready. |
+| `-200.0` | Conditional sleep entry — must run last so all other boot actions complete first. |
+
+```yaml
+on_boot:
+  - priority: 600.0
+    then:
+      - lambda: 'hike_log_begin();'   # SPIFFS must mount before any sensor cycle
+  - priority: -100.0
+    then:
+      - component.update: my_sensor   # first read on boot
+      - component.update: my_display
+  - priority: -200.0
+    then:
+      - if:
+          condition:
+            and:
+              - binary_sensor.is_off: mode_switch
+              - binary_sensor.is_off: dock_detect
+          then:
+            - deep_sleep.allow: deep_sleep_control
+            - deep_sleep.enter: deep_sleep_control
+```
+
+Negative priorities run after all components are initialized. Any `on_boot` action that reads sensor values, updates a display, or enters sleep must use a negative priority.
+
+**Reference implementation:** `components/hiking-sensor/hiking-sensor.yaml` `on_boot:` block (priorities 600.0, -100.0, -200.0).
+
+---
+
 ## 3. MQTT Standards
 
 ### 3.1 Topic Naming Convention
@@ -288,6 +392,8 @@ For ESP32 components, the following sub-topics are standard:
 
 Mosquitto broker on `raspberrypi.local`, port 1883. Fixed IP: `192.168.1.117` (use if `.local` resolution fails). Tailscale IP: `100.70.162.24` (use for remote access). Reference by hostname in configuration files.
 
+**For components that connect from outside the home network** (e.g., via a cellular hotspot): use `jctsh.duckdns.org` as `mqtt_broker` in `secrets.yaml`. `raspberrypi.local` is mDNS link-local and unreachable from cellular; `192.168.1.117` and `100.70.162.24` are likewise unreachable from cellular. DuckDNS + router port forward (port 1883 → 192.168.1.117) is the only path. See `core/mqtt/monitoring.md` for the full infrastructure setup and layer-by-layer monitoring commands.
+
 ### 3.4 Will Message
 
 Every ESP32 component configures an MQTT Last Will and Testament (LWT). The broker publishes it automatically when the device disconnects unexpectedly. This is how `"MQTT disconnected"` appears in the log dashboard without the device sending it.
@@ -313,6 +419,26 @@ Set `discovery:` based on whether the component has Home Assistant integration:
 | No (MQTT only, no HA entities) | `discovery: false` |
 
 Do not leave `discovery:` at its ESPHome default (`true`) for components that have no HA integration. Auto-discovery would create unwanted HA entities for every sensor value the device publishes.
+
+### 3.6 Field-mode Sentinel — `rssi_dbm: 0`
+
+For portable environmental sensors that log readings to SPIFFS when WiFi is unavailable, include `rssi_dbm` in every data payload:
+
+- When MQTT-connected: set to the actual WiFi RSSI (negative integer, e.g. `-45`)
+- When logging to SPIFFS in field mode (no WiFi): set to `0`
+
+```cpp
+int rssi = id(mqtt_client).is_connected() ? (int)id(wifi_rssi).state : 0;
+// include rssi in the JSON payload
+```
+
+This convention lets downstream processors distinguish reading types:
+- `rssi_dbm == 0` → field-mode reading; `ts` is the actual hike timestamp
+- `rssi_dbm != 0` → home-mode reading; `ts` is live capture or replay-upload time
+
+Node-RED can detect field session boundaries using the `rssi_dbm` transition: nonzero → zero = field session started; zero → nonzero = field session ended. The `lastTs` at the transition is the precise start/end timestamp from the sensor payload.
+
+**Reference implementation:** `components/hiking-sensor/hiking-hike-events.flow.json` (`Detect field session start / end` function node).
 
 ---
 
@@ -485,6 +611,70 @@ After any UI import of MQTT nodes, verify these fields are absent. The working r
 
 ---
 
+### 5.5 GPS Timestamp Lookup Pattern
+
+For body-worn environmental sensors that need GPS coordinates without GPS hardware on the ESP32: use the GPSLogger → Google Apps Script → GPS Track sheet pipeline.
+
+**Architecture:**
+```
+Pixel (GPSLogger app)
+    │  GET every 30 seconds while hiking
+    ▼
+Google Apps Script  action=gps
+    │  append one row (timestamp, lat, lon, accuracy_m, altitude_m)
+    ▼
+"GPS Track" sheet in workbook
+
+          ↕  (on SPIFFS replay)
+
+Node-RED wildcard data handler
+    │  GET action=lookup&ts=<sensor_ts>
+    ▼
+Google Apps Script  action=lookup
+    │  nearest trackpoint within ±5 minutes
+    ▼
+lat/lon populated in Environmental Data sheet
+```
+
+**Key implementation details:**
+- GPSLogger's `%TIME` placeholder is a Unix epoch integer (seconds, not milliseconds). The Apps Script converts it to ISO 8601 UTC before writing to the sheet.
+- Lookup tolerance is ±5 minutes. This covers the worst case: 2-minute sensor interval with 30-second GPS interval means the nearest GPS point is always within 1 minute when hiking. The 5-minute window also tolerates brief GPS signal loss.
+- Home-mode readings (rssi_dbm ≠ 0) always return `{lat: null, lon: null}` — no GPS track exists for home timestamps. This is correct behavior, not an error.
+- No port forwarding needed. GPSLogger posts directly to Google over cellular — the Pi is not involved in GPS logging.
+
+**Apps Script note:** The lookup function is in the same `doGet(e)` handler as any other GET actions. Add it alongside existing actions without replacing them.
+
+**Reference:** `components/hiking-sensor/gps-pipeline.md`, `components/hiking-sensor/environmental-data.gs`
+
+---
+
+### 5.6 Node-RED Per-Component Context Isolation
+
+When a Node-RED function node handles multiple components via a wildcard subscription (e.g., `jctsh/components/+/data`), use the component name as a key suffix in `context.get/set` to prevent state from leaking between components:
+
+```javascript
+var component = msg.payload.component;
+
+// Read per-component state (undefined on first message from this component)
+var lastRssi = context.get('lastRssi_' + component);
+var lastTs   = context.get('lastTs_'   + component) || '';
+
+// Write per-component state
+context.set('lastRssi_' + component, rssi);
+context.set('lastTs_'   + component, ts);
+
+// Initialize cleanly on first message — don't process a state transition yet
+if (lastRssi === undefined) return null;
+```
+
+New components are picked up automatically by the wildcard subscription and get their own isolated context slots with no code changes. This pattern scales to any number of components.
+
+**Important:** Node-RED in-memory context is cleared on service restart (`sudo systemctl restart nodered`). If you need to reset stale per-component state (e.g., after a long offline period), a restart is the cleanest method.
+
+**Reference:** `components/hiking-sensor/hiking-hike-events.flow.json`, `Detect field session start / end` function node.
+
+---
+
 ## 6. Integration Standards
 
 ### 6.1 Additive First
@@ -562,6 +752,8 @@ When LED indicators are included in a component:
 | Version | Change |
 |---|---|
 | 1.0 | Initial release. Enclosure convention, ESP32/ESPHome standards, MQTT conventions, observability standards, SmartThings integration, LED standards, documentation standards. |
+| 1.6 | Added §2.8 multi-network WiFi variant (networks: list) and captive_portal deep-sleep exception. Added §2.12 e-ink display pattern. Added §2.13 multi-priority on_boot sequencing. Updated §3.3 with DuckDNS broker guidance for cellular components. Added §3.6 rssi_dbm=0 field-mode sentinel. Added §5.5 GPS timestamp lookup pattern. Added §5.6 Node-RED per-component context isolation. |
+| 1.5 | Added §5.4 Node-RED flow deployment patterns (MQTT v5 field issue, flows.json injection, Apps Script 405 redirect, alphanumeric API keys, env vars via EnvironmentFile), watchdog is a new Node-RED flow (not an existing process). Added SmartThings actual integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation as a required step. Added phone notification via HA companion app as watchdog alert method. |
 | 1.4 | Added §2.10 onboard flash logging standard: use ESP-IDF SPIFFS not Arduino LittleFS; name files by function not library. Fixed §2.7 reference from "LittleFS replay loop" to "SPIFFS replay loop". Renumbered MQTT account creation to §2.11. |
 | 1.3 | Added §2.8 ESPHome component boilerplate (board, framework, logger, captive_portal, WiFi AP fallback naming, component naming consistency, flash path). Added §2.9 sensor coding standards (NaN guards, standard I2C pins GPIO21/22, internal: true housekeeping sensors). Added §3.4 will_message pattern (retain: false critical). Added §3.5 MQTT discovery rule. Fixed §4.1 heartbeat message format and added "Heartbeat - " prefix requirement. Fixed §4.3 log event message formats (hyphen throughout, removed MQTT reconnected event, clarified LWT). |
 | 1.2 | Added §2.7 ESPHome MQTT publishing patterns (on_connect and heartbeat). Fixed §4.3 online message format (hyphen not em dash). Added §4.1 note on heartbeat interval discrepancy between standard (5 min) and existing components (30 min). Renumbered MQTT account creation to §2.8/§2.10. |

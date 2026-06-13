@@ -153,25 +153,24 @@ mqtt:
         payload: '{"component":"hiking-monitor","category":"MQTT","message":"MQTT connected"}'
     - lambda: |-
         if (hike_log_has_data()) {
-          auto readings = hike_log_get_all();
-          if (!readings.empty()) {
-            // Clear before replaying so a power cut mid-replay leaves an empty
-            // file — prevents the same readings from replaying on next reconnect.
-            hike_log_clear();
+          int count = hike_log_count();
+          if (count > 0) {
             char log_buf[128];
             snprintf(log_buf, sizeof(log_buf),
               "{\"component\":\"hiking-monitor\",\"category\":\"Sensor\","
-              "\"message\":\"Replaying %u hike readings...\"}",
-              (unsigned)readings.size());
+              "\"message\":\"Replaying %d hike readings...\"}",
+              count);
             id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
                                     std::string(log_buf), 0, false);
-            for (auto& r : readings) {
-              id(mqtt_client).publish("jctsh/components/hiking-monitor/data", r, 0, false);
+            hike_log_replay_stream([](const std::string& line) {
+              id(mqtt_client).publish("jctsh/components/hiking-monitor/data",
+                                      line, 0, false);
               delay(50);
-            }
+            });
             id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
               std::string("{\"component\":\"hiking-monitor\",\"category\":\"Sensor\","
                          "\"message\":\"Hike log replay complete.\"}"), 0, false);
+            hike_log_clear();
           }
         }
     - if:

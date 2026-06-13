@@ -1,23 +1,23 @@
 // hiking_logger.h — Custom SPIFFS logging component for hiking-monitor
 // Uses ESP-IDF native SPIFFS VFS (esp_spiffs.h) + POSIX file I/O.
 // SPIFFS is a bundled ESP-IDF component — no external library needed.
-// Functionally identical to LittleFS for this use case (sequential write/read of one file).
 //
 // Responsibilities:
-//   hike_log_begin()     — mount SPIFFS VFS on boot
-//   hike_log_write()     — append one JSON line during field mode (no WiFi)
-//   hike_log_get_all()   — return all stored lines for replay on MQTT connect
-//   hike_log_clear()     — delete log file after successful replay
-//   hike_log_has_data()  — check whether any stored data exists
+//   hike_log_begin()          — mount SPIFFS VFS on boot
+//   hike_log_write()          — append one JSON line during field mode (no WiFi)
+//   hike_log_count()          — count stored lines without loading into RAM
+//   hike_log_replay_stream()  — stream stored lines one at a time via callback
+//   hike_log_clear()          — truncate log file after successful replay
+//   hike_log_has_data()       — check whether any stored data exists
 //
 // Log file: /spiffs/hike_log.jsonl (JSON Lines — one JSON object per line)
 // Partition: "spiffs" label — 1.47MB in ESPHome default ESP32 partition table
-// Max capacity per 6-hour hike at 2-min interval: ~180 lines (~36KB) — well within limits
+// Replay is streaming — no RAM limit regardless of log size.
 
 #pragma once
 #include <esp_spiffs.h>
+#include <functional>
 #include <stdio.h>
-#include <vector>
 #include <string>
 
 static const char* HIKE_MOUNT    = "/spiffs";
@@ -53,31 +53,44 @@ void hike_log_write(const std::string& payload) {
     ESP_LOGE("HikeLog", "Cannot open log file for writing");
     return;
   }
-  fprintf(f, "%s\n", payload.c_str());
+  int result = fprintf(f, "%s\n", payload.c_str());
   fclose(f);
+  if (result < 0) {
+    ESP_LOGE("HikeLog", "Write failed — SPIFFS may be full");
+  }
 }
 
-std::vector<std::string> hike_log_get_all() {
-  std::vector<std::string> result;
-  if (!hike_spiffs_mounted) return result;
+int hike_log_count() {
+  if (!hike_spiffs_mounted) return 0;
   FILE* f = fopen(HIKE_LOG_FILE, "r");
-  if (!f) return result;
+  if (!f) return 0;
+  int count = 0;
+  char line[512];
+  while (fgets(line, sizeof(line), f)) {
+    for (int i = 0; line[i]; i++) {
+      if (line[i] != '\n' && line[i] != '\r' && line[i] != ' ') { count++; break; }
+    }
+  }
+  fclose(f);
+  return count;
+}
+
+void hike_log_replay_stream(std::function<void(const std::string&)> callback) {
+  if (!hike_spiffs_mounted) return;
+  FILE* f = fopen(HIKE_LOG_FILE, "r");
+  if (!f) return;
   char line[512];
   while (fgets(line, sizeof(line), f)) {
     std::string s(line);
     while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
-    if (!s.empty()) result.push_back(s);
+    if (!s.empty()) callback(s);
   }
   fclose(f);
-  ESP_LOGI("HikeLog", "Read %u readings from log", (unsigned)result.size());
-  return result;
 }
 
 void hike_log_clear() {
   if (!hike_spiffs_mounted) return;
-  // Truncate rather than remove — SPIFFS remove() may not persist across a power
-  // cut before SPIFFS commits the metadata deletion. Truncating to 0 bytes is
-  // durable: the file exists but is empty, and hike_log_has_data() checks size.
+  // Truncate rather than remove — more durable across power loss.
   FILE* f = fopen(HIKE_LOG_FILE, "w");
   if (f) fclose(f);
   ESP_LOGI("HikeLog", "Log file cleared");

@@ -157,7 +157,7 @@ mqtt:
           if (count > 0) {
             char log_buf[128];
             snprintf(log_buf, sizeof(log_buf),
-              "{\"component\":\"hiking-monitor\",\"category\":\"Sensor\","
+              "{\"component\":\"hiking-monitor\",\"category\":\"System\","
               "\"message\":\"Replaying %d hike readings...\"}",
               count);
             id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
@@ -168,7 +168,7 @@ mqtt:
               delay(50);
             });
             id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
-              std::string("{\"component\":\"hiking-monitor\",\"category\":\"Sensor\","
+              std::string("{\"component\":\"hiking-monitor\",\"category\":\"System\","
                          "\"message\":\"Hike log replay complete.\"}"), 0, false);
             hike_log_clear();
           }
@@ -183,11 +183,11 @@ mqtt:
               then:
                 - mqtt.publish:
                     topic: jctsh/components/hiking-monitor/log
-                    payload: '{"component":"hiking-monitor","category":"Sensor","message":"Upload mode — USB connected, switch off"}'
+                    payload: '{"component":"hiking-monitor","category":"System","message":"Upload mode — USB connected, switch off"}'
               else:
                 - mqtt.publish:
                     topic: jctsh/components/hiking-monitor/log
-                    payload: '{"component":"hiking-monitor","category":"Sensor","message":"Entering deep sleep"}'
+                    payload: '{"component":"hiking-monitor","category":"System","message":"Entering deep sleep"}'
                 - delay: 500ms
                 - lambda: 'id(deep_sleep_pending) = true;'
                 - component.update: hiking_display
@@ -315,7 +315,7 @@ binary_sensor:
           then:
             - mqtt.publish:
                 topic: jctsh/components/hiking-monitor/log
-                payload: '{"component":"hiking-monitor","category":"Sensor","message":"Entering deep sleep"}'
+                payload: '{"component":"hiking-monitor","category":"System","message":"Entering deep sleep"}'
             - delay: 500ms
             - lambda: 'id(deep_sleep_pending) = true;'
             - component.update: hiking_display
@@ -344,7 +344,7 @@ binary_sensor:
                 then:
                   - mqtt.publish:
                       topic: jctsh/components/hiking-monitor/log
-                      payload: '{"component":"hiking-monitor","category":"Sensor","message":"Upload mode — USB connected, switch off"}'
+                      payload: '{"component":"hiking-monitor","category":"System","message":"Upload mode — USB connected, switch off"}'
           else:
             - if:
                 condition:
@@ -352,7 +352,7 @@ binary_sensor:
                 then:
                   - mqtt.publish:
                       topic: jctsh/components/hiking-monitor/log
-                      payload: '{"component":"hiking-monitor","category":"Sensor","message":"Entering deep sleep"}'
+                      payload: '{"component":"hiking-monitor","category":"System","message":"Entering deep sleep"}'
                   - delay: 500ms
                   - lambda: 'id(deep_sleep_pending) = true;'
                   - component.update: hiking_display

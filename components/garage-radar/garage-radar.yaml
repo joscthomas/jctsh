@@ -110,7 +110,7 @@ mqtt:
           return std::string(buf);
     - mqtt.publish:
         topic: jctsh/components/garage-radar/log
-        payload: '{"component":"garage-radar","category":"MQTT","message":"MQTT broker connected - publishing to jctsh/components/garage-radar/binary_sensor/presence/state"}'
+        payload: '{"component":"garage-radar","category":"MQTT","message":"MQTT connected"}'
   on_message:
     # Yellow LED mirrors garage presence virtual switch state
     - topic: jctsh/components/garage-presence-vswitch/state

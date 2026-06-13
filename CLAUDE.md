@@ -131,8 +131,19 @@ All components publish logs as JSON to `jctsh/<type>/<component>/log`:
 ```json
 { "component": "salt-sensor", "category": "MQTT", "message": "Connected." }
 ```
-Valid categories: `MQTT`, `System`, `Sensor`, `Alert`, `Test`
 Timestamps are added by the log server on receipt — do not include them in the payload.
+
+**Category guide** — each category maps to a distinct layer of the stack:
+
+| Category | What it covers | Examples |
+|---|---|---|
+| `System` | Device health and operational state | Online/boot, WiFi reconnect, heartbeat |
+| `MQTT` | Transport layer — the broker connection itself | Connected, disconnected, LWT |
+| `Sensor` | Physical-world data and state transitions | Presence detected/cleared, distance, salt % |
+| `Alert` | Threshold crossings requiring human attention | Salt warning/critical, API failures |
+| `Test` | Messages generated during test mode | Simulated readings, test mode on/off |
+
+The dividing line between `System` and `MQTT`: if the message is about the *device* (booted, alive, WiFi), use `System`. If it's specifically about the *broker connection* (connected, disconnected, subscribed), use `MQTT`.
 
 **Collapsing convention:** Any repeating status message that should be collapsed into a single dashboard row (count + time range) must start with `"Heartbeat - "`. The log server groups consecutive same-state messages with this prefix per component. Messages without this prefix only collapse when consecutive identical runs are uninterrupted — unreliable for high-frequency or long-lived repeats.
 

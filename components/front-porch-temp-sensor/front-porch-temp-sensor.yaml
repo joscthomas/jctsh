@@ -182,11 +182,11 @@ interval:
           then:
             - mqtt.publish:
                 topic: jctsh/components/front-porch-temp-sensor/log
-                payload: '{"component":"front-porch-temp-sensor","category":"Sensor","message":"BME280 read failed — check I2C wiring (SDA GPIO21 / SCL GPIO22)"}'
+                payload: '{"component":"front-porch-temp-sensor","category":"Alert","message":"BME280 read failed — check I2C wiring (SDA GPIO21 / SCL GPIO22)"}'
       - if:
           condition:
             lambda: 'return isnan(id(bh1750_lux).state);'
           then:
             - mqtt.publish:
                 topic: jctsh/components/front-porch-temp-sensor/log
-                payload: '{"component":"front-porch-temp-sensor","category":"Sensor","message":"BH1750 read failed — check I2C wiring (SDA GPIO21 / SCL GPIO22)"}'
+                payload: '{"component":"front-porch-temp-sensor","category":"Alert","message":"BH1750 read failed — check I2C wiring (SDA GPIO21 / SCL GPIO22)"}'

@@ -5,7 +5,7 @@ A monorepo for JCT smart home automation components running on
 Raspberry Pi with MQTT, Node-RED, and a centralized Python log server.
 
 See [ENVIRONMENT.md](./ENVIRONMENT.md) for the full smart home device inventory.
-See [CLAUDE.md](./CLAUDE.md) for infrastructure details, MQTT conventions, and developer reference.
+See [CLAUDE.md](./CLAUDE.md) for infrastructure details, MQTT conventions, logging standards, and developer reference.
 
 ## Components
 - [salt-sensor](./components/salt-sensor/) — Water softener salt level sensor

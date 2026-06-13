@@ -75,11 +75,39 @@ The slide switch signals hiking mode via GPIO27. VOUT+ runs directly to ESP32 VI
 
 ---
 
+## Charging
+
+Plug in USB — the device auto-wakes in upload mode and the TP4056 charges the LiPo simultaneously. Red LED on = charging; green LED on = charge complete.
+
+**Expected charge time: ~1.5–2 hours** for the 1100mAh cell. This is longer than a bare TP4056 charge because the ESP32 is awake while USB is connected (dock detect GPIO32 is a level-triggered wake source — the device re-wakes immediately if USB is still connected). The boost converter draws ~150–250mA from the battery to run the ESP32, reducing effective charge current. The TP4056 still terminates normally once the battery reaches 4.2V; it just takes longer.
+
+There is no way to charge with the ESP32 sleeping — USB connected always means the device is awake.
+
+**This module's red LED may stay on even after the battery is full.** Do not rely solely on the LED to confirm charge completion — verify with battery voltage (see below).
+
+### Checking battery voltage
+
+With the switch ON (home mode or field mode), `battery_v` is published in every data reading:
+
+- **Google Sheets** — open *JCTsh Environmental Data* → Environmental Data tab; most recent row shows `battery_v`
+- **Log dashboard** — battery voltage does not appear in log messages; use Sheets instead
+
+| Voltage | Meaning |
+|---|---|
+| ~4.2V (reads ~4.3V) | Fully charged |
+| ~3.7V | Nominal — plenty of capacity |
+| ~3.5V | Low — charge soon |
+| <3.4V | Critical — charge immediately |
+
+The ADC voltage divider reads ~0.1V high at full charge (4.2V actual reads ~4.3V in MQTT/Sheets) — this is normal.
+
+---
+
 ## Standard Workflow
 
 ### Before a Hike
 - Confirm switch is OFF (device sleeping)
-- To charge before leaving: plug in USB → device auto-wakes and charges → unplug when done → device returns to sleep
+- To charge before leaving: plug in USB → device auto-wakes (upload mode) and charges → red LED → green LED when done → unplug → device returns to sleep
 
 ### Starting the Hike
 1. Turn switch **ON**
@@ -110,10 +138,10 @@ The slide switch signals hiking mode via GPIO27. VOUT+ runs directly to ESP32 VI
 |---|---|---|
 | `Hiking monitor online - ESPHome ..., IP: ...` | System | Device booted and connected to WiFi |
 | `MQTT connected` | MQTT | MQTT broker connection established |
-| `Replaying N hike readings...` | Sensor | Uploading accumulated field data |
-| `Hike log replay complete.` | Sensor | All field data uploaded to Sheets |
-| `Upload mode — USB connected, switch off` | Sensor | Auto-woke via dock detect; collecting suppressed |
-| `Entering deep sleep` | Sensor | Device entering deep sleep (switch off or USB removed) |
+| `Replaying N hike readings...` | System | Uploading accumulated field data |
+| `Hike log replay complete.` | System | All field data uploaded to Sheets |
+| `Upload mode — USB connected, switch off` | System | Auto-woke via dock detect; collecting suppressed |
+| `Entering deep sleep` | System | Device entering deep sleep (switch off or USB removed) |
 | `Heartbeat - uptime: Xh Ym, RSSI: ...` | System | Device alive, WiFi connected |
 | `MQTT disconnected` | MQTT | WiFi or broker connection lost |
 

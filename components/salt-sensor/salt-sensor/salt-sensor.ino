@@ -96,7 +96,6 @@ void publishReading(float distCm) {
   if (!mqtt.connected()) return;
   String payload = "{\"distance_cm\":" + String(distCm, 1) + "}";
   mqtt.publish(TOPIC_DATA, payload.c_str(), true);  // retained
-  publishLog("MQTT", "Reading published to " + String(TOPIC_DATA));
 }
 
 // ================== SENSOR ==================
@@ -243,11 +242,10 @@ void loop() {
     lastReadingTime = millis();
     float dist = getFilteredDistance();
     if (dist < 0) {
-      publishLog("System", "No valid sensor reading - check wiring.");
+      publishLog("Alert", "No valid sensor reading - check wiring.");
       currentStatus = "error";
     } else {
       lastDistance = dist;
-      publishLog("Sensor", "Distance: " + String(dist, 1) + " cm");
       publishReading(dist);
     }
   }

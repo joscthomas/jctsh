@@ -30,9 +30,7 @@ function doPost(e) {
     if (payload.component === 'hiking-observations') {
       var obsSheet = ss.getSheetByName('Hiking Observations');
 
-      // Strip "observation" keyword prefix — tolerates punctuation/spaces after keyword
       var obsText = (payload.observation || '').trim();
-      obsText = obsText.replace(/^selah[:\s,]*/i, '').trim();
 
       // Category keyword scan — assigns all matching categories
       var taxonomy = {

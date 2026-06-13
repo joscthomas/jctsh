@@ -798,17 +798,20 @@ The deployment URL does not change.
 
 ```powershell
 $url = "https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<KEY>"
-$body = '{"component":"hiking-observations","ts":"2026-06-13T17:00:00Z","lat":null,"lon":null,"observation":"Selah, saw a hawk circling above the ridge, very clear sky today","categories":[],"source":"voice"}'
+$body = '{"component":"hiking-observations","ts":"2026-06-13T17:00:00Z","lat":null,"lon":null,"observation":"saw a hawk circling above the ridge, very clear sky today","categories":[],"source":"voice"}'
 Invoke-RestMethod -Uri $url -Method Post -ContentType "application/json" -Body $body
 ```
 
 Expected response: `{"status":"ok"}`
 
-**Joseph does:** Run the test command. Then open the Hiking Observations sheet and confirm:
-- Row appeared with the hike timestamp (not the current time)
-- Observation text has the "Selah," prefix stripped: `saw a hawk circling above the ridge, very clear sky today`
-- Categories populated automatically: `["wildlife","visibility","sky"]`
-- Source: `voice`
+**Joseph does:** Run the test command. Then open the Hiking Observations sheet and confirm a new row appeared:
+
+| Column | Expected value |
+|---|---|
+| `timestamp` | `2026-06-13T17:00:00.000Z` |
+| `observation` | `saw a hawk circling above the ridge, very clear sky today` |
+| `categories` | `["wildlife","visibility","sky"]` |
+| `source` | `voice` |
 
 **Joseph confirms:** Row in sheet is correct. Proceed to Step 24.
 
@@ -821,54 +824,32 @@ Expected response: `{"status":"ok"}`
 1. Open Tasker → Tasks tab → **+** → name it `Log Observation`
 
 2. **Action 1 — Get Voice:**
-   - Tap **+** → Input → **Get Voice**
+   - Search for **Get Voice**
    - Title: `Speak your observation`
-   - Variable: `%obs_text`
-   - Tap back (checkmark)
+   - Output Variable: `obs_text` (no `%` — Tasker adds it)
+   - Note: Get Voice stores result in `%VOICE` regardless of the Output Variable field
 
 3. **Action 2 — Stop if no input (user cancelled):**
-   - Tap **+** → Task → **Stop**
-   - If: `%obs_text` **~** *(leave blank — matches empty)*
-   - Tap back
+   - Search for **Stop**
+   - Condition: `%VOICE` **Is Not Set**
+   - Error checkbox: **unchecked**
 
-4. **Action 3 — Build JSON payload:**
-   - Tap **+** → Script → **JavaScript**
-   - Paste this code:
-   ```javascript
-   var obsText = local('obs_text').trim();
-   var ts = new Date().toISOString();
-   var payload = {
-     component: 'hiking-observations',
-     ts: ts,
-     lat: null,
-     lon: null,
-     observation: obsText,
-     categories: [],
-     source: 'voice'
-   };
-   setLocal('obs_json', JSON.stringify(payload));
-   ```
-   - Tap back
-
-5. **Action 4 — POST to Apps Script:**
-   - Tap **+** → Net → **HTTP Request**
+4. **Action 3 — POST to Apps Script:**
+   - Search for **HTTP Request**
    - Method: `POST`
-   - URL: `https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<KEY>` *(from `credentials.local.md`)*
+   - URL: *(from `credentials.local.md` — deployment URL + `?key=<KEY>`)*
    - Headers: `Content-Type: application/json`
-   - Body: `%obs_json`
-   - Output Variable: `%http_resp`
-   - Tap back
+   - Body: `{"component":"hiking-observations","ts":"%TIMES","lat":null,"lon":null,"observation":"%VOICE","categories":[],"source":"voice"}`
 
-6. **Action 5 — Notify on success:**
-   - Tap **+** → Alert → **Flash**
+   Tasker substitutes `%VOICE` with spoken text and `%TIMES` with Unix epoch seconds before sending. No JavaScript needed.
+
+5. **Action 4 — Notify:**
+   - Search for **Flash**
    - Text: `Observation logged`
-   - Tap back
 
-7. Tap the checkmark to save the task.
+**Test the task manually:** In the Tasks list, tap the play button next to `Log Observation`. Speak an observation when prompted. Check the Hiking Observations sheet — a new row should appear within a few seconds with categories auto-assigned.
 
-**Test the task manually:** In the Tasks list, tap the play button next to `Log Observation`. Speak an observation when prompted. Check the Hiking Observations sheet — a new row should appear within a few seconds.
-
-**Joseph confirms:** Manual task test produced a row in the sheet. Proceed to Step 25.
+**Joseph confirms:** Manual task test produced a correct row in the sheet. Proceed to Step 25.
 
 ---
 
@@ -893,13 +874,13 @@ The widget is now a single tap to record an observation from anywhere on the hom
 **Joseph does:** Simulate a hiking observation session:
 
 1. Tap the **Log Observation** widget
-2. Say: *"Selah, saguaro blooms are out on the south-facing slopes, first of the season"*
+2. Say: *"saguaro blooms are out on the south-facing slopes, first of the season"*
 3. Open the Hiking Observations sheet — confirm row with:
    - Timestamp: current time in UTC
-   - Observation: `saguaro blooms are out on the south-facing slopes, first of the season` (prefix stripped)
+   - Observation: `saguaro blooms are out on the south-facing slopes, first of the season`
    - Categories: `["vegetation"]`
 4. Tap the widget a second time
-5. Say: *"Selah, coyote tracks crossing the wash near the boulder field, looks fresh"*
+5. Say: *"coyote tracks crossing the wash near the boulder field, looks fresh"*
 6. Confirm row with categories: `["wildlife","trail"]`
 
 **Joseph confirms:** Both rows correct. CARD-007 is done — move to Done in backlog.

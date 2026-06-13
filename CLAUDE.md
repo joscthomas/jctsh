@@ -181,6 +181,31 @@ SmartThings integration's entity-exposure feature (Settings → Devices & Servic
 SmartThings → Configure) to push the existing HA entity to SmartThings directly. No
 virtual device and no SmartThings PAT required.
 
+## Internet Exposure and Security Posture
+
+### MQTT broker internet exposure (as of 2026-06-12)
+
+Port 1883 is forwarded from the internet to the Pi (192.168.1.117) via DuckDNS dynamic DNS + router port forward. The hiking-monitor ESP32 uses this to reach the broker from the Pixel cellular hotspot when away from home.
+
+**Mitigations in place:**
+- All Mosquitto accounts use strong random passwords (20+ chars, alphanumeric)
+- fail2ban watches `/var/log/mosquitto/mosquitto.log` — bans any IP making more than 10 connections in 60 seconds for 1 hour. Stops port scanners before they can attempt brute force.
+- Each MQTT account is scoped to its component; no anonymous access.
+
+**Risks accepted:**
+- MQTT 3.1.1 sends credentials and all sensor data in cleartext. Your ISP can see the username, password, and every reading in transit. A man-in-the-middle on the internet path could also see and modify traffic.
+- Metadata (connection timing, frequency) is always visible regardless of encryption — reveals home occupancy patterns.
+- Brute force: with 20-char random passwords the keyspace is not practically exhaustable. fail2ban makes even low-rate attacks impractical.
+- If credentials were stolen: an attacker could publish fake sensor readings or (without ACLs) subscribe to all component topics, including garage presence data.
+
+**Not yet mitigated — in backlog:**
+- TLS (port 8883): would encrypt credentials and data in transit, eliminating the cleartext risk. See backlog entry.
+- Mosquitto ACLs: would limit each account to its own component topics, reducing the blast radius of a compromised credential.
+
+### LAN security
+
+Mosquitto on the LAN (port 1883 at 192.168.1.117) is also cleartext. Any device on JCTnet1 can passively capture MQTT traffic. Acceptable for a home network; no mitigation planned.
+
 ## Credentials
 
 All credentials are kept off-disk and out of source control.
@@ -247,4 +272,5 @@ For the next time we open a component for changing.
 - p-w-firefly: overlay filesystem — raspi-config on eRVin image has no overlay option; would need manual setup with bilibop-lockfs or similar. Complication: Tailscale state (/var/lib/tailscale/) must be on a persistent bind mount or Tailscale re-authenticates on every reboot. Deferred until Steps 10–14 complete. SanDisk MAX Endurance card provides interim protection.
 - [low priority] logging: move log directory to a USB stick plugged into the Pi for better write endurance than the SD card. Change LOG_DIR in log_server.py and add an /etc/fstab entry so it auto-mounts at boot before the log server starts.
 - infrastructure: upgrade MQTT broker and Node-RED broker node from v3.1.1 to v5. Motivation: Node-RED v4 creates MQTT In/Out nodes with v5 fields (nl, rap, respTopic, etc.) that silently break on the v3 broker — requires manual cleanup after every UI import. Mosquitto 2.x supports v5 and is backward-compatible with v3 clients (ESP32/ESPHome devices stay on v3 unmodified). Steps: verify Mosquitto version, enable v5 in mosquitto.conf if needed, change Node-RED broker node protocolVersion from 4 to 5, test all existing flows. Do as a standalone maintenance task — not mid-component-build.
+- infrastructure: add TLS to Mosquitto (port 8883). Port 1883 is internet-exposed via DuckDNS/port-forward with fail2ban, but credentials are cleartext. TLS encrypts auth and data. Steps: get Let's Encrypt cert for the DuckDNS hostname (certbot with duckdns plugin), add a TLS listener on port 8883 in mosquitto.conf, update mqtt_broker port in every ESPHome secrets.yaml, update Node-RED broker node, update HA MQTT integration. Reflash all ESP32s. Do as a standalone task after DuckDNS setup is stable.
 - salt-sensor: migrate from Arduino C++ to ESPHome. Device side maps cleanly (ultrasonic platform, median filter, 12h interval, LED blink via globals). Logic side: threshold/percentage calculation + SmartThings switch control moves from Node-RED to HA automations; Node-RED flow deleted. Hard part: test mode needs redesign (Node-RED injects fake readings — ESPHome has no equivalent; replace with an HA script that triggers the threshold automation with a synthetic distance value). GPIO 2 and 15 are strapping pins but currently working — not a blocker. Do this migration before perfboard transfer: ESPHome initializes hardware differently than Arduino and if either strapping pin causes a boot issue it's much easier to rewire on breadboard than cut perfboard traces.

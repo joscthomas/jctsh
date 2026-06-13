@@ -87,12 +87,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Build
 
-### CARD-007 · [idea] Hiking observations pipeline (Tasker → Sheets)
-**Component:** hiking-sensor  
-**Notes:** Voice observations captured on the Pixel during hikes via Tasker widget → Android speech recognition → HTTP POST to Apps Script doPost → Hiking Observations sheet with automatic category classification. Google Recorder dropped — no API. Implementation: Steps 23–26 in `hiking-sensor-claude-code-instructions.md`. Apps Script updated (`environmental-data.gs` — strips "observation" prefix, keyword-scans categories, normalizes timestamp).
-
----
-
 ### CARD-008 · [enhancement] Hiking-sensor Step 21 — Pixel hotspot second WiFi
 **Component:** hiking-sensor  
 **Notes:** `JCT Hotspot` added as second WiFi network (JCTnet1 priority 1, hotspot priority 2). Broker changed to `jctsh.duckdns.org` (internet-routable via DuckDNS + port 1883 forward). Firmware OTA flashed 2026-06-12. Field test pending — first hotspot sync will happen on camping trip starting 2026-06-15.
@@ -108,6 +102,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ## Done
+
+### CARD-007 · [idea] Hiking observations pipeline (Tasker → Sheets)
+**Component:** hiking-sensor  
+**Resolution:** Tasker widget → Android speech recognition → HTTP POST to Apps Script → Hiking Observations sheet with automatic category classification. No keyword prefix — widget tap is the intent signal. Steps 23–26 complete 2026-06-13.
+
+---
 
 ### CARD-001 · [bug] Garage-radar false presence on door close
 **Component:** garage-radar  

@@ -7,8 +7,8 @@ trigger:
     for: "00:10:00"
 condition:
   - condition: time
-    after: "06:00:00"
-    before: "22:00:00"
+    after: "07:00:00"
+    before: "12:00:00"
 action:
   - service: notify.mobile_app_pixel_10_pro_xl
     data:

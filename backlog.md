@@ -43,6 +43,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-014 · [enhancement] Move environmental data pipeline to core
+**Component:** core/data-pipeline (new)
+**Notes:** The environmental data pipeline (Apps Script, Google Sheets, Node-RED wildcard data handler) is shared infrastructure consumed by all sensor components — not owned by hiking-sensor. All data flowing through it is environmental data, including observations. Move `environmental-data.gs`, `JCTsh-Environmental-Data-Architecture.md`, and the Node-RED wildcard data handler flow to `core/data-pipeline/`. Update references in component directories. Do before the system grows significantly — weather station, air quality monitor, and van sensors will all be consumers.
+
+---
+
 ### CARD-006 · [enhancement] Move log directory to USB stick
 **Component:** logging  
 **Priority:** low  

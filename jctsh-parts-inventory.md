@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.2
-**Version description:** Added 3M Mini-Clamp connectors for p-w-firefly project (Cables and Adapters, Bag 24).
+**Version:** 2.3
+**Version description:** Added flux paste, M2 screws, M2 brass standoffs, 3M double-sided tape, and 2-pin screw terminal blocks (all Plastic Box).
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -84,6 +84,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Perfboard | Chanzon 34-pack, FR4 double-sided, 5 sizes: 2×8, 3×7, 4×6, 5×7, 7×9 cm, 2.54mm pitch, corner mounting holes | ~33 | Bag 9             | 1 used: garage radar. 5×7cm recommended for ESP32 projects. |
 | Female Pin Header Strips | Glarks 120-pack, 2.54mm single row, 2–40 pin, storage box | Assortment | Plastic Box       | 40-pin strips can be cut to any length. Verify selection before planning. |
 | M3 Brass Standoff Kit | ZYAMY 150-pack, M3 only: female-female 6/10mm, male-female 6+6/10+6/15+6mm, M3 nuts and M3×6 screws | Assortment | Plastic Box       | Default mounting hardware for ESP32 perfboard projects. Verify selection before planning. |
+| M2 Hex Brass Standoff Kit | 390 pcs, M2 male-male hexagonal threaded pillar spacers, bolts, screws, nuts assortment for PCB/circuit board mounting. https://www.amazon.com/dp/B09X346JFL | Assortment | Plastic Box       | Verify selection before build. |
 | Breadboards | 2×830 point, 2×400 point, solderless | 4 | Bag 12            | Prototyping only — freed up when project moves to perfboard. |
 | Push Buttons | QTEATAK, 10 values, 4-pin, 6×6mm micro momentary tact. https://www.amazon.com/dp/B07VQF8P2Y | Assortment | Plastic Box       | Verify selection before build. |
 | JST SM 2-Pin Connectors | Male/female pairs, EL wire cable style. https://www.amazon.com/dp/B00T2U76V0 | Assortment | Bag 14            | Verify selection before build. |
@@ -92,6 +93,9 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Slide Switch Assortment | Gebildet 40pcs, SS12D10 (SPDT 1P2T 3-pin, 250V/3A) and SS12F15 (mini panel SPDT 3-pin, 50V/0.5A). https://www.amazon.com/dp/B0D55ZSH8Y | Assortment | Bag 23 | Verify rating before build. |
 | Wire Lever Connectors | 32Pcs Lever Wire Connectors, DIY Mini Compact Splicing Assortment Quick Electrical Connector Kit for 24-12 AWG https://www.amazon.com/dp/B0B28GQVVG | Assortment | Plastic Box       | Verify selection before build. |
 | Jumper Wires | Jumper Wire Kit - 840 Piece Breadboard Jumper Wire Set, 22ga 14 Assorted Lengths for Prototyping https://www.amazon.com/dp/B07WLPN929 | Assortment | Plastic Box       | Suitable for perfboard use, but not breadboards. |
+| M2 Screw Assortment | 645 pcs metric, M2 countersunk flat-head hex socket cap screws, bolts, nuts, washers, 304 stainless steel. https://www.amazon.com/dp/B0GFDQ6457 | Assortment | Plastic Box       | Verify selection before build. |
+| 3M Double Sided Foam Tape | 3M 5925, 0.5" × 15.4 ft, heavy duty, 0.025" thick, black, strong adhesive for mounting. https://www.amazon.com/dp/B0CHDVNS5T | 1 roll | Plastic Box       | No project assigned. |
+| 2-Pin Screw Terminal Block 3.5mm | uxcell, 50 pcs, 2-pin, 3.5mm pitch, panel/PCB mount, green. https://www.amazon.com/dp/B01C3DGIBQ | 50 | Plastic Box       | No project assigned. |
 
 ---
 
@@ -173,6 +177,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Solder Wire | — | — | Bench | Update brand/gauge when known. |
 | Solder Wick | Desoldering braid | — | Bench | Update brand/width when known. |
 | Flux Pens | Rosin flux | — | Bench | Update brand/count when known. |
+| No Clean Solder Flux Paste | Lead-free rosin flux, no-clean formula, 4-pack 10cc syringes. https://www.amazon.com/dp/B0GGQNNF98 | 4 | Plastic Box | No project assigned. |
 
 ---
 
@@ -198,3 +203,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-06-05 | Stock | iCrimp SN-28B crimping tool added (Tools — Bench Equipment, Shelf); Taiss 600pc Dupont connector kit added (Prototyping and Build Hardware, Plastic Box) |
 | 2026-06-04 | hiking-sensor | ESP32 ×1 used; BME280 ×1 used; LTR-390 ×1 used; e-ink display ×1 used; push button ×1 used; EEMB LiPo ×1 used; TP4056+boost ×1 used |
 | 2026-06-10 | garage-radar | Build complete. ESP32 ×1 used; HLK-LD2412 ×1 used; green LED ×1 used; yellow LED ×1 used; 330Ω resistors ×2 used; female headers (19-pin ×2, 4-pin ×1) used; M3 standoffs ×4 used; 5×7cm perfboard ×1 used |
+| 2026-06-14 | Stock | No clean solder flux paste ×4 syringes (Plastic Box); M2 screw assortment 645 pcs (Plastic Box); 3M double-sided foam tape ×1 roll (Plastic Box); M2 hex brass standoff kit 390 pcs (Plastic Box); 2-pin screw terminal block 3.5mm ×50 (Plastic Box) |

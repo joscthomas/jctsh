@@ -13,6 +13,18 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
+### CARD-016 · [enhancement] SPIFFS offline logging — extract reusable standard
+**Component:** infrastructure / property-sensor-pattern  
+**Notes:** The hiking sensor implements SPIFFS flash logging with replay-on-reconnect. This is required for any mobile or intermittently-connected sensor (van sensors, remote battery sensors). The implementation needs to be extracted from `components/hiking-sensor/hiking-sensor.yaml` and documented as a standard pattern — firmware snippet, log format, replay trigger, Node-RED handling — so it is not rebuilt from scratch for each new device. Output: a section in `JCTsh-Property-Sensor-Pattern.md` (or equivalent) that new builds can copy directly.
+
+---
+
+### CARD-017 · [enhancement] Charging state schema fields for solar/battery sensors
+**Component:** infrastructure / property-sensor-pattern  
+**Notes:** `battery_v` alone doesn't distinguish charging from draining on a solar+battery device. Decide what additional field(s) belong in the environmental data schema before the first solar sensor is built. Options: `charging` (boolean, from charge controller signal pin), `solar_v` (panel voltage via ADC), `charge_current_ma` (requires INA219 or similar). Pick the simplest approach that gives actionable information and add it to `JCTsh-Environmental-Data-Architecture.md` and the Apps Script.
+
+---
+
 ### CARD-002 · [enhancement] MQTT v3.1.1 → v5 upgrade
 **Component:** infrastructure  
 **Notes:** Node-RED v4 creates MQTT In/Out nodes with v5 fields (nl, rap, respTopic, etc.) that silently break on the v3.1.1 broker — requires manual cleanup after every UI import. Mosquitto 2.x supports v5 and is backward-compatible with v3 clients, so ESP32/ESPHome devices stay on v3 unmodified. Steps: verify Mosquitto version, enable v5 in mosquitto.conf if needed, change Node-RED broker node protocolVersion from 4 to 5, test all existing flows. Do as a standalone maintenance task — not mid-component-build.

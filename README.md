@@ -101,6 +101,9 @@ jctsh/
 ├── JCTsh-Component-Planning-Pattern.md  How new components are planned and built
 ├── JCTsh-Environmental-Data-Architecture.md  Payload schema and pipeline for all
 │                                             environmental sensors
+├── JCTsh-Property-Sensor-Pattern.md         Standard pattern for all property sensors —
+│                                             invariant standard, variable dimensions,
+│                                             new-sensor checklist
 └── house-lot-coordinates.md               Lat/lon for property corners, house footprint
                                               corners, and named points (e.g. front porch) —
                                               use these when hardcoding coordinates in firmware

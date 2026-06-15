@@ -4,12 +4,9 @@ trigger:
   - platform: template
     value_template: >
       {{ states('sensor.front_porch_temp_sensor_temperature') | float
-         > states('input_number.front_porch_temp_threshold') | float + 2 }}
+         > states('input_number.front_porch_temp_threshold') | float + 2
+         and now().hour >= 7 and now().hour < 12 }}
     for: "00:10:00"
-condition:
-  - condition: time
-    after: "07:00:00"
-    before: "12:00:00"
 action:
   - service: notify.mobile_app_pixel_10_pro_xl
     data:

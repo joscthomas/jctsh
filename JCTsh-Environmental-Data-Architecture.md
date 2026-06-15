@@ -77,6 +77,7 @@ All environmental sensor components publish data to `jctsh/components/<name>/dat
 | `pm10_ug_m3` | number | µg/m³ | if available | PM10 particulate matter — air quality monitor (SEN55) |
 | `voc_index` | number | VOC index (1–500) | if available | VOC index — air quality monitor (SEN55); 100 = typical clean air |
 | `nox_index` | number | NOx index (1–500) | if available | NOx index — air quality monitor (SEN55); 1 = typical clean air |
+| `illuminance_lx` | number | lux | if available | Ambient light level — BH1750 sensor |
 
 ### Derived Fields (computed by Node-RED, not sent by ESP32)
 
@@ -141,6 +142,7 @@ One sheet, one row per reading, all sources. The `source` column is populated fr
 | `pm10_ug_m3` | `pm10_ug_m3` | µg/m³ — blank for non-AQ devices |
 | `voc_index` | `voc_index` | VOC index — blank for non-AQ devices |
 | `nox_index` | `nox_index` | NOx index — blank for non-AQ devices |
+| `illuminance_lx` | `illuminance_lx` | lux — blank for sensors without BH1750 |
 
 Columns for fields a given sensor does not provide are left blank for that row. Do not add per-device columns — all sources use the same schema.
 

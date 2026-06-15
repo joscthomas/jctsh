@@ -44,12 +44,14 @@ BME280 (temp/humidity/pressure)  +  BH1750 (light)
                   ▼
         Mosquitto broker (Raspberry Pi)
                   │
-          ┌───────┴───────┐
-          ▼               ▼
-   Home Assistant      Node-RED
-   sensor entities     log router + watchdog
-          │
-   HA automations
+          ┌───────┼───────────────┐
+          ▼       ▼               ▼
+   Home      Node-RED          Node-RED
+   Assistant log router +      env data handler
+   sensor    watchdog          (wildcard .../data)
+   entities                         │
+          │                   Google Sheets
+   HA automations             (Environmental Data)
    ├── Front Porch Warm - Close Door
    └── Front Porch Cool - Open Door
           │
@@ -57,6 +59,9 @@ BME280 (temp/humidity/pressure)  +  BH1750 (light)
    notify.mobile_app_pixel_10_pro_xl
    notify.mobile_app_pixel_7_pro
 ```
+
+**Location:** Front porch at 32.4612997, -111.1184154 (point H8 in
+[house-lot-coordinates.md](../../house-lot-coordinates.md)).
 
 ---
 
@@ -86,16 +91,22 @@ Threshold changes take effect immediately — no reflash needed.
 Temperature, pressure, and illuminance are published to MQTT every 60 seconds.
 HA auto-discovers all entities via MQTT discovery.
 
-Two HA automations fire once per threshold crossing — no reminders:
+Every 5 minutes the device publishes a JSON payload to
+`jctsh/components/front-porch-temp-sensor/data`. The Node-RED environmental data handler
+(wildcard `jctsh/components/+/data`) routes this to Google Sheets via Apps Script —
+no Node-RED changes needed when this sensor was added.
+
+Two HA automations fire once per threshold crossing using ±2°F hysteresis — no reminders:
 
 | Automation | Trigger | Time window |
 |---|---|---|
-| Front Porch Warm - Close Door | Temp stays ≥ threshold for 10 min | 6am–10pm |
-| Front Porch Cool - Open Door | Temp stays < threshold for 10 min | 6am–1pm |
+| Front Porch Cool - Open Door | Temp stays < threshold − 2°F for 10 min | 6am–10am |
+| Front Porch Warm - Close Door | Temp stays > threshold + 2°F for 10 min | 7am–12pm |
 
-The 10-minute stability buffer prevents spurious alerts from brief temperature spikes.
+The ±2°F dead band prevents back-to-back contradictory notifications when temperature
+hovers near the threshold.
 
-Every 5 minutes the device publishes a heartbeat to
+Every 30 minutes the device publishes a heartbeat to
 `jctsh/components/front-porch-temp-sensor/heartbeat`. The Node-RED watchdog monitors
 this and sends a push notification if silent for more than 35 minutes.
 

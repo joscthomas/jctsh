@@ -62,6 +62,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-015 · [enhancement] Front-porch-temp-sensor — Environmental data pipeline integration
+**Component:** front-porch-temp-sensor  
+**Notes:** The front porch sensor publishes temperature, humidity, pressure, and illuminance every 60 seconds. Wire these readings into the environmental data pipeline (Node-RED wildcard data handler → Apps Script → Google Sheets) so they are archived alongside hiking-sensor data. Follow the payload schema and Node-RED handler pattern defined in `JCTsh-Environmental-Data-Architecture.md`. The front porch sensor is a fixed home station, so readings are always georeferenced to home — no GPS field needed. Consider whether illuminance (lx) belongs in the shared schema or is front-porch-specific.
+
+---
+
 ## Planning
 
 ### CARD-012 · [idea] Air quality monitor

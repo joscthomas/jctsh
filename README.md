@@ -99,8 +99,11 @@ jctsh/
 ├── jctsh-parts-inventory.md       On-hand electronics parts
 ├── JCTsh-Build-Standards.md       Standards all components must follow
 ├── JCTsh-Component-Planning-Pattern.md  How new components are planned and built
-└── JCTsh-Environmental-Data-Architecture.md  Payload schema and pipeline for all
-                                              environmental sensors
+├── JCTsh-Environmental-Data-Architecture.md  Payload schema and pipeline for all
+│                                             environmental sensors
+└── house-lot-coordinates.md               Lat/lon for property corners, house footprint
+                                              corners, and named points (e.g. front porch) —
+                                              use these when hardcoding coordinates in firmware
 ```
 
 ### components/

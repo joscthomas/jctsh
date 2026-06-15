@@ -382,29 +382,34 @@ display:
       float temp = id(bme_temp).state;
       float hum  = id(bme_humidity).state;
       float uv   = id(ltr_uv_index).state;
+      float batt = id(battery_voltage).state;
       const char* trend = id(pressure_trend).c_str();
 
-      // 2-line layout, 250×122 landscape
-      // Line 1: temp (left)  humidity (right)
-      // Line 2: P trend (left)  UVI (right)
+      // 3-line layout, 250×122 landscape
+      // Line 1 (y=3):  temp (left)    humidity (right)
+      // Line 2 (y=42): P trend (left) UVI (right)
+      // Line 3 (y=81): battery (center)
       if (id(deep_sleep_pending)) {
         it.print(125, 45, id(font_data), TextAlign::CENTER, "Hiking monitor");
         it.print(125, 77, id(font_data), TextAlign::CENTER, "asleep");
         return;
       }
       if (isnan(temp) || isnan(hum) || isnan(uv)) {
-        it.print(5, 10, id(font_data), "Hiking monitor");
-        it.print(5, 72, id(font_data), "initializing");
+        it.print(5,  3, id(font_data), "Hiking monitor");
+        it.print(5, 42, id(font_data), "initializing");
       } else {
-        char l1a[16], l1b[16], l2a[8], l2b[16];
+        char l1a[16], l1b[16], l2a[8], l2b[16], l3[16];
         snprintf(l1a, sizeof(l1a), "%.1f°", temp);
         snprintf(l1b, sizeof(l1b), "%.1f%%", hum);
         snprintf(l2a, sizeof(l2a), "P %s", trend);
         snprintf(l2b, sizeof(l2b), "UVI %.2f", uv);
-        it.print(5,   10, id(font_data), l1a);
-        it.print(245, 10, id(font_data), TextAlign::TOP_RIGHT, l1b);
-        it.print(5,   72, id(font_data), l2a);
-        it.print(245, 72, id(font_data), TextAlign::TOP_RIGHT, l2b);
+        if (isnan(batt)) snprintf(l3, sizeof(l3), "Batt --");
+        else             snprintf(l3, sizeof(l3), "Batt %.2fV", batt);
+        it.print(5,    3, id(font_data), l1a);
+        it.print(245,  3, id(font_data), TextAlign::TOP_RIGHT, l1b);
+        it.print(5,   42, id(font_data), l2a);
+        it.print(245, 42, id(font_data), TextAlign::TOP_RIGHT, l2b);
+        it.print(125, 81, id(font_data), TextAlign::TOP_CENTER, l3);
       }
 
 # ── Fonts ─────────────────────────────────────────────────────────────────────
@@ -513,18 +518,17 @@ interval:
                   uint32_t m = (secs % 3600) / 60;
                   int rssi = (int)id(wifi_rssi).state;
                   float temp = id(bme_temp).state;
+                  float batt = id(battery_voltage).state;
+                  char temp_str[16], batt_str[16];
+                  if (isnan(temp)) strcpy(temp_str, "unavailable");
+                  else snprintf(temp_str, sizeof(temp_str), "%.1f\xc2\xb0""F", temp);
+                  if (isnan(batt)) strcpy(batt_str, "unavailable");
+                  else snprintf(batt_str, sizeof(batt_str), "%.2fV", batt);
                   char buf[256];
-                  if (isnan(temp)) {
-                    snprintf(buf, sizeof(buf),
-                      "{\"component\":\"hiking-monitor\",\"category\":\"System\","
-                      "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, temp: unavailable\"}",
-                      h, m, rssi);
-                  } else {
-                    snprintf(buf, sizeof(buf),
-                      "{\"component\":\"hiking-monitor\",\"category\":\"System\","
-                      "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, temp: %.1f\xc2\xb0""F\"}",
-                      h, m, rssi, temp);
-                  }
+                  snprintf(buf, sizeof(buf),
+                    "{\"component\":\"hiking-monitor\",\"category\":\"System\","
+                    "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, temp: %s, batt: %s\"}",
+                    h, m, rssi, temp_str, batt_str);
                   return std::string(buf);
             - mqtt.publish:
                 topic: jctsh/components/hiking-monitor/heartbeat
@@ -534,14 +538,14 @@ interval:
                   uint32_t m = (secs % 3600) / 60;
                   int rssi = (int)id(wifi_rssi).state;
                   float temp = id(bme_temp).state;
-                  char buf[128];
-                  if (isnan(temp)) {
-                    snprintf(buf, sizeof(buf),
-                      "{\"component\":\"hiking-monitor\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"temp\":null}",
-                      h, m, rssi);
-                  } else {
-                    snprintf(buf, sizeof(buf),
-                      "{\"component\":\"hiking-monitor\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"temp\":%.1f}",
-                      h, m, rssi, temp);
-                  }
+                  float batt = id(battery_voltage).state;
+                  char temp_json[16], batt_json[16];
+                  if (isnan(temp)) strcpy(temp_json, "null");
+                  else snprintf(temp_json, sizeof(temp_json), "%.1f", temp);
+                  if (isnan(batt)) strcpy(batt_json, "null");
+                  else snprintf(batt_json, sizeof(batt_json), "%.2f", batt);
+                  char buf[160];
+                  snprintf(buf, sizeof(buf),
+                    "{\"component\":\"hiking-monitor\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"temp\":%s,\"battery_v\":%s}",
+                    h, m, rssi, temp_json, batt_json);
                   return std::string(buf);

@@ -95,7 +95,8 @@ function doPost(e) {
         v('pm10_ug_m3'),      // V
         v('voc_index'),        // W
         v('nox_index'),        // X
-        v('illuminance_lx')   // Y
+        v('illuminance_lx'),  // Y
+        v('solar_v')          // Z
       ]);
     }
 

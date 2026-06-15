@@ -1,8 +1,8 @@
 # JCTsh Environmental Data Architecture
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the architecture for JCTsh environmental sensor data — the standard message payload, Google Sheets archive design, Node-RED data handler pattern, Weather Underground integration, and the planned environmental sensor family. All environmental sensor components must conform to this standard.
-**Version:** 1.3
-**Version description:** Added hiking observations pipeline architecture — keyword-triggered voice observation capture via Google Recorder, Apps Script processor, separate Observations sheet, and MQTT integration. Observations payload schema defined. Category taxonomy defined. Path A (manual share) and Path B (Tasker automation) implementation paths documented. No other changes from v1.2.
+**Version:** 1.4
+**Version description:** Added `solar_v` field for solar panel voltage — distinguishes charging from draining on solar+battery devices without requiring a charge controller status pin. Added to field reference, Google Sheets schema, and Apps Script (column Z). No other changes from v1.3.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`
 
@@ -78,6 +78,7 @@ All environmental sensor components publish data to `jctsh/components/<name>/dat
 | `voc_index` | number | VOC index (1–500) | if available | VOC index — air quality monitor (SEN55); 100 = typical clean air |
 | `nox_index` | number | NOx index (1–500) | if available | NOx index — air quality monitor (SEN55); 1 = typical clean air |
 | `illuminance_lx` | number | lux | if available | Ambient light level — BH1750 sensor |
+| `solar_v` | number | V | if solar-powered | Solar panel voltage from ADC voltage divider — combined with `battery_v`, distinguishes charging (solar_v > battery_v + ~0.3V) from draining |
 
 ### Derived Fields (computed by Node-RED, not sent by ESP32)
 
@@ -143,6 +144,7 @@ One sheet, one row per reading, all sources. The `source` column is populated fr
 | `voc_index` | `voc_index` | VOC index — blank for non-AQ devices |
 | `nox_index` | `nox_index` | NOx index — blank for non-AQ devices |
 | `illuminance_lx` | `illuminance_lx` | lux — blank for sensors without BH1750 |
+| `solar_v` | `solar_v` | V — blank for non-solar devices |
 
 Columns for fields a given sensor does not provide are left blank for that row. Do not add per-device columns — all sources use the same schema.
 

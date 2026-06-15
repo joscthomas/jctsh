@@ -13,12 +13,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
-### CARD-017 · [enhancement] Charging state schema fields for solar/battery sensors
-**Component:** infrastructure / property-sensor-pattern  
-**Notes:** `battery_v` alone doesn't distinguish charging from draining on a solar+battery device. Decide what additional field(s) belong in the environmental data schema before the first solar sensor is built. Options: `charging` (boolean, from charge controller signal pin), `solar_v` (panel voltage via ADC), `charge_current_ma` (requires INA219 or similar). Pick the simplest approach that gives actionable information and add it to `JCTsh-Environmental-Data-Architecture.md` and the Apps Script.
-
----
-
 ### CARD-002 · [enhancement] MQTT v3.1.1 → v5 upgrade
 **Component:** infrastructure  
 **Notes:** Node-RED v4 creates MQTT In/Out nodes with v5 fields (nl, rap, respTopic, etc.) that silently break on the v3.1.1 broker — requires manual cleanup after every UI import. Mosquitto 2.x supports v5 and is backward-compatible with v3 clients, so ESP32/ESPHome devices stay on v3 unmodified. Steps: verify Mosquitto version, enable v5 in mosquitto.conf if needed, change Node-RED broker node protocolVersion from 4 to 5, test all existing flows. Do as a standalone maintenance task — not mid-component-build.
@@ -108,6 +102,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ## Done
+
+### CARD-017 · [enhancement] Charging state schema fields for solar/battery sensors
+**Component:** infrastructure / property-sensor-pattern  
+**Resolution:** Added `solar_v` (solar panel voltage, V, ADC voltage divider) to the environmental data schema. Decision: `solar_v` chosen over `charging` boolean (not universally available on all charge controllers) and `charge_current_ma` (requires INA219, overkill). Combined with `battery_v`, charging state is derivable in Node-RED or Sheets as `solar_v > battery_v + ~0.3V`. Added to field reference and Sheets schema in `JCTsh-Environmental-Data-Architecture.md` (v1.4), column Z in `components/hiking-sensor/environmental-data.gs`, and Apps Script redeployed. 2026-06-15.
+
+---
 
 ### CARD-016 · [enhancement] Offline flash logging — extract reusable standard
 **Component:** infrastructure / property-sensor-pattern  

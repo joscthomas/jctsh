@@ -50,6 +50,45 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-019 · [idea] [vu-meter] Home theater VU meters
+**Notes:** VU meter displays for home theater speakers — Left, Right, Center, Subwoofer (4 channels). Circuit to be breadboarded first to validate the analog front end before any JCTsh integration work begins.
+
+**Hardware:**
+- One ESP32 for all 4 channels — GPIO32/33/34/35 are all ADC1 pins and don't conflict with WiFi
+- Display: WS2812B addressable RGB LED strips (color gradient green→yellow→red, software-configurable). Alternatives considered: discrete LEDs, OLED, LED matrix, NeoPixel rings
+- Sub input: tap AV receiver RCA (line-level, ~1–2V peak) if powered sub — much simpler than speaker level. Speaker-level tap if passive sub
+
+**Analog front-end circuit (per channel — speaker level):**
+- High-side resistor divider ≥100kΩ to avoid loading the amp (speaker load is 4–8Ω; parallel impedance must stay negligible)
+- Full-wave rectifier + peak detector capacitor — converts bipolar AC audio signal to positive DC level proportional to loudness
+- 10kΩ series resistor before each ADC pin
+- Schottky or TVS clamping diodes at ADC pin (to GND and 3.3V) — protect against transients and voltage excursions
+- Keep resistor power dissipation in check: at 20V across 100kΩ = 4mW, well within ¼W rating
+
+**Protection concerns:**
+- Impedance loading: high-side ≥100kΩ ensures microamp draw; receiver can't tell it's there
+- Voltage: speaker level can reach 20–30V peak — divider must scale to 0–3.3V; audio is bipolar so rectification is required before ADC
+- Transients: amp spikes at power-on/off — clamping diodes + series resistor handle this
+- Ground loops: ESP32 USB ground may differ from audio system ground → 60Hz hum injected into audio. Mitigation: isolated USB wall adapter, high-value sense resistors, or optical isolation (most robust)
+- RF noise: ESP32 WiFi radiates RF — keep sense wiring physically separated from speaker cables; consider shielding
+
+**JCTsh smart integration:**
+- MQTT topics: `jctsh/components/vu-meter/data` (levels), `jctsh/components/vu-meter/log`, `jctsh/components/vu-meter/cmd` (remote control)
+- Publish: per-channel audio level, `is_playing` boolean (derived from threshold + 1s hold)
+- Node-RED: detect play/stop transitions → dim/restore theater lighting, turn off AV receiver after N min silence, notify if audio playing after midnight
+- Remote display control via cmd topic: brightness, color scheme, sensitivity — adjustable from phone without touching hardware
+- Optional: level logging to Google Sheets
+
+**Division of labor:**
+- Claude writes: ESPHome YAML (ADC reading, peak detection, WS2812B driving), MQTT schema, Node-RED flows, HA entities
+- Physical validation: breadboard analog front end, measure actual output voltage range at typical listening volume, then tune firmware divider constants to match
+
+**Resources:** No single tutorial covers this full stack. Pieces: Hackaday/Instructables (VU meter projects, WS2812B), Andreas Spiess YouTube (ESP32 audio/ADC), EEVblog forums or r/diyelectronics (circuit review before connecting to real equipment), ESPHome docs (firmware). Speaker-level input with proper protection is under-documented — this is an original design.
+
+**Next step:** Breadboard and validate the analog front-end circuit. Measure voltage range at the ADC pin at low, medium, and high listening volumes. Report back before firmware work begins.
+
+---
+
 ### CARD-018 · [idea] [immich] Self-hosted photo library
 **Notes:** Migrate Google Photos → Immich (self-hosted). Migration path: Google Takeout export → immich-go to upload to Immich instance including albums. Going forward: Immich mobile app on Pixel as backup destination instead of (or alongside) Google Photos. Periodic re-import via Takeout to catch anything new. Robin's photos need a separate Takeout + import pass. Direct API sync tools (gphotos-sync) stopped working March 2025 when Google restricted OAuth scopes — Takeout + immich-go is now the standard path.
 

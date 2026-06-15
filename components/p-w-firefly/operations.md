@@ -46,7 +46,7 @@ Both Pixels are saved to JCT-RV and will connect automatically.
 | Coach battery | Voltage | — |
 | Lights | On/off per circuit | On/off |
 | Water pump | On/off | On/off |
-| Generator | Running/stopped | Start/stop |
+| Generator | Running/stopped | Start/stop (untested) |
 | Sofa | Extend/retract | Extend/retract |
 
 ### Not available from dashboard
@@ -61,15 +61,18 @@ Both Pixels are saved to JCT-RV and will connect automatically.
 
 ---
 
-## Network Switching
+## Network
 
-The Pi checks for known networks every 60 seconds and connects in this priority order:
+The Pi uses concurrent STA+AP mode — `wlan0` connects to a known WiFi network while `uap0` broadcasts JCT-RV **simultaneously and permanently**. JCT-RV is always available regardless of what network `wlan0` is connected to.
+
+`wlan0` connects in this priority order:
 
 1. **JCTnet1** (home WiFi) — preferred
 2. **Your Pixel hotspot** — fallback when away
-3. **JCT-RV** (own hotspot) — fallback when no other network is available
 
-Switching takes up to 60 seconds. No reboot required.
+If neither network is in range, `wlan0` is idle. JCT-RV remains up in all cases.
+
+`wlan0` switching between known networks takes up to 60 seconds. No reboot required.
 
 ---
 

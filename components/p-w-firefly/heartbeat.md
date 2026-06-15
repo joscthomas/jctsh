@@ -1,25 +1,43 @@
 # JCTsh Heartbeat — Pleasure-Way Firefly Interface
 
-Publishes an hourly `Heartbeat - online.` message from the RV Pi to the JCTsh log dashboard, confirming the Pi and Tailscale are alive.
+Publishes a `Heartbeat - online.` message every 30 minutes from the RV Pi to the JCTsh log dashboard and Node-RED watchdog, confirming the Pi and Tailscale are alive.
 
 ---
 
 ## How It Works
 
-A Python script runs on the RV Pi as a systemd timer (2 minutes after boot, then every hour). It connects to the home Pi's MQTT broker via Tailscale and publishes to `jctsh/rv/coachproxyos/log`. The JCTsh log server subscribes to `jctsh/+/+/log` and displays the message in the dashboard under component `coachproxyos`.
+A Python script runs on the RV Pi as a systemd timer (2 minutes after boot, then every 30 minutes). It connects to the home Pi's MQTT broker via Tailscale and publishes to two topics:
 
-When the Pi is powered off or Tailscale is down, messages stop — the last heartbeat timestamp in the dashboard shows how long ago the Pi was last online.
+- `jctsh/rv/coachproxyos/log` — picked up by the log server, visible in the dashboard
+- `jctsh/rv/coachproxyos/heartbeat` — monitored by the Node-RED watchdog (35-minute timeout)
+
+When the Pi is powered off or Tailscale is down, messages stop. The watchdog alerts after 35 minutes of silence. The last heartbeat timestamp in the dashboard shows how long ago the Pi was last online.
 
 ---
 
-## Files on RV Pi
+## Source Files in Repo
+
+| File | Deployed to |
+|---|---|
+| `components/p-w-firefly/jctsh-heartbeat.py` | `/usr/local/bin/jctsh-heartbeat.py` |
+| `components/p-w-firefly/jctsh-heartbeat.timer` | `/etc/systemd/system/jctsh-heartbeat.timer` |
+
+## Files on RV Pi (not in repo)
 
 | File | Purpose |
 |---|---|
-| `/usr/local/bin/jctsh-heartbeat.py` | Python script — publishes heartbeat via paho-mqtt |
 | `/etc/jctsh/heartbeat.env` | MQTT credentials (`MQTT_PASSWORD=...`) — chmod 640, owner root:pi |
 | `/etc/systemd/system/jctsh-heartbeat.service` | oneshot service that runs the script |
-| `/etc/systemd/system/jctsh-heartbeat.timer` | Fires 2min after boot, then every hour |
+
+---
+
+## Deployment
+
+```
+scp components/p-w-firefly/jctsh-heartbeat.py pi@100.90.246.43:/tmp/jctsh-heartbeat.py
+ssh pi@100.90.246.43 "sudo install -m 755 /tmp/jctsh-heartbeat.py /usr/local/bin/jctsh-heartbeat.py && sudo cp /etc/systemd/system/jctsh-heartbeat.timer /etc/systemd/system/jctsh-heartbeat.timer.bak"
+ssh pi@100.90.246.43 "sudo sed -i 's/OnUnitActiveSec=1h/OnUnitActiveSec=30min/' /etc/systemd/system/jctsh-heartbeat.timer && sudo systemctl daemon-reload && sudo systemctl restart jctsh-heartbeat.timer"
+```
 
 ---
 
@@ -39,18 +57,18 @@ Account `coachproxyos` added to home Pi Mosquitto (`/etc/mosquitto/passwd`). Pas
 
 ## Confirmed Details
 
-*(Confirmed complete — May 2026)*
-
 | Item | Value |
 |---|---|
 | Heartbeat visible in dashboard | Yes — component `coachproxyos`, category `System` |
-| MQTT topic | `jctsh/rv/coachproxyos/log` |
+| Log topic | `jctsh/rv/coachproxyos/log` |
+| Watchdog topic | `jctsh/rv/coachproxyos/heartbeat` |
 | Broker | Home Pi — `100.70.162.24:1883` via Tailscale |
-| Timer schedule | 2min after boot, hourly thereafter |
+| Timer schedule | 2min after boot, every 30min thereafter |
+| Watchdog timeout | 35 minutes |
 | paho-mqtt version | 1.6.1 |
 
 ---
 
 ## Note on Dashboard Display
 
-The log server collapses consecutive `Heartbeat - ` messages from the same component into a single row with a count and time range. A single heartbeat is held in memory until the next one arrives — the dashboard entry first appears after the second heartbeat (roughly one hour after boot). On subsequent visits, the collapsed entry shows the count and `[first–last]` timestamp range.
+The log server collapses consecutive `Heartbeat - ` messages from the same component into a single row with a count and time range. A single heartbeat is displayed immediately; the count increments with each subsequent heartbeat. The collapsed entry shows count and `[first–last]` timestamp range.

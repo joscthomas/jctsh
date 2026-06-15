@@ -129,12 +129,12 @@ button:
     name: "Restart"
 
 # ── Heartbeat interval ────────────────────────────────────────────────────────
-# Publishes every 5 minutes to:
+# Publishes every 30 minutes to:
 #   .../log      — picked up by Python log server wildcard (jctsh/+/+/log)
 #   .../heartbeat — picked up by Node-RED watchdog wildcard (jctsh/+/+/heartbeat)
 # No Node-RED or log server changes needed — wildcards catch this automatically.
 interval:
-  - interval: 5min
+  - interval: 30min
     then:
       - mqtt.publish:
           topic: jctsh/components/front-porch-temp-sensor/log

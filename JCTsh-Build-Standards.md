@@ -1,7 +1,7 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.6
+**Version:** 1.7
 **Version description:** Added §2.8 multi-network WiFi variant (`networks:` list) and captive_portal deep-sleep exception. Added §2.12 e-ink display pattern (update_interval never, deep_sleep_pending flag, NaN init screen). Added §2.13 multi-priority on_boot sequencing. Updated §3.3 with DuckDNS broker guidance for cellular-connected components. Added §3.6 rssi_dbm=0 field-mode sentinel convention. Added §5.5 GPS timestamp lookup pattern (GPSLogger → Apps Script → nearest trackpoint). Added §5.6 Node-RED per-component context isolation via component-name key suffix.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
@@ -111,7 +111,7 @@ The `delay: 500ms` gives the broker session time to fully settle before publishi
 
 For components that have a field mode (no WiFi), wrap heartbeat publishes in a `condition` so they are suppressed when MQTT is not connected:
 ```yaml
-- interval: 5min
+- interval: 30min
   then:
     - if:
         condition:
@@ -377,7 +377,7 @@ jctsh/<type>/<component>/<message-type>
 Examples:
 - `jctsh/components/garage-radar/state` — primary state
 - `jctsh/components/garage-radar/log` — log messages (routed to Python log server by Node-RED)
-- `jctsh/components/garage-radar/heartbeat` — 5-minute heartbeat (monitored by Node-RED watchdog)
+- `jctsh/components/garage-radar/heartbeat` — 30-minute heartbeat (monitored by Node-RED watchdog)
 - `jctsh/sensors/salt-sensor/data` — sensor readings
 
 ### 3.2 Standard Sub-Topics
@@ -385,7 +385,7 @@ Examples:
 For ESP32 components, the following sub-topics are standard:
 - `/state` — primary on/off or presence state
 - `/log` — all log messages in standard JSON format (see Section 4.2)
-- `/heartbeat` — 5-minute heartbeat in standard JSON format (see Section 4.1)
+- `/heartbeat` — 30-minute heartbeat in standard JSON format (see Section 4.1)
 - Additional sub-topics named for the specific sensor value (e.g. `/still`, `/moving`, `/distance`, `/level`)
 
 ### 3.3 Broker
@@ -448,9 +448,9 @@ Observability is **not optional**. Every ESP32 component implements message logg
 
 ### 4.1 Heartbeat
 
-All ESP32 components publish a heartbeat every **5 minutes** to two topics:
+All ESP32 components publish a heartbeat every **30 minutes** to two topics:
 
-> **Note:** garage-radar currently uses a 30-minute interval — it predates this standard. front-porch-temp-sensor was corrected to 5 minutes (June 2026). New components use 5 minutes per this standard.
+> **Rationale:** The Node-RED watchdog timeout is 35 minutes (30-minute interval + 5-minute buffer). 30 minutes is the standard because it is derived from the watchdog — not arbitrary. Battery-powered components may use a longer interval; document the reason and accept that the watchdog may not catch them reliably.
 
 **Log topic** (visible in dashboard):
 ```
@@ -464,7 +464,7 @@ topic: jctsh/<type>/<component>/heartbeat
 payload: { "component": "<name>", "uptime": "Xh Xm", "rssi": -XX, "<state-key>": "<value>" }
 ```
 
-Both are published on the same 5-minute interval. The log topic entry makes the heartbeat visible in the dashboard. The heartbeat topic is what the Node-RED watchdog monitors.
+Both are published on the same 30-minute interval. The log topic entry makes the heartbeat visible in the dashboard. The heartbeat topic is what the Node-RED watchdog monitors.
 
 > **Critical:** The log topic heartbeat message **must begin with `"Heartbeat - "`** (with a space and hyphen). The log server uses this prefix to collapse consecutive same-state heartbeats into a single dashboard row showing count and time range. Any other prefix causes each heartbeat to appear as a separate row, filling the dashboard with noise.
 
@@ -505,7 +505,7 @@ The JCTsh watchdog is a Node-RED flow that monitors the heartbeat topic of each 
 **How it works:**
 - Subscribes to `jctsh/+/+/heartbeat` (wildcard — catches all component heartbeats)
 - On each received heartbeat, resets a per-component timer
-- If a timer expires (no heartbeat received within 10 minutes for a 5-minute interval), fires an alert
+- If a timer expires (no heartbeat received within 35 minutes for a 30-minute interval), fires an alert
 - Alert path: Node-RED → HA REST API (port 8123) → HA companion app → Joseph's Pixel 10 Pro
 - Alert message format: `JCTsh alert: <component-name> has not reported in <N> minutes`
 
@@ -528,7 +528,7 @@ ESPHome components with **I2C or SPI sensors** must publish explicit error log m
 
 **When to apply:** Any component where a physical sensor failure would cause `sensor.state` to return NaN — typically BME280, BH1750, LTR390, and similar I2C/SPI sensor platforms.
 
-**Pattern:** Add one `if` block per sensor at the end of the 5-minute heartbeat interval, after the heartbeat publishes:
+**Pattern:** Add one `if` block per sensor at the end of the 30-minute heartbeat interval, after the heartbeat publishes:
 
 ```yaml
       - if:
@@ -752,6 +752,7 @@ When LED indicators are included in a component:
 | Version | Change |
 |---|---|
 | 1.0 | Initial release. Enclosure convention, ESP32/ESPHome standards, MQTT conventions, observability standards, SmartThings integration, LED standards, documentation standards. |
+| 1.7 | Changed heartbeat standard from 5 minutes to 30 minutes throughout (§2.7, §3.2, §4.1, §4.4, §4.6). 30 min is derived from the watchdog timeout (35 min = interval + 5-min buffer), not arbitrary. Updated front-porch-temp-sensor.yaml to match. |
 | 1.6 | Added §2.8 multi-network WiFi variant (networks: list) and captive_portal deep-sleep exception. Added §2.12 e-ink display pattern. Added §2.13 multi-priority on_boot sequencing. Updated §3.3 with DuckDNS broker guidance for cellular components. Added §3.6 rssi_dbm=0 field-mode sentinel. Added §5.5 GPS timestamp lookup pattern. Added §5.6 Node-RED per-component context isolation. |
 | 1.5 | Added §5.4 Node-RED flow deployment patterns (MQTT v5 field issue, flows.json injection, Apps Script 405 redirect, alphanumeric API keys, env vars via EnvironmentFile), watchdog is a new Node-RED flow (not an existing process). Added SmartThings actual integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation as a required step. Added phone notification via HA companion app as watchdog alert method. |
 | 1.4 | Added §2.10 onboard flash logging standard: use ESP-IDF SPIFFS not Arduino LittleFS; name files by function not library. Fixed §2.7 reference from "LittleFS replay loop" to "SPIFFS replay loop". Renumbered MQTT account creation to §2.11. |

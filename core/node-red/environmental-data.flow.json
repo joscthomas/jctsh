@@ -30,7 +30,7 @@
     "id": "env-data-gps-apply",
     "type": "function",
     "name": "Apply GPS coords",
-    "func": "var d = msg._sensorData;\nif (msg.statusCode === 200) {\n    try {\n        var gps = JSON.parse(msg.payload);\n        if (gps.lat !== null && gps.lat !== undefined) {\n            d.lat = gps.lat;\n            d.lon = gps.lon;\n        }\n    } catch(e) { }\n}\nmsg.payload = d;\nreturn msg;",
+    "func": "var d = msg._sensorData;\nif (msg.statusCode === 200) {\n    try {\n        var gps = JSON.parse(msg.payload);\n        if (gps.lat !== null && gps.lat !== undefined) {\n            d.lat = gps.lat;\n            d.lon = gps.lon;\n        }\n    } catch(e) { }\n}\n// Hiking monitor at home has no GPS track — use garage front wall (H6-H7 midpoint).\n// rssi_dbm is 0 for field readings (no WiFi); non-zero confirms home WiFi.\nif (d.component === 'hiking-monitor' && (d.lat === null || d.lat === undefined) && d.rssi_dbm !== 0) {\n    d.lat = 32.4612842;\n    d.lon = -111.1183818;\n}\nmsg.payload = d;\nreturn msg;",
     "wires": [["env-data-process"]]
   },
   {

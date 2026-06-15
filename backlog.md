@@ -13,12 +13,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
-### CARD-016 · [enhancement] SPIFFS offline logging — extract reusable standard
-**Component:** infrastructure / property-sensor-pattern  
-**Notes:** The hiking sensor implements SPIFFS flash logging with replay-on-reconnect. This is required for any mobile or intermittently-connected sensor (van sensors, remote battery sensors). The implementation needs to be extracted from `components/hiking-sensor/hiking-sensor.yaml` and documented as a standard pattern — firmware snippet, log format, replay trigger, Node-RED handling — so it is not rebuilt from scratch for each new device. Output: a section in `JCTsh-Property-Sensor-Pattern.md` (or equivalent) that new builds can copy directly.
-
----
-
 ### CARD-017 · [enhancement] Charging state schema fields for solar/battery sensors
 **Component:** infrastructure / property-sensor-pattern  
 **Notes:** `battery_v` alone doesn't distinguish charging from draining on a solar+battery device. Decide what additional field(s) belong in the environmental data schema before the first solar sensor is built. Options: `charging` (boolean, from charge controller signal pin), `solar_v` (panel voltage via ADC), `charge_current_ma` (requires INA219 or similar). Pick the simplest approach that gives actionable information and add it to `JCTsh-Environmental-Data-Architecture.md` and the Apps Script.
@@ -114,6 +108,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ## Done
+
+### CARD-016 · [enhancement] Offline flash logging — extract reusable standard
+**Component:** infrastructure / property-sensor-pattern  
+**Resolution:** Created `core/offline-logger/sensor_logger.h` — generic template header with `sensor_log_*` function prefix (adapt by renaming to `<name>_log_*` and updating the log file path). Added "Offline Flash Logging" section to `JCTsh-Property-Sensor-Pattern.md` with template adaptation instructions, on_boot mount snippet, on_connect replay block (500ms settle delay), and interval guard (connected → publish, offline → log_write). Removed CARD-016 from pattern doc Open Gaps. 2026-06-14.
+
+---
 
 ### CARD-015 · [enhancement] Front-porch-temp-sensor — Environmental data pipeline integration
 **Component:** front-porch-temp-sensor  

@@ -124,6 +124,7 @@ Shared infrastructure not specific to any one component.
 | `core/logging/` | Python MQTT log server — see [core/logging/README.md](core/logging/README.md) |
 | `core/mqtt/` | Mosquitto configuration (version-controlled copy) |
 | `core/node-red/` | Shared Node-RED flows and settings (version-controlled copies) |
+| `core/offline-logger/` | Reusable offline flash logging template (`sensor_logger.h`) — copy and rename for each intermittently-connected sensor |
 
 ---
 

@@ -86,9 +86,7 @@ See `JCTsh-Build-Standards.md` §2.8 for the multi-network WiFi boilerplate and 
 | Profile | Approach |
 |---|---|
 | Always-connected (USB, mains, coach power, home WiFi) | None needed — data publishes live |
-| Intermittently-connected (mobile, remote battery, hotspot) | SPIFFS flash logging + replay on reconnect. See `JCTsh-Build-Standards.md` §2.10 and CARD-016. |
-
-> **SPIFFS gap:** The SPIFFS logging pattern is documented in Build Standards §2.10 with the hiking sensor as the reference. CARD-016 tracks extracting it into a fully reusable standard for future builds.
+| Intermittently-connected (mobile, remote battery, hotspot) | Offline flash logging + replay on reconnect. See §Offline Flash Logging below. |
 
 ### Data and Heartbeat Intervals
 
@@ -132,6 +130,96 @@ Determined during Phase 3. Not every sensor needs SmartThings exposure. If neede
 
 ---
 
+## Offline Flash Logging
+
+### When to use
+
+Use this pattern for any sensor that is **intermittently connected** — mobile carried, mobile vehicle, remote battery, or hotspot-only. Sensors that are always on USB or mains power on a home WiFi network do not need it.
+
+When the sensor has no MQTT connection, readings are written to onboard flash storage with their original timestamps. When WiFi and the broker reconnect, all stored readings are replayed to MQTT in order, then the log is cleared. From the pipeline's perspective, the data arrives late but with correct timestamps — the Google Sheets archive is ordered by `ts`, not arrival time, so out-of-order delivery is handled correctly.
+
+### Template header
+
+The template is in `core/offline-logger/sensor_logger.h`. It provides six functions:
+
+| Function | What it does |
+|---|---|
+| `sensor_log_begin()` | Mounts the flash filesystem. Call once at boot. |
+| `sensor_log_write(payload)` | Appends one JSON line. Call when not connected. |
+| `sensor_log_has_data()` | Returns `true` if the log has unplayed lines. |
+| `sensor_log_count()` | Returns the number of stored lines. |
+| `sensor_log_replay_stream(callback)` | Streams lines one at a time via callback. Constant RAM use. |
+| `sensor_log_clear()` | Truncates the log file after a successful replay. |
+
+### Adapting the template for a new component
+
+1. Copy `core/offline-logger/sensor_logger.h` to `components/<name>/<name>_logger.h`
+2. Find-replace `sensor_log` → `<name>_log` throughout the file (e.g. `hike_log` for hiking-sensor)
+3. Update `SENSOR_LOG_FILE` constant to `/spiffs/<name>_log.jsonl`
+4. Include the renamed header in the ESPHome YAML:
+
+```yaml
+esphome:
+  name: <name>
+  includes:
+    - <name>_logger.h
+```
+
+### ESPHome YAML snippets
+
+**Mount at boot (priority 600.0 runs before WiFi connects):**
+```yaml
+esphome:
+  on_boot:
+    priority: 600.0
+    then:
+      - lambda: '<name>_log_begin();'
+```
+
+**Replay on reconnect (500ms settle delay before replaying):**
+```yaml
+mqtt:
+  on_connect:
+    - delay: 500ms
+    - lambda: |
+        if (<name>_log_has_data()) {
+          int n = <name>_log_count();
+          ESP_LOGI("Replay", "Replaying %d stored readings...", n);
+          <name>_log_replay_stream([](const std::string& line) {
+            id(mqtt_client).publish("<topic>", line.c_str());
+            delay(50);
+          });
+          <name>_log_clear();
+          ESP_LOGI("Replay", "Replay complete. %d readings sent.", n);
+        }
+```
+
+**Interval lambda — publish live or log to flash:**
+```yaml
+interval:
+  - interval: 5min
+    then:
+      - lambda: |
+          // Build the JSON payload string...
+          std::string payload = "{\"component\":\"<name>\",...}";
+
+          if (id(mqtt_client).is_connected()) {
+            id(mqtt_client).publish("<topic>", payload.c_str());
+          } else {
+            <name>_log_write(payload);
+          }
+```
+
+### rssi_dbm for offline readings
+
+When a reading is written to flash (no WiFi connection), `rssi_dbm` is not available. Use `0` as the sentinel value — zero is not a valid RSSI for a connected device (RSSI is always negative), so `0` cleanly indicates a field-mode reading in the archived data.
+
+### Reference implementation
+
+`components/hiking-sensor/hiking_logger.h` and `hiking-sensor.yaml` are the production implementation. Read them alongside this section for a complete working example.
+
+---
+
 ## New Sensor Checklist
 
 Work through this before writing any firmware. Every item produces a concrete answer.
@@ -158,8 +246,8 @@ Work through this before writing any firmware. Every item produces a concrete an
 - [ ] Home WiFi + hotspot → broker: `jctsh.duckdns.org`; hotspot SSID: `JCT Hotspot`
 
 ### 5. Offline handling
-- [ ] Always-connected → no SPIFFS needed
-- [ ] Intermittently-connected → implement SPIFFS logging (see `JCTsh-Build-Standards.md` §2.10)
+- [ ] Always-connected → no offline logging needed
+- [ ] Intermittently-connected → implement offline flash logging (see §Offline Flash Logging in this document)
 
 ### 6. Intervals
 - Data interval: `_______________` (default 5 min for always-on)
@@ -219,10 +307,7 @@ Confirm every field exists in `JCTsh-Environmental-Data-Architecture.md`. Add ne
 
 | Card | Gap | Status |
 |---|---|---|
-| CARD-016 | SPIFFS offline logging — extract reusable standard from hiking-sensor | Backlog |
 | CARD-017 | Charging state schema fields for solar/battery devices | Backlog |
-
-Until CARD-016 is resolved, use `components/hiking-sensor/hiking-sensor.yaml` and `JCTsh-Build-Standards.md` §2.10 as the SPIFFS reference.
 
 Until CARD-017 is resolved, include `battery_v` for battery and solar devices and document the charging-state limitation in the component README.
 

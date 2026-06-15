@@ -1,8 +1,8 @@
 # JCT Smart Home (JCTsh) Component Planning Pattern
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the five-phase process for planning and building JCTsh smart home components, from discovery through execution.
-**Version:** 2.2
-**Version description:** Added two explicit Build Standards integration steps to Phase 5: Step 0 (Read Build Standards — Claude Code reads JCTsh-Build-Standards.md at session start and states which standards apply before writing any code or config) and a final step (Harvest New Patterns — Claude Code reviews the completed build for patterns not yet in Build Standards and proposes additions). Both steps added to the Phase 5 narrative section and to the Claude Code Instructions template.
+**Version:** 2.3
+**Version description:** Added `JCTsh-Property-Sensor-Pattern.md` as a conditional Phase 1 load file for any property sensor build (fixed, mobile, battery, solar, or USB-powered environmental sensor). It owns the invariant standard, variable dimension decision table, and new-sensor checklist — load it alongside `JCTsh-Environmental-Data-Architecture.md` when building any sensor in the property sensor family.
 
 ---
 
@@ -24,6 +24,12 @@ Phase 1 is about feasibility and approach. Only two files are needed: the planni
 |---|---|---|
 | `JCTsh-Component-Planning-Pattern.md` | repo root | This document — the planning process itself |
 | `JCTsh-Environmental-Data-Architecture.md` | repo root | Standard environmental sensor payload schema, Google Sheets archive design, Node-RED wildcard handler pattern, Weather Underground integration, and the planned environmental sensor family. Shapes feasibility and approach from the start — all environmental sensor components must conform to decisions already made here. |
+
+**For any property sensor build** (fixed, mobile, battery, solar, or USB-powered environmental sensor deployed on or around the property), also load:
+
+| File | Location | Purpose |
+|---|---|---|
+| `JCTsh-Property-Sensor-Pattern.md` | repo root | Invariant standard, variable dimension decision table (location type, power source, connectivity, offline handling, sensor complement, custom automation), and new-sensor checklist. Work through the checklist in Phase 1 — it produces the concrete values needed to start Phase 2 hardware selection. |
 
 If a prior component's Phase 1 planning document exists and is relevant (e.g., hiking monitor as reference for van sensor suite), load it as well. It carries architectural decisions and context that would otherwise have to be reconstructed.
 
@@ -199,6 +205,8 @@ If something doesn't work as expected during execution, bring it back to the Cla
 
 **Environmental architecture context before payload design.** JCTsh-Environmental-Data-Architecture.md is a required Phase 1 context file. It contains pre-existing architectural decisions for the entire environmental sensor family — payload schema, MQTT topic conventions, Google Sheets archive design, and the planned device family. Without it, a new environmental sensor component will contradict or duplicate decisions already made.
 
+**Property sensor pattern before hardware selection.** JCTsh-Property-Sensor-Pattern.md is a required Phase 1 context file for any property sensor build. It defines the invariant standard (what every sensor does identically), the variable dimensions (location type, power source, connectivity, offline handling), and a 12-item checklist that produces concrete firmware values before Phase 2 hardware selection begins. Work through the checklist in Phase 1 — decisions made there drive hardware choices in Phase 2.
+
 **Network context before topology decisions.** jctsh-network.md is a required Phase 2 context file. It contains DHCP reservations, hostname conventions, and all assigned device IPs and MACs. Without it, network topology decisions in Phase 3 and hostname/IP assignments in Phase 4 are made without visibility into what is already allocated.
 
 **Deliberate deferral.** Explicitly deciding what not to build yet is as important as deciding what to build. Future enhancements are documented so they aren't lost, but they don't complicate the current build.
@@ -331,6 +339,10 @@ Write approved additions and updates to `JCTsh-Build-Standards.md`. Bump the ver
 - Read JCTsh-Environmental-Data-Architecture.md if this is an
   environmental sensor — payload schema and MQTT topic convention
   are defined there and must be followed exactly
+- Read JCTsh-Property-Sensor-Pattern.md if this is a property sensor
+  (fixed, mobile, battery, solar, or USB environmental sensor) —
+  confirm the new-sensor checklist was completed in Phase 1 and all
+  variable dimensions are resolved before writing any firmware
 - Log format: JSON to jctsh/<type>/<component>/log —
   { "component": "<name>", "category": "<cat>", "message": "<text>" }
   Node-RED wildcard subscription handles routing automatically

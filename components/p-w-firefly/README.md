@@ -29,9 +29,10 @@ PiCAN2 HAT (can0 interface)
       ▼
 eRVin OS (Raspberry Pi 3B+)
       ├── Web dashboard (port 80)
-      └── Node-RED (port 1880)
-            └── Heartbeat → JCTsh home MQTT broker (via Tailscale)
-                  └── Log dashboard
+      ├── Node-RED (port 1880)
+      └── jctsh-heartbeat (systemd timer, every 30 min)
+            └── JCTsh home MQTT broker (via Tailscale)
+                  └── Log dashboard + watchdog
 ```
 
 ---
@@ -66,8 +67,9 @@ The system is fully operational. For day-to-day use and troubleshooting:
 
 eRVin OS (v0.6.2, Raspbian Buster-based) reads the RV-C CAN bus at 250 kbps via the
 PiCAN2 HAT and presents all Firefly-controllable coach systems through a web interface.
-Node-RED (service name `nodered` on this image) publishes an hourly heartbeat to the
-JCTsh home MQTT broker via Tailscale, confirming the Pi is reachable remotely.
+A Python systemd timer (`jctsh-heartbeat.py`, every 30 minutes) publishes a heartbeat
+to the JCTsh home MQTT broker via Tailscale, confirming the Pi is reachable remotely.
+The heartbeat appears in the log dashboard and triggers the Node-RED watchdog.
 
 The JCT-RV hotspot provides local network access in the van without any external
 connectivity — phones and tablets connect to `JCT-RV` to reach the dashboard at
@@ -92,7 +94,9 @@ connectivity — phones and tablets connect to `JCT-RV` to reach the dashboard a
 | `ervin-configuration.md` | Dashboard customization |
 | `wifi-hotspot.md` | JCT-RV fallback hotspot setup |
 | `tailscale.md` | Tailscale remote access setup |
-| `heartbeat.md` | Hourly heartbeat to JCTsh log dashboard |
+| `heartbeat.md` | 30-min heartbeat to JCTsh log dashboard and watchdog |
+| `jctsh-heartbeat.py` | Heartbeat script — deployed to `/usr/local/bin/` on RV Pi |
+| `jctsh-heartbeat.timer` | systemd timer unit — deployed to `/etc/systemd/system/` on RV Pi |
 | `physical-installation.md` | RV installation — wiring, mounting, CAN connection |
 | `rvc-verification.md` | RV-C bus verification |
 | `sd-backup.md` | SD card backup and restore procedure |

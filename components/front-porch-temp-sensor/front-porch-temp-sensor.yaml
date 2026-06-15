@@ -11,11 +11,13 @@
 #   .../sensor/humidity/state     — %
 #   .../sensor/pressure/state     — hPa
 #   .../sensor/illuminance/state  — lx
+#   .../data                      — JSON environmental payload (pipeline, every 5 min)
 #   .../log                       — JSON log messages (Python log server wildcard)
 #   .../heartbeat                 — JSON heartbeat (Node-RED watchdog wildcard, every 30 min)
 #
 # Update interval: 60s (all sensors)
-# Heartbeat interval: 5 min
+# Data pipeline interval: 5 min
+# Heartbeat interval: 30 min
 
 esphome:
   name: front-porch-temp-sensor
@@ -75,6 +77,15 @@ mqtt:
         topic: jctsh/components/front-porch-temp-sensor/log
         payload: '{"component":"front-porch-temp-sensor","category":"MQTT","message":"MQTT connected"}'
 
+# ── NTP time sync ─────────────────────────────────────────────────────────────
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: America/Phoenix
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+
 # ── I2C ───────────────────────────────────────────────────────────────────────
 i2c:
   sda: GPIO21
@@ -96,8 +107,10 @@ sensor:
       unit_of_measurement: "°F"
     humidity:
       name: "Humidity"
+      id: bme280_humidity
     pressure:
       name: "Pressure"
+      id: bme280_pressure
 
   # BH1750 — illuminance
   - platform: bh1750
@@ -128,12 +141,60 @@ button:
   - platform: restart
     name: "Restart"
 
-# ── Heartbeat interval ────────────────────────────────────────────────────────
-# Publishes every 30 minutes to:
-#   .../log      — picked up by Python log server wildcard (jctsh/+/+/log)
-#   .../heartbeat — picked up by Node-RED watchdog wildcard (jctsh/+/+/heartbeat)
-# No Node-RED or log server changes needed — wildcards catch this automatically.
+# ── Data pipeline + heartbeat intervals ───────────────────────────────────────
 interval:
+  # Environmental data pipeline — every 5 min to jctsh/components/+/data wildcard
+  # Node-RED wildcard handler routes to Google Sheets via Apps Script.
+  # lat/lon: H8 front porch per house-lot-coordinates.md
+  - interval: 5min
+    then:
+      - mqtt.publish:
+          topic: jctsh/components/front-porch-temp-sensor/data
+          payload: !lambda |-
+            ESPTime now = id(sntp_time).now();
+            if (!now.is_valid()) {
+              ESP_LOGW("DataPub", "NTP not synced — skipping data publish");
+              return std::string("");
+            }
+            time_t epoch = (time_t)now.timestamp;
+            struct tm utc_tm;
+            gmtime_r(&epoch, &utc_tm);
+            char ts[25];
+            strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
+
+            float temp  = id(bme280_temp).state;
+            float hum   = id(bme280_humidity).state;
+            float pres  = id(bme280_pressure).state;
+            float lux   = id(bh1750_lux).state;
+            int   rssi  = (int)id(wifi_rssi).state;
+
+            if (isnan(temp) || isnan(hum) || isnan(pres)) {
+              ESP_LOGW("DataPub", "BME280 read incomplete — skipping data publish");
+              return std::string("");
+            }
+
+            char buf[512];
+            if (isnan(lux)) {
+              snprintf(buf, sizeof(buf),
+                "{\"component\":\"front-porch-temp-sensor\","
+                "\"ts\":\"%s\","
+                "\"lat\":32.4612997,\"lon\":-111.1184154,"
+                "\"temp_f\":%.1f,\"humidity_pct\":%.1f,\"pressure_hpa\":%.1f,"
+                "\"rssi_dbm\":%d}",
+                ts, temp, hum, pres, rssi);
+            } else {
+              snprintf(buf, sizeof(buf),
+                "{\"component\":\"front-porch-temp-sensor\","
+                "\"ts\":\"%s\","
+                "\"lat\":32.4612997,\"lon\":-111.1184154,"
+                "\"temp_f\":%.1f,\"humidity_pct\":%.1f,\"pressure_hpa\":%.1f,"
+                "\"illuminance_lx\":%.1f,"
+                "\"rssi_dbm\":%d}",
+                ts, temp, hum, pres, lux, rssi);
+            }
+            return std::string(buf);
+
+  # Heartbeat — every 30 min to log + heartbeat topics
   - interval: 30min
     then:
       - mqtt.publish:

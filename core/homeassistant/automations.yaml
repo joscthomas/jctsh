@@ -17,10 +17,9 @@
     trigger: state
   conditions:
   - condition: template
-    value_template: >
-      {{ trigger.entity_id == 'binary_sensor.garage_radar_presence'
-         or is_state('binary_sensor.garage_radar_presence', 'unavailable')
-         or is_state('binary_sensor.garage_radar_presence', 'unknown') }}
+    value_template: "{{ trigger.entity_id == 'binary_sensor.garage_radar_presence'\n
+      \  or is_state('binary_sensor.garage_radar_presence', 'unavailable')\n   or
+      is_state('binary_sensor.garage_radar_presence', 'unknown') }}\n"
   actions:
   - target:
       entity_id: timer.garage_presence_timer
@@ -96,70 +95,53 @@
       qos: 0
     action: mqtt.publish
   mode: single
-- id: '1779726459999'
-  alias: Front Porch Temp Alert + Reminder
+- id: '1781208697396'
+  alias: Front Porch Warm - Close Door
   triggers:
-  - value_template: "{{ states('sensor.front_porch_temp_sensor_temperature') | float(0)
-      >=\n   states('input_number.front_porch_temp_threshold') | float(80) }}\n"
+  - value_template: "{{ states('sensor.front_porch_temp_sensor_temperature') | float\n
+      \  > states('input_number.front_porch_temp_threshold') | float + 2\n   and now().hour
+      >= 7 and now().hour < 12 }}\n"
+    for: 00:10:00
     trigger: template
-  conditions:
-  - condition: time
-    after: 06:00:00
-    before: '22:00:00'
   actions:
   - data:
-      title: Front Porch Temp Alert
-      message: 'Front porch temperature is {{ states(''sensor.front_porch_temp_sensor_temperature'')
+      title: Front Porch Warm
+      message: '{{ now().strftime(''%I:%M %p'') }} — Front porch is {{ states(''sensor.front_porch_temp_sensor_temperature'')
         | round(1) }}°F. Consider closing the door.
 
         '
     action: notify.mobile_app_pixel_10_pro_xl
   - data:
-      title: Front Porch Temp Alert
-      message: 'Front porch temperature is {{ states(''sensor.front_porch_temp_sensor_temperature'')
+      title: Front Porch Warm
+      message: '{{ now().strftime(''%I:%M %p'') }} — Front porch is {{ states(''sensor.front_porch_temp_sensor_temperature'')
         | round(1) }}°F. Consider closing the door.
 
         '
     action: notify.mobile_app_pixel_7_pro
-  - delay: 00:15:00
-  - data:
-      title: Front Porch Temp Reminder
-      message: 'Front porch is still {{ states(''sensor.front_porch_temp_sensor_temperature'')
-        | round(1) }}°F and the front door is still open.
-
-        '
-    action: notify.mobile_app_pixel_10_pro_xl
-  - data:
-      title: Front Porch Temp Reminder
-      message: 'Front porch is still {{ states(''sensor.front_porch_temp_sensor_temperature'')
-        | round(1) }}°F and the front door is still open.
-
-        '
-    action: notify.mobile_app_pixel_7_pro
+  - delay: '05:00:00'
   mode: single
-- id: '1779726497318'
-  alias: Front Porch Temp Dropping
+- id: '1781208739282'
+  alias: Front Porch Cool - Open Door
   triggers:
-  - value_template: "{{ states('sensor.front_porch_temp_sensor_temperature') | float(0)
-      <\n   states('input_number.front_porch_temp_threshold') | float(80) }}\n"
+  - value_template: "{{ states('sensor.front_porch_temp_sensor_temperature') | float\n
+      \  < states('input_number.front_porch_temp_threshold') | float - 2\n   and now().hour
+      >= 6 and now().hour < 10 }}\n"
+    for: 00:10:00
     trigger: template
-  conditions:
-  - condition: time
-    after: 06:00:00
-    before: '22:00:00'
   actions:
   - data:
-      title: Front Porch Temp Dropping
-      message: 'Front porch temperature is {{ states(''sensor.front_porch_temp_sensor_temperature'')
-        | round(1) }}°F. Consider opening the door.
+      title: Front Porch Cool
+      message: '{{ now().strftime(''%I:%M %p'') }} — Front porch is {{ states(''sensor.front_porch_temp_sensor_temperature'')
+        | round(1) }}°F. Good time to open the door.
 
         '
     action: notify.mobile_app_pixel_10_pro_xl
   - data:
-      title: Front Porch Temp Dropping
-      message: 'Front porch temperature is {{ states(''sensor.front_porch_temp_sensor_temperature'')
-        | round(1) }}°F. Consider opening the door.
+      title: Front Porch Cool
+      message: '{{ now().strftime(''%I:%M %p'') }} — Front porch is {{ states(''sensor.front_porch_temp_sensor_temperature'')
+        | round(1) }}°F. Good time to open the door.
 
         '
     action: notify.mobile_app_pixel_7_pro
+  - delay: '04:00:00'
   mode: single

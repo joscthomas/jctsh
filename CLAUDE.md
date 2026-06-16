@@ -155,14 +155,20 @@ The dividing line between `System` and `MQTT`: if the message is about the *devi
 This confirms the log server and MQTT broker are alive. It appears in the dashboard under
 component `jctsh-core`. No Node-RED involvement — core infrastructure only.
 
-## Core Files (Pi runtime — not directly editable here)
-These files under `core/` are version-controlled snapshots only. The live copies
-are on the Pi. To update: edit on Pi, then copy back here.
+## Core Files (Pi runtime)
+The repo is the source of truth. Edit files here, then deploy to the Pi — do not edit on the Pi directly or the repo will fall out of sync. The HA config directory (`/home/pi/homeassistant/`) is owned by `pi` so plain `scp` works in both directions.
+
 - `core/node-red/core.flow.json` — MQTT broker node (import first when re-importing flows)
 - `core/node-red/watchdog.flow.json` — component heartbeat watchdog; wildcard `jctsh/+/+/heartbeat`; push notification via HA companion app if silent for 10 min. See `core/node-red/watchdog-README.md`.
 - `core/node-red/settings.js` — Node-RED settings (contains bcrypt password hash)
 - `core/mqtt/mosquitto.conf` — Mosquitto configuration
 - `core/homeassistant/configuration.yaml` — HA config (do not modify)
+- `core/homeassistant/automations.yaml` — HA automations. Deploy and reload:
+  ```bash
+  scp core/homeassistant/automations.yaml pi@raspberrypi.local:/home/pi/homeassistant/automations.yaml
+  curl -s -X POST http://raspberrypi.local:8123/api/services/automation/reload \
+    -H "Authorization: Bearer $HA_TOKEN" -H "Content-Type: application/json"
+  ```
 - `core/logging/log_server.py` — deployed to `/home/pi/jctsh/core/logging/`
 
 ## Log Server Deployment

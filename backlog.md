@@ -135,6 +135,11 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 
 ## Planning
 
+### CARD-020 · [enhancement] [hiking-sensor] Hike data visualization (Looker Studio)
+**Notes:** Build a Google Looker Studio dashboard connected to the GPS Track and Environmental Data Google Sheets. GPS route on a map, sensor readings (temp/humidity/pressure/battery) over hike duration. Review-after-the-fact use case — no real-time requirement. No new infrastructure needed.
+
+---
+
 ### CARD-012 · [idea] [air-quality-monitor] Air quality monitor
 **Planning doc:** `components/air-quality-monitor/JCTsh-air-quality-monitor-phase1.md`  
 **Notes:** Portable clip-mounted SEN55 air quality sensor (PM1.0/2.5/4.0/10, VOC, NOx) carried on hikes alongside the hiking monitor. Phase 1 complete; SEN55, Adafruit #5964 adapter, and JST GH cable ordered. Follows hiking-monitor firmware pattern (onboard flash logging, WiFi replay). Build begins after hiking-sensor is complete. Phase 2 entry criteria: parts received, fan transistor availability confirmed, hiking sensor build complete.

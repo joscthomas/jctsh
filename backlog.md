@@ -155,19 +155,17 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 
 ## Build
 
-### CARD-008 · [enhancement] [hiking-sensor] Pixel hotspot second WiFi field test
-**Notes:** `JCT Hotspot` added as second WiFi network (JCTnet1 priority 1, hotspot priority 2). Broker changed to `jctsh.duckdns.org` (internet-routable via DuckDNS + port 1883 forward). Firmware OTA flashed 2026-06-12. Field test pending — first hotspot sync will happen on camping trip starting 2026-06-15.
-
-**Upload workflow:** Enable Pixel hotspot → switch hiking monitor off then on → device connects to hotspot → reaches home broker over cellular → SPIFFS replay fires automatically → log dashboard shows `Replaying N hike readings...` then `Hike log replay complete.` → turn off hotspot. Confirm by watching IP in `Hiking monitor online` log message (hotspot DHCP ≠ 192.168.1.x).
-
----
-
 ### CARD-009 · [enhancement] [hiking-sensor] Enclosure design and build
 **Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-sensor/enclosure-prototype.md`. Standoffs arrive 2026-06-14; temp enclosure build before camping trip departure 2026-06-15. Device will be used in the field for ~2 weeks on that trip — hiking and van sensor simulation. Full 3D-printed permanent enclosure is a later step.
 
 ---
 
 ## Done
+
+### CARD-008 · [enhancement] [hiking-sensor] Pixel hotspot second WiFi field test
+**Notes:** Confirmed 2026-06-17 during camping trip. Device connected to JCT Hotspot (IP 10.57.172.159 — Pixel hotspot subnet), reached home MQTT broker via jctsh.duckdns.org over cellular, replayed 7 SPIFFS readings on reconnect. DuckDNS + port 1883 forward confirmed working in the field.
+
+---
 
 ### CARD-017 · [enhancement] [infrastructure] Charging state schema fields for solar/battery sensors
 **Resolution:** Added `solar_v` (solar panel voltage, V, ADC voltage divider) to the environmental data schema. Decision: `solar_v` chosen over `charging` boolean (not universally available on all charge controllers) and `charge_current_ma` (requires INA219, overkill). Combined with `battery_v`, charging state is derivable in Node-RED or Sheets as `solar_v > battery_v + ~0.3V`. Added to field reference and Sheets schema in `JCTsh-Environmental-Data-Architecture.md` (v1.4), column Z in `components/hiking-sensor/environmental-data.gs`, and Apps Script redeployed. 2026-06-15.

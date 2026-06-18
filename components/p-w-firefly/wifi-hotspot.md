@@ -105,9 +105,40 @@ Source file: `/etc/apt/sources.list.d/debian-buster-archive.list`
 
 ---
 
+## wlan0 Known Networks
+
+wpa_supplicant@wlan0.service reads `/etc/wpa_supplicant/wpa_supplicant-wlan0.conf` — note the `-wlan0` suffix. `/etc/wpa_supplicant/wpa_supplicant.conf` is NOT read by this service. Always edit the `-wlan0` file when adding or changing known networks.
+
+Current known networks and priorities:
+
+| Network | Priority | Purpose |
+|---|---|---|
+| JCTnet1 | 10 | Home WiFi — preferred |
+| JCT Hotspot | 5 | Pixel cellular hotspot — fallback when traveling |
+
+To add or change networks:
+
+```
+sudo nano /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+```
+
+Or append a new network:
+
+```
+wpa_passphrase "SSID" "password" | sudo tee -a /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+```
+
+Then reload without rebooting:
+
+```
+wpa_cli -i wlan0 reconfigure
+```
+
+---
+
 ## Confirmed Details
 
-*(Step 8 confirmed complete — May 2026)*
+*(Step 8 confirmed complete — May 2026; Scenario 2 field-confirmed June 2026)*
 
 | Item | Value |
 |---|---|
@@ -120,6 +151,7 @@ Source file: `/etc/apt/sources.list.d/debian-buster-archive.list`
 | Services enabled at boot | uap0-setup, hostapd, dnsmasq |
 | IP forwarding | /etc/sysctl.d/99-jct-rv.conf — net.ipv4.ip_forward=1 |
 | Dashboard reachable at 192.168.5.1 | Yes — http://192.168.5.1/ui/ confirmed from phone on JCT-RV |
+| Pixel hotspot (JCT Hotspot) → Tailscale | Confirmed working — field test June 2026 |
 
 ---
 
@@ -135,4 +167,10 @@ Source file: `/etc/apt/sources.list.d/debian-buster-archive.list`
 
 **dnsmasq "port 53: Address already in use":** Confirm `port=0` is present in `/etc/dnsmasq.d/jct-rv.conf`. This disables dnsmasq's DNS listener so it doesn't conflict with systemd-resolved.
 
+**Android "Disconnected/Connection Failure" when connecting to JCT-RV:** Android with mobile data active detects JCT-RV has no internet and drops the connection before completing. Fix: turn off mobile data on the phone before connecting to JCT-RV. Once connected, mobile data can be re-enabled if needed (but traffic will route through cellular, not JCT-RV — see below). Confirmed on Pixel 10 Pro XL.
+
 **Android phone can't reach 192.168.5.1:** Android detects JCT-RV has no internet and silently routes traffic through cellular. Fix: go to WiFi settings → tap JCT-RV → enable "Use this network anyway" (or "Always use this network"). Set this once and Android remembers it.
+
+**"Failed to initiate sched scan" in wpa_supplicant logs:** Benign. The brcmfmac driver on Pi 3B+ does not support scheduled scan offload in concurrent STA+AP mode (wlan0 STA + uap0 AP). wpa_supplicant falls back to active scanning and connects normally. No action needed.
+
+**wlan0 not connecting to known network:** Confirm the network is in `/etc/wpa_supplicant/wpa_supplicant-wlan0.conf` (not `wpa_supplicant.conf`). Check with `wpa_cli -i wlan0 list_networks`. If the network is missing, append it to the `-wlan0` file and run `wpa_cli -i wlan0 reconfigure`.

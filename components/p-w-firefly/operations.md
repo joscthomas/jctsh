@@ -116,6 +116,22 @@ Check `192.168.1.219` is in the router's DHCP lease table. If the Pi is not visi
 
 The hotspot only activates when no known network is in range. If you are at home and the Pi is on JCTnet1, JCT-RV will not be broadcast.
 
+### In-field laptop workflow
+
+With the Pixel hotspot on, the laptop can stay on JCT-RV full time:
+
+- **Dashboard:** `http://192.168.5.1`
+- **SSH:** `ssh pi@192.168.5.1`
+- **Internet:** JCT-RV has internet via IP masquerading — Pi's wlan0 connects to Pixel hotspot and shares it to all JCT-RV clients. Windows reports JCT-RV as having internet access.
+
+No need to switch networks on the laptop. The Pixel provides the hotspot while the laptop stays on JCT-RV for everything.
+
+If the laptop doesn't get a DHCP lease from JCT-RV, set a static IP: address `192.168.5.101`, gateway `192.168.5.1`, subnet `255.255.255.0`.
+
+### Android "Disconnected/Connection Failure" connecting to JCT-RV
+
+Turn off mobile data on the phone before connecting to JCT-RV. Android with mobile data active detects JCT-RV has no internet and drops the connection mid-handshake. Confirmed on Pixel 10 Pro XL. If DHCP still fails after turning off mobile data, set a static IP: address `192.168.5.100`, gateway `192.168.5.1`, subnet `255.255.255.0`.
+
 ### Robin's Pixel won't stay connected to JCT-RV
 
 Reboot the Pixel. This resolved a transient Android network-stack issue observed during setup.

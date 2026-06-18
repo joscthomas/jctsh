@@ -36,7 +36,7 @@ Items marked ✓ were confirmed during earlier build steps.
 
 ## Network — Scenario 2 (Pixel Hotspot / Tailscale)
 
-- [ ] Disable home WiFi on router — Pi switches to Pixel hotspot within 60 seconds
+- [x] Pi connects to Pixel hotspot (JCT Hotspot) when home WiFi unavailable ✓
 - [x] Tailscale tunnel established ✓
 - [x] eRVin dashboard accessible via Tailscale IP (http://100.90.246.43) from Pixel ✓
 - [x] Home Pi can ping RV Pi via Tailscale IP ✓
@@ -77,7 +77,7 @@ Changes to the eRVin Node-RED flows via the editor at `http://192.168.1.219:1880
 
 | Item | Value |
 |---|---|
-| Testing completed | June 2026 |
+| Testing completed | June 2026 (Scenario 2 field-confirmed June 17, 2026) |
 | WiFi signal after permanent mount | -52 dBm open compartment; -57 dBm with cushions/bedding in place — both excellent |
 | Generator test | Skipped — not testing in the field |
 | MicroSD | SanDisk MAX Endurance 32GB — was used for the build from the start; no swap needed |

@@ -135,6 +135,11 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 
 ## Planning
 
+### CARD-021 · [enhancement] [logging] Device status dashboard
+**Notes:** Add a `/status` endpoint to the log server showing each device's last heartbeat, last reading, and online/offline state — derived from the existing log file. No new infrastructure. Pure Python extension of the existing log server.
+
+---
+
 ### CARD-020 · [enhancement] [hiking-sensor] Hike data visualization (Looker Studio)
 **Notes:** Build a Google Looker Studio dashboard connected to the GPS Track and Environmental Data Google Sheets. GPS route on a map, sensor readings (temp/humidity/pressure/battery) over hike duration. Review-after-the-fact use case — no real-time requirement. No new infrastructure needed.
 

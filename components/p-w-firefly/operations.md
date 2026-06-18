@@ -26,7 +26,7 @@ Both Pixels have this address bookmarked on the home screen.
 
 ### Away without phone signal (JCT-RV local hotspot)
 
-When the Pi has no known network available, it broadcasts a local hotspot named **JCT-RV**. Connect your phone to JCT-RV, then open:
+JCT-RV is always broadcasting — the Pi uses concurrent STA+AP, so it stays up regardless of what network wlan0 is connected to. Connect your laptop or phone to JCT-RV, then open:
 
 ```
 http://192.168.5.1
@@ -62,6 +62,8 @@ Both Pixels are saved to JCT-RV and will connect automatically.
 ---
 
 ## Network
+
+For all addresses and IPs, see `jctsh-network.md` (repo root).
 
 The Pi uses concurrent STA+AP mode — `wlan0` connects to a known WiFi network while `uap0` broadcasts JCT-RV **simultaneously and permanently**. JCT-RV is always available regardless of what network `wlan0` is connected to.
 
@@ -114,7 +116,9 @@ Check `192.168.1.219` is in the router's DHCP lease table. If the Pi is not visi
 
 ### JCT-RV hotspot not appearing
 
-The hotspot only activates when no known network is in range. If you are at home and the Pi is on JCTnet1, JCT-RV will not be broadcast.
+JCT-RV broadcasts at all times (concurrent STA+AP). If you can't see it:
+1. Confirm coach power is on (Vegatouch screen lit)
+2. Allow 2 minutes after power-on for the Pi to boot
 
 ### In-field laptop workflow
 

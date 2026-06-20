@@ -171,17 +171,22 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 
 ## Build
 
+### CARD-022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
+**Instructions:** `jctsh-security-hardening.md` Steps 1–8  
+**Progress (2026-06-20):** Steps 1–5 and 8 complete. Two items remaining:
+- **Step 6 (Router UPnP):** Manual — check `192.168.1.1` when on home WiFi; document UPnP state and mappings; decide whether to disable.
+- **Step 7 (HA MFA):** Manual — enable TOTP for Joseph and Robin: HA → Profile → Multi-Factor Authentication Modules → Enable TOTP.
+
+Update findings in `jctsh-security-hardening.md` when complete, then close card.
+
+---
+
 ### CARD-009 · [enhancement] [hiking-sensor] Enclosure design and build
 **Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-sensor/enclosure-prototype.md`. Standoffs arrive 2026-06-14; temp enclosure build before camping trip departure 2026-06-15. Device will be used in the field for ~2 weeks on that trip — hiking and van sensor simulation. Full 3D-printed permanent enclosure is a later step.
 
 ---
 
 ## Done
-
-### CARD-022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
-**Resolution (2026-06-20):** Steps executed via Tailscale. Fixes applied: (1) SSH password auth disabled — `50-cloud-init.conf` had `PasswordAuthentication yes`; changed to `no`, sshd reloaded. (2) rpcbind (port 111) disabled and stopped — NFS portmapper not needed. Steps with manual follow-up: Step 6 (router UPnP — requires home WiFi, deferred), Step 7 HA MFA (not enabled for Joseph or Robin — must enable TOTP manually in HA profile). All findings documented in `jctsh-security-hardening.md`.
-
----
 
 ### CARD-008 · [enhancement] [hiking-sensor] Pixel hotspot second WiFi field test
 **Notes:** Confirmed 2026-06-17 during camping trip. Device connected to JCT Hotspot (IP 10.57.172.159 — Pixel hotspot subnet), reached home MQTT broker via jctsh.duckdns.org over cellular, replayed 7 SPIFFS readings on reconnect. DuckDNS + port 1883 forward confirmed working in the field.

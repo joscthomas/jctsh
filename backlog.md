@@ -13,14 +13,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
-### CARD-022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
-**Instructions:** `jctsh-security-hardening.md` Steps 1–8  
-**Notes:** Automated/partial steps Claude can execute on the Pi and repo: secrets.yaml git exclusion, Pi SSH config, open ports audit, MQTT auth, Tailscale MFA/ACL, router UPnP, HA MFA, Node-RED auth.
-
-**Port 1883 flag (Step 3):** Port 1883 IS intentionally internet-exposed via DuckDNS for ESP32 hotspot connectivity (hiking-monitor, confirmed CARD-008). Step 3 will surface this — document as intentional, mitigated by fail2ban and strong credentials, pending TLS (CARD-003). Not a misconfiguration to close.
-
----
-
 ### CARD-023 · [enhancement] [infrastructure] Security hardening — cloud accounts (Steps 9–14 + Final)
 **Instructions:** `jctsh-security-hardening.md` Steps 9–14 and Final Step  
 **Notes:** Manual steps requiring Joseph at a browser or app: Ring/Amazon, SmartThings/Samsung, Google accounts (Joseph + Robin), Ecobee, router firmware/admin credentials, Windows machine security. Claude guides; Joseph executes. Ends with harvest to `JCTsh-Build-Standards.md`. Do after CARD-022.
@@ -185,6 +177,11 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 ---
 
 ## Done
+
+### CARD-022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
+**Resolution (2026-06-20):** Steps executed via Tailscale. Fixes applied: (1) SSH password auth disabled — `50-cloud-init.conf` had `PasswordAuthentication yes`; changed to `no`, sshd reloaded. (2) rpcbind (port 111) disabled and stopped — NFS portmapper not needed. Steps with manual follow-up: Step 6 (router UPnP — requires home WiFi, deferred), Step 7 HA MFA (not enabled for Joseph or Robin — must enable TOTP manually in HA profile). All findings documented in `jctsh-security-hardening.md`.
+
+---
 
 ### CARD-008 · [enhancement] [hiking-sensor] Pixel hotspot second WiFi field test
 **Notes:** Confirmed 2026-06-17 during camping trip. Device connected to JCT Hotspot (IP 10.57.172.159 — Pixel hotspot subnet), reached home MQTT broker via jctsh.duckdns.org over cellular, replayed 7 SPIFFS readings on reconnect. DuckDNS + port 1883 forward confirmed working in the field.

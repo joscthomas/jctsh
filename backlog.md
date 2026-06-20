@@ -13,6 +13,20 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
+### CARD-022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
+**Instructions:** `jctsh-security-hardening.md` Steps 1–8  
+**Notes:** Automated/partial steps Claude can execute on the Pi and repo: secrets.yaml git exclusion, Pi SSH config, open ports audit, MQTT auth, Tailscale MFA/ACL, router UPnP, HA MFA, Node-RED auth.
+
+**Port 1883 flag (Step 3):** Port 1883 IS intentionally internet-exposed via DuckDNS for ESP32 hotspot connectivity (hiking-monitor, confirmed CARD-008). Step 3 will surface this — document as intentional, mitigated by fail2ban and strong credentials, pending TLS (CARD-003). Not a misconfiguration to close.
+
+---
+
+### CARD-023 · [enhancement] [infrastructure] Security hardening — cloud accounts (Steps 9–14 + Final)
+**Instructions:** `jctsh-security-hardening.md` Steps 9–14 and Final Step  
+**Notes:** Manual steps requiring Joseph at a browser or app: Ring/Amazon, SmartThings/Samsung, Google accounts (Joseph + Robin), Ecobee, router firmware/admin credentials, Windows machine security. Claude guides; Joseph executes. Ends with harvest to `JCTsh-Build-Standards.md`. Do after CARD-022.
+
+---
+
 ### CARD-002 · [enhancement] [infrastructure] MQTT v3.1.1 → v5 upgrade
 **Notes:** Node-RED v4 creates MQTT In/Out nodes with v5 fields (nl, rap, respTopic, etc.) that silently break on the v3.1.1 broker — requires manual cleanup after every UI import. Mosquitto 2.x supports v5 and is backward-compatible with v3 clients, so ESP32/ESPHome devices stay on v3 unmodified. Steps: verify Mosquitto version, enable v5 in mosquitto.conf if needed, change Node-RED broker node protocolVersion from 4 to 5, test all existing flows. Do as a standalone maintenance task — not mid-component-build.
 

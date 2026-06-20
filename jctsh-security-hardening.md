@@ -248,6 +248,8 @@ No unfamiliar devices. ACL: default (all devices in tailnet can reach each other
 
 **Done when:** Amazon/Ring MFA confirmed enabled, shared users reviewed, OAuth apps audited.
 
+**Findings (2026-06-20):** PASS. Amazon 2SV enabled. Ring MFA enabled with authenticator app. Shared users reviewed at device level — all expected. Amazon OAuth apps reviewed — clean. Ring firmware: option not present in current app version; Ring manages firmware automatically, no manual action available or needed.
+
 ---
 
 ## Step 10 — Audit SmartThings / Samsung account security
@@ -271,6 +273,8 @@ No unfamiliar devices. ACL: default (all devices in tailnet can reach each other
 5. Document findings.
 
 **Done when:** Samsung MFA confirmed, connected apps reviewed, PAT list audited.
+
+**Findings (2026-06-20):** PASS with one remediation. Samsung account 2SV enabled. Connected services: Google, Home Assistant, Ring, Ecobee — all expected. SharpTools was present but unrecognized — revoked. No Personal Access Tokens present. Members: only expected users.
 
 ---
 
@@ -298,6 +302,8 @@ No unfamiliar devices. ACL: default (all devices in tailnet can reach each other
 
 **Done when:** MFA confirmed on both Google accounts, OAuth apps audited, Home Members reviewed.
 
+**Findings (2026-06-20):** PASS — both accounts. Joseph: 2-Step Verification enabled with authenticator app, passkeys/devices clean, OAuth apps clean, no unfamiliar security activity, Home Members clean. Robin: all checks clean.
+
 ---
 
 ## Step 12 — Audit Ecobee account security
@@ -319,6 +325,8 @@ No unfamiliar devices. ACL: default (all devices in tailnet can reach each other
 4. Document findings.
 
 **Done when:** Ecobee MFA confirmed and connected apps reviewed.
+
+**Findings (2026-06-20):** PASS. Ecobee MFA enabled. Connected apps: Google and SmartThings — both expected. No unexpected users.
 
 ---
 
@@ -345,6 +353,8 @@ No unfamiliar devices. ACL: default (all devices in tailnet can reach each other
 5. Document firmware version, admin password change (confirm only, not the password itself), and remote management state.
 
 **Done when:** Firmware is current, admin password is strong and unique, remote management is disabled.
+
+**Findings (2026-06-20):** DEFERRED — requires home WiFi access to router admin at `192.168.1.1`. Complete when next on home network alongside Step 6 (UPnP).
 
 ---
 
@@ -380,6 +390,8 @@ No unfamiliar devices. ACL: default (all devices in tailnet can reach each other
 5. Document findings.
 
 **Done when:** Windows is fully patched, SSH key permissions are correct, and Microsoft account MFA is confirmed.
+
+**Findings (2026-06-20):** PASS with one fix. Windows Update: no pending updates. SSH key (`id_ed25519`): FIXED — `BUILTIN\Administrators` and `NT AUTHORITY\SYSTEM` had full access; removed; now `DESKTOP-FQBDL5B\jcthomas:(R)` only. SSH confirmed still working after permission change. Microsoft account MFA: enabled. Browser extensions: clean.
 
 ---
 

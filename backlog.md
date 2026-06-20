@@ -15,7 +15,10 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ### CARD-023 · [enhancement] [infrastructure] Security hardening — cloud accounts (Steps 9–14 + Final)
 **Instructions:** `jctsh-security-hardening.md` Steps 9–14 and Final Step  
-**Notes:** Manual steps requiring Joseph at a browser or app: Ring/Amazon, SmartThings/Samsung, Google accounts (Joseph + Robin), Ecobee, router firmware/admin credentials, Windows machine security. Claude guides; Joseph executes. Ends with harvest to `JCTsh-Build-Standards.md`. Do after CARD-022.
+**Progress (2026-06-20):** Steps 9–12 and 14 complete. One item remaining:
+- **Step 13 (router firmware + admin credentials):** Manual — requires home WiFi (`192.168.1.1`). Do alongside CARD-022 Step 6 (UPnP) in same home session.
+
+After Step 13 complete: run Final Step — harvest security patterns to `JCTsh-Build-Standards.md`, then close both CARD-022 and CARD-023.
 
 ---
 

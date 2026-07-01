@@ -9,6 +9,7 @@ import json
 import os
 import logging
 import logging.handlers
+import re
 import signal
 import threading
 import time
@@ -262,8 +263,9 @@ _HTML_TEMPLATE = """\
       localStorage.setItem('jctsh_fc', comp);
       localStorage.setItem('jctsh_fk', cat);
       document.querySelectorAll('#log tbody tr').forEach(function(r) {
+        var comps = r.dataset.c.split(',').map(function(s){return s.trim();});
         r.classList.toggle('hidden',
-          (comp && r.dataset.c !== comp) || (cat && r.dataset.k !== cat));
+          (comp && comps.indexOf(comp) === -1) || (cat && r.dataset.k !== cat));
       });
     }
     function _render(data) {
@@ -291,6 +293,102 @@ _HTML_TEMPLATE = """\
 </html>"""
 
 
+_PRESENCE_DETECTED_RE = re.compile(
+    r"Presence detected \(distance: (.+?), still: (ON|OFF), moving: (ON|OFF)\)"
+)
+
+
+def _collapse_for_display(entries):
+    """Apply display-time collapsing rules. Raw _entries are never modified."""
+    result = []
+    i = 0
+    while i < len(entries):
+        e = entries[i]
+        has_next = i + 1 < len(entries)
+
+        # Rule 1: System "...online..." + MQTT "MQTT connected" from same component
+        if (e["category"] == "System" and " online" in e["message"] and has_next):
+            nxt = entries[i + 1]
+            if (nxt["component"] == e["component"] and
+                    nxt["category"] == "MQTT" and
+                    nxt["message"] == "MQTT connected"):
+                details = e["message"].split(" - ", 1)[1] if " - " in e["message"] else e["message"]
+                merged = dict(e)
+                merged["message"] = f"Online — {details}, MQTT connected"
+                result.append(merged)
+                i += 2
+                continue
+
+        # Rule 2: Presence detected + Presence cleared from same component
+        pm = _PRESENCE_DETECTED_RE.match(e["message"]) if e["category"] == "Sensor" else None
+        if pm and has_next:
+            nxt = entries[i + 1]
+            if (nxt["component"] == e["component"] and
+                    nxt["category"] == "Sensor" and
+                    nxt["message"] == "Presence cleared - timeout elapsed"):
+                dist     = pm.group(1)
+                still_on = pm.group(2) == "ON"
+                moving_on = pm.group(3) == "ON"
+                start_hms = e["ts"][11:19]
+                end_hms   = nxt["ts"][11:19]
+                try:
+                    t0  = datetime.strptime(e["ts"][:19],   "%Y-%m-%d %H:%M:%S")
+                    t1  = datetime.strptime(nxt["ts"][:19], "%Y-%m-%d %H:%M:%S")
+                    dur = f"({int((t1 - t0).total_seconds())}s)"
+                except ValueError:
+                    dur = ""
+                state_parts = (["still"] if still_on else []) + (["moving"] if moving_on else [])
+                detail = ", ".join([f"at {dist}"] + state_parts)
+                merged = dict(e)
+                merged["message"] = f"Presence {start_hms}–{end_hms} {dur} — {detail}"
+                result.append(merged)
+                i += 2
+                continue
+
+        # Rule 3: Salt daily doubles — same day, same %, collapse to one line
+        sm = (re.match(r"Salt: (\d+)% \((\d+\.\d+) cm\)", e["message"])
+              if e["component"] == "salt-sensor" and e["category"] == "Sensor" else None)
+        if sm and has_next:
+            nxt  = entries[i + 1]
+            nxt_m = re.match(r"Salt: (\d+)% \((\d+\.\d+) cm\)", nxt.get("message", ""))
+            if (nxt_m and
+                    nxt["component"] == "salt-sensor" and
+                    nxt["category"] == "Sensor" and
+                    e["ts"][:10] == nxt["ts"][:10] and
+                    sm.group(1) == nxt_m.group(1)):
+                merged = dict(e)
+                merged["message"] = f"Salt: {sm.group(1)}% full ({sm.group(2)}→{nxt_m.group(2)} cm)"
+                result.append(merged)
+                i += 2
+                continue
+
+        # Rule 4: Simultaneous MQTT disconnects (within 2 s) — group into one row
+        if e["category"] == "MQTT" and e["message"] == "MQTT disconnected":
+            group_end = i + 1
+            try:
+                t0 = datetime.strptime(e["ts"][:19], "%Y-%m-%d %H:%M:%S")
+                while group_end < len(entries):
+                    nxt = entries[group_end]
+                    if nxt["category"] != "MQTT" or nxt["message"] != "MQTT disconnected":
+                        break
+                    t1 = datetime.strptime(nxt["ts"][:19], "%Y-%m-%d %H:%M:%S")
+                    if abs((t1 - t0).total_seconds()) > 2:
+                        break
+                    group_end += 1
+            except ValueError:
+                pass
+            if group_end > i + 1:
+                merged = dict(e)
+                merged["component"] = ", ".join(entries[j]["component"] for j in range(i, group_end))
+                result.append(merged)
+                i = group_end
+                continue
+
+        result.append(e)
+        i += 1
+    return result
+
+
 def _snapshot():
     with _lock:
         entries = list(_entries)
@@ -299,7 +397,7 @@ def _snapshot():
         for group in _hb_groups.values():
             entries.append({k: v for k, v in group.items() if k != "_state_key"})
     entries.sort(key=lambda e: e["ts"])
-    return entries
+    return _collapse_for_display(entries)
 
 
 def _entry_color(e):
@@ -313,7 +411,8 @@ def _build_html(snapshot):
     rows = []
     components = set()
     for e in snapshot:
-        components.add(e["component"])
+        for c_part in e["component"].split(","):
+            components.add(c_part.strip())
         color = _entry_color(e)
         count = e["count"]
         if count > 1 and "first_ts" in e:
@@ -383,9 +482,13 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/data":
             snap = _snapshot()
+            comps = set()
+            for _e in snap:
+                for _c in _e["component"].split(","):
+                    comps.add(_c.strip())
             body = json.dumps({
                 "entries":    snap,
-                "components": sorted({e["component"] for e in snap}),
+                "components": sorted(comps),
             }).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

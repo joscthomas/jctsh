@@ -9,7 +9,7 @@
     "autoConnect": true,
     "usetls": false,
     "compatmode": false,
-    "protocolVersion": 4,
+    "protocolVersion": 5,
     "keepalive": "60",
     "cleansession": true,
     "autoUnsubscribe": true,

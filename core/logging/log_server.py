@@ -326,7 +326,7 @@ _STATUS_TEMPLATE = """\
   <h2>JCTsh Device Status</h2>
   <p class="sub">Auto-refreshes every 60s &nbsp;|&nbsp; Based on last %%MAX%% log entries
     &nbsp;|&nbsp; <a href="/" style="color:#555">Log dashboard</a></p>
-  <h3>Home Devices</h3>
+  <h3>Always-on</h3>
   <table>
     <thead><tr>
       <th>Component</th><th>Status</th><th>Last Heartbeat</th><th>Last Reading</th>
@@ -335,7 +335,7 @@ _STATUS_TEMPLATE = """\
 %%HOME_ROWS%%
     </tbody>
   </table>
-  <h3>Remote Devices</h3>
+  <h3>Mobile</h3>
   <table>
     <thead><tr>
       <th>Component</th><th>Last Seen</th><th>Last Message</th>
@@ -462,8 +462,8 @@ def _build_status_html():
             f'</tr>'
         )
 
-    no_home   = "      <tr><td colspan='4' class='dim'>No home devices in recent log.</td></tr>"
-    no_remote = "      <tr><td colspan='3' class='dim'>No remote devices in recent log.</td></tr>"
+    no_home   = "      <tr><td colspan='4' class='dim'>No always-on devices in recent log.</td></tr>"
+    no_remote = "      <tr><td colspan='3' class='dim'>No mobile devices in recent log.</td></tr>"
     html = _STATUS_TEMPLATE
     html = html.replace("%%HOME_ROWS%%",   "\n".join(home_rows)   or no_home)
     html = html.replace("%%REMOTE_ROWS%%", "\n".join(remote_rows) or no_remote)

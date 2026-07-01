@@ -33,6 +33,8 @@ _TZ                = ZoneInfo("America/Phoenix")
 HEARTBEAT_TOPIC    = "jctsh/core/log-server/log"
 HEARTBEAT_INTERVAL = 3600
 HTTP_PORT   = 80
+_REMOTE_COMPONENTS     = {"coachproxyos"}
+_HOME_HB_THRESHOLD_MIN = 70   # hourly beat + 10 min grace
 LOG_DIR     = "/home/pi/jctsh/logs"
 LOG_FILE    = os.path.join(LOG_DIR, "jctsh.log")
 MAX_ENTRIES = 200
@@ -207,7 +209,7 @@ _HTML_TEMPLATE = """\
 </head>
 <body>
   <h2>JCTsh Log Dashboard</h2>
-  <p class="sub">Updates every 5s &nbsp;|&nbsp; Last %%MAX%% entries &nbsp;|&nbsp; <a href="/log" target="_blank" style="color:#555">%%LOG%%</a></p>
+  <p class="sub">Updates every 5s &nbsp;|&nbsp; Last %%MAX%% entries &nbsp;|&nbsp; <a href="/log" target="_blank" style="color:#555">%%LOG%%</a> &nbsp;|&nbsp; <a href="/status" style="color:#555">Device status</a></p>
   <div class="controls">
     <label>Component:</label>
     <select id="fc" onchange="f()"><option value="">All</option>%%COMP%%</select>
@@ -291,6 +293,182 @@ _HTML_TEMPLATE = """\
   </script>
 </body>
 </html>"""
+
+
+_STATUS_TEMPLATE = """\
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>JCTsh Device Status</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjMWExYTFhIi8+PHRleHQgeD0iMTYiIHk9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMDBjYzk5IiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjIyIiBmb250LXdlaWdodD0iYm9sZCI+SjwvdGV4dD48L3N2Zz4=">
+  <style>
+    body    { background:#1a1a1a; color:#e0e0e0; font-family:monospace;
+              font-size:13px; margin:20px; }
+    h2      { color:#00cc99; margin-bottom:4px; }
+    h3      { color:#555; font-size:11px; margin-top:24px; margin-bottom:8px;
+              text-transform:uppercase; letter-spacing:2px; }
+    .sub    { color:#555; font-size:11px; margin-bottom:16px; }
+    table   { border-collapse:collapse; width:100%; margin-bottom:8px; }
+    th      { color:#555; font-size:11px; text-align:left; padding:4px 8px;
+              border-bottom:1px solid #2a2a2a; }
+    td      { padding:3px 8px; vertical-align:top; }
+    tr:hover td { background:#1f1f1f; }
+    .online  { color:#00cc99; }
+    .offline { color:#ff4444; }
+    .unknown { color:#555; }
+    .dim     { color:#555; }
+    .ts      { color:#888; white-space:nowrap; }
+    .msg     { color:#888; }
+  </style>
+</head>
+<body>
+  <h2>JCTsh Device Status</h2>
+  <p class="sub">Auto-refreshes every 60s &nbsp;|&nbsp; Based on last %%MAX%% log entries
+    &nbsp;|&nbsp; <a href="/" style="color:#555">Log dashboard</a></p>
+  <h3>Home Devices</h3>
+  <table>
+    <thead><tr>
+      <th>Component</th><th>Status</th><th>Last Heartbeat</th><th>Last Reading</th>
+    </tr></thead>
+    <tbody>
+%%HOME_ROWS%%
+    </tbody>
+  </table>
+  <h3>Remote Devices</h3>
+  <table>
+    <thead><tr>
+      <th>Component</th><th>Last Seen</th><th>Last Message</th>
+    </tr></thead>
+    <tbody>
+%%REMOTE_ROWS%%
+    </tbody>
+  </table>
+  <script>setTimeout(function(){location.reload();},60000);</script>
+</body>
+</html>"""
+
+
+def _ago(ts_str):
+    """Return a human-readable 'X ago' string from a log timestamp."""
+    if not ts_str:
+        return "—"
+    try:
+        dt   = datetime.strptime(ts_str[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=_TZ)
+        secs = int((datetime.now(_TZ) - dt).total_seconds())
+        if secs < 120:
+            return f"{secs}s ago"
+        if secs < 3600:
+            return f"{secs // 60}m ago"
+        if secs < 86400:
+            h, m = divmod(secs // 60, 60)
+            return (f"{h}h {m}m ago" if m else f"{h}h ago")
+        return f"{secs // 86400}d ago"
+    except (ValueError, TypeError):
+        return "—"
+
+
+def _compute_status(entries):
+    """Derive per-component status summary from a snapshot of log entries."""
+    now  = datetime.now(_TZ)
+    info = {}
+    for e in entries:
+        for comp in e["component"].split(","):
+            comp = comp.strip()
+            rec  = info.setdefault(comp, {
+                "last_ts": None, "last_msg": None,
+                "last_hb_ts": None, "has_hb": False,
+                "last_reading_ts": None, "last_reading_msg": None,
+            })
+            ts, msg = e["ts"], e["message"]
+            if rec["last_ts"] is None or ts > rec["last_ts"]:
+                rec["last_ts"]  = ts
+                rec["last_msg"] = msg
+            is_hb = msg.startswith("Heartbeat - ") or msg.startswith("Watchdog: ")
+            if is_hb:
+                rec["has_hb"] = True
+                if rec["last_hb_ts"] is None or ts > rec["last_hb_ts"]:
+                    rec["last_hb_ts"] = ts
+            else:
+                if rec["last_reading_ts"] is None or ts > rec["last_reading_ts"]:
+                    rec["last_reading_ts"]  = ts
+                    rec["last_reading_msg"] = msg
+
+    result = {}
+    for comp, rec in info.items():
+        is_remote = comp in _REMOTE_COMPONENTS
+        if is_remote:
+            status = "?"
+        elif not rec["has_hb"]:
+            status = "?"
+        else:
+            try:
+                dt  = datetime.strptime(rec["last_hb_ts"][:19], "%Y-%m-%d %H:%M:%S")
+                dt  = dt.replace(tzinfo=_TZ)
+                age = (now - dt).total_seconds() / 60
+                status = "Online" if age < _HOME_HB_THRESHOLD_MIN else "Offline"
+            except (ValueError, TypeError):
+                status = "?"
+        result[comp] = {**rec, "status": status, "is_remote": is_remote}
+    return result
+
+
+def _build_status_html():
+    snap   = _snapshot()
+    comps  = _compute_status(snap)
+    home   = sorted((c, r) for c, r in comps.items() if not r["is_remote"])
+    remote = sorted((c, r) for c, r in comps.items() if r["is_remote"])
+
+    home_rows = []
+    for comp, rec in home:
+        s = rec["status"]
+        if s == "Online":
+            scls, slabel = "online",  "Online"
+        elif s == "Offline":
+            scls, slabel = "offline", "Offline"
+        else:
+            scls, slabel = "unknown", "?"
+        hb_cell = (f'<span class="ts">{escape(_ago(rec["last_hb_ts"]))}</span>'
+                   if rec["last_hb_ts"] else '<span class="dim">—</span>')
+        if rec["last_reading_msg"]:
+            rd_msg  = rec["last_reading_msg"]
+            rd_disp = escape(rd_msg if len(rd_msg) <= 80 else rd_msg[:77] + "…")
+            rd_cell = f'{rd_disp} <span class="dim">{escape(_ago(rec["last_reading_ts"]))}</span>'
+        else:
+            rd_cell = '<span class="dim">—</span>'
+        home_rows.append(
+            f'      <tr>'
+            f'<td>{escape(comp)}</td>'
+            f'<td class="{scls}">{slabel}</td>'
+            f'<td>{hb_cell}</td>'
+            f'<td class="msg">{rd_cell}</td>'
+            f'</tr>'
+        )
+
+    remote_rows = []
+    for comp, rec in remote:
+        if rec["last_ts"]:
+            ls_cell = (f'<span class="ts">{escape(rec["last_ts"][:16])}</span>'
+                       f' <span class="dim">({escape(_ago(rec["last_ts"]))})</span>')
+        else:
+            ls_cell = '<span class="dim">—</span>'
+        lm = rec["last_msg"] or ""
+        lm_disp = escape(lm if len(lm) <= 80 else lm[:77] + "…")
+        remote_rows.append(
+            f'      <tr>'
+            f'<td>{escape(comp)}</td>'
+            f'<td>{ls_cell}</td>'
+            f'<td class="dim">{lm_disp}</td>'
+            f'</tr>'
+        )
+
+    no_home   = "      <tr><td colspan='4' class='dim'>No home devices in recent log.</td></tr>"
+    no_remote = "      <tr><td colspan='3' class='dim'>No remote devices in recent log.</td></tr>"
+    html = _STATUS_TEMPLATE
+    html = html.replace("%%HOME_ROWS%%",   "\n".join(home_rows)   or no_home)
+    html = html.replace("%%REMOTE_ROWS%%", "\n".join(remote_rows) or no_remote)
+    html = html.replace("%%MAX%%", str(MAX_ENTRIES))
+    return html
 
 
 _PRESENCE_DETECTED_RE = re.compile(
@@ -492,6 +670,14 @@ class _Handler(BaseHTTPRequestHandler):
             }).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path == "/status":
+            body = _build_status_html().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)

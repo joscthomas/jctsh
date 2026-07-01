@@ -49,6 +49,11 @@ After Step 13 complete: run Final Step — harvest security patterns to `JCTsh-B
 
 ---
 
+### CARD-024 · [enhancement] [p-w-firefly] Coachproxy remote health monitoring
+**Notes:** The coachproxy heartbeat (every 30 min via Tailscale) confirms the RV Pi and Tailscale link are alive, but it can't distinguish between "Pi is powered off" vs "Tailscale is down" vs "RV is in a dead zone." A more useful health check would poll the Tailscale status directly from the home Pi: `tailscale ping 100.90.246.43` or checking the Tailscale admin API for last-seen timestamp. This gives richer diagnostic output (latency, path) without depending on the RV Pi to actively publish. Implement as a scheduled script on the home Pi that posts results to the log dashboard. Alternative: use Tailscale's built-in status API at `localhost:41112` on the home Pi to check peer state without any external requests.
+
+---
+
 ### CARD-005 · [enhancement] [p-w-firefly] Overlay filesystem
 **Notes:** The Pi in the RV runs continuously, accumulating writes from logs, Tailscale state, and OS housekeeping — SD cards have a finite write cycle life and will eventually fail silently. An overlay filesystem makes the SD card effectively read-only during normal operation: all writes go to RAM, the card is only written during a deliberate shutdown sequence.
 
@@ -144,10 +149,6 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 
 ## Planning
 
-### CARD-021 · [enhancement] [logging] Device status dashboard
-**Notes:** Add a `/status` endpoint to the log server showing each device's last heartbeat, last reading, and online/offline state — derived from the existing log file. No new infrastructure. Pure Python extension of the existing log server.
-
----
 
 ### CARD-020 · [enhancement] [hiking-sensor] Hike data visualization (Looker Studio)
 **Notes:** Build a Google Looker Studio dashboard connected to the GPS Track and Environmental Data Google Sheets. GPS route on a map, sensor readings (temp/humidity/pressure/battery) over hike duration. Review-after-the-fact use case — no real-time requirement. No new infrastructure needed.
@@ -190,6 +191,11 @@ Update findings in `jctsh-security-hardening.md` when complete, then close card.
 ---
 
 ## Done
+
+### CARD-021 · [enhancement] [logging] Device status dashboard
+**Resolution:** Added `/status` endpoint to `core/logging/log_server.py`. Two-section layout: Home (Online/Offline/? per component based on heartbeat presence and 70-min threshold) and Remote (`coachproxyos` always shows last-activity + `?`). Auto-detects heartbeat-capable components — salt-sensor shows `?` until CARD-004 ESPHome migration adds heartbeats. Deployed to Pi 2026-06-30. Added CARD-024 (coachproxy remote health monitoring via Tailscale ping).
+
+---
 
 ### CARD-018 · [idea] [immich] Self-hosted photo library
 **Resolution:** Superseded. Hardware (GMKtec M8) in hand. Replaced by `components/photo-server/` (Immich install + immich-go migration) and `components/photo-tv-display/` (Node.js TV slideshow + phone companion) — full planning docs committed 2026-06-30.

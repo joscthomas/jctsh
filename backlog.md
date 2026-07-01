@@ -22,11 +22,6 @@ After Step 13 complete: run Final Step — harvest security patterns to `JCTsh-B
 
 ---
 
-### CARD-002 · [enhancement] [infrastructure] MQTT v3.1.1 → v5 upgrade
-**Notes:** Node-RED v4 creates MQTT In/Out nodes with v5 fields (nl, rap, respTopic, etc.) that silently break on the v3.1.1 broker — requires manual cleanup after every UI import. Mosquitto 2.x supports v5 and is backward-compatible with v3 clients, so ESP32/ESPHome devices stay on v3 unmodified. Steps: verify Mosquitto version, enable v5 in mosquitto.conf if needed, change Node-RED broker node protocolVersion from 4 to 5, test all existing flows. Do as a standalone maintenance task — not mid-component-build.
-
----
-
 ### CARD-003 · [enhancement] [infrastructure] TLS for Mosquitto (port 8883)
 **Notes:** Port 1883 is internet-exposed via DuckDNS/port-forward with fail2ban, but credentials and sensor data are cleartext. TLS on port 8883 eliminates this. Steps: get Let's Encrypt cert for the DuckDNS hostname (certbot with duckdns plugin), add a TLS listener on port 8883 in mosquitto.conf, update mqtt_broker port in every ESPHome secrets.yaml, update Node-RED broker node, update HA MQTT integration, reflash all ESP32s. Do as a standalone task after DuckDNS setup is stable. Depends on CARD-002 being done first (or do together).
 
@@ -190,6 +185,11 @@ Update findings in `jctsh-security-hardening.md` when complete, then close card.
 ---
 
 ## Done
+
+### CARD-002 · [enhancement] [infrastructure] MQTT v3.1.1 → v5 upgrade
+**Resolution:** Mosquitto 2.0.21 already supports v5 — no broker config change needed. Changed `protocolVersion` from 4 → 5 in the Node-RED broker config node (`core/node-red/core.flow.json`) and updated the live Pi flows.json in place. Confirmed via Mosquitto log: client `nodered-saltlevel` connected with `p5`. ESP32/ESPHome devices unaffected (remain on v3.1.1). 2026-06-30.
+
+---
 
 ### CARD-008 · [enhancement] [hiking-sensor] Pixel hotspot second WiFi field test
 **Notes:** Confirmed 2026-06-17 during camping trip. Device connected to JCT Hotspot (IP 10.57.172.159 — Pixel hotspot subnet), reached home MQTT broker via jctsh.duckdns.org over cellular, replayed 7 SPIFFS readings on reconnect. DuckDNS + port 1883 forward confirmed working in the field.

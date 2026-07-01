@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.3
-**Version description:** Added flux paste, M2 screws, M2 brass standoffs, 3M double-sided tape, and 2-pin screw terminal blocks (all Plastic Box).
+**Version:** 2.5
+**Version description:** Allocated SparkFun SEN-23715 (Sensirion SEN54) to air-quality-monitor project.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -57,7 +57,9 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | BMP280 (sold as BME280) | Podazz 3-pack, counterfeit — pressure/temp only, no humidity, I2C, 5V | 2 | Bag 2 | 3 returned 2026-05-26. 2 spares removed from front-porch-temp-sensor. |
 | BME280 (GY-BME280) | 2PCS packs, genuine — temp/humidity/pressure, I2C/SPI, 5V breakout | 3 | Bag 3 | 1 deployed: front-porch-temp-sensor (2026-05-26). 1 used: hiking-sensor. 2 spares. |
 | LTR390 UV Light Sensor | Adafruit #4831, STEMMA QT / Qwiic I2C, UV and ambient light, 3.3V/5V. https://www.amazon.com/dp/B0BPR31P59 | 1 | Bag 22 | 1 used: hiking-sensor. 1 spare. |
-| SparkFun SEN-23715 | Sensirion SEN54, particle (PM1/2.5/4/10), VOC, humidity, temperature, I2C/UART. SparkFun SEN-23715. | 1 | Plastic Box | No project assigned. |
+| SparkFun SEN-23715 | Sensirion SEN54, particle (PM1/2.5/4/10), VOC, humidity, temperature, I2C/UART. SparkFun SEN-23715. | 1 | Plastic Box | Allocated: air-quality-monitor project. |
+| Adafruit SEN54/SEN55 Adapter Breakout | STEMMA QT / Qwiic, I2C adapter breakout for Sensirion SEN54/SEN55. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
+| DS3231 RTC Module | HiLetgo 5pcs, high precision real time clock, I2C, 3.3V/5V, CR2032 battery backup. https://www.amazon.com/dp/B01N1LZSK3 | 5 | Bag 28 | 1 allocated: bedside-clock. |
 | Greekcreit Sensor Module Kit for Arduino | Kit of 37 modules including: active/passive buzzer, LED modules (common cathode red/green, two-color, RGB, colorful auto flash), knock/shock/tilt/magnet-ring/hall/analogy hall/magnetic spring sensors, photo resistor, push button, infrared TX/RX, rotate encoder, light break sensor, finger pulse sensor, obstacle avoidance, tracking, microphone, laser TX, relay, analog/digital/18b20 temperature, flame, voice, humidity, joystick PS2, touch sensor | — | Plastic Box | |
 
 ---
@@ -96,6 +98,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | M2 Screw Assortment | 645 pcs metric, M2 countersunk flat-head hex socket cap screws, bolts, nuts, washers, 304 stainless steel. https://www.amazon.com/dp/B0GFDQ6457 | Assortment | Plastic Box       | Verify selection before build. |
 | 3M Double Sided Foam Tape | 3M 5925, 0.5" × 15.4 ft, heavy duty, 0.025" thick, black, strong adhesive for mounting. https://www.amazon.com/dp/B0CHDVNS5T | 1 roll | Plastic Box       | No project assigned. |
 | 2-Pin Screw Terminal Block 3.5mm | uxcell, 50 pcs, 2-pin, 3.5mm pitch, panel/PCB mount, green. https://www.amazon.com/dp/B01C3DGIBQ | 50 | Plastic Box       | No project assigned. |
+| Heat Shrink Butt Connectors 26-24 AWG | 100 pcs, insulated waterproof crimp butt splice connectors, marine/automotive grade. https://www.amazon.com/dp/B08LR7NV7M | 100 | Bag 26 | No project assigned. |
+| Momentary Push Button Switch 12mm | Twidec 6pcs, PBS-33B-BK-X, 12mm, 1/2" panel mount, waterproof, pre-soldered wires, black. https://www.amazon.com/dp/B08JHW8BPV | 6 | Bag 27 | 1 allocated: bedside-clock. |
 
 ---
 
@@ -114,6 +118,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 |---|---|---|---|---|
 | USB-C to Micro USB Adapter | JXMOX 4-pack, Type-C female to Micro USB male, supports charge and data sync, grey. https://www.amazon.com/dp/B07GH5KJH2 | 4 | Bag 20 | Useful for powering or connecting Micro USB devices from USB-C sources. |
 | 3M Mini-Clamp Connectors | 3M, 4-conductor. Pinout for p-w-firefly CAN bus: Red=12V+ (leave unconnected), White=CAN-H, Green/Blue=CAN-L, Black=GND. | 3 | Bag 24 | Allocated: p-w-firefly project. Do not connect Red (12V+) to PiCAN2. |
+| JST GH 1.25mm Pitch 6-Pin Cable | 100mm long. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
 
 ---
 
@@ -154,6 +159,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
 | E-Ink Display | Waveshare 2.13" HAT V4, 250×122, SPI, partial refresh, compatible with Pi Zero W/2W/3B/4B/5/Pico. https://www.amazon.com/dp/B071S8HT76 | 0 | Deployed | 1 used: hiking-sensor. |
+| SH1106 OLED Display 1.3" | Hosyond 5pcs, 128×64, I2C, white, SH1106 driver (not SSD1306). https://www.amazon.com/dp/B0C3L7N917 | 5 | Bag 29 | 1 allocated: bedside-clock. |
 
 ---
 
@@ -204,3 +210,9 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-06-04 | hiking-sensor | ESP32 ×1 used; BME280 ×1 used; LTR-390 ×1 used; e-ink display ×1 used; push button ×1 used; EEMB LiPo ×1 used; TP4056+boost ×1 used |
 | 2026-06-10 | garage-radar | Build complete. ESP32 ×1 used; HLK-LD2412 ×1 used; green LED ×1 used; yellow LED ×1 used; 330Ω resistors ×2 used; female headers (19-pin ×2, 4-pin ×1) used; M3 standoffs ×4 used; 5×7cm perfboard ×1 used |
 | 2026-06-14 | Stock | No clean solder flux paste ×4 syringes (Plastic Box); M2 screw assortment 645 pcs (Plastic Box); 3M double-sided foam tape ×1 roll (Plastic Box); M2 hex brass standoff kit 390 pcs (Plastic Box); 2-pin screw terminal block 3.5mm ×50 (Plastic Box) |
+| 2026-07-01 | air-quality-monitor | Adafruit SEN54/SEN55 STEMMA QT adapter breakout ×1 received, added to Sensors, Bag 25; JST GH 1.25mm 6-pin cable (100mm) ×1 received, added to Cables and Adapters, Bag 25 |
+| 2026-07-01 | Stock | Heat shrink butt connectors 26-24 AWG ×100 added (Prototyping and Build Hardware, Bag 26) |
+| 2026-07-01 | Stock | Momentary push button switch 12mm waterproof ×6 added (Prototyping and Build Hardware, Bag 27) |
+| 2026-07-01 | Stock | DS3231 RTC module ×5 added (Sensors, Bag 28); 1 allocated: bedside-clock |
+| 2026-07-01 | Stock | SH1106 OLED display 1.3" ×5 added (Displays, Bag 29); 1 allocated: bedside-clock |
+| 2026-07-01 | air-quality-monitor | SparkFun SEN-23715 (Sensirion SEN54, Plastic Box) allocated to air-quality-monitor project |

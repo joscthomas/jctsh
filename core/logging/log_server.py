@@ -193,14 +193,14 @@ _HTML_TEMPLATE = """\
     body { background:#1a1a1a; color:#e0e0e0; font-family:monospace;
            font-size:13px; margin:20px; }
     h2   { color:#00cc99; margin-bottom:4px; }
-    .sub { color:#555; font-size:11px; margin-bottom:16px; }
+    .sub { color:#888; font-size:11px; margin-bottom:16px; }
     .controls { margin-bottom:12px; }
-    .controls label  { color:#888; margin-right:4px; }
+    .controls label  { color:#aaa; margin-right:4px; }
     .controls select { background:#111; color:#e0e0e0; border:1px solid #333;
                        padding:3px 8px; font-family:monospace; margin-right:16px;
                        cursor:pointer; }
     table { border-collapse:collapse; width:100%; }
-    th    { color:#555; font-size:11px; text-align:left; padding:4px 8px;
+    th    { color:#888; font-size:11px; text-align:left; padding:4px 8px;
             border-bottom:1px solid #2a2a2a; }
     td    { padding:3px 8px; vertical-align:top; cursor:text; }
     tr:hover td { background:#1f1f1f; }
@@ -209,7 +209,7 @@ _HTML_TEMPLATE = """\
 </head>
 <body>
   <h2>JCTsh Log Dashboard</h2>
-  <p class="sub">Updates every 5s &nbsp;|&nbsp; Last %%MAX%% entries &nbsp;|&nbsp; <a href="/log" target="_blank" style="color:#555">%%LOG%%</a> &nbsp;|&nbsp; <a href="/status" style="color:#555">Device status</a></p>
+  <p class="sub">Updates every 5s &nbsp;|&nbsp; Last %%MAX%% entries &nbsp;|&nbsp; <a href="/log" target="_blank" style="color:#888">%%LOG%%</a> &nbsp;|&nbsp; <a href="/status" style="color:#888">Device status</a></p>
   <div class="controls">
     <label>Component:</label>
     <select id="fc" onchange="f()"><option value="">All</option>%%COMP%%</select>
@@ -253,8 +253,8 @@ _HTML_TEMPLATE = """\
         if (e.count > 1) x = ' <span style="color:'+c+'">\xd7'+e.count+'</span>';
       }
       return '<tr data-c="'+_esc(e.component)+'" data-k="'+_esc(e.category)+'">'
-        +'<td style="color:#888;white-space:nowrap">'+_esc(e.ts)+'</td>'
-        +'<td style="color:#888">'+_esc(e.component)+'</td>'
+        +'<td style="color:#aaa;white-space:nowrap">'+_esc(e.ts)+'</td>'
+        +'<td style="color:#aaa">'+_esc(e.component)+'</td>'
         +'<td style="color:'+c+'">'+_esc(e.category)+'</td>'
         +'<td style="color:'+c+'">'+_esc(msg)+x+'</td>'
         +'</tr>';
@@ -306,11 +306,11 @@ _STATUS_TEMPLATE = """\
     body    { background:#1a1a1a; color:#e0e0e0; font-family:monospace;
               font-size:13px; margin:20px; }
     h2      { color:#00cc99; margin-bottom:4px; }
-    h3      { color:#555; font-size:11px; margin-top:24px; margin-bottom:8px;
+    h3      { color:#888; font-size:11px; margin-top:24px; margin-bottom:8px;
               text-transform:uppercase; letter-spacing:2px; }
-    .sub    { color:#555; font-size:11px; margin-bottom:16px; }
+    .sub    { color:#888; font-size:11px; margin-bottom:16px; }
     table   { border-collapse:collapse; width:100%; margin-bottom:8px; }
-    th      { color:#555; font-size:11px; text-align:left; padding:4px 8px;
+    th      { color:#888; font-size:11px; text-align:left; padding:4px 8px;
               border-bottom:1px solid #2a2a2a; }
     td      { padding:3px 8px; vertical-align:top; }
     tr:hover td { background:#1f1f1f; }
@@ -325,7 +325,7 @@ _STATUS_TEMPLATE = """\
 <body>
   <h2>JCTsh Device Status</h2>
   <p class="sub">Auto-refreshes every 60s &nbsp;|&nbsp; Based on last %%MAX%% log entries
-    &nbsp;|&nbsp; <a href="/" style="color:#555">Log dashboard</a></p>
+    &nbsp;|&nbsp; <a href="/" style="color:#888">Log dashboard</a></p>
   <h3>Always-on</h3>
   <table>
     <thead><tr>

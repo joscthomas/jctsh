@@ -28,7 +28,24 @@ After Step 13 complete: run Final Step — harvest security patterns to `JCTsh-B
 ---
 
 ### CARD-004 · [enhancement] [salt-sensor] Migrate Arduino C++ → ESPHome
-**Notes:** Do this before perfboard transfer — ESPHome initializes hardware differently than Arduino and if a strapping pin causes a boot issue it's easier to rewire on breadboard than cut perfboard traces. Device side maps cleanly (ultrasonic platform, median filter, 12h interval, LED blink via globals). Hard part: test mode needs redesign — Node-RED currently injects fake readings; ESPHome has no equivalent. Replace with an HA script that triggers the threshold automation with a synthetic distance value. GPIO 2 and 15 are strapping pins but currently working — not a blocker.
+**Notes:** Do this before perfboard transfer — ESPHome initializes hardware differently than Arduino and if a strapping pin causes a boot issue it's easier to rewire on breadboard than cut perfboard traces. Device is still on breadboard. Estimated 2–3 hours. Do before CARD-003 (TLS) — TLS on Arduino C++ is brittle and would be thrown away when this migration happens anyway.
+
+**Maps directly — no design work:**
+- JSN-SR04T → ESPHome `ultrasonic` platform, same GPIO 5 (trig) / GPIO 18 (echo). Voltage divider stays as-is.
+- 15-sample median filter → ESPHome built-in `median` sensor filter, drop-in replacement
+- 12-hour interval → `update_interval: 12h`
+- OTA → ESPHome native OTA, flash path `C:\esphome\salt-sensor\`
+- Heartbeat → standard JCTsh pattern, added for free
+- Credentials → `secrets.h` → `secrets.yaml`
+
+**Needs design work:**
+- **Custom MQTT payload:** ESPHome publishes to its own topic scheme by default. Maintaining `jctsh/sensors/salt-sensor/data` with `{"distance_cm":25.3}` requires an `on_value` automation with `mqtt.publish` + lambda to format JSON.
+- **LED blinking driven by MQTT status:** Arduino loop runs a 500ms blink toggle keyed off subscribed `status` string. ESPHome equivalent: `mqtt.on_message` on status topic updates a global; `interval:` component running every 500ms drives GPIO outputs via lambda. Most involved part of the translation.
+- **Test mode:** Backlog originally flagged this as hard, but looking at the sketch there is no test mode code on the ESP32 — test mode is entirely Node-RED publishing fake distances to the data topic. That still works identically with ESPHome. No redesign needed.
+
+**One real risk — strapping pins:** GPIO 2 (red LED) and GPIO 15 (yellow LED) are strapping pins. ESPHome initializes them differently than Arduino at boot. If either is held in the wrong state, the device won't start. Breadboard means quick rewiring to GPIO 32/33 if needed. Estimated 90% chance it works without a pin change.
+
+**What Claude can't do:** verify LEDs blink correctly (physical check); USB flash if OTA fails on first flash (breadboard with USB access, so physical flash is available).
 
 ---
 

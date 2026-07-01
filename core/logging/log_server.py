@@ -316,10 +316,10 @@ _STATUS_TEMPLATE = """\
     tr:hover td { background:#1f1f1f; }
     .online  { color:#00cc99; }
     .offline { color:#ff4444; }
-    .unknown { color:#555; }
+    .unknown { color:#888; }
     .dim     { color:#555; }
-    .ts      { color:#888; white-space:nowrap; }
-    .msg     { color:#888; }
+    .ts      { color:#aaa; white-space:nowrap; }
+    .msg     { color:#ccc; }
   </style>
 </head>
 <body>
@@ -433,7 +433,7 @@ def _build_status_html():
         if rec["last_reading_msg"]:
             rd_msg  = rec["last_reading_msg"]
             rd_disp = escape(rd_msg if len(rd_msg) <= 80 else rd_msg[:77] + "…")
-            rd_cell = f'{rd_disp} <span class="dim">{escape(_ago(rec["last_reading_ts"]))}</span>'
+            rd_cell = f'{rd_disp} <span class="ts">{escape(_ago(rec["last_reading_ts"]))}</span>'
         else:
             rd_cell = '<span class="dim">—</span>'
         home_rows.append(
@@ -458,7 +458,7 @@ def _build_status_html():
             f'      <tr>'
             f'<td>{escape(comp)}</td>'
             f'<td>{ls_cell}</td>'
-            f'<td class="dim">{lm_disp}</td>'
+            f'<td class="msg">{lm_disp}</td>'
             f'</tr>'
         )
 

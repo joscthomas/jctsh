@@ -101,7 +101,7 @@ Do not add per-device columns — all sources share the same schema.
 | D | `source` |
 
 Leave it empty for now — this sheet is populated by the hiking observations pipeline
-(future enhancement, see `JCTsh-Environmental-Data-Architecture.md`).
+(future enhancement, see `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`).
 
 ---
 
@@ -115,7 +115,7 @@ Leave it empty for now — this sheet is populated by the hiking observations pi
 
 ### Apps Script Code
 
-The complete, deployable source is in `components/hiking-sensor/environmental-data.gs`.
+The complete, deployable source is in `core/data-pipeline/environmental-data.gs`.
 Paste the entire contents of that file into the Apps Script editor. It contains both
 `doPost(e)` (environmental sensor data) and `doGet(e)` (GPS track write and lookup, Step 19).
 
@@ -176,7 +176,7 @@ Set these before importing the flow. In Node-RED: **hamburger menu → Settings 
 
 ### Flow JSON
 
-The flow is stored in the repo at `core/node-red/environmental-data.flow.json`.
+The flow is stored in the repo at `core/data-pipeline/environmental-data.flow.json`.
 
 Import via Node-RED UI → hamburger menu → **Import → Clipboard**, then paste the contents of that file.
 
@@ -310,4 +310,4 @@ from interfering with real data.
 No changes to this pipeline are needed when a new environmental sensor is added. The
 `jctsh/components/+/data` wildcard catches it automatically. The `source` column in
 Sheets identifies the device. Confirm the new sensor's payload conforms to the standard
-in `JCTsh-Environmental-Data-Architecture.md` before first flash.
+in `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` before first flash.

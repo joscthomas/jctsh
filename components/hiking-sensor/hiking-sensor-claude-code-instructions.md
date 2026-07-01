@@ -4,7 +4,7 @@
 **Project:** JCT Smart Home (JCTsh)
 **Version:** 1.2
 **Version description:** Added Steps 23–26: Hiking observations pipeline via Tasker — voice observations captured on the Pixel during hikes, posted directly to the Apps Script doPost endpoint, written to the Hiking Observations sheet with automatic category classification.
-**Related files:** JCTsh-hiking-sensor-phase1.md, JCTsh-Environmental-Data-Architecture.md, JCTsh-Build-Standards.md, CLAUDE.md, components/front-porch-temp-sensor/
+**Related files:** JCTsh-hiking-sensor-phase1.md, core/data-pipeline/JCTsh-Environmental-Data-Architecture.md, JCTsh-Build-Standards.md, CLAUDE.md, components/front-porch-temp-sensor/
 
 ---
 
@@ -583,7 +583,7 @@ If LTR-390 is recessed in the enclosure rather than flush-mounted on the top fac
 Forced airflow over BME280 could improve temperature accuracy (avoids sensing heated air inside enclosure). Evaluate after first hike — may not be needed if the Stevenson-screen ventilation provides sufficient natural airflow.
 
 ### Hiking Observations Pipeline
-Voice observations via Google Recorder → Google Docs → Apps Script → Hiking Observations Sheets tab → MQTT. Path A (manual share) is the starting point. Design is complete in JCTsh-Environmental-Data-Architecture.md. Implement as a separate project after the hiking monitor data pipeline is proven.
+Voice observations via Google Recorder → Google Docs → Apps Script → Hiking Observations Sheets tab → MQTT. Path A (manual share) is the starting point. Design is complete in core/data-pipeline/JCTsh-Environmental-Data-Architecture.md. Implement as a separate project after the hiking monitor data pipeline is proven.
 
 ---
 
@@ -782,9 +782,9 @@ Do not write changes to `JCTsh-Build-Standards.md` until Joseph reviews and appr
 
 ## Step 23 — Hiking Observations: Update Apps Script
 
-**Claude Code does:** Update `environmental-data.gs` to handle voice observations from Tasker — strip the "observation" keyword prefix, scan the text against the category taxonomy, normalize the timestamp, and append to the Hiking Observations sheet. The updated handler is already in `components/hiking-sensor/environmental-data.gs`.
+**Claude Code does:** Update `environmental-data.gs` to handle voice observations from Tasker — strip the "observation" keyword prefix, scan the text against the category taxonomy, normalize the timestamp, and append to the Hiking Observations sheet. The updated handler is already in `core/data-pipeline/environmental-data.gs`.
 
-Paste the entire contents of `environmental-data.gs` into the Apps Script editor (Extensions → Apps Script), replacing what's there. Then redeploy:
+Paste the entire contents of `core/data-pipeline/environmental-data.gs` into the Apps Script editor (Extensions → Apps Script), replacing what's there. Then redeploy:
 
 1. Click **Deploy → Manage deployments**
 2. Click the pencil icon on the existing deployment

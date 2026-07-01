@@ -99,8 +99,8 @@ jctsh/
 ├── jctsh-parts-inventory.md       On-hand electronics parts
 ├── JCTsh-Build-Standards.md       Standards all components must follow
 ├── JCTsh-Component-Planning-Pattern.md  How new components are planned and built
-├── JCTsh-Environmental-Data-Architecture.md  Payload schema and pipeline for all
-│                                             environmental sensors
+├── core/data-pipeline/JCTsh-Environmental-Data-Architecture.md  Payload schema and pipeline
+│                                             for all environmental sensors
 ├── JCTsh-Property-Sensor-Pattern.md         Standard pattern for all property sensors —
 │                                             invariant standard, variable dimensions,
 │                                             new-sensor checklist

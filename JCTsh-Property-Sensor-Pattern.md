@@ -2,17 +2,17 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the standard pattern for all JCTsh environmental sensors deployed on or around the property — fixed, mobile, USB-powered, battery-powered, or solar-powered. Provides the variable decision table and new-sensor checklist that every build works through before touching firmware.
 **Version:** 1.0
-**Related files:** `JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `house-lot-coordinates.md`
+**Related files:** `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `house-lot-coordinates.md`
 
 ---
 
 ## What This Document Is
 
-`JCTsh-Environmental-Data-Architecture.md` owns the **data pipeline** — payload schema, Google Sheets archive, Node-RED handler, Weather Underground.
+`core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` owns the **data pipeline** — payload schema, Google Sheets archive, Node-RED handler, Weather Underground.
 
 This document owns the **sensor pattern** — the invariant standard every property sensor conforms to, the dimensions that vary between deployments, and the checklist that produces the concrete decisions needed to start a build.
 
-Load this document at Phase 1 of any property sensor build alongside `JCTsh-Environmental-Data-Architecture.md`.
+Load this document at Phase 1 of any property sensor build alongside `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`.
 
 ---
 
@@ -35,7 +35,7 @@ These elements are identical in every property sensor. They are not decisions �
 - Sensor-specific fields appended for each sensor present
 - Fields a sensor does not measure are omitted entirely — no nulls for missing fields
 - `lat`/`lon` exception: always present; send hardcoded value (fixed) or JSON `null` (mobile without GPS)
-- See `JCTsh-Environmental-Data-Architecture.md` for the full field reference
+- See `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` for the full field reference
 
 **Infrastructure — zero changes needed for each new device**
 - Node-RED wildcard `jctsh/components/+/data` catches the new sensor automatically
@@ -110,7 +110,7 @@ Determined by what physical sensors are installed. Only measured fields appear i
 | Rain gauge | `rain_tips` |
 | LiPo / solar battery | `battery_v` |
 
-Add new sensor fields to `JCTsh-Environmental-Data-Architecture.md` and the Apps Script before building any sensor that introduces one.
+Add new sensor fields to `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` and the Apps Script before building any sensor that introduces one.
 
 ### Custom Automation (Optional)
 
@@ -262,7 +262,7 @@ List each physical sensor and the payload fields it produces:
 | | |
 | | |
 
-Confirm every field exists in `JCTsh-Environmental-Data-Architecture.md`. Add new fields before starting the build.
+Confirm every field exists in `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`. Add new fields before starting the build.
 
 ### 8. HA entities
 - All sensor fields are auto-discovered by HA via MQTT discovery — no manual setup.
@@ -286,7 +286,7 @@ Confirm every field exists in `JCTsh-Environmental-Data-Architecture.md`. Add ne
 
 ### 12. Pre-build infrastructure tasks
 - [ ] Named point confirmed in `house-lot-coordinates.md` (or coordinates measured and added)
-- [ ] New fields added to `JCTsh-Environmental-Data-Architecture.md` and Apps Script
+- [ ] New fields added to `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` and Apps Script
 - [ ] Dedicated Mosquitto account created (see `JCTsh-Build-Standards.md` §2.11)
 - [ ] `C:\esphome\<name>\` directory created
 - [ ] `components/<name>/secrets.yaml` created from template

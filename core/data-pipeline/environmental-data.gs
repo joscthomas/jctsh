@@ -1,6 +1,6 @@
 // Google Apps Script — JCTsh Environmental Data
 // Spreadsheet: "JCTsh Environmental Data"
-// Repo: components/hiking-sensor/environmental-data.gs
+// Repo: core/data-pipeline/environmental-data.gs
 //
 // To deploy: paste this entire file into the Apps Script editor (Extensions → Apps Script),
 // then Deploy → Manage deployments → pencil → Version: New version → Save.

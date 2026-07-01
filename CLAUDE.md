@@ -14,6 +14,7 @@ jctsh/
     ├── logging/              — Python MQTT log server (runs on Pi)
     ├── node-red/             — Node-RED settings + broker config (version control copies)
     ├── mqtt/                 — Mosquitto config (version control copy)
+    ├── data-pipeline/        — Environmental data pipeline: Apps Script, architecture doc, Node-RED handler flow
     └── homeassistant/        — Home Assistant config (version control copy, do not modify)
 ```
 
@@ -66,7 +67,7 @@ JCTsh includes a multi-source environmental sensor platform. The payload schema,
 Google Sheets archive design, Node-RED wildcard data handler pattern, Weather
 Underground integration, and planned device family are defined in:
 
-`JCTsh-Environmental-Data-Architecture.md` (repo root)
+`core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`
 
 All environmental sensor components must conform to the standard defined there
 before Phase 3 planning is considered complete.
@@ -160,6 +161,9 @@ The repo is the source of truth. Edit files here, then deploy to the Pi — do n
 
 - `core/node-red/core.flow.json` — MQTT broker node (import first when re-importing flows)
 - `core/node-red/watchdog.flow.json` — component heartbeat watchdog; wildcard `jctsh/+/+/heartbeat`; push notification via HA companion app if silent for 10 min. See `core/node-red/watchdog-README.md`.
+- `core/data-pipeline/environmental-data.flow.json` — Node-RED wildcard data handler (`jctsh/components/+/data`) → GPS lookup → Google Sheets
+- `core/data-pipeline/environmental-data.gs` — Google Apps Script source (paste into Apps Script editor; redeploy after any change)
+- `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` — payload schema, Sheets archive design, Node-RED handler pattern
 - `core/node-red/settings.js` — Node-RED settings (contains bcrypt password hash)
 - `core/mqtt/mosquitto.conf` — Mosquitto configuration
 - `core/homeassistant/configuration.yaml` — HA config (do not modify)

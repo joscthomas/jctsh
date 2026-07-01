@@ -60,10 +60,6 @@ After Step 13 complete: run Final Step — harvest security patterns to `JCTsh-B
 
 ---
 
-### CARD-014 · [enhancement] [core] Move environmental data pipeline to core
-**Notes:** The environmental data pipeline (Apps Script, Google Sheets, Node-RED wildcard data handler) is shared infrastructure consumed by all sensor components — not owned by hiking-sensor. All data flowing through it is environmental data, including observations. Move `environmental-data.gs`, `JCTsh-Environmental-Data-Architecture.md`, and the Node-RED wildcard data handler flow to `core/data-pipeline/`. Update references in component directories. Do before the system grows significantly — weather station, air quality monitor, and van sensors will all be consumers.
-
----
 
 ### CARD-006 · [enhancement] [logging] Move log directory to USB stick
 **Priority:** low  
@@ -110,14 +106,6 @@ After Step 13 complete: run Final Step — harvest security patterns to `JCTsh-B
 
 ---
 
-### CARD-018 · [idea] [immich] Self-hosted photo library
-**Notes:** Migrate Google Photos → Immich (self-hosted). Migration path: Google Takeout export → immich-go to upload to Immich instance including albums. Going forward: Immich mobile app on Pixel as backup destination instead of (or alongside) Google Photos. Periodic re-import via Takeout to catch anything new. Robin's photos need a separate Takeout + import pass. Direct API sync tools (gphotos-sync) stopped working March 2025 when Google restricted OAuth scopes — Takeout + immich-go is now the standard path.
-
-**Hardware decision:** Intel N100 mini PC (Beelink EQ12 Pro or GMKtec M6 — ~$150–180, 16GB RAM, 512GB SSD). Hardware QuickSync transcoding, fast ML indexing (~1–2s/photo), 10–15W idle, Docker install. Storage: existing USB drives (sizes TBD).
-
-**Phase 2 — Ambient display app:** TV slideshow (web app in TV browser) + phone companion page. Server-side highlights algorithm: recency bias, exclude blurry/low-quality, no repeat within N days, short video support with max-duration cutoff. Phone companion shows current photo thumbnail with one-tap Delete / Favorite / Add to album via WebSocket. Enhancements over Google TV: filter by person (Immich face recognition), seasonal mode, "this week in history" mixing recent + same week past years. Runs as Node.js Docker service on N100 alongside Immich. Plan in a dedicated session once Immich is running.
-
----
 
 ### CARD-010 · [enhancement] [front-porch-temp-sensor] Use case definition
 **Notes:** Perfboard transfer complete. No enclosure planned. Sensor publishes temp, humidity, pressure, illuminance every 5 min. Perfboard layout: `components/front-porch-temp-sensor/perfboard-layout.md`.
@@ -202,6 +190,16 @@ Update findings in `jctsh-security-hardening.md` when complete, then close card.
 ---
 
 ## Done
+
+### CARD-018 · [idea] [immich] Self-hosted photo library
+**Resolution:** Superseded. Hardware (GMKtec M8) in hand. Replaced by `components/photo-server/` (Immich install + immich-go migration) and `components/photo-tv-display/` (Node.js TV slideshow + phone companion) — full planning docs committed 2026-06-30.
+
+---
+
+### CARD-014 · [enhancement] [core] Move environmental data pipeline to core
+**Resolution:** Moved `environmental-data.gs` → `core/data-pipeline/`, `JCTsh-Environmental-Data-Architecture.md` → `core/data-pipeline/`, and `core/node-red/environmental-data.flow.json` → `core/data-pipeline/`. Updated references across 15 files (CLAUDE.md, README.md, Node-RED-workflow.md, JCTsh-Build-Standards.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Property-Sensor-Pattern.md, all component planning docs, hiking-sensor instructions). 2026-06-30.
+
+---
 
 ### CARD-002 · [enhancement] [infrastructure] MQTT v3.1.1 → v5 upgrade
 **Resolution:** Mosquitto 2.0.21 already supports v5 — no broker config change needed. Changed `protocolVersion` from 4 → 5 in the Node-RED broker config node (`core/node-red/core.flow.json`) and updated the live Pi flows.json in place. Confirmed via Mosquitto log: client `nodered-saltlevel` connected with `p5`. ESP32/ESPHome devices unaffected (remain on v3.1.1). 2026-06-30.

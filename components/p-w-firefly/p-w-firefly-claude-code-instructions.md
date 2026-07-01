@@ -140,7 +140,7 @@ GPS enables the following eRVin capabilities:
 
 **Pleasure-Way environmental sensor node — separate future component:**
 
-The JCTsh Environmental Data Architecture (JCTsh-Environmental-Data-Architecture.md) lists the Pleasure-Way as a planned mobile environmental sensor node: an ESP32 with BME280 (temperature/humidity/pressure) and a dedicated NEO-6M GPS module, publishing on the standard JCTsh environmental data payload schema to `jctsh/components/pleasure-way-sensor/data`. This is entirely independent of the eRVin system and the Firefly interface — it is its own future component planned in a separate Claude chat session following the JCTsh Component Planning Pattern.
+The JCTsh Environmental Data Architecture (core/data-pipeline/JCTsh-Environmental-Data-Architecture.md) lists the Pleasure-Way as a planned mobile environmental sensor node: an ESP32 with BME280 (temperature/humidity/pressure) and a dedicated NEO-6M GPS module, publishing on the standard JCTsh environmental data payload schema to `jctsh/components/pleasure-way-sensor/data`. This is entirely independent of the eRVin system and the Firefly interface — it is its own future component planned in a separate Claude chat session following the JCTsh Component Planning Pattern.
 
 **When ready to implement eRVin GPS:**
 - Purchase GlobalSat BU-353S4 or equivalent USB GPS receiver

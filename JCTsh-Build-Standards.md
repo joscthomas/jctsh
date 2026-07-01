@@ -640,7 +640,7 @@ lat/lon populated in Environmental Data sheet
 
 **Apps Script note:** The lookup function is in the same `doGet(e)` handler as any other GET actions. Add it alongside existing actions without replacing them.
 
-**Reference:** `components/hiking-sensor/gps-pipeline.md`, `components/hiking-sensor/environmental-data.gs`
+**Reference:** `components/hiking-sensor/gps-pipeline.md`, `core/data-pipeline/environmental-data.gs`
 
 ---
 

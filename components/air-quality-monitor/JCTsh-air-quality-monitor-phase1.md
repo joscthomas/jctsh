@@ -5,7 +5,7 @@
 **Version description:** BOM updated — SEN55, Adafruit #5964 adapter breakout, and JST GH 6-pin cable moved from To Order to Ordered. SEN55 5V power requirement noted; Adafruit breakout handles level shifting and boost. Open Question 1 (connector) removed — resolved by breakout board selection. Status updated to Parts Ordered.
 **Project:** JCTsh Air Quality Monitor
 **Status:** Phase 1 Complete — Parts Ordered — Ready for Phase 2
-**Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`, `jctsh-parts-inventory.md`, `JCTsh-hiking-sensor-phase1.md`
+**Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`, `jctsh-parts-inventory.md`, `JCTsh-hiking-sensor-phase1.md`
 
 ---
 
@@ -15,7 +15,7 @@ A portable, clip-mounted air quality sensor carried on hikes alongside the hikin
 
 Logs timestamped readings to onboard flash storage during hikes (no WiFi). Syncs automatically with JCTsh on return home via WiFi — publishing to the existing environmental data pipeline built by the hiking sensor project (MQTT → Node-RED → Google Sheets). No new pipeline infrastructure required.
 
-This component is part of the JCTsh environmental sensor family defined in `JCTsh-Environmental-Data-Architecture.md`. It must conform to the standard environmental message payload and MQTT topic convention.
+This component is part of the JCTsh environmental sensor family defined in `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`. It must conform to the standard environmental message payload and MQTT topic convention.
 
 ---
 
@@ -122,7 +122,7 @@ Follows hiking monitor pattern exactly. See `components/hiking-sensor/` for the 
 
 ## Standard Environmental Payload
 
-Conforms to `JCTsh-Environmental-Data-Architecture.md`. Fields sent by this device:
+Conforms to `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`. Fields sent by this device:
 
 ```json
 {

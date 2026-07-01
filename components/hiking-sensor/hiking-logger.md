@@ -38,7 +38,7 @@ reconnecting, all stored readings are replayed to MQTT with their original times
 | Available headroom | ~40× — no capacity concern in practice |
 
 Log format is JSON Lines: one complete JSON payload object per line, matching the
-standard MQTT data payload defined in `JCTsh-Environmental-Data-Architecture.md`.
+standard MQTT data payload defined in `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`.
 
 ---
 

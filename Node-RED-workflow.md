@@ -28,8 +28,8 @@ The flow JSON files in `core/node-red/` don't include a tab name. Match by filen
 |---|---|
 | `core.flow.json` | Core (import first — contains the MQTT broker node) |
 | `watchdog.flow.json` | Watchdog |
-| `environmental-data.flow.json` | Environmental Data |
+| `core/data-pipeline/environmental-data.flow.json` | Environmental Data |
 
 ## After any change
 
-Commit the updated JSON from `core/node-red/` to keep the repo in sync with what's running on the Pi.
+Commit the updated JSON to keep the repo in sync with what's running on the Pi. Core and watchdog flows live in `core/node-red/`; the environmental data flow lives in `core/data-pipeline/`.

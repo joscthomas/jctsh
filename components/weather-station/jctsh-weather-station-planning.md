@@ -5,7 +5,7 @@
 **Version description:** Phase 3 complete. Added Phase 3 Architecture and Integration Design section with all checklist items resolved. Corrected Phase 1 technology notes: ESPHome replaces Arduino C++ per Build Standards; data pipeline (WU, Google Sheets) moves to Node-RED rather than ESP32 direct HTTP. Updated BOM to reflect on-hand inventory (BME280 ×6, ESP32 ×4, perfboard, headers, standoffs, LEDs, resistors already on hand — removed from purchase list). Corrected MQTT topic type to `components` per garage-radar precedent. Added environmental data architecture reference. Cleared Phase 3 checklist. Removed resolved open questions.
 **Project:** JCTsh Weather Station
 **Status:** Phase 3 complete — ready for Phase 4 when directed
-**Related files:** `JCTsh-Component-Planning-Pattern.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `JCTsh-Parts-Inventory.md`, `JCTsh-Build-Standards.md`, `JCTsh-Environmental-Data-Architecture.md`
+**Related files:** `JCTsh-Component-Planning-Pattern.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `JCTsh-Parts-Inventory.md`, `JCTsh-Build-Standards.md`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`
 
 ---
 
@@ -43,7 +43,7 @@ Build a fully DIY outdoor weather station that:
 - **Data pipeline:** Node-RED handles all external posting (Weather Underground, Google Sheets) via HTTP from always-on Pi — ESP32 publishes to MQTT only. This keeps the ESP32 wake cycle fast and retry/error logic in Node-RED where it belongs.
 - **Power:** Solar panel → MPPT charger → LiPo battery → boost converter → ESP32. Deep sleep between readings to minimize power draw.
 - **Integration path:** ESP32 → MQTT → Node-RED → Home Assistant → SmartThings (same path as all JCTsh components)
-- **Environmental data store:** Google Sheets via Google Apps Script web app endpoint (Node-RED posts on behalf of all environmental sensors — see `JCTsh-Environmental-Data-Architecture.md`)
+- **Environmental data store:** Google Sheets via Google Apps Script web app endpoint (Node-RED posts on behalf of all environmental sensors — see `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`)
 
 ### Key Feasibility Findings
 
@@ -364,7 +364,7 @@ Both colors confirmed on hand per parts inventory. 330Ω current-limiting resist
 
 ### Environmental Data Architecture
 
-The weather station is the first member of a planned JCTsh environmental sensor family. The Google Sheets archive and Node-RED data handler are designed for multiple sources from day one. See `JCTsh-Environmental-Data-Architecture.md` for the full multi-source design, payload schema standard, and planned device family (porch sensor, hiking monitor, Pleasure-Way).
+The weather station is the first member of a planned JCTsh environmental sensor family. The Google Sheets archive and Node-RED data handler are designed for multiple sources from day one. See `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` for the full multi-source design, payload schema standard, and planned device family (porch sensor, hiking monitor, Pleasure-Way).
 
 ### Phase 3 Checklist — Completed
 

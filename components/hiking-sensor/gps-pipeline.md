@@ -99,7 +99,7 @@ Add the `doGet(e)` function below it. The `doPost` function is unchanged.
 
 ### Script Source
 
-The complete, deployable source is in `components/hiking-sensor/environmental-data.gs`.
+The complete, deployable source is in `core/data-pipeline/environmental-data.gs`.
 Paste the entire contents of that file into the Apps Script editor — it contains both
 `doPost(e)` (environmental sensor data, Step 10) and `doGet(e)` (`action=gps` and
 `action=lookup`, Step 19).

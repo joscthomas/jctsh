@@ -5,7 +5,7 @@
 **Version description:** GPS correlation and Pixel hotspot sync updated from deferred/manual to planned iterative additions. GPS correlation approach updated: GPSLogger automatic lat/lon population via Node-RED pipeline (Steps 19–20) replaces manual post-hike GaiaGPS timestamp matching. Pixel hotspot sync added as Step 21 — second WiFi network in ESPHome YAML. Both added as post-Step-18 iterative refinements in the Claude Code instructions. Motivation updated: hiking sensor used while traveling, not just at home. No other changes from v2.4.
 **Project:** JCTsh Hiking Monitor
 **Status:** Phase 1 Complete — Parts Ordered — Build In Progress (Step 14 perfboard complete)
-**Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`, `jctsh-parts-inventory.md`
+**Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`, `jctsh-parts-inventory.md`
 
 ---
 
@@ -13,7 +13,7 @@
 
 A portable, body-carried environmental sensor for use on hikes in the Tucson area and one annual backpacking trip. Measures temperature, humidity, barometric pressure, and UV index in real time. Displays readings locally on an e-ink display. Logs timestamped readings to onboard flash storage during the hike. Syncs automatically with JCTsh on return home via WiFi — publishing to the standard environmental data pipeline (MQTT → Node-RED → Google Sheets).
 
-This component is part of the JCTsh environmental sensor family defined in `JCTsh-Environmental-Data-Architecture.md`. It must conform to the standard environmental message payload and MQTT topic convention.
+This component is part of the JCTsh environmental sensor family defined in `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`. It must conform to the standard environmental message payload and MQTT topic convention.
 
 ---
 
@@ -183,7 +183,7 @@ This project builds the JCTsh environmental data pipeline for the first time. Al
 
 | Piece | What it is |
 |---|---|
-| Google Sheet | Environmental archive spreadsheet with standard column schema from JCTsh-Environmental-Data-Architecture.md |
+| Google Sheet | Environmental archive spreadsheet with standard column schema from core/data-pipeline/JCTsh-Environmental-Data-Architecture.md |
 | Google Apps Script web app | JavaScript REST endpoint deployed from the Sheet; accepts JSON POST; appends one row; authenticated via secret key in URL |
 | Node-RED wildcard handler flow | Subscribes to `jctsh/components/+/data`; computes derived fields (dew_point_f, heat_index_f); POSTs to Apps Script; logs success/failure |
 | Node-RED environment variables | Apps Script URL and secret key — not in source control |
@@ -207,7 +207,7 @@ This project builds the JCTsh environmental data pipeline for the first time. Al
 
 ## Standard Environmental Payload
 
-Conforms to `JCTsh-Environmental-Data-Architecture.md`. Fields sent by this device:
+Conforms to `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`. Fields sent by this device:
 
 ```json
 {
@@ -284,7 +284,7 @@ The natural solution is a dedicated wrist-worn companion device. The **LilyGO T-
 - AMOLED display
 - Programmable via Arduino IDE or ESP-IDF
 
-**Integration architecture (planned):** Publishes health readings to `jctsh/components/hiking-health/data` on home WiFi reconnect, using the standard environmental payload pattern. Health fields (`heart_rate_bpm`, `spo2_pct`, `steps`, `skin_temp_f`) added to `JCTsh-Environmental-Data-Architecture.md` schema when the project begins. Google Sheets archive receives both environmental and health data streams, joinable by timestamp.
+**Integration architecture (planned):** Publishes health readings to `jctsh/components/hiking-health/data` on home WiFi reconnect, using the standard environmental payload pattern. Health fields (`heart_rate_bpm`, `spo2_pct`, `steps`, `skin_temp_f`) added to `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` schema when the project begins. Google Sheets archive receives both environmental and health data streams, joinable by timestamp.
 
 **Combined data picture:** hiking monitor environmental data + hiking health monitor physiological data + GaiaGPS GPS track — all correlated by timestamp in a single Sheets workbook.
 
@@ -322,7 +322,7 @@ During Phase 1 planning, a voice observation capture system was designed for rec
 
 Build Path A first; upgrade to Path B once proven.
 
-**Data architecture:** Separate `Hiking Observations` sheet in the same Google Sheets workbook. Timestamp is the join key to Environmental Data sheet and GaiaGPS track. Full architecture defined in `JCTsh-Environmental-Data-Architecture.md`.
+**Data architecture:** Separate `Hiking Observations` sheet in the same Google Sheets workbook. Timestamp is the join key to Environmental Data sheet and GaiaGPS track. Full architecture defined in `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`.
 
 **Combined data picture:** Where you were (GaiaGPS) + what conditions were (hiking monitor) + what you observed (observations pipeline) — all correlated by timestamp.
 

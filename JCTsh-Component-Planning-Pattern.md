@@ -2,7 +2,7 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the five-phase process for planning and building JCTsh smart home components, from discovery through execution.
 **Version:** 2.3
-**Version description:** Added `JCTsh-Property-Sensor-Pattern.md` as a conditional Phase 1 load file for any property sensor build (fixed, mobile, battery, solar, or USB-powered environmental sensor). It owns the invariant standard, variable dimension decision table, and new-sensor checklist — load it alongside `JCTsh-Environmental-Data-Architecture.md` when building any sensor in the property sensor family.
+**Version description:** Added `JCTsh-Property-Sensor-Pattern.md` as a conditional Phase 1 load file for any property sensor build (fixed, mobile, battery, solar, or USB-powered environmental sensor). It owns the invariant standard, variable dimension decision table, and new-sensor checklist — load it alongside `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` when building any sensor in the property sensor family.
 
 ---
 
@@ -23,7 +23,7 @@ Phase 1 is about feasibility and approach. Only two files are needed: the planni
 | File | Location | Purpose |
 |---|---|---|
 | `JCTsh-Component-Planning-Pattern.md` | repo root | This document — the planning process itself |
-| `JCTsh-Environmental-Data-Architecture.md` | repo root | Standard environmental sensor payload schema, Google Sheets archive design, Node-RED wildcard handler pattern, Weather Underground integration, and the planned environmental sensor family. Shapes feasibility and approach from the start — all environmental sensor components must conform to decisions already made here. |
+| `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` | core/data-pipeline/ | Standard environmental sensor payload schema, Google Sheets archive design, Node-RED wildcard handler pattern, Weather Underground integration, and the planned environmental sensor family. Shapes feasibility and approach from the start — all environmental sensor components must conform to decisions already made here. |
 
 **For any property sensor build** (fixed, mobile, battery, solar, or USB-powered environmental sensor deployed on or around the property), also load:
 
@@ -203,7 +203,7 @@ If something doesn't work as expected during execution, bring it back to the Cla
 
 **Architecture context before integration design.** CLAUDE.md is a required Phase 2 context file. It contains the actual message flow, log format, SmartThings integration path, and credentials patterns. Without it, integration decisions in Phase 3 are made on incorrect assumptions.
 
-**Environmental architecture context before payload design.** JCTsh-Environmental-Data-Architecture.md is a required Phase 1 context file. It contains pre-existing architectural decisions for the entire environmental sensor family — payload schema, MQTT topic conventions, Google Sheets archive design, and the planned device family. Without it, a new environmental sensor component will contradict or duplicate decisions already made.
+**Environmental architecture context before payload design.** core/data-pipeline/JCTsh-Environmental-Data-Architecture.md is a required Phase 1 context file. It contains pre-existing architectural decisions for the entire environmental sensor family — payload schema, MQTT topic conventions, Google Sheets archive design, and the planned device family. Without it, a new environmental sensor component will contradict or duplicate decisions already made.
 
 **Property sensor pattern before hardware selection.** JCTsh-Property-Sensor-Pattern.md is a required Phase 1 context file for any property sensor build. It defines the invariant standard (what every sensor does identically), the variable dimensions (location type, power source, connectivity, offline handling), and a 12-item checklist that produces concrete firmware values before Phase 2 hardware selection begins. Work through the checklist in Phase 1 — decisions made there drive hardware choices in Phase 2.
 
@@ -336,7 +336,7 @@ Write approved additions and updates to `JCTsh-Build-Standards.md`. Bump the ver
 
 --- Required notes for every ESP32 component ---
 - Step 0 is mandatory: read JCTsh-Build-Standards.md in full, state which sections apply, and confirm before writing any code or config — CLAUDE.md must also be read before beginning
-- Read JCTsh-Environmental-Data-Architecture.md if this is an
+- Read core/data-pipeline/JCTsh-Environmental-Data-Architecture.md if this is an
   environmental sensor — payload schema and MQTT topic convention
   are defined there and must be followed exactly
 - Read JCTsh-Property-Sensor-Pattern.md if this is a property sensor

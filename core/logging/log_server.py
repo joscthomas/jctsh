@@ -118,58 +118,89 @@ def _flush_all_hb_groups():
 
 
 # ── MQTT callbacks ────────────────────────────────────────────────────────────
+_STATUS_TOPIC = "jctsh/components/+/status"
+
+
 def _on_connect(client, userdata, flags, rc):
     if rc == 0:
-        client.subscribe(MQTT_TOPIC)
-        print(f"[MQTT] Connected to {MQTT_BROKER}. Subscribed to {MQTT_TOPIC}")
+        client.subscribe([(MQTT_TOPIC, 0), (_STATUS_TOPIC, 0)])
+        print(f"[MQTT] Connected to {MQTT_BROKER}. Subscribed to {MQTT_TOPIC}, {_STATUS_TOPIC}")
+        client.publish(HEARTBEAT_TOPIC, json.dumps({
+            "component": "jctsh-core",
+            "category":  "System",
+            "message":   "Log server connected.",
+        }))
     else:
         print(f"[MQTT] Connection failed rc={rc}")
 
 
-def _on_message(client, userdata, msg):
+def _store_entry(component, category, message, ts):
+    """Store a log entry — heartbeat vs regular. Caller must hold _lock."""
     global _pending
+    if message.startswith("Heartbeat - ") or message.startswith("Watchdog: "):
+        state_key = _heartbeat_state_key(message)
+        existing  = _hb_groups.get(component)
+        if existing and existing["_state_key"] == state_key:
+            existing["ts"]      = ts
+            existing["message"] = message
+            existing["count"]  += 1
+        else:
+            if existing:
+                _flush_hb_group(component)
+            _hb_groups[component] = {
+                "ts": ts, "first_ts": ts,
+                "component": component, "category": category,
+                "message": message, "count": 1,
+                "_state_key": state_key,
+            }
+    else:
+        # Non-heartbeat: flush any open heartbeat group for this component first.
+        # Sensor-category messages are co-scheduled with the heartbeat interval —
+        # don't let them break up heartbeat collapsing.
+        if component in _hb_groups and category != "Sensor":
+            _flush_hb_group(component)
+        key = (component, category, message)
+        if (_pending and
+                (_pending["component"], _pending["category"], _pending["message"]) == key):
+            _pending["count"] += 1
+        else:
+            _flush_pending()
+            _pending = {
+                "ts": ts, "component": component,
+                "category": category, "message": message, "count": 1,
+            }
+
+
+def _on_message(client, userdata, msg):
+    ts = datetime.now(_TZ).strftime("%Y-%m-%d %H:%M:%S %Z")
+
+    # ESPHome device availability: jctsh/components/<name>/status → "online"/"offline"
+    if msg.topic.endswith("/status"):
+        try:
+            payload = msg.payload.decode("utf-8").strip()
+        except Exception:
+            return
+        parts = msg.topic.split("/")
+        if len(parts) == 4:
+            component = parts[2]
+            if payload == "online":
+                category, message = "MQTT", "Connected."
+            elif payload == "offline":
+                category, message = "MQTT", "Disconnected (LWT)."
+            else:
+                return
+            with _lock:
+                _store_entry(component, category, message, ts)
+        return
+
+    # Standard JSON log message on jctsh/+/+/log
     try:
         data      = json.loads(msg.payload.decode("utf-8"))
         component = str(data.get("component", "unknown"))
         category  = str(data.get("category",  "System"))
         message   = str(data.get("message",   ""))
-        ts        = datetime.now(_TZ).strftime("%Y-%m-%d %H:%M:%S %Z")
-
         with _lock:
-            if message.startswith("Heartbeat - ") or message.startswith("Watchdog: "):
-                state_key = _heartbeat_state_key(message)
-                existing  = _hb_groups.get(component)
-                if existing and existing["_state_key"] == state_key:
-                    # Same state: extend the group with latest values
-                    existing["ts"]      = ts
-                    existing["message"] = message
-                    existing["count"]  += 1
-                else:
-                    # State changed or new component: flush old group, start fresh
-                    if existing:
-                        _flush_hb_group(component)
-                    _hb_groups[component] = {
-                        "ts": ts, "first_ts": ts,
-                        "component": component, "category": category,
-                        "message": message, "count": 1,
-                        "_state_key": state_key,
-                    }
-            else:
-                # Non-heartbeat: flush any open heartbeat group for this component first.
-                # Sensor-category messages are health checks co-scheduled with the heartbeat
-                # interval — don't let them break up heartbeat collapsing.
-                if component in _hb_groups and category != "Sensor":
-                    _flush_hb_group(component)
-                key = (component, category, message)
-                if (_pending and
-                        (_pending["component"], _pending["category"], _pending["message"]) == key):
-                    _pending["count"] += 1
-                else:
-                    _flush_pending()
-                    _pending = {
-                        "ts": ts, "component": component,
-                        "category": category, "message": message, "count": 1
-                    }
+            _store_entry(component, category, message, ts)
     except (json.JSONDecodeError, UnicodeDecodeError, KeyError):
         pass
 
@@ -747,7 +778,8 @@ if __name__ == "__main__":
     threading.Thread(target=_heartbeat_thread, daemon=True).start()
     httpd = ThreadingHTTPServer(("", HTTP_PORT), _Handler)
     print("[JCTsh] Dashboard at http://JCTsh.local/")
-    signal.signal(signal.SIGTERM, lambda *_: httpd.shutdown())
+    signal.signal(signal.SIGTERM,
+                  lambda *_: threading.Thread(target=httpd.shutdown, daemon=True).start())
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

@@ -597,11 +597,7 @@ Lessons from the hiking-monitor environmental data pipeline (2026-06-04):
 
 **Every node must have a `z` property pointing to a tab node.** Nodes without `z` are orphaned — they load silently but never execute. Always include a `type: "tab"` node in the flow JSON and set `z` on every other node to match its `id`.
 
-**MQTT v5 fields silently break MQTT v3 brokers.** The JCTsh broker runs MQTT v3.1.1 (`protocolVersion: 4`). Node-RED v4 UI imports add MQTT v5 fields to MQTT In and Out nodes that are not present in existing working nodes:
-- MQTT In: `nl` (No Local), `rap` (Retain As Published) — causes subscription to silently fail
-- MQTT Out: `respTopic`, `contentType`, `userProps`, `correl`, `expiry` — causes publish to silently fail
-
-After any UI import of MQTT nodes, verify these fields are absent. The working reference nodes (`mqtt_in_reading`, `mqtt_out_log`, etc.) have only: `id`, `type`, `z`, `name`, `topic`, `qos`, `retain` (out only), `broker`, `wires`.
+**The JCTsh broker (Mosquitto 2.0.21) runs MQTT v5.** The Node-RED broker config node uses `protocolVersion: 5`. Node-RED v4 UI imports generate MQTT v5 fields (`nl`, `rap`, `respTopic`, `contentType`, etc.) — these are now correct and do not need cleanup. ESP32/ESPHome devices and HA remain on MQTT v3.1.1; Mosquitto accepts both simultaneously.
 
 **Google Apps Script returns 405 on redirect — treat it as success.** When Node-RED POSTs to an Apps Script web app URL, Google executes the script and appends the row, then returns a 302 redirect. Node-RED follows the redirect with POST; the redirect destination returns 405 (Method Not Allowed). The row WAS appended. The check response function must treat `statusCode === 405` as success, not as an error.
 
@@ -752,6 +748,7 @@ When LED indicators are included in a component:
 | Version | Change |
 |---|---|
 | 1.0 | Initial release. Enclosure convention, ESP32/ESPHome standards, MQTT conventions, observability standards, SmartThings integration, LED standards, documentation standards. |
+| 1.8 | Updated §5.4: broker now runs MQTT v5 (Mosquitto 2.0.21, `protocolVersion: 5` in Node-RED broker node). Removed MQTT v5 field cleanup warning — v5 fields from Node-RED v4 UI imports are now correct. ESP32/ESPHome/HA remain on v3.1.1; Mosquitto accepts both simultaneously. |
 | 1.7 | Changed heartbeat standard from 5 minutes to 30 minutes throughout (§2.7, §3.2, §4.1, §4.4, §4.6). 30 min is derived from the watchdog timeout (35 min = interval + 5-min buffer), not arbitrary. Updated front-porch-temp-sensor.yaml to match. |
 | 1.6 | Added §2.8 multi-network WiFi variant (networks: list) and captive_portal deep-sleep exception. Added §2.12 e-ink display pattern. Added §2.13 multi-priority on_boot sequencing. Updated §3.3 with DuckDNS broker guidance for cellular components. Added §3.6 rssi_dbm=0 field-mode sentinel. Added §5.5 GPS timestamp lookup pattern. Added §5.6 Node-RED per-component context isolation. |
 | 1.5 | Added §5.4 Node-RED flow deployment patterns (MQTT v5 field issue, flows.json injection, Apps Script 405 redirect, alphanumeric API keys, env vars via EnvironmentFile), watchdog is a new Node-RED flow (not an existing process). Added SmartThings actual integration path (Node-RED → HA REST API → virtual switch). Added MQTT account creation as a required step. Added phone notification via HA companion app as watchdog alert method. |

@@ -49,7 +49,7 @@ docker logs -f homeassistant                  # live logs
 | Auth | Required — `allow_anonymous false`, passwords in `/etc/mosquitto/passwd` |
 | Persistence | `/var/lib/mosquitto/` |
 | Log | `/var/log/mosquitto/mosquitto.log` |
-| Protocol | MQTT v3.1.1 |
+| Protocol | MQTT v5 (Node-RED broker node); MQTT v3.1.1 (ESP32/ESPHome/HA — Mosquitto 2.x accepts both simultaneously) |
 
 Version-controlled config snapshot: `core/mqtt/mosquitto.conf`.
 

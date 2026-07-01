@@ -382,7 +382,6 @@ Where T = temp_f, H = humidity_pct. Use simple formula (T + H/5 - 10.3) when tem
 **Deployment notes:**
 - Env vars set in `/home/pi/.node-red/environment` (sourced via `EnvironmentFile=` in systemd service)
 - Flow injected via direct `flows.json` edit; nodes need `z` property pointing to a tab node or they are orphaned and inactive
-- MQTT In/Out nodes imported via Node-RED v4 UI gain MQTT v5 fields (`nl`, `rap`, `respTopic`, `contentType`, etc.) that silently break subscriptions and publishes on the v3 broker — must be removed
 - Google Apps Script returns HTTP 302 → follow redirect → 405 (redirect destination rejects POST). Row IS appended on the initial POST. Treat 405 as success in the check response function.
 - API key must be alphanumeric — special characters (`&`, `@`, `*`) break URL query parameter parsing even with `encodeURIComponent`
 

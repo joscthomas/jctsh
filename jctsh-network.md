@@ -23,6 +23,7 @@ All device IPs are DHCP-reserved on the router. Update this file when adding a n
 | front-porch-temp-sensor ESP32 | 192.168.1.202 | front-porch-temp-sensor.local | B4-BF-E9-C9-EF-68 | ESPHome |
 | hiking-sensor ESP32 | 192.168.1.161 | hiking-monitor.local | 04-B2-47-97-DF-2C | ESPHome |
 | SmartThings Hub | 192.168.1.112 | — | 24-FD-5B-01-72-23 | Samsung hub — stable IP required for HA integration |
+| photo-server (GMKtec M8) | 192.168.1.165 | photo-server.local | 70-70-FC-09-AD-A5 | Immich photo server + photo-tv-display (planned); wired gigabit direct to router; DHCP-reserved |
 
 ## Tailscale
 
@@ -32,6 +33,7 @@ Tailscale creates a private encrypted mesh network so enrolled devices can reach
 |---|---|---|
 | Home Pi | 100.70.162.24 | MQTT broker, Node-RED, HA, log server — always reachable when Tailscale is running |
 | RV Pi (coachproxyos) | 100.90.246.43 | eRVin dashboard at `http://100.90.246.43`; comes up when Pi has internet via Pixel hotspot |
+| photo-server (GMKtec M8) | 100.111.16.14 | Immich + photo-tv-display (planned) — reachable remotely for admin |
 
 ## Remote and Field Networks
 

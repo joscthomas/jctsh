@@ -8,6 +8,31 @@ Tucson, AZ | Joseph C Thomas
 | SmartThings Hub | Primary smart home controller — manages Zigbee, Z-Wave, and virtual switches |
 | Raspberry Pi 3B+ | JCTsh automation server — see [CLAUDE.md](./CLAUDE.md) for services, ports, and access |
 
+## Servers & Mini PCs
+| Device | Role | Location |
+|---|---|---|
+| GMKtec NucBox M8 | photo-server — Immich self-hosted photo library | Home network, wired to TP-Link AXE5400 |
+
+### GMKtec NucBox M8 — photo-server
+| Attribute | Value |
+|---|---|
+| Model | M8-5-33S |
+| Serial | MB261801199 |
+| CPU | AMD Ryzen 5 PRO 6650H, 6C/12T, up to 4.5GHz, Zen 3+ |
+| RAM | 16GB LPDDR5 6400MHz |
+| Storage (internal) | Netac G932EQN3 512GB NVMe SSD (OS, database, thumbnails) |
+| Storage (photo library) | External USB drive(s) — see photo-server component docs |
+| GPU | AMD Radeon 660M (AV1/HEVC/VP9 hardware decode) |
+| NIC 1 | Realtek Gaming 2.5GbE Family Controller |
+| NIC 2 | Realtek Gaming 2.5GbE Family Controller #2 |
+| WiFi | RZ616 Wi-Fi 6E 160MHz |
+| Ports | USB4 (40Gbps), OCuLink, USB 3.2 Gen2 ×3, HDMI 2.0, DisplayPort 1.4, 3.5mm audio |
+| OS | Windows 11 Pro (pre-installed; to be replaced with Debian Server or Proxmox) |
+| Windows license | BIOS-embedded OEM key — retrievable via PowerShell if needed |
+| Network | Wired 2.5GbE to TP-Link AXE5400 |
+| Primary role | Immich photo server; potential consolidation host for HA/Node-RED/MQTT |
+| Purchase date | 2026-07 (Amazon Prime Day) |
+
 ## Lighting & Power
 - Zigbee and Z-Wave switches and plug adapters throughout the home
 - Controls: lights, fans, and other loads via SmartThings

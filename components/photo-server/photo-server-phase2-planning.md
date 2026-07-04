@@ -24,12 +24,28 @@
 - Cooling: Dual-fan active with copper heat pipes
 - OS pre-installed: Windows 11 Pro (capture license key before wiping — see Pre-Build Actions)
 
-### USB Spinning HDD — On Hand
+### USB Storage — Both Drives Confirmed On Hand
 
-Dedicated USB spinning hard drive for Immich photo/video library.
-- **Capacity: to confirm** (estimated 500GB or 1TB — check when home)
-- Currently empty; dedicated entirely to Immich
-- 500GB is workable for the current ~300GB library; 1TB is strongly preferred for growth headroom
+Both drives are 2.5" bus-powered — no external power supplies required. Compact form factor suits the mini PC installation location.
+
+**Primary USB HDD — Immich photo/video library:**
+- Seagate Backup Plus Portable Drive, 1TB spinning HDD
+- P/N: 1KAAP1-501, S/N: NA7R2L3V, Model: SRD00F1
+- Bus-powered via USB — no external power supply
+- Currently empty; dedicated entirely to Immich photo/video library
+- Mounted at `/mnt/photo-library`
+
+**Backup USB HDD — local photo library backup:**
+- Seagate Momentus 640GB spinning HDD in Insignia NS-PCHD235 2.5" USB 3.0 enclosure
+- Drive S/N: 5WX1MLNF, P/N: 9RN134-030, WWN: 5000C5002EA01011, 5400 RPM
+- Bus-powered via USB — no external power supply
+- Mounted at `/mnt/photo-library-backup`
+
+**Spare drives (not deployed):**
+- Seagate Expansion 1TB (P/N: 9SF2A4-500, S/N: 2GHK8E60) — requires external power; spare
+- Western Digital 750GB (P/N: WD7500H1U-00, S/N: WCAU41533297) — spare
+
+**Backup capacity note:** The Momentus backup drive (640GB) is smaller than the Backup Plus primary (1TB). The current library (~300GB) fits comfortably. Monitor disk usage — flag when `/mnt/photo-library` approaches 550GB as the backup drive capacity limit is approaching. At that point, replace the backup drive with one of the spare 1TB drives or the future NVMe expansion.
 
 ### Future Storage Expansion Option (Not Required for Initial Build)
 
@@ -37,7 +53,7 @@ A second M.2 2280 NVMe SSD can be added to the empty internal slot at any time:
 - Form factor: M.2 2280 (22mm × 80mm)
 - Interface: PCIe NVMe only — SATA is not supported in this slot
 - Recommended capacity: 1TB or 2TB (~$60–100, reputable brands: Samsung 970/980, WD Black SN850, Crucial P3/P5, SK Hynix)
-- When added: active Immich photo library migrates from USB HDD to internal NVMe; USB HDD becomes local backup/overflow
+- When added: active Immich photo library migrates from Seagate Backup Plus to internal NVMe; USB HDDs become backup/overflow
 - Migration path: file copy to new mount point + Docker Compose volume path update; no Immich reinstallation
 - Heatsink: a low-profile M.2 stick-on heatsink ($5–10) is recommended due to sustained write load during initial migration
 - Installation: remove four bottom screws, seat the drive, replace cover
@@ -77,9 +93,11 @@ Save the output to a password manager or secure offline location.
 
 **If the command returns nothing or a generic key:** The license is an OEM digital license tied to the UEFI chip. It will reactivate automatically if Windows is ever reinstalled on this hardware. Note that a valid OEM license exists and the hardware is the activation proof. Either way, document the outcome before proceeding.
 
-### 2. Confirm USB HDD Capacity
+### 2. USB HDDs Confirmed — No Action Required
 
-Check the USB HDD capacity before beginning. Either 500GB or 1TB works; 1TB is strongly preferred. If 500GB is the only available drive, proceed — the current library (~300GB) fits with modest headroom.
+Both USB HDDs are confirmed on hand and empty:
+- Seagate Backup Plus 1TB → primary Immich library (`/mnt/photo-library`)
+- Seagate Momentus 640GB in Insignia enclosure → local backup (`/mnt/photo-library-backup`)
 
 ---
 
@@ -100,7 +118,7 @@ Check the USB HDD capacity before beginning. Either 500GB or 1TB works; 1TB is s
 
 ### Wired Ethernet
 
-The M8 connects via wired ethernet to the home router (or switch if needed). WiFi is available as a fallback only.
+The M8 connects via wired ethernet directly to a gigabit LAN port on the router. WiFi is available as a fallback only.
 
 ### IP and Hostname
 
@@ -114,7 +132,7 @@ The M8 connects via wired ethernet to the home router (or switch if needed). WiF
 After reserving the IP, record the entry in `jctsh-network.md`:
 
 ```
-| photo-server | [assigned IP] | photo-server.local | [MAC] | Immich photo server + photo-tv-display Node.js server |
+| photo-server | [assigned IP] | photo-server.local | [MAC] | Immich photo server + photo-tv-display Node.js server; wired gigabit direct to router, DHCP-reserved |
 ```
 
 ### Tailscale
@@ -168,17 +186,24 @@ Add to `/etc/docker/daemon.json`:
 | Mount point | Device | Contents |
 |---|---|---|
 | `/` (root filesystem) | Internal 512GB NVMe SSD | Ubuntu OS, Docker engine, Immich database, Immich ML models, Docker volumes |
-| `/mnt/photo-library` | USB spinning HDD | Immich photo and video library (uploaded files) |
+| `/mnt/photo-library` | Seagate Backup Plus 1TB USB HDD | Immich photo and video library (uploaded files) — primary |
+| `/mnt/photo-library-backup` | Seagate Momentus 640GB in Insignia enclosure | Local backup of photo library |
 
-### USB HDD Mount
+### USB HDD Mounts
 
-The USB HDD is mounted at `/mnt/photo-library` via `/etc/fstab` using the device UUID (not device name — device names like `/dev/sdb` can change between reboots; UUID is stable).
+Both USB HDDs are mounted via `/etc/fstab` using device UUIDs (not device names — device names like `/dev/sdb` can change between reboots; UUID is stable).
 
-Mount options: `defaults,nofail` — `nofail` ensures the system boots normally even if the USB HDD is disconnected.
+Mount options: `defaults,nofail` — `nofail` ensures the system boots normally even if a USB HDD is disconnected.
 
 ### Docker Compose Volume Mapping
 
-The Immich `UPLOAD_LOCATION` environment variable in the Immich `.env` file is set to `/mnt/photo-library`. This directs all uploaded and migrated photo files to the USB HDD while Immich's database and ML model cache remain in Docker-managed volumes on the internal SSD.
+The Immich `UPLOAD_LOCATION` environment variable in the Immich `.env` file is set to `/mnt/photo-library`. This directs all uploaded and migrated photo files to the Seagate Backup Plus 1TB HDD while Immich's database and ML model cache remain in Docker-managed volumes on the internal SSD.
+
+### Backup Strategy
+
+The Seagate Momentus 640GB at `/mnt/photo-library-backup` is used for periodic local backup of the Immich photo library. A simple `rsync` job (scheduled via cron, running weekly on Sunday at 2:00 AM) copies from `/mnt/photo-library` to `/mnt/photo-library-backup`.
+
+**Capacity monitoring:** The 640GB backup drive is smaller than the 1TB primary. Flag when `/mnt/photo-library` approaches 550GB — at that point the backup drive needs to be replaced with one of the spare 1TB drives or the NVMe expansion pursued.
 
 ### Future NVMe Expansion Migration Path
 
@@ -190,7 +215,7 @@ When a second internal NVMe SSD is added:
 5. Update `/etc/fstab` to mount new NVMe at `/mnt/photo-library`
 6. Unmount and update mount: `sudo umount /mnt/photo-library && sudo mount -a`
 7. Start Immich: `docker compose up -d`
-8. USB HDD repurposed as backup/overflow
+8. Seagate Backup Plus USB HDD repurposed as secondary backup or overflow
 
 No changes to Docker Compose or Immich configuration are required — the mount point path stays the same.
 
@@ -310,12 +335,12 @@ When `photo-tv-display` deletes a photo from Immich, the Node.js server writes a
 
 | Destination | Path / Location | Purpose |
 |---|---|---|
-| Local log file | `/mnt/photo-library/deletion-log.csv` | Primary record; on USB HDD alongside the library |
-| Google Sheets | Shared JCTsh Google Sheet (tab: `Photo Deletions`) | Review and manual Google Photos cleanup interface |
+| Local log file | `/mnt/photo-library/deletion-log.csv` | Primary record; on Seagate Backup Plus USB HDD alongside the library |
+| Google Sheets | Dedicated Google Sheet (separate from existing JCTsh environmental data sheet) | Review and manual Google Photos cleanup interface |
 
 **Log fields:** `timestamp`, `filename`, `date_taken`, `album_folder`, `immich_asset_id`, `deleted_by` (Joseph or Robin)
 
-**Google Sheets integration:** Append-only via Google Apps Script `doPost` endpoint or Google Sheets API from the Node.js server. Consistent with existing JCTsh pattern of using Sheets for data archiving.
+**Google Sheets integration:** Append-only via Google Apps Script `doPost` endpoint from the Node.js server. Consistent with existing JCTsh pattern of using Sheets for data archiving. A new, dedicated sheet is used — not the existing JCTsh environmental data sheet.
 
 **Google Photos deletion:** No API path exists (Google locked down the Photos Library API, April 2025). Manual deletion from Google Photos app using the log as a reference.
 
@@ -367,7 +392,7 @@ No ports are forwarded to the internet for the initial build.
 | `jctsh-network.md` | Add `photo-server` entry (IP, hostname, MAC, Tailscale IP) after first boot |
 | `README.md` | Add `photo-server` to the Components table |
 | Tailscale | Enroll M8 in existing JCTsh Tailscale account |
-| Google Sheets | Add `Photo Deletions` tab to existing JCTsh Google Sheet (or create new sheet) |
+| Google Sheets | Create new dedicated sheet for deletion log (separate from existing JCTsh environmental data sheet) |
 | DuckDNS | Future: add Immich routing for remote mobile sync |
 
 ### What Is Not Involved
@@ -388,23 +413,25 @@ Following JCTsh Build Standards §7, the completed component requires:
 |---|---|
 | `README.md` | What `photo-server` does, how to access it, service URLs, user accounts |
 | `docker-compose.yml` | Immich Docker Compose configuration (authoritative copy in repo) |
-| `.env` | Immich environment variables template (secrets gitignored; template committed) |
-| `setup.md` | Ubuntu installation, Docker setup, USB HDD mount, Immich installation procedure |
+| `.env.example` | Immich environment variables template (secrets gitignored; template committed) |
+| `setup.md` | Ubuntu installation, Docker setup, USB HDD mounts, Immich installation procedure |
 | `migration.md` | Google Takeout export, quality pass, immich-go import procedure |
 | `network.md` | IP reservation, mDNS hostname, Tailscale enrollment |
-| `operations.md` | Day-to-day administration, backup, Immich update procedure |
+| `operations.md` | Day-to-day administration, backup (rsync cron job), Immich update procedure, disk space monitoring |
 | `deletion-log-setup.md` | Local log file setup and Google Sheets integration for deletion logging |
+| `backup.md` | rsync backup script location, cron schedule, how to verify backup, capacity monitoring note for Momentus 640GB drive |
 
 ---
 
 ## Open Items Before Phase 3
 
-- [ ] Confirm USB HDD capacity (500GB or 1TB)
+- [x] USB HDD capacities confirmed — Seagate Backup Plus 1TB (primary), Seagate Momentus 640GB in Insignia enclosure (backup)
+- [x] Both HDDs confirmed spinning drives and bus-powered — storage architecture holds as planned
+- [x] Ethernet port confirmed — M8 connects direct to router gigabit LAN port; Pi and ST hub move to 10/100 switch
 - [ ] Capture Windows 11 Pro license key via PowerShell before wiping
 - [ ] Create Ubuntu bootable USB on Windows machine before wiping
-- [ ] Confirm ethernet port availability at router (or procure unmanaged switch if needed)
 - [ ] Download Balena Etcher or Rufus on Windows machine for USB boot drive creation
-- [ ] Determine Google Sheets destination for deletion log (existing JCTsh sheet new tab, or new sheet)
+- [ ] Create new dedicated Google Sheet for deletion log
 
 ---
 
@@ -413,6 +440,7 @@ Following JCTsh Build Standards §7, the completed component requires:
 | Enhancement | Notes |
 |---|---|
 | Second internal NVMe SSD | PCIe M.2 2280, 1–2TB; migration path defined above; heatsink recommended |
+| Backup drive upgrade | When primary library approaches 550GB, replace Momentus 640GB backup with a spare 1TB drive or pursue NVMe expansion |
 | Remote mobile sync | DuckDNS path already exists; Immich Android app remote config; deferred |
 | Automatic quality scoring | ML aesthetic scorer on M8 CPU; scores written as Immich tags; hook preserved |
 | Google Home voice trigger | Implemented in `photo-tv-display`, not `photo-server`; noted for cross-reference |

@@ -26,10 +26,11 @@ This component has no relationship to the ESP32/MQTT/Node-RED ecosystem. Most of
 These must be confirmed complete before Step 1. If any are not yet done, stop and report back rather than proceeding.
 
 - [ ] Windows 11 Pro product key captured via PowerShell (or confirmed as OEM digital license) and saved securely
-- [ ] USB HDD capacity confirmed (500GB or 1TB)
-- [ ] USB HDD confirmed empty and dedicated to this project
+- [ ] Both USB HDDs confirmed empty and available:
+  - Seagate Backup Plus 1TB (P/N: 1KAAP1-501) — primary Immich library
+  - Seagate Momentus 640GB in Insignia enclosure (P/N: 9RN134-030) — local backup
 - [ ] Ubuntu Server LTS bootable USB created on the Windows machine
-- [ ] Ethernet port confirmed available at router (or switch procured)
+- [ ] M8 connected via wired ethernet directly to a gigabit LAN port on the router
 
 ---
 
@@ -68,7 +69,7 @@ sudo apt install -y avahi-daemon
 3. **Report the IP and MAC to Joseph** — he will reserve this IP on the router. Do not proceed to reserve it yourself; this is a router-side action outside Claude Code's scope.
 4. Once Joseph confirms the IP reservation, update `jctsh-network.md` (repo root) with a new row:
    ```
-   | photo-server | <reserved IP> | photo-server.local | <MAC> | Immich photo server + photo-tv-display Node.js server; wired, DHCP-reserved |
+   | photo-server | <reserved IP> | photo-server.local | <MAC> | Immich photo server + photo-tv-display Node.js server; wired gigabit direct to router, DHCP-reserved |
    ```
 
 ---
@@ -95,41 +96,73 @@ sudo apt install -y avahi-daemon
 
 ---
 
-## Step 4 — Mount the USB HDD
+## Step 4 — Mount the USB HDDs
 
-1. Connect the USB HDD to the M8
-2. Identify the device:
+Two USB HDDs are mounted: Seagate Backup Plus 1TB (primary library) and Seagate Momentus 640GB in Insignia enclosure (local backup). Both are bus-powered 2.5" drives.
+
+### 4a — Connect and Identify Both Drives
+
+1. Connect both USB HDDs to the M8
+2. Identify the devices:
    ```bash
    lsblk
    ```
-3. If the drive needs formatting (confirm with Joseph first if any doubt about existing data — it should be empty per Phase 1/2 planning):
-   ```bash
-   sudo mkfs.ext4 /dev/sdX1
-   ```
-   Replace `sdX1` with the actual partition identifier from `lsblk`. **Do not run this without confirming the correct device** — formatting the wrong drive is destructive and irreversible.
-4. Get the UUID:
-   ```bash
-   sudo blkid /dev/sdX1
-   ```
-5. Create the mount point:
-   ```bash
-   sudo mkdir -p /mnt/photo-library
-   ```
-6. Add to `/etc/fstab` using the UUID (not the device name):
-   ```
-   UUID=<uuid-here>  /mnt/photo-library  ext4  defaults,nofail  0  2
-   ```
-7. Mount and verify:
-   ```bash
-   sudo mount -a
-   df -h /mnt/photo-library
-   ```
-8. Set ownership appropriately for the user that will run Docker (typically the installing user, added to the `docker` group in Step 5):
-   ```bash
-   sudo chown -R $USER:$USER /mnt/photo-library
-   ```
+3. Note which device identifier (`/dev/sdX`) corresponds to each drive. The 1TB Backup Plus and 640GB Momentus can be distinguished by size in the `lsblk` output.
 
-**Report back:** Confirm mount point is active and `nofail` is set (verify the system would still boot if the drive were disconnected — this can be tested by temporarily commenting the fstab line and rebooting, then restoring it, if Joseph wants this validated).
+### 4b — Format Both Drives
+
+**Confirm the correct device identifiers with Joseph before running mkfs on either drive — formatting the wrong drive is destructive and irreversible.**
+
+Format the Seagate Backup Plus 1TB:
+```bash
+sudo mkfs.ext4 /dev/sdX1   # replace sdX1 with Backup Plus device partition
+```
+
+Format the Seagate Momentus 640GB:
+```bash
+sudo mkfs.ext4 /dev/sdY1   # replace sdY1 with Momentus device partition
+```
+
+### 4c — Get UUIDs
+
+```bash
+sudo blkid /dev/sdX1   # Backup Plus 1TB
+sudo blkid /dev/sdY1   # Momentus 640GB
+```
+
+Record both UUIDs.
+
+### 4d — Create Mount Points
+
+```bash
+sudo mkdir -p /mnt/photo-library
+sudo mkdir -p /mnt/photo-library-backup
+```
+
+### 4e — Add to /etc/fstab
+
+Add both entries using UUIDs (not device names):
+```
+UUID=<backup-plus-uuid>  /mnt/photo-library         ext4  defaults,nofail  0  2
+UUID=<momentus-uuid>     /mnt/photo-library-backup   ext4  defaults,nofail  0  2
+```
+
+### 4f — Mount and Verify
+
+```bash
+sudo mount -a
+df -h /mnt/photo-library
+df -h /mnt/photo-library-backup
+```
+
+### 4g — Set Ownership
+
+```bash
+sudo chown -R $USER:$USER /mnt/photo-library
+sudo chown -R $USER:$USER /mnt/photo-library-backup
+```
+
+**Report back:** Confirm both mount points are active and `nofail` is set for each.
 
 ---
 
@@ -185,7 +218,7 @@ sudo apt install -y avahi-daemon
    ```
 3. Edit `.env`:
    - Set `UPLOAD_LOCATION=/mnt/photo-library`
-   - Set `DB_DATA_LOCATION` to a path on the internal SSD (default Docker-managed volume location is acceptable — do not redirect this to the USB HDD)
+   - Set `DB_DATA_LOCATION` to a path on the internal SSD (default Docker-managed volume location is acceptable — do not redirect this to either USB HDD)
    - Set `TZ=America/Phoenix`
    - Set a strong `DB_PASSWORD` (generate randomly, do not commit to repo)
 4. Start Immich:
@@ -222,7 +255,33 @@ sudo apt install -y avahi-daemon
 
 ---
 
-## Step 9 — Install Immich Android App (Both Phones)
+## Step 9 — Set Up Backup (rsync cron job)
+
+Set up a weekly rsync job to back up the Immich photo library from the Seagate Backup Plus 1TB to the Seagate Momentus 640GB:
+
+1. Create a backup script:
+   ```bash
+   sudo tee /usr/local/bin/photo-library-backup.sh > /dev/null <<'EOF'
+   #!/bin/bash
+   rsync -av --delete /mnt/photo-library/ /mnt/photo-library-backup/
+   EOF
+   sudo chmod +x /usr/local/bin/photo-library-backup.sh
+   ```
+2. Add a weekly cron job (runs Sunday at 2:00 AM):
+   ```bash
+   (crontab -l 2>/dev/null; echo "0 2 * * 0 /usr/local/bin/photo-library-backup.sh >> /var/log/photo-library-backup.log 2>&1") | crontab -
+   ```
+3. Run the script once manually to verify it works:
+   ```bash
+   /usr/local/bin/photo-library-backup.sh
+   ```
+4. Confirm files appear at `/mnt/photo-library-backup/`
+
+**Capacity monitoring:** The Momentus 640GB backup drive is smaller than the 1TB primary. Flag to Joseph when `/mnt/photo-library` approaches 550GB — at that point the backup drive needs to be replaced with one of the spare 1TB drives (Seagate Expansion or WD 750GB is not large enough — use the Seagate Backup Plus spare or pursue the NVMe expansion).
+
+---
+
+## Step 10 — Install Immich Android App (Both Phones)
 
 This step is performed by Joseph and Robin directly on their phones, not by Claude Code. Document the configuration values needed:
 
@@ -236,18 +295,18 @@ This step is performed by Joseph and Robin directly on their phones, not by Clau
 
 ---
 
-## Step 10 — Photo Migration Preparation
+## Step 11 — Photo Migration Preparation
 
 This step involves manual actions by Joseph (Google Takeout export, quality pass) before Claude Code resumes with the import.
 
 1. Joseph exports Google Takeout for both accounts (Google Photos only, ZIP format, max chunk size) and transfers the ZIP files to the M8 via SCP or a shared folder
 2. Joseph performs the manual quality pass — moving low-quality candidates (blurry, accidental, duplicate, screenshot) into an `_archive` subfolder within the extracted Takeout structure, per the quality pass method documented in `photo-server-phase2-planning.md`
 
-**Claude Code does not perform the quality review** — this requires human judgment about photo content and is explicitly a manual step. Wait for Joseph's confirmation that the quality pass is complete before proceeding to Step 11.
+**Claude Code does not perform the quality review** — this requires human judgment about photo content and is explicitly a manual step. Wait for Joseph's confirmation that the quality pass is complete before proceeding to Step 12.
 
 ---
 
-## Step 11 — Install immich-go and Run Migration
+## Step 12 — Install immich-go and Run Migration
 
 1. Download immich-go (current release at build time):
    ```bash
@@ -281,13 +340,13 @@ This step involves manual actions by Joseph (Google Takeout export, quality pass
 
 ---
 
-## Step 12 — Name Recognized Faces
+## Step 13 — Name Recognized Faces
 
 This is a manual step performed by Joseph and Robin in the Immich web UI after facial recognition ML processing completes (may take several hours after import for 75K photos). Not a Claude Code action — note in the build log when ML processing has finished and faces are ready for naming.
 
 ---
 
-## Step 13 — Set Up Deletion Logging
+## Step 14 — Set Up Deletion Logging
 
 1. Create the local log file:
    ```bash
@@ -300,7 +359,7 @@ This is a manual step performed by Joseph and Robin in the Immich web UI after f
 
 ---
 
-## Step 14 — Install Node.js (Preparation for photo-tv-display)
+## Step 15 — Install Node.js (Preparation for photo-tv-display)
 
 `photo-tv-display` runs on this same machine. Install Node.js now so it's ready when that component's build begins:
 
@@ -319,7 +378,7 @@ No further `photo-tv-display` setup happens in this build — that is a separate
 
 ---
 
-## Step 15 — Documentation
+## Step 16 — Documentation
 
 Per `JCTsh-Build-Standards.md` §7, create the following in `components/photo-server/`:
 
@@ -331,34 +390,41 @@ Per `JCTsh-Build-Standards.md` §7, create the following in `components/photo-se
 | `setup.md` | This build's actual steps as executed — capture any deviations from this instruction set |
 | `migration.md` | Actual migration steps performed, including final photo counts and any errors encountered |
 | `network.md` | Final IP, hostname, MAC, Tailscale IP — cross-reference with `jctsh-network.md` |
-| `operations.md` | How to check Immich is running, restart it, update it, check disk space on the USB HDD |
+| `operations.md` | How to check Immich is running, restart it, update it, check disk space on both USB HDDs, verify backup cron job is running |
 | `deletion-log-setup.md` | Apps Script source, Sheet ID (not the script's deployed URL/key — store that as a credential), local log file location |
+| `backup.md` | rsync backup script location, cron schedule, how to verify backup, capacity monitoring note for Momentus 640GB drive (flag at 550GB) |
 
 Add `.env`, any API keys, and the Apps Script deployment URL/key to the gitignored credentials file per existing JCTsh convention — do not commit secrets.
 
 ---
 
-## Step 16 — Update Repo-Wide Files
+## Step 17 — Update Repo-Wide Files
 
 1. Add `photo-server` to the Components table in root `README.md`:
    ```
    | [photo-server](components/photo-server/) | Self-hosted Immich photo/video library on dedicated mini PC | Production |
    ```
 2. Confirm `jctsh-network.md` has been updated (Steps 2 and 3)
-3. Add an entry to `jctsh-parts-inventory.md` inventory update log noting the GMKtec M8 and USB HDD are now allocated/deployed (even though neither came from the tracked parts inventory, this maintains a complete record):
+3. Add an entry to `jctsh-parts-inventory.md` inventory update log noting the hardware deployed:
    ```
-   | <date> | photo-server | GMKtec M8 mini PC deployed (Immich server); USB HDD deployed (photo library storage) |
+   | <date> | photo-server | GMKtec M8 mini PC deployed (Immich server); Seagate Backup Plus 1TB USB HDD deployed (primary photo library); Seagate Momentus 640GB in Insignia enclosure deployed (local backup) |
+   ```
+   Also note spares not deployed:
+   ```
+   | <date> | photo-server | Spares on hand: Seagate Expansion 1TB (P/N 9SF2A4-500), WD 750GB (P/N WD7500H1U-00) |
    ```
 
 ---
 
-## Step 17 — Harvest Step (Per Build Standards)
+## Step 18 — Harvest Step (Per Build Standards)
 
 Per `JCTsh-Build-Standards.md`, propose any new patterns discovered during this build back to `JCTsh-Build-Standards.md`. Likely candidates based on this component's novelty relative to existing JCTsh components:
 
 - A new section for non-ESP32 / Docker-based component standards (this is the first component of this type)
 - Documentation of the DNS-pinning Docker daemon pattern as a now-twice-applied standard (originally HA, now also Immich)
-- Any USB storage mount pattern worth generalizing for future components
+- UUID-based USB HDD mount with `nofail` as a standard pattern for any future components with attached storage
+- rsync cron backup pattern for local USB HDD backup
+- Bus-powered USB HDD preference for compact installations (no external power supply)
 
 Present these as proposed additions for Joseph's review — do not edit `JCTsh-Build-Standards.md` directly without confirmation, since it is a monorepo-wide standards file affecting all components.
 
@@ -366,8 +432,10 @@ Present these as proposed additions for Joseph's review — do not edit `JCTsh-B
 
 ## Known Risks and Things to Watch For
 
-- **Formatting the wrong drive in Step 4** — verify device identifier carefully before running `mkfs`
+- **Formatting the wrong drive in Step 4** — verify device identifiers carefully and confirm with Joseph before running `mkfs` on either drive
+- **Momentus 640GB backup capacity** — smaller than the 1TB primary; monitor and flag when `/mnt/photo-library` approaches 550GB; replacement spare is the Seagate Expansion 1TB (note: it requires external power, unlike the currently deployed bus-powered drives)
 - **ML processing time** — facial recognition and smart search indexing for 75K photos will take hours; this is normal, not a hang
 - **immich-go version drift** — the exact command syntax may change between releases; consult `immich-go --help` if the documented command fails
 - **Immich `docker-compose.yml` drift** — the official file changes between releases; if the downloaded file differs significantly from what's described in Phase 2 planning, follow the current official documentation over this instruction set's specifics, and note the discrepancy in `setup.md`
 - **DNS pinning is required, not optional** — skipping Step 5.3 risks a repeat of the June 2026 HA outage pattern if the container is recreated later with a stale DNS baked in
+- **Seagate Backup Plus was formatted for Mac (HFS+)** — reformatting to ext4 in Step 4b is required and expected; no data loss concern since the drive is empty

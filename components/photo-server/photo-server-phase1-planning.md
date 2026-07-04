@@ -40,18 +40,38 @@ Before installing Ubuntu, capture the Windows 11 Pro product key. Run the follow
 Save the output to a password manager or secure location. If the command returns nothing or a generic key, the license is an OEM digital license tied to the UEFI chip — it will reactivate automatically if Windows is ever reinstalled on this hardware. In that case, note that a valid OEM license exists and the hardware is the activation proof. Either way, document the outcome before proceeding with Ubuntu installation.
 
 ### Storage Architecture
-Storage is split between the internal SSD and a dedicated external USB spinning HDD:
+Storage is split between the internal SSD and two bus-powered USB spinning HDDs — no external power supplies required:
 
 | Role | Device | Rationale |
 |---|---|---|
 | OS, Docker, Immich database, ML models | Internal 512GB NVMe SSD | Fast random I/O required for database and ML |
-| Immich photo/video library | Dedicated USB spinning HDD | Bulk sequential storage; spinning drive adequate |
+| Immich photo/video library (primary) | Seagate Backup Plus 1TB USB HDD | Bus-powered, compact 2.5" form factor, newer drive |
+| Local backup of photo library | Seagate Momentus 640GB in Insignia enclosure | Bus-powered, compact 2.5" form factor |
 
-**USB HDD capacity:** To be confirmed (estimated 500GB or 1TB). Either is workable; 1TB is preferred for growth headroom. The HDD is currently empty and will be dedicated entirely to Immich.
+**Primary USB HDD — confirmed on hand:**
+- **Seagate Backup Plus Portable Drive, 1TB spinning HDD**
+- P/N: 1KAAP1-501, S/N: NA7R2L3V
+- Model: SRD00F1
+- Bus-powered via USB — no external power supply required
+- 2.5" compact form factor
+- Currently empty; dedicated entirely to Immich photo/video library
+
+**Backup USB HDD — confirmed on hand:**
+- **Seagate Momentus 640GB spinning HDD in Insignia NS-PCHD235 2.5" USB 3.0 enclosure**
+- Drive S/N: 5WX1MLNF, P/N: 9RN134-030, WWN: 5000C5002EA01011, 5400 RPM
+- Bus-powered via USB — no external power supply required
+- 2.5" compact form factor
+- Repurposed as local backup of the Immich photo library
+
+**Spare drives (not deployed):**
+- Seagate Expansion 1TB (P/N: 9SF2A4-500, S/N: 2GHK8E60) — requires external power; spare
+- Western Digital 750GB (P/N: WD7500H1U-00, S/N: WCAU41533297) — spare
+
+**Backup capacity note:** The Momentus backup drive (640GB) is smaller than the primary (1TB). The current library (~300GB) fits comfortably. Monitor disk usage — flag when `/mnt/photo-library` approaches 550GB as the backup drive capacity limit is approaching.
 
 **Future storage expansion option:** The empty second M.2 2280 slot supports an additional NVMe SSD (PCIe only — SATA not supported). A 1TB or 2TB NVMe (~$60–100, reputable brands: Samsung, WD Black, Crucial, SK Hynix) can be added at any time by removing the four bottom screws and seating the drive. When added:
-- The active Immich photo library migrates from USB HDD to the internal NVMe
-- USB HDD becomes a local backup/overflow drive
+- The active Immich photo library migrates from Seagate Backup Plus to the internal NVMe
+- USB HDDs become backup/overflow drives
 - Migration requires only a file copy and Docker Compose volume path update — no Immich reinstallation
 - A low-profile M.2 heatsink ($5–10) is recommended when adding the SSD due to sustained write loads during migration
 
@@ -152,7 +172,7 @@ When a photo is deleted from Immich via `photo-tv-display`, the deletion is logg
 | Log destination | Purpose |
 |---|---|
 | Local log file on mini PC | Primary record; persistent even without network |
-| Google Sheets (via Apps Script or Sheets API) | Review and action interface; accessible from any device |
+| Google Sheets (via Apps Script doPost) | Review and action interface; accessible from any device |
 
 **Log fields per deletion:** original filename, date taken, folder/album name, Immich asset ID, deletion timestamp, deleting user (Joseph or Robin).
 
@@ -167,7 +187,7 @@ When a photo is deleted from Immich via `photo-tv-display`, the deletion is logg
 - Fetch photo assets (with filter support: favorites, albums, people, date range, semantic search, owner)
 - Fetch photo metadata (date, GPS/location, recognized faces, folder/album, owner, description)
 - Write actions: favorite/unfavorite, delete, add to existing album, create new album and add
-- Reverse geocoding: GPS coordinates → human-readable place name (handled by Immich or Node.js layer — to be determined in Phase 3)
+- Reverse geocoding: GPS coordinates → human-readable place name (handled by Immich built-in — confirmed in Phase 2)
 
 The `photo-server` component has no direct knowledge of `photo-tv-display` — the API is the contract between them.
 
@@ -203,13 +223,15 @@ The following are handled by `photo-tv-display` or deferred:
 - **Storage split is required:** Immich database and ML models must reside on fast SSD storage. Spinning USB HDD is appropriate for the photo library but not for database or ML cache.
 - **RAM is soldered:** 16GB is fixed. Confirmed sufficient for Immich ML workloads.
 - **M.2 slots are PCIe only:** SATA drives are not compatible with the M8's M.2 slots.
+- **Bus-powered drives selected:** Both USB HDDs are 2.5" bus-powered — no external power supplies required, keeping the installation clean and compact.
 
 ---
 
 ## Open Items Before Phase 2
 
-- [ ] Confirm USB HDD capacity (500GB or 1TB)
-- [ ] Confirm USB HDD is spinning HDD (not SSD) — already assumed in storage architecture
+All open items resolved:
+- [x] USB HDD confirmed: Seagate Backup Plus 1TB (primary); Seagate Momentus 640GB in Insignia enclosure (backup)
+- [x] Both HDDs confirmed spinning drives and bus-powered — storage architecture holds as planned
 
 ---
 
@@ -222,7 +244,6 @@ Before beginning Phase 2 hardware selection, load:
 - `JCTsh-Build-Standards.md` (repo root)
 - `jctsh-network.md` (repo root)
 - `JCTsh-Parts-Inventory.md` (repo root)
-- All existing component READMEs
 
 Phase 2 will confirm: OS installation approach, Docker Compose configuration, Immich version, immich-go version, network hostname and IP assignment, and any on-hand parts applicable to this build.
 

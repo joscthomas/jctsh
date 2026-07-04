@@ -1,8 +1,8 @@
 # JCTsh Bedside Clock — Phase 2 Hardware Selection
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Phase 2 planning document for the bedside-clock component — on-hand parts inventory scan, confirmed bill of materials, and enclosure decision.
-**Version:** 1.2
-**Version description:** Updated Next Step note to reflect the Phase 1 v1.2 architecture revision — BLE time sync was superseded by DS3231-as-sole-time-source plus long-press WiFi/NTP resync for timezone changes only. No BOM impact (same ESP32, no new hardware required for WiFi vs. BLE).
+**Version:** 1.3
+**Version description:** Applied JCTsh-Build-Standards.md §2.14 (Battery-Powered Component Safety Standards) — added compliance table, corrected stale spare-battery count (1 remaining, not 2, after the hiking-monitor battery swap), flagged firmware low-battery cutoff as a required Phase 4 deliverable, and raised the boost-vs-direct-LDO architecture (§2.14 point 7) as an open decision for Joseph.
 **Related files:** bedside-clock-planning.md (Phase 1)
 
 ---
@@ -14,7 +14,7 @@ Per the planning pattern, `JCTsh-Parts-Inventory.md` was scanned before any purc
 | Needed | On hand? | Inventory entry |
 |---|---|---|
 | ESP32 DevKitC-32 | Yes — 2 remaining | Bag 1 (hiBCTR 6-pack) |
-| EEMB 603449 LiPo, 1100mAh | Yes — 2 remaining | Bag 7 |
+| EEMB 603449 LiPo, 1100mAh | Yes — **2 remaining** (physically recounted 2026-07-03 after the hiking-monitor battery swap — trust this count over prior inventory-doc arithmetic) | Bag 7 |
 | TP4056 charge module | Yes — 4 remaining | Bag 8 |
 | Boost converter (3.7V → 5V) | Not separately needed | TP4056 module (Bag 8) has integrated step-up; confirmed sufficient on its own — no additional boost module was required for the hiking-sensor build, and the same applies here |
 | Momentary pushbutton (PCB-mount) | Yes | Plastic Box, QTEATAK 6×6mm micro momentary tact assortment |
@@ -54,6 +54,22 @@ The 1.3" size in 128×64 resolution is dominated by the **SH1106** driver chip i
 **Selected:** Hosyond 5 Pcs 1.3" IIC I2C OLED Display Module, SH1106, white — Amazon ASIN B0C3L7N917.
 
 **I²C address compatibility confirmed:** OLED defaults to 0x3C; DS3231 sits at a fixed 0x68 (with companion EEPROM, if present, at 0x57). No address conflict — both share the ESP32's I²C bus without remapping.
+
+---
+
+## Battery Safety Standards Compliance (JCTsh-Build-Standards.md §2.14)
+
+Bedside-clock uses the same EEMB 603449 LiPo + TP4056 charge/boost combo as hiking-monitor, whose original battery failed in the field (2026-07-03) with no advance warning — the incident that produced §2.14. Since bedside-clock hasn't been built yet, these can be designed in from the start rather than retrofitted:
+
+| §2.14 requirement | Status for bedside-clock |
+|---|---|
+| 1. PCM-protected cell | **Satisfied.** EEMB 603449 confirmed PCM-protected (overcharge/over-discharge/overcurrent/short-circuit) and UN 38.3 compliant — same cell, same confirmation as hiking-monitor. |
+| 2. Firmware low-battery cutoff | **Not yet designed — required for Phase 4.** The Claude Code instruction set must include a `battery_v`-watching cutoff (3.4V threshold) forcing safe shutdown, following the hiking-monitor pattern (`components/hiking-sensor/hiking-sensor.yaml`, `low_battery_shutdown` script), adapted for the OLED display instead of e-ink (OLED does not hold a frame with power removed, so the "recharge now" warning strategy needs rethinking for this display type — likely just show it briefly then power down, rather than relying on a persistent held frame). |
+| 3. Charging safety (fireproof bag, no unattended charging, never charge a damaged cell) | Operational practice — applies regardless of hardware, carries forward automatically. |
+| 4. Storage (40-60% charge for spares) | Applies to the 1 remaining spare EEMB cell in Bag 7 shared between projects. |
+| 5. Disposal | Applies if/when this cell is ever retired. |
+| 6. Connector polarity verification | **Required at wiring/perfboard step (Phase 5+)** — verify with multimeter before first connection, do not assume color convention. |
+| 7. Prefer direct LiPo-to-LDO over boost-then-buck (recommended default, not mandatory) | **Decided (2026-07-03): keep the on-hand TP4056+boost module.** No new parts needed — uses existing Bag 8 stock, matches the hiking-monitor pattern. Bedside-clock spends most of its time on a shelf near USB power (only battery-powered when moved to the bed during travel/storage), so the over-discharge risk that motivated point 7 for the hiking-monitor is lower here. |
 
 ---
 
@@ -97,4 +113,4 @@ None remaining. Panel-mount pushbutton selected and ordered (Twidec PBS-33B-BK-X
 
 ## Next Step
 
-Phase 2 is fully complete — all BOM items are either on hand or ordered. Phase 3 (Architecture and Integration Design) has also been completed in conversation, though its original "zero network footprint" framing was subsequently revised in Phase 1 doc v1.2: the originally planned BLE time sync from Joseph's phone was found not viable (stock Android does not run a CTS server), and was replaced with the DS3231 serving as the sole continuous time source, corrected only via an occasional long-press-triggered WiFi hotspot + NTP resync when crossing time zones. Bedside-clock still carries no MQTT, no SmartThings, and no watchdog registration — but is not literally zero-network, as originally stated. No BOM changes result from this — same ESP32 handles WiFi natively. Proceed to Phase 4 — production of the Claude Code instruction set — accounting for the two distinct firmware wake paths (short-press glance, long-press resync).
+Phase 2 is fully complete — all BOM items are either on hand or ordered. Phase 3 (Architecture and Integration Design) has also been completed in conversation, though its original "zero network footprint" framing was subsequently revised in Phase 1 doc v1.2: the originally planned BLE time sync from Joseph's phone was found not viable (stock Android does not run a CTS server), and was replaced with the DS3231 serving as the sole continuous time source, corrected only via an occasional long-press-triggered WiFi hotspot + NTP resync when crossing time zones. Bedside-clock still carries no MQTT, no SmartThings, and no watchdog registration — but is not literally zero-network, as originally stated. No BOM changes result from this — same ESP32 handles WiFi natively. Proceed to Phase 4 — production of the Claude Code instruction set — accounting for the two distinct firmware wake paths (short-press glance, long-press resync), the SH1106-vs-SSD1306 driver distinction, and the JCTsh-Build-Standards.md §2.14 battery safety requirements (see table above) — the firmware low-battery cutoff is a required deliverable of Phase 4, not deferred.

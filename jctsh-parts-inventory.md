@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.5
-**Version description:** Allocated SparkFun SEN-23715 (Sensirion SEN54) to air-quality-monitor project.
+**Version:** 2.7
+**Version description:** Corrected EEMB LiPo (Bag 7) remaining count to 2 via physical recount after the hiking-monitor battery swap (2026-07-03). Added LiPo Fireproof Charging Bag (ordered) per JCTsh-Build-Standards.md §2.14.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -26,6 +26,14 @@
 Open standoff mount is the default first option for ESP32 and small PCB projects. No enclosure panels. The perfboard (or dev board) is mounted vertically using M3 brass male-female standoffs, which space the board away from the mounting surface for cable clearance and serve as the attachment points. This approach suits the workshop environment, is inexpensive, reusable across projects, and keeps components accessible.
 
 An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) may be added as a future enhancement if dust accumulation becomes an issue. A full enclosure box (e.g., project box) is reserved for components that require weather resistance or a finished appearance outside the workshop.
+
+---
+
+## Servers & Mini PCs
+
+| Component | Description | Qty | Location | Notes |
+|---|---|---|---|---|
+| GMKtec NucBox M8 | AMD Ryzen 5 PRO 6650H (6C/12T, 4.5GHz), 16GB LPDDR5, Netac 512GB NVMe SSD, dual Realtek 2.5GbE, RZ616 Wi-Fi 6E, USB4, OCuLink. Model: M8-5-33S. Serial: MB261801199. Windows 11 Pro OEM (BIOS-embedded key: QXNC8-CBB7V-2FMDW-FVXX7-XD8GG). Purchased 2026-07 Amazon Prime Day. | 1 | Shelf | Allocated: photo-server. OS to be replaced with Ubuntu Server LTS (per photo-server-claude-code-instructions.md Step 1). |
 
 ---
 
@@ -71,11 +79,12 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 18650 Battery Charger Module + Holder | AEDIKO 5-pack (charger + holder pairs), fast charge boost, PCB protection | 10 | Bag 4 | No project assigned. |
 | EVE 3.3V 18650 Cell | 18650BatteryStore.com, 3200mAh, 10A, flat top | 5 | Bag 5 | No project assigned. |
 | Mini Solar Panel | SUNYIMA, 5.5V 80mA, 2.36"×2.36", DIY photovoltaic | 10 | Bag 6 | No project assigned. |
-| LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 3 | Bag 7 | 1 used: hiking-sensor. |
+| LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 3 | Bag 7 | 1 in service: hiking-sensor. Hiking-sensor's original cell failed in the field (2026-07-03) and was replaced from this stock — physical recount confirmed 2 still remaining in Bag 7 afterward; trust this physical count over prior used/remaining math. |
 | TP4056 Battery Charger Modules | USB TP4056, 3.7V–4.2V to 9V/5V, 2A, charge/discharge integrated step-up. https://www.amazon.com/dp/B098989NRZ | 5 | Bag 8 | 1 used: hiking-sensor. |
 | DC Buck Converter 12V→5V 3A | 2pcs, 15W, USB-C output, compatible with Raspberry Pi 4. https://www.amazon.com/dp/B0CMZWN7WS | 2 | Bag 21 | No project assigned. |
 | Power Supply Module 3.3V/5V | HiLetgo, dual output 3.3V and 5V, breadboard-compatible. | 5 | Music Response bin | No project assigned. |
 | 9V Battery Clips I-Type DC Plug | HiLetgo, I-type DC barrel connector. | 10 | Music Response bin | No project assigned. |
+| LiPo Fireproof Charging Bag | Silicone-coated fiberglass, for safe LiPo charging/storage per JCTsh-Build-Standards.md §2.14. | 1 | Ordered (2026-07-03) | Required practice for all LiPo charging going forward — not project-specific. |
 
 ---
 
@@ -172,6 +181,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Solder Sucker | Desoldering pump | Bench | |
 | iCrimp SN-28B Dupont Crimping Tool | AWG 18–28, 2.54mm/2.5mm/3.96mm pitch, JST XH/VH and Dupont connectors. https://www.amazon.com/dp/B00OMM4YUY | Shelf | Use with Taiss Dupont connector kit. |
 | TP88A Piercing Needle Test Probes | Non-destructive multimeter test probes, piercing needle tip. https://www.amazon.com/dp/B01LYVHFDK | Shelf | For probing insulated wires without stripping. |
+| USB C Power Meter Tester | Multimeter 4.5-50V 0-12A two-way measurement, gravity sensor, voltage/current/capacity/amp/volt readout, for chargers/power banks/cables. https://www.amazon.com/dp/B0D9QH4C7S | Shelf | |
 
 ---
 
@@ -216,3 +226,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-07-01 | Stock | DS3231 RTC module ×5 added (Sensors, Bag 28); 1 allocated: bedside-clock |
 | 2026-07-01 | Stock | SH1106 OLED display 1.3" ×5 added (Displays, Bag 29); 1 allocated: bedside-clock |
 | 2026-07-01 | air-quality-monitor | SparkFun SEN-23715 (Sensirion SEN54, Plastic Box) allocated to air-quality-monitor project |
+| 2026-07-02 | photo-server | GMKtec NucBox M8 ×1 added (Servers & Mini PCs, Shelf); allocated: photo-server |

@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 620" font-family="Arial, sans-serif">
+  <!-- Background -->
+  <rect x="0" y="0" width="620" height="620" fill="white"/>
+
+  <title>Hiking-monitor bottom shell — top-down floor plan (not to precise CAD scale, for orientation only)</title>
+
+  <!-- Enlarged shell outline (accounts for LTR-390 overhang at top-right corner) -->
+  <rect x="70" y="55" width="300" height="400" fill="none" stroke="#333" stroke-width="3"/>
+  <text x="220" y="40" text-anchor="middle" font-size="14" fill="#333">BOTTOM SHELL outline (enlarged for LTR-390 overhang)</text>
+
+  <!-- Perfboard rectangle: 50mm x 70mm, drawn at 5px/mm, positioned with extra room at top-right for overhang -->
+  <rect x="95" y="80" width="250" height="350" fill="#eafaf1" stroke="#2e7d32" stroke-width="2"/>
+  <text x="220" y="450" text-anchor="middle" font-size="13" fill="#2e7d32">Main perfboard (50mm x 70mm)</text>
+
+  <!-- Extra corner space callout for LTR-390 overhang -->
+  <path d="M 345 80 L 370 55" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="378" y="60" font-size="11" fill="#c0392b">extra room for</text>
+  <text x="378" y="73" font-size="11" fill="#c0392b">LTR-390 overhang</text>
+
+  <!-- ESP32 approximate outline, oriented long-ways, USB-C toward bottom short edge -->
+  <rect x="150" y="330" width="140" height="90" fill="#dcdde1" stroke="#555" stroke-width="1.5"/>
+  <text x="220" y="380" text-anchor="middle" font-size="12" fill="#333">ESP32</text>
+  <text x="220" y="395" text-anchor="middle" font-size="10" fill="#555">(approximate position)</text>
+
+  <!-- USB-C port arrow pointing out the bottom short edge -->
+  <rect x="200" y="420" width="40" height="12" fill="#555"/>
+  <text x="220" y="446" text-anchor="middle" font-size="11" fill="#333">USB-C port</text>
+
+  <!-- Bottom short edge label -->
+  <text x="220" y="480" text-anchor="middle" font-size="13" font-weight="bold" fill="#000">BOTTOM SHORT EDGE — "USB-C down" reference used throughout measurements</text>
+
+  <!-- Top short edge label -->
+  <text x="220" y="30" text-anchor="middle" font-size="12" fill="#555">TOP short edge</text>
+
+  <!-- LTR-390 marker: 4mm from right (long) edge, 11.5mm from top (short) edge -->
+  <circle cx="325" cy="137.5" r="9" fill="#f39c12" stroke="#333" stroke-width="1"/>
+  <text x="325" y="141" text-anchor="middle" font-size="9" fill="#000">UV</text>
+  <line x1="345" y1="137.5" x2="325" y2="137.5" stroke="#c0392b" stroke-width="1"/>
+  <text x="360" y="141" font-size="11" fill="#c0392b">4mm from long (right) edge</text>
+  <line x1="325" y1="80" x2="325" y2="137.5" stroke="#c0392b" stroke-width="1"/>
+  <text x="330" y="105" font-size="11" fill="#c0392b">11.5mm from top edge</text>
+  <text x="325" y="160" text-anchor="middle" font-size="11" fill="#e67e22" font-weight="bold">LTR-390</text>
+
+  <!-- BME280 marker: 10mm from right (long) edge, 13mm from top edge, right next to/below LTR-390 -->
+  <circle cx="295" cy="145" r="9" fill="#3498db" stroke="#333" stroke-width="1"/>
+  <text x="295" y="149" text-anchor="middle" font-size="9" fill="#fff">T</text>
+  <text x="295" y="185" text-anchor="middle" font-size="11" fill="#2980b9" font-weight="bold">BME280</text>
+  <text x="295" y="198" text-anchor="middle" font-size="10" fill="#2980b9">10mm/13mm from long/top edges</text>
+
+  <!-- Right long wall: vent slot -->
+  <rect x="366" y="90" width="8" height="70" fill="#8e44ad" opacity="0.5"/>
+  <text x="450" y="100" font-size="12" fill="#8e44ad" font-weight="bold">RIGHT long wall:</text>
+  <text x="450" y="115" font-size="11" fill="#8e44ad">louvered vent insert</text>
+  <text x="450" y="130" font-size="11" fill="#8e44ad">(BME280 airflow)</text>
+
+  <!-- Top face callout for LTR-390 aperture -->
+  <text x="450" y="160" font-size="12" fill="#e67e22" font-weight="bold">TOP FACE (not a wall):</text>
+  <text x="450" y="175" font-size="11" fill="#e67e22">LTR-390 sky aperture hole,</text>
+  <text x="450" y="190" font-size="11" fill="#e67e22">punched straight up at the</text>
+  <text x="450" y="205" font-size="11" fill="#e67e22">orange dot position</text>
+
+  <!-- Left short-end wall: switch (flexible position via flying leads) -->
+  <rect x="66" y="380" width="8" height="30" fill="#16a085" opacity="0.6"/>
+  <text x="10" y="370" font-size="12" fill="#16a085" font-weight="bold">LEFT short-end wall:</text>
+  <text x="10" y="385" font-size="11" fill="#16a085">slide switch slot</text>
+  <text x="10" y="400" font-size="11" fill="#16a085">(position is flexible —</text>
+  <text x="10" y="415" font-size="11" fill="#16a085">flying leads, not board-</text>
+  <text x="10" y="430" font-size="11" fill="#16a085">mounted; shown here per</text>
+  <text x="10" y="445" font-size="11" fill="#16a085">original plan default)</text>
+  <text x="10" y="465" font-size="10" fill="#16a085">also: solar JST option</text>
+
+  <!-- Front face callout -->
+  <text x="220" y="530" text-anchor="middle" font-size="12" fill="#555">FRONT FACE (not shown, perpendicular to this view):</text>
+  <text x="220" y="546" text-anchor="middle" font-size="11" fill="#555">ESP32 USB-C port slot (emergency reflash only)</text>
+
+  <!-- Orientation note -->
+  <text x="220" y="580" text-anchor="middle" font-size="11" fill="#777" font-style="italic">Top shell (display, LiPo, TP4056, USB-C charging) sits above this — not shown.</text>
+  <text x="220" y="595" text-anchor="middle" font-size="11" fill="#777" font-style="italic">Display mounts directly over the ESP32, cable exiting downward through the shell join.</text>
+</svg>

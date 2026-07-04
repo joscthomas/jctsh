@@ -53,6 +53,7 @@ esphome:
         - component.update: hiking_display
         - component.update: bme_sensor
         - component.update: ltr390_sensor
+        - component.update: battery_voltage
         - delay: 10s
         - component.update: hiking_display
     - priority: -200.0
@@ -65,6 +66,14 @@ esphome:
             then:
               - deep_sleep.allow: deep_sleep_control
               - deep_sleep.enter: deep_sleep_control
+        - if:
+            condition:
+              and:
+                - binary_sensor.is_on: slide_switch
+                - binary_sensor.is_off: dock_detect
+                - lambda: 'return !isnan(id(battery_voltage).state) && id(battery_voltage).state < 3.4f;'
+            then:
+              - script.execute: low_battery_shutdown
 
 esp32:
   board: esp32dev
@@ -227,6 +236,34 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
+  - id: low_battery_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+# ── Low battery safety cutoff ─────────────────────────────────────────────────
+# Below 3.4V, force deep sleep to protect the LiPo from over-discharge damage,
+# regardless of slide switch position, instead of letting the boost converter
+# run into its unstable end-of-charge behavior. Does not apply while docked
+# (dock_detect on) — charging is allowed to continue. The display message
+# persists on the e-ink with zero power draw, so it's visible with no WiFi.
+script:
+  - id: low_battery_shutdown
+    then:
+      - mqtt.publish:
+          topic: jctsh/components/hiking-monitor/log
+          payload: !lambda |-
+            char buf[160];
+            snprintf(buf, sizeof(buf),
+              "{\"component\":\"hiking-monitor\",\"category\":\"Alert\","
+              "\"message\":\"Low battery cutoff - %.2fV, entering deep sleep\"}",
+              id(battery_voltage).state);
+            return std::string(buf);
+      - lambda: 'id(low_battery_pending) = true;'
+      - component.update: hiking_display
+      - delay: 2s   # allow e-ink full refresh to complete before power cut
+      - deep_sleep.allow: deep_sleep_control
+      - deep_sleep.enter: deep_sleep_control
 
 # ── Sensors ───────────────────────────────────────────────────────────────────
 sensor:
@@ -389,6 +426,11 @@ display:
       // Line 1 (y=3):  temp (left)    humidity (right)
       // Line 2 (y=42): P trend (left) UVI (right)
       // Line 3 (y=81): battery (center)
+      if (id(low_battery_pending)) {
+        it.print(125, 45, id(font_data), TextAlign::CENTER, "LOW BATTERY");
+        it.print(125, 77, id(font_data), TextAlign::CENTER, "Recharge now");
+        return;
+      }
       if (id(deep_sleep_pending)) {
         it.print(125, 45, id(font_data), TextAlign::CENTER, "Hiking monitor");
         it.print(125, 77, id(font_data), TextAlign::CENTER, "asleep");
@@ -430,6 +472,14 @@ interval:
           float pres = id(bme_pressure).state;
           float uv   = id(ltr_uv_index).state;
           float batt = id(battery_voltage).state;
+
+          // Low-battery safety cutoff — force sleep before the boost
+          // converter's end-of-charge instability can over-discharge the cell
+          if (id(slide_switch).state && !id(dock_detect).state &&
+              !isnan(batt) && batt < 3.4f) {
+            id(low_battery_shutdown).execute();
+            return;
+          }
 
           // Update pressure trend circular buffer
           int idx = id(pressure_buf_idx) % 16;

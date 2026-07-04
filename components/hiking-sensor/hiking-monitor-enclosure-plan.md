@@ -2,10 +2,59 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Planning document for the first 3D printed enclosure for the JCTsh hiking monitor (ESP32 + BME280 + LTR-390 + e-ink display + TP4056 + LiPo on perfboard stack).
 **Project:** JCTsh — hiking-monitor
-**Version:** 1.3
-**Version description:** Two velcro slots along 70mm back face width. USB-C to Micro USB adapter on TP4056 port; wall slot sized for USB-C. Solar JST connector exits through a hole in the wall. Carabiner bail inner diameter and JST connector body diameter added to open questions.
+**Version:** 1.5
+**Version description:** Added Section 0 (Current State Summary) capturing the Part 2 measurement session and Part 3 CAD session results — footprint enlarged for LTR-390 overhang, velcro redesigned to 2 independent straps (4 slots) on the top shell's long wall, switch relocated to the ESP32's USB-C wall with internal mounting, solar connector simplified to a plain wire pass-through, boss/nut-pocket approach finalized, no ESP32 USB-C reflash port. Corrected: top shell also gets the template's unconditional corner bosses (sized as plain clearance, not nut pockets) — not "no bosses" as first stated. Added file management strategy (raw vs. final STL naming, Tinkercad project naming, why the split matters given Tinkercad has no local source/edit log). Several original sections below are now superseded by Section 0 — kept for historical rationale.
 **Status:** Draft — ready for CAD work
 **Related files:** enclosure-prototype.md, JCTsh-Build-Standards.md
+
+---
+
+## 0. Current State Summary (2026-07-03 CAD session)
+
+This section reflects what was actually decided during the Part 2 measurement and Part 3 CAD sessions — several details below **supersede** the original v1.3 sections that follow (footprint size, velcro strap design, switch/solar wall placement, etc.). Kept both so the history of *why* is preserved, but treat this section as the current source of truth.
+
+**Overall concept:** two 3D-printed shells (bottom + top) stack and join with four M3 screws through corner bosses. Uses the pb-tec `easyprojectboxv24.scad` parametric template (`components/hiking-sensor/enclosure/easyprojectboxv24.scad`), rendered twice with `Show=1` (body only, lid discarded both times) since the template is a box+thin-lid generator, not a native two-shell design.
+
+**Bottom shell contains:**
+- Main perfboard (ESP32, BME280, LTR-390, voltage divider)
+- Louvered vent insert (separate printed part, press-fits into a wall cutout) for BME280 airflow
+- LTR-390 sky aperture — hole in the top face, positioned 4mm from the long edge / 11.5mm from the short edge of the perfboard's corner
+- Slide switch — internally mounted (tabs/body inside, only the 7×4mm actuator slot exposed), on the wall the ESP32's USB-C port faces (not the plan's original "left short-end wall" default)
+- Solar panel wire pass-through — small hole for 2 bare wires only (connector is on flying leads, not panel-mount), left long wall near the ESP32
+- Perfboard sits on brass M3 male-female standoffs (ZYAMY kit) — plain clearance holes in the floor, no thread/nut-trap needed in the printed plastic (the standoff itself provides the thread)
+- Four corner screw bosses with M3 hex nut pockets (added in Tinkercad — the OpenSCAD template's own hole type is round, not hex) — no extra mid-wall bosses (`AddXScrew`/`AddYScrew` set `false`)
+- No dedicated ESP32 USB-C emergency-reflash port — opening the screw-joined enclosure gives access if ever needed
+- Current OpenSCAD values: `SizeX=63` (depth), `SizeY=79` (width), `SizeZ=33`, `WallThick=3`, `ScrewCylinderDia=10`, `Show=1` — footprint enlarged from the bare 50×70mm board to fit the LTR-390's corner overhang (see Section 6 update below)
+
+**Top shell contains:**
+- E-ink display, mounted directly over the ESP32's position (not routed to a side wall as originally planned — the ribbon cable exits from the middle of a long edge, not a short edge, so it routes straight down through the shell join instead)
+- LiPo battery, TP4056 charge/boost module
+- USB-C charging port — hot-glued adapter dongle (not a proper panel-mount connector), 12mm × 8mm wall slot
+- Two independent velcro straps (4 slots total, not one strap through 2 slots as originally planned — reduces device wobble on the pack's chest strap), on the long wall matching the LTR-390's side, within this shell only (not spanning the shell seam)
+- Carabiner bail (~9mm inner diameter, from a measured 5.92mm spine thickness + 3mm clearance)
+- Corner bosses come from the same template (unconditional in the template's geometry — cannot be turned off, only the *extra* mid-wall ones via `AddXScrew`/`AddYScrew` can be disabled), but `HoleDiaThread` here is just a plain M3 clearance hole, not a thread/nut-pocket hole — no self-tapping or heat-set insert on this shell, the screw just passes through freely
+- Current OpenSCAD values: same `SizeX`/`SizeY`/`WallThick`/`Rounding`/`HolePos`/`ScrewCylinderDia` as the bottom shell (must match exactly for the corner bosses/holes to line up vertically when stacked), only `SizeZ` differs = `19` (16mm internal + 3mm wall)
+
+**How they join:** four M3 screws pass through the top shell's boss clearance holes, down into the bottom shell's corner bosses, threading into M3 hex nuts captured in pockets there (bottom shell only). Screw length from the on-hand ZYAMY kit (M3×6mm) is likely too short once real dimensions are accounted for — probably need longer M3 screws (8-12mm), to be confirmed once assembly is test-fit.
+
+**File management strategy:**
+```
+components/hiking-sensor/enclosure/
+├── easyprojectboxv24.scad       — original downloaded template, left unmodified (reference/backup)
+├── bottom-shell.scad            — template + bottom shell's specific parameter values
+├── top-shell.scad               — template + top shell's specific parameter values
+├── bottom-shell-raw.stl         — OpenSCAD export: box + bosses only, BEFORE Tinkercad edits
+├── top-shell-raw.stl            — same, top shell
+├── bottom-shell-final.stl       — AFTER all Tinkercad cutouts/features — what actually gets sliced/printed
+├── top-shell-final.stl          — same, top shell
+├── vent-insert.stl              — separate small part, modeled entirely in Tinkercad (no OpenSCAD source)
+└── bottom-shell-floorplan.svg   — visualization aid
+```
+Tinkercad itself has no local "source file" or edit log — its cloud projects are the only record of what cutouts were made, so the `-raw` vs `-final` STL naming split matters: `-raw` always reflects the current OpenSCAD state cleanly, and every cutout's exact dimensions/position gets written down here (Section 0) and in memory as the effective reproduction record, since Tinkercad edits can't be "replayed" automatically. Tinkercad cloud projects should be named to match (e.g. "hiking-monitor bottom shell," "hiking-monitor top shell," "hiking-monitor vent insert") for Joseph's own account organization.
+
+**Other separate printed parts:** the louvered vent insert (bottom shell, BME280 airflow).
+
+**Not yet resolved as of this session:** whether the current boss size/position (`ScrewCylinderDia=10`, `HolePos` default) actually clears the perfboard footprint and the LTR-390 overhang corner — to be confirmed visually in Tinkercad (Step 16+) by overlaying a 50×70mm test rectangle, not by further hand calculation.
 
 ---
 

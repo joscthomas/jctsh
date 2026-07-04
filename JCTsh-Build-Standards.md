@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.7
-**Version description:** Added §2.8 multi-network WiFi variant (`networks:` list) and captive_portal deep-sleep exception. Added §2.12 e-ink display pattern (update_interval never, deep_sleep_pending flag, NaN init screen). Added §2.13 multi-priority on_boot sequencing. Updated §3.3 with DuckDNS broker guidance for cellular-connected components. Added §3.6 rssi_dbm=0 field-mode sentinel convention. Added §5.5 GPS timestamp lookup pattern (GPSLogger → Apps Script → nearest trackpoint). Added §5.6 Node-RED per-component context isolation via component-name key suffix.
+**Version:** 1.11
+**Version description:** Added §2.14 point 8 — GPIO-controlled power gating for I2C/SPI peripherals during sleep, flagged as a candidate pattern (not yet required) pending validation via hiking-sensor backlog CARD-026/CARD-027. Follows §2.14 point 7 (v1.10) prefer direct LiPo-to-LDO power architecture, and §2.14 (v1.9) Battery-Powered Component Safety Standards.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -363,6 +363,31 @@ on_boot:
 Negative priorities run after all components are initialized. Any `on_boot` action that reads sensor values, updates a display, or enters sleep must use a negative priority.
 
 **Reference implementation:** `components/hiking-sensor/hiking-sensor.yaml` `on_boot:` block (priorities 600.0, -100.0, -200.0).
+
+---
+
+### 2.14 Battery-Powered Component Safety Standards
+
+Required for every component powered by a rechargeable LiPo/Li-ion cell — applied during initial build, never deferred as a future enhancement. Established after the hiking-monitor's original battery failed on its first field trip (2026-07-03) with no advance warning.
+
+**1. Cell selection — built-in PCM protection required.** Only use cells with a Protection Circuit Module (PCM) covering overcharge, over-discharge, overcurrent, and short-circuit. Confirm this from the listing/datasheet before purchase and note it in `JCTsh-Parts-Inventory.md`. Reject bare/unprotected cells. Reference: the EEMB 603449 line in stock is PCM-protected and UN 38.3 compliant — confirmed via manufacturer documentation, not assumed.
+
+**2. Firmware low-battery cutoff required.** Watch the battery voltage sensor. Below a safe threshold (3.4V for single-cell LiPo — leaves margin above the cell's own PCM trip point and above boost-converter end-of-charge instability), force deep sleep regardless of any mode switch, and render a persistent on-screen warning if a display is present (e-ink holds the frame with zero power). Also check at boot, so waking a critically-low device shows the warning and safely re-sleeps instead of attempting normal operation. This layer exists to act *before* the cell's PCM has to trip — it gives an early, visible warning instead of a silent hard stop. Reference: `components/hiking-sensor/hiking-sensor.yaml` (`low_battery_shutdown` script).
+
+**3. Charging safety.**
+- Charge inside a fireproof LiPo charging bag (silicone-coated fiberglass, ~$10-15) — required, not optional, regardless of cell quality or PCM protection.
+- Never charge unattended for extended periods (e.g. leaving to charge overnight unsupervised).
+- Never charge a cell that reads 0V, shows swelling/puffiness, feels hot, or has any chemical smell. Treat as damaged and retire it — do not attempt to revive it. (This is exactly what happened with the original hiking-monitor cell.)
+
+**4. Storage.** Cells not in active use should be stored at 40–60% charge, not full or empty. Recheck/recharge to that range roughly every 3 months during long storage — fully depleted long-term storage degrades cells even with PCM protection.
+
+**5. Disposal.** Tape over the JST terminals before discarding a retired cell (prevents short-circuit in a bin/drawer). Recycle at a battery drop-off (Home Depot, Lowe's, Batteries Plus, etc.) — never in household trash.
+
+**6. Connector polarity.** Verify polarity with a multimeter before the first connection of any new battery/module pairing — do not assume color convention (red = positive is common but not guaranteed on every module).
+
+**7. Power architecture — prefer direct LiPo-to-LDO over boost-then-buck (recommended default for new builds, not a retrofit requirement).** A boost converter that steps the LiPo's native 3.0–4.2V up to ~5V, followed by the microcontroller's onboard regulator stepping it back down to 3.3V, is two conversions in opposite directions — wasted efficiency, and each stage draws its own idle current even while "asleep." Since the ESP32 and most peripherals (BME280, LTR-390, e-ink, etc.) run natively on 3.3V, default new battery-powered builds to a single low-quiescent-current LDO taking the LiPo directly to 3.3V (Adafruit Feather-style), skipping the boost stage entirely. This also removes the boost converter's end-of-charge "voltage cliff" instability — a contributing factor in the hiking-monitor's original battery incident. Only use a boost converter when a specific peripheral requires 5V. Not applied retroactively to hiking-monitor's existing perfboard — apply to the next new battery-powered component.
+
+**8. [CANDIDATE — not yet required, pending validation] GPIO-controlled power gating for I2C/SPI peripherals during sleep.** Observed 2026-07-03: ESP32 deep sleep only stops the CPU from executing — it does not cut power to anything downstream. With no gating in place, I2C/SPI peripherals (BME280, LTR-390, etc.) stay fully powered and drawing their own operating current for the entire "sleep" duration, on top of any boost-converter quiescent draw (see point 7). Confirmed visually on hiking-monitor: the ESP32's and LTR-390's power-indicator LEDs stayed lit after the device entered deep sleep. Candidate fix: a P-FET (or similar high-side load switch) in-line on the 3.3V rail between the microcontroller's own 3.3V output and the peripherals — not between the boost module and the microcontroller's `VIN`, since the microcontroller must stay powered to control the gate signal — gated by a spare GPIO, cutting peripheral power during sleep and re-enabling it on wake. **Not promoted to a required standard yet** — this needs to be built and measured (see `components/hiking-sensor` backlog CARD-026, CARD-027) before it's confirmed worth the added complexity for future builds. Revisit this entry once validated.
 
 ---
 
@@ -747,6 +772,9 @@ When LED indicators are included in a component:
 
 | Version | Change |
 |---|---|
+| 1.11 | Added §2.14 point 8: GPIO-controlled power gating for I2C/SPI peripherals during sleep (P-FET high-side switch on the microcontroller's 3.3V output, not the boost module's output) — flagged as a candidate pattern, not yet a required standard, pending validation via hiking-sensor CARD-026/CARD-027. |
+| 1.10 | Added §2.14 point 7: prefer direct LiPo-to-LDO power architecture over boost-then-buck for new battery-powered builds — avoids two-stage conversion idle draw and the boost converter's end-of-charge instability. Recommended default for the *next* build, not applied retroactively to hiking-monitor. |
+| 1.9 | Added §2.14 Battery-Powered Component Safety Standards: PCM-protected cells required (verify before purchase, EEMB 603449 confirmed compliant), firmware low-battery cutoff required (3.4V threshold, checked at boot and during operation, persistent e-ink warning), fireproof charging bag required, never charge a cell showing 0V/swelling/heat/smell, storage at 40-60% charge, disposal via battery recycling, connector polarity verification before first use. Established after hiking-monitor's original battery failed in the field with no advance warning (2026-07-03). |
 | 1.0 | Initial release. Enclosure convention, ESP32/ESPHome standards, MQTT conventions, observability standards, SmartThings integration, LED standards, documentation standards. |
 | 1.8 | Updated §5.4: broker now runs MQTT v5 (Mosquitto 2.0.21, `protocolVersion: 5` in Node-RED broker node). Removed MQTT v5 field cleanup warning — v5 fields from Node-RED v4 UI imports are now correct. ESP32/ESPHome/HA remain on v3.1.1; Mosquitto accepts both simultaneously. |
 | 1.7 | Changed heartbeat standard from 5 minutes to 30 minutes throughout (§2.7, §3.2, §4.1, §4.4, §4.6). 30 min is derived from the watchdog timeout (35 min = interval + 5-min buffer), not arbitrary. Updated front-porch-temp-sensor.yaml to match. |

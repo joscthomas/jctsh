@@ -13,6 +13,24 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
+### CARD-028 · [idea] [photo-server] Automated post-import quality scan (blur/duplicate detection)
+**Notes:** Decided during photo-server migration (2026-07-04) to skip a manual pre-import quality pass entirely — importing everything as-is and relying on Immich's built-in duplicate detection (CLIP-embedding-based visual similarity, not just byte-hash) plus an ongoing "favorites" curation habit over time. This card captures the option to add an *automated* (no manual photo review) quality pass later, run after the Immich import so you can see real results first before deciding if it's worth doing.
+
+**Tools considered (all scriptable, no manual visual review required):**
+- **czkawka** — free, open source (Rust), finds exact + visually-similar duplicates, plus blurry/broken images; has a CLI, could run directly on the M8 against the Immich library folder
+- **imagededup** (Python, by Idealo) — perceptual-hash + CNN-based near-duplicate detection, scriptable
+- **fdupes** / **rdfind** — simple exact-byte-duplicate finders (fast, catches literal copies only, not near-duplicates)
+- **DIY blur-score script** — e.g. OpenCV Laplacian-variance blur detection, a small Python script with a numeric threshold; could be built on request, nothing off-the-shelf needed
+- (Commercial alternatives exist — Aftershoot, Narrative Select — but are built for photographers culling shoots, overkill for a one-time family library pass)
+
+**CLIP note:** Immich's own duplicate detection and smart search are both powered by CLIP (Contrastive Language-Image Pre-training, OpenAI) — specifically `ViT-B-32__openai` on this install. Duplicate detection compares visual embeddings (catches near-duplicates like burst shots), not just identical files, and never auto-deletes — it surfaces candidates in a "Duplicates" review screen for manual confirm.
+
+**Important constraint:** any of these tools can run and *report* findings anytime, including post-import, directly against files on disk. But once Immich owns the library, actually *deleting/archiving* anything found must go through Immich itself (its UI/API) — not direct filesystem deletion — since Immich tracks every asset in its Postgres DB and a raw file delete would desync the DB (broken thumbnails, orphaned references). Ties into the planned deletion-logging system (photo-server Step 14).
+
+**Sequencing:** wait until after Joseph's (and later Robin's) Immich import completes and ML processing (duplicate detection, facial recognition) has run. See what Immich's own built-in detection surfaces first, then decide whether an additional automated tool is worth adding.
+
+---
+
 ### CARD-027 · [idea] [hiking-sensor] GPIO-controlled power gating for I2C peripherals during sleep
 **Notes:** Observed 2026-07-03: after putting the device to sleep (display correctly shows "Hiking monitor asleep"), the ESP32's and LTR-390's onboard power-indicator LEDs stayed lit. These are hardwired to their respective 3.3V rails, not GPIO-controlled — ESP32 deep sleep only stops the CPU from executing, it does not cut power to anything downstream. Since `VOUT+` runs directly to ESP32 `VIN` (switch not in the power path) and nothing gates the I2C peripherals' power, BME280 and LTR-390 stay fully powered and drawing their own operating current for the entire "sleep" duration, in addition to the boost module's own quiescent draw (see CARD-026).
 

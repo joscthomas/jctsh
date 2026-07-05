@@ -2,8 +2,8 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Planning document for the first 3D printed enclosure for the JCTsh hiking monitor (ESP32 + BME280 + LTR-390 + e-ink display + TP4056 + LiPo on perfboard stack).
 **Project:** JCTsh — hiking-monitor
-**Version:** 1.5
-**Version description:** Added Section 0 (Current State Summary) capturing the Part 2 measurement session and Part 3 CAD session results — footprint enlarged for LTR-390 overhang, velcro redesigned to 2 independent straps (4 slots) on the top shell's long wall, switch relocated to the ESP32's USB-C wall with internal mounting, solar connector simplified to a plain wire pass-through, boss/nut-pocket approach finalized, no ESP32 USB-C reflash port. Corrected: top shell also gets the template's unconditional corner bosses (sized as plain clearance, not nut pockets) — not "no bosses" as first stated. Added file management strategy (raw vs. final STL naming, Tinkercad project naming, why the split matters given Tinkercad has no local source/edit log). Several original sections below are now superseded by Section 0 — kept for historical rationale.
+**Version:** 2.0
+**Version description:** Established shared compass terminology (ESP32 USB-C = South; N/S/E/W walls; top shell used inverted; East wall faces sky when worn) after realizing "top face of the bottom shell" was ambiguous/incorrect (the bottom shell has no solid top — it's an open rim). Reassigned features accordingly: LTR-390 aperture → bottom shell East wall (not "top face"); BME280 vent → top shell's closed top (Joseph's alternative, not East wall); velcro straps → bottom shell's closed floor (not top shell's long wall as originally planned); switch → South wall; solar hole → West wall. Found and began fixing a real LTR-390 mounting problem: the sensor's rigid socket connection faces the wrong direction for sky exposure — fix is a STEMMA QT-to-Dupont cable relocation, not a resoldered connector. Previously (v1.9): SizeX reduced 74→70mm after visual confirmation of boss clearance.
 **Status:** Draft — ready for CAD work
 **Related files:** enclosure-prototype.md, JCTsh-Build-Standards.md
 
@@ -15,25 +15,67 @@ This section reflects what was actually decided during the Part 2 measurement an
 
 **Overall concept:** two 3D-printed shells (bottom + top) stack and join with four M3 screws through corner bosses. Uses the pb-tec `easyprojectboxv24.scad` parametric template (`components/hiking-sensor/enclosure/easyprojectboxv24.scad`), rendered twice with `Show=1` (body only, lid discarded both times) since the template is a box+thin-lid generator, not a native two-shell design.
 
+**Orientation terminology (established 2026-07-04, use this going forward):** reference is the ESP32's own USB-C port = **South**. Each shell has walls **N/S/E/W** in this shared frame. Bottom shell = closed floor + open top. Top shell = closed top + open floor, used **inverted** (flipped 180°) so its floor becomes the device's topmost exterior surface, mating its open floor against the bottom shell's open top — confirmed by physically assembling both shells in one Tinkercad workspace. **Key fact: the East wall of both shells faces up (sky) when the device is worn on a chest strap**; the closed top of the (flipped) top shell faces outward/forward (away from the chest), not up. This matters because holes needing sky exposure go on East walls, not the closed top.
+
 **Bottom shell contains:**
 - Main perfboard (ESP32, BME280, LTR-390, voltage divider)
-- Louvered vent insert (separate printed part, press-fits into a wall cutout) for BME280 airflow
-- LTR-390 sky aperture — hole in the top face, positioned 4mm from the long edge / 11.5mm from the short edge of the perfboard's corner
-- Slide switch — internally mounted (tabs/body inside, only the 7×4mm actuator slot exposed), on the wall the ESP32's USB-C port faces (not the plan's original "left short-end wall" default)
-- Solar panel wire pass-through — small hole for 2 bare wires only (connector is on flying leads, not panel-mount), left long wall near the ESP32
-- Perfboard sits on brass M3 male-female standoffs (ZYAMY kit) — plain clearance holes in the floor, no thread/nut-trap needed in the printed plastic (the standoff itself provides the thread)
+- LTR-390 sky aperture — 10mm diameter hole, 5mm depth, in the **East wall**. Position (edge-based, confirmed final): North edge of hole = 20mm from North wall; bottom edge of hole = 15mm from floor.
+- **LTR-390 mounting fix:** the sensor is rigidly socket-mounted (like the ESP32), facing the shell-stacking axis (same direction as the top shell's closed top) rather than the East wall — it would not see the sky as originally mounted. Fix: relocate the LTR-390 breakout to sit flush against the East wall (3M foam tape) using a STEMMA QT-to-Dupont-pin cable (Ruthex... no, Adafruit/generic 150mm STEMMA QT-to-premium-male-header cable, ×2 ordered) — Dupont end plugs into the existing header socket, STEMMA QT end connects to the LTR-390's native QT port. No resoldering of the sensor itself.
+- Slide switch — internally mounted (tabs/body inside, only the 7×4mm actuator slot exposed), relocated to the **East wall** (Joseph's choice, for visibility/less chance of accidental bumping — not South as first suggested). Position: bottom edge = 15mm from floor; South edge = 14mm from South wall. Confirmed clear of the LTR-390 hole (~19mm separation).
+- Solar panel wire pass-through — 4mm diameter hole for 2 bare wires (connector is on flying leads, not panel-mount), **West wall**, oriented pointing down to shed water. Position: South edge of hole = 43mm from South wall; bottom edge = 15mm from floor. Wire routes internally to the TP4056 (top shell) via a disconnectable Dupont connection at the shell seam, same as the display cable and power lines already crossing there — solar wires currently lack Dupont connectors, still need adding (consider splicing a pre-made jumper rather than crimping new pins, given [[feedback_dupont_crimping]]).
+- Velcro straps (2 independent straps, 4 slots total — not one strap through 2 slots as originally planned, reduces device wobble) — on the bottom shell's **closed floor**, positioned toward "the top" of that face so the whole assembly pivots around this point with the display (opposite end) swinging up to view, per the original "flip up to read" design intent (now spanning the full stacked assembly, not just one shell — longer lever arm than originally envisioned, untested)
+- Perfboard sits on brass M3 male-female standoffs (ZYAMY kit) — plain clearance holes in the floor (4×, one per perfboard corner, placed via reference-rectangle method), no thread/nut-trap needed in the printed plastic (the standoff itself provides the thread)
+- **Corner shell-joining fastening: heat-set threaded inserts, NOT M3 nuts** (changed 2026-07-04 — a nut would require a hex pocket plus a side-access slot to insert it, leaving the 8mm boss with thin, directionally-concentrated wall material; heat-set inserts need only a simple round hole, pressed in from the top). Picked: **Ruthex RX-M3x5x4** (M3 thread, 5mm OD, 4mm length), confirmed pilot hole = **4.2mm**. `HoleDiaThread` changed 3.2→4.2 in `bottom-shell.scad` only (top shell keeps the 3.2mm plain clearance pass-through, since the insert only lives in the bottom shell).
 - Four corner screw bosses with M3 hex nut pockets (added in Tinkercad — the OpenSCAD template's own hole type is round, not hex) — no extra mid-wall bosses (`AddXScrew`/`AddYScrew` set `false`)
 - No dedicated ESP32 USB-C emergency-reflash port — opening the screw-joined enclosure gives access if ever needed
-- Current OpenSCAD values: `SizeX=63` (depth), `SizeY=79` (width), `SizeZ=33`, `WallThick=3`, `ScrewCylinderDia=10`, `Show=1` — footprint enlarged from the bare 50×70mm board to fit the LTR-390's corner overhang (see Section 6 update below)
+- Current OpenSCAD values: see the dimensions table below — footprint enlarged from the bare 50×70mm board to fit the LTR-390's corner overhang
 
-**Top shell contains:**
-- E-ink display, mounted directly over the ESP32's position (not routed to a side wall as originally planned — the ribbon cable exits from the middle of a long edge, not a short edge, so it routes straight down through the shell join instead)
+**Top shell contains (used inverted — see orientation note above):**
+- E-ink display, mounted directly over the ESP32's position (not routed to a side wall as originally planned — the ribbon cable exits from the middle of a long edge, not a short edge, so it routes straight down through the shell join instead) — on the **closed top** (faces outward/forward when worn)
 - LiPo battery, TP4056 charge/boost module
 - USB-C charging port — hot-glued adapter dongle (not a proper panel-mount connector), 12mm × 8mm wall slot
-- Two independent velcro straps (4 slots total, not one strap through 2 slots as originally planned — reduces device wobble on the pack's chest strap), on the long wall matching the LTR-390's side, within this shell only (not spanning the shell seam)
+- **BME280 louvered vent — on the closed top** (not the East wall as first suggested; Joseph's proposal). Reasoning: (a) separated from the LTR-390 hole, possibly improving cross-ventilation (unconfirmed, worth empirical check on an actual hike), (b) closed top faces outward/forward rather than straight up, likely less direct overhead sun than the East wall — relevant since louvers exist specifically to block direct overhead sun
 - Carabiner bail (~9mm inner diameter, from a measured 5.92mm spine thickness + 3mm clearance)
 - Corner bosses come from the same template (unconditional in the template's geometry — cannot be turned off, only the *extra* mid-wall ones via `AddXScrew`/`AddYScrew` can be disabled), but `HoleDiaThread` here is just a plain M3 clearance hole, not a thread/nut-pocket hole — no self-tapping or heat-set insert on this shell, the screw just passes through freely
-- Current OpenSCAD values: same `SizeX`/`SizeY`/`WallThick`/`Rounding`/`HolePos`/`ScrewCylinderDia` as the bottom shell (must match exactly for the corner bosses/holes to line up vertically when stacked), only `SizeZ` differs = `19` (16mm internal + 3mm wall)
+- Current OpenSCAD values: see the dimensions table below — same footprint/boss parameters as the bottom shell (must match exactly for the corner bosses/holes to line up vertically when stacked), only `SizeZ` differs
+
+---
+
+## 0a. Enclosure Dimensions Table (current source of truth)
+
+**OpenSCAD template parameters** (`easyprojectboxv24.scad` derivatives):
+
+| Parameter | Bottom shell | Top shell | Notes |
+|---|---|---|---|
+| `SizeX` (Depth) | **70mm** | **70mm** | Must match — corner bosses align vertically. History: 63→74mm (fix initial tight clearance), then 74→70mm (Joseph's analysis: the LTR-390 overhang can rely on the corner boss's own diagonal gusset/reach rather than needing separate additive clearance, confirmed by direct visual inspection in Tinkercad — see Section 0 note) |
+| `SizeY` (Width) | **90mm** | **90mm** | Must match. Enlarged from 79mm — clearance was 62.08mm clear vs. 70mm board |
+| `SizeZ` (outer height) | **36mm** | 19mm | Bottom: 10mm standoff + 21mm component + 2mm margin + 3mm wall. Top: 16mm internal + 3mm wall |
+| `WallThick` | 3mm | 3mm | Must match |
+| `Rounding` | 5mm (default) | 5mm (default) | Must match |
+| `HolePos` | 5mm | 5mm | Must match — down from default 7mm |
+| `ScrewCylinderDia` | 8mm | 8mm | Must match — down from default 12mm, via intermediate 10mm |
+| `AddChamfer` | **false** | **false** | Chamfer was consuming the boss's full cross-section before reaching the floor — boss wasn't structurally connected. See Section 0 note. |
+| `AddXScrew` / `AddYScrew` | false / false | false / false | No extra mid-wall bosses needed at this size |
+| `Show` | 1 (body only) | 1 (body only) | Discarding the template's thin lid both times |
+
+✅ Both shells now share identical `SizeX=70`, `SizeY=90`, `WallThick=3`, `Rounding=5`, `HolePos=5`, `ScrewCylinderDia=8`, `AddChamfer=false` — only `SizeZ` differs (36mm bottom, 19mm top). Both files corrected as of 2026-07-04.
+
+**Derived/measured dimensions:**
+
+| Item | Value |
+|---|---|
+| Perfboard footprint | 50mm × 70mm |
+| Bottom shell internal cavity | 64mm × 84mm × 33mm (`SizeX/Y` − 2×`WallThick`; height 33mm internal = 36mm outer − 3mm wall) |
+| Perfboard standoff height | 10mm (ZYAMY kit — closest available to the original 7mm ledge target; gives ~6.6mm real clearance under solder joints) |
+| LTR-390 sensor center | 4mm from long edge, 11.5mm from short edge (perfboard corner) |
+| LTR-390 breakout size / overhang | ~25mm × 18mm breakout; overhangs **5mm past the long edge** (depth direction), **1mm past the short edge** (width direction) — extends past the perfboard's own footprint at that corner |
+| BME280 sensor center | 10mm from long edge, 13mm from short edge |
+| Boss-to-boss clearance (final, measured) | **53.08mm (depth) × 73.08mm (width)** — vs. 50×70mm board + 2-3mm margin. LTR-390's 5mm overhang (depth direction) relies on the corner boss's own localized diagonal gusset/reach rather than additive dedicated clearance — confirmed via direct visual inspection in Tinkercad (Joseph), not by calculation alone, after several rounds of hand-calculation proved unreliable for this specific corner geometry (diagonal gusset + rounded corner + sensor overhang all interacting) |
+| USB-C wall slot | 12mm × 8mm (hot-glued adapter, not panel-mount) |
+| Velcro strap slots | 16mm × 4mm each, ×4 (two independent straps) |
+| Switch actuator slot | 7mm × 4mm |
+| Carabiner bail inner diameter | ~9mm |
+| Boss cutback height (planned, Tinkercad) | Keep boss material from ~18mm up to the top only; cut away below that. **Complements** the SizeX/SizeY enlargement above — does not substitute for it, since the board must still physically pass through the boss-occupied zone during insertion regardless of boss height; the horizontal clearance fix is what actually enables assembly |
 
 **How they join:** four M3 screws pass through the top shell's boss clearance holes, down into the bottom shell's corner bosses, threading into M3 hex nuts captured in pockets there (bottom shell only). Screw length from the on-hand ZYAMY kit (M3×6mm) is likely too short once real dimensions are accounted for — probably need longer M3 screws (8-12mm), to be confirmed once assembly is test-fit.
 

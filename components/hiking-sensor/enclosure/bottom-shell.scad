@@ -47,11 +47,11 @@ Dist                      =             10 ;
 Position                  =          false ;
 /* [Box size settings] */
 // Depth
-SizeX                     = 63;
+SizeX                     = 70;
 // Width
-SizeY                     = 79;
+SizeY                     = 90;
 // Height
-SizeZ                     = 33;
+SizeZ                     = 36;
 // Corner rounding --> !!! Rounding must be same or bigger than WallThick, and not bigger than the half of the smaler side -1. Otherwise there are some rendering issues
 Rounding                  =            5.0 ; //[1:1:100]
 // Wall and bottom thickness
@@ -65,7 +65,7 @@ Gap                       =            0.2 ; //[0.01:0.01:1]
 // Size for the hole in the lid
 HoleDiaLid                =            3.2 ; //[1:0.1:10]
 // Hole diameter for thread or hot melt copper nut (thread 2.2 for 2.9mm / 2.8 for 3.5mm / 3.2 for 3.9mm Screw)
-HoleDiaThread             =            3.2 ; //[1:0.1:10]
+HoleDiaThread             =            4.2 ; //[1:0.1:10]
 // Screw or hot melt nut Hole deepness (deepness in the Body/Cylinder). If too big, through hole possible
 HoleDeepness              =           12.0 ; //[1:0.1:200]
 // Cylinder dia for the Screw
@@ -77,7 +77,7 @@ AddYScrew                 =           false ;
 // For stability you can connect the cylinder to the wall
 ConnectCylinder           =           true ;
 // Add chamfer to the bottom of the cylinder (depends on the HoleDeepness parameter). Use only when the cylinder is connected with the wall or when ConnectCylinder is activated
-AddChamfer                =           true ;
+AddChamfer                =           false ;
 //  Chamfer cut angle. Default 22. I would not go bigger than 45 to prevent printing issues, besides you use support
 ChamferAngle              =             35 ;
 // Select the using screw head

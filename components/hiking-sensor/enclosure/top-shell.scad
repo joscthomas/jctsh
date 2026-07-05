@@ -47,9 +47,9 @@ Dist                      =             10 ;
 Position                  =          false ;
 /* [Box size settings] */
 // Depth
-SizeX                     = 63;
+SizeX                     = 70;
 // Width
-SizeY                     = 79;
+SizeY                     = 90;
 // Height
 SizeZ                     = 19;
 // Corner rounding --> !!! Rounding must be same or bigger than WallThick, and not bigger than the half of the smaler side -1. Otherwise there are some rendering issues
@@ -77,7 +77,7 @@ AddYScrew                 =           false ;
 // For stability you can connect the cylinder to the wall
 ConnectCylinder           =           true ;
 // Add chamfer to the bottom of the cylinder (depends on the HoleDeepness parameter). Use only when the cylinder is connected with the wall or when ConnectCylinder is activated
-AddChamfer                =           true ;
+AddChamfer                =           false ;
 //  Chamfer cut angle. Default 22. I would not go bigger than 45 to prevent printing issues, besides you use support
 ChamferAngle              =             35 ;
 // Select the using screw head

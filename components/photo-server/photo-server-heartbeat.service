@@ -1,0 +1,8 @@
+[Unit]
+Description=JCTsh photo-server heartbeat
+After=network.target docker.service
+
+[Service]
+Type=oneshot
+User=jct
+ExecStart=/usr/bin/python3 /usr/local/bin/photo-server-heartbeat.py

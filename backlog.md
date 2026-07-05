@@ -13,6 +13,17 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
+### CARD-029 · [enhancement] [photo-server] Live-test Immich degraded-heartbeat alert path
+**Notes:** `photo-server-heartbeat.py` (see `components/photo-server/heartbeat.md`) checks Docker health status of all four Immich containers (`immich_server`, `immich_postgres`, `immich_machine_learning`, `immich_redis`) and publishes an `Alert`-category log message if any are unhealthy or missing, instead of the normal collapsing `System` heartbeat. Verified live on the dashboard for the healthy path (2026-07-04), but the degraded path was not live-tested — stopping a container to test it would have risked disrupting the in-progress Immich photo migration/upload.
+
+**Test once the migration is done:**
+1. `docker stop immich_redis` (or any one container) on photo-server
+2. `sudo systemctl start photo-server-heartbeat.service` to trigger a manual check
+3. Confirm an `Alert` row appears on the dashboard (`http://raspberrypi.local/`) for component `photo-server`, and that it does *not* collapse into the heartbeat count row like a normal heartbeat would
+4. `docker start immich_redis` to restore, then confirm the next heartbeat returns to normal `System`/online status
+
+---
+
 ### CARD-028 · [idea] [photo-server] Automated post-import quality scan (blur/duplicate detection)
 **Notes:** Decided during photo-server migration (2026-07-04) to skip a manual pre-import quality pass entirely — importing everything as-is and relying on Immich's built-in duplicate detection (CLIP-embedding-based visual similarity, not just byte-hash) plus an ongoing "favorites" curation habit over time. This card captures the option to add an *automated* (no manual photo review) quality pass later, run after the Immich import so you can see real results first before deciding if it's worth doing.
 

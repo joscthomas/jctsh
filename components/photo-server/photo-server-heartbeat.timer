@@ -1,0 +1,10 @@
+[Unit]
+Description=Run JCTsh photo-server heartbeat every 30 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30min
+Unit=photo-server-heartbeat.service
+
+[Install]
+WantedBy=timers.target

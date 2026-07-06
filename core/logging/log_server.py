@@ -37,6 +37,7 @@ _REMOTE_COMPONENTS     = {"coachproxyos"}
 _HOME_HB_THRESHOLD_MIN = 70   # hourly beat + 10 min grace
 LOG_DIR     = "/home/pi/jctsh/logs"
 LOG_FILE    = os.path.join(LOG_DIR, "jctsh.log")
+STATE_FILE  = os.path.join(LOG_DIR, "state.json")
 MAX_ENTRIES = 200
 
 # ── Shared state ─────────────────────────────────────────────────────────────
@@ -56,6 +57,41 @@ _fh = logging.handlers.RotatingFileHandler(
 )
 _fh.setFormatter(logging.Formatter("%(message)s"))
 _file_logger.addHandler(_fh)
+
+
+# ── State persistence (survive service restarts) ────────────────────────────
+def _save_state():
+    """Persist _entries and _last_seen so the dashboard doesn't start empty
+    after a restart. Caller must hold _lock. Best-effort — a failed save
+    just means the next restart starts fresh, same as before this existed."""
+    try:
+        data = {
+            "entries": list(_entries),
+            "last_seen": {
+                comp: {k: v for k, v in e.items() if k != "_state_key"}
+                for comp, e in _last_seen.items()
+            },
+        }
+        tmp = STATE_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f)
+        os.replace(tmp, STATE_FILE)
+    except OSError:
+        pass
+
+
+def _load_state():
+    """Restore _entries and _last_seen from disk on startup, if present.
+    Does not re-write anything to the log file — this only rehydrates the
+    in-memory view. _pending/_hb_groups intentionally start fresh."""
+    try:
+        with open(STATE_FILE) as f:
+            data = json.load(f)
+        for e in data.get("entries", []):
+            _entries.append(e)
+        _last_seen.update(data.get("last_seen", {}))
+    except (OSError, json.JSONDecodeError):
+        pass
 
 
 def _heartbeat_state_key(message):
@@ -172,6 +208,7 @@ def _store_entry(component, category, message, ts):
                 "category": category, "message": message, "count": 1,
             }
         _last_seen[component] = _pending
+    _save_state()
 
 
 def _on_message(client, userdata, msg):
@@ -804,6 +841,9 @@ def _mqtt_thread():
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print(f"[JCTsh] Log server starting — MQTT {MQTT_BROKER}:{MQTT_PORT}, HTTP :{HTTP_PORT}")
+    with _lock:
+        _load_state()
+    print(f"[JCTsh] Restored {len(_entries)} entries, {len(_last_seen)} known components from {STATE_FILE}")
     t = threading.Thread(target=_mqtt_thread, daemon=True)
     t.start()
     threading.Thread(target=_heartbeat_thread, daemon=True).start()
@@ -819,4 +859,5 @@ if __name__ == "__main__":
         with _lock:
             _flush_pending()
             _flush_all_hb_groups()
+            _save_state()
         print("\n[JCTsh] Stopped.")

@@ -49,9 +49,42 @@ logged at least once since the server started shows up somewhere in the live vie
 into its correct chronological position by timestamp, so a stale entry is visually obvious
 (old timestamp) rather than looking like fresh activity.
 
-`_last_seen` resets on service restart, same as `_entries`/`_hb_groups`/`_pending` — a
-component reappears in the live view on its next report after a restart, same as before
-this fix.
+`_last_seen` used to reset on every service restart, same as `_entries`/`_hb_groups`/
+`_pending` — meaning right after a restart, the live view would sit sparse for up to a
+component's full reporting interval before it reappeared. Fixed by the state persistence
+described below.
+
+### State Persistence Across Restarts
+
+Added 2026-07-06. Before this, every restart (deploy, crash, reboot) wiped `_entries` and
+`_last_seen` completely, so the dashboard started from nothing and looked broken/empty
+until each component's next natural report came in — up to 30+ minutes for some.
+
+`_save_state()` writes `_entries` and `_last_seen` to `/home/pi/jctsh/logs/state.json`
+(atomically — write to `.tmp`, then `os.replace()` — so a crash mid-write can't corrupt
+it) every time `_store_entry()` processes a message, and again on graceful shutdown after
+the final flush. `_load_state()` reads it back on startup, before the MQTT/HTTP threads
+start.
+
+Deliberately **not** persisted: `_pending` and `_hb_groups` (the currently-in-progress,
+not-yet-flushed collapse groups) — these start fresh on every restart, same as before.
+Only already-settled history and the per-component "last known state" are restored. This
+was chosen over parsing `jctsh.log` on startup: the log file only contains the *formatted
+display string* (already collapsed, column-padded), not the original structured data —
+reconstructing entries from that is lossy and fragile, whereas `state.json` holds the
+actual internal dict structure directly.
+
+If `state.json` is missing or fails to parse (corrupt, truncated, wrong schema from an old
+version), `_load_state()` silently falls back to starting empty — same behavior as before
+this feature existed, never a hard failure.
+
+**Related fix, found while verifying this:** the systemd service was missing
+`Environment=PYTHONUNBUFFERED=1`. Without it, Python fully buffers stdout when it isn't a
+TTY, so every `print()` — including the new "Restored N entries" startup message — sat in
+memory and only reached `journalctl` when the process next exited, stamped with the *exit*
+time rather than when it actually happened. This made every past restart look like an
+instant crash-loop in the journal (start → immediately "Stopped" → started again) when the
+service was actually running fine the whole time. Fixed in the unit file below.
 
 Also publishes its own hourly watchdog heartbeat to `jctsh/core/log-server/log` to
 confirm the log server and MQTT broker are both alive.
@@ -89,6 +122,7 @@ Description=JCTsh Log Server
 After=network.target mosquitto.service
 
 [Service]
+Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/python3 /home/pi/jctsh/core/logging/log_server.py
 WorkingDirectory=/home/pi/jctsh/core/logging
 Restart=always

@@ -94,6 +94,38 @@ not live-tested, to avoid disrupting the in-progress Immich photo migration.
 
 ---
 
+## Bug Found and Fixed (2026-07-06): False Watchdog Alerts
+
+Joseph reported repeated "Component photo-server silent for 35 minutes" watchdog alerts
+despite the server running fine. Investigation via Node-RED's own runtime log
+(`journalctl -u nodered`, which logs every `node.warn()` call in the watchdog flow,
+including "Timer set for photo-server" on every heartbeat receipt) showed the `/log` topic
+was arriving 100% reliably (confirmed via the dashboard — 74/74 heartbeats collapsed with
+no gaps) while the `/heartbeat` topic was intermittently dropped, roughly every 2-3 cycles,
+causing the watchdog's 35-minute timer to expire even though the script itself logged
+`Heartbeat sent. status=online` every single run with no gaps.
+
+**Root cause:** the original script published both topics with `client.publish(..., qos=1)`
+back-to-back, then called `client.disconnect()` immediately, without running the network
+loop. `publish()` writes the outgoing packet to the socket but does not guarantee delivery
+for QoS 1 without the client processing broker traffic — an immediate `disconnect()` can
+close the socket before the second publish's packet is fully flushed. The first (`/log`)
+message reliably went out; the second (`/heartbeat`) was the one intermittently lost.
+
+**Fix:** call `client.loop_start()` after connecting, then `wait_for_publish(timeout=5)` on
+both publish results before `loop_stop()` + `disconnect()`. This keeps the network loop
+running long enough to actually confirm both QoS-1 deliveries. Verified by firing 5 rapid
+back-to-back manual runs (the pattern that most reliably reproduced the drop) — all 5
+registered in Node-RED's log with no gaps.
+
+**Note:** `components/p-w-firefly/jctsh-heartbeat.py` (coachproxyos, the RV Pi) uses the
+identical publish-then-disconnect pattern and almost certainly has the same latent bug —
+just less noticeable since a stray "coachproxyos silent" alert is easy to dismiss for a
+device that's expected to roam in and out of range. Not fixed yet — the RV Pi wasn't
+reachable (Tailscale down) when this was found. See CARD-031.
+
+---
+
 ## Note on Dashboard Display
 
 Same collapsing behavior as every other component: consecutive `"Heartbeat - "` messages

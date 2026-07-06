@@ -13,6 +13,30 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
+### CARD-031 · [bug] [p-w-firefly] Fix coachproxyos heartbeat's same publish/disconnect race condition
+**Notes:** While debugging false "photo-server silent for 35 minutes" watchdog alerts (2026-07-06), found the root cause: `photo-server-heartbeat.py` published its `/log` and `/heartbeat` MQTT messages (QoS 1) back-to-back then called `client.disconnect()` immediately without running the network loop — occasionally the second publish's packet hadn't fully flushed before the socket closed, silently dropping the `/heartbeat` message while `/log` (published first) always got through. Fixed in photo-server's script via `client.loop_start()` + `wait_for_publish(timeout=5)` on both messages before `loop_stop()`/`disconnect()`. See `components/photo-server/heartbeat.md` for full root-cause writeup.
+
+`components/p-w-firefly/jctsh-heartbeat.py` (coachproxyos, the RV Pi) uses the identical publish-then-disconnect pattern and almost certainly has the same latent bug — just less noticeable since a stray "coachproxyos silent" alert is easy to dismiss for a device that's expected to roam in and out of Tailscale range. Apply the same fix: `loop_start()` → publish both → `wait_for_publish()` on both → `loop_stop()` → `disconnect()`.
+
+**Blocked:** RV Pi wasn't reachable (Tailscale down / not home) when this was found — deploy next time `coachproxyos` is reachable at `100.90.246.43` or `192.168.1.219`.
+
+---
+
+### CARD-030 · [bug] [photo-server] Re-enable weekly backup cron once Takeout zips are cleared
+**Notes:** During the Google Takeout migration (2026-07-04/05), `/mnt/photo-library` filled to 100% because raw Takeout zips (817GB combined for Joseph + Robin) and Immich's own growing asset storage were competing for the same 916GB drive. Fixed by relocating the zips off that drive: ~450GB (9 of Joseph's 12 zips) moved to `/mnt/photo-library-backup` (Momentus 640GB drive), remaining ~366GB (3 Joseph zips + all of Robin's) moved to the NVMe root (`/home/jct/takeout-staging/`).
+
+The weekly rsync backup cron (`photo-library-backup.sh`, Sundays 2am) was **disabled** (commented out in crontab, prefixed `#DISABLED-during-migration#`) because it already ran once mid-migration and mirrored 200GB of the transient zip staging onto Momentus via `rsync --delete` — pointless and wasteful, and worse, leaving it enabled while zips sit on Momentus risks the *next* run deleting those same zips (since `--delete` makes the destination match the source, and the zips no longer exist in `/mnt/photo-library`, their only copy would be on Momentus with nothing "keeping" them from an rsync perspective if the backup script's source/dest were ever pointed there — verify actual risk before relying on this reasoning if the script changes).
+
+Joseph wants to keep the zip files around for a while after migration completes, to spot-check the import without needing to re-download from Google. Momentus is only 640GB total and needs ~650-700GB free to hold the eventual full-library backup — it cannot hold both the zips *and* a real backup at the same time.
+
+**Do this once Joseph confirms the import is verified and he's ready to delete the zips:**
+1. Delete the zip files from both `/mnt/photo-library-backup/takeout-staging/` and `/home/jct/takeout-staging/`
+2. Re-enable the cron job: `crontab -l | sed 's/^#DISABLED-during-migration# //' | crontab -`
+3. Confirm it re-appears uncommented: `crontab -l`
+4. Optionally trigger one manual run (`/usr/local/bin/photo-library-backup.sh`) to confirm the real library now backs up cleanly to Momentus with room to spare
+
+---
+
 ### CARD-029 · [enhancement] [photo-server] Live-test Immich degraded-heartbeat alert path
 **Notes:** `photo-server-heartbeat.py` (see `components/photo-server/heartbeat.md`) checks Docker health status of all four Immich containers (`immich_server`, `immich_postgres`, `immich_machine_learning`, `immich_redis`) and publishes an `Alert`-category log message if any are unhealthy or missing, instead of the normal collapsing `System` heartbeat. Verified live on the dashboard for the healthy path (2026-07-04), but the degraded path was not live-tested — stopping a container to test it would have risked disrupting the in-progress Immich photo migration/upload.
 

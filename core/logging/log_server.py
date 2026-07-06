@@ -44,6 +44,7 @@ _lock        = threading.Lock()
 _entries     = deque(maxlen=MAX_ENTRIES)   # flushed, displayable entries
 _pending     = None                         # current non-heartbeat repeat group (not yet flushed)
 _hb_groups   = {}                           # component -> active heartbeat collapse group
+_last_seen   = {}                           # component -> most recent entry, regardless of eviction
 _mqtt_client = None
 
 # ── File logging ─────────────────────────────────────────────────────────────
@@ -153,6 +154,7 @@ def _store_entry(component, category, message, ts):
                 "message": message, "count": 1,
                 "_state_key": state_key,
             }
+        _last_seen[component] = _hb_groups[component]
     else:
         # Non-heartbeat: flush any open heartbeat group for this component first.
         # Sensor-category messages are co-scheduled with the heartbeat interval —
@@ -169,6 +171,7 @@ def _store_entry(component, category, message, ts):
                 "ts": ts, "component": component,
                 "category": category, "message": message, "count": 1,
             }
+        _last_seen[component] = _pending
 
 
 def _on_message(client, userdata, msg):
@@ -629,6 +632,10 @@ def _snapshot():
             entries.append(dict(_pending))
         for group in _hb_groups.values():
             entries.append({k: v for k, v in group.items() if k != "_state_key"})
+        shown = {c.strip() for e in entries for c in e["component"].split(",")}
+        for comp, last in _last_seen.items():
+            if comp not in shown:
+                entries.append({k: v for k, v in last.items() if k != "_state_key"})
     entries.sort(key=lambda e: e["ts"])
     return _collapse_for_display(entries)
 

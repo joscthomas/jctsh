@@ -25,11 +25,33 @@ All JCTsh components
       ▼
 log_server.py  (Raspberry Pi)
       ├── Applies duplicate suppression and heartbeat collapsing
-      ├── Keeps last 200 entries in memory
+      ├── Keeps last 200 entries in memory (plus one pinned entry per
+      │   component so infrequent reporters always show — see below)
       ├── Appends all entries to /home/pi/jctsh/logs/jctsh.log
       │   (rotates at 1 MB, 5 files kept)
       └── Serves dashboard at http://raspberrypi.local/  (Basic Auth)
 ```
+
+### Per-Component Minimum Retention
+
+The live dashboard (`/` and `/data`) only keeps the last 200 entries across *all*
+components combined. A component that reports infrequently (e.g. `salt-sensor`, roughly
+every 12h) can get crowded out of that window within hours by components that report
+every few minutes (`front-porch-temp-sensor`, `garage-radar` presence events, etc.) — even
+though its history is always intact in the full `/log` file.
+
+Fixed 2026-07-06: `log_server.py` tracks a `_last_seen` dict (component → its most recent
+entry, whatever that entry currently is — an active heartbeat group, an active pending
+entry, or a stale one that already scrolled out of the last-200 window). `_snapshot()`
+always includes one entry per known component, pulling from `_last_seen` for any component
+not otherwise present in the current window. This guarantees every component that has
+logged at least once since the server started shows up somewhere in the live view — sorted
+into its correct chronological position by timestamp, so a stale entry is visually obvious
+(old timestamp) rather than looking like fresh activity.
+
+`_last_seen` resets on service restart, same as `_entries`/`_hb_groups`/`_pending` — a
+component reappears in the live view on its next report after a restart, same as before
+this fix.
 
 Also publishes its own hourly watchdog heartbeat to `jctsh/core/log-server/log` to
 confirm the log server and MQTT broker are both alive.

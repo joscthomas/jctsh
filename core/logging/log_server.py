@@ -310,8 +310,25 @@ _HTML_TEMPLATE = """\
       fc.value = sel;
       f();
     }
+    var _latestData     = null;
+    var _lastSelActivity = 0;
+    var _SEL_GRACE_MS    = 3000;
+    function _hasSelection() {
+      var sel = window.getSelection();
+      return !!(sel && sel.toString().length > 0);
+    }
+    function _touchSelection() { _lastSelActivity = Date.now(); }
+    function _maybeRender() {
+      if (!_latestData) return;
+      if (_hasSelection()) return;
+      if (Date.now() - _lastSelActivity < _SEL_GRACE_MS) return;
+      _render(_latestData);
+    }
     function _poll() {
-      fetch('/data').then(function(r){return r.json();}).then(_render).catch(function(){});
+      fetch('/data').then(function(r){return r.json();}).then(function(data) {
+        _latestData = data;
+        _maybeRender();
+      }).catch(function(){});
     }
     window.addEventListener('DOMContentLoaded', function() {
       var fc = localStorage.getItem('jctsh_fc') || '';
@@ -320,6 +337,13 @@ _HTML_TEMPLATE = """\
       if (fk) document.getElementById('fk').value = fk;
       f();
       setInterval(_poll, 5000);
+      setInterval(_maybeRender, 1000);
+      document.addEventListener('selectionchange', function() {
+        _touchSelection();
+      });
+      var logTable = document.getElementById('log');
+      logTable.addEventListener('mousedown', _touchSelection);
+      logTable.addEventListener('mouseup', _touchSelection);
     });
   </script>
 </body>

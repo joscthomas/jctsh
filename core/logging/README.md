@@ -118,6 +118,22 @@ All components publish to `jctsh/<type>/<component>/log` with this payload:
 
 Timestamps are added by the log server on receipt — do not include them in the payload.
 
+### Dashboard Live Updates vs. Text Selection
+
+The dashboard polls `/data` every 5s and replaces the table body's `innerHTML` to show new
+entries. Naively doing this on every poll wipes any in-progress or just-finished text
+selection (and, as a side effect, corrupts drag-selection direction — the browser's
+selection anchor was re-resolving against freshly created DOM nodes mid-drag, causing
+already-selected lines above the cursor to get pulled into the selection unexpectedly).
+
+Fixed (2026-07-06) by skipping the re-render while there's an active selection, plus a
+3-second grace period after any selection activity (`selectionchange`, `mousedown`,
+`mouseup` on the table) before resuming — a plain "is there a selection right now" check
+had a race where the render could slip through in the split-second gap during selection
+finalization (e.g., right as the mouse button is released). If this bug resurfaces, check
+that `_maybeRender()` in the dashboard's `<script>` block is still being gated by both
+`_hasSelection()` and the grace timer before touching the DOM.
+
 ### Heartbeat Collapsing
 
 Consecutive same-state heartbeat messages per component are collapsed into a single row

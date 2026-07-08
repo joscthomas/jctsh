@@ -1,5 +1,21 @@
 # JCTsh DEVLOG
 
+## 2026-07-08 (continued, part 2)
+Added dashboard visibility for the CARD-035 scheduled reboots (CARD-036). Previously the
+only way to confirm a reboot happened and succeeded was SSHing in and checking
+`systemctl`/`docker ps` manually. Now `scheduled-reboot.service` publishes "Scheduled
+reboot about to occur." right before rebooting, and a new `reboot-complete.service`
+(runs on every boot) publishes "Boot complete." once the broker is reachable — both land
+on the log dashboard under the same component identity as each host's existing heartbeat
+(`jctsh-core` for the Pi, `photo-server` for the M8), reusing the existing MQTT accounts
+rather than creating new ones. Had to split the previously-shared `scheduled-reboot.service`
+into per-host versions (`scheduled-reboot-pi.service` / `scheduled-reboot-m8.service`)
+since the broker address, credentials file, and topic now differ between the two hosts.
+M8 needed `mosquitto-clients` installed (apt) since it only had the Python `paho-mqtt`
+library, not the CLI. Verified live on both hosts via manual `systemctl start
+reboot-complete.service` — confirmed on `/data` (live) and `/log` (persisted, after the
+global `_pending` slot flushed on the next distinct message).
+
 ## 2026-07-08 (continued)
 Added weekly scheduled reboot for the Pi and M8 photo-server (CARD-035), prompted by
 the KeepConnect outlet reconfiguration work. `core/maintenance/scheduled-reboot.service`

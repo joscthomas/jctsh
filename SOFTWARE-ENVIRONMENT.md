@@ -136,15 +136,27 @@ systemd
 |---|---|
 | Managed by | systemd timer (`scheduled-reboot.timer` → `scheduled-reboot.service`) |
 | Schedule | Weekly, Monday 3:00 AM (`America/Phoenix`) |
-| Action | `/sbin/reboot` |
+| Action | Publish MQTT notice, then `/sbin/reboot` |
 
-Version-controlled unit files: `core/maintenance/scheduled-reboot.service`,
-`core/maintenance/scheduled-reboot-pi.timer` (deployed as `scheduled-reboot.timer`).
-`Persistent=true` — if the Pi is powered off at the scheduled time, it reboots on next boot instead of skipping the week.
+Version-controlled unit files: `core/maintenance/scheduled-reboot-pi.service` (deployed as
+`scheduled-reboot.service`), `core/maintenance/scheduled-reboot-pi.timer` (deployed as
+`scheduled-reboot.timer`). `Persistent=true` — if the Pi is powered off at the scheduled
+time, it reboots on next boot instead of skipping the week.
 
 Staggered one hour ahead of the M8 photo-server's own weekly reboot (Monday 4:00 AM) so the M8's heartbeat script isn't trying to publish to Mosquitto while the Pi is mid-reboot. See `components/photo-server/operations.md`.
 
 To check: `systemctl list-timers scheduled-reboot.timer`
+
+**Dashboard visibility (added 2026-07-08):** `scheduled-reboot.service` publishes
+`"Scheduled reboot about to occur."` (component `jctsh-core`, category `System`) to
+`jctsh/core/log-server/log` immediately before rebooting. A second unit,
+`reboot-complete.service` (`core/maintenance/reboot-complete-pi.service`, runs on every
+boot via `WantedBy=multi-user.target`, `After=mosquitto.service`), publishes
+`"Boot complete."` to the same topic/component once the broker is back up. Together these
+give a positive pair of dashboard entries confirming the reboot actually happened and the
+box came back — rather than relying on the absence of a watchdog silence alert. Both reuse the existing `jctsh-log-server` MQTT account credentials from
+`/etc/jctsh/log-server.env` via the `mosquitto_pub` CLI — no new MQTT account. Verified
+live 2026-07-08 via manual `systemctl start reboot-complete.service`.
 
 ## Nabu Casa (HA Cloud)
 

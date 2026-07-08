@@ -1,0 +1,12 @@
+[Unit]
+Description=Publish boot-complete notice to JCTsh log dashboard (Pi)
+After=mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/jctsh/log-server.env
+ExecStart=/usr/bin/mosquitto_pub -h 127.0.0.1 -p 1883 -u ${MQTT_USER} -P ${MQTT_PASS} -t jctsh/core/log-server/log -m '{"component":"jctsh-core","category":"System","message":"Boot complete."}'
+
+[Install]
+WantedBy=multi-user.target

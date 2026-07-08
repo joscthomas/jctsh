@@ -1,0 +1,8 @@
+[Unit]
+Description=Weekly scheduled maintenance reboot (M8 photo-server)
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/jctsh/heartbeat.env
+ExecStart=/usr/bin/mosquitto_pub -h 192.168.1.117 -p 1883 -u photo-server -P ${MQTT_PASSWORD} -t jctsh/server/photo-server/log -m '{"component":"photo-server","category":"System","message":"Scheduled reboot about to occur."}'
+ExecStart=/sbin/reboot

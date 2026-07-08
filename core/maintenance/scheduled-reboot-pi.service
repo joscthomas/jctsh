@@ -1,0 +1,8 @@
+[Unit]
+Description=Weekly scheduled maintenance reboot (Pi)
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/jctsh/log-server.env
+ExecStart=/usr/bin/mosquitto_pub -h 127.0.0.1 -p 1883 -u ${MQTT_USER} -P ${MQTT_PASS} -t jctsh/core/log-server/log -m '{"component":"jctsh-core","category":"System","message":"Scheduled reboot about to occur."}'
+ExecStart=/sbin/reboot

@@ -1,0 +1,6 @@
+[Unit]
+Description=Weekly scheduled maintenance reboot
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/reboot

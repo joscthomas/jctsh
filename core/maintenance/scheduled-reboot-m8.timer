@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly scheduled reboot - Monday 4AM (JCTsh maintenance, M8 photo-server)
+
+[Timer]
+OnCalendar=Mon *-*-* 04:00:00
+Persistent=true
+Unit=scheduled-reboot.service
+
+[Install]
+WantedBy=timers.target

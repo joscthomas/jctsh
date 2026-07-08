@@ -130,6 +130,22 @@ systemd
   └── tailscaled.service
 ```
 
+### Scheduled Reboot
+
+| Property | Value |
+|---|---|
+| Managed by | systemd timer (`scheduled-reboot.timer` → `scheduled-reboot.service`) |
+| Schedule | Weekly, Monday 3:00 AM (`America/Phoenix`) |
+| Action | `/sbin/reboot` |
+
+Version-controlled unit files: `core/maintenance/scheduled-reboot.service`,
+`core/maintenance/scheduled-reboot-pi.timer` (deployed as `scheduled-reboot.timer`).
+`Persistent=true` — if the Pi is powered off at the scheduled time, it reboots on next boot instead of skipping the week.
+
+Staggered one hour ahead of the M8 photo-server's own weekly reboot (Monday 4:00 AM) so the M8's heartbeat script isn't trying to publish to Mosquitto while the Pi is mid-reboot. See `components/photo-server/operations.md`.
+
+To check: `systemctl list-timers scheduled-reboot.timer`
+
 ## Nabu Casa (HA Cloud)
 
 Required for SmartThings integration. SmartThings uses OAuth during setup, which needs an externally reachable HTTPS callback URL — Nabu Casa provides this. If the SmartThings integration is ever removed and needs to be re-added, Nabu Casa must be signed in first (Settings → Home Assistant Cloud), or setup will fail with "No OAuth services available."

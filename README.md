@@ -96,6 +96,7 @@ jctsh/
 ├── SOFTWARE-ENVIRONMENT.md        What is installed and running on the Pi
 ├── jctsh-network.md               IP address and MAC table for all devices
 ├── jctsh-access.md                How to reach all services from any network
+├── keepconnect.md                 KeepConnect router rebooter — config, schedule, rationale
 ├── jctsh-parts-inventory.md       On-hand electronics parts
 ├── JCTsh-Build-Standards.md       Standards all components must follow
 ├── JCTsh-Component-Planning-Pattern.md  How new components are planned and built
@@ -125,6 +126,7 @@ Shared infrastructure not specific to any one component.
 | `core/mqtt/` | Mosquitto configuration (version-controlled copy) |
 | `core/node-red/` | Shared Node-RED flows and settings (version-controlled copies) |
 | `core/offline-logger/` | Reusable offline flash logging template (`sensor_logger.h`) — copy and rename for each intermittently-connected sensor |
+| `core/maintenance/` | Scheduled-reboot systemd units, deployed to the Pi and M8 photo-server |
 
 ---
 

@@ -13,6 +13,24 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
+### CARD-034 · [idea] [personal] Complete digital-identity-protection-checklist.md
+**Notes:** Work through `digital-identity-protection-checklist.md` (repo root) — Joseph and Robin's personal security checklist closing single-point-of-failure risks (carrier port-out PIN, 2FA off SMS, credit freezes, password manager, household verification protocol, incident response plan). Almost entirely manual actions by Joseph/Robin themselves (phone calls to carriers/bureaus, account settings changes) — not something Claude Code can execute directly, but worth tracking to completion since it's currently all unchecked. Also has an "Open Items to Fill In" section (list specific banks/brokerages in use, confirm current password manager/2FA setup, set a 6-month review date) that needs input from Joseph before those parts can be finished.
+
+---
+
+### CARD-032 · [bug] [photo-server] Heartbeat doesn't detect real storage failures (found 2026-07-08)
+**Notes:** Discovered while checking on the completed migration: `/mnt/photo-library` (the Seagate Backup Plus, primary Immich data drive) had silently gone from `/dev/sda` to `/dev/sdc` and become fully unmounted while the system was running (confirmed via `uptime -s` that no reboot occurred — this was a live USB disconnect/reconnect, not a boot-time race). The `immich_server` container's bind mount to `/data` was broken (`Input/output error` on every read), meaning **Immich had likely been unable to read or write any photo/video data for some period**, yet `docker ps` and our heartbeat script (`photo-server-heartbeat.py`, CARD-029) both reported everything "healthy" the entire time — because the container health check only pings the API, and the heartbeat script only checks Docker container status via `docker inspect`, neither of which touches the actual data mount.
+
+**Immediate fix applied:** remounted via `mount -a` (fstab uses UUID, so the `sda`→`sdc` rename didn't block it), restarted all four Immich containers to pick up a fresh bind mount, confirmed via API that `/data` is readable again and zero assets are flagged `isOffline` (Immich's own missing-file marker) — no data loss found.
+
+**Root-cause mitigation applied:** added `/etc/udev/rules.d/99-usb-drive-automount.rules` (`ACTION=="add", SUBSYSTEM=="block", RUN+="/bin/mount -a"`) so any future USB reconnect automatically retriggers `mount -a` without needing manual intervention — `fstab`'s `nofail` only helps at boot time, it does nothing for a drive that drops out mid-session.
+
+**Still needed — the actual monitoring gap:** `photo-server-heartbeat.py` needs a real storage-health check, not just Docker container status. Add something like: `docker exec immich_server test -w /data/upload && echo OK` (or read a known small file) as part of the heartbeat, and treat a failure as the same `Alert`-category, non-collapsing message CARD-029 already established for unhealthy containers. Without this, a repeat of this exact failure mode would again go undetected — the "healthy" dashboard status was actively misleading for however long the drive was actually disconnected.
+
+**Unknown:** why the drive disconnected in the first place (no clear USB/kernel error visible in `dmesg` — didn't have permission to read the full kernel ring buffer, only tried `dmesg | tail`). Could be a loose USB connection, a power delivery blip on that port, or the enclosure itself. Worth physically checking/reseating the USB cable next time at the machine, and re-checking `dmesg` (as root) for the actual disconnect event if it recurs.
+
+---
+
 ### CARD-031 · [bug] [p-w-firefly] Fix coachproxyos heartbeat's same publish/disconnect race condition
 **Notes:** While debugging false "photo-server silent for 35 minutes" watchdog alerts (2026-07-06), found the root cause: `photo-server-heartbeat.py` published its `/log` and `/heartbeat` MQTT messages (QoS 1) back-to-back then called `client.disconnect()` immediately without running the network loop — occasionally the second publish's packet hadn't fully flushed before the socket closed, silently dropping the `/heartbeat` message while `/log` (published first) always got through. Fixed in photo-server's script via `client.loop_start()` + `wait_for_publish(timeout=5)` on both messages before `loop_stop()`/`disconnect()`. See `components/photo-server/heartbeat.md` for full root-cause writeup.
 
@@ -312,6 +330,16 @@ Update findings in `jctsh-security-hardening.md` when complete, then close card.
 ---
 
 ## Done
+
+### CARD-035 · [enhancement] [infrastructure] Weekly scheduled reboot — Pi and M8 photo-server
+**Resolution:** Deployed systemd timers on both hosts: `scheduled-reboot.timer` → `scheduled-reboot.service` (`/sbin/reboot`), `Persistent=true`. Pi: Monday 3:00 AM. M8: Monday 4:00 AM — staggered one hour later so the M8 heartbeat script's MQTT publish to the Pi's Mosquitto broker doesn't collide with the Pi being mid-reboot. Not synchronized to KeepConnect's own weekly router reset — that schedule has drifted from its original Wednesday setting, most likely because its "every 7 days" timer restarts from any reset (scheduled or outage-triggered), so it can't be relied on as a fixed weekday anyway; a router reboot's brief network blip is tolerated regardless of timing. Version-controlled unit files in `core/maintenance/`; documented in `SOFTWARE-ENVIRONMENT.md` (Pi) and new `components/photo-server/operations.md` (M8). Verified live via `systemctl list-timers` on both hosts — next run confirmed Mon 2026-07-13. 2026-07-08.
+
+---
+
+### CARD-033 · [idea] [infrastructure] Document Keep Connect configuration and schedule
+**Resolution:** KeepConnect is a standalone router-rebooter device (Johnson Creative KeepConnect-27F8, not a JCTsh component). New dedicated doc `keepconnect.md` created at repo root with full device identity, network config, physical outlet-scoping rationale, and complete monitor/timing/schedule/notification configuration. Linked from `jctsh-network.md` devices table (IP 192.168.1.108, DHCP-reserved) and `ENVIRONMENT.md` Hub & Controller table; added to `README.md` repository layout. Remaining open item (scheduled Pi/Immich reboot via cron, separate from power-strip cycling) carried forward in `keepconnect.md` itself. 2026-07-08.
+
+---
 
 ### CARD-021 · [enhancement] [logging] Device status dashboard
 **Resolution:** Added `/status` endpoint to `core/logging/log_server.py`. Two-section layout: Home (Online/Offline/? per component based on heartbeat presence and 70-min threshold) and Remote (`coachproxyos` always shows last-activity + `?`). Auto-detects heartbeat-capable components — salt-sensor shows `?` until CARD-004 ESPHome migration adds heartbeats. Deployed to Pi 2026-06-30. Added CARD-024 (coachproxy remote health monitoring via Tailscale ping).

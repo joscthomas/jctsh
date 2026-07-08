@@ -1,5 +1,36 @@
 # JCTsh DEVLOG
 
+## 2026-07-08 (continued)
+Added weekly scheduled reboot for the Pi and M8 photo-server (CARD-035), prompted by
+the KeepConnect outlet reconfiguration work. `core/maintenance/scheduled-reboot.service`
+(`/sbin/reboot`) + per-host timers, deployed as systemd units: Pi Monday 3:00 AM, M8
+Monday 4:00 AM. The one-hour stagger matters — the M8's heartbeat script publishes to
+the Pi's Mosquitto broker, so an overlapping reboot would read as a false M8-down alert
+instead of the Pi just being mid-reboot. Deliberately not synchronized to KeepConnect's
+own weekly router reset: that schedule has drifted off its original Wednesday setting,
+most likely because its 7-day timer restarts from any reset (scheduled or
+outage-triggered) rather than a fixed weekday, so there's nothing stable to sync against
+— and a router reboot's brief network blip doesn't meaningfully interact with either
+host's own reboot anyway. `Persistent=true` on both timers so a missed window (host off
+at 3/4 AM) fires on next boot instead of skipping the week. Verified live via
+`systemctl list-timers` on both hosts.
+
+## 2026-07-08
+Documented KeepConnect router rebooter (CARD-033). Not a JCTsh component — a
+standalone Johnson Creative device (KeepConnect-27F8) that power-cycles the
+router/modem on internet-loss detection. New `keepconnect.md` at repo root covers
+full config: monitor mode set to "Require Full TCP/HTTPS Success" (switched from
+vendor Roundtrip mode to avoid depending on Johnson Creative's own server uptime),
+distinct primary/backup test domains (google.com / cloudflare.com), and a 4-minute
+post-reset reconnect wait (raised from the 3-minute default to give the modem
+headroom for DOCSIS ranging). Physically scoped to the router's own surge-protector
+outlet only — the Immich Pi and SmartThings hub were moved to a separate always-on
+outlet so router-triggered power cycling can't corrupt the Immich Postgres DB
+mid-write or force a Zigbee/Z-Wave mesh rebuild on the hub. Linked from
+`jctsh-network.md` and `ENVIRONMENT.md`. Open item carried forward: a clean
+scheduled `shutdown -r` cron for the Pi/Immich stack, independent of power-strip
+cycling.
+
 ## 2026-05-16
 Restructured Salt Sensor project into JCTsh smart home monorepo. Salt Sensor
 becomes first component under jctsh/components/. Centralized Python log server

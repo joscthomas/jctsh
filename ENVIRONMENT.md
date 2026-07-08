@@ -7,6 +7,7 @@ Tucson, AZ | Joseph C Thomas
 |---|---|
 | SmartThings Hub | Primary smart home controller — manages Zigbee, Z-Wave, and virtual switches |
 | Raspberry Pi 3B+ | JCTsh automation server — see [CLAUDE.md](./CLAUDE.md) for services, ports, and access |
+| KeepConnect-27F8 | Router rebooter — power-cycles router/modem on internet-loss detection; scoped to router outlet only. See [keepconnect.md](./keepconnect.md) |
 
 ## Servers & Mini PCs
 | Device | Role | Location |

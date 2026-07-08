@@ -1,5 +1,20 @@
 # JCTsh DEVLOG
 
+## 2026-07-08 (continued, part 3)
+Closed the actual CARD-032 monitoring gap and live-tested CARD-029 in the same session.
+`photo-server-heartbeat.py` now writes/reads/removes a marker file inside the
+`immich_server` container's own `/data/upload` on every run, catching a broken bind mount
+directly instead of trusting Docker's health check (which only pings the API). Live-tested
+both degraded paths for real, now that the Immich migration is done and it's safe to:
+container-down (`docker stop immich_redis`) produced the expected non-collapsing Alert row,
+and a storage failure — reproduced via `mount -o remount,ro /mnt/photo-library` rather than
+physically pulling the drive — produced `Alert - storage:...Read-only file system`, exactly
+reproducing the original incident's failure mode. First attempt to simulate the storage
+failure (`chmod 555` on the host-side upload directory) silently failed to trigger anything,
+because the Immich container runs as root and root ignores POSIX permission bits — a
+read-only remount enforces at the VFS level instead and actually worked. Both cards moved
+to Done; full writeup in `components/photo-server/heartbeat.md`.
+
 ## 2026-07-08 (continued, part 2)
 Added dashboard visibility for the CARD-035 scheduled reboots (CARD-036). Previously the
 only way to confirm a reboot happened and succeeded was SSHing in and checking

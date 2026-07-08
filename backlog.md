@@ -18,19 +18,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-032 · [bug] [photo-server] Heartbeat doesn't detect real storage failures (found 2026-07-08)
-**Notes:** Discovered while checking on the completed migration: `/mnt/photo-library` (the Seagate Backup Plus, primary Immich data drive) had silently gone from `/dev/sda` to `/dev/sdc` and become fully unmounted while the system was running (confirmed via `uptime -s` that no reboot occurred — this was a live USB disconnect/reconnect, not a boot-time race). The `immich_server` container's bind mount to `/data` was broken (`Input/output error` on every read), meaning **Immich had likely been unable to read or write any photo/video data for some period**, yet `docker ps` and our heartbeat script (`photo-server-heartbeat.py`, CARD-029) both reported everything "healthy" the entire time — because the container health check only pings the API, and the heartbeat script only checks Docker container status via `docker inspect`, neither of which touches the actual data mount.
-
-**Immediate fix applied:** remounted via `mount -a` (fstab uses UUID, so the `sda`→`sdc` rename didn't block it), restarted all four Immich containers to pick up a fresh bind mount, confirmed via API that `/data` is readable again and zero assets are flagged `isOffline` (Immich's own missing-file marker) — no data loss found.
-
-**Root-cause mitigation applied:** added `/etc/udev/rules.d/99-usb-drive-automount.rules` (`ACTION=="add", SUBSYSTEM=="block", RUN+="/bin/mount -a"`) so any future USB reconnect automatically retriggers `mount -a` without needing manual intervention — `fstab`'s `nofail` only helps at boot time, it does nothing for a drive that drops out mid-session.
-
-**Still needed — the actual monitoring gap:** `photo-server-heartbeat.py` needs a real storage-health check, not just Docker container status. Add something like: `docker exec immich_server test -w /data/upload && echo OK` (or read a known small file) as part of the heartbeat, and treat a failure as the same `Alert`-category, non-collapsing message CARD-029 already established for unhealthy containers. Without this, a repeat of this exact failure mode would again go undetected — the "healthy" dashboard status was actively misleading for however long the drive was actually disconnected.
-
-**Unknown:** why the drive disconnected in the first place (no clear USB/kernel error visible in `dmesg` — didn't have permission to read the full kernel ring buffer, only tried `dmesg | tail`). Could be a loose USB connection, a power delivery blip on that port, or the enclosure itself. Worth physically checking/reseating the USB cable next time at the machine, and re-checking `dmesg` (as root) for the actual disconnect event if it recurs.
-
----
-
 ### CARD-031 · [bug] [p-w-firefly] Fix coachproxyos heartbeat's same publish/disconnect race condition
 **Notes:** While debugging false "photo-server silent for 35 minutes" watchdog alerts (2026-07-06), found the root cause: `photo-server-heartbeat.py` published its `/log` and `/heartbeat` MQTT messages (QoS 1) back-to-back then called `client.disconnect()` immediately without running the network loop — occasionally the second publish's packet hadn't fully flushed before the socket closed, silently dropping the `/heartbeat` message while `/log` (published first) always got through. Fixed in photo-server's script via `client.loop_start()` + `wait_for_publish(timeout=5)` on both messages before `loop_stop()`/`disconnect()`. See `components/photo-server/heartbeat.md` for full root-cause writeup.
 
@@ -52,17 +39,6 @@ Joseph wants to keep the zip files around for a while after migration completes,
 2. Re-enable the cron job: `crontab -l | sed 's/^#DISABLED-during-migration# //' | crontab -`
 3. Confirm it re-appears uncommented: `crontab -l`
 4. Optionally trigger one manual run (`/usr/local/bin/photo-library-backup.sh`) to confirm the real library now backs up cleanly to Momentus with room to spare
-
----
-
-### CARD-029 · [enhancement] [photo-server] Live-test Immich degraded-heartbeat alert path
-**Notes:** `photo-server-heartbeat.py` (see `components/photo-server/heartbeat.md`) checks Docker health status of all four Immich containers (`immich_server`, `immich_postgres`, `immich_machine_learning`, `immich_redis`) and publishes an `Alert`-category log message if any are unhealthy or missing, instead of the normal collapsing `System` heartbeat. Verified live on the dashboard for the healthy path (2026-07-04), but the degraded path was not live-tested — stopping a container to test it would have risked disrupting the in-progress Immich photo migration/upload.
-
-**Test once the migration is done:**
-1. `docker stop immich_redis` (or any one container) on photo-server
-2. `sudo systemctl start photo-server-heartbeat.service` to trigger a manual check
-3. Confirm an `Alert` row appears on the dashboard (`http://raspberrypi.local/`) for component `photo-server`, and that it does *not* collapse into the heartbeat count row like a normal heartbeat would
-4. `docker start immich_redis` to restore, then confirm the next heartbeat returns to normal `System`/online status
 
 ---
 
@@ -330,6 +306,20 @@ Update findings in `jctsh-security-hardening.md` when complete, then close card.
 ---
 
 ## Done
+
+### CARD-032 · [bug] [photo-server] Heartbeat doesn't detect real storage failures (found 2026-07-08)
+**Resolution:** `photo-server-heartbeat.py` now writes, reads back, and removes a marker file (`/data/upload/.heartbeat_check`) *inside* the `immich_server` container on every run where the container itself is confirmed up, catching the exact class of failure Docker's own health check misses (it only pings the Immich API, never touches `/data`). A failure is appended to the same `unhealthy` list and reported as `Alert - storage:<error text>`, using the identical non-collapsing path CARD-029 established for degraded containers. Immediate fix (remount, container restart) and root-cause mitigation (udev auto-remount rule) from the original incident were already in place; this closes the actual monitoring gap.
+
+Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o remount,ro`) — chosen over physically disconnecting the drive, and over a plain `chmod` on the host-side directory (tried first; silently didn't work, since the container runs as root and root bypasses POSIX permission bits — a read-only remount is enforced at the VFS level instead). Dashboard correctly showed `Immich degraded - storage:sh: 1: cannot create /data/upload/.heartbeat_check: Read-only file system`; remounting read-write restored normal status on the next run. Full writeup in `components/photo-server/heartbeat.md`.
+
+**Still unknown:** the original root physical cause of the USB drive disconnecting in the first place (no clear `dmesg` evidence was captured at the time). Worth checking/reseating the USB cable and capturing full `dmesg` as root if it recurs — not blocking, since the monitoring gap that made it dangerous is now closed.
+
+---
+
+### CARD-029 · [enhancement] [photo-server] Live-test Immich degraded-heartbeat alert path
+**Resolution:** Live-tested 2026-07-08 now that the Immich migration is complete. `docker stop immich_redis` produced `Immich degraded - immich_redis:unhealthy` (then `:starting` during the restart race) as a non-collapsing `Alert` row on the dashboard; `docker start immich_redis` restored normal `System`/online status on the next run. Combined with the CARD-032 storage-check test in the same session. Full writeup in `components/photo-server/heartbeat.md`.
+
+---
 
 ### CARD-036 · [enhancement] [infrastructure] Dashboard visibility for scheduled reboots
 **Resolution:** CARD-035's scheduled reboots were invisible on the JCTsh log dashboard — confirming success required manually SSHing in and checking `systemctl`/`docker ps`. Added a matched pair of MQTT log messages around each reboot: `scheduled-reboot.service` now publishes `"Scheduled reboot about to occur."` immediately before calling `/sbin/reboot` (multiple `ExecStart=` lines in the oneshot unit), and a new `reboot-complete.service` (enabled via `WantedBy=multi-user.target`) publishes `"Boot complete."` on every boot once the MQTT broker is reachable. Pi publishes as component `jctsh-core` to `jctsh/core/log-server/log` using the existing `jctsh-log-server` MQTT account (`/etc/jctsh/log-server.env`) via `mosquitto_pub` (already installed). M8 publishes as component `photo-server` to `jctsh/server/photo-server/log` using the existing `photo-server` MQTT account (`/etc/jctsh/heartbeat.env`) — required installing the `mosquitto-clients` apt package on the M8 (the heartbeat script uses Python `paho-mqtt` instead, so the CLI wasn't already present). Neither message uses the `"Heartbeat - "` prefix, so each occurrence stays visible as its own dashboard row rather than collapsing. Per-host unit files split out: `scheduled-reboot-pi.service`/`scheduled-reboot-m8.service` replace the old shared `scheduled-reboot.service` (now host-specific since the MQTT broker address, credentials file, and topic differ per host). Verified live 2026-07-08 via manual `systemctl start reboot-complete.service` on both hosts — confirmed on the dashboard (`/data` live view and, after flushing, the persisted `/log` file).

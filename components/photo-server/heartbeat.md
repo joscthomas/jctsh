@@ -21,6 +21,15 @@ status, it publishes an `Alert`-category log message instead (not prefixed
 heartbeat topic — this keeps the watchdog from firing on an Immich-level problem where the
 box itself is fine; the log dashboard is the place that surfaces it.
 
+**Storage check (added 2026-07-08, CARD-032):** container health alone doesn't prove
+`/data` is actually readable/writable — Docker's health check only pings the Immich API.
+If `immich_server` itself is confirmed up, the script also writes, reads back, and removes
+a marker file at `/data/upload/.heartbeat_check` *inside the container*, so the check
+exercises the real bind mount, not just host-side permission bits. A failure (stale mount,
+read-only remount, `Input/output error`) is appended to the same `unhealthy` list and
+reported as `Alert - storage:<error text>`, using the identical non-collapsing path
+degraded containers already use.
+
 Topics:
 - `jctsh/server/photo-server/log` — picked up by the log server, visible in the dashboard
 - `jctsh/server/photo-server/heartbeat` — monitored by the Node-RED watchdog (35-minute timeout)
@@ -91,6 +100,21 @@ stored in `/etc/jctsh/heartbeat.env` on photo-server and in `credentials.local.m
 Verified live 2026-07-04: heartbeat confirmed on dashboard (`/data` endpoint, collapsing
 correctly into a single row with count). Degraded-path (container down) logic reviewed but
 not live-tested, to avoid disrupting the in-progress Immich photo migration.
+
+**Live-tested 2026-07-08 (CARD-029, CARD-032)** — migration is now complete, so both
+degraded paths were tested for real:
+- **Container down:** `docker stop immich_redis` → dashboard showed `Immich degraded -
+  immich_redis:unhealthy` (then `:starting` on the restart race) as a non-collapsing
+  `Alert` row → `docker start immich_redis` restored normal `System`/online status on the
+  next run.
+- **Storage failure:** `mount -o remount,ro /mnt/photo-library` (safer than physically
+  disconnecting the drive — enforced at the VFS level, so it isn't bypassed by root the
+  way a plain `chmod` on the host-side directory was in an earlier failed test attempt) →
+  dashboard showed `Immich degraded - storage:sh: 1: cannot create
+  /data/upload/.heartbeat_check: Read-only file system` → `mount -o remount,rw
+  /mnt/photo-library` restored normal status on the next run. This reproduces the exact
+  failure mode from the original CARD-032 incident (broken bind mount, containers
+  otherwise "healthy") and confirms it's now caught.
 
 ---
 

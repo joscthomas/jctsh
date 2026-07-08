@@ -37,6 +37,26 @@ for name in CONTAINERS:
     except Exception as e:
         unhealthy.append(f"{name}:error({e})")
 
+# Docker's health check only pings the Immich API — it doesn't touch /data, so a broken
+# bind mount (e.g. the USB drive dropping out mid-session) still reports "healthy". Write,
+# read, and remove a marker file through the container's own mount to catch that case
+# directly. Only run if immich_server itself is confirmed up, since a missing container
+# would make this fail for the same reason already captured above.
+if not any(u.startswith("immich_server:") for u in unhealthy):
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "immich_server", "sh", "-c",
+             "echo ok > /data/upload/.heartbeat_check "
+             "&& cat /data/upload/.heartbeat_check > /dev/null "
+             "&& rm -f /data/upload/.heartbeat_check"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            err = (result.stderr or result.stdout or "unknown error").strip()[:200]
+            unhealthy.append(f"storage:{err}")
+    except Exception as e:
+        unhealthy.append(f"storage:error({e})")
+
 if unhealthy:
     status = "degraded"
     category = "Alert"

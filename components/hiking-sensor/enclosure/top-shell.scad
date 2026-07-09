@@ -266,7 +266,8 @@ module Box () {
                 difference(){
                     translate([0,0,SizeZ/2]) RoundedCube([SizeX,SizeY,SizeZ], Rounding,$fn); // Body
                     translate([0,0,SizeZ/2+WallThick/2+0.03]) RoundedCube([SizeX-WallThick*2,SizeY-WallThick*2,SizeZ-WallThick], Rounding-WallThick,$fnInterior); // Body cut
-                    translate([0,0,SizeZ-LidThick/2-Gap/2+0.04]) RoundedCube([SizeX-WallThick,SizeY-WallThick,LidThick+Gap], Rounding-WallThick/2,$fnInterior); // Lid cut
+                    // Lid cut removed (2026-07-06) — eliminates the thin-wall rabbet at the rim; we don't use the template's lid at all
+                    // translate([0,0,SizeZ-LidThick/2-Gap/2+0.04]) RoundedCube([SizeX-WallThick,SizeY-WallThick,LidThick+Gap], Rounding-WallThick/2,$fnInterior); // Lid cut
                 }
             }
             if (Show!=1){

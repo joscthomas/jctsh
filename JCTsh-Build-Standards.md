@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.11
-**Version description:** Added §2.14 point 8 — GPIO-controlled power gating for I2C/SPI peripherals during sleep, flagged as a candidate pattern (not yet required) pending validation via hiking-sensor backlog CARD-026/CARD-027. Follows §2.14 point 7 (v1.10) prefer direct LiPo-to-LDO power architecture, and §2.14 (v1.9) Battery-Powered Component Safety Standards.
+**Version:** 1.12
+**Version description:** Added §2.14 point 3 charging-surface guidance — bag must sit on a heat-insulating, non-combustible surface (concrete, tile, cement board, or sand-lined tray), never bare sheet metal on a wooden workbench.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -376,6 +376,7 @@ Required for every component powered by a rechargeable LiPo/Li-ion cell — appl
 
 **3. Charging safety.**
 - Charge inside a fireproof LiPo charging bag (silicone-coated fiberglass, ~$10-15) — required, not optional, regardless of cell quality or PCM protection.
+- Set the bag on a heat-insulating, non-combustible surface — concrete/masonry floor, ceramic tile, cement board, or a metal tray lined with sand/kitty litter. Never place it on bare sheet metal on a wooden workbench: metal conducts heat rather than blocking it, and a thermal runaway event (600°C+, sustained for several minutes) will carry straight through thin metal and scorch or ignite the wood underneath.
 - Never charge unattended for extended periods (e.g. leaving to charge overnight unsupervised).
 - Never charge a cell that reads 0V, shows swelling/puffiness, feels hot, or has any chemical smell. Treat as damaged and retire it — do not attempt to revive it. (This is exactly what happened with the original hiking-monitor cell.)
 
@@ -772,6 +773,7 @@ When LED indicators are included in a component:
 
 | Version | Change |
 |---|---|
+| 1.12 | Added §2.14 point 3 charging-surface guidance: the fireproof bag must sit on a heat-insulating, non-combustible surface (concrete/masonry, ceramic tile, cement board, or a sand/kitty-litter-lined metal tray) — never bare sheet metal on a wooden workbench, since metal conducts thermal-runaway heat straight through to the wood rather than blocking it. |
 | 1.11 | Added §2.14 point 8: GPIO-controlled power gating for I2C/SPI peripherals during sleep (P-FET high-side switch on the microcontroller's 3.3V output, not the boost module's output) — flagged as a candidate pattern, not yet a required standard, pending validation via hiking-sensor CARD-026/CARD-027. |
 | 1.10 | Added §2.14 point 7: prefer direct LiPo-to-LDO power architecture over boost-then-buck for new battery-powered builds — avoids two-stage conversion idle draw and the boost converter's end-of-charge instability. Recommended default for the *next* build, not applied retroactively to hiking-monitor. |
 | 1.9 | Added §2.14 Battery-Powered Component Safety Standards: PCM-protected cells required (verify before purchase, EEMB 603449 confirmed compliant), firmware low-battery cutoff required (3.4V threshold, checked at boot and during operation, persistent e-ink warning), fireproof charging bag required, never charge a cell showing 0V/swelling/heat/smell, storage at 40-60% charge, disposal via battery recycling, connector polarity verification before first use. Established after hiking-monitor's original battery failed in the field with no advance warning (2026-07-03). |

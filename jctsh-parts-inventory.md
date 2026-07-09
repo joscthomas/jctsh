@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.7
-**Version description:** Corrected EEMB LiPo (Bag 7) remaining count to 2 via physical recount after the hiking-monitor battery swap (2026-07-03). Added LiPo Fireproof Charging Bag (ordered) per JCTsh-Build-Standards.md §2.14.
+**Version:** 2.9
+**Version description:** LiPo Fireproof Charging Bag received (2026-07-09) — status updated from ordered to on-hand. Added M3 heat set threaded inserts (300 pcs, Plastic Box).
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -84,7 +84,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | DC Buck Converter 12V→5V 3A | 2pcs, 15W, USB-C output, compatible with Raspberry Pi 4. https://www.amazon.com/dp/B0CMZWN7WS | 2 | Bag 21 | No project assigned. |
 | Power Supply Module 3.3V/5V | HiLetgo, dual output 3.3V and 5V, breadboard-compatible. | 5 | Music Response bin | No project assigned. |
 | 9V Battery Clips I-Type DC Plug | HiLetgo, I-type DC barrel connector. | 10 | Music Response bin | No project assigned. |
-| LiPo Fireproof Charging Bag | Silicone-coated fiberglass, for safe LiPo charging/storage per JCTsh-Build-Standards.md §2.14. | 1 | Ordered (2026-07-03) | Required practice for all LiPo charging going forward — not project-specific. |
+| LiPo Fireproof Charging Bag | Silicone-coated fiberglass, for safe LiPo charging/storage per JCTsh-Build-Standards.md §2.14. | 1 | Bench | Required practice for all LiPo charging going forward — not project-specific. Received 2026-07-09. |
 
 ---
 
@@ -109,6 +109,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2-Pin Screw Terminal Block 3.5mm | uxcell, 50 pcs, 2-pin, 3.5mm pitch, panel/PCB mount, green. https://www.amazon.com/dp/B01C3DGIBQ | 50 | Plastic Box       | No project assigned. |
 | Heat Shrink Butt Connectors 26-24 AWG | 100 pcs, insulated waterproof crimp butt splice connectors, marine/automotive grade. https://www.amazon.com/dp/B08LR7NV7M | 100 | Bag 26 | No project assigned. |
 | Momentary Push Button Switch 12mm | Twidec 6pcs, PBS-33B-BK-X, 12mm, 1/2" panel mount, waterproof, pre-soldered wires, black. https://www.amazon.com/dp/B08JHW8BPV | 6 | Bag 27 | 1 allocated: bedside-clock. |
+| M3 Heat Set Threaded Inserts | 300 pcs, M3 × D5 × L4, brass, knurled, for melting into 3D-printed plastic. https://www.amazon.com/dp/B0DG59PW2R | 300 | Plastic Box | No project assigned. |
 
 ---
 
@@ -227,3 +228,5 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-07-01 | Stock | SH1106 OLED display 1.3" ×5 added (Displays, Bag 29); 1 allocated: bedside-clock |
 | 2026-07-01 | air-quality-monitor | SparkFun SEN-23715 (Sensirion SEN54, Plastic Box) allocated to air-quality-monitor project |
 | 2026-07-02 | photo-server | GMKtec NucBox M8 ×1 added (Servers & Mini PCs, Shelf); allocated: photo-server |
+| 2026-07-09 | Stock | LiPo Fireproof Charging Bag received; status updated from Ordered to Bench |
+| 2026-07-09 | Stock | M3 heat set threaded inserts ×300 added (Prototyping and Build Hardware, Plastic Box) |

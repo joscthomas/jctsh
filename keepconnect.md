@@ -92,7 +92,7 @@ applicable under TCP/HTTPS mode.
 
 ## Related: Pi/M8 Scheduled Reboot
 
-Resolved 2026-07-08 (CARD-035) — see `SOFTWARE-ENVIRONMENT.md` (Pi) and
+Resolved 2026-07-08 (CARD-0035) — see `SOFTWARE-ENVIRONMENT.md` (Pi) and
 `components/photo-server/operations.md` (M8) for the weekly systemd-timer reboot
 schedule, independent of KeepConnect's own reset schedule. First scheduled run:
 Mon 2026-07-13.

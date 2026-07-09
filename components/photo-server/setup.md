@@ -13,15 +13,15 @@ Followed the instructions doc closely. Key as-built values (see `network.md` for
 
 ## Step 11 — Quality Pass: Skipped by Decision
 
-The planned manual pre-import quality pass (moving blurry/duplicate/screenshot candidates to an `_archive` folder) was **not done**. Decision made 2026-07-04: rely entirely on Immich's built-in CLIP-based duplicate detection plus an ongoing "mark favorites" habit instead of a one-time manual review. See `migration.md` and `backlog.md` CARD-028 (optional automated quality scan, not started).
+The planned manual pre-import quality pass (moving blurry/duplicate/screenshot candidates to an `_archive` folder) was **not done**. Decision made 2026-07-04: rely entirely on Immich's built-in CLIP-based duplicate detection plus an ongoing "mark favorites" habit instead of a one-time manual review. See `migration.md` and `backlog.md` CARD-0028 (optional automated quality scan, not started).
 
 ## Step 12 — Migration: Far From Clean
 
-Joseph's import required **5 restarts** (1 disk-space crash, 2 crashes from `immich-go`'s default `--on-errors stop`, 2 clean partial completions) before both fixes (`--on-errors continue`, drive relocation) were in place. Robin's import ran clean in one pass. Full incident writeup, final counts, and the later CARD-039 re-verification (which found 3,433 assets that had still gone missing despite all this) are in `migration.md`.
+Joseph's import required **5 restarts** (1 disk-space crash, 2 crashes from `immich-go`'s default `--on-errors stop`, 2 clean partial completions) before both fixes (`--on-errors continue`, drive relocation) were in place. Robin's import ran clean in one pass. Full incident writeup, final counts, and the later CARD-0039 re-verification (which found 3,433 assets that had still gone missing despite all this) are in `migration.md`.
 
 ## Step 13 — Face Naming: Not Tracked (decided 2026-07-09)
 
-Joseph decided to name recognized faces "catch as catch can" over time rather than as a discrete tracked task. See `photo-server-claude-code-instructions.md` Step 13 for the decision note. ML processing itself is fully complete (CARD-037).
+Joseph decided to name recognized faces "catch as catch can" over time rather than as a discrete tracked task. See `photo-server-claude-code-instructions.md` Step 13 for the decision note. ML processing itself is fully complete (CARD-0037).
 
 ## Step 14 — Deletion Logging: Moved to `photo-tv-display` (decided 2026-07-09)
 
@@ -35,11 +35,11 @@ Installed well after the original build (Node v24.18.0, npm v11.16.0 via NodeSou
 
 Several things were built that aren't in the original instructions doc at all:
 
-- **`photo-server-heartbeat.py`** (CARD-029) — MQTT heartbeat to the JCTsh log dashboard, checking Docker container health *and* (after CARD-032) actual storage read/write access inside the container, not just container status
-- **Scheduled weekly reboot** (CARD-035) with dashboard visibility (CARD-036) — `core/maintenance/scheduled-reboot-m8.service`/`.timer` and `reboot-complete-m8.service`, requiring `mosquitto-clients` to be installed (the heartbeat script uses Python `paho-mqtt` instead, so the CLI wasn't already present)
-- **CARD-037** — found and fixed a large gap where ML processing (face detection/recognition, CLIP smart search, OCR, duplicate detection) had never run on ~11-92% of the library depending on job type, for both accounts
-- **CARD-039** — a second gap, found by re-running `immich-go` for real against the retained Takeout zips: 3,433 assets were genuinely missing from Immich entirely, not just missing ML processing
+- **`photo-server-heartbeat.py`** (CARD-0029) — MQTT heartbeat to the JCTsh log dashboard, checking Docker container health *and* (after CARD-0032) actual storage read/write access inside the container, not just container status
+- **Scheduled weekly reboot** (CARD-0035) with dashboard visibility (CARD-0036) — `core/maintenance/scheduled-reboot-m8.service`/`.timer` and `reboot-complete-m8.service`, requiring `mosquitto-clients` to be installed (the heartbeat script uses Python `paho-mqtt` instead, so the CLI wasn't already present)
+- **CARD-0037** — found and fixed a large gap where ML processing (face detection/recognition, CLIP smart search, OCR, duplicate detection) had never run on ~11-92% of the library depending on job type, for both accounts
+- **CARD-0039** — a second gap, found by re-running `immich-go` for real against the retained Takeout zips: 3,433 assets were genuinely missing from Immich entirely, not just missing ML processing
 
 ## Known Deviation Still Outstanding
 
-**CARD-030** (re-enable the weekly backup cron) is still pending — the backup drive (Momentus) is at 100% capacity, full of retained Takeout zips rather than real backup data. See `backup.md` for current status and the exact cleanup steps.
+**CARD-0030** (re-enable the weekly backup cron) is still pending — the backup drive (Momentus) is at 100% capacity, full of retained Takeout zips rather than real backup data. See `backup.md` for current status and the exact cleanup steps.

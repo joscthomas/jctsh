@@ -882,4 +882,4 @@ The widget is now a single tap to record an observation from anywhere on the hom
 5. Say: *"coyote tracks crossing the wash near the boulder field, looks fresh"*
 6. Confirm row with categories: `["wildlife","trail"]`
 
-**Joseph confirms:** Both rows correct. CARD-007 is done — move to Done in backlog.
+**Joseph confirms:** Both rows correct. CARD-0007 is done — move to Done in backlog.

@@ -15,7 +15,7 @@ Self-hosted Immich photo/video library on a dedicated GMKtec M8 mini PC. Replace
 | Doc | Contents |
 |---|---|
 | `setup.md` | Actual build steps as executed, with deviations from the original instructions |
-| `migration.md` | Google Takeout migration results — final counts, issues, and the CARD-039 re-verification |
+| `migration.md` | Google Takeout migration results — final counts, issues, and the CARD-0039 re-verification |
 | `operations.md` | Day-to-day maintenance — scheduled reboots, Immich Tags feature, router coordination |
 | `heartbeat.md` | MQTT heartbeat script — how JCTsh dashboard monitoring works for this host |
 | `network.md` | Final IP/hostname/MAC/Tailscale reference for this host |
@@ -41,4 +41,4 @@ Credentials and API keys are in `credentials.local.md` (repo root, gitignored) �
 
 ## Related Cards
 
-CARD-018 (superseded — see original planning), CARD-028 (optional quality scan, not started), CARD-029/CARD-032 (heartbeat monitoring, done), CARD-030 (zip cleanup, pending — see `backup.md`), CARD-037/CARD-039 (ML processing + import completeness gaps, done).
+CARD-0018 (superseded — see original planning), CARD-0028 (optional quality scan, not started), CARD-0029/CARD-0032 (heartbeat monitoring, done), CARD-0030 (zip cleanup, pending — see `backup.md`), CARD-0037/CARD-0039 (ML processing + import completeness gaps, done).

@@ -21,7 +21,7 @@ status, it publishes an `Alert`-category log message instead (not prefixed
 heartbeat topic — this keeps the watchdog from firing on an Immich-level problem where the
 box itself is fine; the log dashboard is the place that surfaces it.
 
-**Storage check (added 2026-07-08, CARD-032):** container health alone doesn't prove
+**Storage check (added 2026-07-08, CARD-0032):** container health alone doesn't prove
 `/data` is actually readable/writable — Docker's health check only pings the Immich API.
 If `immich_server` itself is confirmed up, the script also writes, reads back, and removes
 a marker file at `/data/upload/.heartbeat_check` *inside the container*, so the check
@@ -101,7 +101,7 @@ Verified live 2026-07-04: heartbeat confirmed on dashboard (`/data` endpoint, co
 correctly into a single row with count). Degraded-path (container down) logic reviewed but
 not live-tested, to avoid disrupting the in-progress Immich photo migration.
 
-**Live-tested 2026-07-08 (CARD-029, CARD-032)** — migration is now complete, so both
+**Live-tested 2026-07-08 (CARD-0029, CARD-0032)** — migration is now complete, so both
 degraded paths were tested for real:
 - **Container down:** `docker stop immich_redis` → dashboard showed `Immich degraded -
   immich_redis:unhealthy` (then `:starting` on the restart race) as a non-collapsing
@@ -113,7 +113,7 @@ degraded paths were tested for real:
   dashboard showed `Immich degraded - storage:sh: 1: cannot create
   /data/upload/.heartbeat_check: Read-only file system` → `mount -o remount,rw
   /mnt/photo-library` restored normal status on the next run. This reproduces the exact
-  failure mode from the original CARD-032 incident (broken bind mount, containers
+  failure mode from the original CARD-0032 incident (broken bind mount, containers
   otherwise "healthy") and confirms it's now caught.
 
 ---
@@ -146,7 +146,7 @@ registered in Node-RED's log with no gaps.
 identical publish-then-disconnect pattern and almost certainly has the same latent bug —
 just less noticeable since a stray "coachproxyos silent" alert is easy to dismiss for a
 device that's expected to roam in and out of range. Not fixed yet — the RV Pi wasn't
-reachable (Tailscale down) when this was found. See CARD-031.
+reachable (Tailscale down) when this was found. See CARD-0031.
 
 ---
 

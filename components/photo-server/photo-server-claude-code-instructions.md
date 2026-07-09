@@ -342,7 +342,7 @@ This step involves manual actions by Joseph (Google Takeout export, quality pass
 
 ## Step 13 — Name Recognized Faces — N/A (decided 2026-07-09)
 
-**Not tracked as a discrete step.** Joseph decided to name faces "catch as catch can" — ad hoc, over time, whenever he or Robin happen to be in the Immich UI — rather than as a formal one-time task to complete and check off. ML processing (`faceDetection`/`facialRecognition`) is fully complete (CARD-037) and the clusters are ready whenever naming happens; there is no pending blocker and no further action item here.
+**Not tracked as a discrete step.** Joseph decided to name faces "catch as catch can" — ad hoc, over time, whenever he or Robin happen to be in the Immich UI — rather than as a formal one-time task to complete and check off. ML processing (`faceDetection`/`facialRecognition`) is fully complete (CARD-0037) and the clusters are ready whenever naming happens; there is no pending blocker and no further action item here.
 
 ---
 

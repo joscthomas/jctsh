@@ -16,7 +16,7 @@ way during the original Takeout migration's duplicate-mv race).
 
 ## 2026-07-09 (continued, part 2)
 photo-server documentation catch-up (Steps 15-17 of the build instructions, long overdue)
-plus CARD-030 execution. Installed Node.js (Step 15, was never done). Wrote the 6 missing
+plus CARD-0030 execution. Installed Node.js (Step 15, was never done). Wrote the 6 missing
 Step 16 docs (README.md, docker-compose.yml, .env.example, setup.md, network.md,
 backup.md) — deletion-log-setup.md skipped, Joseph moved that step to photo-tv-display's
 scope, and Step 13 (face naming) marked N/A, decided "catch as catch can" rather than a
@@ -24,7 +24,7 @@ tracked task. Step 17: added photo-server to root README's component table, fixe
 parts-inventory note that still said "OS to be replaced" a week after Ubuntu had been
 running, added a Storage section for the two USB HDDs + spares.
 
-CARD-030: with CARD-039 having already done a far more rigorous completeness check than
+CARD-0030: with CARD-0039 having already done a far more rigorous completeness check than
 the original "spot-check before deleting" plan called for, deleted both Takeout zip
 staging locations (818GB reclaimed — Momentus 100%→19% used, NVMe root 87%→5%), re-enabled
 the weekly backup cron, kicked off a manual verification run (still in progress — first
@@ -34,26 +34,26 @@ real backups; future weekly runs should be fast since rsync is incremental).
 Also added a consolidated "Scheduled Maintenance Windows" table to jctsh-network.md
 (prompted by realizing KeepConnect's router reboot, now landing Wednesday 3am, was never
 cross-referenced against the Pi/M8 reboot and backup schedule) and MQTT dashboard
-visibility for backup runs (CARD-040, same "Backup starting."/"Backup complete." pattern
-as CARD-036's reboot notifications) — not yet live-verified since the first post-cleanup
+visibility for backup runs (CARD-0040, same "Backup starting."/"Backup complete." pattern
+as CARD-0036's reboot notifications) — not yet live-verified since the first post-cleanup
 backup run was already in progress when the updated script was deployed.
 
 ## 2026-07-09 (continued)
-Closed CARD-039: re-ran `immich-go` for real (not `--dry-run`) against every retained
-Takeout zip for both accounts, prompted by CARD-037 raising doubt about whether this same
+Closed CARD-0039: re-ran `immich-go` for real (not `--dry-run`) against every retained
+Takeout zip for both accounts, prompted by CARD-0037 raising doubt about whether this same
 chaotic import had also dropped raw asset uploads, not just background ML jobs. Launched
 fully detached (`nohup ... & disown` directly on the M8) so it survived the home network
 being down for part of the run. Found 3,433 assets genuinely missing and uploaded them —
 58 (Joseph, backup zips), 119 (Joseph, NVMe zips), 3,256 (Robin) — zero errors, single
 clean pass, no restarts needed this time. Surprising part: Robin's gap was by far the
 largest despite her original import being the "clean" one with no crashes, meaning the
-missing-asset problem (like CARD-037's ML-processing gap) wasn't caused solely by Joseph's
+missing-asset problem (like CARD-0037's ML-processing gap) wasn't caused solely by Joseph's
 restart history — something shared between both imports is the more likely cause, not
 pinned down further since re-running was sufficient to fix it regardless. Full writeup in
-`components/photo-server/migration.md` and `backlog.md` CARD-039.
+`components/photo-server/migration.md` and `backlog.md` CARD-0039.
 
 ## 2026-07-09
-Closed CARD-037: Immich ML processing (face detection/recognition, CLIP smart search, OCR,
+Closed CARD-0037: Immich ML processing (face detection/recognition, CLIP smart search, OCR,
 duplicate detection) had never run on a large fraction of both Joseph's and Robin's
 libraries — found by chasing down Joseph's "most photos don't show identified people"
 question through the API rather than guessing, and confirmed definitively via a duplicate
@@ -67,14 +67,14 @@ dry-run, so starting each job doubled as both the diagnostic (revealing real bac
 CPU-bound via `vmstat` (not I/O-bound) before running all five concurrently. Ran overnight
 into a home-internet outage (unrelated — the jobs run locally on the M8, unaffected).
 Confirmed complete 2026-07-09: all queues drained, zero failures, M8 uptime showed it never
-rebooted mid-run. People clusters grew 2,626 → 3,331. Full writeup in `backlog.md` CARD-037.
+rebooted mid-run. People clusters grew 2,626 → 3,331. Full writeup in `backlog.md` CARD-0037.
 
 Also documented the home router (TP-Link Archer AXE75, 192.168.1.1) in `jctsh-network.md`
 and `ENVIRONMENT.md` — it had never been added despite being the gateway every other device
 depends on, and despite `keepconnect.md` already referencing it extensively.
 
 ## 2026-07-08 (continued, part 3)
-Closed the actual CARD-032 monitoring gap and live-tested CARD-029 in the same session.
+Closed the actual CARD-0032 monitoring gap and live-tested CARD-0029 in the same session.
 `photo-server-heartbeat.py` now writes/reads/removes a marker file inside the
 `immich_server` container's own `/data/upload` on every run, catching a broken bind mount
 directly instead of trusting Docker's health check (which only pings the API). Live-tested
@@ -89,7 +89,7 @@ read-only remount enforces at the VFS level instead and actually worked. Both ca
 to Done; full writeup in `components/photo-server/heartbeat.md`.
 
 ## 2026-07-08 (continued, part 2)
-Added dashboard visibility for the CARD-035 scheduled reboots (CARD-036). Previously the
+Added dashboard visibility for the CARD-0035 scheduled reboots (CARD-0036). Previously the
 only way to confirm a reboot happened and succeeded was SSHing in and checking
 `systemctl`/`docker ps` manually. Now `scheduled-reboot.service` publishes "Scheduled
 reboot about to occur." right before rebooting, and a new `reboot-complete.service`
@@ -105,7 +105,7 @@ reboot-complete.service` — confirmed on `/data` (live) and `/log` (persisted, 
 global `_pending` slot flushed on the next distinct message).
 
 ## 2026-07-08 (continued)
-Added weekly scheduled reboot for the Pi and M8 photo-server (CARD-035), prompted by
+Added weekly scheduled reboot for the Pi and M8 photo-server (CARD-0035), prompted by
 the KeepConnect outlet reconfiguration work. `core/maintenance/scheduled-reboot.service`
 (`/sbin/reboot`) + per-host timers, deployed as systemd units: Pi Monday 3:00 AM, M8
 Monday 4:00 AM. The one-hour stagger matters — the M8's heartbeat script publishes to
@@ -120,7 +120,7 @@ at 3/4 AM) fires on next boot instead of skipping the week. Verified live via
 `systemctl list-timers` on both hosts.
 
 ## 2026-07-08
-Documented KeepConnect router rebooter (CARD-033). Not a JCTsh component — a
+Documented KeepConnect router rebooter (CARD-0033). Not a JCTsh component — a
 standalone Johnson Creative device (KeepConnect-27F8) that power-cycles the
 router/modem on internet-loss detection. New `keepconnect.md` at repo root covers
 full config: monitor mode set to "Require Full TCP/HTTPS Success" (switched from

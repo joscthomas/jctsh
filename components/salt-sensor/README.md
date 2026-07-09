@@ -201,7 +201,7 @@ Three rapid LED flashes at boot confirm a successful OTA reboot.
 ## Known Behaviors and Limitations
 
 - **Arduino C++ (not ESPHome):** This component predates the JCTsh ESPHome standard.
-  Migration to ESPHome is in the backlog (CARD-004) and should be done before any
+  Migration to ESPHome is in the backlog (CARD-0004) and should be done before any
   perfboard transfer.
 - **GPIO2 and GPIO15 are strapping pins:** Currently working but risky — these affect
   boot mode if driven at reset. No issues observed in production, but monitor after any

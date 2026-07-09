@@ -70,7 +70,7 @@ Work through each dimension for every new sensor. Each decision produces a concr
 | Battery | Deep sleep between reads. Duty-cycled intervals — set based on required battery life. | `battery_v` |
 | Solar + battery | Always-on if panel is adequately sized; otherwise duty-cycled. Same intervals as USB when on. | `battery_v` |
 
-> **Charging state gap:** `battery_v` alone does not indicate whether a solar device is charging or draining. CARD-017 tracks the decision on additional schema fields (`charging`, `solar_v`, etc.). Until that card is resolved, include `battery_v` and document the limitation in the component README.
+> **Charging state gap:** `battery_v` alone does not indicate whether a solar device is charging or draining. CARD-0017 tracks the decision on additional schema fields (`charging`, `solar_v`, etc.). Until that card is resolved, include `battery_v` and document the limitation in the component README.
 
 ### Connectivity Profile
 
@@ -307,9 +307,9 @@ Confirm every field exists in `core/data-pipeline/JCTsh-Environmental-Data-Archi
 
 | Card | Gap | Status |
 |---|---|---|
-| CARD-017 | Charging state schema fields for solar/battery devices | Backlog |
+| CARD-0017 | Charging state schema fields for solar/battery devices | Backlog |
 
-Until CARD-017 is resolved, include `battery_v` for battery and solar devices and document the charging-state limitation in the component README.
+Until CARD-0017 is resolved, include `battery_v` for battery and solar devices and document the charging-state limitation in the component README.
 
 ---
 

@@ -23,12 +23,12 @@ Google Takeout exports **every album a photo has ever been added to as a separat
 
 1. Downloaded Google Takeout export (ZIP, 50GB chunks) to the Windows machine, transferred to `photo-server` via SCP as each part finished downloading (freed local disk space immediately after each verified transfer — Windows machine only had ~13GB free at the start of this).
 2. Ran `immich-go upload from-google-photos` directly against the zip files (`takeout-*.zip` glob) — no extraction step needed, avoiding a ~2x disk space requirement extraction would have caused.
-3. Decided to skip a manual pre-import quality pass (blurry/duplicate/screenshot review) — relied on Immich's built-in duplicate detection (CLIP-embedding based) and an ongoing "mark favorites" habit instead. See `backlog.md` CARD-028 for optional automated post-import quality scanning tools if wanted later.
+3. Decided to skip a manual pre-import quality pass (blurry/duplicate/screenshot review) — relied on Immich's built-in duplicate detection (CLIP-embedding based) and an ongoing "mark favorites" habit instead. See `backlog.md` CARD-0028 for optional automated post-import quality scanning tools if wanted later.
 4. Generated a per-account API key by logging in as that user and calling `POST /api/api-keys` (admin cannot create a key on another user's behalf — must authenticate as that user).
 
 ## Issues Encountered
 
-**Disk space crisis (Joseph's import, run 3):** `/mnt/photo-library` (916GB) filled to 100% and every upload started failing. Root cause: the raw Takeout zips (595GB Joseph + 222GB Robin = 817GB) and Immich's own copy of every uploaded asset were both competing for the same drive — a transient peak requirement that exceeds the drive's capacity, even though the final steady-state library (~650-700GB) fits comfortably once the zips are removed. Fixed by relocating the zips: 9 of Joseph's 12 files to `/mnt/photo-library-backup` (Momentus 640GB), the rest to the NVMe (`/home/jct/takeout-staging/`). See `backlog.md` CARD-030 for cleanup once zips are no longer needed (Momentus can't hold both the zips and a real backup simultaneously).
+**Disk space crisis (Joseph's import, run 3):** `/mnt/photo-library` (916GB) filled to 100% and every upload started failing. Root cause: the raw Takeout zips (595GB Joseph + 222GB Robin = 817GB) and Immich's own copy of every uploaded asset were both competing for the same drive — a transient peak requirement that exceeds the drive's capacity, even though the final steady-state library (~650-700GB) fits comfortably once the zips are removed. Fixed by relocating the zips: 9 of Joseph's 12 files to `/mnt/photo-library-backup` (Momentus 640GB), the rest to the NVMe (`/home/jct/takeout-staging/`). See `backlog.md` CARD-0030 for cleanup once zips are no longer needed (Momentus can't hold both the zips and a real backup simultaneously).
 
 **`immich-go` default `--on-errors stop`:** the tool's default behavior aborts the *entire* run after enough individual asset errors (a handful of oversized video uploads hitting connection resets). Fixed by adding `--on-errors continue` — lets it log the error and keep going rather than stopping the whole multi-hour job over a few bad files.
 
@@ -40,16 +40,16 @@ Google Takeout exports **every album a photo has ever been added to as a separat
 
 ## Post-Migration TODO
 
-- ~~Spot-check the import before deleting the Takeout zips~~ — done properly (CARD-039, 2026-07-09): full re-run of `immich-go` against all retained zips found **3,433 assets that had been genuinely missing** (58 Joseph/backup, 119 Joseph/NVMe, 3,256 Robin) and uploaded them; zero errors otherwise. See CARD-039 resolution in `backlog.md` for full detail. Zips are still retained — see CARD-030 for deletion timing.
-- Once satisfied with the now-more-complete import: delete zips, re-enable weekly backup cron (CARD-030)
-- Optional: automated post-import quality scan for blur/near-duplicates (CARD-028)
+- ~~Spot-check the import before deleting the Takeout zips~~ — done properly (CARD-0039, 2026-07-09): full re-run of `immich-go` against all retained zips found **3,433 assets that had been genuinely missing** (58 Joseph/backup, 119 Joseph/NVMe, 3,256 Robin) and uploaded them; zero errors otherwise. See CARD-0039 resolution in `backlog.md` for full detail. Zips are still retained — see CARD-0030 for deletion timing.
+- Once satisfied with the now-more-complete import: delete zips, re-enable weekly backup cron (CARD-0030)
+- Optional: automated post-import quality scan for blur/near-duplicates (CARD-0028)
 - Face naming (manual, in Immich web UI) — Step 13 of the original build plan
 - Deletion-logging setup — Step 14
 - `photo-tv-display` build — hard dependency on this migration being complete, which it now is
 
-## Import Completeness Re-Verification (2026-07-09, CARD-039)
+## Import Completeness Re-Verification (2026-07-09, CARD-0039)
 
-Prompted by CARD-037 (a large gap found in ML processing from this same import) — if background jobs were being dropped, it was worth checking whether raw asset uploads were too. Re-ran `immich-go upload from-google-photos` for real (not `--dry-run`) against every retained zip, using the same `--on-errors continue --pause-immich-jobs=false` flags plus `--no-ui --log-file=...` for a persisted log this time (the original run's console output wasn't captured anywhere). Immich's checksum-based dedup means a real run is self-correcting: matches get skipped, genuine gaps get uploaded — no separate dry-run-then-real-run cycle needed.
+Prompted by CARD-0037 (a large gap found in ML processing from this same import) — if background jobs were being dropped, it was worth checking whether raw asset uploads were too. Re-ran `immich-go upload from-google-photos` for real (not `--dry-run`) against every retained zip, using the same `--on-errors continue --pause-immich-jobs=false` flags plus `--no-ui --log-file=...` for a persisted log this time (the original run's console output wasn't captured anywhere). Immich's checksum-based dedup means a real run is self-correcting: matches get skipped, genuine gaps get uploaded — no separate dry-run-then-real-run cycle needed.
 
 **Result:** single clean pass, no restarts, zero upload errors.
 
@@ -60,6 +60,6 @@ Prompted by CARD-037 (a large gap found in ML processing from this same import) 
 | Robin | 3,256 | 63 | 75,094 |
 | **Total** | **3,433** | **109** | **160,701** |
 
-**Robin's gap was the largest**, despite her original import being the "clean" one with no crashes/restarts — meaning the missing-asset problem wasn't caused solely by Joseph's chaotic 5-restart import as originally assumed. Combined with CARD-037 (Robin's ML-processing gap was also worse than Joseph's — 96% vs ~80% zero-face), there's a consistent pattern across both accounts that points to something shared (likely M8-side infrastructure/timing under the load of both multi-day imports running close together) rather than either import's individual restart history. Not investigated further — the fix (re-run to catch anything missing) resolves it regardless of root cause.
+**Robin's gap was the largest**, despite her original import being the "clean" one with no crashes/restarts — meaning the missing-asset problem wasn't caused solely by Joseph's chaotic 5-restart import as originally assumed. Combined with CARD-0037 (Robin's ML-processing gap was also worse than Joseph's — 96% vs ~80% zero-face), there's a consistent pattern across both accounts that points to something shared (likely M8-side infrastructure/timing under the load of both multi-day imports running close together) rather than either import's individual restart history. Not investigated further — the fix (re-run to catch anything missing) resolves it regardless of root cause.
 
 Logs retained on the M8: `/home/jct/immich-go-verify-20260709/{joseph-backup,joseph-home,robin}.log` and `run.out`.

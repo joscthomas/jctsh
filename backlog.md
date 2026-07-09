@@ -13,24 +13,24 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
-### CARD-041 · [idea] [photo-server] Disk capacity growth analysis — wait for steady state
-**Notes:** Discussed 2026-07-09: want to estimate photo-library growth rate and project when the primary drive (Backup Plus 1TB, currently 615G/71% used) or backup drive (Momentus 640GB) will need replacing/upsizing. Deliberately not started yet — Joseph's call: current disk numbers are all noise from one-off events (CARD-039 added 3,433 assets in one shot, CARD-030 just freed 818GB by deleting zips, first post-cleanup backup run is still doing a full reconciliation rather than a normal weekly delta), not representative of organic day-to-day growth.
+### CARD-0041 · [idea] [photo-server] Disk capacity growth analysis — wait for steady state
+**Notes:** Discussed 2026-07-09: want to estimate photo-library growth rate and project when the primary drive (Backup Plus 1TB, currently 615G/71% used) or backup drive (Momentus 640GB) will need replacing/upsizing. Deliberately not started yet — Joseph's call: current disk numbers are all noise from one-off events (CARD-0039 added 3,433 assets in one shot, CARD-0030 just freed 818GB by deleting zips, first post-cleanup backup run is still doing a full reconciliation rather than a normal weekly delta), not representative of organic day-to-day growth.
 
-**Wait for:** the backup cron (CARD-030/CARD-040) running its normal weekly incremental cadence for a few cycles, so disk usage tracking reflects only real photo uploads from Joseph's and Robin's phones. At that point, weekly rsync deltas become a meaningful proxy for actual growth rate and a "months until full" estimate becomes trustworthy rather than a guess. Revisit this card once that's true — no fixed date, just "after the dust settles."
+**Wait for:** the backup cron (CARD-0030/CARD-0040) running its normal weekly incremental cadence for a few cycles, so disk usage tracking reflects only real photo uploads from Joseph's and Robin's phones. At that point, weekly rsync deltas become a meaningful proxy for actual growth rate and a "months until full" estimate becomes trustworthy rather than a guess. Revisit this card once that's true — no fixed date, just "after the dust settles."
 
 ---
 
-### CARD-038 · [idea] [garage-entry-hallway] Direction-of-travel sensor for hallway to garage entry door
+### CARD-0038 · [idea] [garage-entry-hallway] Direction-of-travel sensor for hallway to garage entry door
 **Notes:** Detect which direction a person is walking through the hallway leading to the garage entry door (coming in from the garage vs. heading out to it) — e.g. for automations like arming/disarming, lighting, or logging comings and goings. Discussed 2026-07-09: single HLK-LD2412 mmWave radar (already proven in `components/garage-radar/garage-radar.yaml`) recommended over a two-JSN-SR04T ultrasonic beam-gate — direction derived from the `moving_distance` trend (falling = approaching, rising = receding) via ESPHome's native `ld2412` component, rather than needing two sensors racing to trigger first. Two JSN-SR04T-V3.0 units already in inventory (Bag 30) but better reserved for a point-distance use case (e.g. tank level) rather than this one. No planning doc yet — not started.
 
 ---
 
-### CARD-034 · [idea] [personal] Complete digital-identity-protection-checklist.md
+### CARD-0034 · [idea] [personal] Complete digital-identity-protection-checklist.md
 **Notes:** Work through `digital-identity-protection-checklist.md` (repo root) — Joseph and Robin's personal security checklist closing single-point-of-failure risks (carrier port-out PIN, 2FA off SMS, credit freezes, password manager, household verification protocol, incident response plan). Almost entirely manual actions by Joseph/Robin themselves (phone calls to carriers/bureaus, account settings changes) — not something Claude Code can execute directly, but worth tracking to completion since it's currently all unchecked. Also has an "Open Items to Fill In" section (list specific banks/brokerages in use, confirm current password manager/2FA setup, set a 6-month review date) that needs input from Joseph before those parts can be finished.
 
 ---
 
-### CARD-031 · [bug] [p-w-firefly] Fix coachproxyos heartbeat's same publish/disconnect race condition
+### CARD-0031 · [bug] [p-w-firefly] Fix coachproxyos heartbeat's same publish/disconnect race condition
 **Notes:** While debugging false "photo-server silent for 35 minutes" watchdog alerts (2026-07-06), found the root cause: `photo-server-heartbeat.py` published its `/log` and `/heartbeat` MQTT messages (QoS 1) back-to-back then called `client.disconnect()` immediately without running the network loop — occasionally the second publish's packet hadn't fully flushed before the socket closed, silently dropping the `/heartbeat` message while `/log` (published first) always got through. Fixed in photo-server's script via `client.loop_start()` + `wait_for_publish(timeout=5)` on both messages before `loop_stop()`/`disconnect()`. See `components/photo-server/heartbeat.md` for full root-cause writeup.
 
 `components/p-w-firefly/jctsh-heartbeat.py` (coachproxyos, the RV Pi) uses the identical publish-then-disconnect pattern and almost certainly has the same latent bug — just less noticeable since a stray "coachproxyos silent" alert is easy to dismiss for a device that's expected to roam in and out of Tailscale range. Apply the same fix: `loop_start()` → publish both → `wait_for_publish()` on both → `loop_stop()` → `disconnect()`.
@@ -41,7 +41,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-028 · [idea] [photo-server] Automated post-import quality scan (blur/duplicate detection)
+### CARD-0028 · [idea] [photo-server] Automated post-import quality scan (blur/duplicate detection)
 **Notes:** Decided during photo-server migration (2026-07-04) to skip a manual pre-import quality pass entirely — importing everything as-is and relying on Immich's built-in duplicate detection (CLIP-embedding-based visual similarity, not just byte-hash) plus an ongoing "favorites" curation habit over time. This card captures the option to add an *automated* (no manual photo review) quality pass later, run after the Immich import so you can see real results first before deciding if it's worth doing.
 
 **Tools considered (all scriptable, no manual visual review required):**
@@ -59,12 +59,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-027 · [idea] [hiking-sensor] GPIO-controlled power gating for I2C peripherals during sleep
-**Notes:** Observed 2026-07-03: after putting the device to sleep (display correctly shows "Hiking monitor asleep"), the ESP32's and LTR-390's onboard power-indicator LEDs stayed lit. These are hardwired to their respective 3.3V rails, not GPIO-controlled — ESP32 deep sleep only stops the CPU from executing, it does not cut power to anything downstream. Since `VOUT+` runs directly to ESP32 `VIN` (switch not in the power path) and nothing gates the I2C peripherals' power, BME280 and LTR-390 stay fully powered and drawing their own operating current for the entire "sleep" duration, in addition to the boost module's own quiescent draw (see CARD-026).
+### CARD-0027 · [idea] [hiking-sensor] GPIO-controlled power gating for I2C peripherals during sleep
+**Notes:** Observed 2026-07-03: after putting the device to sleep (display correctly shows "Hiking monitor asleep"), the ESP32's and LTR-390's onboard power-indicator LEDs stayed lit. These are hardwired to their respective 3.3V rails, not GPIO-controlled — ESP32 deep sleep only stops the CPU from executing, it does not cut power to anything downstream. Since `VOUT+` runs directly to ESP32 `VIN` (switch not in the power path) and nothing gates the I2C peripherals' power, BME280 and LTR-390 stay fully powered and drawing their own operating current for the entire "sleep" duration, in addition to the boost module's own quiescent draw (see CARD-0026).
 
-**Idea:** add a small P-FET (or similar high-side load switch) on the 3.3V rail feeding BME280 + LTR-390 (and possibly the e-ink display), gated by a spare GPIO, so the firmware can fully cut peripheral power during deep sleep and re-enable it on wake. Would reduce real standby current beyond what CARD-026 measures for the current design.
+**Idea:** add a small P-FET (or similar high-side load switch) on the 3.3V rail feeding BME280 + LTR-390 (and possibly the e-ink display), gated by a spare GPIO, so the firmware can fully cut peripheral power during deep sleep and re-enable it on wake. Would reduce real standby current beyond what CARD-0026 measures for the current design.
 
-**Sequencing:** do CARD-026 (measure actual sleep current) first — if the measured number is already acceptable for realistic storage durations, this added complexity may not be worth it. Only pursue if CARD-026 reveals standby drain is a real problem.
+**Sequencing:** do CARD-0026 (measure actual sleep current) first — if the measured number is already acceptable for realistic storage durations, this added complexity may not be worth it. Only pursue if CARD-0026 reveals standby drain is a real problem.
 
 **What a P-FET is (for later reference):** a P-channel Field-Effect Transistor — a transistor that acts as a switch, well-suited to sit on the *positive* supply line and turn power on/off to something downstream (a "high-side switch"). The GPIO does not carry power to the rail itself — it only controls the P-FET's gate (a control signal, negligible current). The actual power path is the P-FET's own source-to-drain channel, wired in-line on the 3.3V rail between the supply and the sensors:
 
@@ -82,7 +82,7 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 ---
 
-### CARD-025 · [enhancement] [hiking-sensor] Test retired LiPo battery — good or bad?
+### CARD-0025 · [enhancement] [hiking-sensor] Test retired LiPo battery — good or bad?
 **Notes:** The hiking-monitor's original LiPo battery failed in the field (2026-07-03) with no advance warning and was replaced from spare stock (2 EEMB 603449 cells remain in Bag 7). Before permanently retiring/recycling the original cell, run this test to determine whether it's actually damaged or just tripped its built-in PCM protection circuit (which would reset after a proper recharge).
 
 **Tier 1 — recharge-and-rest check:**
@@ -101,21 +101,21 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 **Outcome:** Passes both tiers → may be returned to spare stock (log that it had this incident, in case it recurs). Fails either tier → retire and recycle per JCTsh-Build-Standards.md §2.14 (tape JST terminals, recycle at a battery drop-off — Home Depot/Lowe's/Batteries Plus — never household trash).
 
-**Related:** CARD-026 (measure hiking-monitor sleep-mode current draw) uses the same tester rig built for Tier 2 here — do them together in one bench session rather than building the rig twice.
+**Related:** CARD-0026 (measure hiking-monitor sleep-mode current draw) uses the same tester rig built for Tier 2 here — do them together in one bench session rather than building the rig twice.
 
 ---
 
-### CARD-026 · [enhancement] [hiking-sensor] Measure hiking-monitor sleep-mode current draw
+### CARD-0026 · [enhancement] [hiking-sensor] Measure hiking-monitor sleep-mode current draw
 **Notes:** The hiking-monitor's actual standby battery life is unknown. The ESP32's own deep-sleep draw is negligible (~10µA), but `VOUT+` runs directly to the ESP32's `VIN` with the switch NOT in the power path, so the TP4056+boost module stays active even while the ESP32 sleeps — its quiescent current (undocumented by the manufacturer, plausibly 1-5mA for a cheap module) is almost certainly the real bottleneck. This measurement gives an actual number instead of a guess.
 
-**Reuses the CARD-025 tester rig** (spare ESP32 from Bag 1 + spare TP4056 from Bag 8) — build both cards in the same bench session.
+**Reuses the CARD-0025 tester rig** (spare ESP32 from Bag 1 + spare TP4056 from Bag 8) — build both cards in the same bench session.
 
 **Setup:**
 1. Flash the spare ESP32 with `hiking-sensor.yaml`, but change `esphome: name:` first (e.g. `hiking-monitor-test`) so it doesn't collide with the real device's hostname/MQTT identity. First flash must be via USB.
 2. Tie **GPIO32 (dock detect) directly to GND** with a plain jumper — no divider needed for this test. This deterministically signals "no USB present" so the boot logic reliably proceeds into sleep instead of possibly floating and staying awake.
 3. Leave **GPIO27 (slide switch) unconnected** — its internal pull-up reads HIGH by default, which the inverted logic treats as "switch OFF," also matching the sleep condition.
 4. Sensors (BME280, LTR-390, display) don't need to be attached — I2C read errors will log but won't block the boot sequence from reaching the sleep-entry check.
-5. Wire power as in CARD-025: battery → TP4056 BAT input, TP4056 boost output → spare ESP32 VIN/GND.
+5. Wire power as in CARD-0025: battery → TP4056 BAT input, TP4056 boost output → spare ESP32 VIN/GND.
 
 **Measurement:**
 1. Break the battery's positive lead and insert a multimeter in series (DC current mode, mA/µA jack — not the unfused high-current jack).
@@ -127,13 +127,13 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 ---
 
-### CARD-003 · [enhancement] [infrastructure] TLS for Mosquitto (port 8883)
-**Notes:** Port 1883 is internet-exposed via DuckDNS/port-forward with fail2ban, but credentials and sensor data are cleartext. TLS on port 8883 eliminates this. Steps: get Let's Encrypt cert for the DuckDNS hostname (certbot with duckdns plugin), add a TLS listener on port 8883 in mosquitto.conf, update mqtt_broker port in every ESPHome secrets.yaml, update Node-RED broker node, update HA MQTT integration, reflash all ESP32s. Do as a standalone task after DuckDNS setup is stable. CARD-002 prerequisite complete.
+### CARD-0003 · [enhancement] [infrastructure] TLS for Mosquitto (port 8883)
+**Notes:** Port 1883 is internet-exposed via DuckDNS/port-forward with fail2ban, but credentials and sensor data are cleartext. TLS on port 8883 eliminates this. Steps: get Let's Encrypt cert for the DuckDNS hostname (certbot with duckdns plugin), add a TLS listener on port 8883 in mosquitto.conf, update mqtt_broker port in every ESPHome secrets.yaml, update Node-RED broker node, update HA MQTT integration, reflash all ESP32s. Do as a standalone task after DuckDNS setup is stable. CARD-0002 prerequisite complete.
 
 ---
 
-### CARD-004 · [enhancement] [salt-sensor] Migrate Arduino C++ → ESPHome
-**Notes:** Do this before perfboard transfer — ESPHome initializes hardware differently than Arduino and if a strapping pin causes a boot issue it's easier to rewire on breadboard than cut perfboard traces. Device is still on breadboard. Estimated 2–3 hours. Do before CARD-003 (TLS) — TLS on Arduino C++ is brittle and would be thrown away when this migration happens anyway.
+### CARD-0004 · [enhancement] [salt-sensor] Migrate Arduino C++ → ESPHome
+**Notes:** Do this before perfboard transfer — ESPHome initializes hardware differently than Arduino and if a strapping pin causes a boot issue it's easier to rewire on breadboard than cut perfboard traces. Device is still on breadboard. Estimated 2–3 hours. Do before CARD-0003 (TLS) — TLS on Arduino C++ is brittle and would be thrown away when this migration happens anyway.
 
 **Maps directly — no design work:**
 - JSN-SR04T → ESPHome `ultrasonic` platform, same GPIO 5 (trig) / GPIO 18 (echo). Voltage divider stays as-is.
@@ -154,12 +154,12 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 ---
 
-### CARD-024 · [enhancement] [p-w-firefly] Coachproxy remote health monitoring
+### CARD-0024 · [enhancement] [p-w-firefly] Coachproxy remote health monitoring
 **Notes:** The coachproxy heartbeat (every 30 min via Tailscale) confirms the RV Pi and Tailscale link are alive, but it can't distinguish between "Pi is powered off" vs "Tailscale is down" vs "RV is in a dead zone." A more useful health check would poll the Tailscale status directly from the home Pi: `tailscale ping 100.90.246.43` or checking the Tailscale admin API for last-seen timestamp. This gives richer diagnostic output (latency, path) without depending on the RV Pi to actively publish. Implement as a scheduled script on the home Pi that posts results to the log dashboard. Alternative: use Tailscale's built-in status API at `localhost:41112` on the home Pi to check peer state without any external requests.
 
 ---
 
-### CARD-005 · [enhancement] [p-w-firefly] Overlay filesystem
+### CARD-0005 · [enhancement] [p-w-firefly] Overlay filesystem
 **Notes:** The Pi in the RV runs continuously, accumulating writes from logs, Tailscale state, and OS housekeeping — SD cards have a finite write cycle life and will eventually fail silently. An overlay filesystem makes the SD card effectively read-only during normal operation: all writes go to RAM, the card is only written during a deliberate shutdown sequence.
 
 **Tailscale complication:** Tailscale stores its node identity and keys in `/var/lib/tailscale/`. If that directory is in the overlay (RAM-only), Tailscale loses its identity on every reboot and needs to re-authenticate. Fix: a persistent bind mount (small USB stick or dedicated partition) mapped to `/var/lib/tailscale/` so it survives reboots.
@@ -171,13 +171,13 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 ---
 
 
-### CARD-006 · [enhancement] [logging] Move log directory to USB stick
+### CARD-0006 · [enhancement] [logging] Move log directory to USB stick
 **Priority:** low  
 **Notes:** Move LOG_DIR in log_server.py from the SD card to a USB stick plugged into the Pi for better write endurance. Add an /etc/fstab entry so it auto-mounts at boot before the jctsh-logging service starts.
 
 ---
 
-### CARD-019 · [idea] [vu-meter] Home theater VU meters
+### CARD-0019 · [idea] [vu-meter] Home theater VU meters
 **Notes:** VU meter displays for home theater speakers — Left, Right, Center, Subwoofer (4 channels). Circuit to be breadboarded first to validate the analog front end before any JCTsh integration work begins.
 
 **Hardware:**
@@ -217,7 +217,7 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 ---
 
 
-### CARD-010 · [enhancement] [front-porch-temp-sensor] Use case definition
+### CARD-0010 · [enhancement] [front-porch-temp-sensor] Use case definition
 **Notes:** Perfboard transfer complete. No enclosure planned. Sensor publishes temp, humidity, pressure, illuminance every 5 min. Perfboard layout: `components/front-porch-temp-sensor/perfboard-layout.md`.
 
 Existing automations: Temp Alert (above threshold+2°F for 10 min) and Temp Dropping (below threshold−2°F for 10 min). Threshold: `input_number.front_porch_temp_threshold` (currently 90°F).
@@ -255,24 +255,24 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 ## Planning
 
 
-### CARD-020 · [enhancement] [hiking-sensor] Hike data visualization (Looker Studio)
+### CARD-0020 · [enhancement] [hiking-sensor] Hike data visualization (Looker Studio)
 **Notes:** Build a Google Looker Studio dashboard connected to the GPS Track and Environmental Data Google Sheets. GPS route on a map, sensor readings (temp/humidity/pressure/battery) over hike duration. Review-after-the-fact use case — no real-time requirement. No new infrastructure needed.
 
 ---
 
-### CARD-012 · [idea] [air-quality-monitor] Air quality monitor
+### CARD-0012 · [idea] [air-quality-monitor] Air quality monitor
 **Planning doc:** `components/air-quality-monitor/JCTsh-air-quality-monitor-phase1.md`  
 **Notes:** Portable clip-mounted SEN55 air quality sensor (PM1.0/2.5/4.0/10, VOC, NOx) carried on hikes alongside the hiking monitor. Phase 1 complete; SEN55, Adafruit #5964 adapter, and JST GH cable ordered. Follows hiking-monitor firmware pattern (onboard flash logging, WiFi replay). Build begins after hiking-sensor is complete. Phase 2 entry criteria: parts received, fan transistor availability confirmed, hiking sensor build complete.
 
 ---
 
-### CARD-013 · [idea] [van-sensors] Van sensors (indoor + outdoor)
+### CARD-0013 · [idea] [van-sensors] Van sensors (indoor + outdoor)
 **Planning doc:** `components/van-sensors/JCTsh-van-sensor-phase1.md`  
 **Notes:** Two ESP32 ESPHome nodes for the Pleasure-Way ProMaster 3500 van. Outdoor: BME280 + LTR-390 UV + SEN55 air quality, LiPo powered. Indoor: BME280 + SCD40 CO2 + MQ-6 propane, 12V coach power. Both log to onboard flash during travel, sync to home MQTT on WiFi reconnect (home or Pixel hotspot). DS3231 RTC for accurate timestamps during extended trips. GPS correlation via GPSLogger on Pixel. Phase 1 complete — ready for Phase 2 (hardware selection, inventory scan, open questions resolved).
 
 ---
 
-### CARD-011 · [idea] [weather-station] Weather station
+### CARD-0011 · [idea] [weather-station] Weather station
 **Planning doc:** `components/weather-station/jctsh-weather-station-planning.md`  
 **Notes:** Full DIY outdoor weather station — BME280 (temp/humidity/pressure), VEML6075 (UV), SI1145 (solar irradiance), SparkFun Weather Meter Kit (wind/rain), AS3935 lightning detector, DS3231 RTC, SD card backup, solar+LiPo power. Posts to Weather Underground and Google Sheets. Phase 3 (architecture) complete — MQTT topics, payload schema, SmartThings integration, and six-phase build strategy all decided. Ready for Phase 4 (Claude Code instructions) when directed. Most parts to purchase (~$227 estimated).
 
@@ -280,48 +280,70 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 
 ## Build
 
-### CARD-030 · [bug] [photo-server] Re-enable weekly backup cron once Takeout zips are cleared
+### CARD-0043 · [bug] [photo-server] Robin's library missing metadata (null width/height/orientation) for large fraction of assets
+**Notes:** Discovered 2026-07-09 following up on CARD-0042 — Joseph reported a specific HEIC photo (`IMG_20260625_165423.heic`, Robin's account) with a fine-looking thumbnail but a visibly distorted full image (elongated heads). Checked the asset directly via `/api/assets/{id}`: `width`, `height`, `exifImageWidth`, `exifImageHeight`, and `orientation` all `null` — Immich never successfully extracted this file's real dimensions/orientation, which plausibly explains the distortion (wrong aspect-ratio assumption during preview rendering). Sampled 100 assets per account: **Joseph 0/100 null width; Robin 89/100 (89%)** — same lopsided pattern as CARD-0037/CARD-0039/CARD-0042, again far worse for Robin despite her "clean" import history.
+
+Triggered `metadataExtraction` via `PUT /api/jobs/metadataExtraction` (`{"command":"start"}`) — unlike CARD-0042's thumbnail gap, this one *is* partially caught by the normal queue trigger: 13,311 assets queued immediately. However this is likely not the full picture — some assets (like the specific HEIC file that started this) may be marked "complete" in the database despite holding null values, the same DB-vs-reality mismatch pattern as CARD-0042, which would need the same forced per-asset fix (`refresh-metadata`, another valid job name on the same `/api/assets/jobs` endpoint used for CARD-0042's `regenerate-thumbnail`).
+
+**Paused here by design (2026-07-09):** M8 load hit 12.64/12 cores with CARD-0030's backup, CARD-0042's thumbnail regen, and this metadata extraction all running concurrently — Immich API was still responsive (45ms ping) so nothing was failing, but Joseph asked to let the current jobs finish before adding a full forced `refresh-metadata` sweep across Robin's ~77,123 assets. The 13,311 already queued will keep processing in the background regardless.
+
+**Don't close until:** (1) the initially-triggered 13,311 finish processing, (2) a forced `refresh-metadata` sweep runs across Robin's full library the same way CARD-0042's thumbnail fix did, (3) the specific `IMG_20260625_165423.heic` asset is re-checked and confirmed to have real width/height/orientation values and correct (non-distorted) display, (4) a fresh sample check shows Robin's null-width rate back in line with Joseph's (0%).
+
+---
+
+### CARD-0042 · [bug] [photo-server] Robin's library missing thumbnails for ~81% of assets
+**Notes:** Discovered 2026-07-09 while troubleshooting Robin's phone backup — Joseph noticed "Error Loading Image" on several thumbnails, both in the phone's local gallery view and (critically) in the web UI too, which ruled out a phone-side rendering glitch. Diagnosed via direct HTTP checks against `/api/assets/{id}/thumbnail`: a 150-asset sample came back 122/150 (81%) returning `404` for Robin, versus **0/150** for Joseph — confirmed real, server-side, and isolated to Robin's account. Root cause not pinned down (her import was the "clean" one per `migration.md`, yet has by far the worse thumbnail gap — consistent with the same pattern already seen in CARD-0037/CARD-0039 where Robin's account had the larger gap despite the cleaner import history). The standard `thumbnailGeneration` job queue didn't surface these (`waiting: 1` when triggered normally) because Immich's database already considered them complete — the gap is between DB state and actual thumbnail files on disk, not a "job never ran" situation like CARD-0037.
+
+**Fix:** used the per-asset job endpoint (`POST /api/assets/jobs`, `{"name":"regenerate-thumbnail","assetIds":[...]}` — found via the same schema-discovery trick as CARD-0037/CARD-0039, sending an invalid body and reading the validation error's allowed values) to force-regenerate every one of Robin's 77,123 assets in 155 batches of 500. Confirmed working on a small scale first (9 known-broken assets, all fixed, verified via HTTP 200) before committing to the full-library run. Submitted successfully in full — `thumbnailGeneration` queue confirmed at 76,996 waiting immediately after. Verified live at every step (new photo from Robin's phone arrived with a working thumbnail, confirming upload itself was never broken — only historical thumbnails were affected).
+
+Running concurrently with CARD-0030's backup verification and the tail end of CARD-0037/039's work; checked M8 load before committing to the bulk job (5.04/12 cores, comfortable).
+
+**Don't close until:** `thumbnailGeneration` queue drains to 0 waiting/active with 0 failed, and a fresh sample check (same method as the diagnosis) shows Robin's thumbnail success rate back in line with Joseph's (0% broken).
+
+---
+
+### CARD-0030 · [bug] [photo-server] Re-enable weekly backup cron once Takeout zips are cleared
 **Progress (2026-07-09):** Zips deleted (818GB reclaimed: Momentus 100%→19% used, NVMe root 87%→5% used — see `components/photo-server/backup.md`). Cron re-enabled and confirmed uncommented. A manual verification run was kicked off to confirm the real library now backs up cleanly with room to spare (original step 4) — **still in progress**, first run is slow since it's reconciling the full difference (destination previously held zip staging data, not real backup content); expected to be much faster on future weekly runs since `rsync --delete` is incremental. Don't close until: the run completes with exit 0, and `df -h /mnt/photo-library-backup` shows used space roughly matching the primary library (~615GB).
 
 ---
 
-### CARD-040 · [enhancement] [photo-server] Dashboard visibility for backup runs
-**Notes:** Following the same pattern as CARD-036 (reboot notifications), `photo-library-backup.sh` (`components/photo-server/photo-library-backup.sh`, deployed to `/usr/local/bin/`) now publishes MQTT log messages so backup success/failure is visible on the JCTsh log dashboard without SSHing in: `"Backup starting."` before rsync, `"Backup complete."` (category `System`) on success, or `"Backup failed (rsync exit <code>)."` (category `Alert`, non-collapsing) on failure. Uses the existing `photo-server` MQTT account and `mosquitto_pub`, already installed for the reboot-notification work — no new credentials.
+### CARD-0040 · [enhancement] [photo-server] Dashboard visibility for backup runs
+**Notes:** Following the same pattern as CARD-0036 (reboot notifications), `photo-library-backup.sh` (`components/photo-server/photo-library-backup.sh`, deployed to `/usr/local/bin/`) now publishes MQTT log messages so backup success/failure is visible on the JCTsh log dashboard without SSHing in: `"Backup starting."` before rsync, `"Backup complete."` (category `System`) on success, or `"Backup failed (rsync exit <code>)."` (category `Alert`, non-collapsing) on failure. Uses the existing `photo-server` MQTT account and `mosquitto_pub`, already installed for the reboot-notification work — no new credentials.
 
-**Not yet live-verified** — deployed while the first post-cleanup backup run (started under the old script version) was still in progress, so it hasn't fired for real yet. Don't close until the next run (manual trigger or next Sunday's cron) is confirmed showing both messages on the dashboard, paired with CARD-030's verification above.
+**Not yet live-verified** — deployed while the first post-cleanup backup run (started under the old script version) was still in progress, so it hasn't fired for real yet. Don't close until the next run (manual trigger or next Sunday's cron) is confirmed showing both messages on the dashboard, paired with CARD-0030's verification above.
 
 ---
 
-### CARD-009 · [enhancement] [hiking-sensor] Enclosure design and build
+### CARD-0009 · [enhancement] [hiking-sensor] Enclosure design and build
 **Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-sensor/enclosure-prototype.md`. Standoffs arrive 2026-06-14; temp enclosure build before camping trip departure 2026-06-15. Device will be used in the field for ~2 weeks on that trip — hiking and van sensor simulation. Full 3D-printed permanent enclosure is a later step.
 
 ---
 
 ## Done
 
-### CARD-022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
+### CARD-0022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
 **Resolution:** All 8 steps complete. Steps 1–5 and 8 passed clean or were fixed on 2026-06-20 (SSH key-only auth, MQTT auth, port audit, Node-RED adminAuth). Step 7 (HA MFA) done 2026-07-09: TOTP enabled for both Joseph and Robin via HA profile → Multi-Factor Authentication Modules. Step 6 (router UPnP) done 2026-07-09: found enabled with zero registered clients, disabled with no functional impact. Full findings in `jctsh-security-hardening.md`. Patterns harvested to `JCTsh-Build-Standards.md` §10 Security Standards (v1.14).
 
 ---
 
-### CARD-023 · [enhancement] [infrastructure] Security hardening — cloud accounts (Steps 9–14 + Final)
+### CARD-0023 · [enhancement] [infrastructure] Security hardening — cloud accounts (Steps 9–14 + Final)
 **Resolution:** All steps complete. Steps 9–12 and 14 passed clean 2026-06-20 (Ring/Amazon, SmartThings, Google ×2, Windows machine — one stale SmartThings connected app, SharpTools, revoked). Step 13 done 2026-07-09: router admin password rotated to a new strong unique password (`credentials.local.md`), remote/WAN management confirmed disabled, DNS confirmed intentional (CenturyLink/Quantum Fiber bypass-modem setup), firmware found one version behind (1.5.2 → 1.5.3 available) with auto-update now enabled (nightly 3–5 AM) rather than relying on manual checks going forward. Final Step complete: findings harvested to `JCTsh-Build-Standards.md` §10 Security Standards (v1.14).
 
 ---
 
-### CARD-039 · [bug] [photo-server] Re-verify Takeout import completeness — 3,433 assets were genuinely missing
-**Resolution:** Following up on the original migration verification discussion, and given CARD-037 had just found a large ML-processing gap from the same import, re-ran `immich-go upload from-google-photos` (real run, not `--dry-run`, so gaps found would get fixed immediately) against all retained Takeout zips for both accounts — `/mnt/photo-library-backup/takeout-staging/joseph/` (9 zips), `/home/jct/takeout-staging/joseph/` (3 zips), `/home/jct/takeout-staging/robin/` (5 zips). Used the same `--on-errors continue --pause-immich-jobs=false` flags that fixed the original migration's crash patterns, plus `--no-ui --log-file=...` this time for a persisted per-pass log (a gap in the original run). Launched fully detached via `nohup ... & disown` directly on the M8 so it survived independent of the SSH session — relevant since the home internet/network was intermittently down around this time.
+### CARD-0039 · [bug] [photo-server] Re-verify Takeout import completeness — 3,433 assets were genuinely missing
+**Resolution:** Following up on the original migration verification discussion, and given CARD-0037 had just found a large ML-processing gap from the same import, re-ran `immich-go upload from-google-photos` (real run, not `--dry-run`, so gaps found would get fixed immediately) against all retained Takeout zips for both accounts — `/mnt/photo-library-backup/takeout-staging/joseph/` (9 zips), `/home/jct/takeout-staging/joseph/` (3 zips), `/home/jct/takeout-staging/robin/` (5 zips). Used the same `--on-errors continue --pause-immich-jobs=false` flags that fixed the original migration's crash patterns, plus `--no-ui --log-file=...` this time for a persisted per-pass log (a gap in the original run). Launched fully detached via `nohup ... & disown` directly on the M8 so it survived independent of the SSH session — relevant since the home internet/network was intermittently down around this time.
 
 **Result:** ran clean in a single pass, no restarts needed, zero upload errors. Found **3,433 assets that were genuinely missing** from Immich and uploaded them (zero data loss risk — upload-only, nothing deleted): 58 (Joseph, backup-drive zips), 119 (Joseph, NVMe-staged zips), 3,256 (Robin). Also found 109 cases where the server's copy was upgraded (better-quality version found in the zip) and 160,701 correctly-matching duplicates confirmed (skipped, no re-upload).
 
-**Notable finding:** Robin's pass had by far the largest gap (3,256 missing) despite her original import being documented as the "clean" one with no crashes/restarts (see `components/photo-server/migration.md`) — this means the missing-asset gap was not caused solely by Joseph's chaotic 5-restart import as originally assumed. Combined with CARD-037's finding that Robin's ML-processing gap was also worse than Joseph's (96% vs ~80% zero-face rate), there's a consistent pattern that something affected both imports similarly regardless of which one crashed — most likely some shared infrastructure/timing factor from both multi-day imports running through the same M8 around the same period. Root cause not further investigated since the fix (re-run to catch anything missing) resolves it regardless of cause, same reasoning as CARD-037.
+**Notable finding:** Robin's pass had by far the largest gap (3,256 missing) despite her original import being documented as the "clean" one with no crashes/restarts (see `components/photo-server/migration.md`) — this means the missing-asset gap was not caused solely by Joseph's chaotic 5-restart import as originally assumed. Combined with CARD-0037's finding that Robin's ML-processing gap was also worse than Joseph's (96% vs ~80% zero-face rate), there's a consistent pattern that something affected both imports similarly regardless of which one crashed — most likely some shared infrastructure/timing factor from both multi-day imports running through the same M8 around the same period. Root cause not further investigated since the fix (re-run to catch anything missing) resolves it regardless of cause, same reasoning as CARD-0037.
 
 Full run logs retained on the M8 at `/home/jct/immich-go-verify-20260709/` (`joseph-backup.log`, `joseph-home.log`, `robin.log`, `run.out`).
 
 ---
 
-### CARD-032 · [bug] [photo-server] Heartbeat doesn't detect real storage failures (found 2026-07-08)
-**Resolution:** `photo-server-heartbeat.py` now writes, reads back, and removes a marker file (`/data/upload/.heartbeat_check`) *inside* the `immich_server` container on every run where the container itself is confirmed up, catching the exact class of failure Docker's own health check misses (it only pings the Immich API, never touches `/data`). A failure is appended to the same `unhealthy` list and reported as `Alert - storage:<error text>`, using the identical non-collapsing path CARD-029 established for degraded containers. Immediate fix (remount, container restart) and root-cause mitigation (udev auto-remount rule) from the original incident were already in place; this closes the actual monitoring gap.
+### CARD-0032 · [bug] [photo-server] Heartbeat doesn't detect real storage failures (found 2026-07-08)
+**Resolution:** `photo-server-heartbeat.py` now writes, reads back, and removes a marker file (`/data/upload/.heartbeat_check`) *inside* the `immich_server` container on every run where the container itself is confirmed up, catching the exact class of failure Docker's own health check misses (it only pings the Immich API, never touches `/data`). A failure is appended to the same `unhealthy` list and reported as `Alert - storage:<error text>`, using the identical non-collapsing path CARD-0029 established for degraded containers. Immediate fix (remount, container restart) and root-cause mitigation (udev auto-remount rule) from the original incident were already in place; this closes the actual monitoring gap.
 
 Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o remount,ro`) — chosen over physically disconnecting the drive, and over a plain `chmod` on the host-side directory (tried first; silently didn't work, since the container runs as root and root bypasses POSIX permission bits — a read-only remount is enforced at the VFS level instead). Dashboard correctly showed `Immich degraded - storage:sh: 1: cannot create /data/upload/.heartbeat_check: Read-only file system`; remounting read-write restored normal status on the next run. Full writeup in `components/photo-server/heartbeat.md`.
 
@@ -329,17 +351,17 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 
 ---
 
-### CARD-029 · [enhancement] [photo-server] Live-test Immich degraded-heartbeat alert path
-**Resolution:** Live-tested 2026-07-08 now that the Immich migration is complete. `docker stop immich_redis` produced `Immich degraded - immich_redis:unhealthy` (then `:starting` during the restart race) as a non-collapsing `Alert` row on the dashboard; `docker start immich_redis` restored normal `System`/online status on the next run. Combined with the CARD-032 storage-check test in the same session. Full writeup in `components/photo-server/heartbeat.md`.
+### CARD-0029 · [enhancement] [photo-server] Live-test Immich degraded-heartbeat alert path
+**Resolution:** Live-tested 2026-07-08 now that the Immich migration is complete. `docker stop immich_redis` produced `Immich degraded - immich_redis:unhealthy` (then `:starting` during the restart race) as a non-collapsing `Alert` row on the dashboard; `docker start immich_redis` restored normal `System`/online status on the next run. Combined with the CARD-0032 storage-check test in the same session. Full writeup in `components/photo-server/heartbeat.md`.
 
 ---
 
-### CARD-036 · [enhancement] [infrastructure] Dashboard visibility for scheduled reboots
-**Resolution:** CARD-035's scheduled reboots were invisible on the JCTsh log dashboard — confirming success required manually SSHing in and checking `systemctl`/`docker ps`. Added a matched pair of MQTT log messages around each reboot: `scheduled-reboot.service` now publishes `"Scheduled reboot about to occur."` immediately before calling `/sbin/reboot` (multiple `ExecStart=` lines in the oneshot unit), and a new `reboot-complete.service` (enabled via `WantedBy=multi-user.target`) publishes `"Boot complete."` on every boot once the MQTT broker is reachable. Pi publishes as component `jctsh-core` to `jctsh/core/log-server/log` using the existing `jctsh-log-server` MQTT account (`/etc/jctsh/log-server.env`) via `mosquitto_pub` (already installed). M8 publishes as component `photo-server` to `jctsh/server/photo-server/log` using the existing `photo-server` MQTT account (`/etc/jctsh/heartbeat.env`) — required installing the `mosquitto-clients` apt package on the M8 (the heartbeat script uses Python `paho-mqtt` instead, so the CLI wasn't already present). Neither message uses the `"Heartbeat - "` prefix, so each occurrence stays visible as its own dashboard row rather than collapsing. Per-host unit files split out: `scheduled-reboot-pi.service`/`scheduled-reboot-m8.service` replace the old shared `scheduled-reboot.service` (now host-specific since the MQTT broker address, credentials file, and topic differ per host). Verified live 2026-07-08 via manual `systemctl start reboot-complete.service` on both hosts — confirmed on the dashboard (`/data` live view and, after flushing, the persisted `/log` file).
+### CARD-0036 · [enhancement] [infrastructure] Dashboard visibility for scheduled reboots
+**Resolution:** CARD-0035's scheduled reboots were invisible on the JCTsh log dashboard — confirming success required manually SSHing in and checking `systemctl`/`docker ps`. Added a matched pair of MQTT log messages around each reboot: `scheduled-reboot.service` now publishes `"Scheduled reboot about to occur."` immediately before calling `/sbin/reboot` (multiple `ExecStart=` lines in the oneshot unit), and a new `reboot-complete.service` (enabled via `WantedBy=multi-user.target`) publishes `"Boot complete."` on every boot once the MQTT broker is reachable. Pi publishes as component `jctsh-core` to `jctsh/core/log-server/log` using the existing `jctsh-log-server` MQTT account (`/etc/jctsh/log-server.env`) via `mosquitto_pub` (already installed). M8 publishes as component `photo-server` to `jctsh/server/photo-server/log` using the existing `photo-server` MQTT account (`/etc/jctsh/heartbeat.env`) — required installing the `mosquitto-clients` apt package on the M8 (the heartbeat script uses Python `paho-mqtt` instead, so the CLI wasn't already present). Neither message uses the `"Heartbeat - "` prefix, so each occurrence stays visible as its own dashboard row rather than collapsing. Per-host unit files split out: `scheduled-reboot-pi.service`/`scheduled-reboot-m8.service` replace the old shared `scheduled-reboot.service` (now host-specific since the MQTT broker address, credentials file, and topic differ per host). Verified live 2026-07-08 via manual `systemctl start reboot-complete.service` on both hosts — confirmed on the dashboard (`/data` live view and, after flushing, the persisted `/log` file).
 
 ---
 
-### CARD-037 · [bug] [photo-server] ML processing (faces, smart search, duplicates, OCR) never ran on a large fraction of the library
+### CARD-0037 · [bug] [photo-server] ML processing (faces, smart search, duplicates, OCR) never ran on a large fraction of the library
 **Resolution:** Discovered 2026-07-08 while answering Joseph's question about why most photos showed no identified people in Properties. Diagnosed via the Immich API (not guesswork): a random sample showed ~80% of assets with zero detected faces; a targeted CLIP-search sample of clearly-portrait photos still showed clean detection (26/30 correct), ruling out a model-confidence issue. Definitive proof came from a duplicate pair — the exact same restaurant photo (Immich's own duplicate-detection linked the two copies) had 7 faces detected on one copy and 0 on the other.
 
 **Not specific to Joseph's chaotic import:** checked Robin's library too (via her own API key, since search is scoped per-user) — 96% zero-face rate, even higher than Joseph's ~80%, despite her import running clean with no crashes/restarts (see `components/photo-server/migration.md`). This ruled out the 5-restart-import theory as the sole cause and confirmed the gap was server-wide, affecting both accounts roughly equally.
@@ -350,60 +372,60 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 
 ---
 
-### CARD-035 · [enhancement] [infrastructure] Weekly scheduled reboot — Pi and M8 photo-server
+### CARD-0035 · [enhancement] [infrastructure] Weekly scheduled reboot — Pi and M8 photo-server
 **Resolution:** Deployed systemd timers on both hosts: `scheduled-reboot.timer` → `scheduled-reboot.service` (`/sbin/reboot`), `Persistent=true`. Pi: Monday 3:00 AM. M8: Monday 4:00 AM — staggered one hour later so the M8 heartbeat script's MQTT publish to the Pi's Mosquitto broker doesn't collide with the Pi being mid-reboot. Not synchronized to KeepConnect's own weekly router reset — that schedule has drifted from its original Wednesday setting, most likely because its "every 7 days" timer restarts from any reset (scheduled or outage-triggered), so it can't be relied on as a fixed weekday anyway; a router reboot's brief network blip is tolerated regardless of timing. Version-controlled unit files in `core/maintenance/`; documented in `SOFTWARE-ENVIRONMENT.md` (Pi) and new `components/photo-server/operations.md` (M8). Verified live via `systemctl list-timers` on both hosts — next run confirmed Mon 2026-07-13. 2026-07-08.
 
 ---
 
-### CARD-033 · [idea] [infrastructure] Document Keep Connect configuration and schedule
+### CARD-0033 · [idea] [infrastructure] Document Keep Connect configuration and schedule
 **Resolution:** KeepConnect is a standalone router-rebooter device (Johnson Creative KeepConnect-27F8, not a JCTsh component). New dedicated doc `keepconnect.md` created at repo root with full device identity, network config, physical outlet-scoping rationale, and complete monitor/timing/schedule/notification configuration. Linked from `jctsh-network.md` devices table (IP 192.168.1.108, DHCP-reserved) and `ENVIRONMENT.md` Hub & Controller table; added to `README.md` repository layout. Remaining open item (scheduled Pi/Immich reboot via cron, separate from power-strip cycling) carried forward in `keepconnect.md` itself. 2026-07-08.
 
 ---
 
-### CARD-021 · [enhancement] [logging] Device status dashboard
-**Resolution:** Added `/status` endpoint to `core/logging/log_server.py`. Two-section layout: Home (Online/Offline/? per component based on heartbeat presence and 70-min threshold) and Remote (`coachproxyos` always shows last-activity + `?`). Auto-detects heartbeat-capable components — salt-sensor shows `?` until CARD-004 ESPHome migration adds heartbeats. Deployed to Pi 2026-06-30. Added CARD-024 (coachproxy remote health monitoring via Tailscale ping).
+### CARD-0021 · [enhancement] [logging] Device status dashboard
+**Resolution:** Added `/status` endpoint to `core/logging/log_server.py`. Two-section layout: Home (Online/Offline/? per component based on heartbeat presence and 70-min threshold) and Remote (`coachproxyos` always shows last-activity + `?`). Auto-detects heartbeat-capable components — salt-sensor shows `?` until CARD-0004 ESPHome migration adds heartbeats. Deployed to Pi 2026-06-30. Added CARD-0024 (coachproxy remote health monitoring via Tailscale ping).
 
 ---
 
-### CARD-018 · [idea] [immich] Self-hosted photo library
+### CARD-0018 · [idea] [immich] Self-hosted photo library
 **Resolution:** Superseded. Hardware (GMKtec M8) in hand. Replaced by `components/photo-server/` (Immich install + immich-go migration) and `components/photo-tv-display/` (Node.js TV slideshow + phone companion) — full planning docs committed 2026-06-30.
 
 ---
 
-### CARD-014 · [enhancement] [core] Move environmental data pipeline to core
+### CARD-0014 · [enhancement] [core] Move environmental data pipeline to core
 **Resolution:** Moved `environmental-data.gs` → `core/data-pipeline/`, `JCTsh-Environmental-Data-Architecture.md` → `core/data-pipeline/`, and `core/node-red/environmental-data.flow.json` → `core/data-pipeline/`. Updated references across 15 files (CLAUDE.md, README.md, Node-RED-workflow.md, JCTsh-Build-Standards.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Property-Sensor-Pattern.md, all component planning docs, hiking-sensor instructions). 2026-06-30.
 
 ---
 
-### CARD-002 · [enhancement] [infrastructure] MQTT v3.1.1 → v5 upgrade
+### CARD-0002 · [enhancement] [infrastructure] MQTT v3.1.1 → v5 upgrade
 **Resolution:** Mosquitto 2.0.21 already supports v5 — no broker config change needed. Changed `protocolVersion` from 4 → 5 in the Node-RED broker config node (`core/node-red/core.flow.json`) and updated the live Pi flows.json in place. Confirmed via Mosquitto log: client `nodered-saltlevel` connected with `p5`. ESP32/ESPHome devices unaffected (remain on v3.1.1). 2026-06-30.
 
 ---
 
-### CARD-008 · [enhancement] [hiking-sensor] Pixel hotspot second WiFi field test
+### CARD-0008 · [enhancement] [hiking-sensor] Pixel hotspot second WiFi field test
 **Notes:** Confirmed 2026-06-17 during camping trip. Device connected to JCT Hotspot (IP 10.57.172.159 — Pixel hotspot subnet), reached home MQTT broker via jctsh.duckdns.org over cellular, replayed 7 SPIFFS readings on reconnect. DuckDNS + port 1883 forward confirmed working in the field.
 
 ---
 
-### CARD-017 · [enhancement] [infrastructure] Charging state schema fields for solar/battery sensors
+### CARD-0017 · [enhancement] [infrastructure] Charging state schema fields for solar/battery sensors
 **Resolution:** Added `solar_v` (solar panel voltage, V, ADC voltage divider) to the environmental data schema. Decision: `solar_v` chosen over `charging` boolean (not universally available on all charge controllers) and `charge_current_ma` (requires INA219, overkill). Combined with `battery_v`, charging state is derivable in Node-RED or Sheets as `solar_v > battery_v + ~0.3V`. Added to field reference and Sheets schema in `JCTsh-Environmental-Data-Architecture.md` (v1.4), column Z in `components/hiking-sensor/environmental-data.gs`, and Apps Script redeployed. 2026-06-15.
 
 ---
 
-### CARD-016 · [enhancement] [infrastructure] Offline flash logging — extract reusable standard
-**Resolution:** Created `core/offline-logger/sensor_logger.h` — generic template header with `sensor_log_*` function prefix (adapt by renaming to `<name>_log_*` and updating the log file path). Added "Offline Flash Logging" section to `JCTsh-Property-Sensor-Pattern.md` with template adaptation instructions, on_boot mount snippet, on_connect replay block (500ms settle delay), and interval guard (connected → publish, offline → log_write). Removed CARD-016 from pattern doc Open Gaps. 2026-06-14.
+### CARD-0016 · [enhancement] [infrastructure] Offline flash logging — extract reusable standard
+**Resolution:** Created `core/offline-logger/sensor_logger.h` — generic template header with `sensor_log_*` function prefix (adapt by renaming to `<name>_log_*` and updating the log file path). Added "Offline Flash Logging" section to `JCTsh-Property-Sensor-Pattern.md` with template adaptation instructions, on_boot mount snippet, on_connect replay block (500ms settle delay), and interval guard (connected → publish, offline → log_write). Removed CARD-0016 from pattern doc Open Gaps. 2026-06-14.
 
 ---
 
-### CARD-015 · [enhancement] [front-porch-temp-sensor] Environmental data pipeline integration
+### CARD-0015 · [enhancement] [front-porch-temp-sensor] Environmental data pipeline integration
 **Resolution:** Added SNTP, humidity/pressure IDs, and 5-min `/data` publish to firmware (temp, humidity, pressure, illuminance, lat/lon H8, rssi, ISO 8601 UTC). Added `illuminance_lx` to the environmental data schema and Apps Script. Node-RED wildcard caught it automatically — no flow changes. OTA flashed 2026-06-14.
 
 ---
 
-### CARD-007 · [idea] [hiking-sensor] Hiking observations pipeline (Tasker → Sheets)
+### CARD-0007 · [idea] [hiking-sensor] Hiking observations pipeline (Tasker → Sheets)
 **Resolution:** Tasker widget → Android speech recognition → HTTP POST to Apps Script → Hiking Observations sheet with automatic category classification. No keyword prefix — widget tap is the intent signal. Steps 23–26 complete 2026-06-13.
 
 ---
 
-### CARD-001 · [bug] [garage-radar] Garage-radar false presence on door close
+### CARD-0001 · [bug] [garage-radar] Garage-radar false presence on door close
 **Resolution:** Ill-defined and no longer applicable — closed.

@@ -4,7 +4,7 @@
 **Version:** 1.1
 **Version description:** Added Steps 9–14 covering Ring/Amazon, SmartThings/Samsung, Ecobee, Google accounts, router firmware, and router admin credentials. Expanded Summary Table. Step 5 Google MFA cross-reference updated to point to new Step 11.
 **Project:** JCTsh
-**Status:** All steps (1–14 + Final) complete as of 2026-07-09 (CARD-022, CARD-023). See findings below each step.
+**Status:** All steps (1–14 + Final) complete as of 2026-07-09 (CARD-0022, CARD-0023). See findings below each step.
 
 ---
 
@@ -100,7 +100,7 @@ Port inventory (post-remediation):
 | 80 | log server (python3) | LAN + Tailscale — not internet-forwarded |
 | 443 | nginx (Tailscale HTTPS proxy for HA) | Tailscale-only in practice — cert is for `raspberrypi.tailfe828a.ts.net`, LAN access yields cert error; not internet-forwarded |
 | 1880 | Node-RED | LAN + Tailscale — not internet-forwarded |
-| 1883 | Mosquitto | LAN + **internet via DuckDNS/port-forward** — INTENTIONAL; required for ESP32 hotspot connectivity (hiking-monitor, CARD-008); mitigated by fail2ban + strong credentials; TLS pending (CARD-003) |
+| 1883 | Mosquitto | LAN + **internet via DuckDNS/port-forward** — INTENTIONAL; required for ESP32 hotspot connectivity (hiking-monitor, CARD-0008); mitigated by fail2ban + strong credentials; TLS pending (CARD-0003) |
 | 8123 | Home Assistant | LAN + Tailscale — not internet-forwarded; external access via Nabu Casa |
 | 18554 | go2rtc | localhost only — OK |
 | 18555 | go2rtc (WebRTC API) | LAN — HA camera component; not internet-forwarded |
@@ -157,7 +157,7 @@ Router port forwarding confirmation (1880, 8123) requires home WiFi access to `1
 - `100.112.116.79` desktop-fqbdl5b (windows) — Joseph's Windows machine
 - `100.126.154.88` jct-pixel-10-pro-xl (android) — Pixel phone
 
-No unfamiliar devices. ACL: default (all devices in tailnet can reach each other). MFA: Tailscale uses Google account (`joscthomas@`) — MFA status deferred to CARD-023 Step 11 (Google account audit).
+No unfamiliar devices. ACL: default (all devices in tailnet can reach each other). MFA: Tailscale uses Google account (`joscthomas@`) — MFA status deferred to CARD-0023 Step 11 (Google account audit).
 
 ---
 

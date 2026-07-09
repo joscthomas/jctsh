@@ -10,15 +10,15 @@ Weekly rsync mirrors the primary Immich library (Seagate Backup Plus 1TB) to the
 | Primary drive | `/mnt/photo-library` (Backup Plus 1TB, UUID `cd4612e2-7c14-4134-8dcb-f43a251f2127`) |
 | Backup drive | `/mnt/photo-library-backup` (Momentus 640GB, UUID `db545672-4650-412e-980f-3a70bba26883`) |
 
-**Incremental by design:** `rsync -av --delete` only transfers files that are new or changed since the last run — it does not re-copy the whole library every week. `--delete` additionally removes anything from the backup that no longer exists in the source, keeping it an exact mirror rather than an ever-growing pile. The very first run after a source change (e.g. the CARD-030 cleanup below) can be slow since it has to reconcile the full difference; steady-state weekly runs should be fast, just that week's new photos.
+**Incremental by design:** `rsync -av --delete` only transfers files that are new or changed since the last run — it does not re-copy the whole library every week. `--delete` additionally removes anything from the backup that no longer exists in the source, keeping it an exact mirror rather than an ever-growing pile. The very first run after a source change (e.g. the CARD-0030 cleanup below) can be slow since it has to reconcile the full difference; steady-state weekly runs should be fast, just that week's new photos.
 
-## CARD-030 Resolved (2026-07-09)
+## CARD-0030 Resolved (2026-07-09)
 
-The zip files that filled the backup drive to 100% (`/mnt/photo-library-backup/takeout-staging/`, `/home/jct/takeout-staging/`, ~818GB combined) were deleted after CARD-039 confirmed the import was fully complete and verified. Cron re-enabled the same day. Space reclaimed: Momentus went from 100% used (4.3GB free) to 19% used (455GB free); the NVMe root drive went from 87% to 5% used.
+The zip files that filled the backup drive to 100% (`/mnt/photo-library-backup/takeout-staging/`, `/home/jct/takeout-staging/`, ~818GB combined) were deleted after CARD-0039 confirmed the import was fully complete and verified. Cron re-enabled the same day. Space reclaimed: Momentus went from 100% used (4.3GB free) to 19% used (455GB free); the NVMe root drive went from 87% to 5% used.
 
 ## Dashboard Visibility (added 2026-07-09)
 
-The backup script now publishes MQTT log messages so success/failure is visible on the JCTsh log dashboard without SSHing in — same pattern as the scheduled-reboot notifications (CARD-036):
+The backup script now publishes MQTT log messages so success/failure is visible on the JCTsh log dashboard without SSHing in — same pattern as the scheduled-reboot notifications (CARD-0036):
 - `"Backup starting."` (component `photo-server`, category `System`) published before `rsync` runs
 - On success: `"Backup complete."` (category `System`)
 - On failure: `"Backup failed (rsync exit <code>)."` (category `Alert`, non-collapsing)

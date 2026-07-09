@@ -5,6 +5,7 @@ Tucson, AZ | Joseph C Thomas
 ## Hub & Controller
 | Device | Role |
 |---|---|
+| TP-Link Archer AXE75 | Router (TP-Link AXE5400 Tri-Band Wi-Fi 6E) — gateway/DHCP server for the whole home network, `192.168.1.1`. See `jctsh-network.md` |
 | SmartThings Hub | Primary smart home controller — manages Zigbee, Z-Wave, and virtual switches |
 | Raspberry Pi 3B+ | JCTsh automation server — see [CLAUDE.md](./CLAUDE.md) for services, ports, and access |
 | KeepConnect-27F8 | Router rebooter — power-cycles router/modem on internet-loss detection; scoped to router outlet only. See [keepconnect.md](./keepconnect.md) |

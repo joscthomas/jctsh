@@ -1,5 +1,26 @@
 # JCTsh DEVLOG
 
+## 2026-07-09
+Closed CARD-037: Immich ML processing (face detection/recognition, CLIP smart search, OCR,
+duplicate detection) had never run on a large fraction of both Joseph's and Robin's
+libraries — found by chasing down Joseph's "most photos don't show identified people"
+question through the API rather than guessing, and confirmed definitively via a duplicate
+photo pair where one copy had 7 detected faces and its exact twin had zero. Checking
+Robin's library too (96% zero-face rate, clean import, no crashes) ruled out the original
+5-restart-import theory and showed the gap was server-wide, not import-specific.
+
+Fix was to trigger all five affected jobs via the admin job-control API — Immich has no
+dry-run, so starting each job doubled as both the diagnostic (revealing real backlogs:
+~140K faces, 33K duplicates, ~17K each for smart search/OCR) and the fix itself. Verified
+CPU-bound via `vmstat` (not I/O-bound) before running all five concurrently. Ran overnight
+into a home-internet outage (unrelated — the jobs run locally on the M8, unaffected).
+Confirmed complete 2026-07-09: all queues drained, zero failures, M8 uptime showed it never
+rebooted mid-run. People clusters grew 2,626 → 3,331. Full writeup in `backlog.md` CARD-037.
+
+Also documented the home router (TP-Link Archer AXE75, 192.168.1.1) in `jctsh-network.md`
+and `ENVIRONMENT.md` — it had never been added despite being the gateway every other device
+depends on, and despite `keepconnect.md` already referencing it extensively.
+
 ## 2026-07-08 (continued, part 3)
 Closed the actual CARD-032 monitoring gap and live-tested CARD-029 in the same session.
 `photo-server-heartbeat.py` now writes/reads/removes a marker file inside the

@@ -15,6 +15,7 @@ All device IPs are DHCP-reserved on the router. Update this file when adding a n
 
 | Device | IP | Hostname | MAC | Notes |
 |---|---|---|---|---|
+| TP-Link Archer AXE75 (router) | 192.168.1.1 | — | F0-09-0D-AB-E1-40 | TP-Link AXE5400 Tri-Band Wi-Fi 6E; gateway/DHCP server for every device below. IPv6 LAN: `FE80::F209:DFF:FEAB:E140/64`. Power controlled by KeepConnect — see `keepconnect.md` |
 | Raspberry Pi (eth0) | 192.168.1.117 | raspberrypi.local | B8-27-EB-A2-5C-E5 | Pi host — MQTT, Node-RED, HA, log server; wired, DHCP-reserved |
 | Raspberry Pi (wlan0) | 192.168.1.217 | raspberrypi.local | B8-27-EB-F7-09-B0 | WiFi — dynamic IP, not reserved; not used for service access |
 | coachproxyos (RV Pi) | 192.168.1.219 | coachproxyos.local | B8-27-EB-BD-C6-63 | eRVin — at home only when coach is home |

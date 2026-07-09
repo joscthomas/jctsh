@@ -17,6 +17,7 @@ environmental monitoring into a single integrated ecosystem.
 | [automatic-garage-door-opener-closer](components/automatic-garage-door-opener-closer/) | Voice and auto-close control for LiftMaster opener | Production |
 | [front-porch-temp-sensor](components/front-porch-temp-sensor/) | Front porch temperature, pressure, and light with push notifications | Production |
 | [p-w-firefly](components/p-w-firefly/) | Firefly Integrations RV-C coach interface for Pleasure-Way Lexor FL | Production |
+| [photo-server](components/photo-server/) | Self-hosted Immich photo/video library on dedicated mini PC | Production |
 | [hiking-sensor](components/hiking-sensor/) | Portable environmental sensor — logs to flash during hikes, syncs on return | In Progress |
 | [weather-station](components/weather-station/) | Outdoor DIY weather station posting to Weather Underground and Google Sheets | Planned |
 | [air-quality-monitor](components/air-quality-monitor/) | Portable PM/VOC/NOx sensor carried on hikes alongside the hiking sensor | Planned |

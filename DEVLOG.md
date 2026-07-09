@@ -1,5 +1,29 @@
 # JCTsh DEVLOG
 
+## 2026-07-09 (continued, part 2)
+photo-server documentation catch-up (Steps 15-17 of the build instructions, long overdue)
+plus CARD-030 execution. Installed Node.js (Step 15, was never done). Wrote the 6 missing
+Step 16 docs (README.md, docker-compose.yml, .env.example, setup.md, network.md,
+backup.md) — deletion-log-setup.md skipped, Joseph moved that step to photo-tv-display's
+scope, and Step 13 (face naming) marked N/A, decided "catch as catch can" rather than a
+tracked task. Step 17: added photo-server to root README's component table, fixed a stale
+parts-inventory note that still said "OS to be replaced" a week after Ubuntu had been
+running, added a Storage section for the two USB HDDs + spares.
+
+CARD-030: with CARD-039 having already done a far more rigorous completeness check than
+the original "spot-check before deleting" plan called for, deleted both Takeout zip
+staging locations (818GB reclaimed — Momentus 100%→19% used, NVMe root 87%→5%), re-enabled
+the weekly backup cron, kicked off a manual verification run (still in progress — first
+run is slow, reconciling a destination that previously held zip staging data instead of
+real backups; future weekly runs should be fast since rsync is incremental).
+
+Also added a consolidated "Scheduled Maintenance Windows" table to jctsh-network.md
+(prompted by realizing KeepConnect's router reboot, now landing Wednesday 3am, was never
+cross-referenced against the Pi/M8 reboot and backup schedule) and MQTT dashboard
+visibility for backup runs (CARD-040, same "Backup starting."/"Backup complete." pattern
+as CARD-036's reboot notifications) — not yet live-verified since the first post-cleanup
+backup run was already in progress when the updated script was deployed.
+
 ## 2026-07-09 (continued)
 Closed CARD-039: re-ran `immich-go` for real (not `--dry-run`) against every retained
 Takeout zip for both accounts, prompted by CARD-037 raising doubt about whether this same

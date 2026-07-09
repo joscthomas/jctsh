@@ -37,6 +37,21 @@ Tailscale creates a private encrypted mesh network so enrolled devices can reach
 | RV Pi (coachproxyos) | 100.90.246.43 | eRVin dashboard at `http://100.90.246.43`; comes up when Pi has internet via Pixel hotspot |
 | photo-server (GMKtec M8) | 100.111.16.14 | Immich + photo-tv-display (planned) — reachable remotely for admin |
 
+## Scheduled Maintenance Windows
+
+Consolidated view across all recurring reboot/backup jobs, so a new one can be scheduled without colliding with an existing one. Individual jobs are documented in each host's own doc (linked below) — this table exists purely to catch conflicts at a glance.
+
+| Job | Schedule | Host | Doc |
+|---|---|---|---|
+| KeepConnect router reboot | Weekly, Wed 3:00 AM (drifts — see note) | Router | `keepconnect.md` |
+| Pi scheduled reboot | Weekly, Mon 3:00 AM | Pi | `SOFTWARE-ENVIRONMENT.md` |
+| M8 scheduled reboot | Weekly, Mon 4:00 AM | M8 (photo-server) | `components/photo-server/operations.md` |
+| M8 backup (rsync) | Weekly, Sun 2:00 AM | M8 (photo-server) | `components/photo-server/backup.md` |
+| M8 heartbeat | Every 30 min | M8 (photo-server) | `components/photo-server/heartbeat.md` |
+| Pi watchdog heartbeat | Hourly | Pi | `CLAUDE.md` |
+
+**KeepConnect's day drifts** — its "every 7 days" timer appears to restart from *any* reset, scheduled or outage-triggered, so Wednesday isn't fixed and could land on a different day later (it had already drifted once before, originally landing on a different day — see `keepconnect.md`). The Pi/M8 reboot stagger (1 hour apart, Mon 3am/4am) is deliberate — the M8's heartbeat publishes to the Pi's MQTT broker, so overlapping the two would produce a false "M8 down" reading. The router reboot isn't coordinated against the others since it's only a brief (~30 sec cut, ~4 min reconnect) network blip that the other jobs tolerate regardless of timing — but if a new recurring job is ever added, check this table first and prefer a time with at least an hour of clearance from anything above.
+
 ## Remote and Field Networks
 
 | Network | SSID | Subnet | Notes |

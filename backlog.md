@@ -32,19 +32,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-030 · [bug] [photo-server] Re-enable weekly backup cron once Takeout zips are cleared
-**Notes:** During the Google Takeout migration (2026-07-04/05), `/mnt/photo-library` filled to 100% because raw Takeout zips (817GB combined for Joseph + Robin) and Immich's own growing asset storage were competing for the same 916GB drive. Fixed by relocating the zips off that drive: ~450GB (9 of Joseph's 12 zips) moved to `/mnt/photo-library-backup` (Momentus 640GB drive), remaining ~366GB (3 Joseph zips + all of Robin's) moved to the NVMe root (`/home/jct/takeout-staging/`).
-
-The weekly rsync backup cron (`photo-library-backup.sh`, Sundays 2am) was **disabled** (commented out in crontab, prefixed `#DISABLED-during-migration#`) because it already ran once mid-migration and mirrored 200GB of the transient zip staging onto Momentus via `rsync --delete` — pointless and wasteful, and worse, leaving it enabled while zips sit on Momentus risks the *next* run deleting those same zips (since `--delete` makes the destination match the source, and the zips no longer exist in `/mnt/photo-library`, their only copy would be on Momentus with nothing "keeping" them from an rsync perspective if the backup script's source/dest were ever pointed there — verify actual risk before relying on this reasoning if the script changes).
-
-Joseph wants to keep the zip files around for a while after migration completes, to spot-check the import without needing to re-download from Google. Momentus is only 640GB total and needs ~650-700GB free to hold the eventual full-library backup — it cannot hold both the zips *and* a real backup at the same time.
-
-**Do this once Joseph confirms the import is verified and he's ready to delete the zips:**
-1. Delete the zip files from both `/mnt/photo-library-backup/takeout-staging/` and `/home/jct/takeout-staging/`
-2. Re-enable the cron job: `crontab -l | sed 's/^#DISABLED-during-migration# //' | crontab -`
-3. Confirm it re-appears uncommented: `crontab -l`
-4. Optionally trigger one manual run (`/usr/local/bin/photo-library-backup.sh`) to confirm the real library now backs up cleanly to Momentus with room to spare
-
 ---
 
 ### CARD-028 · [idea] [photo-server] Automated post-import quality scan (blur/duplicate detection)
@@ -294,6 +281,18 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 ---
 
 ## Build
+
+### CARD-030 · [bug] [photo-server] Re-enable weekly backup cron once Takeout zips are cleared
+**Progress (2026-07-09):** Zips deleted (818GB reclaimed: Momentus 100%→19% used, NVMe root 87%→5% used — see `components/photo-server/backup.md`). Cron re-enabled and confirmed uncommented. A manual verification run was kicked off to confirm the real library now backs up cleanly with room to spare (original step 4) — **still in progress**, first run is slow since it's reconciling the full difference (destination previously held zip staging data, not real backup content); expected to be much faster on future weekly runs since `rsync --delete` is incremental. Don't close until: the run completes with exit 0, and `df -h /mnt/photo-library-backup` shows used space roughly matching the primary library (~615GB).
+
+---
+
+### CARD-040 · [enhancement] [photo-server] Dashboard visibility for backup runs
+**Notes:** Following the same pattern as CARD-036 (reboot notifications), `photo-library-backup.sh` (`components/photo-server/photo-library-backup.sh`, deployed to `/usr/local/bin/`) now publishes MQTT log messages so backup success/failure is visible on the JCTsh log dashboard without SSHing in: `"Backup starting."` before rsync, `"Backup complete."` (category `System`) on success, or `"Backup failed (rsync exit <code>)."` (category `Alert`, non-collapsing) on failure. Uses the existing `photo-server` MQTT account and `mosquitto_pub`, already installed for the reboot-notification work — no new credentials.
+
+**Not yet live-verified** — deployed while the first post-cleanup backup run (started under the old script version) was still in progress, so it hasn't fired for real yet. Don't close until the next run (manual trigger or next Sunday's cron) is confirmed showing both messages on the dashboard, paired with CARD-030's verification above.
+
+---
 
 ### CARD-022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
 **Instructions:** `jctsh-security-hardening.md` Steps 1–8  

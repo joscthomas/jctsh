@@ -33,7 +33,18 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
-| GMKtec NucBox M8 | AMD Ryzen 5 PRO 6650H (6C/12T, 4.5GHz), 16GB LPDDR5, Netac 512GB NVMe SSD, dual Realtek 2.5GbE, RZ616 Wi-Fi 6E, USB4, OCuLink. Model: M8-5-33S. Serial: MB261801199. Windows 11 Pro OEM (BIOS-embedded key: QXNC8-CBB7V-2FMDW-FVXX7-XD8GG). Purchased 2026-07 Amazon Prime Day. | 1 | Shelf | Allocated: photo-server. OS to be replaced with Ubuntu Server LTS (per photo-server-claude-code-instructions.md Step 1). |
+| GMKtec NucBox M8 | AMD Ryzen 5 PRO 6650H (6C/12T, 4.5GHz), 16GB LPDDR5, Netac 512GB NVMe SSD, dual Realtek 2.5GbE, RZ616 Wi-Fi 6E, USB4, OCuLink. Model: M8-5-33S. Serial: MB261801199. Windows 11 Pro OEM (BIOS-embedded key: QXNC8-CBB7V-2FMDW-FVXX7-XD8GG). Purchased 2026-07 Amazon Prime Day. | 1 | Deployed | Deployed as photo-server. OS replaced with Ubuntu 26.04 LTS (Windows 11 no longer running). |
+
+---
+
+## Storage
+
+| Component | Description | Qty | Location | Notes |
+|---|---|---|---|---|
+| Seagate Backup Plus 1TB | USB HDD, P/N 1KAAP1-501, bus-powered, ext4 | 1 | Deployed | Deployed as photo-server primary Immich library (`/mnt/photo-library`) |
+| Seagate Momentus 640GB | In Insignia enclosure, P/N 9RN134-030, bus-powered, ext4 | 1 | Deployed | Deployed as photo-server local backup (`/mnt/photo-library-backup`) |
+| Seagate Expansion 1TB | USB HDD, P/N 9SF2A4-500, requires external power | 1 | Shelf | Spare — candidate replacement for Momentus if capacity becomes tight (see `components/photo-server/backup.md`) |
+| WD 750GB | USB HDD, P/N WD7500H1U-00 | 1 | Shelf | Spare — too small to replace either deployed drive |
 
 ---
 
@@ -232,3 +243,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-07-09 | Stock | LiPo Fireproof Charging Bag received; status updated from Ordered to Bench |
 | 2026-07-09 | Stock | M3 heat set threaded inserts ×300 added (Prototyping and Build Hardware, Plastic Box) |
 | 2026-07-09 | Stock | JSN-SR04T-V3.0 waterproof ultrasonic distance sensor ×2 added (Sensors, Bag 30) |
+| 2026-07-09 | photo-server | GMKtec NucBox M8 deployed (Windows 11 replaced with Ubuntu 26.04 LTS); Seagate Backup Plus 1TB and Seagate Momentus 640GB (Insignia enclosure) deployed as primary library and local backup drives (new Storage section). Spares not deployed: Seagate Expansion 1TB (P/N 9SF2A4-500), WD 750GB (P/N WD7500H1U-00) |

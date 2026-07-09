@@ -340,22 +340,21 @@ This step involves manual actions by Joseph (Google Takeout export, quality pass
 
 ---
 
-## Step 13 — Name Recognized Faces
+## Step 13 — Name Recognized Faces — N/A (decided 2026-07-09)
 
-This is a manual step performed by Joseph and Robin in the Immich web UI after facial recognition ML processing completes (may take several hours after import for 75K photos). Not a Claude Code action — note in the build log when ML processing has finished and faces are ready for naming.
+**Not tracked as a discrete step.** Joseph decided to name faces "catch as catch can" — ad hoc, over time, whenever he or Robin happen to be in the Immich UI — rather than as a formal one-time task to complete and check off. ML processing (`faceDetection`/`facialRecognition`) is fully complete (CARD-037) and the clusters are ready whenever naming happens; there is no pending blocker and no further action item here.
 
 ---
 
-## Step 14 — Set Up Deletion Logging
+## Step 14 — Set Up Deletion Logging — Moved to `photo-tv-display` (decided 2026-07-09)
 
-1. Create the local log file:
-   ```bash
-   touch /mnt/photo-library/deletion-log.csv
-   echo "timestamp,filename,date_taken,album_folder,immich_asset_id,deleted_by" > /mnt/photo-library/deletion-log.csv
-   ```
-2. **Joseph creates a new, separate Google Sheet** (not the existing JCTsh environmental data sheet) for the deletion log review interface. This is a manual action — wait for Joseph to provide the new Sheet ID before proceeding.
-3. Write the Apps Script (`doPost` handler) for the new sheet, following the existing JCTsh pattern referenced in `JCTsh-Build-Standards.md` §5.5. This script is deployed separately from the existing JCTsh Apps Script — do not modify the existing script.
-4. The Node.js server implementation in `photo-tv-display` will call this endpoint when deletions occur — this step only sets up the receiving side (local file + Sheet + Apps Script). The actual delete trigger is implemented in the `photo-tv-display` build.
+Joseph determined this step belongs with the `photo-tv-display` build, not `photo-server` — consistent with the original note below that the actual delete trigger lives there. Tracking moves to that component's own Claude Code Instructions document when that build starts; no action taken here.
+
+Original content, retained for reference when that build begins:
+1. Local log file: `/mnt/photo-library/deletion-log.csv` with header `timestamp,filename,date_taken,album_folder,immich_asset_id,deleted_by`
+2. A new, separate Google Sheet (not the existing JCTsh environmental data sheet) for the deletion log review interface — Joseph provides the Sheet ID when that build starts
+3. Apps Script `doPost` handler for the new sheet, following the JCTsh pattern in `JCTsh-Build-Standards.md` §5.5 — deployed separately from the existing JCTsh Apps Script
+4. The `photo-tv-display` Node.js server calls this endpoint when deletions occur; this step only sets up the receiving side (local file + Sheet + Apps Script)
 
 ---
 

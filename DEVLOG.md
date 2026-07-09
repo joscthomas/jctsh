@@ -1,5 +1,19 @@
 # JCTsh DEVLOG
 
+## 2026-07-09 (continued)
+Closed CARD-039: re-ran `immich-go` for real (not `--dry-run`) against every retained
+Takeout zip for both accounts, prompted by CARD-037 raising doubt about whether this same
+chaotic import had also dropped raw asset uploads, not just background ML jobs. Launched
+fully detached (`nohup ... & disown` directly on the M8) so it survived the home network
+being down for part of the run. Found 3,433 assets genuinely missing and uploaded them —
+58 (Joseph, backup zips), 119 (Joseph, NVMe zips), 3,256 (Robin) — zero errors, single
+clean pass, no restarts needed this time. Surprising part: Robin's gap was by far the
+largest despite her original import being the "clean" one with no crashes, meaning the
+missing-asset problem (like CARD-037's ML-processing gap) wasn't caused solely by Joseph's
+restart history — something shared between both imports is the more likely cause, not
+pinned down further since re-running was sufficient to fix it regardless. Full writeup in
+`components/photo-server/migration.md` and `backlog.md` CARD-039.
+
 ## 2026-07-09
 Closed CARD-037: Immich ML processing (face detection/recognition, CLIP smart search, OCR,
 duplicate detection) had never run on a large fraction of both Joseph's and Robin's

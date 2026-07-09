@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.9
-**Version description:** LiPo Fireproof Charging Bag received (2026-07-09) — status updated from ordered to on-hand. Added M3 heat set threaded inserts (300 pcs, Plastic Box).
+**Version:** 2.10
+**Version description:** Added JSN-SR04T-V3.0 waterproof ultrasonic distance sensor (2 pcs, Bag 30).
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -68,6 +68,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | SparkFun SEN-23715 | Sensirion SEN54, particle (PM1/2.5/4/10), VOC, humidity, temperature, I2C/UART. SparkFun SEN-23715. | 1 | Plastic Box | Allocated: air-quality-monitor project. |
 | Adafruit SEN54/SEN55 Adapter Breakout | STEMMA QT / Qwiic, I2C adapter breakout for Sensirion SEN54/SEN55. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
 | DS3231 RTC Module | HiLetgo 5pcs, high precision real time clock, I2C, 3.3V/5V, CR2032 battery backup. https://www.amazon.com/dp/B01N1LZSK3 | 5 | Bag 28 | 1 allocated: bedside-clock. |
+| JSN-SR04T-V3.0 | 2pcs, waterproof ultrasonic distance measuring sensor transducer module, integrated. https://www.amazon.com/dp/B0CP5YQF43 | 2 | Bag 30 | No project assigned. |
 | Greekcreit Sensor Module Kit for Arduino | Kit of 37 modules including: active/passive buzzer, LED modules (common cathode red/green, two-color, RGB, colorful auto flash), knock/shock/tilt/magnet-ring/hall/analogy hall/magnetic spring sensors, photo resistor, push button, infrared TX/RX, rotate encoder, light break sensor, finger pulse sensor, obstacle avoidance, tracking, microphone, laser TX, relay, analog/digital/18b20 temperature, flame, voice, humidity, joystick PS2, touch sensor | — | Plastic Box | |
 
 ---
@@ -230,3 +231,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-07-02 | photo-server | GMKtec NucBox M8 ×1 added (Servers & Mini PCs, Shelf); allocated: photo-server |
 | 2026-07-09 | Stock | LiPo Fireproof Charging Bag received; status updated from Ordered to Bench |
 | 2026-07-09 | Stock | M3 heat set threaded inserts ×300 added (Prototyping and Build Hardware, Plastic Box) |
+| 2026-07-09 | Stock | JSN-SR04T-V3.0 waterproof ultrasonic distance sensor ×2 added (Sensors, Bag 30) |

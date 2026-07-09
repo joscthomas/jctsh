@@ -35,6 +35,34 @@ installing the `mosquitto-clients` apt package (not previously present on the M8
 heartbeat script uses the Python `paho-mqtt` library instead). Verified live 2026-07-08
 via manual `systemctl start reboot-complete.service`.
 
+## Immich Tags Feature (People Tags from Google Photos)
+
+The Tags feature is **disabled by default** in Immich — nothing shows in the sidebar, the
+asset info panel has no Tags section, and `tag` doesn't appear as a search filter option
+until it's turned on. Enable via: profile avatar menu → **Account Settings** → **Features**
+section → enable **Tags**.
+
+Once enabled, two top-level tags exist: `People` (332 children, one per name Google Photos
+had already identified/tagged in the original account, carried over via `immich-go`'s
+`--people-tag` flag reading each photo's Takeout JSON `people` field) and
+`takeout-20260703T160953Z-3` (the import-batch tag `immich-go` applies automatically,
+single label, no children).
+
+**Important: these tags are a separate system from Immich's own ML face-recognition Person
+clusters** (`faceDetection`/`facialRecognition`, see CARD-037 in `backlog.md`). Tagging
+`People/<name>` here does not automatically name or link to the corresponding ML cluster —
+they don't talk to each other. Tags are static labels carried over from Google's own
+historical face-tagging (instant, already complete, searchable by tag once the feature is
+on); ML clusters are Immich's own ongoing face-detection/recognition pipeline (needs manual
+naming per cluster, catches people Google never had tagged). Use both — tags for what's
+already labeled, cluster-naming for the rest.
+
+Also note: Immich's main search bar does **CLIP semantic search** on free text, not a
+literal tag/name lookup — typing a person's name there returns whatever the model judges
+loosely similar, which is close to random for a name it has no way to recognize. To find
+photos by tag, browse the Tags view directly (once enabled) rather than typing the name
+into search.
+
 ## Router Reboot Coordination
 
 KeepConnect (the router rebooter — see `keepconnect.md`) resets the router on its own weekly schedule, currently landing on a day that has drifted from its original Wednesday setting. This is expected: KeepConnect's "every 7 days" timer appears to restart from *any* reset, scheduled or outage-triggered, so the weekday it lands on shifts over time and can't be relied on as fixed. The Pi and M8 reboot schedule above is intentionally not synchronized to it — a router reboot is a brief (~30 sec cut, ~4 min reconnect) network blip that both machines tolerate regardless of whether they happen to be mid-boot at the same time.

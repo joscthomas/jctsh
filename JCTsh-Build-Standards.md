@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.13
-**Version description:** Added §9 Non-ESP32 / Docker-Based Component Standards — the first component-family section for non-ESP32 hosts, harvested from the `photo-server` (Immich) build: Docker DNS pinning, UUID storage mounts, incremental rsync backup, dashboard visibility for scheduled jobs, cross-host schedule coordination, and detached remote job execution.
+**Version:** 1.14
+**Version description:** Added §10 Security Standards — harvested from the completed JCTsh security hardening audit (CARD-022/CARD-023): SSH key-only auth, MQTT broker auth, secrets.yaml gitignore requirement, Node-RED adminAuth, Tailscale-as-sole-remote-access-path, cloud account MFA, router UPnP/remote-management/firmware policy, Windows SSH key permissions.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -837,10 +837,53 @@ For any long-running remote job (data imports, backups, verification runs) that 
 
 ---
 
+## 10. Security Standards
+
+Harvested from the full JCTsh security hardening audit (`jctsh-security-hardening.md`, CARD-022/CARD-023, completed 2026-07-09). Applies to every current and future JCTsh component and every account/service the ecosystem depends on.
+
+### 10.1 SSH — key-only, no password auth
+
+The Pi (and any future JCTsh host) must have `PasswordAuthentication no`, `PubkeyAuthentication yes` in `sshd_config` (check drop-in files under `sshd_config.d/` too — cloud-init images can silently override the default with `PasswordAuthentication yes`). Verify with a live rejected-password login test after any change, not just a config read.
+
+### 10.2 MQTT broker authentication required
+
+`allow_anonymous false` with a non-empty `password_file` is mandatory on Mosquitto. Every component gets its own dedicated account (see CLAUDE.md Credentials table) — never share credentials across components.
+
+### 10.3 `secrets.yaml` / `secrets.h` always gitignored
+
+Every ESPHome/Arduino component's credentials file must be excluded via `.gitignore` (`secrets.yaml`, `secrets.h`, `*.key`, `credentials.local.md`). Confirm periodically with `git log --all --full-history -- "**/secrets.yaml"` — should always return nothing.
+
+### 10.4 Node-RED requires `adminAuth`
+
+The Node-RED flow editor must never be reachable without a login — `adminAuth` with a bcrypt-hashed password in `settings.js` is required, since an unauthenticated editor exposes both automation logic and MQTT payload contents.
+
+### 10.5 No direct internet port forwarding except MQTT (accepted exception)
+
+Tailscale is the sole remote-access path for Pi services (SSH, Node-RED, HA). The one accepted exception is MQTT port 1883, forwarded via DuckDNS specifically so field ESP32 devices (e.g. hiking-monitor) can reach the broker over cellular when away from Tailscale-capable hardware — mitigated by fail2ban + strong per-component passwords, with TLS (port 8883) tracked as a follow-up (CARD-003). Any new component considering port forwarding should default to Tailscale first and only forward a port if the device genuinely cannot run Tailscale.
+
+### 10.6 MFA required on every cloud account in the ecosystem
+
+Google (all family accounts), Amazon/Ring, Samsung/SmartThings, Ecobee, Microsoft (Windows login), and Home Assistant (TOTP via Profile → Multi-Factor Authentication Modules, per-user — must be enabled for every HA user account, not just the owner). Check this whenever a new cloud-dependent component or account is added to the ecosystem.
+
+### 10.7 Router: UPnP off unless something actually needs it, remote management always off
+
+Default UPnP to disabled — before enabling it for any device, confirm nothing already works without it. Check the router's UPnP mapping list; zero registered clients is the sign it can be safely turned off with no functional loss. Remote/WAN-side router admin access must always be off — LAN-only administration.
+
+### 10.8 Router admin password and firmware currency
+
+Router admin password must be a strong unique password (16+ characters), stored only in `credentials.local.md` (never in a versioned/harvested doc like this one). Prefer enabling automatic firmware updates over relying on periodic manual checks, where the router supports it — removes the recurring audit burden.
+
+### 10.9 SSH private key Windows file permissions
+
+On the Windows dev machine, the private key (`~/.ssh/id_ed25519`) must be restricted to the owning user only. Cloud-init/default Windows ACLs can leave `BUILTIN\Administrators`/`NT AUTHORITY\SYSTEM` with access — tighten with `icacls ... /inheritance:r /grant:r "<user>:(R)"` and confirm SSH still works afterward.
+
+---
+
 ## Standards Version History
 
 | Version | Change |
 |---|---|
+| 1.14 | Added §10 Security Standards — harvested from the completed JCTsh security hardening audit (CARD-022/CARD-023, `jctsh-security-hardening.md`). Covers SSH key-only auth, MQTT broker auth, `secrets.yaml` gitignore requirement, Node-RED `adminAuth`, Tailscale-as-sole-remote-access-path with the accepted MQTT-port-forward exception, MFA requirement across every cloud account (including per-user HA TOTP), router UPnP/remote-management policy, router admin password/firmware currency, and Windows SSH private key permissions. |
 | 1.13 | Added §9 Non-ESP32 / Docker-Based Component Standards — first section for non-ESP32/Docker host components, harvested from the `photo-server` (Immich) build. §9.1 Docker DNS pinning (twice-applied: HA, Immich). §9.2 UUID-based USB storage mounts with `nofail`, bus-powered drive preference. §9.3 incremental rsync local backup — explicit note that `rsync --delete` is incremental, not a full re-copy each run. §9.4 dashboard visibility for scheduled/background jobs — matched start/complete MQTT message pairs, the non-ESP32 equivalent of §4's heartbeat standard, established twice in one build (reboot notifications, backup notifications) with an identical shape. §9.5 cross-host schedule coordination via the `jctsh-network.md` Scheduled Maintenance Windows table, ≥1 hour clearance rule of thumb. §9.6 detached remote job execution (`nohup ... & disown`) with the rule to always verify via `ps aux`/`systemctl status` on the remote host, never assume a local monitor stopping affects a detached remote process. |
 | 1.12 | Added §2.14 point 3 charging-surface guidance: the fireproof bag must sit on a heat-insulating, non-combustible surface (concrete/masonry, ceramic tile, cement board, or a sand/kitty-litter-lined metal tray) — never bare sheet metal on a wooden workbench, since metal conducts thermal-runaway heat straight through to the wood rather than blocking it. |
 | 1.11 | Added §2.14 point 8: GPIO-controlled power gating for I2C/SPI peripherals during sleep (P-FET high-side switch on the microcontroller's 3.3V output, not the boost module's output) — flagged as a candidate pattern, not yet a required standard, pending validation via hiking-sensor CARD-026/CARD-027. |

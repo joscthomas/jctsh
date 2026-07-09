@@ -4,7 +4,7 @@
 **Version:** 1.1
 **Version description:** Added Steps 9–14 covering Ring/Amazon, SmartThings/Samsung, Ecobee, Google accounts, router firmware, and router admin credentials. Expanded Summary Table. Step 5 Google MFA cross-reference updated to point to new Step 11.
 **Project:** JCTsh
-**Status:** Steps 1–8 executed 2026-06-20 (CARD-022). See findings below each step.
+**Status:** All steps (1–14 + Final) complete as of 2026-07-09 (CARD-022, CARD-023). See findings below each step.
 
 ---
 
@@ -178,6 +178,8 @@ No unfamiliar devices. ACL: default (all devices in tailnet can reach each other
 
 **Findings (2026-06-20):** DEFERRED — requires access to router admin at `192.168.1.1`, which is only reachable on home WiFi. Joseph was not on home WiFi during this session. Complete when next on home network: log into router admin → Advanced → NAT/UPnP → document state and any active UPnP mappings.
 
+**Update (2026-07-09):** DONE. UPnP was enabled with zero registered clients — no device depended on it. Disabled via Advanced → NAT Forwarding → UPnP on the TP-Link Archer AXE75 admin page. Step 6 complete.
+
 ---
 
 ## Step 7 — Audit Home Assistant external access configuration
@@ -196,6 +198,8 @@ No unfamiliar devices. ACL: default (all devices in tailnet can reach each other
 **Done when:** HA admin account has MFA enabled and no unintended external URL is configured.
 
 **Findings (2026-06-20):** PARTIAL. External URL: not configured (correct — Nabu Casa provides the external URL). Nabu Casa active (account `joscthomas@gmail.com`). HA MFA: NOT ENABLED — checked `.storage/auth`; `Joseph Thomas` and `robin` both have `mfa_modules: none`. Action required: Joseph must enable TOTP manually — HA profile → Multi-Factor Authentication Modules → Enable TOTP → scan QR code with authenticator app. Do for both the owner account and Robin's account.
+
+**Update (2026-07-09):** DONE. TOTP MFA enabled for both accounts (Joseph and Robin) via HA profile → Multi-Factor Authentication Modules. Step 7 complete.
 
 ---
 
@@ -355,6 +359,8 @@ No unfamiliar devices. ACL: default (all devices in tailnet can reach each other
 **Done when:** Firmware is current, admin password is strong and unique, remote management is disabled.
 
 **Findings (2026-06-20):** DEFERRED — requires home WiFi access to router admin at `192.168.1.1`. Complete when next on home network alongside Step 6 (UPnP).
+
+**Update (2026-07-09):** DONE. Admin password rotated to a new strong unique password (stored in `credentials.local.md`, not reproduced here). Remote management/WAN-side admin access confirmed disabled. DNS confirmed configured for CenturyLink/Quantum Fiber bypass-modem setup — no unexpected third-party entries. Firmware: hardware Archer AXE75 v1.0, running 1.5.2 Build 20260113 rel.53105(5553), latest available is 1.5.3 Build 20260209 rel.71108 — one version behind. Auto-update enabled, scheduled nightly 3–5 AM, which will pick up 1.5.3 tonight; ongoing firmware currency now handled automatically rather than requiring a manual periodic check. Step 13 complete.
 
 ---
 

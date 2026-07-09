@@ -127,15 +127,6 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 ---
 
-### CARD-023 · [enhancement] [infrastructure] Security hardening — cloud accounts (Steps 9–14 + Final)
-**Instructions:** `jctsh-security-hardening.md` Steps 9–14 and Final Step  
-**Progress (2026-06-20):** Steps 9–12 and 14 complete. One item remaining:
-- **Step 13 (router firmware + admin credentials):** Manual — requires home WiFi (`192.168.1.1`). Do alongside CARD-022 Step 6 (UPnP) in same home session.
-
-After Step 13 complete: run Final Step — harvest security patterns to `JCTsh-Build-Standards.md`, then close both CARD-022 and CARD-023.
-
----
-
 ### CARD-003 · [enhancement] [infrastructure] TLS for Mosquitto (port 8883)
 **Notes:** Port 1883 is internet-exposed via DuckDNS/port-forward with fail2ban, but credentials and sensor data are cleartext. TLS on port 8883 eliminates this. Steps: get Let's Encrypt cert for the DuckDNS hostname (certbot with duckdns plugin), add a TLS listener on port 8883 in mosquitto.conf, update mqtt_broker port in every ESPHome secrets.yaml, update Node-RED broker node, update HA MQTT integration, reflash all ESP32s. Do as a standalone task after DuckDNS setup is stable. CARD-002 prerequisite complete.
 
@@ -301,22 +292,22 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 
 ---
 
-### CARD-022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
-**Instructions:** `jctsh-security-hardening.md` Steps 1–8  
-**Progress (2026-06-20):** Steps 1–5 and 8 complete. Two items remaining:
-- **Step 6 (Router UPnP):** Manual — check `192.168.1.1` when on home WiFi; document UPnP state and mappings; decide whether to disable.
-- **Step 7 (HA MFA):** Manual — enable TOTP for Joseph and Robin: HA → Profile → Multi-Factor Authentication Modules → Enable TOTP.
-
-Update findings in `jctsh-security-hardening.md` when complete, then close card.
-
----
-
 ### CARD-009 · [enhancement] [hiking-sensor] Enclosure design and build
 **Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-sensor/enclosure-prototype.md`. Standoffs arrive 2026-06-14; temp enclosure build before camping trip departure 2026-06-15. Device will be used in the field for ~2 weeks on that trip — hiking and van sensor simulation. Full 3D-printed permanent enclosure is a later step.
 
 ---
 
 ## Done
+
+### CARD-022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
+**Resolution:** All 8 steps complete. Steps 1–5 and 8 passed clean or were fixed on 2026-06-20 (SSH key-only auth, MQTT auth, port audit, Node-RED adminAuth). Step 7 (HA MFA) done 2026-07-09: TOTP enabled for both Joseph and Robin via HA profile → Multi-Factor Authentication Modules. Step 6 (router UPnP) done 2026-07-09: found enabled with zero registered clients, disabled with no functional impact. Full findings in `jctsh-security-hardening.md`. Patterns harvested to `JCTsh-Build-Standards.md` §10 Security Standards (v1.14).
+
+---
+
+### CARD-023 · [enhancement] [infrastructure] Security hardening — cloud accounts (Steps 9–14 + Final)
+**Resolution:** All steps complete. Steps 9–12 and 14 passed clean 2026-06-20 (Ring/Amazon, SmartThings, Google ×2, Windows machine — one stale SmartThings connected app, SharpTools, revoked). Step 13 done 2026-07-09: router admin password rotated to a new strong unique password (`credentials.local.md`), remote/WAN management confirmed disabled, DNS confirmed intentional (CenturyLink/Quantum Fiber bypass-modem setup), firmware found one version behind (1.5.2 → 1.5.3 available) with auto-update now enabled (nightly 3–5 AM) rather than relying on manual checks going forward. Final Step complete: findings harvested to `JCTsh-Build-Standards.md` §10 Security Standards (v1.14).
+
+---
 
 ### CARD-039 · [bug] [photo-server] Re-verify Takeout import completeness — 3,433 assets were genuinely missing
 **Resolution:** Following up on the original migration verification discussion, and given CARD-037 had just found a large ML-processing gap from the same import, re-ran `immich-go upload from-google-photos` (real run, not `--dry-run`, so gaps found would get fixed immediately) against all retained Takeout zips for both accounts — `/mnt/photo-library-backup/takeout-staging/joseph/` (9 zips), `/home/jct/takeout-staging/joseph/` (3 zips), `/home/jct/takeout-staging/robin/` (5 zips). Used the same `--on-errors continue --pause-immich-jobs=false` flags that fixed the original migration's crash patterns, plus `--no-ui --log-file=...` this time for a persisted per-pass log (a gap in the original run). Launched fully detached via `nohup ... & disown` directly on the M8 so it survived independent of the SSH session — relevant since the home internet/network was intermittently down around this time.

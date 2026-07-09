@@ -427,6 +427,8 @@ Per `JCTsh-Build-Standards.md`, propose any new patterns discovered during this 
 
 Present these as proposed additions for Joseph's review — do not edit `JCTsh-Build-Standards.md` directly without confirmation, since it is a monorepo-wide standards file affecting all components.
 
+**Done (2026-07-09):** Proposed and, after Joseph's review, applied §9 Non-ESP32 / Docker-Based Component Standards (v1.13). Covers all five listed candidates plus two more discovered during the build's own operational work: dashboard visibility for scheduled/background jobs (§9.4) and detached remote job execution (§9.6). See `JCTsh-Build-Standards.md` §9 and its version history for full detail.
+
 ---
 
 ## Known Risks and Things to Watch For

@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.12
-**Version description:** Added §2.14 point 3 charging-surface guidance — bag must sit on a heat-insulating, non-combustible surface (concrete, tile, cement board, or sand-lined tray), never bare sheet metal on a wooden workbench.
+**Version:** 1.13
+**Version description:** Added §9 Non-ESP32 / Docker-Based Component Standards — the first component-family section for non-ESP32 hosts, harvested from the `photo-server` (Immich) build: Docker DNS pinning, UUID storage mounts, incremental rsync backup, dashboard visibility for scheduled jobs, cross-host schedule coordination, and detached remote job execution.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -769,10 +769,79 @@ When LED indicators are included in a component:
 
 ---
 
+## 9. Non-ESP32 / Docker-Based Component Standards
+
+Standards for components that are not ESP32/ESPHome devices — Docker-based services on dedicated Linux hosts (e.g. `photo-server`). Sections 1-8 above assume an ESP32; this section is the equivalent for a Docker/Linux host component. First established during the `photo-server` (Immich) build.
+
+### 9.1 Docker DNS Pinning
+
+Pin DNS in the Docker daemon config for any host running containers that need external connectivity:
+
+```json
+{
+  "dns": ["8.8.8.8", "8.8.4.4"]
+}
+```
+
+Applied at `/etc/docker/daemon.json`, then `sudo systemctl restart docker`. This is now twice-applied (Home Assistant's container, Immich's) — required, not optional. Root cause it prevents: a stale DHCP-assigned DNS server getting baked into a container's network config at creation time, which caused a full cloud-connectivity outage for HA in June 2026 and would otherwise repeat for any new container.
+
+### 9.2 UUID-Based USB Storage Mounts
+
+Any component with attached external storage mounts via UUID in `/etc/fstab` — never a raw device path (`/dev/sdX`), which can silently renumber on reconnect (confirmed happening mid-build to photo-server's own primary drive, `sda` → `sdc`, with no user action). Always add `nofail`, so a disconnected or missing drive doesn't block the host from booting:
+
+```
+UUID=<disk-uuid>  /mnt/<mount-point>  ext4  defaults,nofail  0  2
+```
+
+Prefer bus-powered 2.5" USB drives for compact installations — no separate power brick/cable to manage or fail. Note the tradeoff when sizing spares: a larger bus-powered drive may not exist, forcing a choice between capacity and the bus-powered convenience.
+
+**Reference implementation:** `components/photo-server/backup.md`, `components/photo-server/network.md`.
+
+### 9.3 Incremental Local Backup (rsync)
+
+Weekly cron running `rsync -av --delete <source>/ <backup-destination>/` from primary storage to a local backup drive.
+
+**This is incremental by design** — worth stating explicitly, since it is not obvious from a one-line script. `rsync` only transfers files that are new or changed since the last run (by size/mtime); `--delete` additionally removes anything from the destination no longer present in the source, keeping it an exact mirror rather than an ever-growing pile. A slow first run does not mean something is wrong — it means the destination is being fully reconciled for the first time (or after an unrelated change invalidated it); subsequent weekly runs should be fast, transferring only that week's actual changes.
+
+**Reference implementation:** `components/photo-server/photo-library-backup.sh`, `components/photo-server/backup.md`.
+
+### 9.4 Dashboard Visibility for Scheduled/Background Jobs
+
+The non-ESP32 equivalent of §4's heartbeat/log standards. For any recurring systemd timer or cron job on a Docker/Linux host (scheduled reboots, backups, or similar), publish a matched pair of MQTT log messages to the JCTsh dashboard — one immediately before the job starts, one on completion:
+
+```json
+{"component":"<host-component-name>","category":"System","message":"<Job> starting."}
+{"component":"<host-component-name>","category":"System","message":"<Job> complete."}
+{"component":"<host-component-name>","category":"Alert","message":"<Job> failed (<detail>)."}
+```
+
+Reuse the host's existing MQTT account (e.g. `photo-server`, `jctsh-log-server`) via `mosquitto_pub` — do not create a new account per job. Neither message uses the `"Heartbeat - "` prefix, so each occurrence stays visible as its own dashboard row rather than collapsing, matching how ESP32 Alert-category messages behave (§4.2).
+
+This pattern was established twice in the same build with an identical shape both times (scheduled-reboot notifications, then backup-run notifications), which is what promotes it from a one-off to a standard — the second implementation should not need to reinvent it.
+
+**Reference implementation:** `core/maintenance/reboot-complete-pi.service` / `reboot-complete-m8.service`, `components/photo-server/photo-library-backup.sh`.
+
+### 9.5 Scheduled Maintenance Windows — Cross-Host Coordination
+
+Any new recurring job (cron or systemd timer) on any JCTsh host must be checked against the **Scheduled Maintenance Windows** table in `jctsh-network.md` before scheduling, and added to that table once deployed.
+
+**Rule of thumb:** at least one hour of clearance from any other recurring job on any host, especially where one job's MQTT publish depends on another host being reachable — e.g. the Pi/M8 reboot stagger exists specifically because the M8's heartbeat publishes to the Pi's broker, so overlapping reboots would produce a false "down" reading for the wrong reason.
+
+### 9.6 Detached Remote Job Execution
+
+For any long-running remote job (data imports, backups, verification runs) that must survive the initiating SSH session ending, launch it via `nohup <command> & disown` on the remote host itself — not a local polling/monitoring loop.
+
+**Critical:** verify actual state via `ps aux` / `systemctl status` on the remote host directly. Never assume that stopping a local monitoring tool has any effect on a detached remote process — it does not, and assuming otherwise caused a real duplicate-write race during the original `photo-server` Takeout migration (two `mv` operations racing on the same files after a local poller was stopped but the remote job kept running).
+
+**Reference:** `components/photo-server/migration.md` ("Killed background processes didn't actually die").
+
+---
+
 ## Standards Version History
 
 | Version | Change |
 |---|---|
+| 1.13 | Added §9 Non-ESP32 / Docker-Based Component Standards — first section for non-ESP32/Docker host components, harvested from the `photo-server` (Immich) build. §9.1 Docker DNS pinning (twice-applied: HA, Immich). §9.2 UUID-based USB storage mounts with `nofail`, bus-powered drive preference. §9.3 incremental rsync local backup — explicit note that `rsync --delete` is incremental, not a full re-copy each run. §9.4 dashboard visibility for scheduled/background jobs — matched start/complete MQTT message pairs, the non-ESP32 equivalent of §4's heartbeat standard, established twice in one build (reboot notifications, backup notifications) with an identical shape. §9.5 cross-host schedule coordination via the `jctsh-network.md` Scheduled Maintenance Windows table, ≥1 hour clearance rule of thumb. §9.6 detached remote job execution (`nohup ... & disown`) with the rule to always verify via `ps aux`/`systemctl status` on the remote host, never assume a local monitor stopping affects a detached remote process. |
 | 1.12 | Added §2.14 point 3 charging-surface guidance: the fireproof bag must sit on a heat-insulating, non-combustible surface (concrete/masonry, ceramic tile, cement board, or a sand/kitty-litter-lined metal tray) — never bare sheet metal on a wooden workbench, since metal conducts thermal-runaway heat straight through to the wood rather than blocking it. |
 | 1.11 | Added §2.14 point 8: GPIO-controlled power gating for I2C/SPI peripherals during sleep (P-FET high-side switch on the microcontroller's 3.3V output, not the boost module's output) — flagged as a candidate pattern, not yet a required standard, pending validation via hiking-sensor CARD-026/CARD-027. |
 | 1.10 | Added §2.14 point 7: prefer direct LiPo-to-LDO power architecture over boost-then-buck for new battery-powered builds — avoids two-stage conversion idle draw and the boost converter's end-of-charge instability. Recommended default for the *next* build, not applied retroactively to hiking-monitor. |

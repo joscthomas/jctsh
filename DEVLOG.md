@@ -1,5 +1,19 @@
 # JCTsh DEVLOG
 
+## 2026-07-09 (continued, part 3)
+Completed photo-server's build Step 18 (harvest step) — the last remaining step in the
+instructions doc, found by re-auditing the whole doc against actual state rather than
+trusting it was done. Proposed and, after Joseph's review, applied JCTsh-Build-Standards.md
+v1.13's new §9 Non-ESP32 / Docker-Based Component Standards: the five candidates the
+instructions doc had originally anticipated (Docker DNS pinning, UUID storage mounts,
+incremental rsync backup, bus-powered drive preference — folded into §9.2) plus two more
+that only became obvious from this build's own operational work rather than the original
+plan: §9.4 dashboard visibility for scheduled/background jobs (the MQTT start/complete
+message pattern, independently reinvented twice in this build for reboots and backups,
+which is what made it worth promoting to a standard) and §9.6 detached remote job execution
+(nohup + disown, always verify via ps aux on the remote host — a lesson learned the hard
+way during the original Takeout migration's duplicate-mv race).
+
 ## 2026-07-09 (continued, part 2)
 photo-server documentation catch-up (Steps 15-17 of the build instructions, long overdue)
 plus CARD-030 execution. Installed Node.js (Step 15, was never done). Wrote the 6 missing

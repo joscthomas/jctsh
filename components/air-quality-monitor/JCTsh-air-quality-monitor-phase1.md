@@ -58,7 +58,7 @@ Identical operating mode pattern to the hiking monitor. See `components/hiking-s
 |---|---|
 | ESP32 DevKitC-32 (38-pin, CP2102, USB-C) | On hand (Bag 1, 1 remaining after hiking sensor allocation). Consistent with JCTsh ecosystem. |
 | ESPHome firmware | Required per CLAUDE.md for all JCTsh ESP32 components. |
-| Custom C++ ESPHome component | Required for SEN55 (no native ESPHome platform) and for onboard flash storage and WiFi replay — follows hiking monitor pattern exactly. |
+| Custom C++ ESPHome component | **Corrected 2026-07-09:** SEN55 itself needs no custom component — ESPHome's native `sen5x` sensor platform supports it directly over I2C. A custom component is still required for onboard flash storage and WiFi replay — follows hiking monitor pattern exactly, unrelated to the sensor driver. |
 
 ### Field Output
 | Decision | Rationale |
@@ -194,21 +194,21 @@ Topics:
 
 ## Open Questions for Phase 2
 
-1. **SEN55 ESPHome component:** Confirm whether a community ESPHome external component exists for SEN55 before committing to writing one from scratch. If available and maintained, use it.
-2. **Fan transistor:** Confirm NPN transistor (2N2222 or equivalent) available in Greekcreit kit or resistor/component assortment for fan duty-cycle switching before finalizing BOM.
-3. **Perfboard size:** Determine required perfboard footprint after SEN55 + Adafruit adapter physical dimensions are confirmed with parts in hand.
-4. **Enclosure intake/exhaust:** SEN55 specifies intake and exhaust port placement — confirm orientation requirements before enclosure design begins.
-5. **LiPo polarity:** Verify JST connector polarity between EEMB pouch and TP4056+boost module before first connection (same requirement as hiking monitor).
-6. **Parts inventory update:** Add SEN55, Adafruit adapter, and JST cable to `jctsh-parts-inventory.md` at the appropriate Claude Code step.
+1. ~~SEN55 ESPHome component~~ **Confirmed 2026-07-09, high confidence:** ESPHome has a **native, built-in `sen5x` sensor platform** (esphome.io/components/sensor/sen5x/) supporting SEN50/SEN54/SEN55 directly over I2C — no custom component needed for the sensor itself. Source: ESPHome's own official documentation page. Simplifies the original assumption in this doc's Hardware Context — a custom component is still needed for the onboard-flash-logging/WiFi-replay pattern (inherited from hiking-sensor), but that's unrelated to reading the sensor.
+2. **Fan transistor:** **Reasoned, not bench-verified.** On-hand BC547B NPN (50 in stock, Music Response bin, 0.1A/45V rated) should comfortably cover the SEN55's ~70mA fan draw on paper — same substitution pattern as remote-temp-sensor-01's BC557B. This is a calculation, not a measurement — confirm with an actual bench test (fan running, transistor switching it, multimeter check) during Phase 2/4 execution before treating it as settled.
+3. **Perfboard size:** Determine required perfboard footprint after SEN55 + Adafruit adapter physical dimensions are confirmed with parts in hand. Still open — physical measurement task.
+4. ~~Enclosure intake/exhaust~~ **Low confidence — needs re-verification.** WebSearch reported (attributed to Sensirion's Mechanical Design and Assembly Guidelines for SEN5x): two air inlets + one air outlet must stay unobstructed and directly coupled to ambient air; inlets positioned **above** the outlet; opening face ideally pointing **downward**; avoid strong external airflow across openings. **Caveat: both direct PDF fetch attempts failed** (no readable text extracted, no local PDF renderer available) — this summary came from WebSearch's own synthesis of search-result snippets, not from actually reading Sensirion's primary document. Treat as "probably true, plausible, consistent with how similar particulate sensors work" rather than confirmed — re-verify by actually opening the PDF (or the "Mechanical design-in example for SEN5x" app note) before finalizing enclosure design around it.
+5. **LiPo polarity:** Verify JST connector polarity between EEMB pouch and TP4056+boost module before first connection (same requirement as hiking monitor). Still open — physical check task.
+6. ~~Parts inventory update~~ **Done 2026-07-09, medium confidence:** SEN55 (corrected from mislabeled "SEN54"), Adafruit adapter, and JST cable all confirmed in `jctsh-parts-inventory.md`. The "SEN-23715 = SEN55" correction is confirmed against SparkFun's own product listing for that part number — but the physical item in the Plastic Box hasn't been checked against its label/silkscreen to confirm it's actually SEN-23715 and not something else. Worth a 30-second physical glance next time the box is open.
 
 ---
 
 ## Phase 2 Entry Criteria
 
 Phase 1 is complete. Phase 2 (Hardware Selection) begins when:
-- SEN55, Adafruit #5964 adapter, and JST GH cable received
-- Fan transistor availability confirmed (on hand or to order)
-- Hiking sensor build complete (this project inherits its pipeline and patterns)
+- SEN55, Adafruit #5964 adapter, and JST GH cable received — **done** (confirmed 2026-07-09; `jctsh-parts-inventory.md`'s SparkFun SEN-23715 entry was mislabeled "SEN54," corrected — it is the genuine SEN55, matching this plan's requirement including NOx)
+- Fan transistor availability confirmed (on hand or to order) — likely satisfied by the on-hand BC547B NPN (50 in stock, 0.1A rated, covers the SEN55's ~70mA fan draw), not yet formally confirmed
+- **Hiking-monitor firmware architecture proven** (this project inherits its pipeline and patterns) — **done**, field-confirmed via CARD-0008 (2026-06-17 camping trip: hotspot connection, cellular MQTT reach, SPIFFS replay all working). This criterion is about the *firmware pattern* (onboard flash logging, WiFi replay, field/home mode), not the physical device — hiking-sensor's enclosure (CARD-0009) is a separate, unrelated deliverable and does **not** gate this project.
 
 ---
 
@@ -218,4 +218,4 @@ The firmware architecture for this component — onboard flash logging, WiFi rep
 
 ---
 
-*Phase 1 completed June 2026. Parts ordered June 2026. Build begins after hiking sensor is complete.*
+*Phase 1 completed June 2026. Parts ordered June 2026, all received and confirmed correct (2026-07-09). Phase 2 entry criteria effectively satisfied — hiking-monitor's firmware architecture (what this project actually depends on) is field-proven; hiking-sensor's enclosure work does not block this project. Ready for Phase 2 whenever prioritized.*

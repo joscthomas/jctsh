@@ -269,7 +269,7 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 
 ### CARD-0012 · [idea] [air-quality-monitor] Air quality monitor
 **Planning doc:** `components/air-quality-monitor/JCTsh-air-quality-monitor-phase1.md`  
-**Notes:** Portable clip-mounted SEN55 air quality sensor (PM1.0/2.5/4.0/10, VOC, NOx) carried on hikes alongside the hiking monitor. Phase 1 complete; SEN55, Adafruit #5964 adapter, and JST GH cable ordered. Follows hiking-monitor firmware pattern (onboard flash logging, WiFi replay). Build begins after hiking-sensor is complete. Phase 2 entry criteria: parts received, fan transistor availability confirmed, hiking sensor build complete.
+**Notes:** Portable clip-mounted SEN55 air quality sensor (PM1.0/2.5/4.0/10, VOC, NOx) carried on hikes alongside the hiking monitor. Phase 1 complete. Parts confirmed on hand (2026-07-09): SEN55, Adafruit #5964 adapter, JST GH cable — `jctsh-parts-inventory.md`'s SparkFun SEN-23715 entry was mislabeled "SEN54," corrected to reflect it's the genuine SEN55. Fan transistor likely satisfied by on-hand BC547B, not yet formally confirmed. Follows hiking-monitor's firmware pattern (onboard flash logging, WiFi replay, field/home mode) — that pattern is field-proven (CARD-0008), and the dependency is architectural only, **not** gated by hiking-sensor's still-open enclosure (CARD-0009), which is an unrelated physical deliverable. Phase 2 entry criteria effectively satisfied — ready to start whenever prioritized.
 
 ---
 

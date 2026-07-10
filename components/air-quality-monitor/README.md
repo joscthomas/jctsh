@@ -4,7 +4,7 @@ Planned portable clip-mounted sensor measuring PM1.0, PM2.5, PM4.0, PM10, VOC in
 and NOx index — carried on hikes alongside the hiking sensor to capture personal air
 quality exposure on the trail.
 
-**Status:** Planned — Phase 1 complete, parts ordered (SEN55, Adafruit adapter, JST cable)
+**Status:** Planned — Phase 1 complete, all parts received and confirmed correct (SEN55, Adafruit adapter, JST cable). Ready for Phase 2 whenever prioritized — dependency on hiking-sensor is architectural only (firmware pattern, field-proven), not gated by hiking-sensor's still-open enclosure work.
 
 ---
 
@@ -23,7 +23,7 @@ LED gives immediate field awareness of PM2.5 level without a display.
 Phase 1 (discovery and feature decisions) is complete. Sensor selection, power system,
 carry/enclosure approach, firmware pattern (follows hiking sensor exactly — do not
 re-derive), and JCTsh integration are all decided. SEN55, Adafruit #5964 adapter, and
-JST GH cable are ordered.
+JST GH cable are all received and confirmed on hand.
 
 See [JCTsh-air-quality-monitor-phase1.md](JCTsh-air-quality-monitor-phase1.md) for the
 full Phase 1 planning document.

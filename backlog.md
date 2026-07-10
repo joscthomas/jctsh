@@ -353,11 +353,6 @@ Running concurrently with CARD-0030's backup verification and the tail end of CA
 
 ---
 
-### CARD-0040 · [enhancement] [photo-server] Dashboard visibility for backup runs
-**Notes:** Following the same pattern as CARD-0036 (reboot notifications), `photo-library-backup.sh` (`components/photo-server/photo-library-backup.sh`, deployed to `/usr/local/bin/`) now publishes MQTT log messages so backup success/failure is visible on the JCTsh log dashboard without SSHing in: `"Backup starting."` before rsync, `"Backup complete."` (category `System`) on success, or `"Backup failed (rsync exit <code>)."` (category `Alert`, non-collapsing) on failure. Uses the existing `photo-server` MQTT account and `mosquitto_pub`, already installed for the reboot-notification work — no new credentials.
-
-**Still not live-verified** — CARD-0030's fix cycle (2026-07-10) required running both accounts' rsync jobs manually and in isolation to debug the space/deletion issues, bypassing the full script's MQTT wrapper each time. Both underlying rsync jobs are now confirmed working correctly, but the actual `photo-library-backup.sh` script — start/complete/failed messages included — hasn't run end-to-end since the `--delete-before --delete-excluded` fix. Don't close until a real run through the full script (manual trigger or next Sunday's cron) is confirmed showing both dashboard messages.
-
 ---
 
 ### CARD-0009 · [enhancement] [hiking-sensor] Enclosure design and build
@@ -375,6 +370,13 @@ Updated `salt-sensor.yaml` (wiring comment + `output:` block), `components/salt-
 ---
 
 ## Done
+
+### CARD-0040 · [enhancement] [photo-server] Dashboard visibility for backup runs
+**Resolution:** `photo-library-backup.sh` publishes MQTT log messages so backup success/failure is visible on the JCTsh log dashboard without SSHing in — `"Backup starting."` before either rsync job, `"Backup complete."` (category `System`) if both succeed, or `"Backup failed (joseph exit <code>, robin exit <code>)."` (category `Alert`, non-collapsing) if either fails. Same pattern as CARD-0036's reboot notifications, reusing the existing `photo-server` MQTT account.
+
+**Both paths confirmed live 2026-07-10.** The failure path fired correctly earlier in the day when both rsync jobs were killed mid-run while debugging CARD-0030 (`"Backup failed (joseph exit 20, robin exit 11)."` — exit 20 being rsync's SIGTERM code). Once CARD-0030's `--delete-before --delete-excluded` fix was in place and both accounts were already fully synced, ran the actual script end-to-end (not manual isolated rsync calls) to verify the success path: `"Backup starting."` at launch, both jobs completed with zero errors, `"Backup complete."` at the end.
+
+---
 
 ### CARD-0030 · [bug] [photo-server] Re-enable weekly backup cron once Takeout zips are cleared
 **Resolution:** Zips deleted 2026-07-09 (818GB reclaimed), cron re-enabled. The manual verification run then failed overnight — `No space left on device` — revealing the primary library (624GB) had genuinely outgrown Momentus (586GB usable), not just a slow first run as assumed.

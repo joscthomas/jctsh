@@ -21,14 +21,18 @@ Two separate `rsync` invocations run per backup, filtered by owner UUID:
 JOSEPH_ID=b877bff7-37a3-465e-8920-c9fa1ccf3ce9
 ROBIN_ID=34fc3f59-37ee-400d-bde3-9273c9501a29
 
-rsync -av --delete --exclude="lost+found" --exclude="*/${ROBIN_ID}/***" \
+rsync -av --delete-before --delete-excluded --exclude="lost+found" --exclude="*/${ROBIN_ID}/***" \
   /mnt/photo-library/ /mnt/photo-library-backup-joseph/
 
-rsync -av --delete --exclude="lost+found" --exclude="*/${JOSEPH_ID}/***" \
+rsync -av --delete-before --delete-excluded --exclude="lost+found" --exclude="*/${JOSEPH_ID}/***" \
   /mnt/photo-library/ /mnt/photo-library-backup/
 ```
 
 `upload/`, `thumbs/`, and `encoded-video/` are each organized as `<dir>/<ownerId>/...` — the filter excludes only the *other* account's UUID within those, so each destination gets one account's asset tree. This also means any new per-user top-level directory Immich adds in the future is included automatically, since the filter is an exclude-the-other-owner rule, not an explicit allow-list. Non-per-user data (`backups/` — Postgres DB dumps, ~2.2GB, contains both accounts mixed together — plus the negligible `library/`, `profile/`, `takeout-staging/` dirs) is copied to **both** destinations, since it isn't per-account and is small. `lost+found` (ext4 filesystem cruft, not Immich data) is excluded from both.
+
+**Two non-obvious rsync flags, both required, both learned the hard way (2026-07-10):**
+- **`--delete-before`**, not plain `--delete` (which defaults to `--delete-during`): deletions happen incrementally as rsync walks the tree, in directory-encounter order. `backups/` (shared, not per-user) gets walked before the per-user directories where the actual space-freeing deletions live — on an already-full destination, rsync fails writing a new file in `backups/` before it ever reaches the deletions that would free the space. `--delete-before` does all deletions up front, avoiding that chicken-and-egg deadlock.
+- **`--delete-excluded`**: by default, none of rsync's `--delete*` variants delete files that are being *excluded* via `--exclude` — excluded files are left alone on the destination, a protective default so an exclude rule can't accidentally wipe data. Since the whole point of this filter is to remove the *other* account's already-excluded files from each destination, `--delete-excluded` is required, or the destination silently never gets cleaned up (this is exactly what happened here — Momentus stayed 100% full through two failed attempts before this flag was added).
 
 | Account | Usage (2026-07-09) | Destination | Capacity | Headroom |
 |---|---|---|---|---|
@@ -44,6 +48,8 @@ Momentus alone (640GB) could no longer hold the full primary library (624GB, ess
 - **Grabbed the wrong spare first.** The WD 750GB (P/N WD7500H1U-00) was connected instead of the intended Seagate Expansion 1TB (P/N 9SF2A4-500) — the two spares aren't easy to tell apart at a glance. Always check the P/N label before connecting either. See `jctsh-parts-inventory.md`.
 - **Neither spare drive was actually blank.** Both had a leftover `vfat` + `ext3` + `swap` partition layout from prior use (likely an old Linux system disk). Confirm what's on a "spare" drive before formatting it — don't assume blank.
 - **Momentus suffered a real hardware-level failure during the drive-swapping** (`dmesg`: "device offline error", "Buffer I/O error", "JBD2: I/O error when updating journal superblock", forced unmount) — almost certainly a jostled USB connector, not a failing drive; it came back clean on remount with no further errors. The primary library also briefly went read-only during the same window (caught correctly by CARD-0032's storage-health check) and recovered the same way. Neither incident got dashboard visibility in real time — the primary library's blip resolved faster than the 30-minute heartbeat interval could catch it, and Momentus's failure exposed a real gap (CARD-0046): the storage-health check only covers the primary library, not either backup drive.
+- **The `immich_server` container's bind mount went stale after all the remounting** — the host filesystem recovered cleanly every time, but the running container kept a broken view of it, producing recurring `Input/output error` alerts every 30-minute heartbeat cycle for 2+ hours and real "Error loading image" failures (thumbnail *and* full image) on both accounts. Fixed with `docker compose restart`. See `heartbeat.md`'s "Real Incident (2026-07-10)" section for the full runbook — the host mount looking healthy does not mean the container is looking at it correctly.
+- **The initial backup fix attempts didn't clean up Momentus** — plain `--delete` doesn't touch files matched by `--exclude` (a protective rsync default), so Joseph's excluded files just sat on Momentus indefinitely across two failed runs. Needed `--delete-excluded` explicitly, plus `--delete-before` to avoid a separate chicken-and-egg deadlock (see the rsync flags note above).
 
 Full incident writeup: `DEVLOG.md`, 2026-07-10.
 

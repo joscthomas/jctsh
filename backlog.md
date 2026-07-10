@@ -150,27 +150,6 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 ---
 
-### CARD-0004 · [enhancement] [salt-sensor] Migrate Arduino C++ → ESPHome
-**Notes:** Do this before perfboard transfer — ESPHome initializes hardware differently than Arduino and if a strapping pin causes a boot issue it's easier to rewire on breadboard than cut perfboard traces. Device is still on breadboard. Estimated 2–3 hours. Do before CARD-0003 (TLS) — TLS on Arduino C++ is brittle and would be thrown away when this migration happens anyway.
-
-**Maps directly — no design work:**
-- JSN-SR04T → ESPHome `ultrasonic` platform, same GPIO 5 (trig) / GPIO 18 (echo). Voltage divider stays as-is.
-- 15-sample median filter → ESPHome built-in `median` sensor filter, drop-in replacement
-- 12-hour interval → `update_interval: 12h`
-- OTA → ESPHome native OTA, flash path `C:\esphome\salt-sensor\`
-- Heartbeat → standard JCTsh pattern, added for free
-- Credentials → `secrets.h` → `secrets.yaml`
-
-**Needs design work:**
-- **Custom MQTT payload:** ESPHome publishes to its own topic scheme by default. Maintaining `jctsh/sensors/salt-sensor/data` with `{"distance_cm":25.3}` requires an `on_value` automation with `mqtt.publish` + lambda to format JSON.
-- **LED blinking driven by MQTT status:** Arduino loop runs a 500ms blink toggle keyed off subscribed `status` string. ESPHome equivalent: `mqtt.on_message` on status topic updates a global; `interval:` component running every 500ms drives GPIO outputs via lambda. Most involved part of the translation.
-- **Test mode:** Backlog originally flagged this as hard, but looking at the sketch there is no test mode code on the ESP32 — test mode is entirely Node-RED publishing fake distances to the data topic. That still works identically with ESPHome. No redesign needed.
-
-**One real risk — strapping pins:** GPIO 2 (red LED) and GPIO 15 (yellow LED) are strapping pins. ESPHome initializes them differently than Arduino at boot. If either is held in the wrong state, the device won't start. Breadboard means quick rewiring to GPIO 32/33 if needed. Estimated 90% chance it works without a pin change.
-
-**What Claude can't do:** verify LEDs blink correctly (physical check); USB flash if OTA fails on first flash (breadboard with USB access, so physical flash is available).
-
----
 
 ### CARD-0024 · [enhancement] [p-w-firefly] Coachproxy remote health monitoring
 **Notes:** The coachproxy heartbeat (every 30 min via Tailscale) confirms the RV Pi and Tailscale link are alive, but it can't distinguish between "Pi is powered off" vs "Tailscale is down" vs "RV is in a dead zone." A more useful health check would poll the Tailscale status directly from the home Pi: `tailscale ping 100.90.246.43` or checking the Tailscale admin API for last-seen timestamp. This gives richer diagnostic output (latency, path) without depending on the RV Pi to actively publish. Implement as a scheduled script on the home Pi that posts results to the log dashboard. Alternative: use Tailscale's built-in status API at `localhost:41112` on the home Pi to check peer state without any external requests.
@@ -305,6 +284,17 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 
 ## Build
 
+### CARD-0004 · [enhancement] [salt-sensor] Migrate Arduino C++ → ESPHome
+**Progress (2026-07-10):** `salt-sensor.yaml` written and compiles clean (RAM 13.2%, Flash 52.3%). Direct translation of the Arduino sketch — same 15-sample-median 12h reading cycle, same MQTT topics/payloads (`jctsh/sensors/salt-sensor/data`, `/status`, `/log`), same LED state machine (GPIO2/15/4, unchanged pins), same thresholds (still owned entirely by Node-RED — flow untouched). Added a 30-min heartbeat (`.../heartbeat`) that didn't exist before, closing the gap CARD-0021 flagged (salt-sensor showing `?` on the status dashboard). `secrets.yaml` created from `secrets.h`'s values; old v3 Arduino sketch archived to `archive/salt-sensor-v3-arduino/`; `C:\esphome\salt-sensor\` flash path set up matching the other ESPHome components.
+
+**Two real compile bugs found and fixed during translation** (both are ESPHome `globals:` gotchas, not obvious from the docs): a fixed-size C array global (`float[15]`) fails to compile (`GlobalsComponent` can't take an array by value — decays to a pointer); switched to `std::vector<float>`. Its `initial_value: '{}'` was then ambiguous between two constructor overloads; fixed with an explicit `std::vector<float>()` initializer.
+
+**One design decision worth flagging:** ESPHome's default MQTT birth topic is `<topic_prefix>/status`, which would have silently collided with this component's existing `.../status` topic (Node-RED → ESP32, drives the LEDs). `birth_message:` is explicitly disabled in the yaml to prevent this — a real footgun for any future component whose topic convention includes `/status`.
+
+**Don't close until:** flashed via USB (must be physically connected — OTA can't push onto a device still running the old Arduino/ArduinoOTA firmware) and field-verified — LED self-test visible, `/data` publishes a real reading, `/status` round-trips correctly and drives the LEDs, `/heartbeat` shows up on the watchdog wildcard. Sensor doesn't need to be connected for the flash itself to succeed, only for verifying the reading pipeline.
+
+---
+
 ### CARD-0043 · [bug] [photo-server] Robin's library missing metadata (null width/height/orientation) for large fraction of assets
 **Notes:** Discovered 2026-07-09 following up on CARD-0042 — Joseph reported a specific HEIC photo (`IMG_20260625_165423.heic`, Robin's account) with a fine-looking thumbnail but a visibly distorted full image (elongated heads). Checked the asset directly via `/api/assets/{id}`: `width`, `height`, `exifImageWidth`, `exifImageHeight`, and `orientation` all `null` — Immich never successfully extracted this file's real dimensions/orientation, which plausibly explains the distortion (wrong aspect-ratio assumption during preview rendering). Sampled 100 assets per account: **Joseph 0/100 null width; Robin 89/100 (89%)** — same lopsided pattern as CARD-0037/CARD-0039/CARD-0042, again far worse for Robin despite her "clean" import history.
 
@@ -332,9 +322,15 @@ Running concurrently with CARD-0030's backup verification and the tail end of CA
 
 **Verification run failed (2026-07-10):** the manual verification run kicked off 2026-07-09 ran overnight and failed — `rsync error: some files/attrs were not transferred (code 23)` after `No space left on device`. The primary library had grown to 624GB, genuinely too large for Momentus (586GB usable) to ever hold — not a slow-first-run situation as assumed, a real capacity ceiling. See DEVLOG.md 2026-07-10 for the full incident (wrong spare drive connected first, neither spare was actually blank, a jostled connector caused a real hardware I/O failure on Momentus mid-swap — recovered cleanly, no data loss).
 
-**Fix: split backup by account across two drives** (see `components/photo-server/backup.md` for full detail). Deployed a second backup drive (Seagate 1TB, formatted, mounted at `/mnt/photo-library-backup-joseph`) and rewrote `photo-library-backup.sh` to run two filtered `rsync` jobs — Joseph's account to the new drive, Robin's to Momentus. Currently running as of this entry.
+**Fix: split backup by account across two drives** (see `components/photo-server/backup.md` for full detail). Deployed a second backup drive (Seagate 1TB, formatted, mounted at `/mnt/photo-library-backup-joseph`) and rewrote `photo-library-backup.sh` to run two filtered `rsync` jobs — Joseph's account to the new drive, Robin's to Momentus.
 
-**Don't close until:** both rsync jobs in the split script complete with exit 0, and `df -h` on both `/mnt/photo-library-backup-joseph` and `/mnt/photo-library-backup` shows used space roughly matching each account's actual usage (Joseph ~403GB, Robin ~187GB).
+**Two more rsync flag bugs found and fixed before it actually worked (2026-07-10):** the split jobs initially failed to clean up Momentus at all — plain `--delete` doesn't remove files matched by `--exclude` (a protective rsync default), so Joseph's stale files just sat there across two attempts. Fixed with `--delete-excluded`, plus `--delete-before` to avoid a separate directory-walk-order deadlock. Full detail in `backup.md`.
+
+**Robin's job: confirmed complete and clean** — Momentus dropped from 556G to 207G (matching her ~187GB actual usage) with zero errors.
+
+**Joseph's job: in progress** — was interrupted mid-transfer at 47G while troubleshooting the container bind-mount incident (see below), resumed with the corrected script.
+
+**Don't close until:** Joseph's rsync job completes with exit 0, and `df -h /mnt/photo-library-backup-joseph` shows used space roughly matching his actual usage (~403GB).
 
 ---
 
@@ -351,6 +347,15 @@ Running concurrently with CARD-0030's backup verification and the tail end of CA
 ---
 
 ## Done
+
+### CARD-0048 · [bug] [photo-server] Stale Immich container bind mount after drive remounts — "Error loading image" on both accounts
+**Resolution:** Discovered 2026-07-10 when Joseph reported "beaucoup" thumbnail and full-image load failures on his account, then confirmed Robin had the same issue. Initial theory (I/O contention from the actively-running backup rsync) was wrong — killing the backup didn't fix anything. Root cause: the `immich_server` container's bind mount had gone stale after the day's repeated remounting (read-only, I/O errors, primary library's device path changing `sda`→`sdd`). Confirmed via a specific 404ing asset: the file was genuinely present on disk with correct content, ruling out real data loss — the container just had a broken cached view of the mount. The storage-health check (CARD-0032) had actually been correctly alerting on this the whole time (recurring `Input/output error` every 30-minute cycle for 2+ hours) — the miss was diagnostic, not detection; time was spent chasing the wrong theory first.
+
+**Fix:** `docker compose restart` (all four containers) from `~/immich-app`. Verified immediately: every previously-404ing asset (thumbnail and original) on both accounts returned to `200`. Also confirmed by Joseph directly in the Immich web UI on both accounts.
+
+Runbook note added to `components/photo-server/heartbeat.md`: if storage alerts recur across multiple heartbeat cycles (not just once), especially after any drive remount/unplug/replug event, check the container's actual data access first — a clean host-side mount does not guarantee the running container is looking at it correctly.
+
+---
 
 ### CARD-0047 · [enhancement] [photo-server] Daily Immich update-availability check with dashboard notification
 **Resolution:** Joseph noticed an Immich update available in the web UI and asked how to manage updates going forward — discussed and agreed on notify-only (not auto-update), given this instance has already surfaced real bugs in a single patch version this week (CARD-0037/0042/0043, the HEIC distortion issue) and the data at stake (irreplaceable family photos) doesn't justify unattended auto-updates.

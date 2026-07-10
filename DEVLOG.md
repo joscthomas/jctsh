@@ -1,5 +1,36 @@
 # JCTsh DEVLOG
 
+## 2026-07-10 (continued, part 2)
+Two more real problems surfaced and fixed following the drive-swap incident, both
+discovered because Joseph noticed something wrong in the actual Immich UI rather than a
+dashboard alert.
+
+**"Error loading image" on both accounts, thumbnails and full images.** Initially
+misdiagnosed — the primary library's storage-health check was firing real recurring
+`Alert`s every 30-minute cycle for 2+ hours (06:34, 07:04, 07:34, 08:34), and the first
+theory was I/O contention from the actively-running backup rsync, so the backup got killed
+to relieve load. That didn't fix it. The actual cause: the `immich_server` container's bind
+mount had gone stale after all the remounting earlier (read-only, I/O errors, `sda`→`sdd`
+device path change) — confirmed by finding a "missing" asset's file genuinely present on
+disk with correct content, ruling out real data loss. `docker compose restart` fixed it
+immediately; every previously-404ing asset came back to `200` on both accounts. Runbook
+note added to `heartbeat.md`: recurring storage alerts after a remount event mean check the
+container's actual data access, not just the host mount — a clean host mount doesn't
+guarantee the container is looking at it correctly.
+
+**Momentus never actually got cleaned up, across two failed attempts.** Per Joseph's
+request, tried getting Robin's backup job running in isolation to free space via
+`rsync --delete`. First attempt: added `--delete-before` (deletions happen incrementally
+by directory-walk order with plain `--delete`, and `backups/` — walked before the per-user
+dirs where the real deletions live — kept failing on a new file write before ever reaching
+them; `--delete-before` does all deletions up front). Still failed, disk usage unchanged.
+Second, actual fix: `--delete-excluded` — none of rsync's `--delete*` variants touch files
+matched by `--exclude` by default (a protective default against an exclude rule
+accidentally wiping data), so Joseph's excluded files had just been sitting on Momentus the
+whole time regardless of delete timing. With both flags, Robin's job dropped Momentus from
+556G to 207G cleanly with zero errors, then Joseph's interrupted job (stopped mid-transfer
+at 47G during the earlier kill) was resumed with the corrected script.
+
 ## 2026-07-10 (continued)
 Added a daily Immich update-availability check (CARD-0047), prompted by Joseph noticing an
 update in the web UI and asking how to manage this going forward. Decided against

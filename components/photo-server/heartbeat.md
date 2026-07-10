@@ -118,6 +118,42 @@ degraded paths were tested for real:
 
 ---
 
+## Real Incident (2026-07-10): Recurring Storage Alerts After Drive Remounts — Fix Is a Container Restart, Not a Host-Side Fix
+
+During the CARD-0046 drive-swap incident, the storage-health check fired real, **recurring**
+`Alert - storage:...Input/output error` messages every single 30-minute cycle for over 2
+hours (06:34, 07:04, 07:34, 08:34) — not a one-off blip like the earlier read-only test.
+This coincided with Joseph seeing "Error loading image" for both thumbnails *and* full
+images on both accounts.
+
+**What looked true but wasn't the fix:** the host-side mount (`/mnt/photo-library`) checked
+out healthy every time — correct `df -h` output, a manual `touch`/`rm` write test always
+succeeded, `dmesg` showed no fresh errors. It was tempting to conclude the storage was fine
+and look elsewhere (the active backup rsync's I/O load was the first suspect, and pausing
+it didn't actually fix anything on its own).
+
+**The real cause:** the `immich_server` container's *bind mount* had gone stale after all
+the remounting earlier in the incident (read-only, then I/O errors, then the primary
+library's device path changing from `sda` to `sdd`). The underlying host filesystem was
+fine the whole time — confirmed by finding a "missing" asset's file genuinely present on
+disk with correct content — but the container's cached view of that mount wasn't. This is
+the same class of problem as the original CARD-0032 incident.
+
+**Fix:** `docker compose restart` (all four containers) from `~/immich-app`. Verified
+immediately after: every previously-404ing asset (thumbnail *and* original) on both
+accounts returned `200`.
+
+**Runbook takeaway:** if storage alerts on the dashboard *recur* across multiple heartbeat
+cycles (not just once) — especially following any drive remount, unplug/replug, or device
+path change — check the container's actual data access first (try loading a specific
+known-recent asset via the API or UI), not just the host-side mount. A clean host mount
+does not guarantee the running container is looking at it correctly. Restarting the
+containers is a fast, low-risk first thing to try before chasing other theories (like I/O
+contention from a concurrent job, which cost real troubleshooting time here before the
+actual cause was found).
+
+---
+
 ## Bug Found and Fixed (2026-07-06): False Watchdog Alerts
 
 Joseph reported repeated "Component photo-server silent for 35 minutes" watchdog alerts

@@ -1,0 +1,381 @@
+# JCTsh Salt Sensor — ESPHome Configuration
+# Hardware: ESP32 Dev Module + JSN-SR04T Waterproof Ultrasonic
+#
+# Wiring:
+#   JSN-SR04T VCC  → ESP32 VIN (5V — sensor requires 5V)
+#   JSN-SR04T Trig → GPIO5
+#   JSN-SR04T Echo → 1kΩ → GPIO18 → 2kΩ → GND   (voltage divider — sensor outputs 5V, GPIO is 3.3V only)
+#   Red LED    → GPIO32 via 220Ω → GND   (Critical)
+#   Yellow LED → GPIO33 via 220Ω → GND   (Warning)
+#   Green LED  → GPIO27 via 220Ω → GND   (Good)
+#
+# LEDs moved off strapping pins (GPIO2/GPIO15) to GPIO32/33/27 for the perfboard build
+# (all three now sit together on the same header row). GPIO25/26 were considered but
+# skipped — GPIO25 is confirmed broken for digital output (DAC1, reconfigured post-boot)
+# and GPIO26 (DAC2) was avoided as a precaution for the same reason.
+#
+# Architecture (unchanged from the Arduino version — see CARD-0004):
+#   ESP32 publishes a raw distance reading to MQTT every 12 hours (15-sample median
+#   filter, matches original algorithm). Node-RED applies threshold logic and controls
+#   SmartThings via Home Assistant, then publishes a status string back to the ESP32,
+#   which drives the LEDs.
+#
+# MQTT topics (jctsh/sensors/salt-sensor — established convention, do not change):
+#   .../data      — ESP32 → Node-RED   {"distance_cm":25.3} retained
+#   .../status    — Node-RED → ESP32   "ok" | "warning" | "critical" | "error" retained
+#   .../log       — both → log server  JSON log messages
+#   .../heartbeat — ESP32 → watchdog   JSON heartbeat (new — added by this migration, every 30 min)
+#
+# IMPORTANT: birth_message is disabled below because ESPHome's default MQTT birth/will
+# topic is "<topic_prefix>/status" — which would collide with the status topic above
+# (Node-RED owns that topic; the ESP32 only ever subscribes to it, never publishes
+# "online"/"offline" there). will_message is redirected to /log for the same reason.
+#
+# Update interval: 12h (sensor reading), 30min (heartbeat)
+
+esphome:
+  name: salt-sensor
+  friendly_name: Salt Sensor
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: led_self_test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# ── WiFi ──────────────────────────────────────────────────────────────────────
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "salt-sensor-fallback"
+    password: !secret ap_password
+
+captive_portal:
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logger:
+  level: INFO
+
+# ── OTA updates ───────────────────────────────────────────────────────────────
+# First flash: USB. All subsequent updates: OTA via ESPHome dashboard or CLI.
+#   esphome run salt-sensor.yaml
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# ── Globals ───────────────────────────────────────────────────────────────────
+globals:
+  # Raw median-filter working set for the 15-sample reading burst
+  - id: salt_readings
+    type: std::vector<float>
+    restore_value: false
+    initial_value: 'std::vector<float>()'
+  - id: reading_valid
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: last_distance_cm
+    type: float
+    restore_value: false
+    initial_value: '0'
+  - id: did_initial_reading
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  # LED state machine
+  - id: current_status
+    type: std::string
+    restore_value: false
+    initial_value: '"unknown"'
+  - id: blink_state
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+# ── MQTT ──────────────────────────────────────────────────────────────────────
+mqtt:
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  topic_prefix: jctsh/sensors/salt-sensor
+  discovery: true
+  discovery_prefix: homeassistant
+  # Disabled — default birth topic is "<topic_prefix>/status", which collides with
+  # our own status topic (Node-RED → ESP32 LED control). See note above.
+  birth_message:
+  will_message:
+    topic: jctsh/sensors/salt-sensor/log
+    payload: '{"component":"salt-sensor","category":"MQTT","message":"MQTT disconnected"}'
+    retain: false
+    qos: 0
+  # Disabled — default is "<topic_prefix>/debug", which isn't part of the JCTsh log
+  # convention (data/status/log/heartbeat only) and just mirrors internal ESPHome
+  # logger output nobody downstream consumes.
+  log_topic:
+  on_connect:
+    - delay: 500ms
+    - mqtt.publish:
+        topic: jctsh/sensors/salt-sensor/log
+        payload: !lambda |-
+          char buf[256];
+          snprintf(buf, sizeof(buf),
+            "{\"component\":\"salt-sensor\",\"category\":\"System\","
+            "\"message\":\"Salt sensor online - ESPHome " ESPHOME_VERSION ", IP: %s\"}",
+            id(wifi_ip).state.c_str());
+          return std::string(buf);
+    - mqtt.publish:
+        topic: jctsh/sensors/salt-sensor/log
+        payload: '{"component":"salt-sensor","category":"MQTT","message":"MQTT connected"}'
+    # First reading happens as soon as the device is actually able to publish it,
+    # rather than waiting a full 12h after boot — mirrors the original sketch's
+    # immediate first-loop reading, but gated on a real connection instead of guessing.
+    - if:
+        condition:
+          lambda: 'return !id(did_initial_reading);'
+        then:
+          - lambda: 'id(did_initial_reading) = true;'
+          - script.execute: take_salt_reading
+  on_message:
+    # Node-RED publishes plain strings here (not JSON) — drives the LED state machine.
+    # Only ok/warning/critical/error are ever legitimately sent by Node-RED (see
+    # fn_threshold in salt-sensor.flow.json) — anything else (e.g. a stray retained
+    # "offline"/"online" from MQTT discovery/availability internals) is ignored rather
+    # than fed into the LED state machine.
+    - topic: jctsh/sensors/salt-sensor/status
+      qos: 1
+      then:
+        - lambda: |-
+            if (x == "ok" || x == "warning" || x == "critical" || x == "error") {
+              id(current_status) = x;
+            }
+
+# ── Ultrasonic sensor (JSN-SR04T) ─────────────────────────────────────────────
+# update_interval: never — updates are only triggered manually (15x per reading
+# burst, via take_salt_reading script) so we control exact timing/spacing, matching
+# the original sketch's 15-sample-with-50ms-gaps approach.
+sensor:
+  - platform: ultrasonic
+    trigger_pin: GPIO5
+    echo_pin: GPIO18
+    id: salt_ultrasonic
+    internal: true
+    update_interval: never
+    unit_of_measurement: "cm"
+    accuracy_decimals: 1
+    filters:
+      # Ultrasonic platform reports meters; convert to cm and discard out-of-range
+      # readings (2-200cm), matching the original sketch's validity check.
+      - lambda: |-
+          float cm = x * 100.0;
+          if (cm < 2.0 || cm > 200.0) return {};
+          return cm;
+    on_value:
+      then:
+        - lambda: |-
+            if (id(salt_readings).size() < 15) {
+              id(salt_readings).push_back(x);
+            }
+
+  - platform: uptime
+    id: uptime_sec
+    internal: true
+
+  - platform: wifi_signal
+    id: wifi_rssi
+    internal: true
+    update_interval: 60s
+
+# ── WiFi info (used in on_connect log message) ────────────────────────────────
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: wifi_ip
+      internal: true
+
+# ── Restart button ────────────────────────────────────────────────────────────
+button:
+  - platform: restart
+    name: "Restart"
+
+# ── LED outputs ───────────────────────────────────────────────────────────────
+output:
+  - platform: gpio
+    id: led_red
+    pin: GPIO32
+  - platform: gpio
+    id: led_yellow
+    pin: GPIO33
+  - platform: gpio
+    id: led_green
+    pin: GPIO27
+
+# ── Scripts ───────────────────────────────────────────────────────────────────
+script:
+  # Boot sequence: sequential red/yellow/green on (600ms apart), then 4x all-blink
+  # (300ms), then 3x rapid triple-flash — matches the original sketch's self-test +
+  # OTA-reboot-confirmation sequence exactly. Hands off to the status loop after.
+  - id: led_self_test
+    then:
+      - output.turn_on: led_red
+      - delay: 600ms
+      - output.turn_on: led_yellow
+      - delay: 600ms
+      - output.turn_on: led_green
+      - delay: 600ms
+      - repeat:
+          count: 4
+          then:
+            - output.turn_off: led_red
+            - output.turn_off: led_yellow
+            - output.turn_off: led_green
+            - delay: 300ms
+            - output.turn_on: led_red
+            - output.turn_on: led_yellow
+            - output.turn_on: led_green
+            - delay: 300ms
+      - output.turn_off: led_red
+      - output.turn_off: led_yellow
+      - output.turn_off: led_green
+      - repeat:
+          count: 3
+          then:
+            - output.turn_on: led_red
+            - output.turn_on: led_yellow
+            - output.turn_on: led_green
+            - delay: 100ms
+            - output.turn_off: led_red
+            - output.turn_off: led_yellow
+            - output.turn_off: led_green
+            - delay: 100ms
+      - script.execute: led_status_loop
+
+  # Runs forever once started: 500ms toggle drives blink patterns per current_status.
+  #   ok       — green solid
+  #   warning  — yellow blink
+  #   critical — red blink
+  #   error    — all three blink together
+  #   unknown  — green blink (default until first status arrives from Node-RED)
+  - id: led_status_loop
+    mode: single
+    then:
+      - while:
+          condition:
+            lambda: 'return true;'
+          then:
+            - lambda: |-
+                std::string st = id(current_status);
+                bool blink = id(blink_state);
+                if (st == "ok") {
+                  id(led_green).turn_on();
+                  id(led_yellow).turn_off();
+                  id(led_red).turn_off();
+                } else if (st == "warning") {
+                  id(led_green).turn_off();
+                  if (blink) id(led_yellow).turn_on(); else id(led_yellow).turn_off();
+                  id(led_red).turn_off();
+                } else if (st == "critical") {
+                  id(led_green).turn_off();
+                  id(led_yellow).turn_off();
+                  if (blink) id(led_red).turn_on(); else id(led_red).turn_off();
+                } else if (st == "error") {
+                  if (blink) {
+                    id(led_green).turn_on();
+                    id(led_yellow).turn_on();
+                    id(led_red).turn_on();
+                  } else {
+                    id(led_green).turn_off();
+                    id(led_yellow).turn_off();
+                    id(led_red).turn_off();
+                  }
+                } else {
+                  if (blink) id(led_green).turn_on(); else id(led_green).turn_off();
+                  id(led_yellow).turn_off();
+                  id(led_red).turn_off();
+                }
+                id(blink_state) = !blink;
+            - delay: 500ms
+
+  # 15 pings, 50ms apart — matches original getFilteredDistance(). Each valid ping
+  # lands in salt_readings via the ultrasonic sensor's on_value above. Once all 15
+  # attempts are done, sorts and takes the median, then publishes (or logs an alert
+  # if every reading was out of range).
+  - id: take_salt_reading
+    then:
+      - lambda: 'id(salt_readings).clear();'
+      - repeat:
+          count: 15
+          then:
+            - component.update: salt_ultrasonic
+            - delay: 50ms
+      - lambda: |-
+          int n = id(salt_readings).size();
+          if (n == 0) {
+            id(reading_valid) = false;
+            return;
+          }
+          std::vector<float> sorted = id(salt_readings);
+          for (int i = 1; i < n; i++) {
+            float key = sorted[i];
+            int j = i - 1;
+            while (j >= 0 && sorted[j] > key) { sorted[j + 1] = sorted[j]; j--; }
+            sorted[j + 1] = key;
+          }
+          id(last_distance_cm) = sorted[n / 2];
+          id(reading_valid) = true;
+      - if:
+          condition:
+            lambda: 'return id(reading_valid);'
+          then:
+            - mqtt.publish:
+                topic: jctsh/sensors/salt-sensor/data
+                retain: true
+                payload: !lambda |-
+                  char buf[32];
+                  snprintf(buf, sizeof(buf), "{\"distance_cm\":%.1f}", id(last_distance_cm));
+                  return std::string(buf);
+          else:
+            - lambda: 'id(current_status) = "error";'
+            - mqtt.publish:
+                topic: jctsh/sensors/salt-sensor/log
+                payload: '{"component":"salt-sensor","category":"Alert","message":"No valid sensor reading - check wiring."}'
+
+# ── Reading + heartbeat intervals ──────────────────────────────────────────────
+interval:
+  # Sensor reading — every 12 hours (first reading fires on initial MQTT connect, above)
+  - interval: 12h
+    then:
+      - script.execute: take_salt_reading
+
+  # Heartbeat — every 30 min to log + heartbeat topics
+  - interval: 30min
+    then:
+      - mqtt.publish:
+          topic: jctsh/sensors/salt-sensor/log
+          payload: !lambda |-
+            uint32_t secs = (uint32_t)id(uptime_sec).state;
+            uint32_t h = secs / 3600;
+            uint32_t m = (secs % 3600) / 60;
+            int rssi = (int)id(wifi_rssi).state;
+            char buf[256];
+            snprintf(buf, sizeof(buf),
+              "{\"component\":\"salt-sensor\",\"category\":\"System\","
+              "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, status: %s\"}",
+              h, m, rssi, id(current_status).c_str());
+            return std::string(buf);
+      - mqtt.publish:
+          topic: jctsh/sensors/salt-sensor/heartbeat
+          payload: !lambda |-
+            uint32_t secs = (uint32_t)id(uptime_sec).state;
+            uint32_t h = secs / 3600;
+            uint32_t m = (secs % 3600) / 60;
+            int rssi = (int)id(wifi_rssi).state;
+            char buf[256];
+            snprintf(buf, sizeof(buf),
+              "{\"component\":\"salt-sensor\",\"uptime\":\"%uh %um\",\"rssi\":%d,"
+              "\"status\":\"%s\",\"last_distance_cm\":%.1f}",
+              h, m, rssi, id(current_status).c_str(), id(last_distance_cm));
+            return std::string(buf);

@@ -47,7 +47,7 @@ See [ESP32-project-pins.md](ESP32-project-pins.md) for the full pin table.
 JSN-SR04T ultrasonic sensor
       │  (GPIO5 trig / GPIO18 echo)
       ▼
-ESP32 Arduino sketch
+ESP32 (ESPHome)
       │  MQTT: jctsh/sensors/salt-sensor/...
       ▼
 Mosquitto broker (Raspberry Pi)
@@ -66,11 +66,11 @@ Mosquitto broker (Raspberry Pi)
 
 ## Quick Start
 
-1. Create `secrets.h` in the sketch folder — see Configuration below
-2. Install PubSubClient via Arduino Library Manager
-3. Set Board: **ESP32 Dev Module**, Upload Speed: **921600**,
-   Partition Scheme: **Default 4MB with spiffs**
-4. Flash via USB (first time), then OTA for subsequent updates
+1. Create `secrets.yaml` in this folder — see Configuration below
+2. Copy `salt-sensor.yaml` and `secrets.yaml` to `C:\esphome\salt-sensor\` (compiling from
+   the repo path breaks — see Known Behaviors and Limitations)
+3. Flash via USB (first time): `cd C:\esphome\salt-sensor && esphome run salt-sensor.yaml`
+4. All subsequent updates: same command, over OTA once the device is on the network
 5. Import `salt-sensor.flow.json` into Node-RED (import `core.flow.json` first)
 6. Set `HA_TOKEN` in Node-RED: Settings → Environment Variables
 7. Create HA helpers and virtual switches — see Configuration below
@@ -79,21 +79,20 @@ Mosquitto broker (Raspberry Pi)
 
 ## Configuration
 
-### Credentials (`secrets.h`)
+### Credentials (`secrets.yaml`)
 
-Create `secrets.h` in the sketch folder — gitignored, never commit:
+Create `secrets.yaml` in this folder — gitignored, never commit:
 
-```cpp
-#ifndef SECRETS_H
-#define SECRETS_H
-#define WIFI_SSID      "JCTnet1"
-#define WIFI_PASSWORD  "..."
-#define MQTT_HOST      "raspberrypi.local"
-#define MQTT_PORT      1883
-#define MQTT_USER      "salt-sensor"
-#define MQTT_PASS      "..."
-#define OTA_PASSWORD   "..."
-#endif
+```yaml
+wifi_ssid: "JCTnet1"
+wifi_password: "..."
+ap_password: "..."
+
+mqtt_broker: "raspberrypi.local"
+mqtt_username: "salt-sensor"
+mqtt_password: "..."
+
+ota_password: "..."
 ```
 
 All values are in `credentials.local.md`.
@@ -161,17 +160,13 @@ automatically.
 
 ### OTA Updates
 
-After first USB flash, use OTA. Arduino IDE 2 has a port substitution bug on Windows —
-use `espota.exe` directly:
-
-1. Arduino IDE: Sketch → Export Compiled Binary → produces `salt-sensor.ino.bin`
-2. Power-cycle the ESP32
-3. Run:
+After first USB flash, use OTA — same command as the initial flash:
 ```
-"C:\...\Arduino15\packages\esp32\hardware\esp32\3.3.8\tools\espota.exe" -i <ip> -p 3232 -a <OTA_PASSWORD> -f salt-sensor.ino.bin
+cd C:\esphome\salt-sensor
+esphome run salt-sensor.yaml
 ```
-
-Three rapid LED flashes at boot confirm a successful OTA reboot.
+ESPHome auto-detects the device on the network and offers OTA as an upload option.
+Three rapid LED flashes at boot confirm a successful reboot.
 
 ---
 
@@ -182,6 +177,7 @@ Three rapid LED flashes at boot confirm a successful OTA reboot.
 | `jctsh/sensors/salt-sensor/data` | ESP32 → Node-RED | `{"distance_cm":25.3}` retained |
 | `jctsh/sensors/salt-sensor/status` | Node-RED → ESP32 | `ok` / `warning` / `critical` / `error` |
 | `jctsh/sensors/salt-sensor/log` | both → log server | Standard JSON log message |
+| `jctsh/sensors/salt-sensor/heartbeat` | ESP32 → watchdog | JSON heartbeat, every 30 min |
 
 ---
 
@@ -189,20 +185,22 @@ Three rapid LED flashes at boot confirm a successful OTA reboot.
 
 | File | Purpose |
 |---|---|
-| `salt-sensor/salt-sensor.ino` | ESP32 Arduino sketch |
-| `salt-sensor/secrets.h` | Credentials — gitignored, never commit |
+| `salt-sensor.yaml` | ESPHome configuration — firmware source of truth |
+| `secrets.yaml` | Credentials — gitignored, never commit |
 | `salt-sensor.flow.json` | Node-RED flow |
 | `ESP32-project-pins.md` | Full 38-pin assignment table |
 | `CLAUDE.md` | Claude Code context — constraints and gotchas |
-| `archive/water_softener_salt_sensor_v2.ino` | Previous version using direct SmartThings API (reference only — do not use) |
+| `archive/salt-sensor-v3-arduino/` | Previous Arduino C++ firmware (reference only — do not use) |
+| `archive/water_softener_salt_sensor_v2.ino` | Older version using direct SmartThings API (reference only — do not use) |
 
 ---
 
 ## Known Behaviors and Limitations
 
-- **Arduino C++ (not ESPHome):** This component predates the JCTsh ESPHome standard.
-  Migration to ESPHome is in the backlog (CARD-0004) and should be done before any
-  perfboard transfer.
-- **GPIO2 and GPIO15 are strapping pins:** Currently working but risky — these affect
-  boot mode if driven at reset. No issues observed in production, but monitor after any
-  reflash.
+- **GPIO2 and GPIO15 are strapping pins:** Carried over unchanged from the Arduino
+  version. ESPHome logs a boot-time warning about both (and about GPIO5) but the device
+  boots and runs correctly with this wiring. If a future reflash ever fails to boot, the
+  fix is physical — rewire the LEDs to GPIO32/GPIO33 on the breadboard.
+- **Compile from `C:\esphome\salt-sensor\`, not the repo path:** spaces in
+  `JCT Documents` break the ESP-IDF compiler. Copy `salt-sensor.yaml` and `secrets.yaml`
+  there after any edit.

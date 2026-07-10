@@ -1,0 +1,90 @@
+[
+  {
+    "id": "tab_garage_radar",
+    "type": "tab",
+    "label": "Garage Radar",
+    "disabled": false,
+    "info": "Bridges garage-radar ESPHome presence state to SmartThings virtual motion sensor via the SmartThings REST API. Subscribes to the radar's MQTT presence topic and calls setMotion active/inactive on the SmartThings device. Logs API errors to the component log topic."
+  },
+
+  {
+    "id": "comment_st_header",
+    "type": "comment",
+    "z": "tab_garage_radar",
+    "name": "── SmartThings Motion Sensor Sync ─────────────────────",
+    "info": "",
+    "x": 230,
+    "y": 40,
+    "wires": []
+  },
+
+  {
+    "id": "mqtt_in_presence",
+    "type": "mqtt in",
+    "z": "tab_garage_radar",
+    "name": "jctsh/.../presence/state",
+    "topic": "jctsh/components/garage-radar/binary_sensor/presence/state",
+    "qos": "1",
+    "datatype": "auto",
+    "broker": "mqtt_broker",
+    "x": 150,
+    "y": 100,
+    "wires": [["fn_build_st_request"]]
+  },
+
+  {
+    "id": "fn_build_st_request",
+    "type": "function",
+    "z": "tab_garage_radar",
+    "name": "Build SmartThings request",
+    "func": "// Update after creating the SmartThings virtual motion sensor\n// and copying its device ID from account.smartthings.com/tokens or the ST API.\nconst ST_DEVICE_ID = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';\nconst ST_TOKEN     = env.get('ST_TOKEN');\n\nconst isOn = (msg.payload === 'ON' || msg.payload === 'on');\nconst motion = isOn ? 'active' : 'inactive';\n\nmsg.url    = 'https://api.smartthings.com/v1/devices/' + ST_DEVICE_ID + '/commands';\nmsg.method = 'POST';\nmsg.headers = {\n    'Authorization': 'Bearer ' + ST_TOKEN,\n    'Content-Type': 'application/json'\n};\nmsg.payload = JSON.stringify({\n    commands: [{\n        component: 'main',\n        capability: 'motionSensor',\n        command: 'setMotion',\n        arguments: [motion]\n    }]\n});\nmsg._motion = motion;\nreturn msg;",
+    "outputs": 1,
+    "x": 390,
+    "y": 100,
+    "wires": [["http_st"]]
+  },
+
+  {
+    "id": "http_st",
+    "type": "http request",
+    "z": "tab_garage_radar",
+    "name": "SmartThings API",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "x": 600,
+    "y": 100,
+    "wires": [["fn_log_st_response"]]
+  },
+
+  {
+    "id": "fn_log_st_response",
+    "type": "function",
+    "z": "tab_garage_radar",
+    "name": "Log ST response",
+    "func": "// 200 = success, 202 = accepted\nif (msg.statusCode !== 200 && msg.statusCode !== 202) {\n    node.warn('ST API error ' + msg.statusCode + ': ' + msg.payload);\n    return { payload: JSON.stringify({\n        component: 'garage-radar',\n        category: 'Alert',\n        message: 'SmartThings API error ' + msg.statusCode + ' — motion sensor update may have failed (motion: ' + (msg._motion || 'unknown') + ')'\n    })};\n}\nreturn null;",
+    "outputs": 1,
+    "x": 800,
+    "y": 100,
+    "wires": [["mqtt_out_log"]]
+  },
+
+  {
+    "id": "mqtt_out_log",
+    "type": "mqtt out",
+    "z": "tab_garage_radar",
+    "name": "jctsh/components/garage-radar/log",
+    "topic": "jctsh/components/garage-radar/log",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker",
+    "x": 1040,
+    "y": 100,
+    "wires": []
+  }
+]

@@ -1,5 +1,18 @@
 # JCTsh DEVLOG
 
+## 2026-07-10 (continued, part 3)
+Closed out CARD-0040 and CARD-0046, the two remaining loose ends from the day's drive-swap
+saga. CARD-0040: ran the actual `photo-library-backup.sh` script end-to-end (not the manual
+isolated rsync calls used while debugging) now that both accounts are fully synced —
+confirmed both `"Backup starting."` and `"Backup complete."` fire correctly on the
+dashboard, with zero errors on either job. CARD-0046: extended
+`photo-server-heartbeat.py`'s storage check to also probe both backup drives directly
+(plain host file I/O, not `docker exec`, since Immich never touches those mounts) —
+live-tested with the same safe `mount -o remount,ro` technique used for the original
+CARD-0032 test, both drives correctly identified by name when degraded, both recovered
+cleanly. Closes the exact gap that let Momentus's real hardware failure earlier the same
+day go undetected for over 2 hours.
+
 ## 2026-07-10 (continued, part 2)
 Two more real problems surfaced and fixed following the drive-swap incident, both
 discovered because Joseph noticed something wrong in the actual Immich UI rather than a

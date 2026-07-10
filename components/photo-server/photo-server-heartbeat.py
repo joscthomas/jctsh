@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import json, subprocess, sys
+import json, os, subprocess, sys
 import paho.mqtt.client as mqtt
 
 BROKER    = "192.168.1.117"
@@ -10,6 +10,16 @@ HB_TOPIC  = f"jctsh/server/{COMPONENT}/heartbeat"
 USERNAME  = "photo-server"
 
 CONTAINERS = ["immich_server", "immich_postgres", "immich_machine_learning", "immich_redis"]
+
+# Backup drives (CARD-0030) — Immich itself never touches these, only the standalone
+# photo-library-backup.sh script does, so the container-level storage check above has no
+# visibility into them at all. CARD-0046: this went undetected during the 2026-07-10
+# drive-swap incident, when Momentus suffered a real hardware I/O failure with zero
+# dashboard visibility until it was found by chance while troubleshooting something else.
+BACKUP_MOUNTS = {
+    "backup-robin":  "/mnt/photo-library-backup",
+    "backup-joseph": "/mnt/photo-library-backup-joseph",
+}
 
 env = {}
 with open("/etc/jctsh/heartbeat.env") as f:
@@ -56,6 +66,20 @@ if not any(u.startswith("immich_server:") for u in unhealthy):
             unhealthy.append(f"storage:{err}")
     except Exception as e:
         unhealthy.append(f"storage:error({e})")
+
+# Backup drives are mounted directly on the host, not inside a container — Immich never
+# touches them, so this is plain host-level file I/O, not docker exec like the primary
+# check above. Same write/read/remove pattern.
+for label, mount in BACKUP_MOUNTS.items():
+    marker = os.path.join(mount, ".heartbeat_check")
+    try:
+        with open(marker, "w") as f:
+            f.write("ok")
+        with open(marker) as f:
+            f.read()
+        os.remove(marker)
+    except Exception as e:
+        unhealthy.append(f"{label}:{str(e)[:200]}")
 
 if unhealthy:
     status = "degraded"

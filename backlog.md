@@ -13,13 +13,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
-### CARD-0046 · [enhancement] [photo-server] Extend storage-health check to cover backup drive(s), not just primary
-**Notes:** Discovered 2026-07-10 during the drive-swap incident (see DEVLOG.md) — while connecting a new backup drive, Momentus (`/mnt/photo-library-backup`) suffered a real hardware-level failure (`dmesg`: "device offline error", "Buffer I/O error", "JBD2: I/O error when updating journal superblock", forced unmount), likely from a jostled USB connector during the drive swap. This produced **zero dashboard visibility** — CARD-0032's storage-health check (in `photo-server-heartbeat.py`) only verifies read/write access to `/data/upload` inside the `immich_server` container, which lives on the *primary* library mount. It has no visibility into either backup drive (Momentus or the new Joseph-dedicated Expansion/Seagate 1TB) since Immich itself never touches them — only the standalone `photo-library-backup.sh` script does, and even with CARD-0040's start/complete/failed MQTT messages, that only reports at the next scheduled or manual run, not continuously. The failure was only caught because Claude happened to be manually checking `dmesg` while troubleshooting something unrelated.
-
-For comparison, the primary library going read-only during the same incident *was* caught correctly and appeared on the dashboard (`"storage:sh: 1: cannot create /data/upload/.heartbeat_check: Read-only file system"`) — CARD-0032 worked exactly as designed for the mount it covers.
-
-**Proposed fix:** extend `photo-server-heartbeat.py`'s storage check to also write/read/remove a marker file on both backup mount points (`/mnt/photo-library-backup`, `/mnt/photo-library-backup-joseph`) every 30-minute heartbeat cycle, reporting via the same non-collapsing `Alert`-category path already established for the primary. Not urgent — the backup drives are secondary copies, not the live-serving primary — but worth closing given it's now a demonstrated real gap, not a theoretical one.
-
 ---
 
 ### CARD-0041 · [idea] [photo-server] Disk capacity growth analysis — wait for steady state
@@ -370,6 +363,13 @@ Updated `salt-sensor.yaml` (wiring comment + `output:` block), `components/salt-
 ---
 
 ## Done
+
+### CARD-0046 · [enhancement] [photo-server] Extend storage-health check to cover backup drive(s), not just primary
+**Resolution:** `photo-server-heartbeat.py`'s storage check now also writes/reads/removes a marker file directly on both backup mounts (`/mnt/photo-library-backup`, `/mnt/photo-library-backup-joseph`) every 30-minute cycle — plain host-level file I/O, not `docker exec`, since these mounts aren't inside any container (Immich itself never touches them, only the standalone backup script does). Failures reported as `backup-robin:<error>` / `backup-joseph:<error>` in the same non-collapsing `Alert` path already used for the primary library and container checks.
+
+**Live-tested 2026-07-10** using the same safe `mount -o remount,ro` technique as the original CARD-0032 test, applied to each backup drive in turn: both correctly triggered `Immich degraded - backup-<name>:[Errno 30] Read-only file system` on the dashboard, and both recovered cleanly to normal status after `mount -o remount,rw`. Closes the exact visibility gap that let Momentus's real hardware failure go undetected for over 2 hours earlier the same day. Full detail in `components/photo-server/heartbeat.md`.
+
+---
 
 ### CARD-0040 · [enhancement] [photo-server] Dashboard visibility for backup runs
 **Resolution:** `photo-library-backup.sh` publishes MQTT log messages so backup success/failure is visible on the JCTsh log dashboard without SSHing in — `"Backup starting."` before either rsync job, `"Backup complete."` (category `System`) if both succeed, or `"Backup failed (joseph exit <code>, robin exit <code>)."` (category `Alert`, non-collapsing) if either fails. Same pattern as CARD-0036's reboot notifications, reusing the existing `photo-server` MQTT account.

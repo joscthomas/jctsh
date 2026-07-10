@@ -30,6 +30,17 @@ read-only remount, `Input/output error`) is appended to the same `unhealthy` lis
 reported as `Alert - storage:<error text>`, using the identical non-collapsing path
 degraded containers already use.
 
+**Backup drive check (added 2026-07-10, CARD-0046):** the primary-library check above has
+no visibility into either backup drive — Immich itself never touches them, only the
+standalone `photo-library-backup.sh` script does, and only when it runs. This went
+undetected during the 2026-07-10 drive-swap incident, when Momentus suffered a real
+hardware I/O failure that produced zero dashboard alerts until found by chance while
+troubleshooting something unrelated. The script now also writes/reads/removes a marker file
+directly on the host (plain file I/O, not `docker exec`, since these mounts aren't inside
+any container) at both `/mnt/photo-library-backup/.heartbeat_check` and
+`/mnt/photo-library-backup-joseph/.heartbeat_check` every cycle, reporting failures as
+`backup-robin:<error>` or `backup-joseph:<error>` in the same `unhealthy` list.
+
 Topics:
 - `jctsh/server/photo-server/log` — picked up by the log server, visible in the dashboard
 - `jctsh/server/photo-server/heartbeat` — monitored by the Node-RED watchdog (35-minute timeout)
@@ -115,6 +126,18 @@ degraded paths were tested for real:
   /mnt/photo-library` restored normal status on the next run. This reproduces the exact
   failure mode from the original CARD-0032 incident (broken bind mount, containers
   otherwise "healthy") and confirms it's now caught.
+
+**Live-tested 2026-07-10 (CARD-0046)** — backup drive check, same `mount -o remount,ro`
+technique applied to each backup mount in turn:
+- `mount -o remount,ro /mnt/photo-library-backup` → dashboard showed `Immich degraded -
+  backup-robin:[Errno 30] Read-only file system: '/mnt/photo-library-backup/.heartbeat_check'`
+  → `mount -o remount,rw` restored normal status on the next run.
+- `mount -o remount,ro /mnt/photo-library-backup-joseph` → dashboard showed `Immich
+  degraded - backup-joseph:[Errno 30] Read-only file system: '/mnt/photo-library-backup-joseph/.heartbeat_check'`
+  → `mount -o remount,rw` restored normal status on the next run.
+
+Both drives correctly identified by name, both recovered cleanly. This closes the exact gap
+that let Momentus's real hardware failure go undetected earlier the same day.
 
 ---
 

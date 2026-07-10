@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.10
-**Version description:** Added JSN-SR04T-V3.0 waterproof ultrasonic distance sensor (2 pcs, Bag 30).
+**Version:** 2.12
+**Version description:** Deployed the Seagate 1TB spare (formerly listed as "Seagate Expansion 1TB, P/N 9SF2A4-500") to photo-server as Joseph's dedicated backup drive — confirmed actual model/serial via `lsblk`, moved from Shelf to Deployed.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -43,8 +43,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 |---|---|---|---|---|
 | Seagate Backup Plus 1TB | USB HDD, P/N 1KAAP1-501, bus-powered, ext4 | 1 | Deployed | Deployed as photo-server primary Immich library (`/mnt/photo-library`) |
 | Seagate Momentus 640GB | In Insignia enclosure, P/N 9RN134-030, bus-powered, ext4 | 1 | Deployed | Deployed as photo-server local backup (`/mnt/photo-library-backup`) |
-| Seagate Expansion 1TB | USB HDD, P/N 9SF2A4-500, requires external power | 1 | Shelf | Spare — candidate replacement for Momentus if capacity becomes tight (see `components/photo-server/backup.md`) |
-| WD 750GB | USB HDD, P/N WD7500H1U-00 | 1 | Shelf | Spare — too small to replace either deployed drive |
+| Seagate 1TB | USB HDD, model `ST31000528AS`, serial `5VP1HJ2P`, requires external power (this is the drive previously listed as "Seagate Expansion 1TB, P/N 9SF2A4-500" — confirmed identity via `lsblk` 2026-07-10, not blank when connected, had a leftover vfat+ext3+swap partition layout, reformatted ext4) | 1 | Deployed | Deployed 2026-07-10 as photo-server's dedicated backup drive for Joseph's account (`/mnt/photo-library-backup-joseph`) — Momentus alone could no longer hold the full primary library. See `components/photo-server/backup.md`. |
+| WD 750GB | USB HDD, P/N WD7500H1U-00, model WDC WD7500AAVS-00D7B0, serial WD-WCAU41533297 (confirmed via `lsblk` 2026-07-10) | 1 | Shelf | Spare — too small to replace either deployed drive. **Not blank** — has existing partitions (698.4G vfat + 117.7M ext3 + 117.7M swap, suggesting a prior Linux system/boot disk use). Do not format without first checking what's on it. Mistakenly connected to photo-server 2026-07-10 in place of the intended Seagate Expansion 1TB — the two spares look similar enough to grab the wrong one; check the P/N label before connecting either. |
 
 ---
 

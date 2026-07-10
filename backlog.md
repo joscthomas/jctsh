@@ -13,6 +13,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Backlog
 
+### CARD-0046 · [enhancement] [photo-server] Extend storage-health check to cover backup drive(s), not just primary
+**Notes:** Discovered 2026-07-10 during the drive-swap incident (see DEVLOG.md) — while connecting a new backup drive, Momentus (`/mnt/photo-library-backup`) suffered a real hardware-level failure (`dmesg`: "device offline error", "Buffer I/O error", "JBD2: I/O error when updating journal superblock", forced unmount), likely from a jostled USB connector during the drive swap. This produced **zero dashboard visibility** — CARD-0032's storage-health check (in `photo-server-heartbeat.py`) only verifies read/write access to `/data/upload` inside the `immich_server` container, which lives on the *primary* library mount. It has no visibility into either backup drive (Momentus or the new Joseph-dedicated Expansion/Seagate 1TB) since Immich itself never touches them — only the standalone `photo-library-backup.sh` script does, and even with CARD-0040's start/complete/failed MQTT messages, that only reports at the next scheduled or manual run, not continuously. The failure was only caught because Claude happened to be manually checking `dmesg` while troubleshooting something unrelated.
+
+For comparison, the primary library going read-only during the same incident *was* caught correctly and appeared on the dashboard (`"storage:sh: 1: cannot create /data/upload/.heartbeat_check: Read-only file system"`) — CARD-0032 worked exactly as designed for the mount it covers.
+
+**Proposed fix:** extend `photo-server-heartbeat.py`'s storage check to also write/read/remove a marker file on both backup mount points (`/mnt/photo-library-backup`, `/mnt/photo-library-backup-joseph`) every 30-minute heartbeat cycle, reporting via the same non-collapsing `Alert`-category path already established for the primary. Not urgent — the backup drives are secondary copies, not the live-serving primary — but worth closing given it's now a demonstrated real gap, not a theoretical one.
+
+---
+
 ### CARD-0041 · [idea] [photo-server] Disk capacity growth analysis — wait for steady state
 **Notes:** Discussed 2026-07-09: want to estimate photo-library growth rate and project when the primary drive (Backup Plus 1TB, currently 615G/71% used) or backup drive (Momentus 640GB) will need replacing/upsizing. Deliberately not started yet — Joseph's call: current disk numbers are all noise from one-off events (CARD-0039 added 3,433 assets in one shot, CARD-0030 just freed 818GB by deleting zips, first post-cleanup backup run is still doing a full reconciliation rather than a normal weekly delta), not representative of organic day-to-day growth.
 
@@ -319,7 +328,13 @@ Running concurrently with CARD-0030's backup verification and the tail end of CA
 ---
 
 ### CARD-0030 · [bug] [photo-server] Re-enable weekly backup cron once Takeout zips are cleared
-**Progress (2026-07-09):** Zips deleted (818GB reclaimed: Momentus 100%→19% used, NVMe root 87%→5% used — see `components/photo-server/backup.md`). Cron re-enabled and confirmed uncommented. A manual verification run was kicked off to confirm the real library now backs up cleanly with room to spare (original step 4) — **still in progress**, first run is slow since it's reconciling the full difference (destination previously held zip staging data, not real backup content); expected to be much faster on future weekly runs since `rsync --delete` is incremental. Don't close until: the run completes with exit 0, and `df -h /mnt/photo-library-backup` shows used space roughly matching the primary library (~615GB).
+**Progress (2026-07-09):** Zips deleted (818GB reclaimed: Momentus 100%→19% used, NVMe root 87%→5% used — see `components/photo-server/backup.md`). Cron re-enabled and confirmed uncommented.
+
+**Verification run failed (2026-07-10):** the manual verification run kicked off 2026-07-09 ran overnight and failed — `rsync error: some files/attrs were not transferred (code 23)` after `No space left on device`. The primary library had grown to 624GB, genuinely too large for Momentus (586GB usable) to ever hold — not a slow-first-run situation as assumed, a real capacity ceiling. See DEVLOG.md 2026-07-10 for the full incident (wrong spare drive connected first, neither spare was actually blank, a jostled connector caused a real hardware I/O failure on Momentus mid-swap — recovered cleanly, no data loss).
+
+**Fix: split backup by account across two drives** (see `components/photo-server/backup.md` for full detail). Deployed a second backup drive (Seagate 1TB, formatted, mounted at `/mnt/photo-library-backup-joseph`) and rewrote `photo-library-backup.sh` to run two filtered `rsync` jobs — Joseph's account to the new drive, Robin's to Momentus. Currently running as of this entry.
+
+**Don't close until:** both rsync jobs in the split script complete with exit 0, and `df -h` on both `/mnt/photo-library-backup-joseph` and `/mnt/photo-library-backup` shows used space roughly matching each account's actual usage (Joseph ~403GB, Robin ~187GB).
 
 ---
 

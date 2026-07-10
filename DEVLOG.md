@@ -1,5 +1,37 @@
 # JCTsh DEVLOG
 
+## 2026-07-10
+Backup drive capacity crisis and split-by-account fix. The overnight backup verification
+run (CARD-0030) failed with `No space left on device` — the primary library had grown to
+624GB, past what Momentus (640GB nominal, 586GB usable) could ever hold, not just a slow
+first run as assumed. Fix required a second backup drive.
+
+Connecting it went sideways twice: first grabbed the wrong spare (WD 750GB instead of the
+intended Seagate Expansion 1TB — the two look similar, always check the P/N label first),
+and discovered neither spare was actually blank (both carry a leftover vfat+ext3+swap
+partition layout from prior use). Worse, the drive-swapping physically jostled Momentus's
+connector, causing a real kernel-level failure (`dmesg`: "device offline error", "Buffer
+I/O error", "JBD2: I/O error when updating journal superblock", forced unmount) — and
+separately, the primary library briefly went read-only during the same window. Both
+recovered cleanly on `mount -a` with no lasting damage. Neither incident got real-time
+dashboard visibility: the primary library's blip resolved faster than the 30-minute
+heartbeat interval could catch it (not a bug, just polling-interval math), but Momentus's
+failure exposed a genuine gap — CARD-0032's storage-health check only covers the primary
+library, never either backup drive. Filed as CARD-0046.
+
+Formatted the (now correctly identified) Seagate 1TB drive ext4, mounted at
+`/mnt/photo-library-backup-joseph` via UUID with `nofail`, same pattern as the other two
+drives. Split `photo-library-backup.sh` into two `rsync` invocations per run, filtered by
+owner UUID (each destination excludes the *other* account's UUID within the per-user
+`upload`/`thumbs`/`encoded-video` trees, so any future per-user directory Immich adds is
+included automatically) — Joseph's larger, faster-growing library (403GB) goes to the new
+1TB drive (~467GB headroom), Robin's (187GB) stays on Momentus (~400GB headroom). Chose
+this over pooling both drives into one LVM volume, which would add real complexity without
+adding redundancy — a failure on either physical drive loses that portion of a pooled
+volume just the same as a standalone one. Shared non-per-user data (`backups/`, the ~2.2GB
+Postgres DB dump directory) goes to both destinations since it isn't per-account and is
+small. Deployed and running as of this entry — not yet verified complete.
+
 ## 2026-07-09 (continued, part 3)
 Completed photo-server's build Step 18 (harvest step) — the last remaining step in the
 instructions doc, found by re-auditing the whole doc against actual state rather than

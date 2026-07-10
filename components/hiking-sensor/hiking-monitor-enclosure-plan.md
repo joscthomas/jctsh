@@ -296,6 +296,11 @@ The solar panel input uses a JST connector and wire that exit through a simple r
 - Centauri Carbon — ASA final prints (enclosed chamber required for ASA)
 - Check with Xerocraft staff for current filament availability before scheduling
 
+**Why this pairing, not the reverse:**
+- PLA has low shrinkage and isn't sensitive to cooling drafts — it actually prints *better* with active cooling, which an open-frame printer (the A1 Mini) provides more easily than an enclosed one. Since Session 1 only checks fit, not durability, there's no reason to use anything but the fastest, most available printer — and iteration is expected (one or two reprints of a problem shell is normal), so a quick-to-queue open-frame machine keeps each cycle short.
+- ASA (like ABS) needs an enclosed, heated chamber to print reliably. Without one, the temperature gradient between the hot extruded plastic and open room air causes uneven cooling — leading to warping, corner lift off the bed, or layer cracking/delamination. ASA also wants a hot bed (~100°C) that an enclosure helps hold evenly around the whole part. The A1 Mini physically can't print ASA reliably; only the Centauri Carbon has the enclosure for it. Enclosure also helps contain ASA's fumes (similar to ABS) — relevant in a shared makerspace.
+- Net effect: cheap, fast, disposable iteration on the A1 Mini until fit is confirmed, then one committed final print on the Centauri Carbon in the material that'll actually survive Tucson sun and heat on the trail.
+
 ---
 
 ## 11. CAD Toolchain — Beginner Approach

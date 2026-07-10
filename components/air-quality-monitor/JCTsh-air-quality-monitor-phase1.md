@@ -1,10 +1,10 @@
 # JCTsh Air Quality Monitor — Phase 1 Planning Document
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Phase 1 discovery and feature decisions for the JCTsh air quality monitor (air-quality-monitor component). Covers feature analysis, all resolved decisions, deferred items, BOM, and open questions for Phase 2.
-**Version:** 1.1
-**Version description:** BOM updated — SEN55, Adafruit #5964 adapter breakout, and JST GH 6-pin cable moved from To Order to Ordered. SEN55 5V power requirement noted; Adafruit breakout handles level shifting and boost. Open Question 1 (connector) removed — resolved by breakout board selection. Status updated to Parts Ordered.
+**Version:** 1.2
+**Version description:** Corrected SEN54→SEN55 inventory mislabel; clarified hiking-sensor dependency is architectural (firmware pattern, field-proven) not physical (not gated by hiking-sensor's enclosure). Resolved ESPHome sen5x native component question and SEN5x intake/exhaust orientation research (flagged low-confidence — source PDF unreadable). Closed Phase 3 (timeout/timer logic decision — match hiking-sensor, explicitly avoid CARD-0045's `wifi.ap:`/`reboot_timeout` bug). Moved remaining physical checks (perfboard footprint, LiPo polarity) from Phase 2 planning blockers to Phase 4 bench steps.
 **Project:** JCTsh Air Quality Monitor
-**Status:** Phase 1 Complete — Parts Ordered — Ready for Phase 2
+**Status:** Phase 1–3 Complete — Ready for Phase 4
 **Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`, `jctsh-parts-inventory.md`, `JCTsh-hiking-sensor-phase1.md`
 
 ---
@@ -117,6 +117,7 @@ Follows hiking monitor pattern exactly. See `components/hiking-sensor/` for the 
 | No Home Assistant integration | Not needed |
 | Dedicated Mosquitto account | `air-quality-monitor` — per JCTsh-Build-Standards.md Section 2.7 |
 | Watchdog | Standard JCTsh watchdog monitors heartbeat; alerts expected during hikes |
+| Timeout/timer logic | **Decided 2026-07-09:** no elaborate custom WiFi/MQTT connect-timeout logic — match hiking-sensor's existing approach (no explicit `reboot_timeout` override), which is reasonable here since home mode only happens while docked/charging (USB-powered, not battery-critical). **Explicitly do not inherit hiking-sensor's `wifi.ap:` + `reboot_timeout` bug interaction (CARD-0045)** — when writing the actual YAML in Phase 4, confirm whether an `ap:` fallback block is actually needed for this device before including one; if included, be aware the default timeout may not function as expected. Exact mechanism is a Phase 4 implementation detail, not specified further here. |
 
 ---
 
@@ -195,27 +196,33 @@ Topics:
 ## Open Questions for Phase 2
 
 1. ~~SEN55 ESPHome component~~ **Confirmed 2026-07-09, high confidence:** ESPHome has a **native, built-in `sen5x` sensor platform** (esphome.io/components/sensor/sen5x/) supporting SEN50/SEN54/SEN55 directly over I2C — no custom component needed for the sensor itself. Source: ESPHome's own official documentation page. Simplifies the original assumption in this doc's Hardware Context — a custom component is still needed for the onboard-flash-logging/WiFi-replay pattern (inherited from hiking-sensor), but that's unrelated to reading the sensor.
-2. **Fan transistor:** **Reasoned, not bench-verified.** On-hand BC547B NPN (50 in stock, Music Response bin, 0.1A/45V rated) should comfortably cover the SEN55's ~70mA fan draw on paper — same substitution pattern as remote-temp-sensor-01's BC557B. This is a calculation, not a measurement — confirm with an actual bench test (fan running, transistor switching it, multimeter check) during Phase 2/4 execution before treating it as settled.
-3. **Perfboard size:** Determine required perfboard footprint after SEN55 + Adafruit adapter physical dimensions are confirmed with parts in hand. Still open — physical measurement task.
-4. ~~Enclosure intake/exhaust~~ **Low confidence — needs re-verification.** WebSearch reported (attributed to Sensirion's Mechanical Design and Assembly Guidelines for SEN5x): two air inlets + one air outlet must stay unobstructed and directly coupled to ambient air; inlets positioned **above** the outlet; opening face ideally pointing **downward**; avoid strong external airflow across openings. **Caveat: both direct PDF fetch attempts failed** (no readable text extracted, no local PDF renderer available) — this summary came from WebSearch's own synthesis of search-result snippets, not from actually reading Sensirion's primary document. Treat as "probably true, plausible, consistent with how similar particulate sensors work" rather than confirmed — re-verify by actually opening the PDF (or the "Mechanical design-in example for SEN5x" app note) before finalizing enclosure design around it.
-5. **LiPo polarity:** Verify JST connector polarity between EEMB pouch and TP4056+boost module before first connection (same requirement as hiking monitor). Still open — physical check task.
+2. **Fan/SEN55 power-gate transistor bench test — moved to Phase 4.** On-hand BC547B NPN (50 in stock, Music Response bin, 0.1A/45V rated) should comfortably cover the SEN55's ~70mA duty-cycled power draw on paper — same substitution pattern as remote-temp-sensor-01's BC557B. This is a calculation, not a measurement — confirmed with an actual bench test (transistor switching the SEN55, multimeter check) as a Phase 4 bench step, not a blocking Phase 2 planning item.
+3. **Perfboard size — moved to Phase 4.** Determine required perfboard footprint after SEN55 + Adafruit adapter physical dimensions are confirmed with parts in hand — a Phase 4 bench step, not a planning-level blocker (parts are already selected and on hand; only the physical measurement remains).
+4. ~~Enclosure intake/exhaust~~ **Low confidence — needs re-verification.** WebSearch reported (attributed to Sensirion's Mechanical Design and Assembly Guidelines for SEN5x): two air inlets + one air outlet must stay unobstructed and directly coupled to ambient air; inlets positioned **above** the outlet; opening face ideally pointing **downward**; avoid strong external airflow across openings. **Caveat: both direct PDF fetch attempts failed** (no readable text extracted, no local PDF renderer available) — this summary came from WebSearch's own synthesis of search-result snippets, not from actually reading Sensirion's primary document. Treat as "probably true, plausible, consistent with how similar particulate sensors work" rather than confirmed — re-verify before the follow-on enclosure design phase (deferred, same split as hiking-sensor/remote-temp-sensor-01 — not blocking Phase 4's bench build).
+5. **LiPo polarity — moved to Phase 4.** Verify JST connector polarity between EEMB pouch and TP4056+boost module before first connection (same requirement as hiking monitor) — a Phase 4 bench step, performed right before first battery connection.
 6. ~~Parts inventory update~~ **Done 2026-07-09, medium confidence:** SEN55 (corrected from mislabeled "SEN54"), Adafruit adapter, and JST cable all confirmed in `jctsh-parts-inventory.md`. The "SEN-23715 = SEN55" correction is confirmed against SparkFun's own product listing for that part number — but the physical item in the Plastic Box hasn't been checked against its label/silkscreen to confirm it's actually SEN-23715 and not something else. Worth a 30-second physical glance next time the box is open.
+
+**Phase 3 status: Complete.** Full Phase 3 Required Checklist (MQTT topic naming, MQTT account, heartbeat, message logging, watchdog, SmartThings type+path, LED indicators, timeout/timer logic) resolved — see "JCTsh Integration" table above and the timeout decision (2026-07-09, matches hiking-sensor's approach, explicitly does not inherit the CARD-0045 `wifi.ap:`/`reboot_timeout` bug). Bench/install boundary is a Phase 4 concern, not a Phase 3 gap.
 
 ---
 
-## Phase 2 Entry Criteria
+## Phase 2 — Status: Effectively Complete
 
-Phase 1 is complete. Phase 2 (Hardware Selection) begins when:
 - SEN55, Adafruit #5964 adapter, and JST GH cable received — **done** (confirmed 2026-07-09; `jctsh-parts-inventory.md`'s SparkFun SEN-23715 entry was mislabeled "SEN54," corrected — it is the genuine SEN55, matching this plan's requirement including NOx)
-- Fan transistor availability confirmed (on hand or to order) — likely satisfied by the on-hand BC547B NPN (50 in stock, 0.1A rated, covers the SEN55's ~70mA fan draw), not yet formally confirmed
+- Fan/SEN55 power-gate transistor — likely satisfied by the on-hand BC547B NPN (50 in stock, 0.1A rated, covers the SEN55's ~70mA duty-cycled draw); formal bench confirmation **moved to Phase 4**
 - **Hiking-monitor firmware architecture proven** (this project inherits its pipeline and patterns) — **done**, field-confirmed via CARD-0008 (2026-06-17 camping trip: hotspot connection, cellular MQTT reach, SPIFFS replay all working). This criterion is about the *firmware pattern* (onboard flash logging, WiFi replay, field/home mode), not the physical device — hiking-sensor's enclosure (CARD-0009) is a separate, unrelated deliverable and does **not** gate this project.
+- Perfboard footprint measurement and LiPo/TP4056 polarity check — physical tasks, **moved to Phase 4** bench steps rather than treated as Phase 2 planning blockers
+
+## Phase 3 — Status: Complete
+
+See Phase 3 status note above (JCTsh Integration table, timeout decision). Ready for Phase 4.
 
 ---
 
 ## Implementation Note for Claude Code
 
-The firmware architecture for this component — onboard flash logging, WiFi replay, fan duty-cycle via transistor, custom C++ ESPHome component, heartbeat, MQTT log format, watchdog — follows the hiking monitor pattern. Read `components/hiking-sensor/` files before beginning any firmware work. Apply those patterns directly. Do not re-derive them from first principles.
+The firmware architecture for this component — onboard flash logging, WiFi replay, fan/SEN55 duty-cycle via transistor, custom C++ ESPHome component (for logging/replay only — SEN55 itself uses ESPHome's native `sen5x` platform), heartbeat, MQTT log format, watchdog — follows the hiking monitor pattern. Read `components/hiking-sensor/` files before beginning any firmware work. Apply those patterns directly. Do not re-derive them from first principles.
 
 ---
 
-*Phase 1 completed June 2026. Parts ordered June 2026, all received and confirmed correct (2026-07-09). Phase 2 entry criteria effectively satisfied — hiking-monitor's firmware architecture (what this project actually depends on) is field-proven; hiking-sensor's enclosure work does not block this project. Ready for Phase 2 whenever prioritized.*
+*Phase 1 completed June 2026. Parts ordered June 2026, all received and confirmed correct (2026-07-09). Phases 1–3 complete as of 2026-07-09. Ready for Phase 4 (Claude Code instructions) — see `air-quality-monitor-claude-code-instructions.md`.*

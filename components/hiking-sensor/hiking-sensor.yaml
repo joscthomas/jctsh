@@ -81,6 +81,14 @@ esp32:
     type: arduino
 
 # ── WiFi ──────────────────────────────────────────────────────────────────────
+# KNOWN ISSUE (CARD-0045, found 2026-07-09): no explicit reboot_timeout is set here,
+# so ESPHome's default (15min) should apply on failed connection — but ESPHome
+# issue #7222 documents that reboot_timeout does not take effect when a wifi.ap:
+# fallback block (below) is configured, which this device has. Unconfirmed whether
+# this actually manifests in practice; no failure observed in field use (CARD-0008).
+# Low priority: upload/home mode requires USB dock power to stay awake, so a stuck
+# reconnect attempt would not drain battery, just require a physical USB reflash to
+# recover. See CARD-0045 in backlog.md before changing this block.
 wifi:
   networks:
     - ssid: !secret wifi_ssid

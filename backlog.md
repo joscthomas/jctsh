@@ -145,12 +145,6 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 ---
 
-### CARD-0003 · [enhancement] [infrastructure] TLS for Mosquitto (port 8883)
-**Notes:** Port 1883 is internet-exposed via DuckDNS/port-forward with fail2ban, but credentials and sensor data are cleartext. TLS on port 8883 eliminates this. Steps: get Let's Encrypt cert for the DuckDNS hostname (certbot with duckdns plugin), add a TLS listener on port 8883 in mosquitto.conf, update mqtt_broker port in every ESPHome secrets.yaml, update Node-RED broker node, update HA MQTT integration, reflash all ESP32s. Do as a standalone task after DuckDNS setup is stable. CARD-0002 prerequisite complete.
-
----
-
-
 ### CARD-0024 · [enhancement] [p-w-firefly] Coachproxy remote health monitoring
 **Notes:** The coachproxy heartbeat (every 30 min via Tailscale) confirms the RV Pi and Tailscale link are alive, but it can't distinguish between "Pi is powered off" vs "Tailscale is down" vs "RV is in a dead zone." A more useful health check would poll the Tailscale status directly from the home Pi: `tailscale ping 100.90.246.43` or checking the Tailscale admin API for last-seen timestamp. This gives richer diagnostic output (latency, path) without depending on the RV Pi to actively publish. Implement as a scheduled script on the home Pi that posts results to the log dashboard. Alternative: use Tailscale's built-in status API at `localhost:41112` on the home Pi to check peer state without any external requests.
 
@@ -251,6 +245,32 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 
 ## Planning
 
+### CARD-0003 · [enhancement] [infrastructure] TLS for Mosquitto (port 8883)
+**Notes:** Port 1883 is internet-exposed via DuckDNS/port-forward with fail2ban, but credentials and sensor data are cleartext for any device using that path. TLS on 8883 eliminates this — scoped as a **split-port design**, not a fleet-wide switch: 1883 stays plaintext and LAN-only (not forwarded through the router), continuing to serve stationary home devices (garage-radar, salt-sensor, front-porch-temp-sensor, remote-temp-sensor-01, etc.) with no `secrets.yaml`/firmware changes needed. 8883 (TLS) becomes the *only* port forwarded via DuckDNS, used exclusively by devices that actually leave the home network — hiking-sensor today, air-quality-monitor once built (CARD-0012, "carried on hikes alongside the hiking monitor"). Steps: get Let's Encrypt cert for the DuckDNS hostname (certbot with duckdns plugin), add a TLS listener on port 8883 in mosquitto.conf, change the router port-forward from 1883→8883, add CA-cert trust config + updated broker port to the remote-capable devices' `secrets.yaml`/`mqtt:` block, reflash those devices only, update Node-RED broker node / HA MQTT integration if either connects over the forwarded path. CARD-0002 prerequisite complete.
+
+**Decision rationale (2026-07-10):** considered reflashing the whole fleet uniformly vs. this split; chose the split because most devices are stationary and never traverse the internet-facing path, so fleet-wide TLS would add CA-cert config/maintenance to every device for no real exposure reduction on the stationary ones. Complementary to CARD-0050 (network segmentation) — that card limits which devices can reach each other on the LAN; this card protects the one path that's actually internet-exposed.
+
+**Unblocked (2026-07-10):** CARD-0004 (salt-sensor Arduino → ESPHome migration) is complete except one open verification item (12h reading cycle hasn't fired naturally yet) — doesn't block this card either way, since salt-sensor is a stationary device staying on plaintext LAN-only 1883 under the split-port design.
+
+**Execution plan:** `C:\Users\jcthomas\.claude\plans\misty-fluttering-porcupine.md` (Claude Code plan file, not in this repo) — five phases: A) Pi/certbot cert issuance, B) Mosquitto TLS listener, C) router port-forward, D) hiking-sensor CA-trust config + OTA reflash, E) cutover + doc updates. Approved 2026-07-10.
+
+**In progress (2026-07-10):** Phase A started — certbot + `certbot-dns-duckdns` installed and confirmed working correctly on the Pi (DuckDNS's ACME TXT mechanism manually verified via curl + external DNS lookup). **Blocked:** 4 cert-issuance attempts failed with DNS timeouts/SERVFAIL from Let's Encrypt's remote validators querying DuckDNS's own authoritative nameservers — looks like a DuckDNS-side DNS reliability issue, not a config problem here. Pi restored to clean state (no half-applied config). Resume with:
+```
+sudo certbot certonly --non-interactive --agree-tos --email joscthomas@gmail.com --preferred-challenges dns --authenticator dns-duckdns --dns-duckdns-credentials /etc/letsencrypt/duckdns.ini --dns-duckdns-propagation-seconds 90 -d jctsh.duckdns.org
+```
+Phases B–E not started (all depend on Phase A's cert).
+
+---
+
+### CARD-0050 · [idea] [infrastructure] Network segmentation to contain a compromised/hostile device on home WiFi
+**Notes:** Raised 2026-07-10 during CARD-0003 (MQTT TLS) discussion. WPA2/3-Personal on `JCTnet1` only protects the radio hop and doesn't stop a device that's already authenticated on the LAN — anyone holding the shared PSK can capture another client's handshake and derive its session key, and more practically, any device on the same `192.168.1.x` subnet can ARP-spoof to MITM traffic between other devices, bypassing WiFi encryption entirely since that attack happens at L2/L3, not over the air. Right now there's no segmentation at all — every JCTsh device, guest device, and IoT gadget shares one flat subnet, confirmed via `jctsh-network.md` and `jctsh-security-hardening.md` (no VLAN/isolation findings from CARD-0022/0023's audit). Note HA's existing HTTPS proxy (nginx on 443, cert for `raspberrypi.tailfe828a.ts.net`) is Tailscale-only — it doesn't protect LAN-side access today (cert error on direct LAN hit).
+
+**Proposed fix:** put IoT/guest devices (SmartThings-paired gadgets, guest phones, anything not a trusted JCTsh host) on the router's built-in IoT/guest network with client isolation enabled, so they're on a separate broadcast domain and can't reach or ARP-spoof JCTsh devices (Pi, ESP32s, M8) at all — the highest-leverage fix, since it removes the threat at the network layer regardless of which app protocols are encrypted. Router is a TP-Link Archer AXE75 (`jctsh-network.md`) — check what segmentation options it exposes (dedicated IoT network, VLAN tagging, or at minimum AP/client isolation on the guest SSID).
+
+**Relationship to CARD-0003:** complementary, not a substitute. CARD-0003 (MQTT TLS) protects payload confidentiality between devices that do need to talk to each other; this card limits which devices can reach each other (and see each other's traffic) in the first place. Either can proceed independently — segmentation doesn't require MQTT changes and vice versa.
+
+---
+
 ### CARD-0044 · [idea] [remote-temp-sensor-01] Backyard solar/battery environmental sensor
 **Planning docs:** `components/remote-temp-sensor-01/JCTsh-remote-temp-sensor-01-phase1.md` (Phases 1–3), `components/remote-temp-sensor-01/remote-temp-sensor-01-claude-code-instructions.md` (Phase 4)
 **Notes:** Started 2026-07-09 as a "replicant" of front-porch-temp-sensor, diverged into a separate component once the location moved from the sheltered porch to full-sun backyard. Phases 1–4 complete. Sensors: BME280 + BH1750 + LTR-390. Power: single swappable EVE 18650 + AEDIKO charger/holder + SUNYIMA solar panel — everything on hand, zero purchases. Firmware: 5-minute wake/publish/deep-sleep cycle (continuous WiFi not viable on this solar panel — ~10x power shortfall). Sensor power gated during sleep via an on-hand BC557B PNP transistor high-side switch (substitutes for a P-FET, same CARD-0027 pattern from hiking-sensor). AEDIKO module's own quiescent current is unmeasured — bench Step 6 of the instructions doc tests it, with a TPL5111 nanopower timer as a contingent (not assumed) mitigation if it's significant. SmartThings/Google Home exposure planned; no LEDs. Deliberately scoped smaller than weather-station (CARD-0011) — no wind/rain/lightning.
@@ -291,7 +311,13 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 
 **One design decision worth flagging:** ESPHome's default MQTT birth topic is `<topic_prefix>/status`, which would have silently collided with this component's existing `.../status` topic (Node-RED → ESP32, drives the LEDs). `birth_message:` is explicitly disabled in the yaml to prevent this — a real footgun for any future component whose topic convention includes `/status`.
 
-**Don't close until:** flashed via USB (must be physically connected — OTA can't push onto a device still running the old Arduino/ArduinoOTA firmware) and field-verified — LED self-test visible, `/data` publishes a real reading, `/status` round-trips correctly and drives the LEDs, `/heartbeat` shows up on the watchdog wildcard. Sensor doesn't need to be connected for the flash itself to succeed, only for verifying the reading pipeline.
+**Field verification (2026-07-10):** USB-flashed and confirmed end to end — LED self-test visible on boot, `/data` publishes a real retained reading, `/status` round-trips correctly from Node-RED and drives the LEDs (`ok` → solid green, confirmed visually), `/log` messages flowing to the dashboard. See CARD-0049 for the follow-on LED pin move (GPIO2/15/4 → GPIO32/33/27), also verified working over OTA.
+
+**Heartbeat confirmed (2026-07-10 13:06 MST):** first natural 30-min heartbeat landed — `Heartbeat - uptime: 0h 30m, RSSI: -50dBm, status: ok`. Watchdog wildcard pickup confirmed.
+
+**Removed the `Status: X -> Y` log line (2026-07-10):** the `on_message` handler used to log every status transition to `.../log`, but review found it added no real value — Node-RED's own `fn_threshold` logging (`[Sensor] Salt: X% (Y cm)`, `CRITICAL — salt at X%...`) already covers the meaningful transitions in plain language, and the ESP32-side log was actively misleading: dashboard history showed `unknown -> offline` / `offline -> ok` entries that never came from Node-RED (confirmed — `offline` doesn't appear anywhere in `salt-sensor.flow.json`). Root cause: a fossil from early migration testing, before `birth_message:` was disabled — ESPHome's default birth/will strings (`online`/`offline`) briefly collided with this same `/status` topic. Not reproducible under current firmware, but the confusion it already caused wasn't worth the code. Removed `prev_status`/`status_changed` globals along with it; `current_status` still drives the LEDs, just silently.
+
+**Don't close until:** the 12h reading cycle fires naturally (on a long timer, not yet observed live — the on-connect immediate-reading logic already exercises the same code path, so this is low-risk, just unconfirmed).
 
 ---
 
@@ -317,27 +343,10 @@ Running concurrently with CARD-0030's backup verification and the tail end of CA
 
 ---
 
-### CARD-0030 · [bug] [photo-server] Re-enable weekly backup cron once Takeout zips are cleared
-**Progress (2026-07-09):** Zips deleted (818GB reclaimed: Momentus 100%→19% used, NVMe root 87%→5% used — see `components/photo-server/backup.md`). Cron re-enabled and confirmed uncommented.
-
-**Verification run failed (2026-07-10):** the manual verification run kicked off 2026-07-09 ran overnight and failed — `rsync error: some files/attrs were not transferred (code 23)` after `No space left on device`. The primary library had grown to 624GB, genuinely too large for Momentus (586GB usable) to ever hold — not a slow-first-run situation as assumed, a real capacity ceiling. See DEVLOG.md 2026-07-10 for the full incident (wrong spare drive connected first, neither spare was actually blank, a jostled connector caused a real hardware I/O failure on Momentus mid-swap — recovered cleanly, no data loss).
-
-**Fix: split backup by account across two drives** (see `components/photo-server/backup.md` for full detail). Deployed a second backup drive (Seagate 1TB, formatted, mounted at `/mnt/photo-library-backup-joseph`) and rewrote `photo-library-backup.sh` to run two filtered `rsync` jobs — Joseph's account to the new drive, Robin's to Momentus.
-
-**Two more rsync flag bugs found and fixed before it actually worked (2026-07-10):** the split jobs initially failed to clean up Momentus at all — plain `--delete` doesn't remove files matched by `--exclude` (a protective rsync default), so Joseph's stale files just sat there across two attempts. Fixed with `--delete-excluded`, plus `--delete-before` to avoid a separate directory-walk-order deadlock. Full detail in `backup.md`.
-
-**Robin's job: confirmed complete and clean** — Momentus dropped from 556G to 207G (matching her ~187GB actual usage) with zero errors.
-
-**Joseph's job: in progress** — was interrupted mid-transfer at 47G while troubleshooting the container bind-mount incident (see below), resumed with the corrected script.
-
-**Don't close until:** Joseph's rsync job completes with exit 0, and `df -h /mnt/photo-library-backup-joseph` shows used space roughly matching his actual usage (~403GB).
-
----
-
 ### CARD-0040 · [enhancement] [photo-server] Dashboard visibility for backup runs
 **Notes:** Following the same pattern as CARD-0036 (reboot notifications), `photo-library-backup.sh` (`components/photo-server/photo-library-backup.sh`, deployed to `/usr/local/bin/`) now publishes MQTT log messages so backup success/failure is visible on the JCTsh log dashboard without SSHing in: `"Backup starting."` before rsync, `"Backup complete."` (category `System`) on success, or `"Backup failed (rsync exit <code>)."` (category `Alert`, non-collapsing) on failure. Uses the existing `photo-server` MQTT account and `mosquitto_pub`, already installed for the reboot-notification work — no new credentials.
 
-**Not yet live-verified** — deployed while the first post-cleanup backup run (started under the old script version) was still in progress, so it hasn't fired for real yet. Don't close until the next run (manual trigger or next Sunday's cron) is confirmed showing both messages on the dashboard, paired with CARD-0030's verification above.
+**Still not live-verified** — CARD-0030's fix cycle (2026-07-10) required running both accounts' rsync jobs manually and in isolation to debug the space/deletion issues, bypassing the full script's MQTT wrapper each time. Both underlying rsync jobs are now confirmed working correctly, but the actual `photo-library-backup.sh` script — start/complete/failed messages included — hasn't run end-to-end since the `--delete-before --delete-excluded` fix. Don't close until a real run through the full script (manual trigger or next Sunday's cron) is confirmed showing both dashboard messages.
 
 ---
 
@@ -346,7 +355,27 @@ Running concurrently with CARD-0030's backup verification and the tail end of CA
 
 ---
 
+### CARD-0049 · [enhancement] [salt-sensor] Move from breadboard to perfboard
+**Progress (2026-07-10):** Follow-on to CARD-0004 (ESPHome migration). Moved all three LEDs off their original breadboard pins onto a perfboard-friendly layout: Red GPIO2→GPIO32, Yellow GPIO15→GPIO33, Green GPIO4→GPIO27 — gets Red/Yellow off strapping pins entirely and lines all three LEDs up on the same header row (left pins 7/8/11) for easier soldering. GPIO25/26 (DAC1/DAC2) were considered since they sit physically between GPIO32/33 and GPIO27, but ruled out — GPIO25 is confirmed broken for digital output in ESPHome/Arduino, GPIO26 avoided as a precaution for the same DAC-reinit reason. Trig (GPIO5) and Echo (GPIO18) unchanged.
+
+Updated `salt-sensor.yaml` (wiring comment + `output:` block), `components/salt-sensor/CLAUDE.md`, and `components/salt-sensor/ESP32-project-pins.md` to match. Physical rewiring done; reflashed over OTA and field-verified — LEDs confirmed matching the `ok` status (green solid, red/yellow off) on the new pins, MQTT `/data` and `/status` reporting normally post-flash.
+
+**Don't close until:** perfboard is actually soldered (current state is rewired breadboard, not yet transferred to perfboard) and the sensor survives a reboot/power-cycle on the new pins without issue.
+
+---
+
 ## Done
+
+### CARD-0030 · [bug] [photo-server] Re-enable weekly backup cron once Takeout zips are cleared
+**Resolution:** Zips deleted 2026-07-09 (818GB reclaimed), cron re-enabled. The manual verification run then failed overnight — `No space left on device` — revealing the primary library (624GB) had genuinely outgrown Momentus (586GB usable), not just a slow first run as assumed.
+
+**Fix: split backup by account across two drives.** Deployed a second backup drive (Seagate 1TB, formatted, mounted at `/mnt/photo-library-backup-joseph`) and rewrote `photo-library-backup.sh` to run two UUID-filtered `rsync` jobs — Joseph's account to the new drive, Robin's to Momentus. Getting this working cleanly took two more rsync flag fixes: `--delete-before` (plain `--delete` defaults to `--delete-during`, which deletes incrementally by directory-walk order — the shared `backups/` dir gets walked before the per-user dirs where the actual space-freeing deletions live, causing a chicken-and-egg failure on an already-full destination) and `--delete-excluded` (none of rsync's `--delete*` variants touch files matched by `--exclude` by default — a protective rsync behavior that meant Joseph's excluded files were never actually being removed from Momentus across two earlier attempts).
+
+**Final verified state (2026-07-10):** both jobs completed with zero errors — Robin's Momentus job dropped from 556G to 207G (matching her ~187GB actual usage), Joseph's new-drive job landed at 420G (matching his ~403GB usage). Full incident writeup in `components/photo-server/backup.md` and `DEVLOG.md`.
+
+**Still open, tracked separately:** CARD-0040 (dashboard visibility not yet verified through a full end-to-end script run — both jobs above were run manually/isolated while debugging) and CARD-0046 (backup drives still have no continuous storage-health monitoring, unlike the primary library).
+
+---
 
 ### CARD-0048 · [bug] [photo-server] Stale Immich container bind mount after drive remounts — "Error loading image" on both accounts
 **Resolution:** Discovered 2026-07-10 when Joseph reported "beaucoup" thumbnail and full-image load failures on his account, then confirmed Robin had the same issue. Initial theory (I/O contention from the actively-running backup rsync) was wrong — killing the backup didn't fix anything. Root cause: the `immich_server` container's bind mount had gone stale after the day's repeated remounting (read-only, I/O errors, primary library's device path changing `sda`→`sdd`). Confirmed via a specific 404ing asset: the file was genuinely present on disk with correct content, ruling out real data loss — the container just had a broken cached view of the mount. The storage-health check (CARD-0032) had actually been correctly alerting on this the whole time (recurring `Input/output error` every 30-minute cycle for 2+ hours) — the miss was diagnostic, not detection; time was spent chasing the wrong theory first.

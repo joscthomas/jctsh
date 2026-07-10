@@ -34,10 +34,12 @@ rsync -av --delete-before --delete-excluded --exclude="lost+found" --exclude="*/
 - **`--delete-before`**, not plain `--delete` (which defaults to `--delete-during`): deletions happen incrementally as rsync walks the tree, in directory-encounter order. `backups/` (shared, not per-user) gets walked before the per-user directories where the actual space-freeing deletions live — on an already-full destination, rsync fails writing a new file in `backups/` before it ever reaches the deletions that would free the space. `--delete-before` does all deletions up front, avoiding that chicken-and-egg deadlock.
 - **`--delete-excluded`**: by default, none of rsync's `--delete*` variants delete files that are being *excluded* via `--exclude` — excluded files are left alone on the destination, a protective default so an exclude rule can't accidentally wipe data. Since the whole point of this filter is to remove the *other* account's already-excluded files from each destination, `--delete-excluded` is required, or the destination silently never gets cleaned up (this is exactly what happened here — Momentus stayed 100% full through two failed attempts before this flag was added).
 
-| Account | Usage (2026-07-09) | Destination | Capacity | Headroom |
+| Account | Usage (2026-07-09) | Destination | Capacity | Backup completed (2026-07-10) |
 |---|---|---|---|---|
-| Joseph | 403.3 GB | `photo-library-backup-joseph` | ~870GB usable | ~467GB |
-| Robin | 186.5 GB | `photo-library-backup` (Momentus) | ~586GB usable | ~400GB |
+| Joseph | 403.3 GB | `photo-library-backup-joseph` | ~870GB usable | 420G, zero errors |
+| Robin | 186.5 GB | `photo-library-backup` (Momentus) | ~586GB usable | 207G, zero errors |
+
+Both jobs verified complete and clean as of 2026-07-10 — see `backlog.md` CARD-0030.
 
 **Why split instead of pooling both drives into one volume:** pooling (e.g. LVM) would add real management complexity without adding redundancy — a failure on either physical drive loses that portion of a pooled volume just the same as it would a standalone drive. Splitting by account keeps both drives simple, independent, and productively used, with Joseph's larger/faster-growing library getting the bigger drive.
 

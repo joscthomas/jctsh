@@ -1,5 +1,18 @@
 # JCTsh DEVLOG
 
+## 2026-07-10 (continued)
+Added a daily Immich update-availability check (CARD-0047), prompted by Joseph noticing an
+update in the web UI and asking how to manage this going forward. Decided against
+auto-updating unattended — this Immich instance has already surfaced real bugs in a single
+patch version this week alone, and the data at stake (family photos) doesn't justify the
+risk. Built the same notify-via-MQTT-dashboard pattern used for reboots (CARD-0036) and
+backups (CARD-0040): a systemd timer checks `/api/server/version` against
+`/api/server/version-check` daily and publishes a dashboard message when they differ, with
+a state file to avoid re-notifying daily about the same pending update. First deploy
+crashed on the state-file write (tried `/etc/jctsh/`, not writable by `jct` — moved to
+`/home/jct/.jctsh/`), fixed and verified live: notified correctly for v3.0.2, then
+correctly stayed silent on a repeat run. Actual updates remain a manual, deliberate step.
+
 ## 2026-07-10
 Backup drive capacity crisis and split-by-account fix. The overnight backup verification
 run (CARD-0030) failed with `No space left on device` — the primary library had grown to

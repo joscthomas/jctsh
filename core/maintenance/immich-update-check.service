@@ -1,0 +1,8 @@
+[Unit]
+Description=Check for available Immich updates and notify JCTsh dashboard
+After=docker.service
+
+[Service]
+Type=oneshot
+User=jct
+ExecStart=/usr/bin/python3 /usr/local/bin/immich-update-check.py

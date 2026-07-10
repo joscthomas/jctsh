@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily check for available Immich updates (JCTsh maintenance)
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+Unit=immich-update-check.service
+
+[Install]
+WantedBy=timers.target

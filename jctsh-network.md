@@ -48,6 +48,7 @@ Consolidated view across all recurring reboot/backup jobs, so a new one can be s
 | M8 scheduled reboot | Weekly, Mon 4:00 AM | M8 (photo-server) | `components/photo-server/operations.md` |
 | M8 backup (rsync) | Weekly, Sun 2:00 AM | M8 (photo-server) | `components/photo-server/backup.md` |
 | M8 heartbeat | Every 30 min | M8 (photo-server) | `components/photo-server/heartbeat.md` |
+| M8 Immich update check | Daily, 6:00 AM | M8 (photo-server) | `components/photo-server/operations.md` |
 | Pi watchdog heartbeat | Hourly | Pi | `CLAUDE.md` |
 
 **KeepConnect's day drifts** — its "every 7 days" timer appears to restart from *any* reset, scheduled or outage-triggered, so Wednesday isn't fixed and could land on a different day later (it had already drifted once before, originally landing on a different day — see `keepconnect.md`). The Pi/M8 reboot stagger (1 hour apart, Mon 3am/4am) is deliberate — the M8's heartbeat publishes to the Pi's MQTT broker, so overlapping the two would produce a false "M8 down" reading. The router reboot isn't coordinated against the others since it's only a brief (~30 sec cut, ~4 min reconnect) network blip that the other jobs tolerate regardless of timing — but if a new recurring job is ever added, check this table first and prefer a time with at least an hour of clearance from anything above.

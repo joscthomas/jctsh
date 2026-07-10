@@ -35,6 +35,34 @@ installing the `mosquitto-clients` apt package (not previously present on the M8
 heartbeat script uses the Python `paho-mqtt` library instead). Verified live 2026-07-08
 via manual `systemctl start reboot-complete.service`.
 
+## Immich Update Check (added 2026-07-10)
+
+| Property | Value |
+|---|---|
+| Managed by | systemd timer (`immich-update-check.timer` → `immich-update-check.service`) |
+| Schedule | Daily, 6:00 AM (`America/Phoenix`) |
+| Action | Compare `/api/server/version` against `/api/server/version-check`; publish an MQTT notice if a newer release is available |
+
+Version-controlled files: `components/photo-server/immich-update-check.py` (deployed to
+`/usr/local/bin/`), `core/maintenance/immich-update-check.service`,
+`core/maintenance/immich-update-check.timer`.
+
+**Deliberately notify-only, not auto-update.** Immich is actively developed and this
+instance has already surfaced real bugs in a single patch version (the CARD-0037/0042/0043
+gaps, the HEIC distortion issue) — auto-applying updates unattended on a library holding
+irreplaceable family photos isn't worth the risk. The actual update (`docker compose pull
+&& docker compose up -d` in `~/immich-app`) stays a deliberate, manual step.
+
+**De-duplicated by design** — a state file (`/home/jct/.jctsh/immich-update-check.state`,
+not `/etc/jctsh/` since that directory isn't writable by the `jct` user and caused the
+first deploy attempt to crash) stores the last-notified version, so the same pending
+update doesn't re-fire every day. It only notifies again if an even newer version becomes
+available after the first notice.
+
+Message published as component `photo-server`, category `System`, e.g. `"Immich update
+available: v3.0.2 (currently running v3.0.1)"`. Verified live 2026-07-10: first run
+notified correctly, second run correctly skipped re-notifying for the same version.
+
 ## Immich Tags Feature (People Tags from Google Photos)
 
 The Tags feature is **disabled by default** in Immich — nothing shows in the sidebar, the

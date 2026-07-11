@@ -1,5 +1,38 @@
 # JCTsh DEVLOG
 
+## 2026-07-10 (continued, part 4)
+Full audit of `photo-server-claude-code-instructions.md` plus `backlog.md`/`setup.md`/
+`migration.md` against actual live state, prompted by "what else is there for
+photo-server?" after the drive-swap saga closed out. Found two cards (CARD-0042, CARD-0043)
+that were left paused mid-fix from 2026-07-09 with explicit "don't close until" conditions —
+checked all of them live against the M8: `thumbnailGeneration` and `metadataExtraction`
+queues both fully drained (0 waiting/active/failed), a fresh 150-asset sample of Robin's
+library showed 0% null-width and 0% broken image thumbnails (matching Joseph's baseline),
+and the specific `IMG_20260625_165423.heic` asset that originally surfaced CARD-0043 now has
+real width/height/orientation and loads correctly. Closed both cards.
+
+One side-finding during the thumbnail re-check: 10 of 150 sampled assets were `.MP.mp4`
+files (Pixel Motion Photo video sidecars) still 404ing on `/thumbnail` — investigated before
+assuming regression, confirmed these are `visibility: hidden` linked video components that
+Immich never serves a thumbnail for directly; the paired still-image asset each one links to
+via `livePhotoVideoId` has its own working thumbnail, which is what actually displays. Normal
+Immich behavior, not a bug.
+
+Also confirmed live: both phones (Joseph's Pixel 10 Pro XL, Robin's Pixel 7) are actively
+syncing new photos as of the last 24 hours — Step 10's "report back once confirmed" had never
+actually been closed out in `setup.md`, just implicitly assumed true. Updated `setup.md` to
+reflect this and to replace its stale "Known Deviation Still Outstanding" note (which still
+described CARD-0030 as pending — it's been resolved since earlier today) with a pointer to
+the current split-backup state. Also noticed CARD-0047's update-check system caught a real
+v3.0.1→v3.0.2 Immich version gap and fired its first live notification today at 13:56 UTC —
+first real-world confirmation that system works end-to-end, not just in testing.
+
+Remaining photo-server backlog after this pass, all deliberately deferred rather than
+outstanding: CARD-0041 (disk capacity growth analysis — waiting for steady-state backup
+cadence), CARD-0028 (optional automated quality scan — waiting on Joseph's interest), and
+CARD-0031 (coachproxyos heartbeat fix — blocked on RV Pi being reachable, not photo-server
+itself). No open, actionable photo-server work remains.
+
 ## 2026-07-10 (continued, part 3)
 Closed out CARD-0040 and CARD-0046, the two remaining loose ends from the day's drive-swap
 saga. CARD-0040: ran the actual `photo-library-backup.sh` script end-to-end (not the manual

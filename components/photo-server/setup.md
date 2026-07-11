@@ -40,6 +40,10 @@ Several things were built that aren't in the original instructions doc at all:
 - **CARD-0037** — found and fixed a large gap where ML processing (face detection/recognition, CLIP smart search, OCR, duplicate detection) had never run on ~11-92% of the library depending on job type, for both accounts
 - **CARD-0039** — a second gap, found by re-running `immich-go` for real against the retained Takeout zips: 3,433 assets were genuinely missing from Immich entirely, not just missing ML processing
 
-## Known Deviation Still Outstanding
+## Step 10 — Mobile Sync: Confirmed Working (2026-07-10)
 
-**CARD-0030** (re-enable the weekly backup cron) is still pending — the backup drive (Momentus) is at 100% capacity, full of retained Takeout zips rather than real backup data. See `backup.md` for current status and the exact cleanup steps.
+Both phones are actively syncing. Most recent assets checked directly via the API: Joseph's Pixel 10 Pro XL uploaded a photo at 2026-07-09 21:24 (taken 2026-07-09 02:08); Robin's Pixel 7 uploaded photos as recently as 2026-07-10 00:31. No outstanding action here.
+
+## CARD-0030 — Resolved (2026-07-10)
+
+The single-drive backup design in the original instructions (Momentus 640GB mirroring the full 1TB primary) turned out to be undersized once the library grew past ~624GB. Replaced with a split-by-account architecture across two drives — see `backup.md` for the full incident and final verified state (Joseph 420G, Robin 207G, zero errors, weekly cron active).

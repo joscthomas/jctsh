@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import json, os, subprocess, sys
+import json, os, shutil, subprocess, sys, time
 import paho.mqtt.client as mqtt
 
 BROKER    = "192.168.1.117"
@@ -20,6 +20,18 @@ BACKUP_MOUNTS = {
     "backup-robin":  "/mnt/photo-library-backup",
     "backup-joseph": "/mnt/photo-library-backup-joseph",
 }
+
+# CARD-0051: all three mounts, checked for capacity in addition to the read/write
+# checks above — read/write only confirms a mount is *working*, not how full it is.
+CAPACITY_MOUNTS = {"primary": "/mnt/photo-library", **BACKUP_MOUNTS}
+CAPACITY_THRESHOLD_PCT = 90
+
+# CARD-0051: photo-library-backup.sh touches this only on a fully-successful run
+# (both rsync jobs exit 0) — its per-run success/failure report (CARD-0040) doesn't
+# cover the run simply never happening (cron broken, script missing, host down over
+# the scheduled window). 9 days = one missed weekly Sunday 2am run + 2-day grace.
+BACKUP_STAMP = "/home/jct/photo-library-backup-success.stamp"
+BACKUP_STALE_DAYS = 9
 
 env = {}
 with open("/etc/jctsh/heartbeat.env") as f:
@@ -80,6 +92,28 @@ for label, mount in BACKUP_MOUNTS.items():
         os.remove(marker)
     except Exception as e:
         unhealthy.append(f"{label}:{str(e)[:200]}")
+
+# CARD-0051: capacity check, separate from the read/write checks above — a mount can
+# be perfectly writable right up until the moment it's actually full.
+for label, mount in CAPACITY_MOUNTS.items():
+    try:
+        usage = shutil.disk_usage(mount)
+        pct_used = usage.used / usage.total * 100
+        if pct_used >= CAPACITY_THRESHOLD_PCT:
+            unhealthy.append(f"{label}-capacity:{pct_used:.0f}% used")
+    except Exception as e:
+        unhealthy.append(f"{label}-capacity:error({e})")
+
+# CARD-0051: backup staleness — absence of a recent successful run, not covered by
+# photo-library-backup.sh's own per-run success/failure report (CARD-0040).
+try:
+    age_days = (time.time() - os.path.getmtime(BACKUP_STAMP)) / 86400
+    if age_days >= BACKUP_STALE_DAYS:
+        unhealthy.append(f"backup:stale ({age_days:.1f}d since last success)")
+except FileNotFoundError:
+    unhealthy.append("backup:stale (no successful run recorded)")
+except Exception as e:
+    unhealthy.append(f"backup:error({e})")
 
 if unhealthy:
     status = "degraded"

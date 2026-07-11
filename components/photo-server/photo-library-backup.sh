@@ -50,6 +50,10 @@ rsync -av --delete-before --delete-excluded \
 RC_ROBIN=$?
 
 if [ $RC_JOSEPH -eq 0 ] && [ $RC_ROBIN -eq 0 ]; then
+  # CARD-0051: heartbeat watches this marker's age to catch the backup simply never
+  # running at all (cron broken, script missing) — a gap the success/failure MQTT
+  # message above can't cover, since it only fires when the script actually runs.
+  touch /home/jct/photo-library-backup-success.stamp
   mosquitto_pub -h "$MQTT_HOST" -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" -t "$LOG_TOPIC" \
     -m '{"component":"photo-server","category":"System","message":"Backup complete."}'
 else

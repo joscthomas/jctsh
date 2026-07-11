@@ -291,15 +291,24 @@ The solar panel input uses a JST connector and wire that exit through a simple r
 | Final print | ASA preferred; PETG fallback | Tucson outdoor use: ASA has superior UV and heat resistance; PETG is adequate if ASA is unavailable at Xerocraft |
 | Color | White or light gray | Minimizes solar gain on enclosure body in Tucson heat |
 
-**Xerocraft printer assignment:**
-- Bambu A1 Mini — PLA test prints
-- Centauri Carbon — ASA final prints (enclosed chamber required for ASA)
-- Check with Xerocraft staff for current filament availability before scheduling
+**Xerocraft printers available (confirmed 2026-07-09):**
 
-**Why this pairing, not the reverse:**
-- PLA has low shrinkage and isn't sensitive to cooling drafts — it actually prints *better* with active cooling, which an open-frame printer (the A1 Mini) provides more easily than an enclosed one. Since Session 1 only checks fit, not durability, there's no reason to use anything but the fastest, most available printer — and iteration is expected (one or two reprints of a problem shell is normal), so a quick-to-queue open-frame machine keeps each cycle short.
-- ASA (like ABS) needs an enclosed, heated chamber to print reliably. Without one, the temperature gradient between the hot extruded plastic and open room air causes uneven cooling — leading to warping, corner lift off the bed, or layer cracking/delamination. ASA also wants a hot bed (~100°C) that an enclosure helps hold evenly around the whole part. The A1 Mini physically can't print ASA reliably; only the Centauri Carbon has the enclosure for it. Enclosure also helps contain ASA's fumes (similar to ABS) — relevant in a shared makerspace.
-- Net effect: cheap, fast, disposable iteration on the A1 Mini until fit is confirmed, then one committed final print on the Centauri Carbon in the material that'll actually survive Tucson sun and heat on the trail.
+| Printer | Max build volume | Assignment |
+|---|---|---|
+| ~~BambuLabs A1 Mini~~ | ~~180 × 180 × 180mm~~ | **No longer at Xerocraft** — retired, replaced by the Elegoo Centauri Carbon |
+| Elegoo Centauri Carbon | 256 × 256 × 256mm | **Both sessions** — PLA test print (Session 1) and ASA final print (Session 2); enclosed chamber required for ASA, and enclosed printers handle PLA fine too |
+| Elegoo Neptune 3 Pro | 235 × 235 × 250mm | Not assigned — backup for Session 1 (PLA) if the Centauri Carbon is unavailable; confirm with staff whether it has an enclosure before considering it for ASA |
+| Elegoo Neptune 4 Plus | 320 × 320 × 385mm | Not assigned — backup for Session 1 (PLA) if the Centauri Carbon is unavailable; confirm with staff whether it has an enclosure before considering it for ASA |
+| Artillery Sidewinder X1 | 300 × 300 × 400mm | Not assigned — open-frame, PLA-suitable backup for Session 1 if the Centauri Carbon is unavailable |
+
+All enclosure parts (largest shell 70 × 90 × 36mm) fit comfortably within any of these build volumes, so build volume isn't a factor in the printer choice — the ASA/enclosure requirement is what actually narrows Session 2 to the Centauri Carbon (see reasoning below).
+
+Check with Xerocraft staff for current filament availability before scheduling.
+
+**Why the Centauri Carbon works for both sessions:**
+- PLA has low shrinkage and isn't sensitive to cooling drafts — an enclosed chamber doesn't hurt it, it's just unnecessary for PLA. Session 1 only checks fit, not durability, so there's no material reason to avoid the Centauri Carbon for the PLA print now that the A1 Mini is gone.
+- ASA (like ABS) needs an enclosed, heated chamber to print reliably. Without one, the temperature gradient between the hot extruded plastic and open room air causes uneven cooling — leading to warping, corner lift off the bed, or layer cracking/delamination. ASA also wants a hot bed (~100°C) that an enclosure helps hold evenly around the whole part. Enclosure also helps contain ASA's fumes (similar to ABS) — relevant in a shared makerspace.
+- Net effect: same machine both sessions now, just different filament/slicer settings per session — PLA settings for the disposable fit-check iteration, ASA settings for the one committed final print in the material that'll actually survive Tucson sun and heat on the trail. If the Centauri Carbon is booked up, the Neptune 3 Pro/4 Plus or Sidewinder X1 remain viable PLA-only backups for Session 1 (not for ASA, unless staff confirm one has an enclosure).
 
 ---
 
@@ -345,6 +354,19 @@ This is Joseph's first enclosure design. The strategy prioritizes learning over 
 ## 12. Print Strategy — Two Sessions at Xerocraft
 
 ### Session 1 — PLA Test Fit
+
+**What to bring:**
+- **Material: PLA** for this session (prototype/fit-check only) — ASA is reserved for Session 2's final print, do not use it here
+- The 3 STL files (`bottom-shell-final.stl`, `top-shell-final.stl`, `vent-insert-final.stl`) — note these need to be *sliced into G-code* first; confirm with Xerocraft staff whether a shop computer has the Elegoo slicer for the Centauri Carbon already set up, or bring a laptop with it installed and pre-slice at home
+- A USB flash drive to transfer the sliced file to the printer (more reliable than relying on WiFi transfer as a guest)
+- PLA filament, white or light gray (minimizes solar gain) — bring your own as backup in case Xerocraft doesn't have that color in stock
+- 4x M3 screws — not required for this session, but useful to verify the corner boss holes actually align once both shells are printed
+- A carabiner and some paracord — to test-fit the bail
+- The actual velcro strap material you plan to use — to test-fit the 4 slots
+- Digital calipers — to check the vent insert's actual printed interference fit before forcing it into the cutout
+- Confirm ahead of time: Xerocraft membership/day-pass status and whether a safety/printer orientation is required, especially since the printer lineup changed recently (A1 Mini retired, moved to Centauri Carbon)
+
+**Print and check:**
 - Print both shells and the vent insert in PLA
 - Do not glue or assemble permanently
 - Check: does the main perfboard drop in cleanly? Do USB ports align with slots? Does the USB-C adapter fit within the top shell cavity and align with the wall slot? Does the display sit flush in its landscape aperture? Does the vent insert press in without force? Does the LTR-390 aperture land above the sensor? Does the switch slot align with the switch? Do the velcro strap slots accept your strap and space correctly along the 70mm width? Does the carabiner bail accept your carabiner? Does the solar JST connector pass through its hole cleanly?

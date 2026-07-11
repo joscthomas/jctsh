@@ -88,6 +88,6 @@ Separate from board state, but adjacent to it. The **card**, not any git mechani
 | **File creation/modification** | The result of working a card — a card's work produces some set of created or modified files on disk |
 | **Commit** | Taking that file set (the card's work product) and recording it into local `.git` history. Not strictly before or after Done — the commit is the action that *enacts* the Build → Done transition. It requires Build's criteria (implementation, verification, reflection) to be satisfied first, and typically includes the `kanban-board.md` edit moving the card to Done with its Resolution note in the same atomic commit |
 | **Commit note** | Ties back to the card that defines the work, so history reads as "which card produced this snapshot," not just a list of file diffs |
-| **Push** | Shipping a release of the whole system, not finishing a card — release-level, not per-commit or per-card; multiple committed, Done cards can sit local and get batched into one push |
+| **Push** | A backup checkpoint, not a release — nothing deploys from `origin/main` itself (devices/servers are updated via their own explicit step: scp, OTA, a deploy script, verified live before the commit that represents it), so a push just copies already-verified history to the remote. Default to pushing readily rather than batching for release-shaped reasons |
 
 See the user's global Claude Code preferences for the full card/commit/push workflow this operating system runs inside of.

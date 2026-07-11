@@ -1,14 +1,14 @@
 # JCT Smart Home (JCTsh) Component Planning Pattern
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the five-phase process for planning and building JCTsh smart home components, from discovery through execution.
-**Version:** 2.3
-**Version description:** Added `JCTsh-Property-Sensor-Pattern.md` as a conditional Phase 1 load file for any property sensor build (fixed, mobile, battery, solar, or USB-powered environmental sensor). It owns the invariant standard, variable dimension decision table, and new-sensor checklist — load it alongside `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` when building any sensor in the property sensor family.
+**Version:** 2.4
+**Version description:** Realigned with `JCTsh-Operating-System.md`: Phases 1–5 now all happen in Claude Code, not Claude chat. Chat is limited to informal, pre-card preliminary thinking and research that produces no planning documents — once there's a decision to build something, the transition is to Claude Code, where a card is created (Backlog) and Phases 1–5 proceed from there in one continuous tool.
 
 ---
 
 ## Core Principle
 
-Use Claude chat for **thinking, researching, and planning**. Use Claude Code for **implementation, documentation, and execution**. The two work in sequence, not in parallel — the chat session produces the blueprint that Claude Code builds from.
+Preliminary thinking happens in Claude chat, informally — feasibility questions, initial ideas, whether to build something at all. This stage produces no planning documents. Once that thinking is done and there's a decision to build, move to Claude Code: create a card (per `JCTsh-Operating-System.md`) and work Phases 1–5 there, start to finish. Chat doesn't re-enter the process once the card exists — research, planning, design, and execution all happen in the same continuous Claude Code session (or a resumed one), not split across tools.
 
 ---
 
@@ -33,7 +33,7 @@ Phase 1 is about feasibility and approach. Only two files are needed: the planni
 
 If a prior component's Phase 1 planning document exists and is relevant (e.g., hiking monitor as reference for van sensor suite), load it as well. It carries architectural decisions and context that would otherwise have to be reconstructed.
 
-Claude may begin Phase 1 discussion as soon as these files are confirmed received.
+Claude Code may begin Phase 1 discussion as soon as these files are read.
 
 ### Phase 2 — Load before beginning Phase 2 hardware discussion
 
@@ -59,7 +59,7 @@ Phase 2 is about hardware selection and integration design. These files are need
 
 ### How to load files
 
-Paste file contents directly into the chat, or use the file upload feature. State which file each paste represents. Claude will confirm receipt before proceeding.
+Claude Code reads files directly from the repo via its file-read tools — no pasting or uploading needed. "Loaded" means read when needed, not read all at once; the phased structure above still governs *when* each file gets read, to keep context focused on what the current phase actually requires.
 
 ---
 
@@ -172,24 +172,24 @@ Each step follows this pattern:
 
 ## Phase 5 — Execution in Claude Code
 
-Hand off to Claude Code with the full instruction set and execute step by step.
+Continue in the same Claude Code session (or a resumed one) with the full instruction set from Phase 4 and execute step by step.
 
 ### What happens in this phase
 - **Step 0 — Read Build Standards first.** Before writing any code, config, or documentation, Claude Code reads `JCTsh-Build-Standards.md` in full and identifies every section relevant to the anticipated technologies for this build (ESPHome YAML, Node-RED flows, MQTT conventions, LED wiring, enclosures, SmartThings integration, etc.). Claude Code states explicitly which standards apply and confirms it will follow them before any build work begins.
 - Claude Code works through the instructions sequentially
 - Joseph performs physical and configuration work guided by Claude Code's documents
 - Results feed back into the documentation in real time
-- Unexpected issues come back to the Claude chat session if they need deeper research
+- Unexpected issues get researched and diagnosed in the same Claude Code session
 - **Final step — Harvest new patterns.** After the build is confirmed complete, Claude Code reviews the completed implementation for coding patterns, configuration decisions, or integration approaches that are not yet captured in `JCTsh-Build-Standards.md`. Claude Code proposes specific additions or updates to the standards document. Joseph reviews and approves before any changes are written.
 
 ### The feedback loop
-If something doesn't work as expected during execution, bring it back to the Claude chat session for research and diagnosis, then take the solution back to Claude Code for documentation and continuation. The chat session remains available as a research resource throughout the build.
+If something doesn't work as expected during execution, research and diagnose it in the same Claude Code session — it has the tools (web search, file access, live system access) to do both research and continuation without switching tools. Chat is not re-entered once the card exists in Backlog.
 
 ---
 
 ## What Makes This Pattern Work
 
-**Separation of concerns.** Chat is for thinking. Code is for building. Mixing them produces confusion.
+**Separation of concerns.** Chat is for informal, pre-card thinking — whether to build something at all. Claude Code is for everything once that decision is made: researching, planning, designing, and building, in the same continuous process. The boundary is the card's creation, not a tool switch partway through Phases 1–5.
 
 **Research before purchase.** Every hardware decision is made with full compatibility context. No buying something only to discover it doesn't work with something else.
 
@@ -225,11 +225,11 @@ If something doesn't work as expected during execution, bring it back to the Cla
 
 ## Template for Starting a New Component
 
-When beginning a new JCTsh component project, open a Claude chat session and start with:
+Preliminary thinking can start in a Claude chat session, informally:
 
 > *"I want to add a [component name] to JCTsh. Here's what I'm trying to accomplish: [goal in plain language]. Here's what I already have that's relevant: [existing infrastructure]. I don't know yet whether [specific uncertainty]. Let's start by figuring out whether this is feasible and what the right approach is."*
 
-Then work through Phases 1–4 before touching Claude Code.
+Once that preliminary thinking produces a real decision to build something, move to Claude Code: create a card capturing the thinking so far, place it in Backlog, and work through Phases 1–5 there — start to finish, in the same tool.
 
 ---
 
@@ -369,11 +369,14 @@ Write approved additions and updates to `JCTsh-Build-Standards.md`. Bump the ver
 
 | Phase | Where | Purpose |
 |---|---|---|
-| 1 — Discovery | Claude chat | Establish feasibility and understand the technology |
-| 2 — Hardware | Claude chat | Select and confirm all physical components |
-| 3 — Architecture | Claude chat | Design integration with existing JCTsh ecosystem |
-| 4 — Instructions | Claude chat | Produce the Claude Code instruction set |
+| 0 — Preliminary thinking | Claude chat (informal, no card yet) | Decide whether to build something at all |
+| 1 — Discovery | Claude Code | Establish feasibility and understand the technology |
+| 2 — Hardware | Claude Code | Select and confirm all physical components |
+| 3 — Architecture | Claude Code | Design integration with existing JCTsh ecosystem |
+| 4 — Instructions | Claude Code | Produce the Claude Code instruction set |
 | 5 — Execution | Claude Code | Build, document, and test with real-world feedback |
+
+Phase 0 has no card and produces no planning documents — see `JCTsh-Operating-System.md`'s "Where Work Happens" section. A card is created in Backlog once Phase 0 ends with a decision to build, and Phases 1–5 proceed from there entirely in Claude Code.
 
 ---
 

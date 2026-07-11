@@ -92,7 +92,7 @@ jctsh/
 ├── components/                    Individual automation components — one subdirectory each
 ├── core/                          Shared infrastructure running on the Raspberry Pi
 ├── CLAUDE.md                      Claude Code context — architecture, conventions, infrastructure
-├── backlog.md                     Project kanban — Backlog / Planning / Design / Build / Done
+├── kanban-board.md                Project kanban — Backlog / Planning / Design / Build / Done
 ├── DEVLOG.md                      Chronological record of decisions and incidents
 ├── ENVIRONMENT.md                 Physical device inventory for the home
 ├── SOFTWARE-ENVIRONMENT.md        What is installed and running on the Pi
@@ -138,7 +138,7 @@ Shared infrastructure not specific to any one component.
 |---|---|---|
 | `README.md` | What a component does, how to run it, doc index | Every component directory |
 | `CLAUDE.md` | Context and constraints for Claude Code sessions | Repo root + component directories |
-| `backlog.md` | Kanban board — all planned and in-progress work | Repo root |
+| `kanban-board.md` | Kanban board — all planned and in-progress work | Repo root |
 | `DEVLOG.md` | Why decisions were made; significant incidents | Repo root |
 | `*-phase1.md` / `*-planning.md` | Pre-build discovery — decisions, BOM, architecture choices | Component directory |
 | `*-claude-code-instructions.md` | Step-by-step build instructions executed with Claude Code | Component directory |

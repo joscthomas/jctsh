@@ -88,7 +88,7 @@ esp32:
 # this actually manifests in practice; no failure observed in field use (CARD-0008).
 # Low priority: upload/home mode requires USB dock power to stay awake, so a stuck
 # reconnect attempt would not drain battery, just require a physical USB reflash to
-# recover. See CARD-0045 in backlog.md before changing this block.
+# recover. See CARD-0045 in kanban-board.md before changing this block.
 wifi:
   networks:
     - ssid: !secret wifi_ssid

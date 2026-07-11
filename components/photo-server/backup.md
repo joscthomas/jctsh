@@ -39,7 +39,7 @@ rsync -av --delete-before --delete-excluded --exclude="lost+found" --exclude="*/
 | Joseph | 403.3 GB | `photo-library-backup-joseph` | ~870GB usable | 420G, zero errors |
 | Robin | 186.5 GB | `photo-library-backup` (Momentus) | ~586GB usable | 207G, zero errors |
 
-Both jobs verified complete and clean as of 2026-07-10 — see `backlog.md` CARD-0030.
+Both jobs verified complete and clean as of 2026-07-10 — see `kanban-board.md` CARD-0030.
 
 **Why split instead of pooling both drives into one volume:** pooling (e.g. LVM) would add real management complexity without adding redundancy — a failure on either physical drive loses that portion of a pooled volume just the same as it would a standalone drive. Splitting by account keeps both drives simple, independent, and productively used, with Joseph's larger/faster-growing library getting the bigger drive.
 
@@ -62,7 +62,7 @@ The backup script publishes MQTT log messages so success/failure is visible on t
 - On success (both jobs exit 0): `"Backup complete."` (category `System`)
 - On failure (either job fails): `"Backup failed (joseph exit <code>, robin exit <code>)."` (category `Alert`, non-collapsing)
 
-Uses the existing `photo-server` MQTT account (`/etc/jctsh/heartbeat.env`) and `mosquitto_pub`. **Still not yet live-verified end-to-end** — see CARD-0040 in `backlog.md`.
+Uses the existing `photo-server` MQTT account (`/etc/jctsh/heartbeat.env`) and `mosquitto_pub`. **Still not yet live-verified end-to-end** — see CARD-0040 in `kanban-board.md`.
 
 **Known gap (CARD-0046):** this notification only fires when the backup script itself runs (scheduled or manual) — it doesn't catch a backup drive failing *between* runs, the way CARD-0032's continuous 30-minute heartbeat check does for the primary library. See CARD-0046 for the proposed fix.
 
@@ -84,4 +84,4 @@ Also check the JCTsh log dashboard (`http://raspberrypi.local/`) for the `photo-
 
 ## Related
 
-See `jctsh-network.md`'s **Scheduled Maintenance Windows** table for how this job's timing relates to the M8's own weekly reboot and other recurring jobs across the network. See `backlog.md` CARD-0030 (original cron re-enable), CARD-0040 (dashboard visibility, still pending live verification), and CARD-0046 (backup-drive health check gap).
+See `jctsh-network.md`'s **Scheduled Maintenance Windows** table for how this job's timing relates to the M8's own weekly reboot and other recurring jobs across the network. See `kanban-board.md` CARD-0030 (original cron re-enable), CARD-0040 (dashboard visibility, still pending live verification), and CARD-0046 (backup-drive health check gap).

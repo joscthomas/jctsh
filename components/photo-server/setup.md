@@ -13,7 +13,7 @@ Followed the instructions doc closely. Key as-built values (see `network.md` for
 
 ## Step 11 — Quality Pass: Skipped by Decision
 
-The planned manual pre-import quality pass (moving blurry/duplicate/screenshot candidates to an `_archive` folder) was **not done**. Decision made 2026-07-04: rely entirely on Immich's built-in CLIP-based duplicate detection plus an ongoing "mark favorites" habit instead of a one-time manual review. See `migration.md` and `backlog.md` CARD-0028 (optional automated quality scan, not started).
+The planned manual pre-import quality pass (moving blurry/duplicate/screenshot candidates to an `_archive` folder) was **not done**. Decision made 2026-07-04: rely entirely on Immich's built-in CLIP-based duplicate detection plus an ongoing "mark favorites" habit instead of a one-time manual review. See `migration.md` and `kanban-board.md` CARD-0028 (optional automated quality scan, not started).
 
 ## Step 12 — Migration: Far From Clean
 

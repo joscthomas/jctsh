@@ -290,4 +290,4 @@ Pins to avoid:
 
 ## Backlog
 
-See `backlog.md` (repo root) — lightweight kanban with all cards (Backlog → Planning → Design → Build → Done).
+See `kanban-board.md` (repo root) — lightweight kanban with all cards (Backlog → Planning → Design → Build → Done).

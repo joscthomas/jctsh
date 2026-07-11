@@ -77,7 +77,7 @@ had already identified/tagged in the original account, carried over via `immich-
 single label, no children).
 
 **Important: these tags are a separate system from Immich's own ML face-recognition Person
-clusters** (`faceDetection`/`facialRecognition`, see CARD-0037 in `backlog.md`). Tagging
+clusters** (`faceDetection`/`facialRecognition`, see CARD-0037 in `kanban-board.md`). Tagging
 `People/<name>` here does not automatically name or link to the corresponding ML cluster —
 they don't talk to each other. Tags are static labels carried over from Google's own
 historical face-tagging (instant, already complete, searchable by tag once the feature is

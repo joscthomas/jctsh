@@ -15,7 +15,7 @@
 
 ## Core Principle
 
-All work has a card on the kanban board (`backlog.md`). The board is the durable, scannable record of what the team is doing, has done, and has decided not to do — not DEVLOG entries or component docs alone, which capture detail but aren't structured for at-a-glance status.
+All work has a card on the kanban board (`kanban-board.md`). The board is the durable, scannable record of what the team is doing, has done, and has decided not to do — not DEVLOG entries or component docs alone, which capture detail but aren't structured for at-a-glance status.
 
 If files start changing for something not already covered by an open card, a card should exist before or while that work proceeds — or a deliberate decision gets made not to open one. Work doesn't happen off the board silently.
 
@@ -67,13 +67,13 @@ Each transition has a **trigger** — the concrete thing (an artifact existing, 
 
 ## Observed Exception: Skipping Design
 
-In practice, several cards move directly from Planning to Build, skipping Design as a distinct column. This happens when Planning (in Claude Code, per `JCTsh-Component-Planning-Pattern.md`) already produces an approved execution plan or Claude Code instructions as part of Planning itself — at that point the Design → Build trigger's criteria are already satisfied, so the card just starts in Build rather than sitting in an empty Design column for form's sake. `backlog.md` notes this explicitly on cards where it happened (e.g. CARD-0003, CARD-0034) rather than silently skipping the column.
+In practice, several cards move directly from Planning to Build, skipping Design as a distinct column. This happens when Planning (in Claude Code, per `JCTsh-Component-Planning-Pattern.md`) already produces an approved execution plan or Claude Code instructions as part of Planning itself — at that point the Design → Build trigger's criteria are already satisfied, so the card just starts in Build rather than sitting in an empty Design column for form's sake. `kanban-board.md` notes this explicitly on cards where it happened (e.g. CARD-0003, CARD-0034) rather than silently skipping the column.
 
 ---
 
 ## Applying TOS to Pre-Existing Work
 
-TOS did not exist when most of the cards currently in `backlog.md` were worked. Older cards that don't cleanly match a single column — e.g. a card whose Design deliverable (Claude Code instructions) is already complete while it still sits in Planning — aren't inconsistencies to fix. They're history that predates the process which would have produced a cleaner state. This is process improvement, not a correction owed to past work.
+TOS did not exist when most of the cards currently in `kanban-board.md` were worked. Older cards that don't cleanly match a single column — e.g. a card whose Design deliverable (Claude Code instructions) is already complete while it still sits in Planning — aren't inconsistencies to fix. They're history that predates the process which would have produced a cleaner state. This is process improvement, not a correction owed to past work.
 
 Reconciling any specific older or in-flight card against TOS — moving it to the column it actually belongs in, retroactively producing a missing artifact — is a **per-card judgment call** based on whether doing so adds real value, not a blanket retroactive mandate to sweep the whole board into compliance.
 
@@ -86,7 +86,7 @@ Separate from board state, but adjacent to it. The **card**, not any git mechani
 | Concept | What it is |
 |---|---|
 | **File creation/modification** | The result of working a card — a card's work produces some set of created or modified files on disk |
-| **Commit** | Taking that file set (the card's work product) and recording it into local `.git` history. Not strictly before or after Done — the commit is the action that *enacts* the Build → Done transition. It requires Build's criteria (implementation, verification, reflection) to be satisfied first, and typically includes the `backlog.md` edit moving the card to Done with its Resolution note in the same atomic commit |
+| **Commit** | Taking that file set (the card's work product) and recording it into local `.git` history. Not strictly before or after Done — the commit is the action that *enacts* the Build → Done transition. It requires Build's criteria (implementation, verification, reflection) to be satisfied first, and typically includes the `kanban-board.md` edit moving the card to Done with its Resolution note in the same atomic commit |
 | **Commit note** | Ties back to the card that defines the work, so history reads as "which card produced this snapshot," not just a list of file diffs |
 | **Push** | Shipping a release of the whole system, not finishing a card — release-level, not per-commit or per-card; multiple committed, Done cards can sit local and get batched into one push |
 

@@ -16,6 +16,23 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0057 · [enhancement] [kanban-board] Serve the kanban board as a live-parsing Pi page
+**Notes:** Raised 2026-07-11. The manual regenerate-after-edit discipline agreed to when closing CARD-0056 is already slipping — updates to `kanban-board.md` aren't reliably followed by a republish. That's exactly the condition CARD-0056 named as the trigger to revisit this alternative, and it's now been hit. There's a second, measured cost beyond just forgetting: a regenerate cycle means re-reading the full ~600-line file (multiple large reads once the board grows) plus manually cross-checking it against the embedded JSON, which alone runs over 20k tokens — expensive as well as easy to skip.
+
+**Capturing the idea for now, not starting it** — Backlog, not Planning. Goal when it is picked up: move the board off the artifact-regenerate workflow and onto a page the Pi serves directly from the current file, so there's no "someone has to remember to ask" step and no per-update token cost at all.
+
+**Approach (sketched during CARD-0056's discussion, not yet built):**
+- New route on the Pi's existing `log_server.py` (e.g. `/kanban`), alongside the existing `/status` endpoint — reuses the running process/port rather than standing up anything new.
+- A small regex-based parser matching `kanban-board.md`'s consistent card format (`### CARD-XXXX · [type] [tag] Title`, `**Notes:**`/`**Resolution:**`/`**Blocked:**` blocks, `## ColumnName` section headers) into the same card-object structure the artifact's JSON currently holds.
+- Serve either full server-rendered HTML (reusing the existing blueprint-styled CSS) or a JSON endpoint the current client-side JS/CSS fetches instead of reading a baked-in `<script type="application/json">` block — the JSON route is less rework since the front end barely changes.
+- Reachable on the LAN and via Tailscale, matching how `/status` is already scoped — no internet exposure needed.
+
+**Open gap to resolve during planning:** the Pi doesn't have a git clone of this repo — deploys there are one-off `scp` (`SOFTWARE-ENVIRONMENT.md`). Live-parsing only helps once the file being parsed is actually current, so `kanban-board.md` still needs to reach the Pi somehow. Likely answer: fold an `scp` of the file into whatever step already edits `kanban-board.md`, matching the existing `scp core/logging/log_server.py pi@raspberrypi.local:...` deploy pattern — no cron/polling, just a second action alongside the edit. Needs to be settled in Planning before Design.
+
+**Relationship to CARD-0056:** CARD-0056 built and closed the claude.ai Artifact version, explicitly deferring this Pi-hosted alternative and naming "manual regeneration turns out to be too easy to forget" as the specific revisit trigger. That trigger has now occurred.
+
+---
+
 ### CARD-0055 · [bug] [garage-presence] Reconcile garage-radar/SmartThings light control — lights sometimes don't turn on
 **Notes:** Joseph reports lights sometimes don't come on when entering the garage. Found during a components-vs-backlog reconciliation pass (2026-07-11): the repo fully documents the "presence off" SmartThings routine (closes door, turns off lights — `garage-presence/CLAUDE.md`) but has **no documentation anywhere of the "presence on" routine** presumably responsible for turning lights on when `switch.garage_presence_vswitch` turns on. `garage-radar/README.md` and `garage-presence/README.md` both reference "lights on" only as an outcome label on the vswitch, never as a documented ST routine with its own trigger/conditions — it exists only inside the SmartThings app, unaudited.
 

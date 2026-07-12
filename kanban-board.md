@@ -16,6 +16,19 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0059 · [idea] [infrastructure] NetAlertX — self-hosted LAN device tracker with custom naming
+**Notes:** Raised 2026-07-12. Motivated by the router (TP-Link Archer AXE75) listing most connected devices with meaningless names, with no built-in way to rename them — the JCTsh-managed fleet already has this solved via DHCP reservations + `jctsh-network.md`'s device table + ESPHome hostnames, but third-party/commercial devices (Ring, Ecobee, Cast devices, guest phones) aren't part of that convention and the router won't let their names be overridden.
+
+**What it is:** NetAlertX (formerly Pi.Alert) — open-source, self-hosted LAN device scanner and presence tracker. Maintains its own device database independent of the router, so naming lives there regardless of what the router shows.
+
+**How it works:** periodic ARP scanning (plus optional plugins — mDNS, SNMP against the router, DHCP lease-file parsing, nmap) discovers devices; each MAC gets a persistent record (first-seen, last-seen, IP history, OUI-based vendor guess) in its own SQLite DB. A web dashboard lets you assign a friendly name/icon/group to each MAC once, permanently — independent of router support. Also flags brand-new unknown devices joining the network (security-relevant) and always-on devices going silent, with notifications via MQTT, webhooks, email, Pushover/Telegram/ntfy/Apprise.
+
+**Why it fits here:** the MQTT publish capability could feed the existing `jctsh/` topic pattern and show up on the current log dashboard, rather than needing a separate place to check it — same integration shape as every other JCTsh component.
+
+**Deployment:** runs as a Docker container, typically host-network mode (needs to see raw ARP traffic), DB on a mounted volume. Candidate hosts: the Pi (native fit — the original Pi.Alert project was a classic Raspberry Pi project, and the Pi already sees all LAN traffic) or the M8 (already has established Docker/docker-compose patterns per `JCTsh-Build-Standards.md` §9, though photo-server's Docker usage there is less about LAN-level visibility). Which host, and how deep to wire the MQTT/dashboard integration vs. just using its own web UI standalone, are open questions for Planning.
+
+---
+
 ### CARD-0058 · [idea] [presence] BLE room-detection for the Pixel 7 via Bermuda
 **Notes:** Raised 2026-07-12. Goal: know which room the Pixel 7 is in (`sensor.pixel7_room` in HA) using BLE signal strength from ESPHome nodes already deployed around the house — no new hardware, no dedicated firmware.
 

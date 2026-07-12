@@ -3,10 +3,15 @@ secrets.h
 secrets.yaml
 credentials.local.md
 
-# Arduino build artifacts 
-build/ 
-*.bin 
-*.elf 
+# Arduino build artifacts
+build/
+*.bin
+*.elf
+
+# Python build artifacts
+__pycache__/
+*.pyc
+
 # OS files
 .DS_Store
 Thumbs.db

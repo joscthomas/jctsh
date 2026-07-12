@@ -13,6 +13,8 @@ import re
 import signal
 import threading
 import time
+import urllib.error
+import urllib.request
 from collections import deque
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -39,6 +41,7 @@ LOG_DIR     = "/home/pi/jctsh/logs"
 LOG_FILE    = os.path.join(LOG_DIR, "jctsh.log")
 STATE_FILE  = os.path.join(LOG_DIR, "state.json")
 MAX_ENTRIES = 200
+KANBAN_RAW_URL = "https://raw.githubusercontent.com/joscthomas/jctsh/main/kanban-board.md"
 
 # ── Shared state ─────────────────────────────────────────────────────────────
 _lock        = threading.Lock()
@@ -261,44 +264,52 @@ _HTML_TEMPLATE = """\
   <title>JCTsh Log Dashboard</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjMWExYTFhIi8+PHRleHQgeD0iMTYiIHk9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMDBjYzk5IiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjIyIiBmb250LXdlaWdodD0iYm9sZCI+SjwvdGV4dD48L3N2Zz4=">
   <style>
+    html, body { height:100%; }
     body { background:#1a1a1a; color:#e0e0e0; font-family:monospace;
-           font-size:13px; margin:20px; }
+           font-size:13px; margin:0; display:flex; flex-direction:column; overflow:hidden; }
     h2   { color:#00cc99; margin-bottom:4px; }
     .sub { color:#b0b0b0; font-size:11px; margin-bottom:16px; }
+    .headerblock { flex:none; padding:20px 20px 0; }
     .controls { margin-bottom:12px; }
     .controls label  { color:#c0c0c0; margin-right:4px; }
     .controls select { background:#111; color:#e0e0e0; border:1px solid #333;
                        padding:3px 8px; font-family:monospace; margin-right:16px;
                        cursor:pointer; }
+    .tablewrap { flex:1; overflow-y:auto; padding:0 20px 20px; }
     table { border-collapse:collapse; width:100%; }
     th    { color:#aaa; font-size:11px; text-align:left; padding:4px 8px;
-            border-bottom:1px solid #2a2a2a; }
+            border-bottom:1px solid #2a2a2a; background:#1a1a1a;
+            position:sticky; top:0; z-index:1; }
     td    { padding:3px 8px; vertical-align:top; cursor:text; }
     tr:hover td { background:#1f1f1f; }
     .hidden { display:none; }
   </style>
 </head>
 <body>
-  <h2>JCTsh Log Dashboard</h2>
-  <p class="sub">Updates every 5s &nbsp;|&nbsp; Last %%MAX%% entries &nbsp;|&nbsp; <a href="/log" target="_blank" style="color:#b0b0b0">%%LOG%%</a> &nbsp;|&nbsp; <a href="/status" style="color:#b0b0b0">Device status</a></p>
-  <div class="controls">
-    <label>Component:</label>
-    <select id="fc" onchange="f()"><option value="">All</option>%%COMP%%</select>
-    <label>Category:</label>
-    <select id="fk" onchange="f()">
-      <option value="">All</option>
-      <option>MQTT</option><option>System</option>
-      <option>Sensor</option><option>Alert</option><option>Test</option>
-    </select>
+  <div class="headerblock">
+    <h2>JCTsh Log Dashboard</h2>
+    <p class="sub">Updates every 5s &nbsp;|&nbsp; Last %%MAX%% entries &nbsp;|&nbsp; <a href="/log" target="_blank" style="color:#b0b0b0">%%LOG%%</a> &nbsp;|&nbsp; <a href="/status" style="color:#b0b0b0">Device status</a> &nbsp;|&nbsp; <a href="/kanban" style="color:#b0b0b0">Kanban board</a></p>
+    <div class="controls">
+      <label>Component:</label>
+      <select id="fc" onchange="f()"><option value="">All</option>%%COMP%%</select>
+      <label>Category:</label>
+      <select id="fk" onchange="f()">
+        <option value="">All</option>
+        <option>MQTT</option><option>System</option>
+        <option>Sensor</option><option>Alert</option><option>Test</option>
+      </select>
+    </div>
   </div>
-  <table id="log">
-    <thead>
-      <tr><th>Timestamp</th><th>Component</th><th>Category</th><th>Message</th></tr>
-    </thead>
-    <tbody>
+  <div class="tablewrap">
+    <table id="log">
+      <thead>
+        <tr><th>Timestamp</th><th>Component</th><th>Category</th><th>Message</th></tr>
+      </thead>
+      <tbody>
 %%ROWS%%
-    </tbody>
-  </table>
+      </tbody>
+    </table>
+  </div>
   <script>
     var _COLORS = {MQTT:'#00ccff',System:'#00cc99',Sensor:'#e0e0e0',Test:'#ffaa00'};
     function _color(e) {
@@ -420,7 +431,8 @@ _STATUS_TEMPLATE = """\
 <body>
   <h2>JCTsh Device Status</h2>
   <p class="sub">Auto-refreshes every 60s &nbsp;|&nbsp; Based on last %%MAX%% log entries
-    &nbsp;|&nbsp; <a href="/" style="color:#b0b0b0">Log dashboard</a></p>
+    &nbsp;|&nbsp; <a href="/" style="color:#b0b0b0">Log dashboard</a>
+    &nbsp;|&nbsp; <a href="/kanban" style="color:#b0b0b0">Kanban board</a></p>
   <h3>Always-on</h3>
   <table>
     <thead><tr>
@@ -564,6 +576,411 @@ def _build_status_html():
     html = html.replace("%%REMOTE_ROWS%%", "\n".join(remote_rows) or no_remote)
     html = html.replace("%%MAX%%", str(MAX_ENTRIES))
     return html
+
+
+# ── Kanban board (live-parsed from kanban-board.md, CARD-0057) ──────────────
+_KANBAN_COLUMNS = ["Backlog", "Planning", "Design", "Build", "Done", "Defer"]
+_KANBAN_COLUMN_RE = re.compile(
+    r"^## (" + "|".join(_KANBAN_COLUMNS) + r")\s*$", re.MULTILINE
+)
+_KANBAN_CARD_RE = re.compile(
+    r"^### CARD-(\d{4}) · \[(\w+)\] \[([\w-]+)\] (.+?)\s*$", re.MULTILINE
+)
+
+
+def _parse_kanban_board(text):
+    """Parse kanban-board.md into a list of card dicts (id/type/tag/column/
+    title/notes/flag). Best-effort: only recognizes the file's established
+    '### CARD-XXXX · [type] [tag] Title' / '## ColumnName' conventions —
+    a card that doesn't match those is silently skipped, not an error."""
+    col_matches = list(_KANBAN_COLUMN_RE.finditer(text))
+    cards = []
+    for i, cm in enumerate(col_matches):
+        col_name = cm.group(1)
+        start = cm.end()
+        end = col_matches[i + 1].start() if i + 1 < len(col_matches) else len(text)
+        section = text[start:end]
+        card_matches = list(_KANBAN_CARD_RE.finditer(section))
+        for j, m in enumerate(card_matches):
+            cid, ctype, ctag, title = m.group(1), m.group(2), m.group(3), m.group(4)
+            body_start = m.end()
+            body_end = (card_matches[j + 1].start() if j + 1 < len(card_matches)
+                        else len(section))
+            body = section[body_start:body_end]
+            body = re.sub(r"(?m)^---\s*$", "", body).strip()
+            body = re.sub(r"^\*\*Notes:\*\*\s*", "", body)
+            card = {
+                "id": cid, "type": ctype, "tag": ctag,
+                "column": col_name, "title": title.strip(), "notes": body,
+            }
+            if re.search(r"(?m)^\*\*Blocked", body):
+                card["flag"] = "blocked"
+            cards.append(card)
+    return cards
+
+
+def _load_kanban_cards():
+    """Pull kanban-board.md straight from GitHub (public repo) on every
+    request — no local copy on the Pi, no push/scp/hook needed. Freshness
+    is tied to `git push`, not to individual edits. Returns None on any
+    network failure (offline, GitHub down, rate-limited, etc.)."""
+    try:
+        req = urllib.request.Request(
+            KANBAN_RAW_URL, headers={"Cache-Control": "no-cache"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            text = resp.read().decode("utf-8")
+    except (urllib.error.URLError, OSError, UnicodeDecodeError):
+        return None
+    return _parse_kanban_board(text)
+
+
+_KANBAN_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JCTsh Kanban Board</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjMWExYTFhIi8+PHRleHQgeD0iMTYiIHk9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMDBjYzk5IiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjIyIiBmb250LXdlaWdodD0iYm9sZCI+SjwvdGV4dD48L3N2Zz4=">
+<style>
+  :root {
+    --bg: #eef3f8;
+    --bg-grid: #dfe9f2;
+    --surface: #ffffff;
+    --surface-2: #e3ecf4;
+    --ink: #16324f;
+    --ink-muted: #4d6b87;
+    --ink-faint: #8098b0;
+    --line: #c7d8e6;
+    --line-strong: #a9c2d8;
+    --accent: #a8611f;
+    --accent-ink: #fffaf3;
+    --good: #3f7248;
+    --warning: #93701a;
+    --danger: #a8503f;
+    --idea: #35648f;
+    --shadow: 0 1px 2px rgba(22,50,79,0.06), 0 6px 16px -8px rgba(22,50,79,0.18);
+    --radius: 3px;
+    --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1c2e;
+      --bg-grid: #112741;
+      --surface: #163657;
+      --surface-2: #1c4267;
+      --ink: #eaf2fa;
+      --ink-muted: #a3bcd2;
+      --ink-faint: #6f8caa;
+      --line: #2c4d6f;
+      --line-strong: #3c6187;
+      --accent: #e39a52;
+      --accent-ink: #24160a;
+      --good: #7ab982;
+      --warning: #e0bd57;
+      --danger: #e0897a;
+      --idea: #79aede;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 20px -10px rgba(0,0,0,0.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 27px, var(--bg-grid) 27px, var(--bg-grid) 28px),
+      repeating-linear-gradient(90deg, transparent, transparent 27px, var(--bg-grid) 27px, var(--bg-grid) 28px),
+      var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+  a { color: var(--accent); }
+  code {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 0.05em 0.35em;
+  }
+  .titleblock {
+    flex: none;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1.25rem 2rem;
+    align-items: end;
+    padding: 1rem 1.5rem 0.85rem;
+    border-bottom: 2px solid var(--ink);
+    background: var(--surface);
+  }
+  .titleblock__id { font-family: var(--mono); line-height: 1.15; }
+  .titleblock__id .proj { font-size: 1.3rem; font-weight: 700; letter-spacing: 0.01em; text-wrap: balance; }
+  .titleblock__id .sheet { margin-top: 0.2rem; font-size: 0.72rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .titleblock__meta {
+    display: flex; gap: 1.75rem; font-family: var(--mono); font-size: 0.72rem;
+    color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.07em;
+    align-self: end; padding-bottom: 0.15rem;
+  }
+  .titleblock__meta b {
+    display: block; color: var(--ink); font-weight: 600; text-transform: none;
+    letter-spacing: normal; font-size: 0.92rem; margin-top: 0.15rem;
+  }
+  .titleblock__controls { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end; }
+  .search {
+    display: flex; align-items: center; gap: 0.4rem; background: var(--surface-2);
+    border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 0.32rem 0.6rem; width: 15.5rem;
+  }
+  .search svg { flex: none; opacity: 0.55; }
+  .search input { border: 0; background: transparent; color: var(--ink); font-family: var(--sans); font-size: 0.85rem; width: 100%; outline: none; }
+  .search input::placeholder { color: var(--ink-faint); }
+  .chips { display: flex; gap: 0.4rem; }
+  .chip {
+    font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.04em; text-transform: uppercase;
+    border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--ink-muted);
+    border-radius: 999px; padding: 0.28rem 0.65rem; cursor: pointer; display: flex; align-items: center; gap: 0.35rem; user-select: none;
+  }
+  .chip:hover { border-color: var(--ink-faint); }
+  .chip[aria-pressed="true"] { color: var(--ink); border-color: currentColor; }
+  .chip[aria-pressed="true"] .dot { opacity: 1; }
+  .chip[aria-pressed="false"] { opacity: 0.55; }
+  .chip .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--dot); opacity: 0.35; flex: none; }
+  .chip:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .board { flex: 1; display: flex; gap: 1rem; padding: 1rem 1.5rem 1.25rem; overflow-x: auto; overflow-y: hidden; align-items: flex-start; }
+  .column {
+    flex: none; width: 21rem; display: flex; flex-direction: column; max-height: 100%;
+    background: color-mix(in srgb, var(--surface) 55%, transparent);
+    border: 1px solid var(--line); border-radius: var(--radius); transition: width 0.15s ease;
+  }
+  .column[data-collapsed="true"] { width: 2.6rem; }
+  .column[data-collapsed="true"] .column__body, .column[data-collapsed="true"] .column__desc { display: none; }
+  .column[data-collapsed="true"] .column__head {
+    writing-mode: vertical-rl; text-orientation: mixed; height: 100%; padding: 0.75rem 0; border-bottom: 0; border-right: 1px solid var(--line);
+  }
+  .column[data-collapsed="true"] .column__head .colcount { writing-mode: horizontal-tb; }
+  .column__head {
+    flex: none; display: flex; align-items: center; gap: 0.55rem; padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid var(--line); cursor: pointer; background: none; border-top: none;
+    border-left: none; border-right: none; width: 100%; text-align: left; color: inherit; font: inherit;
+  }
+  .column__head .name { font-family: var(--mono); font-weight: 600; font-size: 0.86rem; letter-spacing: 0.02em; flex: 1; }
+  .colcount {
+    font-family: var(--mono); font-size: 0.72rem; color: var(--ink-muted); background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: 999px; padding: 0.05rem 0.5rem;
+  }
+  .column__desc { flex: none; font-size: 0.74rem; color: var(--ink-muted); padding: 0.55rem 0.75rem 0; line-height: 1.4; }
+  .column__body { flex: 1; overflow-y: auto; padding: 0.65rem; display: flex; flex-direction: column; gap: 0.6rem; }
+  .column__empty { font-size: 0.8rem; color: var(--ink-faint); font-style: italic; padding: 0.5rem 0.15rem; }
+  .column[data-col="Backlog"]  .column__head { border-top: 3px solid var(--ink-faint); }
+  .column[data-col="Planning"] .column__head { border-top: 3px solid var(--idea); }
+  .column[data-col="Design"]   .column__head { border-top: 3px solid var(--accent); }
+  .column[data-col="Build"]    .column__head { border-top: 3px solid var(--warning); }
+  .column[data-col="Done"]     .column__head { border-top: 3px solid var(--good); }
+  .column[data-col="Defer"]    .column__head { border-top: 3px dashed var(--ink-faint); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--stripe, var(--ink-faint)); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .card[data-type="bug"]         { --stripe: var(--danger); }
+  .card[data-type="enhancement"] { --stripe: var(--accent); }
+  .card[data-type="idea"]        { --stripe: var(--idea); }
+  .card > summary { list-style: none; cursor: pointer; padding: 0.6rem 0.7rem; display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: 0.4rem 0.5rem; }
+  .card > summary::-webkit-details-marker { display: none; }
+  .card .cid { font-family: var(--mono); font-size: 0.7rem; font-weight: 700; color: var(--stripe, var(--ink-muted)); }
+  .card .ctype {
+    font-family: var(--mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--stripe, var(--ink-muted)); border: 1px solid var(--stripe, var(--line)); border-radius: 2px; padding: 0.02rem 0.32rem;
+  }
+  .card .ctag { grid-column: 1 / -1; font-family: var(--mono); font-size: 0.68rem; color: var(--ink-faint); }
+  .card .ctitle { grid-column: 1 / -1; font-size: 0.9rem; font-weight: 600; line-height: 1.35; text-wrap: balance; }
+  .card .cmeta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.1rem; }
+  .flag { font-family: var(--mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 2px; padding: 0.08rem 0.4rem; border: 1px solid transparent; }
+  .flag[data-flag="blocked"] { color: var(--danger); border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+  .chevron { color: var(--ink-faint); transition: transform 0.15s ease; flex: none; }
+  .card[open] > summary .chevron { transform: rotate(90deg); }
+  .card__detail { padding: 0 0.75rem 0.8rem 0.95rem; border-top: 1px dashed var(--line); margin-top: 0.1rem; padding-top: 0.6rem; }
+  .card__detail p { margin: 0 0 0.6rem; font-size: 0.83rem; line-height: 1.55; color: var(--ink); }
+  .card__detail p:last-child { margin-bottom: 0; }
+  .card__detail ul { margin: 0 0 0.6rem; padding-left: 1.1rem; font-size: 0.83rem; line-height: 1.5; }
+  .card__detail li { margin-bottom: 0.25rem; }
+  .card__detail strong { color: var(--ink); }
+  .noresults { color: var(--ink-faint); font-family: var(--mono); font-size: 0.85rem; padding: 2rem; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<div class="titleblock">
+  <div class="titleblock__id">
+    <div class="proj">JCTsh Kanban Board</div>
+    <div class="sheet">kanban-board.md — Live from GitHub</div>
+  </div>
+  <div class="titleblock__meta">
+    <div>Cards<b id="metaCount">–</b></div>
+    <div>Fetched<b id="metaUpdated">–</b></div>
+  </div>
+  <div class="titleblock__controls">
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="q" type="search" placeholder="Search cards, tags, notes…" autocomplete="off" />
+    </div>
+    <div class="chips" id="typeChips"></div>
+  </div>
+</div>
+<div class="board" id="board"><div class="noresults">Loading…</div></div>
+<script>
+(function () {
+  var COLUMNS = [
+    { key: 'Backlog',  desc: 'Captured, not yet being worked on.' },
+    { key: 'Planning', desc: 'Plan is being laid out.' },
+    { key: 'Design',   desc: 'Claude Code instructions being written.' },
+    { key: 'Build',    desc: 'Going through instructions, including testing.' },
+    { key: 'Done',     desc: 'Complete.' },
+    { key: 'Defer',    desc: 'A deliberate decision not to pursue for now.' }
+  ];
+  var TYPES = [
+    { key: 'bug', label: 'Bug', varName: '--danger' },
+    { key: 'enhancement', label: 'Enhancement', varName: '--accent' },
+    { key: 'idea', label: 'Idea', varName: '--idea' }
+  ];
+  var CARDS = [];
+  var state = {
+    q: '',
+    types: { bug: true, enhancement: true, idea: true },
+    collapsed: { Done: true, Defer: true }
+  };
+  try {
+    var savedCollapsed = localStorage.getItem('jctsh-kanban-collapsed-v2');
+    if (savedCollapsed) {
+      var parsed = JSON.parse(savedCollapsed);
+      for (var k in parsed) state.collapsed[k] = parsed[k];
+    }
+    var savedTypes = localStorage.getItem('jctsh-kanban-types');
+    if (savedTypes) state.types = JSON.parse(savedTypes);
+  } catch (e) {}
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function inline(s) {
+    return escapeHtml(s)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`(.+?)`/g, '<code>$1</code>');
+  }
+  function mdToHtml(md) {
+    var paras = md.split(/\n\n+/);
+    return paras.map(function (p) {
+      if (/^- /m.test(p)) {
+        var items = p.split(/\n/).filter(Boolean).map(function (li) {
+          return '<li>' + inline(li.replace(/^- /, '')) + '</li>';
+        }).join('');
+        return '<ul>' + items + '</ul>';
+      }
+      return '<p>' + inline(p) + '</p>';
+    }).join('');
+  }
+  var flagLabels = { blocked: 'Blocked' };
+  function cardMatches(card) {
+    if (!state.types[card.type]) return false;
+    if (!state.q) return true;
+    var hay = (card.id + ' ' + card.title + ' ' + card.tag + ' ' + card.notes).toLowerCase();
+    return hay.indexOf(state.q) !== -1;
+  }
+  function renderChips() {
+    var el = document.getElementById('typeChips');
+    el.innerHTML = TYPES.map(function (t) {
+      var pressed = state.types[t.key];
+      return '<button class="chip" data-type="' + t.key + '" aria-pressed="' + pressed + '" style="--dot:var(' + t.varName + ')">' +
+        '<span class="dot"></span>' + t.label + '</button>';
+    }).join('');
+    el.querySelectorAll('.chip').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var k = btn.getAttribute('data-type');
+        state.types[k] = !state.types[k];
+        try { localStorage.setItem('jctsh-kanban-types', JSON.stringify(state.types)); } catch (e) {}
+        render();
+      });
+    });
+  }
+  function cardHtml(card) {
+    var flags = '';
+    if (card.flag && flagLabels[card.flag]) {
+      flags += '<span class="flag" data-flag="' + card.flag + '">' + flagLabels[card.flag] + '</span>';
+    }
+    return (
+      '<details class="card" data-type="' + card.type + '">' +
+        '<summary>' +
+          '<span class="cid">CARD-' + card.id + '</span>' +
+          '<span class="ctype">' + card.type + '</span>' +
+          '<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>' +
+          '<span class="ctag">[' + escapeHtml(card.tag) + ']</span>' +
+          '<span class="ctitle">' + escapeHtml(card.title) + '</span>' +
+          (flags ? '<span class="cmeta">' + flags + '</span>' : '') +
+        '</summary>' +
+        '<div class="card__detail">' + mdToHtml(card.notes) + '</div>' +
+      '</details>'
+    );
+  }
+  function allTypesOn() {
+    return state.types.bug && state.types.enhancement && state.types.idea;
+  }
+  function render() {
+    var visible = CARDS.filter(cardMatches);
+    var board = document.getElementById('board');
+    board.innerHTML = COLUMNS.map(function (col) {
+      var cards = visible.filter(function (c) { return c.column === col.key; });
+      var total = CARDS.filter(function (c) { return c.column === col.key; }).length;
+      var collapsed = !!state.collapsed[col.key];
+      var body = cards.length
+        ? cards.map(cardHtml).join('')
+        : '<div class="column__empty">' + (total === 0 ? 'No cards here right now.' : 'No matches in this view.') + '</div>';
+      return (
+        '<section class="column" data-col="' + col.key + '" data-collapsed="' + collapsed + '">' +
+          '<button class="column__head" data-toggle="' + col.key + '">' +
+            '<span class="name">' + col.key + '</span>' +
+            '<span class="colcount">' + (state.q || !allTypesOn() ? cards.length + '/' + total : total) + '</span>' +
+          '</button>' +
+          '<div class="column__desc">' + col.desc + '</div>' +
+          '<div class="column__body">' + body + '</div>' +
+        '</section>'
+      );
+    }).join('');
+    board.querySelectorAll('[data-toggle]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var k = btn.getAttribute('data-toggle');
+        state.collapsed[k] = !state.collapsed[k];
+        try { localStorage.setItem('jctsh-kanban-collapsed-v2', JSON.stringify(state.collapsed)); } catch (e) {}
+        render();
+      });
+    });
+    document.getElementById('metaCount').textContent = CARDS.length;
+  }
+  function load() {
+    fetch('/kanban/data').then(function (r) { return r.json(); }).then(function (data) {
+      CARDS = data.cards;
+      document.getElementById('metaUpdated').textContent = data.updated;
+      renderChips();
+      render();
+    }).catch(function (err) {
+      document.getElementById('board').innerHTML = '<div class="noresults">Failed to load kanban-board.md: ' + err + '</div>';
+    });
+  }
+  var qInput = document.getElementById('q');
+  qInput.addEventListener('input', function () {
+    state.q = qInput.value.trim().toLowerCase();
+    render();
+  });
+  load();
+  setInterval(load, 30000);
+})();
+</script>
+</body>
+</html>"""
+
+_KANBAN_HTML_BYTES = _KANBAN_TEMPLATE.encode("utf-8")
 
 
 _PRESENCE_DETECTED_RE = re.compile(
@@ -777,6 +1194,29 @@ class _Handler(BaseHTTPRequestHandler):
             body = _build_status_html().encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path == "/kanban":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(_KANBAN_HTML_BYTES)))
+            self.end_headers()
+            self.wfile.write(_KANBAN_HTML_BYTES)
+            return
+        if self.path == "/kanban/data":
+            cards = _load_kanban_cards()
+            if cards is None:
+                self.send_response(503)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(f"Could not fetch {KANBAN_RAW_URL}".encode("utf-8"))
+                return
+            fetched = datetime.now(_TZ).strftime("%Y-%m-%d %H:%M %Z")
+            body = json.dumps({"cards": cards, "updated": fetched}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)

@@ -579,17 +579,26 @@ interval:
                   uint32_t m = (secs % 3600) / 60;
                   int rssi = (int)id(wifi_rssi).state;
                   float temp = id(bme_temp).state;
+                  float hum  = id(bme_humidity).state;
+                  float pres = id(bme_pressure).state;
+                  float uv   = id(ltr_uv_index).state;
                   float batt = id(battery_voltage).state;
-                  char temp_str[16], batt_str[16];
+                  char temp_str[16], hum_str[16], pres_str[16], uv_str[16], batt_str[16];
                   if (isnan(temp)) strcpy(temp_str, "unavailable");
                   else snprintf(temp_str, sizeof(temp_str), "%.1f\xc2\xb0""F", temp);
+                  if (isnan(hum)) strcpy(hum_str, "unavailable");
+                  else snprintf(hum_str, sizeof(hum_str), "%.1f%%", hum);
+                  if (isnan(pres)) strcpy(pres_str, "unavailable");
+                  else snprintf(pres_str, sizeof(pres_str), "%.1fhPa", pres);
+                  if (isnan(uv)) strcpy(uv_str, "unavailable");
+                  else snprintf(uv_str, sizeof(uv_str), "%.2f", uv);
                   if (isnan(batt)) strcpy(batt_str, "unavailable");
                   else snprintf(batt_str, sizeof(batt_str), "%.2fV", batt);
-                  char buf[256];
+                  char buf[320];
                   snprintf(buf, sizeof(buf),
                     "{\"component\":\"hiking-monitor\",\"category\":\"System\","
-                    "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, temp: %s, batt: %s\"}",
-                    h, m, rssi, temp_str, batt_str);
+                    "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, temp: %s, humidity: %s, pressure: %s, UVI: %s, batt: %s\"}",
+                    h, m, rssi, temp_str, hum_str, pres_str, uv_str, batt_str);
                   return std::string(buf);
             - mqtt.publish:
                 topic: jctsh/components/hiking-monitor/heartbeat

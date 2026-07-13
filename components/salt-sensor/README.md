@@ -188,7 +188,7 @@ Three rapid LED flashes at boot confirm a successful reboot.
 | `salt-sensor.yaml` | ESPHome configuration — firmware source of truth |
 | `secrets.yaml` | Credentials — gitignored, never commit |
 | `salt-sensor.flow.json` | Node-RED flow |
-| `ESP32-project-pins.md` | Full 38-pin assignment table — **unverified against the actual board in hand, see `perfboard-layout.md`'s Board Note** |
+| `ESP32-project-pins.md` | Full pin assignment table for the actual board in hand (SparkleIoT XH-32S), organized by printed label — corrected 2026-07-13, see file header |
 | `sparkleiot-xh-32s-pinout-photo.jpg` | Reference photo of the actual board's silkscreen (SparkleIoT XH-32S) — ground truth for pin labels, since `ESP32-project-pins.md`'s position numbering doesn't match this board |
 | `perfboard-layout.md` | Permanent build layout, bus planning, assembly sequence, pre-power checks, power-cycle verification (CARD-0049) |
 | `CLAUDE.md` | Claude Code context — constraints and gotchas |

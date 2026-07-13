@@ -102,6 +102,8 @@ jctsh/
 ├── jctsh-parts-inventory.md       On-hand electronics parts
 ├── JCTsh-Build-Standards.md       Standards all components must follow
 ├── JCTsh-Component-Planning-Pattern.md  How new components are planned and built
+├── JCTsh-Perfboard-Build-Template.md    Reusable section skeleton for a component's
+│                                             perfboard-layout.md (breadboard → perfboard transfer)
 ├── core/data-pipeline/JCTsh-Environmental-Data-Architecture.md  Payload schema and pipeline
 │                                             for all environmental sensors
 ├── JCTsh-Property-Sensor-Pattern.md         Standard pattern for all property sensors —

@@ -19,6 +19,8 @@ This instruction set builds a 3D printed enclosure for the JCTsh hiking monitor.
 
 **Planning document:** Read `hiking-monitor-enclosure-plan.md` before beginning. It contains all design decisions, rationale, and the enclosure diagram. This instruction set is the execution layer on top of that plan.
 
+**File naming convention:** exports use a `-raw` / `-final` suffix: `-raw` = the initial OpenSCAD box export, before any Tinkercad cuts (Step 15); `-final` = after the design is finalized in Tinkercad (Steps 22/28/29). All files live in `components/hiking-sensor/enclosure/` — note this is `hiking-sensor`, not `hiking-monitor` (the latter is only the ESPHome device name, not the repo folder). Corrected 2026-07-13 — steps below originally used older working names (`bottom-shell.stl`, `bottom-shell-cuts.stl`, etc.) and the wrong `hiking-monitor` path; both are now fixed throughout.
+
 ---
 
 ## Pre-Work — Complete Independently Before Opening Claude Code
@@ -41,7 +43,7 @@ The following learning and setup tasks can be done independently, at your own pa
 - Go to Printables.com and search: `parametric electronics project box OpenSCAD`
 - Browse results looking for a two-piece shell design (separate top and bottom) with configurable internal dimensions, wall thickness, and corner screw bosses
 - A well-regarded option is the "Easy Customizable Parametric Electronics Project Box" by pbtec — look for it or an equivalent
-- Download the `.scad` file and save it to `components/hiking-monitor/enclosure/` in the repo
+- Download the `.scad` file and save it to `components/hiking-sensor/enclosure/` in the repo
 - Open it in OpenSCAD, read the parameter section at the top, and render it (press F6) to confirm it generates a box
 - Note the variable names for: internal length, internal width, top shell height, bottom shell height, wall thickness, boss diameter
 
@@ -80,7 +82,7 @@ Confirm the following before proceeding:
 - [ ] Tinkercad account working in browser
 - [ ] Tinkercad tutorial completed
 - [ ] OpenSCAD tutorial/intro completed
-- [ ] Parametric `.scad` template downloaded to `components/hiking-monitor/enclosure/`
+- [ ] Parametric `.scad` template downloaded to `components/hiking-sensor/enclosure/`
 - [ ] Template renders correctly in OpenSCAD (F6 produces a two-piece box)
 - [ ] Variable names noted for: internal length, width, top shell height, bottom shell height, wall thickness, boss diameter
 - [ ] Xerocraft orientation completed; Bambu A1 Mini and Centauri Carbon availability confirmed
@@ -246,10 +248,10 @@ Render (F6) and confirm.
 ### Step 15 — Export STL files from OpenSCAD
 
 Export the bottom shell and top shell as separate STL files. Use File → Export → Export as STL:
-- `bottom-shell.stl`
-- `top-shell.stl`
+- `bottom-shell-raw.stl`
+- `top-shell-raw.stl`
 
-Save both to `components/hiking-monitor/enclosure/` in the repo.
+Save both to `components/hiking-sensor/enclosure/` in the repo.
 
 **Report:** Confirm both files exported and saved.
 
@@ -263,7 +265,7 @@ All cutouts, slots, apertures, and attachment features are added in Tinkercad. W
 
 ### Step 16 — Import bottom shell into Tinkercad
 
-Go to tinkercad.com, create a new design, and import `bottom-shell.stl`. Position it so the open face (top) faces up in the viewport.
+Go to tinkercad.com, create a new design, and import `bottom-shell-raw.stl`. Position it so the open face (top) faces up in the viewport.
 
 **Report:** Confirm import looks correct — a rectangular box with corner bosses, open top.
 
@@ -341,7 +343,7 @@ Group and punch.
 
 ### Step 22 — Export bottom shell from Tinkercad
 
-Export the completed bottom shell as `bottom-shell-cuts.stl` to `components/hiking-monitor/enclosure/`.
+Export the completed bottom shell as `bottom-shell-final.stl` to `components/hiking-sensor/enclosure/`.
 
 **Report:** Confirm export successful.
 
@@ -349,7 +351,7 @@ Export the completed bottom shell as `bottom-shell-cuts.stl` to `components/hiki
 
 ### Step 23 — Import top shell into Tinkercad
 
-Create a new Tinkercad design and import `top-shell.stl`. Position open face upward.
+Create a new Tinkercad design and import `top-shell-raw.stl`. Position open face upward.
 
 **Report:** Confirm import looks correct.
 
@@ -418,7 +420,7 @@ Group the outer cylinder and inner hole cylinder together as a solid loop. Then 
 
 ### Step 28 — Export top shell from Tinkercad
 
-Export the completed top shell as `top-shell-cuts.stl` to `components/hiking-monitor/enclosure/`.
+Export the completed top shell as `top-shell-final.stl` to `components/hiking-sensor/enclosure/`.
 
 **Report:** Confirm export successful.
 
@@ -432,7 +434,7 @@ Create a new Tinkercad design for the vent insert as a standalone part:
 - Slats: three rectangular boxes, each 24.2mm wide × 2mm tall × 2.5mm deep, rotated 45° around their long axis (tilted downward toward the outside face), spaced evenly across the 15.2mm height
 - The slat angle blocks direct overhead sun and rain while allowing horizontal airflow
 
-Export as `vent-insert.stl` to `components/hiking-monitor/enclosure/`.
+Export as `vent-insert-final.stl` to `components/hiking-sensor/enclosure/`.
 
 **Report:** Confirm insert modeled and exported. Describe what it looks like.
 
@@ -445,9 +447,9 @@ Export as `vent-insert.stl` to `components/hiking-monitor/enclosure/`.
 ### Step 30 — Import STL files into Bambu Studio
 
 Open Bambu Studio. Import all three STL files:
-- `bottom-shell-cuts.stl`
-- `top-shell-cuts.stl`
-- `vent-insert.stl`
+- `bottom-shell-final.stl`
+- `top-shell-final.stl`
+- `vent-insert-final.stl`
 
 Select the Bambu A1 Mini as the printer. Select PLA as the filament.
 
@@ -729,12 +731,12 @@ Verify all success criteria from the planning document:
 
 ### Step 55 — Update component README
 
-Add an enclosure section to `components/hiking-monitor/README.md` documenting:
+Add an enclosure section to `components/hiking-sensor/README.md` documenting:
 
 - Enclosure design: two-shell ASA printed stack, 70mm × 50mm footprint
-- Files: `enclosure/bottom-shell-cuts.stl`, `enclosure/top-shell-cuts.stl`, `enclosure/vent-insert.stl`
-- Diagram: `enclosure/hiking_monitor_enclosure_3d.svg` and `.png`
-- Planning document: `enclosure/hiking-monitor-enclosure-plan.md`
+- Files: `enclosure/bottom-shell-final.stl`, `enclosure/top-shell-final.stl`, `enclosure/vent-insert-final.stl`
+- Diagram: `hiking_monitor_enclosure_3d.svg` and `.png`
+- Planning document: `hiking-monitor-enclosure-plan.md`
 - BME280 temperature offset applied (value from Step 53, or "none required")
 - Display rotation setting applied (value from Step 51)
 - Date of final assembly

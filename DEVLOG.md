@@ -1,5 +1,31 @@
 # JCTsh DEVLOG
 
+## 2026-07-13
+Closed CARD-0003 (TLS for Mosquitto, port 8883) — Phases D and E, the last two of five.
+Phase D (hiking-sensor OTA reflash) had been blocked on the device being off; it came
+back online and unblocked the reflash. Two real snags along the way: `esphome run` from
+the repo path failed with "Detected a whitespace character in project paths" (same class
+of issue as the 2026-05-20 garage-radar build), worked around via the existing
+whitespace-free mirror at `C:\esphome\hiking-sensor\` — but that mirror turned out to be
+stale, missing the TLS config/CA-cert changes entirely, and had to be re-synced from the
+repo copies of `hiking-sensor.yaml`/`secrets.yaml` first or it would have silently pushed
+the old plaintext-1883 config back onto the device. Also hit a locked leftover file in
+`.esphome/build/hiking-monitor/.pioenvs` from an earlier interrupted build, blocking the
+clean step until manually removed. OTA succeeded; verified via the live Mosquitto log on
+the Pi that `hiking-monitor-04b24797df2c`'s old plaintext-1883 session timed out and a new
+TLS session on 8883 came up immediately after, staying connected with no disconnects.
+
+Phase E: updated `jctsh-network.md`, `components/hiking-sensor/wifi-config.md`,
+`credentials.local.md`, and `jctsh-security-hardening.md` (dated superseded-note on the
+original port-inventory finding, history kept intact) to reflect 8883/TLS as the
+roaming-device path. Confirmed via `p-w-firefly/heartbeat.md` that coachproxyos reaches
+MQTT over Tailscale, not the DuckDNS/port-forward path, so retiring the old 1883 forward
+had no impact there. Joseph removed the old `1883 → 192.168.1.117` router-forward rule
+manually (router admin SPA still isn't drivable via browser automation, same as Phase C).
+Verified the cutover from the LAN against the public `jctsh.duckdns.org` hostname (this
+router does hairpin NAT, so a LAN-sourced test reflects the real forwarding table): port
+1883 now refuses connections, port 8883 still accepts them. Card closed.
+
 ## 2026-07-10 (continued, part 4)
 Full audit of `photo-server-claude-code-instructions.md` plus `backlog.md`/`setup.md`/
 `migration.md` against actual live state, prompted by "what else is there for

@@ -60,6 +60,6 @@ Consolidated view across all recurring reboot/backup jobs, so a new one can be s
 | Pixel hotspot | JCT Hotspot | Pixel-assigned | 2.4GHz — used by hiking-monitor and coachproxyos when away from home; any phone works with matching SSID/password; no re-flash needed |
 | RV local AP | JCT-RV | 192.168.5.x | Always broadcasting (coachproxyos concurrent STA+AP); Pi at `192.168.5.1`; primary laptop access point in the RV |
 
-**Remote MQTT for ESP32 devices:** ESP32s can't run Tailscale. When away from home they reach the MQTT broker via `jctsh.duckdns.org:1883` — DuckDNS resolves to the router public IP, which forwards port 1883 to 192.168.1.117. Confirmed working: hiking-monitor field test June 2026.
+**Remote MQTT for ESP32 devices:** ESP32s can't run Tailscale. When away from home they reach the MQTT broker via `jctsh.duckdns.org:8883` (TLS) — DuckDNS resolves to the router public IP, which forwards port 8883 to 192.168.1.117. Confirmed working: hiking-monitor field test June 2026 (pre-TLS, plaintext 1883); TLS cutover completed 2026-07-13 (CARD-0003) — hiking-monitor verified connecting over 8883 via live Mosquitto log. Port 1883 is no longer forwarded to the internet; it remains LAN-only for stationary devices (garage-radar, salt-sensor, front-porch-temp-sensor, etc.).
 
 For coachproxyos access workflows and JCT-RV troubleshooting, see `components/p-w-firefly/operations.md`.

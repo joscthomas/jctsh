@@ -144,6 +144,9 @@ time:
 mqtt:
   id: mqtt_client
   broker: !secret mqtt_broker
+  port: 8883
+  certificate_authority: !secret mqtt_ca_cert
+  idf_send_async: false  # ESPHome-recommended stability setting for MQTT+TLS on esp-idf
   username: !secret mqtt_username
   password: !secret mqtt_password
   topic_prefix: jctsh/components/hiking-monitor

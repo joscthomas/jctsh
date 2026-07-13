@@ -100,7 +100,7 @@ Port inventory (post-remediation):
 | 80 | log server (python3) | LAN + Tailscale — not internet-forwarded |
 | 443 | nginx (Tailscale HTTPS proxy for HA) | Tailscale-only in practice — cert is for `raspberrypi.tailfe828a.ts.net`, LAN access yields cert error; not internet-forwarded |
 | 1880 | Node-RED | LAN + Tailscale — not internet-forwarded |
-| 1883 | Mosquitto | LAN + **internet via DuckDNS/port-forward** — INTENTIONAL; required for ESP32 hotspot connectivity (hiking-monitor, CARD-0008); mitigated by fail2ban + strong credentials; TLS pending (CARD-0003) |
+| 1883 | Mosquitto | LAN + internet via DuckDNS/port-forward at time of this audit (2026-06-20) — INTENTIONAL; required for ESP32 hotspot connectivity (hiking-monitor, CARD-0008); mitigated by fail2ban + strong credentials; TLS pending (CARD-0003). **Superseded 2026-07-13:** CARD-0003 completed — 1883 is no longer forwarded to the internet (LAN-only now); the roaming-device path moved to TLS on 8883, see that card. |
 | 8123 | Home Assistant | LAN + Tailscale — not internet-forwarded; external access via Nabu Casa |
 | 18554 | go2rtc | localhost only — OK |
 | 18555 | go2rtc (WebRTC API) | LAN — HA camera component; not internet-forwarded |

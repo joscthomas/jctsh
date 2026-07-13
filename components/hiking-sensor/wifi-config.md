@@ -46,11 +46,14 @@ IPs. The broker address must be internet-routable.
 | `raspberrypi.local` | No — mDNS is link-local only |
 | `192.168.1.117` | No — private LAN, not internet-routable |
 | `100.70.162.24` (Tailscale) | No — only accessible from other Tailscale clients |
-| `jctsh.duckdns.org` | **Yes** — DuckDNS hostname + port 1883 forwarded to Pi |
+| `jctsh.duckdns.org` | **Yes** — DuckDNS hostname + port 8883 (TLS) forwarded to Pi |
 
-**Resolution:** `mqtt_broker` in `secrets.yaml` is set to `jctsh.duckdns.org`. Port 1883
-is forwarded from the internet to the Pi at `192.168.1.117` via DuckDNS dynamic DNS and
-a router port-forward rule. fail2ban on the Pi watches for connection floods.
+**Resolution:** `mqtt_broker` in `secrets.yaml` is set to `jctsh.duckdns.org`. Port 8883
+(TLS) is forwarded from the internet to the Pi at `192.168.1.117` via DuckDNS dynamic DNS
+and a router port-forward rule; the device validates the broker's cert chain via
+`mqtt_ca_cert` (ISRG Root X1) in `secrets.yaml`. fail2ban on the Pi watches for connection
+floods. Plaintext port 1883 was retired from the internet-facing path 2026-07-13
+(CARD-0003) — it remains LAN-only now.
 
 This address also works on home WiFi (router hairpin NAT), so a single broker value
 covers both networks.

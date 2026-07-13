@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.12
-**Version description:** Deployed the Seagate 1TB spare (formerly listed as "Seagate Expansion 1TB, P/N 9SF2A4-500") to photo-server as Joseph's dedicated backup drive — confirmed actual model/serial via `lsblk`, moved from Shelf to Deployed.
+**Version:** 2.16
+**Version description:** Added M3 screw assortment (600 pcs, ASIN B0D1457XQ3) to Prototyping and Build Hardware, Plastic Box.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -52,7 +52,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Component           | Description                                  | Qty | Location | Notes                                                                         |
 |---------------------|----------------------------------------------|-----|----------|-------------------------------------------------------------------------------|
-| ESP32 DevKitC-32    | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT | 2   | Bag 1    | 1 used: garage radar. 1 used: front-porch-temp-sensor. 1 used: hiking-sensor. |
+| ESP32 DevKitC-32    | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT; supplemented with a second 6-pack (ESP-32D, CP2102, 38-pin, STA/AP/STA+AP, WiFi+BT dual-core, Type-C), ASIN B0DSZBH9N9. https://www.amazon.com/dp/B0DSZBH9N9 | 8   | Bag 1    | 1 used: garage radar. 1 used: front-porch-temp-sensor. 1 used: hiking-sensor. 6 received 2026-07-13 (second 6-pack, merged into this row). |
 | ESP32 (salt sensor) | Separate board, not from 6-pack              | 1   | Deployed | Deployed on salt sensor project.                                              |
 
 ---
@@ -122,6 +122,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Heat Shrink Butt Connectors 26-24 AWG | 100 pcs, insulated waterproof crimp butt splice connectors, marine/automotive grade. https://www.amazon.com/dp/B08LR7NV7M | 100 | Bag 26 | No project assigned. |
 | Momentary Push Button Switch 12mm | Twidec 6pcs, PBS-33B-BK-X, 12mm, 1/2" panel mount, waterproof, pre-soldered wires, black. https://www.amazon.com/dp/B08JHW8BPV | 6 | Bag 27 | 1 allocated: bedside-clock. |
 | M3 Heat Set Threaded Inserts | 300 pcs, M3 × D5 × L4, brass, knurled, for melting into 3D-printed plastic. https://www.amazon.com/dp/B0DG59PW2R | 300 | Plastic Box | No project assigned. |
+| M3 Screw Assortment | 600 pcs, M3 hex button head cap screws, bolts, nuts, washers, 8 sizes: 6/8/10/12/16/20/25/30mm, 304 stainless steel. https://www.amazon.com/dp/B0D1457XQ3 | 600 | Plastic Box | No project assigned. Verify selection before build. |
 
 ---
 
@@ -141,6 +142,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | USB-C to Micro USB Adapter | JXMOX 4-pack, Type-C female to Micro USB male, supports charge and data sync, grey. https://www.amazon.com/dp/B07GH5KJH2 | 4 | Bag 20 | Useful for powering or connecting Micro USB devices from USB-C sources. |
 | 3M Mini-Clamp Connectors | 3M, 4-conductor. Pinout for p-w-firefly CAN bus: Red=12V+ (leave unconnected), White=CAN-H, Green/Blue=CAN-L, Black=GND. | 3 | Bag 24 | Allocated: p-w-firefly project. Do not connect Red (12V+) to PiCAN2. |
 | JST GH 1.25mm Pitch 6-Pin Cable | 100mm long. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
+| STEMMA QT / Qwiic Cable | Adafruit #4209, JST SH 4-pin to premium male headers, 150mm long. https://www.adafruit.com/product/4209 | 2 | Bag 31 | 1 used: hiking-sensor (LTR-390 sensor-side rewiring, CARD-0009). 1 spare. |
 
 ---
 
@@ -244,3 +246,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-07-09 | Stock | M3 heat set threaded inserts ×300 added (Prototyping and Build Hardware, Plastic Box) |
 | 2026-07-09 | Stock | JSN-SR04T-V3.0 waterproof ultrasonic distance sensor ×2 added (Sensors, Bag 30) |
 | 2026-07-09 | photo-server | GMKtec NucBox M8 deployed (Windows 11 replaced with Ubuntu 26.04 LTS); Seagate Backup Plus 1TB and Seagate Momentus 640GB (Insignia enclosure) deployed as primary library and local backup drives (new Storage section). Spares not deployed: Seagate Expansion 1TB (P/N 9SF2A4-500), WD 750GB (P/N WD7500H1U-00) |
+| 2026-07-12 | Stock | STEMMA QT / Qwiic cable (Adafruit #4209, JST SH 4-pin to premium male headers, 150mm) ×2 added (Cables and Adapters, Bag 31) |
+| 2026-07-12 | hiking-sensor | STEMMA QT / Qwiic cable ×1 allocated: LTR-390 UV sensor sensor-side rewiring (CARD-0009 enclosure work) — replaces soldered male headers on the LTR-390 breakout. 1 spare remains. |
+| 2026-07-13 | Stock | ESP32 DevKitC-32 ×6 received (second 6-pack, ASIN B0DSZBH9N9), merged into existing Microcontrollers row (Bag 1); Qty 2 → 8 |
+| 2026-07-13 | Stock | M3 screw assortment ×600 pcs received (ASIN B0D1457XQ3), added to Prototyping and Build Hardware, Plastic Box |

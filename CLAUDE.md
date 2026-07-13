@@ -2,6 +2,10 @@
 
 Smart home automation monorepo. See `components/<name>/CLAUDE.md` for component-specific context. For what's installed and running on the Pi, see `SOFTWARE-ENVIRONMENT.md`.
 
+## Session Start
+
+At the start of every Claude Code session in this repo, read the Build column of `kanban-board.md` for context on what's actively in progress before doing anything else.
+
 ## Repository Layout
 ```
 jctsh/

@@ -288,6 +288,18 @@ Pins to avoid:
 | GPIO6–11 | Connected to flash — do not use |
 | GPIO0, GPIO2, GPIO12, GPIO15 | Strapping pins — affect boot mode if driven at reset |
 
+## Concurrent Sessions
+
+Multiple Claude Code sessions (or the user directly) may edit files in this repo at the same time. Git has no file-locking or checkout-exclusivity model (unlike SVN/Perforce) — two sessions sharing this working directory get no automatic protection against clobbering each other.
+
+The real risk is **staleness between reading a file and writing it back**, not how long a file stays "open" (tool calls never hold a file open across turns). Practices:
+
+- **Re-read shared files fresh immediately before editing them**, especially `kanban-board.md` — don't rely on a mental model of its content from earlier in the conversation. A second session may have added, closed, or moved cards since you last looked.
+- **Never `git add -A` or `git add .`** — always stage specific files/paths. A blanket add is what sweeps up another session's unrelated, held-back edits and creates real collisions.
+- **Prefer Edit over Write for shared files.** Edit's exact-string match fails safely if the content changed underneath you; Write blindly overwrites whatever is on disk.
+- **Commit `kanban-board.md` as a whole at natural checkpoints** (a card closing, a card added, meaningful progress) rather than surgically splitting commits per card.
+- **Reserve `git worktree` / branch isolation for the narrow case of two sessions actively rewriting the *same* file at the same time** — it's not a default. Isolating a session onto its own branch means its work is invisible to anything reading `main` directly (e.g. the live kanban page pulled from `main` on GitHub) until an explicit merge, which is unnecessary overhead when sessions are touching disjoint files.
+
 ## Backlog
 
 See `kanban-board.md` (repo root) — lightweight kanban with all cards (Backlog → Planning → Design → Build → Done).

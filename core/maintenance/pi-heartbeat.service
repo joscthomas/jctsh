@@ -1,0 +1,8 @@
+[Unit]
+Description=JCTsh Pi Docker container health heartbeat
+After=mosquitto.service docker.service
+Wants=mosquitto.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/pi-heartbeat.py

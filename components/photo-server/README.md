@@ -16,6 +16,7 @@ Self-hosted Immich photo/video library on a dedicated GMKtec M8 mini PC. Replace
 |---|---|
 | `setup.md` | Actual build steps as executed, with deviations from the original instructions |
 | `migration.md` | Google Takeout migration results — final counts, issues, and the CARD-0039 re-verification |
+| `verify-and-retire-source.md` | Reusable procedure — verify a batch of photos from an external source (USB drive, old backup, etc.) against Immich before deleting the source |
 | `operations.md` | Day-to-day maintenance — scheduled reboots, Immich Tags feature, router coordination |
 | `heartbeat.md` | MQTT heartbeat script — how JCTsh dashboard monitoring works for this host |
 | `network.md` | Final IP/hostname/MAC/Tailscale reference for this host |

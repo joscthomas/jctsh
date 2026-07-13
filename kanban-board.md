@@ -392,6 +392,32 @@ Updated `salt-sensor.yaml` (wiring comment + `output:` block), `components/salt-
 
 ## Done
 
+### CARD-0066 · [enhancement] [photo-server] Verify legacy USB photo archive against Joseph's Immich library — RESOLVED 2026-07-13
+**Notes:** Raised 2026-07-13. Joseph has a USB stick drive (E:) with a legacy photo archive — 941 `.jpg` files at the drive root (camera-original filenames like `CIMG0002.jpg`, dated 2002-2009), plus one unrelated `.exe` and several empty placeholder folders (`Documents/Pictures`, `Documents/Videos`, `Documents/Downloads`, `Documents/Music`, `System/Apps`, `System Volume Information`) — confirmed via direct inspection, no duplicate filenames within the 941. Wants to verify these are already in Immich (or upload whatever's missing) before wiping the drive, using the same checksum-based matching approach already established for the original Takeout migration (`components/photo-server/migration.md`) — matches skip, gaps upload, no separate dry-run needed.
+
+**Plan:**
+1. Copy the 941 `.jpg` files from `E:\` to `/home/jct/verify-batch-2026-07-13/` on the M8 (422G free, well clear of the ~164MB archive size).
+2. Verify the copy (file count + total size match source) and notify Joseph once confirmed — he's wiping the USB drive himself right after, independent of the immich-go run finishing.
+3. Run `immich-go upload from-folder` against Joseph's Immich library (API key in `credentials.local.md`) with `--session-tag` (tags newly-uploaded assets with a timestamped `{immich-go}/...` tag for review — chosen over `--into-album` since its semantics are unclear on whether skipped duplicates would also get swept into the album) and `--log-file /home/jct/verify-batch-2026-07-13/immich-go-verify.log`.
+4. Report matched/uploaded/error counts back to Joseph.
+5. Leave the staged copy and log **intact** on the M8 afterward — no cleanup step. This is a one-off ad hoc batch job, not a recurring/scheduled task.
+
+**Other considerations flagged:**
+- Matching is exact-checksum only (per the earlier discussion in this session) — if any of these camera-original files were also captured by the 2026 Google Takeout import in a re-compressed/re-processed form, they won't match here despite being the same photo content, and will upload as new assets. Not a bug, just a known limitation of checksum matching worth being aware of when reviewing the tagged results.
+- These are old camera JPGs (2002-2009) — likely have usable EXIF dates for correct chronological placement; `immich-go`'s `--date-from-name` fallback (default on) wouldn't help here since these filenames don't encode dates, so any file missing EXIF may land with an inaccurate date. Worth a spot-check on a few results.
+
+**Copy gotcha found and fixed (2026-07-13):** first `scp` pass used a case-sensitive `*.jpg` glob and silently copied only 787 of 941 files — the drive has a mix of `.jpg` and `.JPG` extensions, and Git Bash's default glob is case-sensitive, so all uppercase-extension files were skipped with no error. A first size-check also gave false confidence (`du -cb *.jpg | tail -1` on both sides was comparing the same case-filtered 787-file subset to itself, matching perfectly while still being wrong). Caught by cross-checking file *count* (941 via `find -iname`, case-insensitive) against the glob-based copy, which didn't match. Fixed: copied the missing 154 files with `shopt -s nocaseglob`, then re-verified with a case-insensitive, per-file byte sum (`find -iname '*.jpg' -printf '%s\n' | awk '{s+=$1} END{print s}'`) on both sides — confirmed exact match: 941 files, 154,096,152 bytes identical source and destination. General lesson: when verifying a copy, use case-insensitive matching consistently on both sides, and prefer a per-file byte sum over `du -cb | tail -1` (batching can silently truncate to the last chunk's total). Joseph confirmed the copy and wiped the USB drive.
+
+**Resolution:** `immich-go upload from-folder` ran detached on the M8 (verified via `ps aux` after launch, not just the launcher's own exit code — same discipline as `migration.md`'s "killed background processes didn't actually die" lesson), completed in ~1 minute, zero errors. Reconciles exactly: **902 uploaded + 37 server-duplicates + 2 local-duplicates (two files in the batch were byte-identical to each other under different filenames) = 941.** All 902 new uploads tagged `{immich-go}/2026-07-13 10-...` for review in the Immich UI. Full log reviewed directly (not just the console summary) via `grep -iE 'error|warn|fail'` — no real errors; the only two "unknown file" warnings were the job's own `immich-go-console.out`/`immich-go-verify.log` files sitting in the scan directory, correctly recognized and skipped as non-photo files. Checked for the EXIF-date-fallback concern flagged above — zero matches for any date-fallback/no-EXIF warning pattern in the log, so no evidence any of the 902 uploads landed with an inaccurate date. Staged copy and log left intact at `/home/jct/verify-batch-2026-07-13/` on the M8 per the plan.
+
+**Reflection:** generalized this into a reusable procedure — `components/photo-server/verify-and-retire-source.md` — covering the copy/verify/upload/review steps and both gotchas found here (case-sensitive glob dropping mixed-case extensions, `du -cb | tail -1` giving false confidence on a total). Indexed in `components/photo-server/README.md`'s doc table.
+
+**Note for later:** Joseph spotted some visual duplicates by eye among the photos; not addressed by this card (out of scope — checksum matching only catches exact-byte duplicates, not near-duplicates/re-saves). Pointed to Immich's own built-in Duplicates view (CLIP-embedding based, already running, no new tooling) as the first thing to check whenever he's ready, with CARD-0028 already in Backlog for a more thorough standalone-tool pass if needed beyond that.
+
+**Closed 2026-07-13 — Joseph confirmed and directed the close.**
+
+---
+
 ### CARD-0065 · [bug] [hiking-sensor] Validate LTR-390 UV Index readings in real sunlight — RESOLVED 2026-07-13
 **Notes:** Raised 2026-07-13. During post-CARD-0009-rework field testing, UVI read 0 (then 0.01) when the device was taken off dock power into "direct sunshine," raising concern about a wiring fault introduced by CARD-0009's STEMMA QT rework on the LTR-390. Split out as its own card rather than folded into CARD-0009, since that card scopes the enclosure/build work specifically and this is a sensor-correctness question that outlived it.
 

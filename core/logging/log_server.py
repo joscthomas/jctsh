@@ -817,7 +817,7 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
 <div class="titleblock">
   <div class="titleblock__id">
     <div class="proj">JCTsh Kanban Board</div>
-    <div class="sheet">kanban-board.md — Live from GitHub</div>
+    <div class="sheet">kanban-board.md — Live from GitHub &nbsp;|&nbsp; <a href="/" style="color:#b0b0b0">&larr; Log messages</a></div>
   </div>
   <div class="titleblock__meta">
     <div>Cards<b id="metaCount">–</b></div>
@@ -911,7 +911,7 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       flags += '<span class="flag" data-flag="' + card.flag + '">' + flagLabels[card.flag] + '</span>';
     }
     return (
-      '<details class="card" data-type="' + card.type + '">' +
+      '<details class="card" data-type="' + card.type + '" data-id="' + card.id + '">' +
         '<summary>' +
           '<span class="cid">CARD-' + card.id + '</span>' +
           '<span class="ctype">' + card.type + '</span>' +
@@ -930,6 +930,15 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   function render() {
     var visible = CARDS.filter(cardMatches);
     var board = document.getElementById('board');
+    // Preserve which cards are open and the scroll position across a rebuild —
+    // <details> elements have no state of their own once innerHTML is replaced,
+    // so without this every periodic refresh would slam shut whatever the user
+    // was reading and jump the page back to the top.
+    var openIds = {};
+    board.querySelectorAll('details.card[open]').forEach(function (d) {
+      openIds[d.getAttribute('data-id')] = true;
+    });
+    var scrollY = window.scrollY;
     board.innerHTML = COLUMNS.map(function (col) {
       var cards = visible.filter(function (c) { return c.column === col.key; });
       var total = CARDS.filter(function (c) { return c.column === col.key; }).length;
@@ -956,12 +965,23 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
         render();
       });
     });
+    board.querySelectorAll('details.card').forEach(function (d) {
+      if (openIds[d.getAttribute('data-id')]) d.setAttribute('open', '');
+    });
+    window.scrollTo(0, scrollY);
     document.getElementById('metaCount').textContent = CARDS.length;
   }
+  var lastDataStr = null;
   function load() {
     fetch('/kanban/data').then(function (r) { return r.json(); }).then(function (data) {
-      CARDS = data.cards;
       document.getElementById('metaUpdated').textContent = data.updated;
+      // Skip the rebuild entirely when the board hasn't actually changed since
+      // the last poll — this is the common case (nothing edited in the last
+      // 30s) and avoids any disruption at all, not just a preserved-state one.
+      var dataStr = JSON.stringify(data.cards);
+      if (dataStr === lastDataStr) return;
+      lastDataStr = dataStr;
+      CARDS = data.cards;
       renderChips();
       render();
     }).catch(function (err) {

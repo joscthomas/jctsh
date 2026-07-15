@@ -2,7 +2,7 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Phase 2 planning document for the bedside-clock component — on-hand parts inventory scan, confirmed bill of materials, and enclosure decision.
 **Version:** 1.3
-**Version description:** Applied JCTsh-Build-Standards.md §2.14 (Battery-Powered Component Safety Standards) — added compliance table, corrected stale spare-battery count (1 remaining, not 2, after the hiking-monitor battery swap), flagged firmware low-battery cutoff as a required Phase 4 deliverable, and raised the boost-vs-direct-LDO architecture (§2.14 point 7) as an open decision for Joseph.
+**Version description:** Applied JCTsh-Build-Standards.md §2.14 (Battery-Powered Component Safety Standards) — added compliance table, corrected stale spare-battery count (1 remaining, not 2, after the hiking-monitor battery swap), flagged firmware low-battery cutoff as a required Phase 4 deliverable, and decided the boost-vs-direct-LDO architecture (§2.14 point 7): keep the on-hand TP4056+boost module.
 **Related files:** bedside-clock-planning.md (Phase 1)
 
 ---

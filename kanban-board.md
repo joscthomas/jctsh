@@ -199,6 +199,21 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 ## Planning
 
+### CARD-0069 · [bug] [infrastructure] log_server.py silently drops heartbeat-only components' messages
+**Notes:** Raised 2026-07-15, found while checking on CARD-0068's netalertx changes at Xerocraft (accessed remotely via Tailscale). `netalertx` appeared completely silent on the log dashboard since 20:36 the prior evening — 14+ hours, no heartbeat displayed anywhere — despite `/status` showing it "Online, 4m ago." Root-caused directly on the Pi (SSH via Tailscale), not guessed:
+
+1. Confirmed Node-RED's flow is healthy and correct — `netalertx.flow.json`'s wiring matches the source exactly (pulled the live `flows.json` and diffed against the repo copy), the watchdog's own timer-reset log entries prove the machine-readable heartbeat (`jctsh/components/netalertx/heartbeat`) fires every 5 minutes as designed.
+2. Live-captured MQTT traffic with `mosquitto_sub` and directly observed a real `Heartbeat - 35 online, 0 down, 49 total, 1 new` message hit `jctsh/components/netalertx/log` — the publish is genuinely happening.
+3. Confirmed via `state.json`'s mtime that `log_server.py` *does* receive and process the message (`_store_entry` runs to completion, updates `_last_seen` — which is why `/status` looked fresh) — but it never reaches `_entries` or the log file.
+
+**Root cause:** `_store_entry()`'s heartbeat-collapsing logic (`core/logging/log_server.py`) only flushes a component's pending heartbeat group to the visible log when either (a) `_heartbeat_state_key()` detects a state change — only fires for ON/OFF-style or `Watchdog: `-prefixed messages, not netalertx's "N online, N down" text, which always collapses to the same key — or (b) a *different, non-heartbeat* message arrives from that component, which flushes the pending group as a side effect before processing the new one. There is no periodic/timeout-based flush anywhere — `_flush_all_hb_groups()` is only ever called from the server's shutdown path.
+
+Before CARD-0068, netalertx's frequent online/offline presence messages incidentally served as that flush trigger, which is why heartbeats always eventually appeared. CARD-0068 removed those (correctly, per that card's own reasoning), leaving netalertx with *only* same-shape heartbeats and a rare new-device alert — nothing left to ever trigger a flush. The heartbeat group now accumulates silently in memory indefinitely. This is a latent gap in `log_server.py` that CARD-0068 exposed, not a defect introduced by CARD-0068's own change — any future component that only ever sends constant-text heartbeats (no periodic non-heartbeat traffic) would hit the same silent-drop behavior.
+
+**Fix direction (not yet implemented):** add a periodic background flush — a lightweight thread (similar to the existing `_heartbeat_thread`) that walks `_hb_groups` and flushes any group whose `ts` is older than some threshold (e.g. 2× the component's own heartbeat interval, or a flat ~10-15 min) regardless of whether new traffic arrives. General fix, not netalertx-specific — protects any current or future heartbeat-only component.
+
+**Don't close until:** periodic flush implemented and deployed to the live `jctsh-logging` service on the Pi, verified live that netalertx's heartbeats start appearing on the dashboard again within the chosen threshold, and confirmed no regression in the existing collapse-grouping behavior for other components (garage-radar, salt-sensor, etc. — their ON/OFF-style and Sensor-message-interleaved heartbeats already flush correctly and must keep doing so).
+
 ---
 
 ### CARD-0067 · [enhancement] [salt-sensor] Design and build a 3D-printed enclosure

@@ -134,28 +134,6 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 ---
 
-### CARD-0026 · [enhancement] [hiking-sensor] Measure hiking-monitor sleep-mode current draw
-**Notes:** The hiking-monitor's actual standby battery life is unknown. The ESP32's own deep-sleep draw is negligible (~10µA), but `VOUT+` runs directly to the ESP32's `VIN` with the switch NOT in the power path, so the TP4056+boost module stays active even while the ESP32 sleeps — its quiescent current (undocumented by the manufacturer, plausibly 1-5mA for a cheap module) is almost certainly the real bottleneck. This measurement gives an actual number instead of a guess.
-
-**Reuses the CARD-0025 tester rig** (spare ESP32 from Bag 1 + spare TP4056 from Bag 8) — build both cards in the same bench session.
-
-**Setup:**
-1. Flash the spare ESP32 with `hiking-sensor.yaml`, but change `esphome: name:` first (e.g. `hiking-monitor-test`) so it doesn't collide with the real device's hostname/MQTT identity. First flash must be via USB.
-2. Tie **GPIO32 (dock detect) directly to GND** with a plain jumper — no divider needed for this test. This deterministically signals "no USB present" so the boot logic reliably proceeds into sleep instead of possibly floating and staying awake.
-3. Leave **GPIO27 (slide switch) unconnected** — its internal pull-up reads HIGH by default, which the inverted logic treats as "switch OFF," also matching the sleep condition.
-4. Sensors (BME280, LTR-390, display) don't need to be attached — I2C read errors will log but won't block the boot sequence from reaching the sleep-entry check.
-5. Wire power as in CARD-0025: battery → TP4056 BAT input, TP4056 boost output → spare ESP32 VIN/GND.
-
-**Measurement:**
-1. Break the battery's positive lead and insert a multimeter in series (DC current mode, mA/µA jack — not the unfused high-current jack).
-2. Power on. The `on_boot` priority -200 block should take it into deep sleep within a few seconds.
-3. Wait a few seconds past that point, then read the steady-state current — that's the real standby draw.
-4. Runtime estimate = 1100mAh ÷ measured current (mA), in hours.
-
-**Outcome:** If the reading confirms the boost module's quiescent current dominates (likely 1-5mA range), consider this as supporting evidence for JCTsh-Build-Standards.md §2.14 point 7 (prefer direct LiPo-to-LDO over boost-then-buck for future builds) — the always-on boost stage is exactly what that recommendation exists to eliminate.
-
----
-
 ### CARD-0024 · [enhancement] [p-w-firefly] Coachproxy remote health monitoring
 **Notes:** The coachproxy heartbeat (every 30 min via Tailscale) confirms the RV Pi and Tailscale link are alive, but it can't distinguish between "Pi is powered off" vs "Tailscale is down" vs "RV is in a dead zone." A more useful health check would poll the Tailscale status directly from the home Pi: `tailscale ping 100.90.246.43` or checking the Tailscale admin API for last-seen timestamp. This gives richer diagnostic output (latency, path) without depending on the RV Pi to actively publish. Implement as a scheduled script on the home Pi that posts results to the log dashboard. Alternative: use Tailscale's built-in status API at `localhost:41112` on the home Pi to check peer state without any external requests.
 
@@ -326,6 +304,46 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 ---
 
 ## Build
+
+### CARD-0026 · [enhancement] [hiking-sensor] Measure hiking-monitor sleep-mode current draw
+**Notes:** The hiking-monitor's actual standby battery life is unknown. The ESP32's own deep-sleep draw is negligible (~10µA), but `VOUT+` runs directly to the ESP32's `VIN` with the switch NOT in the power path, so the TP4056+boost module stays active even while the ESP32 sleeps — its quiescent current (undocumented by the manufacturer, plausibly 1-5mA for a cheap module) is almost certainly the real bottleneck. This measurement gives an actual number instead of a guess.
+
+**Reuses the CARD-0025 tester rig** (spare ESP32 from Bag 1 + spare TP4056 from Bag 8) — build both cards in the same bench session.
+
+**Setup:**
+1. Flash the spare ESP32 with `hiking-sensor.yaml`, but change `esphome: name:` first (e.g. `hiking-monitor-test`) so it doesn't collide with the real device's hostname/MQTT identity. First flash must be via USB.
+2. Tie **GPIO32 (dock detect) directly to GND** with a plain jumper — no divider needed for this test. This deterministically signals "no USB present" so the boot logic reliably proceeds into sleep instead of possibly floating and staying awake.
+3. Leave **GPIO27 (slide switch) unconnected** — its internal pull-up reads HIGH by default, which the inverted logic treats as "switch OFF," also matching the sleep condition.
+4. Sensors (BME280, LTR-390, display) don't need to be attached — I2C read errors will log but won't block the boot sequence from reaching the sleep-entry check.
+5. Wire power as in CARD-0025: battery → TP4056 BAT input, TP4056 boost output → spare ESP32 VIN/GND.
+
+**Measurement:**
+1. Break the battery's positive lead and insert a multimeter in series (DC current mode, mA/µA jack — not the unfused high-current jack).
+2. Power on. The `on_boot` priority -200 block should take it into deep sleep within a few seconds.
+3. Wait a few seconds past that point, then read the steady-state current — that's the real standby draw.
+4. Runtime estimate = 1100mAh ÷ measured current (mA), in hours.
+
+**Outcome:** If the reading confirms the boost module's quiescent current dominates (likely 1-5mA range), consider this as supporting evidence for JCTsh-Build-Standards.md §2.14 point 7 (prefer direct LiPo-to-LDO over boost-then-buck for future builds) — the always-on boost stage is exactly what that recommendation exists to eliminate.
+
+**Progress (2026-07-14):** Bench session started.
+
+- **Test build:** created `C:\esphome\hiking-monitor-test\hiking-monitor-test.yaml` (renamed copy of `hiking-sensor.yaml` — `esphome:name: hiking-monitor-test`, own MQTT topic prefix `jctsh/components/hiking-monitor-test`, no collision with the real device). Config validated clean.
+- **First spare ESP32 (Bag 1) — confirmed defective, discarded.** USB flash consistently failed with `esptool`: "Failed to communicate with the flash chip" — same failure across two cables, two ports, and manual BOOT-button bootloader entry, ruling out cable/port/timing as the cause. Confirmed hardware fault by successfully flashing a second spare board with an identical setup. Logged in `jctsh-parts-inventory.md` (v2.17, qty 8→7, discarded not returned to stock).
+- **Second spare ESP32 — flashed successfully.**
+- **Setup Steps 2-5 complete:** GPIO32→GND jumper, GPIO27 left unconnected, sensors not attached, battery→TP4056 BAT→boost output→ESP32 VIN/GND wired.
+- **First reading: 0.03mA (30µA), steady.** All 4 wiring checkpoints re-verified (battery→TP4056 connection solid, meter correctly in series on battery+ lead, TP4056 VOUT — not BAT input — wired to ESP32 VIN/GND, meter dial+jack correctly on DC mA/µA) — wiring confirmed correct.
+- **Reading is suspiciously good, not yet trusted.** ESP32's own deep-sleep draw (with both ext0/ext1 wakeup active) is plausibly 10-150µA alone, which could account for most of 30µA — but generic boost-converter ICs in these cheap TP4056+boost modules typically draw >1mA just keeping their regulation loop alive when actively switching. 30µA total suggests the boost stage likely **isn't actually engaging** under this near-zero sleep load (may be passing raw battery voltage through rather than truly boosting), rather than the module being unusually efficient.
+- **Also unexplained:** no board LED lit at any point, including during boot — inconsistent with the real hiking-monitor's own documented behavior (onboard power LED is hardwired to 3.3V rail, stays lit through deep sleep per the CARD-0027 observation that motivated this whole investigation).
+
+**Don't trust the 0.03mA reading until verified.** Decided against troubleshooting the existing rig in place — going to rebuild clean instead, ruling out a marginal/bad TP4056 module or a bad connection entirely rather than just checking voltages on a possibly-faulty setup.
+
+**Next steps (resume here):**
+1. Rebuild with a **fresh spare TP4056** (Bag 8) and **all-new connections** — battery→TP4056 BAT, TP4056 boost output→ESP32 VIN/GND, meter in series on the battery+ lead. Same working ESP32 (already flashed, no need to reflash).
+2. Re-run the measurement (Measurement Steps 1-4 above) on the rebuilt rig.
+3. If the new build still reads implausibly low (~30µA) and still shows no board LED: measure TP4056 VOUT+/VOUT− voltage (expect ~5V boosted, not raw ~3.7-4.2V battery voltage) and ESP32's 3V3 pin voltage to pin down whether the boost stage is actually engaging.
+4. If the new build reads meaningfully higher (closer to the originally-feared 1-5mA range): that's likely the real number — the first rig probably had a bad TP4056 or a marginal connection. Proceed to the runtime calculation (Measurement Step 4) and CARD-0027's sequencing decision.
+
+---
 
 ### CARD-0063 · [idea] [infrastructure] NetAlertX MQTT event richness experiment + log dashboard wiring
 **Notes:** Raised 2026-07-12, deferred from CARD-0059. Whether NetAlertX's MQTT plugin publishes rich, human-readable event text (new device / down / reconnected, with name/MAC/IP) or only structured Home-Assistant-discovery-style state (per-device online/offline binary sensor + aggregate counts) is genuinely unclear from the docs — there was an open GitHub feature request (#1339) to bring MQTT up to webhook-level richness, closed with a "next release/in dev image" label, but not confirmed against the exact `ghcr.io/netalertx/netalertx:latest` image pulled for this deployment.

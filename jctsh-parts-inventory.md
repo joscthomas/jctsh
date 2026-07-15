@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.16
-**Version description:** Added M3 screw assortment (600 pcs, ASIN B0D1457XQ3) to Prototyping and Build Hardware, Plastic Box.
+**Version:** 2.17
+**Version description:** ESP32 DevKitC-32 (Bag 1) qty 8 → 7 — one spare confirmed defective (bad flash chip, CARD-0026) and discarded.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -52,7 +52,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Component           | Description                                  | Qty | Location | Notes                                                                         |
 |---------------------|----------------------------------------------|-----|----------|-------------------------------------------------------------------------------|
-| ESP32 DevKitC-32    | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT; supplemented with a second 6-pack (ESP-32D, CP2102, 38-pin, STA/AP/STA+AP, WiFi+BT dual-core, Type-C), ASIN B0DSZBH9N9. https://www.amazon.com/dp/B0DSZBH9N9 | 8   | Bag 1    | 1 used: garage radar. 1 used: front-porch-temp-sensor. 1 used: hiking-sensor. 6 received 2026-07-13 (second 6-pack, merged into this row). |
+| ESP32 DevKitC-32    | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT; supplemented with a second 6-pack (ESP-32D, CP2102, 38-pin, STA/AP/STA+AP, WiFi+BT dual-core, Type-C), ASIN B0DSZBH9N9. https://www.amazon.com/dp/B0DSZBH9N9 | 7   | Bag 1    | 1 used: garage radar. 1 used: front-porch-temp-sensor. 1 used: hiking-sensor. 6 received 2026-07-13 (second 6-pack, merged into this row). **1 discarded 2026-07-14 (CARD-0026)** — confirmed defective, bad flash chip communication (`esptool`: "Failed to communicate with the flash chip"), ruled out as a cable/port/bootloader-entry issue by successfully flashing a second spare board on the same setup; thrown away rather than returned to stock. Qty 8 → 7. 1 currently allocated: CARD-0026 sleep-current test rig (temporary, not a permanent deployment). |
 | ESP32 (salt sensor) | Separate board, not from 6-pack              | 1   | Deployed | Deployed on salt sensor project.                                              |
 
 ---
@@ -250,3 +250,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-07-12 | hiking-sensor | STEMMA QT / Qwiic cable ×1 allocated: LTR-390 UV sensor sensor-side rewiring (CARD-0009 enclosure work) — replaces soldered male headers on the LTR-390 breakout. 1 spare remains. |
 | 2026-07-13 | Stock | ESP32 DevKitC-32 ×6 received (second 6-pack, ASIN B0DSZBH9N9), merged into existing Microcontrollers row (Bag 1); Qty 2 → 8 |
 | 2026-07-13 | Stock | M3 screw assortment ×600 pcs received (ASIN B0D1457XQ3), added to Prototyping and Build Hardware, Plastic Box |
+| 2026-07-14 | CARD-0026 | ESP32 DevKitC-32 ×1 (Bag 1) confirmed defective — bad flash chip, consistent esptool failure across cables/ports/manual bootloader entry, ruled out as a connection issue by successfully flashing a second spare board. Discarded, not returned to stock. Qty 8 → 7 |

@@ -2,8 +2,8 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step Claude Code instruction set for designing and printing the hiking monitor enclosure.
 **Project:** JCTsh — hiking-monitor
-**Version:** 1.1
-**Version description:** Added Step 0 (Build Standards read). Added final step (README update). Pulled all independent learning and tool setup into a Pre-Work section separate from the Claude Code instruction steps.
+**Version:** 1.2
+**Version description:** Corrected stale Bambu A1 Mini references throughout (Pre-Work, Step 1 checklist, Steps 30/32/33/37) to the Elegoo Centauri Carbon, matching the printer-lineup correction already recorded in `hiking-monitor-enclosure-plan.md` — the A1 Mini is no longer at Xerocraft. Exact slicer software name for the Centauri Carbon is still unconfirmed; flagged inline to check with Xerocraft staff.
 **Status:** Ready for execution
 **Related files:** hiking-monitor-enclosure-plan.md, enclosure-prototype.md, JCTsh-Build-Standards.md
 
@@ -13,7 +13,7 @@
 
 This instruction set builds a 3D printed enclosure for the JCTsh hiking monitor. The hiking monitor is a wearable field sensor on an ESP32 DevKitC-32 perfboard (50mm × 70mm) with BME280, LTR-390 UV sensor, Waveshare 2.13" e-ink display, TP4056 charging module, and EEMB 1100mAh LiPo. A field prototype using perfboard sandwiches validated the design; this build translates it into a permanent printed enclosure.
 
-**This build is different from firmware builds.** The implementation steps involve physical actions in external GUI tools (Tinkercad, OpenSCAD, Bambu Studio) and at Xerocraft makerspace. Claude Code's role is to guide each step interactively — prompt the action, receive the result, advise on what to do next, and carry measurements forward into subsequent steps. Claude Code cannot operate these tools directly.
+**This build is different from firmware builds.** The implementation steps involve physical actions in external GUI tools (Tinkercad, OpenSCAD, the Centauri Carbon's slicer) and at Xerocraft makerspace. Claude Code's role is to guide each step interactively — prompt the action, receive the result, advise on what to do next, and carry measurements forward into subsequent steps. Claude Code cannot operate these tools directly.
 
 **Work through steps sequentially.** Many steps depend on measurements taken in earlier steps. Do not skip ahead.
 
@@ -29,7 +29,7 @@ The following learning and setup tasks can be done independently, at your own pa
 
 **Tools to install on your Windows machine:**
 - OpenSCAD — download from openscad.org
-- Bambu Studio — download from bambulab.com
+- Slicer for the Centauri Carbon (Elegoo's own slicer, not Bambu Studio — the A1 Mini this instruction set originally assumed is no longer at Xerocraft) — confirm the exact software with Xerocraft staff before installing; a shop computer may already have it set up
 
 **Accounts to set up:**
 - Tinkercad — free account at tinkercad.com (browser-based, no install)
@@ -37,7 +37,7 @@ The following learning and setup tasks can be done independently, at your own pa
 **Tutorials to complete:**
 - Tinkercad built-in tutorial — takes about 30 minutes; start a new design and follow the in-app tutorial prompts; focus on placing shapes, using hole shapes to punch cutouts, and grouping objects
 - OpenSCAD intro — watch a beginner YouTube video (search: "OpenSCAD tutorial beginner enclosure") or read the OpenSCAD cheat sheet at openscad.org/cheatsheet; focus on how to open a `.scad` file, edit variables, and render/export STL
-- Bambu Studio intro — open the app and explore the interface; import any STL file to see how the build plate and slicer settings work
+- Slicer intro — open the app and explore the interface; import any STL file to see how the build plate and slicer settings work
 
 **Template search — do this independently:**
 - Go to Printables.com and search: `parametric electronics project box OpenSCAD`
@@ -48,15 +48,16 @@ The following learning and setup tasks can be done independently, at your own pa
 - Note the variable names for: internal length, internal width, top shell height, bottom shell height, wall thickness, boss diameter
 
 **Xerocraft orientation:**
-- Visit Xerocraft (101 W 6th St #111, Tucson) and ask for a brief orientation to the Bambu A1 Mini before your first print session
-- Confirm the Centauri Carbon enclosed printer is available for ASA prints and ask about filament availability
+- Visit Xerocraft (101 W 6th St #111, Tucson) and ask for a brief orientation to the **Elegoo Centauri Carbon** — the printer used for both the PLA test print (Session 1) and the ASA final print (Session 2); the Bambu A1 Mini this doc originally referenced has been retired
+- Confirm ASA filament availability for the Centauri Carbon, and confirm which slicer software is used (ask whether a shop computer already has it set up, or whether to bring a laptop with it pre-installed)
+- Confirm membership/day-pass status and whether a safety/printer orientation is required — worth checking given the printer lineup changed recently
 
 **You are ready to open Claude Code when:**
-- OpenSCAD, Bambu Studio, and Tinkercad are all working on your machine
+- OpenSCAD, the Centauri Carbon's slicer, and Tinkercad are all working on your machine
 - You have completed the Tinkercad and OpenSCAD tutorials
 - You have a parametric `.scad` template downloaded, opened in OpenSCAD, and rendering correctly
 - You know the variable names in the template for the key parameters
-- You have visited Xerocraft and confirmed printer and ASA availability
+- You have visited Xerocraft and confirmed the Centauri Carbon and ASA availability
 - The hiking monitor hardware is in hand for measurements (main perfboard, display, TP4056, LiPo, USB-C adapter, solar JST connector, carabiner, velcro strap)
 
 ---
@@ -78,14 +79,14 @@ Read `JCTsh-Build-Standards.md` in full before proceeding. Note any enclosure or
 Confirm the following before proceeding:
 
 - [ ] OpenSCAD installed and launching correctly
-- [ ] Bambu Studio installed and launching correctly
+- [ ] Centauri Carbon slicer installed and launching correctly
 - [ ] Tinkercad account working in browser
 - [ ] Tinkercad tutorial completed
 - [ ] OpenSCAD tutorial/intro completed
 - [ ] Parametric `.scad` template downloaded to `components/hiking-sensor/enclosure/`
 - [ ] Template renders correctly in OpenSCAD (F6 produces a two-piece box)
 - [ ] Variable names noted for: internal length, width, top shell height, bottom shell height, wall thickness, boss diameter
-- [ ] Xerocraft orientation completed; Bambu A1 Mini and Centauri Carbon availability confirmed
+- [ ] Xerocraft orientation completed; Centauri Carbon and ASA availability confirmed
 - [ ] Hiking monitor hardware in hand for measurements
 
 **Report:** Confirm all items checked. Provide the variable names from the template for the six key parameters listed above.
@@ -444,14 +445,14 @@ Export as `vent-insert-final.stl` to `components/hiking-sensor/enclosure/`.
 
 ---
 
-### Step 30 — Import STL files into Bambu Studio
+### Step 30 — Import STL files into the Centauri Carbon slicer
 
-Open Bambu Studio. Import all three STL files:
+Open the slicer (confirm exact software with Xerocraft staff — likely Elegoo's own slicer, not Bambu Studio, since the printer changed from the A1 Mini to the Centauri Carbon). Import all three STL files:
 - `bottom-shell-final.stl`
 - `top-shell-final.stl`
 - `vent-insert-final.stl`
 
-Select the Bambu A1 Mini as the printer. Select PLA as the filament.
+Select the Elegoo Centauri Carbon as the printer. Select PLA as the filament.
 
 **Report:** Confirm all three models imported and visible on the build plate.
 
@@ -474,7 +475,7 @@ Apply settings:
 
 ### Step 32 — Slice and export to print media
 
-Slice the print and export the file to the SD card or USB drive for the Bambu A1 Mini.
+Slice the print and export the file to the SD card or USB drive for the Centauri Carbon.
 
 **Report:** Confirm export successful. Note the filename.
 
@@ -482,7 +483,7 @@ Slice the print and export the file to the SD card or USB drive for the Bambu A1
 
 ### Step 33 — Xerocraft Session 1: PLA test print
 
-At Xerocraft, load PLA into the Bambu A1 Mini and print all three parts. Stay for the first few layers to confirm adhesion. When complete, let parts cool before removing.
+At Xerocraft, load PLA into the Centauri Carbon and print all three parts. Stay for the first few layers to confirm adhesion. When complete, let parts cool before removing.
 
 **Report:** Confirm all three parts printed. Note any visible defects (warping, layer separation, stringing).
 
@@ -538,7 +539,7 @@ Before scheduling Session 2, confirm with Xerocraft:
 - ASA filament is available for the Centauri Carbon enclosed printer
 - The Centauri Carbon is operational
 
-If ASA is unavailable, PETG on the Bambu A1 Mini is the acceptable fallback.
+If ASA is unavailable, PETG on the Centauri Carbon is the acceptable fallback (the A1 Mini this fallback originally assumed is no longer at Xerocraft — confirm one of the PLA-only backup printers, e.g. Neptune 3 Pro/4 Plus or Sidewinder X1, isn't accidentally substituted for PETG without checking it actually has a heated bed capable of PETG temps).
 
 **Report:** Filament type and printer confirmed for final print.
 

@@ -34,6 +34,8 @@ MQTT_TOPIC         = "jctsh/+/+/log"
 _TZ                = ZoneInfo("America/Phoenix")
 HEARTBEAT_TOPIC    = "jctsh/core/log-server/log"
 HEARTBEAT_INTERVAL = 3600
+HB_GROUP_MAX_AGE_SEC = 900   # rotate a pending heartbeat group after this long, even if still receiving fresh heartbeats
+HB_FLUSH_CHECK_INTERVAL = 60
 HTTP_PORT   = 80
 _REMOTE_COMPONENTS     = {"coachproxyos"}
 _HOME_HB_THRESHOLD_MIN = 70   # hourly beat + 10 min grace
@@ -71,7 +73,7 @@ def _save_state():
         data = {
             "entries": list(_entries),
             "last_seen": {
-                comp: {k: v for k, v in e.items() if k != "_state_key"}
+                comp: {k: v for k, v in e.items() if not k.startswith("_")}
                 for comp, e in _last_seen.items()
             },
         }
@@ -146,7 +148,7 @@ def _flush_hb_group(component):
     """Flush heartbeat group for a component into _entries and file. Caller must hold _lock."""
     group = _hb_groups.pop(component, None)
     if group:
-        entry = {k: v for k, v in group.items() if k != "_state_key"}
+        entry = {k: v for k, v in group.items() if not k.startswith("_")}
         _entries.append(entry)
         _file_logger.info(_format_line(entry))
 
@@ -155,6 +157,28 @@ def _flush_all_hb_groups():
     """Flush all active heartbeat groups. Caller must hold _lock."""
     for comp in list(_hb_groups.keys()):
         _flush_hb_group(comp)
+
+
+def _flush_aged_hb_groups():
+    """Flush any heartbeat group that's been open too long, regardless of
+    whether it keeps receiving fresh heartbeats.
+
+    Without this, a component whose messages are *only* same-shape
+    heartbeats (no ON/OFF state change, no other message type ever
+    arriving to flush it as a side effect) would never appear in the
+    visible log — the group just accumulates in memory forever, since a
+    steady stream of on-time heartbeats keeps it "fresh" by any
+    idle-time measure. Flushing on group *age* instead — time since it
+    was first opened, not time since its last update — is what actually
+    forces periodic rotation for a component that never goes quiet.
+    Caller must hold _lock."""
+    now = time.time()
+    aged = [c for c, g in _hb_groups.items()
+            if now - g.get("_started_at", now) >= HB_GROUP_MAX_AGE_SEC]
+    for component in aged:
+        _flush_hb_group(component)
+    if aged:
+        _save_state()
 
 
 # ── MQTT callbacks ────────────────────────────────────────────────────────────
@@ -192,6 +216,7 @@ def _store_entry(component, category, message, ts):
                 "component": component, "category": category,
                 "message": message, "count": 1,
                 "_state_key": state_key,
+                "_started_at": time.time(),
             }
         _last_seen[component] = _hb_groups[component]
     else:
@@ -1105,11 +1130,11 @@ def _snapshot():
         if _pending:
             entries.append(dict(_pending))
         for group in _hb_groups.values():
-            entries.append({k: v for k, v in group.items() if k != "_state_key"})
+            entries.append({k: v for k, v in group.items() if not k.startswith("_")})
         shown = {c.strip() for e in entries for c in e["component"].split(",")}
         for comp, last in _last_seen.items():
             if comp not in shown:
-                entries.append({k: v for k, v in last.items() if k != "_state_key"})
+                entries.append({k: v for k, v in last.items() if not k.startswith("_")})
     entries.sort(key=lambda e: e["ts"])
     return _collapse_for_display(entries)
 
@@ -1277,6 +1302,14 @@ def _heartbeat_thread():
         time.sleep(HEARTBEAT_INTERVAL)
 
 
+# ── Heartbeat-group flush thread ─────────────────────────────────────────────
+def _hb_flush_thread():
+    while True:
+        time.sleep(HB_FLUSH_CHECK_INTERVAL)
+        with _lock:
+            _flush_aged_hb_groups()
+
+
 # ── MQTT thread ───────────────────────────────────────────────────────────────
 def _mqtt_thread():
     global _mqtt_client
@@ -1307,6 +1340,7 @@ if __name__ == "__main__":
     t = threading.Thread(target=_mqtt_thread, daemon=True)
     t.start()
     threading.Thread(target=_heartbeat_thread, daemon=True).start()
+    threading.Thread(target=_hb_flush_thread, daemon=True).start()
     httpd = ThreadingHTTPServer(("", HTTP_PORT), _Handler)
     print("[JCTsh] Dashboard at http://JCTsh.local/")
     signal.signal(signal.SIGTERM,

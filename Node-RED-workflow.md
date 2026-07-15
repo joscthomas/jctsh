@@ -22,14 +22,27 @@ This avoids conflicts because the old nodes are gone before the import runs. The
 
 ## Identifying which flow a JSON file belongs to
 
-The flow JSON files in `core/node-red/` don't include a tab name. Match by filename:
+The flow JSON files don't include a tab name. Match by filename:
 
 | File | Node-RED tab |
 |---|---|
-| `core.flow.json` | Core (import first — contains the MQTT broker node) |
-| `watchdog.flow.json` | Watchdog |
+| `core/node-red/core.flow.json` | Core (import first — contains the MQTT broker node) |
+| `core/node-red/watchdog.flow.json` | Watchdog |
 | `core/data-pipeline/environmental-data.flow.json` | Environmental Data |
+| `components/garage-radar/garage-radar.flow.json` | Garage Radar |
+| `components/hiking-sensor/hiking-hike-events.flow.json` | Hiking Hike Events |
+| `components/salt-sensor/salt-sensor.flow.json` | Salt Sensor |
+| `components/netalertx/netalertx.flow.json` | NetAlertX |
+
+## Where flow files live
+
+`core/node-red/` is reserved for genuinely cross-cutting infrastructure: the
+shared MQTT broker config (`core.flow.json`) and the watchdog that monitors
+every component's heartbeat regardless of type. Flows scoped to a single
+integration or physical component live inside that component's own directory
+instead, alongside its other docs — matching where every other component's
+non-flow documentation already lives.
 
 ## After any change
 
-Commit the updated JSON to keep the repo in sync with what's running on the Pi. Core and watchdog flows live in `core/node-red/`; the environmental data flow lives in `core/data-pipeline/`.
+Commit the updated JSON to keep the repo in sync with what's running on the Pi.

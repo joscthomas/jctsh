@@ -4,7 +4,7 @@
         "type": "tab",
         "label": "NetAlertX",
         "disabled": false,
-        "info": "CARD-0063 — translates NetAlertX's raw system-sensors/# MQTT firehose (~95 msgs/scan) into diff-based transition events on jctsh/components/netalertx/log, plus a 5-minute heartbeat on jctsh/components/netalertx/heartbeat (picked up automatically by the watchdog flow's jctsh/+/+/heartbeat wildcard)."
+        "info": "CARD-0063 — translates NetAlertX's raw system-sensors/# MQTT firehose (~95 msgs/scan) into new-device alerts on jctsh/components/netalertx/log, plus a 5-minute heartbeat on jctsh/components/netalertx/heartbeat (picked up automatically by the watchdog flow's jctsh/+/+/heartbeat wildcard). CARD-0068 removed online/offline presence transition messages — noisy, not actionable, no future use identified."
     },
     {
         "id": "comment_overview",
@@ -20,7 +20,7 @@
         "id": "comment_transitions",
         "type": "comment",
         "z": "tab_netalertx",
-        "name": "Transition detection (diff against cached prior state — no mirroring)",
+        "name": "New-device detection (diff against cached is_new flag — no mirroring)",
         "info": "",
         "x": 240,
         "y": 100,
@@ -48,32 +48,11 @@
         ]
     },
     {
-        "id": "mqtt_in_netalertx_binary",
-        "type": "mqtt in",
-        "z": "tab_netalertx",
-        "name": "system-sensors/binary_sensor/+/state",
-        "topic": "system-sensors/binary_sensor/+/state",
-        "qos": "0",
-        "datatype": "auto-detect",
-        "broker": "mqtt_broker",
-        "nl": false,
-        "rap": true,
-        "rh": 0,
-        "inputs": 0,
-        "x": 200,
-        "y": 220,
-        "wires": [
-            [
-                "fn_presence"
-            ]
-        ]
-    },
-    {
         "id": "fn_device_info",
         "type": "function",
         "z": "tab_netalertx",
-        "name": "fn_device_info (cache attrs, detect new-device)",
-        "func": "// Topic shape: system-sensors/sensor/<id>/state\n// <id> is either \"netalertx\" (aggregate scan stats) or \"mac_xx_xx_xx_xx_xx_xx\" (per-device attrs).\nconst parts = msg.topic.split('/');\nconst id = parts.length >= 3 ? parts[2] : '';\n\n// mqtt in node uses datatype \"auto-detect\" — valid JSON payloads arrive already\n// parsed as objects, so only re-parse if we actually got a raw string.\nlet payload = msg.payload;\nif (typeof payload === 'string') {\n    try {\n        payload = JSON.parse(payload);\n    } catch (e) {\n        node.warn('Bad JSON on ' + msg.topic);\n        return null;\n    }\n}\n\nif (id === 'netalertx') {\n    // Aggregate scan stats — cache for the heartbeat, no transition to log here.\n    // flow-scoped: fn_heartbeat is a different node and needs to read this back.\n    flow.set('agg_stats', payload);\n    return null;\n}\n\nif (!id.startsWith('mac_')) {\n    return null;\n}\n\nconst mac = id.substring(4).replace(/_/g, ':');\n\n// Cache device attrs so fn_presence (a different node) can label its transition messages.\nflow.set('devinfo_' + mac, {\n    model: payload.model || '',\n    vendor: payload.vendor || ''\n});\n\n// New-device detection — fire once per newly-flagged device. Clears when\n// NetAlertX itself clears is_new (e.g. the device gets named/acknowledged),\n// so a genuinely new appearance later can fire again.\nconst wasFlagged = flow.get('newflag_' + mac) === true;\nconst isNew = payload.is_new === '1' || payload.is_new === 1 || payload.is_new === true;\n\nif (isNew && !wasFlagged) {\n    flow.set('newflag_' + mac, true);\n    const label = payload.model || payload.vendor || 'unknown device';\n    return {\n        payload: JSON.stringify({\n            component: 'netalertx',\n            category: 'Alert',\n            message: 'New device detected: ' + label + ' (' + mac + ', ' + (payload.last_ip || 'no IP') + ')'\n        })\n    };\n}\n\nif (!isNew && wasFlagged) {\n    flow.set('newflag_' + mac, false);\n}\n\nreturn null;",
+        "name": "fn_device_info (cache scan stats, detect new-device)",
+        "func": "// Topic shape: system-sensors/sensor/<id>/state\n// <id> is either \"netalertx\" (aggregate scan stats) or \"mac_xx_xx_xx_xx_xx_xx\" (per-device attrs).\nconst parts = msg.topic.split('/');\nconst id = parts.length >= 3 ? parts[2] : '';\n\n// mqtt in node uses datatype \"auto-detect\" — valid JSON payloads arrive already\n// parsed as objects, so only re-parse if we actually got a raw string.\nlet payload = msg.payload;\nif (typeof payload === 'string') {\n    try {\n        payload = JSON.parse(payload);\n    } catch (e) {\n        node.warn('Bad JSON on ' + msg.topic);\n        return null;\n    }\n}\n\nif (id === 'netalertx') {\n    // Aggregate scan stats — cache for the heartbeat, no transition to log here.\n    // flow-scoped: fn_heartbeat is a different node and needs to read this back.\n    flow.set('agg_stats', payload);\n    return null;\n}\n\nif (!id.startsWith('mac_')) {\n    return null;\n}\n\nconst mac = id.substring(4).replace(/_/g, ':');\n\n// New-device detection — fire once per newly-flagged device. Clears when\n// NetAlertX itself clears is_new (e.g. the device gets named/acknowledged),\n// so a genuinely new appearance later can fire again.\nconst wasFlagged = flow.get('newflag_' + mac) === true;\nconst isNew = payload.is_new === '1' || payload.is_new === 1 || payload.is_new === true;\n\nif (isNew && !wasFlagged) {\n    flow.set('newflag_' + mac, true);\n    const label = payload.model || payload.vendor || 'unknown device';\n    return {\n        payload: JSON.stringify({\n            component: 'netalertx',\n            category: 'Alert',\n            message: 'New device detected: ' + label + ' (' + mac + ', ' + (payload.last_ip || 'no IP') + ')'\n        })\n    };\n}\n\nif (!isNew && wasFlagged) {\n    flow.set('newflag_' + mac, false);\n}\n\nreturn null;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
@@ -82,27 +61,6 @@
         "libs": [],
         "x": 480,
         "y": 160,
-        "wires": [
-            [
-                "mqtt_out_netalertx_log",
-                "debug_netalertx_log"
-            ]
-        ]
-    },
-    {
-        "id": "fn_presence",
-        "type": "function",
-        "z": "tab_netalertx",
-        "name": "fn_presence (diff is_present)",
-        "func": "// Topic shape: system-sensors/binary_sensor/<id>/state, id = mac_xx_xx_xx_xx_xx_xx\nconst parts = msg.topic.split('/');\nconst id = parts.length >= 3 ? parts[2] : '';\nif (!id.startsWith('mac_')) {\n    return null;\n}\nconst mac = id.substring(4).replace(/_/g, ':');\n\n// mqtt in node uses datatype \"auto-detect\" — valid JSON payloads arrive already\n// parsed as objects, so only re-parse if we actually got a raw string.\nlet payload = msg.payload;\nif (typeof payload === 'string') {\n    try {\n        payload = JSON.parse(payload);\n    } catch (e) {\n        node.warn('Bad JSON on ' + msg.topic);\n        return null;\n    }\n}\n\nconst isOnline = payload.is_present === 'ON';\nconst prevState = flow.get('presence_' + mac); // undefined the first time we see this mac\n\nflow.set('presence_' + mac, isOnline);\n\nif (prevState === undefined) {\n    // Establish baseline only — avoids a burst of \"came online\" messages for\n    // every known device whenever Node-RED restarts.\n    return null;\n}\n\nif (prevState === isOnline) {\n    return null;\n}\n\nconst info = flow.get('devinfo_' + mac) || {};\nconst label = info.model || info.vendor || mac;\n\nreturn {\n    payload: JSON.stringify({\n        component: 'netalertx',\n        category: 'System',\n        message: label + ' (' + mac + ') ' + (isOnline ? 'came online' : 'went offline')\n    })\n};",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 470,
-        "y": 220,
         "wires": [
             [
                 "mqtt_out_netalertx_log",

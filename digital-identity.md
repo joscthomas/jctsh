@@ -1,8 +1,8 @@
 # Digital Identity — Security Key & Authentication Reference
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Reference notes on how Windows Hello and Google Titan security keys work, and how to configure RoboForm to use a Titan key as 2FA (not a password replacement). Companion to `digital-identity-protection-checklist.md`, which tracks the action items — this file captures the underlying explanations.
-**Version:** 1.0
-**Version description:** Initial version, captured from a Claude Code conversation on 2026-07-17.
+**Version:** 1.2
+**Version description:** Added what should never be stored in RoboForm/apps (keep offline instead).
 
 ---
 
@@ -80,3 +80,46 @@ Only newer hardware keys that support passkeys work with RoboForm (Google Titan 
 4. Test by logging out and back in — should prompt for master password first, *then* the security key tap, not the key alone.
 
 **Also register a backup key.** If the primary key is lost and it's the only passkey/2FA key registered, account recovery gets difficult. Register a second key (e.g., the shared/backup Titan from `digital-identity-protection-checklist.md`) at the same time rather than after being locked out.
+
+---
+
+## Shared 4-Digit PIN Selection (Joseph & Robin)
+
+A 4-digit PIN has only 10,000 possible combinations, and PIN-guessing has been studied extensively — a well-known 2012 analysis of leaked PIN datasets found the top 20 PINs cover roughly 27% of all real-world PINs in use.
+
+**Absolutely avoid — statistically the first things guessed, not just "weak":**
+- Any date: birthdays, anniversaries, "MMDD" patterns — dominate the guessable set because they're common and often derivable from social media/public records
+- Repeats and sequences: 1111, 1234, 4321, 0000
+- Keypad shapes: 2580 (straight down the middle), 1470, 0852 — common because they're easy to type
+- Last 4 of a phone number, SSN, or address digits
+
+**Best technique: generate it randomly and store it, don't hand-pick it.**
+Human-chosen "clever" PINs still cluster into predictable patterns (attackers model this). The strongest move within a 4-digit space is true randomness:
+- Use RoboForm's password generator to produce a random 4-digit string, or roll dice (e.g., two 10-sided dice, or a d6 + d10 combo, twice).
+- Write it down and store it in the safe — same offline-hardcopy pattern already used for backup codes and hardware key serials (see the Offline Hardcopy Vault section in `digital-identity-protection-checklist.md`).
+- Memorize it through repetition (typing it daily) rather than deriving it from something meaningful — meaning is exactly what makes PINs guessable.
+
+**If a memorable, human-generated PIN is preferred instead:** pick an obscure private reference — a word or short phrase meaningful only to the two of you, with zero public footprint (not a pet name, not a former street address, nothing findable with a bit of research on either person) — then convert it to digits via phone keypad letter-to-number mapping and take the first 4 digits. The requirement is that the *source material* isn't discoverable, not that the technique itself is fancy.
+
+**Caveat:** this matters proportional to how guess-attempts are limited on whatever the PIN protects. If it's hardware-lockout-protected (a phone, a bank card), avoiding the top-20 common PINs already captures most of the real-world benefit. If it's protecting something with unlimited offline guessing, true randomness is the only thing that helps at 4 digits — worth checking whether that context should use a longer PIN instead, if supported.
+
+---
+
+## What NOT to Store in RoboForm (or any app)
+
+A password manager is a poor fit for anything meant to be the *escape hatch* if the manager itself fails — storing it there collapses the fallback back into the same single point of failure the rest of this checklist is designed to eliminate.
+
+**Never store in RoboForm (or any app) — keep fully offline, on paper/metal, in the safe:**
+
+- **Crypto wallet seed phrases / private keys.** These are *bearer secrets* — whoever has the string has the funds, permanently, with no reset and no recourse. Password manager breaches (e.g., LastPass 2022) have directly led to crypto theft specifically because people stored seed phrases in them. Paper or metal backup, offline, always.
+- **RoboForm's own master password.** The vault can't store the key that unlocks the vault.
+- **RoboForm's own account-recovery codes / Emergency Access details.** Same circular-lockout logic — if RoboForm itself is ever inaccessible, the recovery path can't live inside the thing that's down.
+- **The household codeword** (Phase 3 of `digital-identity-protection-checklist.md`). Its entire value is being an out-of-band channel a compromised digital account can't touch. Storing it in RoboForm defeats that.
+- **The safe's combination or key location.** The safe is the physical fallback for the digital vault — it shouldn't depend on the digital vault to be found.
+
+**Okay to store in RoboForm, but worth a second thought:**
+
+- **SSN, passport numbers, other static/non-rotatable IDs.** RoboForm's encryption is solid, but unlike a password these can't be reset if ever exposed — consider a specially-flagged note or offline-only storage rather than mixing them in with rotatable logins.
+- **Hardware key serial numbers** — fine as reference text, just never the key's own PIN.
+
+**Underlying rule:** anything meant to be the escape hatch if the primary system fails has to live in a genuinely separate failure domain. If it's inside RoboForm, it's not independent of RoboForm being compromised or unavailable — it's the same point of failure wearing a different hat.

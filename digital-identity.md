@@ -1,0 +1,82 @@
+# Digital Identity — Security Key & Authentication Reference
+**Author:** Joseph C Thomas (JCT)
+**Purpose:** Reference notes on how Windows Hello and Google Titan security keys work, and how to configure RoboForm to use a Titan key as 2FA (not a password replacement). Companion to `digital-identity-protection-checklist.md`, which tracks the action items — this file captures the underlying explanations.
+**Version:** 1.0
+**Version description:** Initial version, captured from a Claude Code conversation on 2026-07-17.
+
+---
+
+## Windows Hello
+
+Windows Hello is Windows' built-in biometric/PIN sign-in system — lets you log into your PC (and authenticate in apps/browsers that support it) using face, fingerprint, or a PIN instead of your full account password.
+
+- **Face/fingerprint** use dedicated secure hardware (IR camera or fingerprint reader) and store biometric data locally, encrypted, tied to that specific device — never sent to Microsoft or usable to reconstruct your face/print.
+- **PIN** is device-specific too, not synced or usable elsewhere — a stolen PIN only works on that one machine.
+- Built on the same underlying tech as passkeys/FIDO2, so many websites and apps can use Windows Hello for passwordless sign-in.
+- Requires compatible hardware (IR camera for face, capacitive reader for fingerprint) — configured under Settings → Accounts → Sign-in options.
+
+---
+
+## Google Titan Security Key
+
+A physical USB/NFC/Bluetooth hardware token for phishing-resistant two-factor (or passwordless) authentication, built on FIDO2/WebAuthn and U2F standards.
+
+**How it works:**
+
+1. **Key pair generation, on-device.** When registering the key with a service, the key's secure element chip generates a unique public/private keypair *for that specific site*. The private key never leaves the hardware — not extractable, not backed up, not synced.
+2. **Site gets the public key.** The service stores the public key against the account and issues a "challenge" on each login attempt.
+3. **Login = signing a challenge.** The site sends a cryptographic challenge to the browser; the key signs it with the private key (after a tap/touch proving physical presence); the browser sends the signed response back. The server verifies it with the stored public key. Nothing secret crosses the wire.
+4. **Origin binding is the phishing defense.** The signature is cryptographically bound to the requesting site's actual domain. A fake/lookalike site simply can't get a valid signature for the real account — unlike a password or SMS/TOTP code, which can be typed into a phishing site.
+5. **Physical presence check.** The tap/touch proves a human is physically present, not just that malware has access to a stored credential.
+
+**Form factors:** USB-A/USB-C + NFC (plug in or tap to phone), or Bluetooth (for devices without USB-C/NFC).
+
+**Why stronger than SMS/authenticator codes:** those are "what you know/receive" — phishable (typed into a fake site) or interceptable (SIM swap for SMS). A security key's response is unphishable because the browser checks the origin matches before it will even ask the key to sign.
+
+---
+
+## Role of the PIN
+
+**On the Titan key itself (FIDO2 PIN):** newer Titan keys support setting a PIN directly on the key, enabling **user verification (UV)**, distinct from the tap/touch **user presence** check.
+
+- User presence (tap) proves *something* touched the key — could be anyone holding it.
+- User verification (PIN) proves *you specifically* are using it. Entered into the browser/OS prompt, relayed to the key to unlock the signing operation.
+- Verified **locally on the key's chip** — never sent to the website. The key locks itself after too many wrong attempts (protects a lost/stolen key from brute-force).
+- Some services (especially passwordless/passkey sign-ins that *replace* the password entirely) require UV, so a PIN-less key can't be used for those flows.
+
+**On Windows Hello:** same underlying idea — the PIN unlocks a private key held in the PC's TPM, verified locally, never transmitted or synced. Identical "local unlock, proves it's you" role as the FIDO2 PIN above.
+
+In both cases, the PIN is a **local unlock mechanism** for a private key already living in tamper-resistant hardware — not a network-facing secret like a password. That's why a stolen PIN alone is useless without also having physical possession of the specific device/key.
+
+---
+
+## RoboForm — Configuring a Titan Key as 2FA (not a passkey/password replacement)
+
+RoboForm splits security into two separate sections under **Log In & Security**:
+
+- **Passwordless Unlock** — lets the key (or biometrics) *replace* the master password entirely.
+- **Two-Factor Authentication** — adds the key as an *extra* requirement on top of the master password.
+
+"Passkeys" is just the underlying technology label (FIDO2/WebAuthn) RoboForm uses for both categories — which bucket a key lands in depends entirely on which section it's added from.
+
+### Setup steps (adds the key as 2FA)
+
+1. Click the RoboForm extension icon → **⋮** (three dots, top right) → **Settings**.
+2. Go to **Log In & Security** → **Two-factor authentication**.
+3. Click **Add 2FA Method**.
+4. Select **Passkeys**.
+5. When asked where to save the passkey, choose **Security Key**, then **Next**.
+6. Confirm you want to set up the key to sign in to RoboForm.
+7. Confirm you're okay letting RoboForm see the key's make/model.
+8. Insert/tap the Titan key when prompted — Windows shows its own WebAuthn dialog asking for the Windows PIN (or Hello face/fingerprint), then asks you to touch the key itself. Enter the PIN and confirm.
+
+Only newer hardware keys that support passkeys work with RoboForm (Google Titan and YubiKey Security Key C NFC confirmed compatible).
+
+### Confirming it's 2FA, not passwordless unlock
+
+1. Go back to **Log In & Security**.
+2. Check **Passwordless Unlock** — the Titan key should **not** be listed/enabled there. Remove it if it is.
+3. Confirm it **is** listed under **Two-Factor Authentication**.
+4. Test by logging out and back in — should prompt for master password first, *then* the security key tap, not the key alone.
+
+**Also register a backup key.** If the primary key is lost and it's the only passkey/2FA key registered, account recovery gets difficult. Register a second key (e.g., the shared/backup Titan from `digital-identity-protection-checklist.md`) at the same time rather than after being locked out.

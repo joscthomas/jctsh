@@ -323,7 +323,37 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 ## Build
 
-### CARD-0026 · [enhancement] [hiking-sensor] Measure hiking-monitor sleep-mode current draw
+### CARD-0034 · [idea] [personal] Complete digital-identity-protection-checklist.md
+**Notes:** Work through `digital-identity-protection-checklist.md` (repo root) — Joseph and Robin's personal security checklist closing single-point-of-failure risks (carrier port-out PIN, 2FA off SMS, credit freezes, password manager, household verification protocol, incident response plan). Almost entirely manual actions by Joseph/Robin themselves (phone calls to carriers/bureaus, account settings changes) — not something Claude Code can execute directly, but worth tracking to completion since it's currently all unchecked. Also has an "Open Items to Fill In" section (list specific banks/brokerages in use, confirm current password manager/2FA setup, set a 6-month review date) that needs input from Joseph before those parts can be finished.
+
+**Blocked (2026-07-11):** waiting on delivery of Google Titan Security Key hardware authenticators (3 ordered) — needed for the hardware-key 2FA portion of the checklist before those items can be checked off.
+
+---
+
+### CARD-0009 · [enhancement] [hiking-sensor] Enclosure design and build
+**Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-sensor/enclosure-prototype.md`. Standoffs arrive 2026-06-14; temp enclosure build before camping trip departure 2026-06-15. Device will be used in the field for ~2 weeks on that trip — hiking and van sensor simulation. Full 3D-printed permanent enclosure is a later step.
+
+**LTR-390 rewiring (2026-07-12):** in progress. Replacing the LTR-390's soldered 0.1" male headers with a 150mm STEMMA QT / Qwiic cable (Adafruit #4209, `jctsh-parts-inventory.md` Bag 31) plugged into the sensor's STEMMA QT port, with the male-header end going into the perfboard's existing LTR-390 female header (unchanged). Gives slack to mount the sensor at the correct sky-facing orientation in the enclosure independent of the perfboard's own orientation — this is what the enclosure build actually needed the flexibility for. Only the sensor-side segment changes; perfboard-to-ESP32 traces (GPIO21/GPIO22) untouched. Docs updated: `wiring.md` (new wire-color table — STEMMA QT cable colors are SDA/SCL-swapped from the old breadboard colors, flagged explicitly), `perfboard-layout.md` (dated addendum on the LTR-390 header row, original build history kept intact).
+
+**Reflection (required last Build step, per `JCTsh-Operating-System.md`):** once the enclosure is built and verified, two harvests before this card closes:
+
+1. **3D-enclosure instruction template.** Generalize `hiking-monitor-enclosure-instructions.md` into a reusable template — e.g. `JCTsh-3D-Enclosure-Instructions-Template.md` at the repo root, following the same pattern `JCTsh-Component-Planning-Pattern.md` already establishes for component planning. Strip out hiking-monitor-specific content (exact dimensions, LTR-390/BME280/display specifics) and keep the reusable procedure: Tinkercad + OpenSCAD two-tool workflow, `-raw`/`-final` export naming convention, Xerocraft Bambu Studio/print-session steps, PLA-test-then-ASA-final print pattern, test-fit checklist structure. So the next component needing a printed enclosure (candidates already in the backlog: remote-temp-sensor-01, air-quality-monitor's clip-case) starts from a template instead of copying and hand-editing this component-specific doc from scratch.
+2. **Any other pattern harvesting this card's work warrants** — not just the enclosure template. Sweep the full card history for anything worth capturing somewhere it'll be found again (per TOS's general Reflection rule, not limited to enclosures): the STEMMA QT/Dupont cable relocation fix for sensors that are rigid-socket-mounted facing the wrong way (a mounting-orientation pattern, not enclosure-specific — could recur on any future sensor with a fixed connector orientation); the `-raw`/`-final` STL naming convention and the `hiking-sensor` vs `hiking-monitor` (folder vs. ESPHome device name) confusion this card surfaced, in case anything beyond the enclosure-instructions doc references that ambiguity; and `hiking-monitor-enclosure-instructions.md` Step 56 already exists for build-standards-specific harvest (print orientation, insert types, ASA/PETG choice, etc.) — confirm it actually gets run, don't let this broader reflection substitute for it.
+
+**Don't close until:** rewiring physically complete and I2C communication re-verified (LTR-390 still detected at 0x53, UV/light readings sane) after reassembly, AND both reflection items above are complete.
+
+**Xerocraft trip prep (2026-07-13):** for the Session 1 PLA test print visit (`hiking-monitor-enclosure-instructions.md` Steps 30–33), bring:
+- `components/hiking-sensor/enclosure/bottom-shell-final.stl`, `top-shell-final.stl`, `vent-insert-final.stl` — the current, ready-to-print exports.
+- `hiking-monitor-enclosure-instructions.md` and `hiking-monitor-enclosure-plan.md` for on-site reference (Steps 30–36 cover this exact session; the plan doc's dimensions table is the fallback if a Step 34/35 test-fit check fails and you need the intended measurement to diagnose the offset).
+- Physically: the main perfboard assembly (ESP32/BME280/LTR-390/switch) and the top-shell contents (display, TP4056+adapter, LiPo) — Steps 34–35 test-fit the freshly printed shells against the real hardware, not just visually.
+
+**Doc fix (2026-07-13):** `hiking-monitor-enclosure-instructions.md` had stale STL filenames (`-cuts.stl` instead of the actual `-raw`/`-final` convention) and a wrong `components/hiking-monitor/enclosure/` path (should be `hiking-sensor`) throughout Steps 15, 16, 22, 23, 28, 29, 30, and 55. Corrected in the doc itself, including a naming-convention note near the top — see that file for the convention, not duplicated here.
+
+---
+
+## Done
+
+### CARD-0026 · [enhancement] [hiking-sensor] Measure hiking-monitor sleep-mode current draw — RESOLVED 2026-07-16
 **Notes:** The hiking-monitor's actual standby battery life is unknown. The ESP32's own deep-sleep draw is negligible (~10µA), but `VOUT+` runs directly to the ESP32's `VIN` with the switch NOT in the power path, so the TP4056+boost module stays active even while the ESP32 sleeps — its quiescent current (undocumented by the manufacturer, plausibly 1-5mA for a cheap module) is almost certainly the real bottleneck. This measurement gives an actual number instead of a guess.
 
 **Reuses the CARD-0025 tester rig** (spare ESP32 from Bag 1 + spare TP4056 from Bag 8) — build both cards in the same bench session.
@@ -385,37 +415,9 @@ Re-tested on battery power alone (USB disconnected, fresh reset): still bouncing
 
 **Outcome:** boost module's quiescent current confirmed as the dominant factor in standby drain, strong evidence for CARD-0027's proposed peripheral power-gating fix — though since the boost stage itself (not just the peripherals) is the measured bottleneck here, a fix that only gates BME280/LTR-390/display power wouldn't address the biggest contributor unless it also cuts the boost stage. Worth revisiting CARD-0027's scope with this in mind.
 
----
-
-### CARD-0034 · [idea] [personal] Complete digital-identity-protection-checklist.md
-**Notes:** Work through `digital-identity-protection-checklist.md` (repo root) — Joseph and Robin's personal security checklist closing single-point-of-failure risks (carrier port-out PIN, 2FA off SMS, credit freezes, password manager, household verification protocol, incident response plan). Almost entirely manual actions by Joseph/Robin themselves (phone calls to carriers/bureaus, account settings changes) — not something Claude Code can execute directly, but worth tracking to completion since it's currently all unchecked. Also has an "Open Items to Fill In" section (list specific banks/brokerages in use, confirm current password manager/2FA setup, set a 6-month review date) that needs input from Joseph before those parts can be finished.
-
-**Blocked (2026-07-11):** waiting on delivery of Google Titan Security Key hardware authenticators (3 ordered) — needed for the hardware-key 2FA portion of the checklist before those items can be checked off.
+**Closed 2026-07-16:** measurement scope is complete — real number obtained (22.6mA), method verified, caveats documented. The open question of whether this number holds for the real device's own TP4056 module is no longer blocking closure: CARD-0070 (LDO swap) now owns that verification as part of its own "done when" criteria (real hiking-monitor must boot and reach sleep normally on the new power path), so it doesn't need a separate open card here.
 
 ---
-
-### CARD-0009 · [enhancement] [hiking-sensor] Enclosure design and build
-**Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-sensor/enclosure-prototype.md`. Standoffs arrive 2026-06-14; temp enclosure build before camping trip departure 2026-06-15. Device will be used in the field for ~2 weeks on that trip — hiking and van sensor simulation. Full 3D-printed permanent enclosure is a later step.
-
-**LTR-390 rewiring (2026-07-12):** in progress. Replacing the LTR-390's soldered 0.1" male headers with a 150mm STEMMA QT / Qwiic cable (Adafruit #4209, `jctsh-parts-inventory.md` Bag 31) plugged into the sensor's STEMMA QT port, with the male-header end going into the perfboard's existing LTR-390 female header (unchanged). Gives slack to mount the sensor at the correct sky-facing orientation in the enclosure independent of the perfboard's own orientation — this is what the enclosure build actually needed the flexibility for. Only the sensor-side segment changes; perfboard-to-ESP32 traces (GPIO21/GPIO22) untouched. Docs updated: `wiring.md` (new wire-color table — STEMMA QT cable colors are SDA/SCL-swapped from the old breadboard colors, flagged explicitly), `perfboard-layout.md` (dated addendum on the LTR-390 header row, original build history kept intact).
-
-**Reflection (required last Build step, per `JCTsh-Operating-System.md`):** once the enclosure is built and verified, two harvests before this card closes:
-
-1. **3D-enclosure instruction template.** Generalize `hiking-monitor-enclosure-instructions.md` into a reusable template — e.g. `JCTsh-3D-Enclosure-Instructions-Template.md` at the repo root, following the same pattern `JCTsh-Component-Planning-Pattern.md` already establishes for component planning. Strip out hiking-monitor-specific content (exact dimensions, LTR-390/BME280/display specifics) and keep the reusable procedure: Tinkercad + OpenSCAD two-tool workflow, `-raw`/`-final` export naming convention, Xerocraft Bambu Studio/print-session steps, PLA-test-then-ASA-final print pattern, test-fit checklist structure. So the next component needing a printed enclosure (candidates already in the backlog: remote-temp-sensor-01, air-quality-monitor's clip-case) starts from a template instead of copying and hand-editing this component-specific doc from scratch.
-2. **Any other pattern harvesting this card's work warrants** — not just the enclosure template. Sweep the full card history for anything worth capturing somewhere it'll be found again (per TOS's general Reflection rule, not limited to enclosures): the STEMMA QT/Dupont cable relocation fix for sensors that are rigid-socket-mounted facing the wrong way (a mounting-orientation pattern, not enclosure-specific — could recur on any future sensor with a fixed connector orientation); the `-raw`/`-final` STL naming convention and the `hiking-sensor` vs `hiking-monitor` (folder vs. ESPHome device name) confusion this card surfaced, in case anything beyond the enclosure-instructions doc references that ambiguity; and `hiking-monitor-enclosure-instructions.md` Step 56 already exists for build-standards-specific harvest (print orientation, insert types, ASA/PETG choice, etc.) — confirm it actually gets run, don't let this broader reflection substitute for it.
-
-**Don't close until:** rewiring physically complete and I2C communication re-verified (LTR-390 still detected at 0x53, UV/light readings sane) after reassembly, AND both reflection items above are complete.
-
-**Xerocraft trip prep (2026-07-13):** for the Session 1 PLA test print visit (`hiking-monitor-enclosure-instructions.md` Steps 30–33), bring:
-- `components/hiking-sensor/enclosure/bottom-shell-final.stl`, `top-shell-final.stl`, `vent-insert-final.stl` — the current, ready-to-print exports.
-- `hiking-monitor-enclosure-instructions.md` and `hiking-monitor-enclosure-plan.md` for on-site reference (Steps 30–36 cover this exact session; the plan doc's dimensions table is the fallback if a Step 34/35 test-fit check fails and you need the intended measurement to diagnose the offset).
-- Physically: the main perfboard assembly (ESP32/BME280/LTR-390/switch) and the top-shell contents (display, TP4056+adapter, LiPo) — Steps 34–35 test-fit the freshly printed shells against the real hardware, not just visually.
-
-**Doc fix (2026-07-13):** `hiking-monitor-enclosure-instructions.md` had stale STL filenames (`-cuts.stl` instead of the actual `-raw`/`-final` convention) and a wrong `components/hiking-monitor/enclosure/` path (should be `hiking-sensor`) throughout Steps 15, 16, 22, 23, 28, 29, 30, and 55. Corrected in the doc itself, including a naming-convention note near the top — see that file for the convention, not duplicated here.
-
----
-
-## Done
 
 ### CARD-0068 · [enhancement] [netalertx] Remove online/offline presence messages from the log — RESOLVED 2026-07-15
 **Notes:** Raised 2026-07-14, follow-up to CARD-0063. With the translation flow live for a bit, the online/offline presence transition messages (`<device> came online` / `went offline`) turned out to be noisy and not actionable — mobile/known-flappy devices dominate, and even a real device flip doesn't carry enough context (how long, why it matters) to be worth a log line. New-device alerts and the heartbeat are working well and stay. No future use anticipated for presence data elsewhere (NetAlertX's own UI already covers online/offline if ever needed) — clean removal, not a toggle/config flag.

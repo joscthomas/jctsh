@@ -64,7 +64,7 @@ R = right ESP32 female header (col 11, 19 pins, 9-hole spacing from L)
 | Component | Position | Reason |
 |---|---|---|
 | ESP32 female headers | Cols 2 and 11, rows 2–20 | Standard 19-pin removable headers |
-| LTR-390 breakout | Right zone, rows 2–5 | Top of board = closest to sky-facing enclosure opening |
+| LTR-390 breakout | Right zone, rows 2–5 | Top of board = closest to sky-facing enclosure opening. **Updated 2026-07-12 (CARD-0009):** LTR-390 no longer plugs directly into this header via its own soldered male headers — it now connects via a 150mm STEMMA QT cable (see `wiring.md`), letting the sensor mount at the correct sky-facing orientation in the enclosure independent of this header's position/orientation on the perfboard. The header itself and everything downstream of it (perfboard traces to GPIO21/GPIO22) are unchanged. |
 | Voltage divider (R1+R2) | Right zone, rows 8–14 | R1=68kΩ (top), R2=68kΩ (bottom); short wire to BAT+ harness |
 | E-ink harness header | Right zone, rows 15–18 | 8-pin male header; labeled wires connect to display |
 | BME280 breakout | Right zone, rows 17–20 | Bottom of board = farthest from ESP32 (minimizes self-heating error) |

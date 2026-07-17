@@ -48,6 +48,29 @@ I2C address: 0x76 (SDO/CSB pin is tied to GND on GY-BME280 breakout).
 
 ## LTR-390 UV Sensor Wiring
 
+**Updated (2026-07-12, CARD-0009 enclosure rework):** the sensor-side connection now uses a STEMMA QT / Qwiic cable (Adafruit #4209, JST SH 4-pin to premium male headers, 150mm — `jctsh-parts-inventory.md` Bag 31) plugged directly into the LTR-390 breakout's STEMMA QT port, instead of soldered 0.1" male headers on the through-hole pads. The 150mm length gives slack to mount the sensor at the correct sky-facing orientation in the enclosure independent of the perfboard's own orientation. The male-header end plugs into the perfboard's existing LTR-390 female header (unchanged from the original build) — only this sensor-side segment changed; the perfboard-to-ESP32 traces/jumpers are untouched, still GPIO21 (SDA) / GPIO22 (SCL) per `ESP32-project-pins.md`.
+
+**STEMMA QT cable colors (Adafruit standard — different from the old breadboard colors below):**
+
+| LTR-390 Pin | Wire color | Connects to | Notes |
+|---|---|---|---|
+| VIN | Red | Perfboard header VIN pin | 3.3V |
+| GND | Black | Perfboard header GND pin | |
+| SDA | Blue | Perfboard header SDA pin | I2C data — shared with BME280 |
+| SCL | Yellow | Perfboard header SCL pin | I2C clock — shared with BME280 |
+| INT | — | (not connected) | Interrupt pin — not broken out on STEMMA QT, still unused |
+
+**Gotcha:** the STEMMA QT cable's SDA/SCL colors are swapped from the old breadboard-era wiring below (Blue=SDA now vs. Yellow=SDA before). Wire by pin label, not by color, when connecting either end.
+
+I2C address: 0x53 (fixed — no configurable address pin).
+No I2C address conflict with BME280 (0x76 ≠ 0x53).
+
+**LTR-390 placement:** Must face open sky during hikes. In the final enclosure it mounts on the top face, now via the STEMMA QT cable rather than being rigidly plugged into the perfboard. During bench testing, point at a sunlit window or outside to confirm UV readings change.
+
+---
+
+**Original breadboard-era wiring (superseded 2026-07-12, kept for history):**
+
 | LTR-390 Pin | Wire color | ESP32 Pin | Notes |
 |---|---|---|---|
 | VIN | Red | 3.3V | Adafruit breakout has onboard 3.3V regulator — VIN accepts 3.3V directly |
@@ -56,12 +79,7 @@ I2C address: 0x76 (SDO/CSB pin is tied to GND on GY-BME280 breakout).
 | SCL | Blue | GPIO22 | I2C clock — shared with BME280 |
 | INT | — | (not connected) | Interrupt pin — not used |
 
-I2C address: 0x53 (fixed — no configurable address pin).
-No I2C address conflict with BME280 (0x76 ≠ 0x53).
-
-**LTR-390 breadboard preparation:** The Adafruit LTR-390 (#4831) has STEMMA QT / Qwiic connectors, not standard 0.1" headers. Before breadboard use, solder standard 0.1" male header pins to the through-hole pads on the breakout board. The through-holes are labeled: VIN, GND, SDA, SCL, INT. Solder a 4-pin or 5-pin header strip to VIN/GND/SDA/SCL (INT is optional).
-
-**LTR-390 placement:** Must face open sky during hikes. Position on breadboard near one edge. In the final enclosure it mounts on the top face. During bench testing, point at a sunlit window or outside to confirm UV readings change.
+**LTR-390 breadboard preparation (superseded):** The Adafruit LTR-390 (#4831) has STEMMA QT / Qwiic connectors, not standard 0.1" headers. Before breadboard use, solder standard 0.1" male header pins to the through-hole pads on the breakout board. The through-holes are labeled: VIN, GND, SDA, SCL, INT. Solder a 4-pin or 5-pin header strip to VIN/GND/SDA/SCL (INT is optional).
 
 ---
 

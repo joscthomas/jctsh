@@ -199,6 +199,26 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 ## Planning
 
+### CARD-0070 · [enhancement] [hiking-sensor] Replace boost converter with MCP1700-3302E/TO LDO for lower standby draw
+**Notes:** Raised 2026-07-16, directly motivated by CARD-0026's measurement — the test rig's TP4056+boost module draws 22.6mA steady in deep sleep, dominated by the boost stage's always-on quiescent current (est. ~48.7hr / ~2 day runtime on a 1100mAh cell). This matches the existing recommendation in `JCTsh-Build-Standards.md` §2.14 point 7 (prefer direct LiPo→LDO over boost-then-buck) — this card is the concrete follow-through on that recommendation.
+
+**Part:** MCP1700-3302E/TO — TO-92 through-hole (3 legs: VIN, GND, VOUT), ~1.6µA quiescent current, 250mA max output. Chosen over AP2112K-3.3 (lower quiescent current margin isn't the issue — package is: SOT-23-5 SMD, impractical for this project's hand-solder/perfboard build convention without a breakout board) and over AMS1117-3.3 (5-10mA quiescent — same problem class as the boost module it's replacing, the wrong part family for a battery/sleep application). **On order, arrives 2026-07-17.**
+
+**Sequencing:** prototype on the CARD-0026 test rig first (spare ESP32 + spare TP4056, Bag 8) — validates the fix and specifically checks whether CARD-0026's brownout-reset-loop finding (boost module's output sagging under the ESP32's active-boot/WiFi current spike) recurs with the LDO in place. Once proven on the rig, port the identical change to the real field-deployed hiking-monitor.
+
+**Wiring plan:**
+- TP4056 stays exactly as-is — continues managing battery charging (and solar input) unchanged. Only the boost stage is removed from the power path; the boost module's `OUT+`/`OUT-` pads go unused once the LDO is wired in.
+- LDO `VIN` taps the same battery+ node as TP4056's `BAT+` input — a parallel connection straight off the raw battery, not fed from the boost module's output.
+- LDO `GND` ties to common ground (same ground plane as TP4056/ESP32/battery−).
+- LDO `VOUT` → ESP32 dev board's **3V3 pin directly** (not `VIN`) — `VIN` expects ~5V and routes through the board's own onboard regulator; feeding `3V3` bypasses that second regulation stage, which is the point of this change.
+- **Caution:** never power the board from USB and the LDO at the same time — both would drive the `3V3` rail from separate unisolated sources, risking backfeeding either regulator. Disconnect the LDO before flashing over USB, and vice versa.
+
+**Known risk:** MCP1700's 250mA max is a tighter margin than AP2112K's 600mA against the ESP32's active-WiFi current bursts (109-154mA observed on this same rig during CARD-0026, USB-powered). If the LDO can't sustain those bursts, the same class of brownout-reset loop CARD-0026 diagnosed on the boost module could reappear on the new LDO path — this is exactly what the rig-first prototype step is meant to catch before committing to the real device.
+
+**Done when:** LDO installed and wired per this plan on both the test rig and the real hiking-monitor, and each boots cleanly and reaches deep sleep normally on battery power alone (no brownout-reset loop).
+
+---
+
 ### CARD-0067 · [enhancement] [salt-sensor] Design and build a 3D-printed enclosure
 **Notes:** Raised 2026-07-13, following CARD-0049's perfboard build. Salt-sensor is installed near the water softener, where salt loading creates real splash risk — per `JCTsh-Build-Standards.md`'s enclosure decision rule ("installed outdoors or in a weather-exposed location → use a weatherproof project box"), this triggers an actual enclosure rather than the default open standoff mount. Board/components to house: ESP32 (SparkleIoT XH-32S), 3 status LEDs (Red/Yellow/Green, need visibility), JSN-SR04T connector (cable exit toward the tank), USB power port.
 
@@ -340,6 +360,30 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 2. Re-run the measurement (Measurement Steps 1-4 above) on the rebuilt rig.
 3. If the new build still reads implausibly low (~30µA) and still shows no board LED: measure TP4056 VOUT+/VOUT− voltage (expect ~5V boosted, not raw ~3.7-4.2V battery voltage) and ESP32's 3V3 pin voltage to pin down whether the boost stage is actually engaging.
 4. If the new build reads meaningfully higher (closer to the originally-feared 1-5mA range): that's likely the real number — the first rig probably had a bad TP4056 or a marginal connection. Proceed to the runtime calculation (Measurement Step 4) and CARD-0027's sequencing decision.
+
+**Progress (2026-07-16) — root cause of the suspicious 30µA reading found: a blown fuse in the ammeter itself, not the TP4056 or wiring.**
+
+Rebuilt clean with a fresh TP4056 and all-new connections per Next Step 1 — got the *identical* 0.03mA reading again, and VOUT+/VOUT− measured only 0.02V (not ~5V boosted, not even raw ~3.7-4.2V battery voltage — essentially zero). Forcing an active boot (disconnecting the GPIO32→GND jumper) didn't change either reading, which ruled out "boost auto-shuts-off under near-zero load" as the explanation — a module that dynamically responds to load should have reacted to a forced active-boot current spike, and it didn't.
+
+Traced it properly instead of re-guessing: measured raw battery voltage directly (3.8V, healthy) vs. voltage at the TP4056's BAT+ input terminal (0.02V) — a ~3.8V drop at only 30µA implies roughly 126kΩ of resistance somewhere in between. Confirmed by measuring directly across the ammeter's own two terminals: 3.86V, meaning nearly the entire battery voltage was dropping *inside the meter itself*. **The ammeter's mA/µA fuse was blown.** Every "suspiciously good" reading across two separate, freshly-wired TP4056 rebuilds was never real hiking-monitor current at all — the TP4056 and ESP32 had been starved of real power the whole session, which is exactly why nothing else lined up (no LED, ~0V at VOUT, current not responding to a forced active boot).
+
+**Switched to a second multimeter for current measurement (same rig, no rewiring needed).** First real result: ESP32's onboard LED lit for the first time all session (real power finally reaching the board) — but current bounced 109-154mA continuously and never settled, even after a full minute-plus and even after power-cycling with GPIO32 freshly reconnected to GND.
+
+**Diagnosed via USB serial log** (`esphome logs hiking-monitor-test.yaml`, one diagnostic power cycle — current reading invalid during this cycle since USB power dominates, that's expected and fine): boot proceeded cleanly on USB power — BME280/LTR-390 failed to respond (expected, sensors not attached for this test), MQTT failed to resolve the broker address (`Error resolving broker IP address: -6`, non-fatal, noted but not investigated further), and the device reached `[I][deep_sleep:057]: Beginning sleep` in about 1 second. Firmware sleep-entry logic is confirmed correct and fast.
+
+Re-tested on battery power alone (USB disconnected, fresh reset): still bouncing 100+mA, never settling — same as before USB confirmed the firmware works. Since USB (stable 5V) sleeps cleanly every time and battery/boost power never does, root cause is almost certainly a **brownout-reset loop**: the boost module's output sags under the ESP32's active-boot/WiFi current spike (~100-250mA bursts), dips below the brownout threshold, forces a reset, and the cycle repeats indefinitely — the device never completes one full boot-to-sleep cycle on battery power alone.
+
+**Worked around it with a hot-swap methodology** rather than trying to fix the module: booted on USB, let it reach `Beginning sleep` and settle for a couple seconds, then disconnected USB *without resetting the board* while the battery/TP4056/meter circuit stayed connected throughout (already powering the board in parallel). This sidesteps the problem entirely — the boost module only had to sustain deep sleep's tiny steady current, never the active-boot spike it can't handle.
+
+**Result: 22.6mA steady, on the 200mA range (nowhere near overload), LED lit.** Confirmed LED-lit is *expected* for genuine sleep, not a red flag — deep sleep only stops the CPU, it doesn't cut power to the 3.3V rail the LED is hardwired to, exactly matching CARD-0027's original observation on the real device. Runtime estimate: 1100mAh ÷ 22.6mA ≈ **48.7 hours, roughly 2 days** — worse than the original 1-5mA estimate that motivated this measurement (which would have implied 9-46 days).
+
+**Important caveat — this brownout-reset-loop behavior has never been observed on the real, field-deployed hiking-monitor** (carried on a two-week camping trip, field-proven per CARD-0008). That strongly suggests this specific failure mode belongs to *this test rig's spare TP4056 module* (Bag 8), not the real device's own installed module — plausibly the same kind of unit-quality issue as the spare ESP32 that had to be discarded earlier in this same bench session. Since this module also can't handle load the way the real device's module apparently does, its idle/quiescent characteristics may not be identical either — poor load regulation and higher quiescent draw often correlate in cheap parts, but it's not guaranteed. **22.6mA should be treated as a real, valid measurement of this test rig's specific module, not a confirmed number for the real hiking-monitor's own module.**
+
+**Also not accounted for:** BME280 and LTR-390 aren't attached to this test rig. Per typical datasheet specs each would add roughly tens to a few hundred µA of additional idle draw on the real device — small relative to the 22.6mA boost-module-dominated total, but real. Net effect: the real device's actual sleep current is probably somewhat *higher* than 22.6mA, not lower, meaning real standby life is probably somewhat *less* than the 48.7-hour estimate.
+
+**Worth flagging separately:** if Bag 8's spare TP4056 stock has a batch-quality issue, it's relevant to any other component build that reuses it (remote-temp-sensor-01, air-quality-monitor's clip-case).
+
+**Outcome:** boost module's quiescent current confirmed as the dominant factor in standby drain, strong evidence for CARD-0027's proposed peripheral power-gating fix — though since the boost stage itself (not just the peripherals) is the measured bottleneck here, a fix that only gates BME280/LTR-390/display power wouldn't address the biggest contributor unless it also cuts the boost stage. Worth revisiting CARD-0027's scope with this in mind.
 
 ---
 

@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.17
-**Version description:** ESP32 DevKitC-32 (Bag 1) qty 8 → 7 — one spare confirmed defective (bad flash chip, CARD-0026) and discarded.
+**Version:** 2.19
+**Version description:** BOJACK T3.15AL250V slow blow fuses ×20 added (new Fuses section, Plastic Box) — for multimeter.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -153,6 +153,15 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | BC557B PNP Transistor | Diotec, PNP 45V 0.1A TO-92. DigiKey 4878-BC557BCT-ND | 10 | Music Response bin | General-purpose small-signal PNP. |
 | BC547B NPN Transistor | Diotec, NPN 45V 0.1A TO-92. DigiKey 4878-BC547BCT-ND | 50 | Music Response bin | General-purpose small-signal NPN. |
 | 1N4148 Signal Diode | onsemi, 100V 200mA DO-35. DigiKey 1N4148FS-ND | 50 | Music Response bin | Fast switching signal diode. |
+| MCP1700 LDO Voltage Regulator | Microchip MCP1700, LDO linear voltage regulator, fixed 3.3V output, through-hole TO-92. https://www.amazon.com/dp/B0B2S2CT78 | 10 | Bag 32 | No project assigned. |
+
+---
+
+## Fuses
+
+| Component | Description | Qty | Location | Notes |
+|---|---|---|---|---|
+| BOJACK T3.15AL250V Slow Blow Fuse | 5×20mm (0.2×0.78in) glass tube, 3.15A 250V, time-delay/slow-blow. Pack of 20. https://www.amazon.com/dp/B07X2K4NTQ | 20 | Plastic Box | For multimeter (replacement fuse). |
 
 ---
 
@@ -251,3 +260,5 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-07-13 | Stock | ESP32 DevKitC-32 ×6 received (second 6-pack, ASIN B0DSZBH9N9), merged into existing Microcontrollers row (Bag 1); Qty 2 → 8 |
 | 2026-07-13 | Stock | M3 screw assortment ×600 pcs received (ASIN B0D1457XQ3), added to Prototyping and Build Hardware, Plastic Box |
 | 2026-07-14 | CARD-0026 | ESP32 DevKitC-32 ×1 (Bag 1) confirmed defective — bad flash chip, consistent esptool failure across cables/ports/manual bootloader entry, ruled out as a connection issue by successfully flashing a second spare board. Discarded, not returned to stock. Qty 8 → 7 |
+| 2026-07-17 | Stock | MCP1700 3.3V LDO voltage regulator ×10 received (new bag, ASIN B0B2S2CT78), added to Discrete Semiconductors, Bag 32 |
+| 2026-07-17 | Stock | BOJACK T3.15AL250V 5×20mm slow blow fuses ×20 received (ASIN B07X2K4NTQ), added to new Fuses section, Plastic Box — for multimeter |

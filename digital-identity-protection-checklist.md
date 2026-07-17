@@ -17,13 +17,13 @@
 
 ### Google Account (do for both)
 - [X] Change Google Account PIN
-- [ ] Delete security question
-- [ ] Delete recovery phone number (Joseph and Robin) — once hardware keys are registered and confirmed working
-- [ ] Order 3 Google Titan security keys (1 for Joseph, 1 for Robin, 1 shared backup for the safe)
-- [ ] Register Joseph's Titan as a passkey on his Google Account
-- [ ] Register Robin's Titan as a passkey on her Google Account
+- [X] Delete security question
+- [X] Delete recovery phone number (Joseph and Robin) — once hardware keys are registered and confirmed working
+- [X] Order 3 Google Titan security keys (1 for Joseph, 1 for Robin, 1 shared backup for the safe)
+- [X] Register Joseph's Titan as a passkey on his Google Account
+- [X] Register Robin's Titan as a passkey on her Google Account
 - [ ] Register the shared/backup Titan as a passkey on both accounts; store in the safe once done
-- [ ] Set up Windows Hello as a passkey on Joseph's laptop *(under consideration, not yet decided)*
+- [X] Set up Windows Hello as a passkey on Joseph's laptop *(under consideration, not yet decided)*
 - [ ] Review "recent security activity" / connected devices, remove anything unrecognized or old
 - [ ] Consider enrolling in Google Advanced Protection Program if either of you handles significant money
 

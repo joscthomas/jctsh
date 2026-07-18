@@ -1,8 +1,17 @@
 # Digital Identity Protection Checklist
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step checklist for Joseph and Robin to close the single-point-of-failure risks described in the TIME article "How a Stranger Used One Text Message to Steal My Entire Digital Life" (July 2026).
-**Version:** 2.1
-**Version description:** Marked done: shared/backup Titan key stored in the safe, Google 2-Step Verification backup codes placed in the safe, and all three Titan keys physically labeled with the scheme recorded. Only IDs remain outstanding in the Safe Contents manifest.
+**Version:** 2.2
+**Version description:** Added a short "Active Cards" section pointing to CARD-0071 and CARD-0072 in `kanban-board.md` — a pointer, not a duplicate of their full scope, to avoid drift between the two files.
+
+---
+
+## Active Cards
+
+CARD-0034 (the original "complete this checklist" card) closed 2026-07-17 as **version 1 done** — the core phone/SIM-swap single-point-of-failure work is solid. Ongoing work is tracked via two follow-on cards (full scope in `kanban-board.md`, not duplicated here):
+
+- **CARD-0071** (Planning) · Emergency Access preparation — RoboForm Emergency Access + Google Inactive Account Manager, testing both, documentation needs, meeting with the designated contact. Covers the checklist's Phase 2 "Password manager" items on this topic.
+- **CARD-0072** (Build) · Digital Identity Checklist Version 2 — works through this checklist's remaining open items toward v3.0.
 
 ---
 

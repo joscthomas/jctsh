@@ -1,8 +1,8 @@
 # Digital Identity Protection Checklist
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step checklist for Joseph and Robin to close the single-point-of-failure risks described in the TIME article "How a Stranger Used One Text Message to Steal My Entire Digital Life" (July 2026).
-**Version:** 1.6
-**Version description:** Added a dedicated "Safe Contents" section consolidating everything intended to go in the physical safe into one manifest. Removed account numbers and insurance policy numbers from it (both live in RoboForm and would go stale on paper) and explicitly excluded the RoboForm master password itself (same single-point-of-failure risk as a written seed phrase); added a task to test the RoboForm Emergency Access flow end-to-end once configured.
+**Version:** 2.0
+**Version description:** Added "ID document photos — consolidate and clean up" section: digital copies of DL/passport as RoboForm Identity images, plus tasks to find and delete scattered ID photos from Google Photos, Immich, and other locations (including their trash/recently-deleted retention windows). Added a Phase 5 travel item confirming digital ID access while traveling.
 
 ---
 
@@ -59,9 +59,19 @@
 - [X] RoboForm 2FA enabled via Google Authenticator
 - [X] Add hardware-key 2FA to RoboForm once Titans arrive (confirmed supported: YubiKey Security Key C NFC / Google Titan)
 - [N] Confirm Robin has her own independent RoboForm login/vault access, not dependent on a shared password (Robin uses my account)
-- [ ] Evaluate RoboForm Emergency Access (grants a designated person access to credentials upon death or incapacitation) — decide who the designated contact should be
+- [ ] Evaluate RoboForm Emergency Access (grants a designated person access to credentials upon death or incapacitation) — decide who the designated contact should be. **Reasoning:** both Joseph and Robin have the master password memorized, so each already has full, immediate access if something happens to the other — no designee or waiting period needed for that case. Emergency Access therefore only matters for the scenario where *both* are unavailable at once, which means the designated contact should be a third party (most likely one of the adult children, consistent with their existing role as Google Recovery Contacts), not each other. Still need to pick which child.
 - [ ] Test the Emergency Access flow end-to-end once configured (trigger a request, confirm the deny/delay notification works, confirm the waiting period is tuned right) — don't just configure it and assume it works
+- [ ] Store the shared household PIN's resulting value (not the source word, not the derivation method) as a RoboForm secure note, labeled plainly with what it unlocks — Emergency Access then hands it to the designated contact automatically along with everything else, with no separate handoff needed
 - [X] Move to unique, generated passwords for bank, brokerage, crypto, and email accounts first if not already done
+
+### ID document photos — consolidate and clean up
+- [ ] Add digital copies of DL and passport (Joseph and Robin) as images in RoboForm Identity entries (RoboForm supports storing passport/driver's license images directly, not just the numbers)
+- [ ] Search Google Photos for existing photos of IDs (DL, passport, credit/debit cards, etc.) — delete once confirmed captured in RoboForm
+- [ ] Search Immich (self-hosted photo library, `photo-server`) for the same — delete once confirmed captured in RoboForm
+- [ ] Check other likely locations: phone camera roll (pre-cloud-sync), email attachments/sent items, text/messaging apps — delete or move source copies once consolidated in RoboForm
+- [ ] Confirm no lingering copies remain in cloud photo trash/recently-deleted folders — Google Photos and Immich both hold deleted items for a retention window before permanent removal, so deleting isn't done until that window passes too
+
+> **Why this matters:** ID photos scattered across general-purpose photo libraries (searchable, sometimes cloud-synced, often auto-organized/face-indexed) don't have the same access controls as RoboForm's encrypted vault, and are easy to forget about entirely. Consolidating to one deliberately-chosen, encrypted location and removing the scattered copies reduces exposure without losing access — same logic as the rest of this checklist.
 
 ### Recovery contacts
 - [ ] Set Google Account Recovery Contacts: Robin ↔ Joseph (each other)
@@ -70,7 +80,7 @@
 
 ### Offline hardcopy vault
 - [X] Generate Google 2-Step Verification backup codes for Joseph and Robin
-- [ ] Record all three key serial numbers (Joseph, Robin, shared/backup) in the offline vault
+- [ ] Physically label all three Titan keys (sticker/tape/paint dot marking "J" / "R" / "Backup") — Titan keys have no printed serial number, so a label is the only way to tell the identical units apart; record the labeling scheme in the offline vault
 - [ ] Store offline hardcopy in the safe (see Safe Contents manifest below) — decided, current plan
 - [ ] *(Under consideration)* Travel copy: a small, unlabeled duplicate carried separately from phone/hardware key while traveling (see Phase 5)
 - [ ] *(Under consideration)* Outside-contact copy: a third duplicate held by someone outside the household — see "Outside-Contact Copy Pattern" note below
@@ -88,7 +98,7 @@ Consolidated manifest of everything intended to physically live in the safe. Set
 
 - [ ] Shared/backup Titan security key
 - [ ] Google 2-Step Verification backup codes (Joseph and Robin)
-- [ ] Serial numbers for all three keys (Joseph, Robin, shared/backup)
+- [ ] Note of the key labeling scheme (which physical marking = Joseph's / Robin's / shared-backup)
 - [ ] IDs (copies of driver's license/passport, etc.)
 
 **Deliberately excluded:** account numbers and insurance policy numbers. Both already live in RoboForm, which stays current as accounts/policies change; a paper copy would only go stale. The safe's backup Titan key already restores RoboForm access (hardware-key 2FA is enabled there) if you're locked out — so the recovery path is safe → key → RoboForm → current numbers, not a second manually-maintained copy. The one gap this doesn't cover — someone else (executor, recovery contact) needing account numbers without knowing the RoboForm master password — is what RoboForm Emergency Access is for (see Phase 2, Password manager section), not a paper backup.
@@ -129,6 +139,7 @@ Consolidated manifest of everything intended to physically live in the safe. Set
 - [ ] Brief recovery contacts (Robin, children, any outside contact) on travel dates before departure
 - [ ] Carry a non-digital payment fallback: physical card plus some cash
 - [ ] Notify banks/credit union of travel dates
+- [ ] Confirm digital copies of DL/passport (RoboForm Identity) are accessible while traveling — backup if the physical document is lost or stolen abroad
 
 ---
 

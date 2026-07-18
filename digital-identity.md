@@ -1,8 +1,8 @@
 # Digital Identity — Security Key & Authentication Reference
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Reference notes on how Windows Hello and Google Titan security keys work, and how to configure RoboForm to use a Titan key as 2FA (not a password replacement). Companion to `digital-identity-protection-checklist.md`, which tracks the action items — this file captures the underlying explanations.
-**Version:** 1.2
-**Version description:** Added what should never be stored in RoboForm/apps (keep offline instead).
+**Version:** 1.3
+**Version description:** Removed the memorable/word-derived PIN technique — now that the word and method are both memorized in practice, keeping the derivation method documented only narrows an attacker's effective guessing space if this file is ever exposed, without adding any benefit.
 
 ---
 
@@ -98,8 +98,6 @@ Human-chosen "clever" PINs still cluster into predictable patterns (attackers mo
 - Use RoboForm's password generator to produce a random 4-digit string, or roll dice (e.g., two 10-sided dice, or a d6 + d10 combo, twice).
 - Write it down and store it in the safe — same offline-hardcopy pattern already used for backup codes and hardware key serials (see the Offline Hardcopy Vault section in `digital-identity-protection-checklist.md`).
 - Memorize it through repetition (typing it daily) rather than deriving it from something meaningful — meaning is exactly what makes PINs guessable.
-
-**If a memorable, human-generated PIN is preferred instead:** pick an obscure private reference — a word or short phrase meaningful only to the two of you, with zero public footprint (not a pet name, not a former street address, nothing findable with a bit of research on either person) — then convert it to digits via phone keypad letter-to-number mapping and take the first 4 digits. The requirement is that the *source material* isn't discoverable, not that the technique itself is fancy.
 
 **Caveat:** this matters proportional to how guess-attempts are limited on whatever the PIN protects. If it's hardware-lockout-protected (a phone, a bank card), avoiding the top-20 common PINs already captures most of the real-world benefit. If it's protecting something with unlimited offline guessing, true randomness is the only thing that helps at 4 digits — worth checking whether that context should use a longer PIN instead, if supported.
 

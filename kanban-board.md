@@ -176,6 +176,20 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Planning
 
+### CARD-0071 · [idea] [personal] Emergency Access preparation
+**Notes:** Raised 2026-07-17, split out from CARD-0034's closure. Covers the "both Joseph and Robin unavailable at once" gap that the rest of `digital-identity-protection-checklist.md` doesn't — since both spouses already have the RoboForm master password memorized, each already has full independent access if something happens to the other, so Emergency Access only matters for the joint-unavailability case.
+
+**Scope:**
+1. Evaluate and configure RoboForm Emergency Access — decide the designated contact (reasoning already in the checklist: should be a third party, most likely one of the adult children, not each other — still need to pick which child) and the waiting period.
+2. Set up Google Inactive Account Manager (Security settings) — the Google-side equivalent of #1, currently untouched.
+3. Test both flows end-to-end once configured — trigger a request, confirm deny/delay notifications work, confirm the waiting period is actually tuned right. Don't just configure and assume it works.
+4. Examine documentation needs — what would the designated contact actually need beyond vault/account access (e.g., a will, power of attorney, other estate paperwork) to act on Joseph and Robin's behalf; currently out of scope of the checklist entirely and worth deciding whether it belongs there or elsewhere.
+5. Meet personally with the designated contact to walk through everything — what Emergency Access is, how/when it triggers, and what they're expected to do — rather than leaving it as a silent technical configuration nobody but Joseph knows exists.
+
+**Related:** `digital-identity-protection-checklist.md` (Phase 2, Password manager section) and `digital-identity.md` ("What NOT to Store in RoboForm" section) hold the reasoning this card executes against.
+
+---
+
 ### CARD-0070 · [enhancement] [hiking-sensor] Replace boost converter with LDO + gate peripheral power for lower standby draw
 **Notes:** Raised 2026-07-16, directly motivated by CARD-0026's measurement — the test rig's TP4056+boost module draws 22.6mA steady in deep sleep, dominated by the boost stage's always-on quiescent current (est. ~48.7hr / ~2 day runtime on a 1100mAh cell). This matches the existing recommendation in `JCTsh-Build-Standards.md` §2.14 point 7 (prefer direct LiPo→LDO over boost-then-buck) — this card is the concrete follow-through on that recommendation.
 
@@ -316,10 +330,22 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 ## Build
 
-### CARD-0034 · [idea] [personal] Complete digital-identity-protection-checklist.md
-**Notes:** Work through `digital-identity-protection-checklist.md` (repo root) — Joseph and Robin's personal security checklist closing single-point-of-failure risks (carrier port-out PIN, 2FA off SMS, credit freezes, password manager, household verification protocol, incident response plan). Almost entirely manual actions by Joseph/Robin themselves (phone calls to carriers/bureaus, account settings changes) — not something Claude Code can execute directly, but worth tracking to completion since it's currently all unchecked. Also has an "Open Items to Fill In" section (list specific banks/brokerages in use, confirm current password manager/2FA setup, set a 6-month review date) that needs input from Joseph before those parts can be finished.
+### CARD-0072 · [idea] [personal] Digital Identity Checklist Version 2
+**Notes:** Raised 2026-07-17, split out from CARD-0034's closure as the next layer of hardening on top of the v1-done core (phone/SIM-swap single point of failure closed). Works through `digital-identity-protection-checklist.md`'s remaining open items, targeting v3.0 (checklist is currently at v2.1).
 
-**Blocked (2026-07-11):** waiting on delivery of Google Titan Security Key hardware authenticators (3 ordered) — needed for the hardware-key 2FA portion of the checklist before those items can be checked off.
+**Scope (in rough priority order):**
+1. **ID document photo cleanup** — the new "ID document photos" section: RoboForm Identity digital copies of DL/passport, then find and delete scattered copies in Google Photos, Immich, camera roll, email/messages, including trash/recently-deleted retention windows. Live exposure, not a future risk — highest priority in this card.
+2. **Robin's app-password and third-party app/service review** — Joseph's side is done; Robin's isn't, leaving an asymmetric bypass (app passwords skip 2FA entirely) on one account.
+3. **Google Recovery Contacts** — set Robin ↔ Joseph and both children; unblocked for a while (kids confirmed independent adults) but never executed.
+4. **Walk through the checklist together with Robin** — cheap, high-leverage: the household verbal protocol (codeword, voice-confirm-before-moving-money) only works if Robin actually knows it exists, not just that Joseph configured it.
+5. **ChexSystems and LexisNexis freezes** — ChexSystems covers new bank-account fraud that the other 3 bureaus don't; worth troubleshooting the registration error rather than abandoning. LexisNexis is lower value (insurance underwriting/background checks) — decide deliberately whether to skip rather than leave it drifting.
+6. **Remaining Phase 2 items:** "Skip password when possible" decision (currently under consideration), physically storing ID copies in the safe (Safe Contents manifest's one remaining open item), travel-copy/outside-contact-copy decision for the offline vault.
+7. **Phase 4/5 prep:** print/place an offline copy of the Incident Response Plan somewhere actually accessible in an emergency; Phase 5 travel items can wait until a trip is actually upcoming.
+8. **Accounts Without 2FA section** — blocked on listing specific banks/brokerages/payment apps in use (still an open item); needed before this section can be worked at all.
+
+**Note:** Emergency Access and Google Inactive Account Manager are deliberately **not** in this card's scope — split out to CARD-0071.
+
+**Related:** `digital-identity-protection-checklist.md` (repo root), `digital-identity.md` (companion reference doc).
 
 ---
 
@@ -345,6 +371,17 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 ---
 
 ## Done
+
+### CARD-0034 · [idea] [personal] Complete digital-identity-protection-checklist.md — RESOLVED 2026-07-17
+**Notes:** Work through `digital-identity-protection-checklist.md` (repo root) — Joseph and Robin's personal security checklist closing single-point-of-failure risks (carrier port-out PIN, 2FA off SMS, credit freezes, password manager, household verification protocol, incident response plan). Almost entirely manual actions by Joseph/Robin themselves (phone calls to carriers/bureaus, account settings changes) — not something Claude Code can execute directly, but worth tracking to completion since it's currently all unchecked. Also has an "Open Items to Fill In" section (list specific banks/brokerages in use, confirm current password manager/2FA setup, set a 6-month review date) that needs input from Joseph before those parts can be finished.
+
+**Blocked (2026-07-11):** waiting on delivery of Google Titan Security Key hardware authenticators (3 ordered) — needed for the hardware-key 2FA portion of the checklist before those items can be checked off.
+
+**Resolution (2026-07-17):** closing as **version 1 done**, not "everything checked off" — the checklist reached v2.1 and the core mission (closing the phone/SIM-swap single point of failure the TIME article exposed) is solidly closed: carrier port-out locks on both lines, Google recovery phone and security question removed, recovery email cross-set between spouses, all 3 Titan keys ordered/registered on Google and RoboForm/PIN-set-and-tested/labeled/backed-up-in-the-safe, Google Account password and 2-Step Verification confirmed hardened with no phone-based fallback remaining, master password memorized redundantly by both Joseph and Robin, 3 of 5 credit bureaus frozen, and the household verbal-verification protocol agreed. Remaining open items (RoboForm Emergency Access + Google Inactive Account Manager, ID document photo cleanup, Robin's app-password/third-party-app review, Google Recovery Contacts, ChexSystems/LexisNexis, walking the checklist through with Robin, Phase 4/5 offline-copy prep) are real but represent the next layer of hardening, not blockers on calling v1 done — split out to CARD-0071 (Emergency Access preparation) and CARD-0072 (Digital Identity Checklist Version 2) rather than holding this card open indefinitely.
+
+**Closed 2026-07-17 — Joseph directed the close.**
+
+---
 
 ### CARD-0026 · [enhancement] [hiking-sensor] Measure hiking-monitor sleep-mode current draw — RESOLVED 2026-07-16
 **Notes:** The hiking-monitor's actual standby battery life is unknown. The ESP32's own deep-sleep draw is negligible (~10µA), but `VOUT+` runs directly to the ESP32's `VIN` with the switch NOT in the power path, so the TP4056+boost module stays active even while the ESP32 sleeps — its quiescent current (undocumented by the manufacturer, plausibly 1-5mA for a cheap module) is almost certainly the real bottleneck. This measurement gives an actual number instead of a guess.

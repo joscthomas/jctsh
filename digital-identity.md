@@ -1,8 +1,8 @@
 # Digital Identity — Security Key & Authentication Reference
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Reference notes on how Windows Hello and Google Titan security keys work, and how to configure RoboForm to use a Titan key as 2FA (not a password replacement). Companion to `digital-identity-protection-checklist.md`, which tracks the action items — this file captures the underlying explanations.
-**Version:** 1.3
-**Version description:** Removed the memorable/word-derived PIN technique — now that the word and method are both memorized in practice, keeping the derivation method documented only narrows an attacker's effective guessing space if this file is ever exposed, without adding any benefit.
+**Version:** 1.4
+**Version description:** Corrected an earlier error — RoboForm's Identity feature does not store document images, only text fields. Added a "Google Photos Locked Folder" section as the actual home for ID document photos, with the reasoning for why it's a reasonably secure choice.
 
 ---
 
@@ -121,3 +121,18 @@ A password manager is a poor fit for anything meant to be the *escape hatch* if 
 - **Hardware key serial numbers** — fine as reference text, just never the key's own PIN.
 
 **Underlying rule:** anything meant to be the escape hatch if the primary system fails has to live in a genuinely separate failure domain. If it's inside RoboForm, it's not independent of RoboForm being compromised or unavailable — it's the same point of failure wearing a different hat.
+
+---
+
+## Google Photos Locked Folder (for ID document photos)
+
+**Correction:** earlier guidance in this project claimed RoboForm's Identity feature could store passport/driver's license *images*. That's wrong — RoboForm's Identity only holds structured text fields (number, dates), with no attachment/image support at all. Passport/DL numbers and expiration dates still belong there; the actual photo needs a different home.
+
+**Google Photos' Locked Folder** is that home. It's a separate area within Google Photos, gated by an additional local check beyond the account login itself (device passcode, Face ID, or fingerprint), with these properties:
+
+- **Excluded from the normal surfaces:** not shown in the main timeline, not indexed by search, not surfaced in "Memories," not visible to family/partner library sharing.
+- **Can't be link-shared while inside it.** A photo has to be deliberately moved *out* of Locked Folder before any share link can be generated — so there's no accidental-exposure path via a stray shareable link.
+- **Cross-device backup** (Android, iOS, and web) — a photo saved in Locked Folder on one device is accessible on others, protected the same way. Earlier versions of this feature were device-local only; that's no longer the case.
+- **Inherits the Google Account's own hardening** — hardware-key-only 2FA, no phone-based recovery fallback — since it's still gated by the same account sign-in underneath the extra local check.
+
+**Where to reference it:** don't store a link to specific Locked Folder photos anywhere (there isn't one to store, per above) — just a plain locator note in RoboForm, e.g. "ID photos: Google Photos → Locked Folder." That's not a secret, just a reminder of where to look.

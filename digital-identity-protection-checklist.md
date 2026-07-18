@@ -1,8 +1,8 @@
 # Digital Identity Protection Checklist
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step checklist for Joseph and Robin to close the single-point-of-failure risks described in the TIME article "How a Stranger Used One Text Message to Steal My Entire Digital Life" (July 2026).
-**Version:** 2.2
-**Version description:** Added a short "Active Cards" section pointing to CARD-0071 and CARD-0072 in `kanban-board.md` — a pointer, not a duplicate of their full scope, to avoid drift between the two files.
+**Version:** 2.3
+**Version description:** Corrected the "ID document photos" plan — RoboForm cannot store document images (text fields only), so the plan now moves Google Photos copies into Locked Folder (not RoboForm) instead of deleting them, with a locator note (not a link) in RoboForm. Updated the matching Phase 5 travel item to reference Locked Folder instead of RoboForm Identity.
 
 ---
 
@@ -74,13 +74,14 @@ CARD-0034 (the original "complete this checklist" card) closed 2026-07-17 as **v
 - [X] Move to unique, generated passwords for bank, brokerage, crypto, and email accounts first if not already done
 
 ### ID document photos — consolidate and clean up
-- [ ] Add digital copies of DL and passport (Joseph and Robin) as images in RoboForm Identity entries (RoboForm supports storing passport/driver's license images directly, not just the numbers)
-- [ ] Search Google Photos for existing photos of IDs (DL, passport, credit/debit cards, etc.) — delete once confirmed captured in RoboForm
-- [ ] Search Immich (self-hosted photo library, `photo-server`) for the same — delete once confirmed captured in RoboForm
-- [ ] Check other likely locations: phone camera roll (pre-cloud-sync), email attachments/sent items, text/messaging apps — delete or move source copies once consolidated in RoboForm
+- [ ] Add passport/DL numbers and expiration dates (Joseph and Robin) to RoboForm Identity entries — **correction:** RoboForm's Identity feature only stores structured text fields (number, dates), not document images/attachments; earlier guidance claiming image support was wrong
+- [ ] Move digital photos of IDs (DL, passport, credit/debit cards, etc.) that currently sit in Google Photos' general library into a **Locked Folder** (Security → Locked Folder) — excluded from search/Memories/family sharing, gated by device passcode/biometric on top of the account login, cross-device backed up, and content inside can't be link-shared without first being moved out
+- [ ] Add a locator note in RoboForm (not a link — Locked Folder content can't be link-shared anyway) pointing to where the photos live, e.g. "ID photos: Google Photos → Locked Folder"
+- [ ] Search Immich (self-hosted photo library, `photo-server`) for the same — delete; Immich has no equivalent protected-folder feature, so it doesn't get a "move to" option here
+- [ ] Check other likely locations: phone camera roll (pre-cloud-sync), email attachments/sent items, text/messaging apps — delete, or move into Locked Folder if worth keeping
 - [ ] Confirm no lingering copies remain in cloud photo trash/recently-deleted folders — Google Photos and Immich both hold deleted items for a retention window before permanent removal, so deleting isn't done until that window passes too
 
-> **Why this matters:** ID photos scattered across general-purpose photo libraries (searchable, sometimes cloud-synced, often auto-organized/face-indexed) don't have the same access controls as RoboForm's encrypted vault, and are easy to forget about entirely. Consolidating to one deliberately-chosen, encrypted location and removing the scattered copies reduces exposure without losing access — same logic as the rest of this checklist.
+> **Why this matters:** ID photos sitting in a general-purpose photo library (searchable, auto-organized/face-indexed, exposed to Memories resurfacing and family sharing) are easy to expose accidentally, even without a targeted attack. Locked Folder is Google's purpose-built answer — it inherits this account's existing hardening (hardware-key-only 2FA, no phone-based fallback) and adds a second, local gate on top. RoboForm can't hold the images at all, so it isn't part of the storage plan for the photos themselves — only for the passport/DL numbers, which are genuine text data it does support.
 
 ### Recovery contacts
 - [ ] Set Google Account Recovery Contacts: Robin ↔ Joseph (each other)
@@ -148,7 +149,7 @@ Consolidated manifest of everything intended to physically live in the safe. Set
 - [ ] Brief recovery contacts (Robin, children, any outside contact) on travel dates before departure
 - [ ] Carry a non-digital payment fallback: physical card plus some cash
 - [ ] Notify banks/credit union of travel dates
-- [ ] Confirm digital copies of DL/passport (RoboForm Identity) are accessible while traveling — backup if the physical document is lost or stolen abroad
+- [ ] Confirm digital copies of DL/passport (Google Photos Locked Folder) are accessible while traveling — backup if the physical document is lost or stolen abroad; also carry a physical photocopy separate from the passport itself, standard travel-safety practice
 
 ---
 

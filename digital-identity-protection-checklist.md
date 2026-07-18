@@ -1,8 +1,8 @@
 # Digital Identity Protection Checklist
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step checklist for Joseph and Robin to close the single-point-of-failure risks described in the TIME article "How a Stranger Used One Text Message to Steal My Entire Digital Life" (July 2026).
-**Version:** 2.0
-**Version description:** Added "ID document photos — consolidate and clean up" section: digital copies of DL/passport as RoboForm Identity images, plus tasks to find and delete scattered ID photos from Google Photos, Immich, and other locations (including their trash/recently-deleted retention windows). Added a Phase 5 travel item confirming digital ID access while traveling.
+**Version:** 2.1
+**Version description:** Marked done: shared/backup Titan key stored in the safe, Google 2-Step Verification backup codes placed in the safe, and all three Titan keys physically labeled with the scheme recorded. Only IDs remain outstanding in the Safe Contents manifest.
 
 ---
 
@@ -24,7 +24,7 @@
 - [X] Register Joseph's Titan as a passkey on his Google Account
 - [X] Register Robin's Titan as a passkey on her Google Account
 - [X] Register the shared/backup Titan as a passkey on both accounts
-- [ ] Store the shared/backup Titan in the safe (see Safe Contents manifest below)
+- [X] Store the shared/backup Titan in the safe (see Safe Contents manifest below)
 - [X] Set up Windows Hello as a passkey on Joseph's laptop
 - [X] Review "recent security activity" / connected devices, remove anything unrecognized or old
 - [N] Consider enrolling in Google Advanced Protection Program if either of you handles significant money
@@ -80,7 +80,7 @@
 
 ### Offline hardcopy vault
 - [X] Generate Google 2-Step Verification backup codes for Joseph and Robin
-- [ ] Physically label all three Titan keys (sticker/tape/paint dot marking "J" / "R" / "Backup") — Titan keys have no printed serial number, so a label is the only way to tell the identical units apart; record the labeling scheme in the offline vault
+- [X] Physically label all three Titan keys (sticker/tape/paint dot marking "J" / "R" / "Backup") — Titan keys have no printed serial number, so a label is the only way to tell the identical units apart; record the labeling scheme in the offline vault
 - [ ] Store offline hardcopy in the safe (see Safe Contents manifest below) — decided, current plan
 - [ ] *(Under consideration)* Travel copy: a small, unlabeled duplicate carried separately from phone/hardware key while traveling (see Phase 5)
 - [ ] *(Under consideration)* Outside-contact copy: a third duplicate held by someone outside the household — see "Outside-Contact Copy Pattern" note below
@@ -96,9 +96,9 @@
 
 Consolidated manifest of everything intended to physically live in the safe. Setup/decision steps for each item live in Phase 1 (Google Account) and Phase 2 (Offline hardcopy vault) above — this section is the single canonical list of what should actually be placed inside, and tracks whether each has been placed yet.
 
-- [ ] Shared/backup Titan security key
-- [ ] Google 2-Step Verification backup codes (Joseph and Robin)
-- [ ] Note of the key labeling scheme (which physical marking = Joseph's / Robin's / shared-backup)
+- [X] Shared/backup Titan security key
+- [X] Google 2-Step Verification backup codes (Joseph and Robin)
+- [X] Note of the key labeling scheme (which physical marking = Joseph's / Robin's / shared-backup)
 - [ ] IDs (copies of driver's license/passport, etc.)
 
 **Deliberately excluded:** account numbers and insurance policy numbers. Both already live in RoboForm, which stays current as accounts/policies change; a paper copy would only go stale. The safe's backup Titan key already restores RoboForm access (hardware-key 2FA is enabled there) if you're locked out — so the recovery path is safe → key → RoboForm → current numbers, not a second manually-maintained copy. The one gap this doesn't cover — someone else (executor, recovery contact) needing account numbers without knowing the RoboForm master password — is what RoboForm Emergency Access is for (see Phase 2, Password manager section), not a paper backup.

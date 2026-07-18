@@ -1,8 +1,8 @@
 # Digital Identity Protection Checklist
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step checklist for Joseph and Robin to close the single-point-of-failure risks described in the TIME article "How a Stranger Used One Text Message to Steal My Entire Digital Life" (July 2026).
-**Version:** 1.4
-**Version description:** All three Titan keys registered on Google and RoboForm; PINs set and tested; confirmed no phone-based method remains under Google 2-Step Verification (both accounts); fire-drill re-sign-in test declined (too involved); split shared/backup Titan's "store in safe" step out as its own open item; clarified serial-number recording covers all three keys.
+**Version:** 1.6
+**Version description:** Added a dedicated "Safe Contents" section consolidating everything intended to go in the physical safe into one manifest. Removed account numbers and insurance policy numbers from it (both live in RoboForm and would go stale on paper) and explicitly excluded the RoboForm master password itself (same single-point-of-failure risk as a written seed phrase); added a task to test the RoboForm Emergency Access flow end-to-end once configured.
 
 ---
 
@@ -24,7 +24,7 @@
 - [X] Register Joseph's Titan as a passkey on his Google Account
 - [X] Register Robin's Titan as a passkey on her Google Account
 - [X] Register the shared/backup Titan as a passkey on both accounts
-- [ ] Store the shared/backup Titan in the safe (once serial number recorded)
+- [ ] Store the shared/backup Titan in the safe (see Safe Contents manifest below)
 - [X] Set up Windows Hello as a passkey on Joseph's laptop
 - [X] Review "recent security activity" / connected devices, remove anything unrecognized or old
 - [N] Consider enrolling in Google Advanced Protection Program if either of you handles significant money
@@ -60,6 +60,7 @@
 - [X] Add hardware-key 2FA to RoboForm once Titans arrive (confirmed supported: YubiKey Security Key C NFC / Google Titan)
 - [N] Confirm Robin has her own independent RoboForm login/vault access, not dependent on a shared password (Robin uses my account)
 - [ ] Evaluate RoboForm Emergency Access (grants a designated person access to credentials upon death or incapacitation) — decide who the designated contact should be
+- [ ] Test the Emergency Access flow end-to-end once configured (trigger a request, confirm the deny/delay notification works, confirm the waiting period is tuned right) — don't just configure it and assume it works
 - [X] Move to unique, generated passwords for bank, brokerage, crypto, and email accounts first if not already done
 
 ### Recovery contacts
@@ -70,7 +71,7 @@
 ### Offline hardcopy vault
 - [X] Generate Google 2-Step Verification backup codes for Joseph and Robin
 - [ ] Record all three key serial numbers (Joseph, Robin, shared/backup) in the offline vault
-- [ ] Store offline hardcopy (backup codes, key serial numbers, account numbers, insurance policy numbers, IDs) in the safe — decided, current plan
+- [ ] Store offline hardcopy in the safe (see Safe Contents manifest below) — decided, current plan
 - [ ] *(Under consideration)* Travel copy: a small, unlabeled duplicate carried separately from phone/hardware key while traveling (see Phase 5)
 - [ ] *(Under consideration)* Outside-contact copy: a third duplicate held by someone outside the household — see "Outside-Contact Copy Pattern" note below
 
@@ -78,6 +79,21 @@
 
 ### General
 - [ ] Confirm neither of you can be fully locked out of money and communication by the loss of one single device or account (test/fire-drill)
+
+---
+
+## Safe Contents
+
+Consolidated manifest of everything intended to physically live in the safe. Setup/decision steps for each item live in Phase 1 (Google Account) and Phase 2 (Offline hardcopy vault) above — this section is the single canonical list of what should actually be placed inside, and tracks whether each has been placed yet.
+
+- [ ] Shared/backup Titan security key
+- [ ] Google 2-Step Verification backup codes (Joseph and Robin)
+- [ ] Serial numbers for all three keys (Joseph, Robin, shared/backup)
+- [ ] IDs (copies of driver's license/passport, etc.)
+
+**Deliberately excluded:** account numbers and insurance policy numbers. Both already live in RoboForm, which stays current as accounts/policies change; a paper copy would only go stale. The safe's backup Titan key already restores RoboForm access (hardware-key 2FA is enabled there) if you're locked out — so the recovery path is safe → key → RoboForm → current numbers, not a second manually-maintained copy. The one gap this doesn't cover — someone else (executor, recovery contact) needing account numbers without knowing the RoboForm master password — is what RoboForm Emergency Access is for (see Phase 2, Password manager section), not a paper backup.
+
+**Also deliberately excluded: the RoboForm master password itself.** It's the single key to everything else in RoboForm — writing it down anywhere, even in the safe, reintroduces exactly the single-point-of-failure risk this whole checklist exists to close (same bearer-secret logic as crypto seed phrases — see `digital-identity.md`'s "What NOT to Store in RoboForm" section). Emergency Access is the purpose-built answer to "someone else eventually needs in" — it grants access through RoboForm's own mechanism without ever exposing the actual password. If Emergency Access feels too slow for a true emergency, the fix is tuning/testing its waiting period, not writing the password on paper.
 
 ---
 

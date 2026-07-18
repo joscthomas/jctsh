@@ -8,6 +8,13 @@
 //
 // API_KEY is stored in Script Properties (Project Settings → Script Properties).
 // The same key is stored in Node-RED environment variables and credentials.local.md.
+//
+// SCRIPT_VERSION below exists purely to make it easy to confirm a redeploy actually
+// took effect — bump it whenever this file changes. Returned in every doGet response
+// (including the "unknown action" fallback) so a version mismatch is visible from a
+// plain curl call, not just by eyeballing the editor.
+
+var SCRIPT_VERSION = '2026-07-18.1-export-action';
 
 // ---------------------------------------------------------------------------
 // doPost — environmental sensor data (Node-RED → Sheets)
@@ -293,6 +300,9 @@ function _exportSheet(sheetName, startParam, endParam) {
 // action=export Read-only export of a whole sheet as JSON, optionally filtered by
 //               an ISO 8601 [start, end] timestamp range on column A. See _exportSheet.
 //               Example: ?action=export&sheet=Environmental%20Data&start=2026-06-15T00:00:00Z&end=2026-06-29T23:59:59Z
+//
+// action=version Returns {status:'ok', version: SCRIPT_VERSION} — no other side effects.
+//                Cheapest way to confirm a redeploy actually took effect.
 
 function doGet(e) {
   try {
@@ -341,9 +351,14 @@ function doGet(e) {
     } else if (action === 'export') {
       return _exportSheet(e.parameter.sheet, e.parameter.start, e.parameter.end);
 
+    } else if (action === 'version') {
+      return ContentService
+        .createTextOutput(JSON.stringify({status: 'ok', version: SCRIPT_VERSION}))
+        .setMimeType(ContentService.MimeType.JSON);
+
     } else {
       return ContentService
-        .createTextOutput(JSON.stringify({status: 'error', message: 'unknown action'}))
+        .createTextOutput(JSON.stringify({status: 'error', message: 'unknown action', version: SCRIPT_VERSION}))
         .setMimeType(ContentService.MimeType.JSON);
     }
 

@@ -143,10 +143,12 @@ Before deploying, store the secret key in Script Properties:
 5. Copy the deployment URL — format:
    `https://script.google.com/macros/s/<SCRIPT_ID>/exec`
 
-**Deployed (2026-06-04):**
-`https://script.google.com/macros/s/AKfycbx75Gu307dCZ6qWUd2_yUXwbE_Hkwsc-Yvgwc6GNQ4hk2yrRZevzlUg3l_LgGmfAbeEpw/exec`
+**Deployed (2026-06-04), redeployed as a new deployment (2026-07-18):**
+`https://script.google.com/macros/s/AKfycbx9FIywSCFunoBKO7Q2IlX2s7mCFyn1W_se6lWaiPOXWc9aJ_fBb-4S-R2EwWpj4UAsWg/exec`
 
 API key and URL stored in `credentials.local.md`.
+
+**2026-07-18 redeploy note:** adding the `action=export` code (below) via the normal "Manage deployments → pencil → New version" flow silently failed three times in a row — the Active deployment kept serving old code with no error, confirmed by adding a `SCRIPT_VERSION` constant returned in every response and testing `action=version` directly. The Head/Test deployment (`Deploy → Test deployments`, `/dev` URL) correctly showed the new code the whole time, isolating the problem to the versioning step specifically, not the saved code. Creating an entirely new deployment (`Deploy → New deployment`) worked immediately. If this recurs, don't burn time re-trying "New version" — go straight to a new deployment and update the URL everywhere it's referenced (this doc, `credentials.local.md`, Node-RED's `APPS_SCRIPT_URL` environment variable, GPSLogger's custom URL setting on the phone).
 
 6. Store the URL in Node-RED environment variables (see Step 11)
 

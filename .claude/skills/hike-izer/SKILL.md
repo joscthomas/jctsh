@@ -62,6 +62,11 @@ what's in/out of scope if this doc and the card ever disagree.
    successfully correlated vs. not. Frame this as a pipeline health check, not
    just a stat -- call out explicitly if coverage looks poor or GPS correlation
    looks broken, since surfacing exactly that is the point of this section.
+   If `coverage.window_truncated_to_now` is `true` (requesting a window that
+   extends into the future, e.g. "today" while it's still in progress), say so
+   plainly -- the coverage numbers were computed through the current time, not
+   the full requested window, so a lower-than-usual figure isn't necessarily a
+   problem.
 
 5. **Save the output** to `hike-izer/summaries/<start-date>_hike-summary.md`
    (create the directory if it doesn't exist). Tell Joseph the file path when done.

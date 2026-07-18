@@ -22,7 +22,7 @@ import math
 import sys
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def fetch_sheet(base_url, api_key, sheet, start, end):
@@ -196,7 +196,16 @@ def _gps_sessions(gps_rows, session_gap_min=10):
 
 
 def analyze_coverage(env_rows, gps_rows, obs_rows, start_dt, end_dt):
-    duration_min = (end_dt - start_dt).total_seconds() / 60
+    # If the requested window extends into the future (e.g. "today," still in
+    # progress), cap the "expected" calculation at now -- otherwise a normal,
+    # fully-caught-up device looks like it has bad coverage simply because part
+    # of the requested day hasn't happened yet. The originally *requested* end
+    # is kept separately so the narrative can note the window was truncated.
+    now_dt = datetime.now(timezone.utc)
+    window_truncated = end_dt > now_dt
+    effective_end_dt = min(end_dt, now_dt)
+
+    duration_min = (effective_end_dt - start_dt).total_seconds() / 60
 
     expected_env = max(1, round(duration_min / 2))
     actual_env = len(env_rows)
@@ -227,6 +236,9 @@ def analyze_coverage(env_rows, gps_rows, obs_rows, start_dt, end_dt):
 
     return {
         'duration_hours': round(duration_min / 60, 1),
+        'window_truncated_to_now': window_truncated,
+        'requested_end': end_dt.isoformat(),
+        'effective_end_used_for_expected_calc': effective_end_dt.isoformat(),
         'environmental_data': {
             'expected_readings': expected_env,
             'actual_readings': actual_env,
@@ -266,6 +278,12 @@ def main():
     ap.add_argument('--out', required=True, help='Path to write the output JSON')
     ap.add_argument('--sun-sample-every', type=int, default=20,
                      help='Compute sun position on every Nth GPS trackpoint (default 20)')
+    ap.add_argument('--source', default='hiking-monitor',
+                     help='Environmental Data "source" column value to keep (default hiking-monitor). '
+                          'The Environmental Data sheet is shared across every JCTsh environmental '
+                          'sensor -- without this filter, another device\'s readings (e.g. '
+                          'front-porch-temp-sensor) get mixed in and reported as if they were the '
+                          'hiking monitor\'s.')
     args = ap.parse_args()
 
     start_dt = parse_ts(args.start)
@@ -274,8 +292,11 @@ def main():
         sys.exit('ERROR: --start/--end must be ISO 8601, e.g. 2026-06-15T00:00:00Z')
 
     print('Fetching Environmental Data...', file=sys.stderr)
-    env_rows = fetch_sheet(args.url, args.key, 'Environmental Data', args.start, args.end)
-    print(f'  {len(env_rows)} rows', file=sys.stderr)
+    env_rows_all = fetch_sheet(args.url, args.key, 'Environmental Data', args.start, args.end)
+    other_sources = sorted({r.get('source') for r in env_rows_all if r.get('source') != args.source})
+    env_rows = [r for r in env_rows_all if r.get('source') == args.source]
+    print(f'  {len(env_rows_all)} rows total, {len(env_rows)} from source={args.source!r}'
+          + (f' (also saw: {other_sources})' if other_sources else ''), file=sys.stderr)
 
     print('Fetching Hiking Observations...', file=sys.stderr)
     obs_rows = fetch_sheet(args.url, args.key, 'Hiking Observations', args.start, args.end)
@@ -309,9 +330,10 @@ def main():
         })
 
     out = {
-        'query': {'start': args.start, 'end': args.end},
+        'query': {'start': args.start, 'end': args.end, 'source_filter': args.source},
         'counts': {
             'environmental_data': len(env_rows),
+            'environmental_data_other_sources_seen_but_excluded': other_sources,
             'hiking_observations': len(obs_rows),
             'gps_track': len(gps_rows),
         },

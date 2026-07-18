@@ -368,6 +368,17 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 **Doc fix (2026-07-13):** `hiking-monitor-enclosure-instructions.md` had stale STL filenames (`-cuts.stl` instead of the actual `-raw`/`-final` convention) and a wrong `components/hiking-monitor/enclosure/` path (should be `hiking-sensor`) throughout Steps 15, 16, 22, 23, 28, 29, 30, and 55. Corrected in the doc itself, including a naming-convention note near the top — see that file for the convention, not duplicated here.
 
+**Xerocraft PLA test print session (2026-07-17):** Session 1 (Steps 30–33) complete — went very well. Test-fit against the actual soldered main perfboard and top-shell contents surfaced several changes, made live in Tinkercad during the session:
+- USB-C charging port relocated — the main perfboard turned out to fit nicely stacked directly over the e-ink display board, changing the available wall space from what was planned.
+- M3 screw holes and the solar panel wire hole enlarged (original clearance diameters too tight).
+- M3 corner screw holes on the top shell corrected to actually pass all the way through.
+- Lip on the bottom shell removed.
+- A 1mm reference line added to the bottom shell floor, marking the perfboard's position and adjusted for the screw hole placement.
+
+**Follow-up needed before `hiking-monitor-enclosure-plan.md` Section 0 can be updated to match:** these were live Tinkercad edits — exact new values weren't captured during the session. Section 0 exists specifically as the reproduction record (Tinkercad edits can't be replayed automatically), so it needs: the USB port's new wall/position, the new M3/solar hole diameters, what the removed "lip" was and why, and the floor reference line's exact position/dimensions relative to the perfboard. Get these from Joseph (re-opening the Tinkercad project or checking with calipers) before updating the plan doc.
+
+**Next print planned: white ASA, Session 2** (`hiking-monitor-enclosure-instructions.md` Part 6, Steps 37+) — the final-material print per the doc's existing PLA-test-then-ASA-final pattern. Joseph's expectation going in: should be close given Session 1's fit corrections, with another print iteration available if needed. Section 0's dimension updates (above) should ideally be captured before Session 2 slices the files, so the ASA print reflects the corrected design rather than repeating any not-yet-documented fixes from memory.
+
 ---
 
 ## Done

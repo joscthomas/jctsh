@@ -1,8 +1,8 @@
 # Digital Identity Protection Checklist
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step checklist for Joseph and Robin to close the single-point-of-failure risks described in the TIME article "How a Stranger Used One Text Message to Steal My Entire Digital Life" (July 2026).
-**Version:** 1.2
-**Version description:** Confirmed children are adults with independent Google accounts (recovery contacts unblocked); clarified offline hardcopy plan (safe now, travel/outside-contact copies under consideration); set a ~1-month target for hardware key setup now that Titans are on order.
+**Version:** 1.4
+**Version description:** All three Titan keys registered on Google and RoboForm; PINs set and tested; confirmed no phone-based method remains under Google 2-Step Verification (both accounts); fire-drill re-sign-in test declined (too involved); split shared/backup Titan's "store in safe" step out as its own open item; clarified serial-number recording covers all three keys.
 
 ---
 
@@ -19,36 +19,48 @@
 - [X] Change Google Account PIN
 - [X] Delete security question
 - [X] Delete recovery phone number (Joseph and Robin) — once hardware keys are registered and confirmed working
+- [X] Recovery email address confirmed: cross-set to spouse's Gmail (Joseph's account recovery email = Robin's Gmail; Robin's account recovery email = Joseph's Gmail)
 - [X] Order 3 Google Titan security keys (1 for Joseph, 1 for Robin, 1 shared backup for the safe)
 - [X] Register Joseph's Titan as a passkey on his Google Account
 - [X] Register Robin's Titan as a passkey on her Google Account
-- [ ] Register the shared/backup Titan as a passkey on both accounts; store in the safe once done
-- [X] Set up Windows Hello as a passkey on Joseph's laptop *(under consideration, not yet decided)*
-- [ ] Review "recent security activity" / connected devices, remove anything unrecognized or old
-- [ ] Consider enrolling in Google Advanced Protection Program if either of you handles significant money
+- [X] Register the shared/backup Titan as a passkey on both accounts
+- [ ] Store the shared/backup Titan in the safe (once serial number recorded)
+- [X] Set up Windows Hello as a passkey on Joseph's laptop
+- [X] Review "recent security activity" / connected devices, remove anything unrecognized or old
+- [N] Consider enrolling in Google Advanced Protection Program if either of you handles significant money
+- [X] App passwords: Joseph reviewed Security → "App passwords" and revoked any existing ones (these bypass 2-Step Verification/hardware key requirements)
+- [ ] App passwords: Robin to review and revoke any existing app passwords
+- [ ] Review "Third-party apps & services" with account access (Security settings), revoke unused/old connections — do for both
+- [ ] *(Under consideration)* Enable "Skip password when possible" so the passkey/hardware key becomes the default sign-in path instead of falling back to the password — holding off because always having the physical key on hand for everyday sign-in is an unfamiliar habit; want to live with the key day-to-day before locking this in
+- [X] Confirm Google Account password itself (distinct from the PIN) is long, unique, generated, and stored in RoboForm
+- [ ] Set up Google Inactive Account Manager (Security settings) — define a trusted contact and inactivity timeout for account access/notification
+- [X] Confirm 2-Step Verification is enabled account-wide (foundation for everything above) — confirmed on
+- [X] Confirm no phone-based method remains under Google 2-Step Verification itself (distinct from the recovery phone already removed) — removed for both accounts
+- [X] Set a PIN on all three Titan keys (Joseph, Robin, shared/backup) and test each
+- [N] Fire-drill test: sign out and back in with each key from a different device — declined, too involved
 
 ### Credit (do for both, now — not after an incident)
-- [ ] Freeze credit at Equifax
-- [ ] Freeze credit at Experian
-- [ ] Freeze credit at TransUnion
-- [ ] Freeze at ChexSystems
-- [ ] Freeze at LexisNexis
+- [X] Freeze credit at Equifax
+- [X] Freeze credit at Experian
+- [X] Freeze credit at TransUnion
+- [ ] Freeze at ChexSystems (received error trying to register for an account)
+- [ ] Freeze at LexisNexis (why this company? I don't want to create more accounts.)
 
 ---
 
 ## Phase 2 — Break the Single Point of Failure (this month)
 
 ### Dedicated recovery phone number (for non-Google accounts)
-- [ ] Set up a second, low-profile phone number (Google Voice or second carrier line) — now scoped specifically to institutions that still require phone-based 2FA and don't support passkeys/hardware keys (e.g., banks, brokerages, the credit union), since Google's own recovery phone is being removed in favor of hardware keys
-- [ ] If using Google Voice, set a recurring reminder to keep it active (3-month inactivity reclaim policy), or use a small autopay carrier line instead to avoid the upkeep
+- [N] Set up a second, low-profile phone number (Google Voice or second carrier line) — now scoped specifically to institutions that still require phone-based 2FA and don't support passkeys/hardware keys (e.g., banks, brokerages, the credit union), since Google's own recovery phone is being removed in favor of hardware keys
+- [N] If using Google Voice, set a recurring reminder to keep it active (3-month inactivity reclaim policy), or use a small autopay carrier line instead to avoid the upkeep
 
 ### Password manager (RoboForm)
 - [X] RoboForm in use for password management (long-standing)
 - [X] RoboForm 2FA enabled via Google Authenticator
-- [ ] Add hardware-key 2FA to RoboForm once Titans arrive (confirmed supported: YubiKey Security Key C NFC / Google Titan)
-- [ ] Confirm Robin has her own independent RoboForm login/vault access, not dependent on a shared password
+- [X] Add hardware-key 2FA to RoboForm once Titans arrive (confirmed supported: YubiKey Security Key C NFC / Google Titan)
+- [N] Confirm Robin has her own independent RoboForm login/vault access, not dependent on a shared password (Robin uses my account)
 - [ ] Evaluate RoboForm Emergency Access (grants a designated person access to credentials upon death or incapacitation) — decide who the designated contact should be
-- [ ] Move to unique, generated passwords for bank, brokerage, crypto, and email accounts first if not already done
+- [X] Move to unique, generated passwords for bank, brokerage, crypto, and email accounts first if not already done
 
 ### Recovery contacts
 - [ ] Set Google Account Recovery Contacts: Robin ↔ Joseph (each other)
@@ -56,8 +68,8 @@
 - [ ] *(Under consideration, not yet implemented)* Shared codeword system with children for identity verification
 
 ### Offline hardcopy vault
-- [ ] Generate Google 2-Step Verification backup codes for Joseph and Robin
-- [ ] Record hardware key serial numbers
+- [X] Generate Google 2-Step Verification backup codes for Joseph and Robin
+- [ ] Record all three key serial numbers (Joseph, Robin, shared/backup) in the offline vault
 - [ ] Store offline hardcopy (backup codes, key serial numbers, account numbers, insurance policy numbers, IDs) in the safe — decided, current plan
 - [ ] *(Under consideration)* Travel copy: a small, unlabeled duplicate carried separately from phone/hardware key while traveling (see Phase 5)
 - [ ] *(Under consideration)* Outside-contact copy: a third duplicate held by someone outside the household — see "Outside-Contact Copy Pattern" note below
@@ -71,9 +83,9 @@
 
 ## Phase 3 — Household Protocol
 
-- [ ] Agree: never read a verification code to anyone who calls — hang up, call the number on the back of the card instead
-- [ ] Agree: any request to move money gets a voice call to confirm, even if the text/app notification appears to come from each other
-- [ ] Decide whether a shared verbal codeword is worth adding for ambiguous/urgent requests (Joseph ↔ Robin)
+- [X] Agree: never read a verification code to anyone who calls — hang up, call the number on the back of the card instead
+- [X] Agree: any request to move money gets a voice call to confirm, even if the text/app notification appears to come from each other
+- [X] Decide whether a shared verbal codeword is worth adding for ambiguous/urgent requests (Joseph ↔ Robin)
 - [ ] *(Under consideration, not yet implemented)* Extend codeword system to children
 - [ ] Walk through this checklist together so both of you know it exists and where it lives
 

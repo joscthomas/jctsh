@@ -176,30 +176,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Planning
 
-### CARD-0073 · [idea] [hike-izer] Hike-izer — narrative summary application layer for hiking data
-**Notes:** Raised 2026-07-18. JCTsh's hiking-sensor pipeline already covers data collection (ESP32 sensors — BME280, LTR-390 UV; GPS track via Pixel GPSLogger) and data storage (GPS Track and Environmental Data Google Sheets, per CARD-0020). Hike-izer adds the missing layers on top: a controller layer (rules/analysis) and a rudimentary presentation layer, turning raw hike data into a narrative story of the hiking event rather than just charts.
-
-**Concept:** a set of "SKILLS" — exact mechanism still open, see below — that each access some piece of hike data, analyze/summarize it, and feed a narrative generator. Inputs under consideration: the existing GPS track + environmental sensor readings, the hiker's own observations, photos taken during the hike, the local weather forecast for the day, and the sun's position over the course of the hike (computed from lat/lon + time, potentially combined with compass direction and elevation/height to describe where the sun was relative to the hiker at various points). Output: a narrative story of the hike, optionally with embedded data tables/summaries.
-
-**Diagnostic angle:** comparing expected vs. actual data coverage (e.g., did every expected sensor reading interval actually arrive?) doubles as an awareness/health signal for the whole hiking-sensor pipeline — a hike summary missing expected data points surfaces a component problem, not just a gap in the story.
-
-**Relationship to CARD-0020:** complementary, not competing (Joseph's call). CARD-0020's Looker Studio dashboard stays scoped to raw charts/maps; Hike-izer's output is the narrative layer, generated from the same underlying Sheets data. Neither supersedes the other.
-
-**Output format:** start with plain Markdown documents per hike (simplest, fits existing repo conventions — git-tracked like other JCTsh docs). Rendering to a web page/Artifact is a plausible later extension once the narrative content itself is proven, not required for v1.
-
-**Trigger:** start on-demand (generate a summary for a specific past hike when requested); automatic generation right after a hike syncs is a plausible later extension, not required for v1.
-
-**Open questions for Planning phase 1:**
-- **Skills architecture** — literal Claude Skills (packaged instruction sets, same mechanism used in this session) vs. generic modular code. Undecided; may be worth prototyping both against one hike's data to compare before committing.
-- **Photo source** — likely Immich (`photo-server`) via its API, matched to the hike's date/time range and possibly a GPS bounding box. Needs investigation into what Immich's API actually supports for this kind of query.
-- **Hiker observations** — no existing capture mechanism identified. Where would freeform notes/observations during a hike get recorded today, if anywhere? May need a new lightweight capture step (voice memo, notes app, etc.) before Hike-izer has anything to summarize here.
-- **Sun position inputs** — solar azimuth/elevation can be computed from lat/lon + timestamp alone (standard astronomical formulas, no new hardware needed). "Compass direction" and "height" relative to the hiker aren't currently logged by hiking-sensor's sensor set, though — no magnetometer on board, and while BME280 measures pressure (usable for relative altitude estimation), it isn't currently logged as elevation; GPS elevation from the Pixel's track may already cover height without new hardware. Needs a clear read on what's actually available today vs. what would require new instrumentation.
-- **Weather forecast** — which API/source, and whether it's a live forecast (same-day) or a historical lookup (for past hikes being summarized after the fact).
-
-**Related:** `components/hiking-sensor/gps-pipeline.md`, `components/hiking-sensor/data-pipeline.md`, `components/hiking-sensor/hiking-logger.md`, CARD-0020 (Looker Studio dashboard, complementary).
-
----
-
 ### CARD-0071 · [idea] [personal] Emergency Access preparation
 **Notes:** Raised 2026-07-17, split out from CARD-0034's closure. Covers the "both Joseph and Robin unavailable at once" gap that the rest of `digital-identity-protection-checklist.md` doesn't — since both spouses already have the RoboForm master password memorized, each already has full independent access if something happens to the other, so Emergency Access only matters for the joint-unavailability case.
 
@@ -353,6 +329,36 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 ---
 
 ## Build
+
+### CARD-0073 · [idea] [hike-izer] Hike-izer — narrative summary application layer for hiking data
+**Notes:** Raised 2026-07-18. JCTsh's hiking-sensor pipeline already covers data collection (ESP32 sensors — BME280, LTR-390 UV; GPS track via Pixel GPSLogger) and data storage (GPS Track and Environmental Data Google Sheets, per CARD-0020). Hike-izer adds the missing layers on top: a controller layer (rules/analysis) and a rudimentary presentation layer, turning raw hike data into a narrative story of the hiking event rather than just charts.
+
+**Relationship to CARD-0020:** complementary, not competing (Joseph's call). CARD-0020's Looker Studio dashboard stays scoped to raw charts/maps; Hike-izer's output is the narrative layer, generated from the same underlying Sheets data. Neither supersedes the other.
+
+**Data source inventory (2026-07-18):** confirmed against the real pipeline code/docs, not assumption —
+- **Environmental Data sheet** — full column set is A–Z, not A–X as `data-pipeline.md` previously (incorrectly) documented; `illuminance_lx`/`solar_v` were missing from that doc, now fixed.
+- **Hiking Observations sheet — exists and works.** There IS a capture mechanism (Tasker voice-widget → Apps Script → auto-categorized row), built and field-confirmed in Steps 23–26.
+- **GPS Track sheet** (via GPSLogger, not GaiaGPS — GaiaGPS was the superseded original plan and several docs still stale-reference it) — includes `alt` (altitude), which covers "height" without new hardware.
+- **Timeline sheet** — existing manual-menu action already merges Environmental Data + Hiking Observations into one time-sorted sheet.
+- **Compass/heading** — still a real gap, no sensor and not derivable cleanly from GPS Track alone (direction of travel ≠ which way the hiker was facing). Deferred, see scope below.
+- Confirmed target trip for prototyping: the **2026-06-15 two-week trip**. GPS pipeline was redeployed 2026-06-12 (before the trip) so GPS Track data is very likely present; observations pipeline's exact completion date relative to June 15 isn't pinned down in the docs — check the real sheet before assuming observation rows exist for this window.
+
+**Build step taken (2026-07-18):** extended `core/data-pipeline/environmental-data.gs` with a new read-only `action=export` on `doGet` — returns any sheet (Environmental Data / Hiking Observations / GPS Track) as JSON, optionally filtered by an ISO 8601 timestamp range, reusing the existing API_KEY auth. Documented in `data-pipeline.md`. **Not live yet — needs a redeploy** (paste updated file into Apps Script editor → Deploy → Manage deployments → new version) before it can actually be called.
+
+**v1 scope — locked 2026-07-18 (Joseph's call, no separate Phase 1 planning doc; this card is the plan, given the scope's size — revisit if Hike-izer grows past v1 into photos/weather/automation):**
+- **Mechanism:** a Claude Skill.
+- **Trigger:** on-demand, with the **date/date-range as a prompt parameter** — not hardcoded to June 15. June 15 is the first test case, not the only one; Joseph may want to run this against other hikes later.
+- **Inputs:** Environmental Data + Hiking Observations + GPS Track (lat/lon/alt), pulled for the requested date range via `action=export`.
+- **Computed:** sun position (from lat/lon + timestamp), using GPS `alt` for height.
+- **Output:** one Markdown document per run, including:
+  1. A narrative story of the hike.
+  2. Data tables/summaries as appropriate.
+  3. **An explicit "expected vs. actual" data-coverage section** — not just an aside, a first-class part of the output. What was expected (sensor readings at ~2-min cadence, one observation stream, GPS trackpoints every ~30s, over the requested date range) versus what's actually present. This is meant to double as a health check on the whole hiking-sensor pipeline every time a summary is generated.
+- **Explicitly deferred, not forgotten:** photos (Immich integration unbuilt), historical weather (no source picked), compass/heading (no data source), automatic triggering, rendered web page output.
+
+**Related:** `components/hiking-sensor/gps-pipeline.md`, `components/hiking-sensor/data-pipeline.md`, `components/hiking-sensor/hiking-logger.md`, CARD-0020 (Looker Studio dashboard, complementary).
+
+---
 
 ### CARD-0072 · [idea] [personal] Digital Identity Checklist Version 2
 **Notes:** Raised 2026-07-17, split out from CARD-0034's closure as the next layer of hardening on top of the v1-done core (phone/SIM-swap single point of failure closed). Works through `digital-identity-protection-checklist.md`'s remaining open items, targeting v3.0 (checklist is currently at v2.1).

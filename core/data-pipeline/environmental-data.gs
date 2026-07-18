@@ -219,6 +219,68 @@ function _gpsLookup(ss, tsISO) {
 }
 
 // ---------------------------------------------------------------------------
+// _exportSheet — read-only export of any sheet as JSON, optionally date-filtered
+// ---------------------------------------------------------------------------
+// Used by action=export. Generic across "Environmental Data", "Hiking Observations",
+// and "GPS Track" — all three have a real ISO 8601 timestamp in column A, which this
+// filters on. ("Timeline" also works but its column A is an Arizona-local display
+// string, not UTC ISO — start/end filtering on it is not reliable; fetch it unfiltered
+// and filter client-side if needed.)
+//
+// Params: sheet=<name> (required), start=<ISO ts> (optional), end=<ISO ts> (optional)
+// Returns: {status:'ok', sheet, count, rows: [{header: value, ...}, ...]}
+
+function _exportSheet(sheetName, startParam, endParam) {
+  if (!sheetName) {
+    return ContentService
+      .createTextOutput(JSON.stringify({status: 'error', message: 'missing sheet parameter'}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    return ContentService
+      .createTextOutput(JSON.stringify({status: 'error', message: 'unknown sheet: ' + sheetName}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  var data = sheet.getDataRange().getValues();
+  if (data.length === 0) {
+    return ContentService
+      .createTextOutput(JSON.stringify({status: 'ok', sheet: sheetName, count: 0, rows: []}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  var headers   = data[0];
+  var startTime = startParam ? new Date(startParam).getTime() : -Infinity;
+  var endTime   = endParam ? new Date(endParam).getTime() : Infinity;
+
+  var rows = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var tsRaw = row[0];
+    if (!tsRaw) continue;
+    var tsDate = new Date(tsRaw);
+    if (isNaN(tsDate.getTime())) continue;
+    var t = tsDate.getTime();
+    if (t < startTime || t > endTime) continue;
+
+    var obj = {};
+    for (var c = 0; c < headers.length; c++) {
+      var val = row[c];
+      if (val instanceof Date) val = val.toISOString();
+      obj[headers[c]] = val;
+    }
+    rows.push(obj);
+  }
+
+  return ContentService
+    .createTextOutput(JSON.stringify({status: 'ok', sheet: sheetName, count: rows.length, rows: rows}))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ---------------------------------------------------------------------------
 // doGet — GPS track write and lookup (GPSLogger + Node-RED → GPS Track sheet)
 // ---------------------------------------------------------------------------
 // action=gps    GPSLogger posts a trackpoint every 30 seconds while hiking.
@@ -227,6 +289,10 @@ function _gpsLookup(ss, tsISO) {
 // action=lookup Node-RED calls this for each sensor reading during upload.
 //               Returns lat/lon of the nearest GPS trackpoint within ±5 minutes,
 //               or {lat:null, lon:null} if no match.
+//
+// action=export Read-only export of a whole sheet as JSON, optionally filtered by
+//               an ISO 8601 [start, end] timestamp range on column A. See _exportSheet.
+//               Example: ?action=export&sheet=Environmental%20Data&start=2026-06-15T00:00:00Z&end=2026-06-29T23:59:59Z
 
 function doGet(e) {
   try {
@@ -271,6 +337,9 @@ function doGet(e) {
       return ContentService
         .createTextOutput(JSON.stringify(coords))
         .setMimeType(ContentService.MimeType.JSON);
+
+    } else if (action === 'export') {
+      return _exportSheet(e.parameter.sheet, e.parameter.start, e.parameter.end);
 
     } else {
       return ContentService

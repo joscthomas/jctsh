@@ -47,16 +47,18 @@ Node-RED also publishes a log message to MQTT confirming each row appended.
 The default Sheet1 becomes the Environmental Data sheet:
 
 1. Rename Sheet1 to `Environmental Data`
-2. Add these exact column headers in row 1 (A1 through X1):
+2. Add these exact column headers in row 1 (A1 through Z1):
 
 ```
 timestamp  source  lat  lon  temp_f  humidity_pct  pressure_hpa  dew_point_f
 heat_index_f  uv_index  irradiance_wm2  wind_speed_mph  wind_dir_deg  rain_tips
 rainin  dailyrainin  battery_v  rssi_dbm  pm1_ug_m3  pm25_ug_m3  pm4_ug_m3
-pm10_ug_m3  voc_index  nox_index
+pm10_ug_m3  voc_index  nox_index  illuminance_lx  solar_v
 ```
 
-Column mapping (A–X):
+**Correction (2026-07-18):** columns Y (`illuminance_lx`) and Z (`solar_v`) were missing from this table — `environmental-data.gs`'s `doPost` has always written them (see the code, not this table, as the source of truth going forward). Added here to match.
+
+Column mapping (A–Z):
 
 | Col | Header | Source |
 |---|---|---|
@@ -84,6 +86,8 @@ Column mapping (A–X):
 | V | `pm10_ug_m3` | `pm10_ug_m3` (blank for hiking-monitor) |
 | W | `voc_index` | `voc_index` (blank for hiking-monitor) |
 | X | `nox_index` | `nox_index` (blank for hiking-monitor) |
+| Y | `illuminance_lx` | `illuminance_lx` (blank for hiking-monitor) |
+| Z | `solar_v` | `solar_v` (blank for hiking-monitor) |
 
 Columns for fields a given sensor does not provide are left blank for that row.
 Do not add per-device columns — all sources share the same schema.
@@ -160,6 +164,28 @@ Invoke-RestMethod -Uri "https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=
 Expected response: `{"status":"ok"}`
 
 Confirm a new row appeared in the Environmental Data sheet before proceeding to Step 11.
+
+### Read-only Data Export (`action=export`)
+
+Added 2026-07-18 for Hike-izer (CARD-0073) — a generic, read-only `doGet` action that returns any sheet's rows as JSON, optionally filtered by an ISO 8601 `[start, end]` timestamp range on column A. Reuses the same deployment and `API_KEY` auth as everything else in this file; no new credentials.
+
+```
+GET <SCRIPT_URL>?key=<API_KEY>&action=export&sheet=<sheet name>&start=<ISO ts>&end=<ISO ts>
+```
+
+- `sheet` (required) — `Environmental Data`, `Hiking Observations`, or `GPS Track`. All three have a real UTC ISO timestamp in column A, so date filtering works correctly.
+- `start` / `end` (optional) — ISO 8601 timestamps; omit either to leave that side unbounded.
+- `Timeline` also works as a `sheet` value, but its column A (`timestamp_az`) is an Arizona-local display string, not UTC ISO — `start`/`end` filtering on it isn't reliable. Fetch it unfiltered and filter client-side instead.
+
+Response: `{"status": "ok", "sheet": "...", "count": N, "rows": [{header: value, ...}, ...]}` — one object per row, keyed by the sheet's actual header row.
+
+**Example — the 2026-06-15 hiking trip's environmental readings:**
+
+```powershell
+Invoke-RestMethod -Uri "https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<YOUR_KEY>&action=export&sheet=Environmental%20Data&start=2026-06-15T00:00:00Z&end=2026-06-29T23:59:59Z"
+```
+
+**Redeploy required before this works:** Apps Script only picks up code changes after a new deployment version — paste the updated `core/data-pipeline/environmental-data.gs` into the Apps Script editor, then **Deploy → Manage deployments → pencil icon → Version: New version → Save**. The deployment URL stays the same.
 
 ---
 

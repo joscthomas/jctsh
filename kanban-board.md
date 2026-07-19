@@ -176,6 +176,21 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Planning
 
+### CARD-0074 · [idea] [hike-izer] Hike-izer Version 2
+**Notes:** Raised 2026-07-18, split out from CARD-0073's closure (v1 done). Carries forward the items v1 explicitly deferred, not forgotten:
+
+- **Photos** — Immich integration (`photo-server`) unbuilt; would need an API query matched to a confirmed hike's date/time range and GPS bounding box.
+- **Historical weather** — no source picked yet. Note: for a past hike, this means an actual-conditions lookup, not a live forecast.
+- **Hiker's own compass/heading** — still a real gap; no sensor captures which way the hiker was facing (v1 only computes the *sun's* compass direction, from pure astronomy). Would need new instrumentation or a different data source, not just more analysis.
+- **Automatic triggering** — v1 is on-demand only.
+- **Rendered web page output** — v1 is Markdown only; if this happens, output goes in `hike-izer/summaries/` alongside the Markdown, per the code/output separation already established (`components/hike-izer/README.md`).
+
+**Blocking dependency: the hiking-monitor device needs to be operational.** V1's real test data came from the June 15 trip (June 17/18 hikes) — that's the only confirmed-good dataset that exists. The 2026-07-18 run found the device producing **zero** Environmental Data readings that day despite real observations/GPS activity happening (see CARD-0073's resolution) — status unconfirmed: deployed? charged? powered on? V2 needs fresh real hiking data to build and verify against, the same way v1 was built against real data rather than assumptions — so getting the device back in active, confirmed-working rotation is a prerequisite, not a parallel task.
+
+**Related:** CARD-0073 (v1, Done) for the full build history and what's already working; `components/hike-izer/README.md`, `.claude/skills/hike-izer/SKILL.md`, `components/hike-izer/fetch_hike_data.py`.
+
+---
+
 ### CARD-0071 · [idea] [personal] Emergency Access preparation
 **Notes:** Raised 2026-07-17, split out from CARD-0034's closure. Covers the "both Joseph and Robin unavailable at once" gap that the rest of `digital-identity-protection-checklist.md` doesn't — since both spouses already have the RoboForm master password memorized, each already has full independent access if something happens to the other, so Emergency Access only matters for the joint-unavailability case.
 
@@ -330,7 +345,60 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 ## Build
 
-### CARD-0073 · [idea] [hike-izer] Hike-izer — narrative summary application layer for hiking data
+### CARD-0072 · [idea] [personal] Digital Identity Checklist Version 2
+**Notes:** Raised 2026-07-17, split out from CARD-0034's closure as the next layer of hardening on top of the v1-done core (phone/SIM-swap single point of failure closed). Works through `digital-identity-protection-checklist.md`'s remaining open items, targeting v3.0 (checklist is currently at v2.1).
+
+**Scope (in rough priority order):**
+1. **ID document photo cleanup** — the new "ID document photos" section: RoboForm Identity digital copies of DL/passport, then find and delete scattered copies in Google Photos, Immich, camera roll, email/messages, including trash/recently-deleted retention windows. Live exposure, not a future risk — highest priority in this card.
+2. **Robin's app-password and third-party app/service review** — Joseph's side is done; Robin's isn't, leaving an asymmetric bypass (app passwords skip 2FA entirely) on one account.
+3. **Google Recovery Contacts** — set Robin ↔ Joseph and both children; unblocked for a while (kids confirmed independent adults) but never executed.
+4. **Walk through the checklist together with Robin** — cheap, high-leverage: the household verbal protocol (codeword, voice-confirm-before-moving-money) only works if Robin actually knows it exists, not just that Joseph configured it.
+5. **ChexSystems and LexisNexis freezes** — ChexSystems covers new bank-account fraud that the other 3 bureaus don't; worth troubleshooting the registration error rather than abandoning. LexisNexis is lower value (insurance underwriting/background checks) — decide deliberately whether to skip rather than leave it drifting.
+6. **Remaining Phase 2 items:** "Skip password when possible" decision (currently under consideration), physically storing ID copies in the safe (Safe Contents manifest's one remaining open item), travel-copy/outside-contact-copy decision for the offline vault.
+7. **Phase 4/5 prep:** print/place an offline copy of the Incident Response Plan somewhere actually accessible in an emergency; Phase 5 travel items can wait until a trip is actually upcoming.
+8. **Accounts Without 2FA section** — blocked on listing specific banks/brokerages/payment apps in use (still an open item); needed before this section can be worked at all.
+
+**Note:** Emergency Access and Google Inactive Account Manager are deliberately **not** in this card's scope — split out to CARD-0071.
+
+**Related:** `digital-identity-protection-checklist.md` (repo root), `digital-identity.md` (companion reference doc).
+
+---
+
+### CARD-0009 · [enhancement] [hiking-sensor] Enclosure design and build
+**Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-sensor/enclosure-prototype.md`. Standoffs arrive 2026-06-14; temp enclosure build before camping trip departure 2026-06-15. Device will be used in the field for ~2 weeks on that trip — hiking and van sensor simulation. Full 3D-printed permanent enclosure is a later step.
+
+**LTR-390 rewiring (2026-07-12):** in progress. Replacing the LTR-390's soldered 0.1" male headers with a 150mm STEMMA QT / Qwiic cable (Adafruit #4209, `jctsh-parts-inventory.md` Bag 31) plugged into the sensor's STEMMA QT port, with the male-header end going into the perfboard's existing LTR-390 female header (unchanged). Gives slack to mount the sensor at the correct sky-facing orientation in the enclosure independent of the perfboard's own orientation — this is what the enclosure build actually needed the flexibility for. Only the sensor-side segment changes; perfboard-to-ESP32 traces (GPIO21/GPIO22) untouched. Docs updated: `wiring.md` (new wire-color table — STEMMA QT cable colors are SDA/SCL-swapped from the old breadboard colors, flagged explicitly), `perfboard-layout.md` (dated addendum on the LTR-390 header row, original build history kept intact).
+
+**Reflection (required last Build step, per `JCTsh-Operating-System.md`):** once the enclosure is built and verified, two harvests before this card closes:
+
+1. **3D-enclosure instruction template.** Generalize `hiking-monitor-enclosure-instructions.md` into a reusable template — e.g. `JCTsh-3D-Enclosure-Instructions-Template.md` at the repo root, following the same pattern `JCTsh-Component-Planning-Pattern.md` already establishes for component planning. Strip out hiking-monitor-specific content (exact dimensions, LTR-390/BME280/display specifics) and keep the reusable procedure: Tinkercad + OpenSCAD two-tool workflow, `-raw`/`-final` export naming convention, Xerocraft Bambu Studio/print-session steps, PLA-test-then-ASA-final print pattern, test-fit checklist structure. So the next component needing a printed enclosure (candidates already in the backlog: remote-temp-sensor-01, air-quality-monitor's clip-case) starts from a template instead of copying and hand-editing this component-specific doc from scratch.
+2. **Any other pattern harvesting this card's work warrants** — not just the enclosure template. Sweep the full card history for anything worth capturing somewhere it'll be found again (per TOS's general Reflection rule, not limited to enclosures): the STEMMA QT/Dupont cable relocation fix for sensors that are rigid-socket-mounted facing the wrong way (a mounting-orientation pattern, not enclosure-specific — could recur on any future sensor with a fixed connector orientation); the `-raw`/`-final` STL naming convention and the `hiking-sensor` vs `hiking-monitor` (folder vs. ESPHome device name) confusion this card surfaced, in case anything beyond the enclosure-instructions doc references that ambiguity; and `hiking-monitor-enclosure-instructions.md` Step 56 already exists for build-standards-specific harvest (print orientation, insert types, ASA/PETG choice, etc.) — confirm it actually gets run, don't let this broader reflection substitute for it.
+
+**Don't close until:** rewiring physically complete and I2C communication re-verified (LTR-390 still detected at 0x53, UV/light readings sane) after reassembly, AND both reflection items above are complete.
+
+**Xerocraft trip prep (2026-07-13):** for the Session 1 PLA test print visit (`hiking-monitor-enclosure-instructions.md` Steps 30–33), bring:
+- `components/hiking-sensor/enclosure/bottom-shell-final.stl`, `top-shell-final.stl`, `vent-insert-final.stl` — the current, ready-to-print exports.
+- `hiking-monitor-enclosure-instructions.md` and `hiking-monitor-enclosure-plan.md` for on-site reference (Steps 30–36 cover this exact session; the plan doc's dimensions table is the fallback if a Step 34/35 test-fit check fails and you need the intended measurement to diagnose the offset).
+- Physically: the main perfboard assembly (ESP32/BME280/LTR-390/switch) and the top-shell contents (display, TP4056+adapter, LiPo) — Steps 34–35 test-fit the freshly printed shells against the real hardware, not just visually.
+
+**Doc fix (2026-07-13):** `hiking-monitor-enclosure-instructions.md` had stale STL filenames (`-cuts.stl` instead of the actual `-raw`/`-final` convention) and a wrong `components/hiking-monitor/enclosure/` path (should be `hiking-sensor`) throughout Steps 15, 16, 22, 23, 28, 29, 30, and 55. Corrected in the doc itself, including a naming-convention note near the top — see that file for the convention, not duplicated here.
+
+**Xerocraft PLA test print session (2026-07-17):** Session 1 (Steps 30–33) complete — went very well. Test-fit against the actual soldered main perfboard and top-shell contents surfaced several changes, made live in Tinkercad during the session:
+- USB-C charging port relocated — the main perfboard turned out to fit nicely stacked directly over the e-ink display board, changing the available wall space from what was planned.
+- M3 screw holes and the solar panel wire hole enlarged (original clearance diameters too tight).
+- M3 corner screw holes on the top shell corrected to actually pass all the way through.
+- Lip on the bottom shell removed.
+- A 1mm reference line added to the bottom shell floor, marking the perfboard's position and adjusted for the screw hole placement.
+
+**Follow-up needed before `hiking-monitor-enclosure-plan.md` Section 0 can be updated to match:** these were live Tinkercad edits — exact new values weren't captured during the session. Section 0 exists specifically as the reproduction record (Tinkercad edits can't be replayed automatically), so it needs: the USB port's new wall/position, the new M3/solar hole diameters, what the removed "lip" was and why, and the floor reference line's exact position/dimensions relative to the perfboard. Get these from Joseph (re-opening the Tinkercad project or checking with calipers) before updating the plan doc.
+
+**Next print planned: white ASA, Session 2** (`hiking-monitor-enclosure-instructions.md` Part 6, Steps 37+) — the final-material print per the doc's existing PLA-test-then-ASA-final pattern. Joseph's expectation going in: should be close given Session 1's fit corrections, with another print iteration available if needed. Section 0's dimension updates (above) should ideally be captured before Session 2 slices the files, so the ASA print reflects the corrected design rather than repeating any not-yet-documented fixes from memory.
+
+---
+
+## Done
+
+### CARD-0073 · [idea] [hike-izer] Hike-izer — narrative summary application layer for hiking data — RESOLVED 2026-07-18
 **Notes:** Raised 2026-07-18. JCTsh's hiking-sensor pipeline already covers data collection (ESP32 sensors — BME280, LTR-390 UV; GPS track via Pixel GPSLogger) and data storage (GPS Track and Environmental Data Google Sheets, per CARD-0020). Hike-izer adds the missing layers on top: a controller layer (rules/analysis) and a rudimentary presentation layer, turning raw hike data into a narrative story of the hiking event rather than just charts.
 
 **Relationship to CARD-0020:** complementary, not competing (Joseph's call). CARD-0020's Looker Studio dashboard stays scoped to raw charts/maps; Hike-izer's output is the narrative layer, generated from the same underlying Sheets data. Neither supersedes the other.
@@ -389,60 +457,11 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 **Related:** `components/hiking-sensor/gps-pipeline.md`, `components/hiking-sensor/data-pipeline.md`, `components/hiking-sensor/hiking-logger.md`, CARD-0020 (Looker Studio dashboard, complementary).
 
----
+**Resolution (2026-07-18):** closing as **version 1 done**. Core loop fully built and verified against real data, not left on paper: fetch → source-filter (`hiking-monitor` only) → hike classification (daylight + walking-pace checks, honest "unable to confirm" path when nothing passes) → single-day narrative with non-redundant tables and an explicit expected-vs-actual coverage/health section, elevation in feet throughout. Along the way, found and fixed real bugs — wrong GPS column names, misleading multi-day coverage math, future-window truncation, and cross-sensor contamination that had silently corrupted the first published summary — exactly the "awareness of how components are operating" goal from the original ask, working in practice, not hypothetically. Remaining ideas (photos, historical weather, hiker's compass/heading, automatic triggering, rendered HTML output) are real but represent v2, not blockers on calling v1 done — split out to **CARD-0074**, which also needs the hiking-monitor device itself operational again (it produced zero readings on 2026-07-18) before it can be built against fresh real data.
 
-### CARD-0072 · [idea] [personal] Digital Identity Checklist Version 2
-**Notes:** Raised 2026-07-17, split out from CARD-0034's closure as the next layer of hardening on top of the v1-done core (phone/SIM-swap single point of failure closed). Works through `digital-identity-protection-checklist.md`'s remaining open items, targeting v3.0 (checklist is currently at v2.1).
-
-**Scope (in rough priority order):**
-1. **ID document photo cleanup** — the new "ID document photos" section: RoboForm Identity digital copies of DL/passport, then find and delete scattered copies in Google Photos, Immich, camera roll, email/messages, including trash/recently-deleted retention windows. Live exposure, not a future risk — highest priority in this card.
-2. **Robin's app-password and third-party app/service review** — Joseph's side is done; Robin's isn't, leaving an asymmetric bypass (app passwords skip 2FA entirely) on one account.
-3. **Google Recovery Contacts** — set Robin ↔ Joseph and both children; unblocked for a while (kids confirmed independent adults) but never executed.
-4. **Walk through the checklist together with Robin** — cheap, high-leverage: the household verbal protocol (codeword, voice-confirm-before-moving-money) only works if Robin actually knows it exists, not just that Joseph configured it.
-5. **ChexSystems and LexisNexis freezes** — ChexSystems covers new bank-account fraud that the other 3 bureaus don't; worth troubleshooting the registration error rather than abandoning. LexisNexis is lower value (insurance underwriting/background checks) — decide deliberately whether to skip rather than leave it drifting.
-6. **Remaining Phase 2 items:** "Skip password when possible" decision (currently under consideration), physically storing ID copies in the safe (Safe Contents manifest's one remaining open item), travel-copy/outside-contact-copy decision for the offline vault.
-7. **Phase 4/5 prep:** print/place an offline copy of the Incident Response Plan somewhere actually accessible in an emergency; Phase 5 travel items can wait until a trip is actually upcoming.
-8. **Accounts Without 2FA section** — blocked on listing specific banks/brokerages/payment apps in use (still an open item); needed before this section can be worked at all.
-
-**Note:** Emergency Access and Google Inactive Account Manager are deliberately **not** in this card's scope — split out to CARD-0071.
-
-**Related:** `digital-identity-protection-checklist.md` (repo root), `digital-identity.md` (companion reference doc).
+**Closed 2026-07-18 — Joseph directed the close.**
 
 ---
-
-### CARD-0009 · [enhancement] [hiking-sensor] Enclosure design and build
-**Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-sensor/enclosure-prototype.md`. Standoffs arrive 2026-06-14; temp enclosure build before camping trip departure 2026-06-15. Device will be used in the field for ~2 weeks on that trip — hiking and van sensor simulation. Full 3D-printed permanent enclosure is a later step.
-
-**LTR-390 rewiring (2026-07-12):** in progress. Replacing the LTR-390's soldered 0.1" male headers with a 150mm STEMMA QT / Qwiic cable (Adafruit #4209, `jctsh-parts-inventory.md` Bag 31) plugged into the sensor's STEMMA QT port, with the male-header end going into the perfboard's existing LTR-390 female header (unchanged). Gives slack to mount the sensor at the correct sky-facing orientation in the enclosure independent of the perfboard's own orientation — this is what the enclosure build actually needed the flexibility for. Only the sensor-side segment changes; perfboard-to-ESP32 traces (GPIO21/GPIO22) untouched. Docs updated: `wiring.md` (new wire-color table — STEMMA QT cable colors are SDA/SCL-swapped from the old breadboard colors, flagged explicitly), `perfboard-layout.md` (dated addendum on the LTR-390 header row, original build history kept intact).
-
-**Reflection (required last Build step, per `JCTsh-Operating-System.md`):** once the enclosure is built and verified, two harvests before this card closes:
-
-1. **3D-enclosure instruction template.** Generalize `hiking-monitor-enclosure-instructions.md` into a reusable template — e.g. `JCTsh-3D-Enclosure-Instructions-Template.md` at the repo root, following the same pattern `JCTsh-Component-Planning-Pattern.md` already establishes for component planning. Strip out hiking-monitor-specific content (exact dimensions, LTR-390/BME280/display specifics) and keep the reusable procedure: Tinkercad + OpenSCAD two-tool workflow, `-raw`/`-final` export naming convention, Xerocraft Bambu Studio/print-session steps, PLA-test-then-ASA-final print pattern, test-fit checklist structure. So the next component needing a printed enclosure (candidates already in the backlog: remote-temp-sensor-01, air-quality-monitor's clip-case) starts from a template instead of copying and hand-editing this component-specific doc from scratch.
-2. **Any other pattern harvesting this card's work warrants** — not just the enclosure template. Sweep the full card history for anything worth capturing somewhere it'll be found again (per TOS's general Reflection rule, not limited to enclosures): the STEMMA QT/Dupont cable relocation fix for sensors that are rigid-socket-mounted facing the wrong way (a mounting-orientation pattern, not enclosure-specific — could recur on any future sensor with a fixed connector orientation); the `-raw`/`-final` STL naming convention and the `hiking-sensor` vs `hiking-monitor` (folder vs. ESPHome device name) confusion this card surfaced, in case anything beyond the enclosure-instructions doc references that ambiguity; and `hiking-monitor-enclosure-instructions.md` Step 56 already exists for build-standards-specific harvest (print orientation, insert types, ASA/PETG choice, etc.) — confirm it actually gets run, don't let this broader reflection substitute for it.
-
-**Don't close until:** rewiring physically complete and I2C communication re-verified (LTR-390 still detected at 0x53, UV/light readings sane) after reassembly, AND both reflection items above are complete.
-
-**Xerocraft trip prep (2026-07-13):** for the Session 1 PLA test print visit (`hiking-monitor-enclosure-instructions.md` Steps 30–33), bring:
-- `components/hiking-sensor/enclosure/bottom-shell-final.stl`, `top-shell-final.stl`, `vent-insert-final.stl` — the current, ready-to-print exports.
-- `hiking-monitor-enclosure-instructions.md` and `hiking-monitor-enclosure-plan.md` for on-site reference (Steps 30–36 cover this exact session; the plan doc's dimensions table is the fallback if a Step 34/35 test-fit check fails and you need the intended measurement to diagnose the offset).
-- Physically: the main perfboard assembly (ESP32/BME280/LTR-390/switch) and the top-shell contents (display, TP4056+adapter, LiPo) — Steps 34–35 test-fit the freshly printed shells against the real hardware, not just visually.
-
-**Doc fix (2026-07-13):** `hiking-monitor-enclosure-instructions.md` had stale STL filenames (`-cuts.stl` instead of the actual `-raw`/`-final` convention) and a wrong `components/hiking-monitor/enclosure/` path (should be `hiking-sensor`) throughout Steps 15, 16, 22, 23, 28, 29, 30, and 55. Corrected in the doc itself, including a naming-convention note near the top — see that file for the convention, not duplicated here.
-
-**Xerocraft PLA test print session (2026-07-17):** Session 1 (Steps 30–33) complete — went very well. Test-fit against the actual soldered main perfboard and top-shell contents surfaced several changes, made live in Tinkercad during the session:
-- USB-C charging port relocated — the main perfboard turned out to fit nicely stacked directly over the e-ink display board, changing the available wall space from what was planned.
-- M3 screw holes and the solar panel wire hole enlarged (original clearance diameters too tight).
-- M3 corner screw holes on the top shell corrected to actually pass all the way through.
-- Lip on the bottom shell removed.
-- A 1mm reference line added to the bottom shell floor, marking the perfboard's position and adjusted for the screw hole placement.
-
-**Follow-up needed before `hiking-monitor-enclosure-plan.md` Section 0 can be updated to match:** these were live Tinkercad edits — exact new values weren't captured during the session. Section 0 exists specifically as the reproduction record (Tinkercad edits can't be replayed automatically), so it needs: the USB port's new wall/position, the new M3/solar hole diameters, what the removed "lip" was and why, and the floor reference line's exact position/dimensions relative to the perfboard. Get these from Joseph (re-opening the Tinkercad project or checking with calipers) before updating the plan doc.
-
-**Next print planned: white ASA, Session 2** (`hiking-monitor-enclosure-instructions.md` Part 6, Steps 37+) — the final-material print per the doc's existing PLA-test-then-ASA-final pattern. Joseph's expectation going in: should be close given Session 1's fit corrections, with another print iteration available if needed. Section 0's dimension updates (above) should ideally be captured before Session 2 slices the files, so the ASA print reflects the corrected design rather than repeating any not-yet-documented fixes from memory.
-
----
-
-## Done
 
 ### CARD-0034 · [idea] [personal] Complete digital-identity-protection-checklist.md — RESOLVED 2026-07-17
 **Notes:** Work through `digital-identity-protection-checklist.md` (repo root) — Joseph and Robin's personal security checklist closing single-point-of-failure risks (carrier port-out PIN, 2FA off SMS, credit freezes, password manager, household verification protocol, incident response plan). Almost entirely manual actions by Joseph/Robin themselves (phone calls to carriers/bureaus, account settings changes) — not something Claude Code can execute directly, but worth tracking to completion since it's currently all unchecked. Also has an "Open Items to Fill In" section (list specific banks/brokerages in use, confirm current password manager/2FA setup, set a 6-month review date) that needs input from Joseph before those parts can be finished.

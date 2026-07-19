@@ -151,15 +151,140 @@ def compass_dir(azimuth):
     return dirs[idx]
 
 
+def m_to_ft(meters):
+    return meters * 3.28084
+
+
+# ---------------------------------------------------------------------------
+# Stats -- computed once here so the narrative-writing step doesn't have to
+# re-derive ranges by hand each time. Feet is the primary unit for elevation
+# throughout Hike-izer's output, per Joseph's call -- meters isn't reported.
+# ---------------------------------------------------------------------------
+
+def compute_stats(env_rows, gps_rows):
+    def rng(rows, key):
+        vals = [to_float(r.get(key)) for r in rows]
+        vals = [v for v in vals if v is not None]
+        return {'min': min(vals), 'max': max(vals)} if vals else None
+
+    alt_vals = [to_float(r.get('altitude_m')) for r in gps_rows]
+    alt_vals = [v for v in alt_vals if v is not None]
+    altitude_ft = (
+        {'min': round(m_to_ft(min(alt_vals))), 'max': round(m_to_ft(max(alt_vals))),
+         'gain_ft': round(m_to_ft(max(alt_vals) - min(alt_vals)))}
+        if alt_vals else None
+    )
+
+    return {
+        'temp_f': rng(env_rows, 'temp_f'),
+        'humidity_pct': rng(env_rows, 'humidity_pct'),
+        'pressure_hpa': rng(env_rows, 'pressure_hpa'),
+        'uv_index': rng(env_rows, 'uv_index'),
+        'battery_v': rng(env_rows, 'battery_v'),
+        'altitude_ft': altitude_ft,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Coverage analysis
 # ---------------------------------------------------------------------------
 
+def _haversine_m(lat1, lon1, lat2, lon2):
+    """Great-circle distance in meters between two lat/lon points."""
+    r = 6371000.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return 2 * r * math.asin(min(1.0, math.sqrt(a)))
+
+
+# Hiking-plausibility thresholds. Both must pass for a GPS cluster to be
+# classified as a real hike, not just "GPS was active." Tuned conservatively
+# (wide walking-pace range, civil-twilight daylight allowance) rather than
+# tightly, since false negatives ("that was a hike but got rejected") are worse
+# than false positives here -- rejections are reported with reasons, not
+# silently dropped, so an overly strict check would just produce more
+# "couldn't confirm" days than necessary.
+DAYLIGHT_MIN_FRACTION = 0.8       # >=80% of points must be at civil twilight or brighter
+DAYLIGHT_ELEVATION_DEG = -6.0     # civil twilight
+WALKING_SPEED_MIN_MPS = 0.15      # below this: effectively stationary (camp/parked), not hiking
+WALKING_SPEED_MAX_MPS = 3.0       # above this (~6.7 mph sustained): too fast for walking, likely a vehicle
+
+
+def _classify_hike(points):
+    """Given one candidate GPS cluster, decide whether it plausibly represents a
+    hike (per Joseph's rule: hikes happen in daylight, at walking pace -- not at
+    night, not stationary, not vehicle speed). Returns (is_hike, reasons,
+    details) -- reasons is a list of human-readable strings explaining any
+    rejection; empty if is_hike is True. Never silently drops a cluster --
+    every rejection carries its reason for the narrative to report."""
+    elevations = []
+    for r in points:
+        ts = parse_ts(r.get('timestamp'))
+        lat, lon = to_float(r.get('lat')), to_float(r.get('lon'))
+        if ts is not None and lat is not None and lon is not None:
+            elev, _ = solar_position(ts, lat, lon)
+            elevations.append(elev)
+    daylight_fraction = (
+        sum(1 for e in elevations if e > DAYLIGHT_ELEVATION_DEG) / len(elevations)
+        if elevations else 0.0
+    )
+
+    speeds_mps = []
+    for a, b in zip(points, points[1:]):
+        ts_a, ts_b = parse_ts(a.get('timestamp')), parse_ts(b.get('timestamp'))
+        lat_a, lon_a = to_float(a.get('lat')), to_float(a.get('lon'))
+        lat_b, lon_b = to_float(b.get('lat')), to_float(b.get('lon'))
+        if None in (ts_a, ts_b, lat_a, lon_a, lat_b, lon_b):
+            continue
+        dt = (ts_b - ts_a).total_seconds()
+        if dt <= 0:
+            continue
+        speeds_mps.append(_haversine_m(lat_a, lon_a, lat_b, lon_b) / dt)
+    speeds_mps.sort()
+    have_speed_data = len(speeds_mps) > 0
+    median_speed_mps = speeds_mps[len(speeds_mps) // 2] if have_speed_data else None
+
+    reasons = []
+    if daylight_fraction < DAYLIGHT_MIN_FRACTION:
+        reasons.append(
+            f"only {daylight_fraction * 100:.0f}% of GPS points occurred in daylight "
+            f"(sun above {DAYLIGHT_ELEVATION_DEG:.0f}deg) -- hikes are expected during "
+            f"daylight hours"
+        )
+    if not have_speed_data:
+        reasons.append(
+            f"only {len(points)} GPS point(s) in this cluster -- not enough data to "
+            f"determine a movement pattern"
+        )
+    elif median_speed_mps < WALKING_SPEED_MIN_MPS:
+        reasons.append(
+            f"median movement speed {median_speed_mps:.2f} m/s "
+            f"({median_speed_mps * 2.23694:.1f} mph) is too slow to be walking -- "
+            f"likely stationary (camp, parked) rather than a hike"
+        )
+    elif median_speed_mps > WALKING_SPEED_MAX_MPS:
+        reasons.append(
+            f"median movement speed {median_speed_mps:.2f} m/s "
+            f"({median_speed_mps * 2.23694:.1f} mph) is too fast for walking -- "
+            f"likely vehicle travel, not a hike"
+        )
+
+    details = {
+        'daylight_fraction': round(daylight_fraction, 2),
+        'median_speed_mps': round(median_speed_mps, 2) if median_speed_mps is not None else None,
+        'median_speed_mph': round(median_speed_mps * 2.23694, 1) if median_speed_mps is not None else None,
+    }
+    return len(reasons) == 0, reasons, details
+
+
 def _gps_sessions(gps_rows, session_gap_min=10):
-    """Split GPS Track rows into discrete hiking sessions, splitting wherever the
-    gap between consecutive points exceeds session_gap_min. GPSLogger only runs
-    during actual hikes, not continuously across a multi-day trip, so comparing
-    point count against a full-date-range 30s-cadence expectation is misleading
+    """Split GPS Track rows into discrete candidate sessions, splitting wherever
+    the gap between consecutive points exceeds session_gap_min, then classify
+    each as a real hike or not (see _classify_hike). GPSLogger only runs during
+    actual hikes, not continuously across a multi-day trip, so comparing point
+    count against a full-date-range 30s-cadence expectation is misleading
     (produces a scary-looking ~1% "coverage" that isn't a real problem). Session
     detection gives a per-session cadence check instead, which is meaningful."""
     sorted_gps = sorted((r for r in gps_rows if r.get('timestamp')), key=lambda r: r['timestamp'])
@@ -184,6 +309,7 @@ def _gps_sessions(gps_rows, session_gap_min=10):
         end = parse_ts(s[-1]['timestamp'])
         dur_sec = max(1, (end - start).total_seconds())
         expected = max(1, round(dur_sec / 30))
+        is_hike, reasons, classify_details = _classify_hike(s)
         result.append({
             'start': s[0]['timestamp'],
             'end': s[-1]['timestamp'],
@@ -191,6 +317,9 @@ def _gps_sessions(gps_rows, session_gap_min=10):
             'points': len(s),
             'expected_points': expected,
             'coverage_pct': round(100 * len(s) / expected, 1),
+            'is_hike': is_hike,
+            'rejection_reasons': reasons,
+            'classification_details': classify_details,
         })
     return result
 
@@ -251,12 +380,16 @@ def analyze_coverage(env_rows, gps_rows, obs_rows, start_dt, end_dt):
         'gps_track': {
             'total_trackpoints': actual_gps,
             'sessions_detected': len(gps_sessions),
+            'hike_confirmed': any(s['is_hike'] for s in gps_sessions),
             'sessions': gps_sessions,
             'note': (
                 "GPSLogger only runs during actual hiking sessions, not continuously "
                 "across the requested date range, so coverage is reported per detected "
                 "session (split wherever a gap exceeds 10 minutes) rather than against "
-                "a misleading full-range 30s-cadence expectation."
+                "a misleading full-range 30s-cadence expectation. Each session is also "
+                "classified as is_hike or not, per Joseph's rule that hikes happen in "
+                "daylight at walking pace -- not at night, stationary, or vehicle speed. "
+                "Rejected sessions carry rejection_reasons rather than being dropped."
             ),
         },
         'hiking_observations': {
@@ -320,9 +453,11 @@ def main():
         if ts is None or lat is None or lon is None:
             continue
         elevation, azimuth = solar_position(ts, lat, lon)
+        alt_m = to_float(r.get('altitude_m'))
         sun_samples.append({
             'timestamp': r.get('timestamp'),
-            'lat': lat, 'lon': lon, 'alt_m': to_float(r.get('altitude_m')),
+            'lat': lat, 'lon': lon,
+            'alt_ft': round(m_to_ft(alt_m)) if alt_m is not None else None,
             'sun_elevation_deg': round(elevation, 1),
             'sun_azimuth_deg': round(azimuth, 1),
             'sun_direction': compass_dir(azimuth),
@@ -338,6 +473,7 @@ def main():
             'gps_track': len(gps_rows),
         },
         'coverage': coverage,
+        'stats': compute_stats(env_rows, gps_rows),
         'sun_position_samples': sun_samples,
         'environmental_data': env_rows,
         'hiking_observations': obs_rows,

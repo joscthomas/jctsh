@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.19
-**Version description:** BOJACK T3.15AL250V slow blow fuses ×20 added (new Fuses section, Plastic Box) — for multimeter.
+**Version:** 2.20
+**Version description:** AreMe 90° USB-C adapter ×2 (Bag 33), BS250 P-channel MOSFET ×10 (Bag 34), and heat-set insert tool tips (new Soldering Tools location) added.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -18,6 +18,7 @@
 | Bench              | Primary work surface / soldering station area                                                                                 |
 | Music Response bin | Plastic storage bin labeled "Music Response" — houses discrete components and supplies for the music response project         |
 | Deployed           | Installed in a live JCTsh component; not on hand                                                                              |
+| Soldering Tools    | Container/kit labeled "Soldering Tools" — houses soldering iron tips, heat-set insert tooling, and related accessories                                                                              |
 
 ---
 
@@ -143,6 +144,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 3M Mini-Clamp Connectors | 3M, 4-conductor. Pinout for p-w-firefly CAN bus: Red=12V+ (leave unconnected), White=CAN-H, Green/Blue=CAN-L, Black=GND. | 3 | Bag 24 | Allocated: p-w-firefly project. Do not connect Red (12V+) to PiCAN2. |
 | JST GH 1.25mm Pitch 6-Pin Cable | 100mm long. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
 | STEMMA QT / Qwiic Cable | Adafruit #4209, JST SH 4-pin to premium male headers, 150mm long. https://www.adafruit.com/product/4209 | 2 | Bag 31 | 1 used: hiking-sensor (LTR-390 sensor-side rewiring, CARD-0009). 1 spare. |
+| AreMe 90° USB-C Male to Female Adapter | 2-pack, 90-degree angled, USB-C male to USB-C female, metallic purple. https://www.amazon.com/dp/B0B2NJ3P3L | 2 | Bag 33 | No project assigned. |
 
 ---
 
@@ -154,6 +156,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | BC547B NPN Transistor | Diotec, NPN 45V 0.1A TO-92. DigiKey 4878-BC547BCT-ND | 50 | Music Response bin | General-purpose small-signal NPN. |
 | 1N4148 Signal Diode | onsemi, 100V 200mA DO-35. DigiKey 1N4148FS-ND | 50 | Music Response bin | Fast switching signal diode. |
 | MCP1700 LDO Voltage Regulator | Microchip MCP1700, LDO linear voltage regulator, fixed 3.3V output, through-hole TO-92. https://www.amazon.com/dp/B0B2S2CT78 | 10 | Bag 32 | No project assigned. |
+| BS250 P-Channel MOSFET | TO-92, P-channel, 45V 0.23A 0.7W. https://www.amazon.com/dp/B0FPQKX4H1 | 10 | Bag 34 | No project assigned. |
 
 ---
 
@@ -206,6 +209,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | iCrimp SN-28B Dupont Crimping Tool | AWG 18–28, 2.54mm/2.5mm/3.96mm pitch, JST XH/VH and Dupont connectors. https://www.amazon.com/dp/B00OMM4YUY | Shelf | Use with Taiss Dupont connector kit. |
 | TP88A Piercing Needle Test Probes | Non-destructive multimeter test probes, piercing needle tip. https://www.amazon.com/dp/B01LYVHFDK | Shelf | For probing insulated wires without stripping. |
 | USB C Power Meter Tester | Multimeter 4.5-50V 0-12A two-way measurement, gravity sensor, voltage/current/capacity/amp/volt readout, for chargers/power banks/cables. https://www.amazon.com/dp/B0D9QH4C7S | Shelf | |
+| Heat Set Insert Tool Tips | Soldering iron tips for threaded inserts, sizes M2/M2.5/M3/M4/M5/M6, compatible with 900M/T18/FX-888D irons — for pressing heat-set inserts into 3D-printed plastic. https://www.amazon.com/dp/B0DB1SSKVN | Soldering Tools | No project assigned. |
 
 ---
 
@@ -262,3 +266,6 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-07-14 | CARD-0026 | ESP32 DevKitC-32 ×1 (Bag 1) confirmed defective — bad flash chip, consistent esptool failure across cables/ports/manual bootloader entry, ruled out as a connection issue by successfully flashing a second spare board. Discarded, not returned to stock. Qty 8 → 7 |
 | 2026-07-17 | Stock | MCP1700 3.3V LDO voltage regulator ×10 received (new bag, ASIN B0B2S2CT78), added to Discrete Semiconductors, Bag 32 |
 | 2026-07-17 | Stock | BOJACK T3.15AL250V 5×20mm slow blow fuses ×20 received (ASIN B07X2K4NTQ), added to new Fuses section, Plastic Box — for multimeter |
+| 2026-07-20 | Stock | AreMe 90° USB-C male-to-female adapter ×2 received (ASIN B0B2NJ3P3L), added to Cables and Adapters, new Bag 33 |
+| 2026-07-20 | Stock | BS250 P-channel MOSFET ×10 received (ASIN B0FPQKX4H1), added to Discrete Semiconductors, new Bag 34 |
+| 2026-07-20 | Stock | Heat set insert tool tips (M2–M6, ASIN B0DB1SSKVN) received, added to Tools — Bench Equipment, new "Soldering Tools" location (added to Location Key) |

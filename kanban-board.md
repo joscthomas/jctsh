@@ -132,6 +132,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 **Priority:** low  
 **Notes:** Move LOG_DIR in log_server.py from the SD card to a USB stick plugged into the Pi for better write endurance. Add an /etc/fstab entry so it auto-mounts at boot before the jctsh-logging service starts.
 
+**Sizing (checked 2026-07-22):** `jctsh.log` is 775KB and `state.json` is 42KB after ~1.5 months across all 8 heartbeat components — under 1MB total, growing negligibly. Capacity isn't the driver here (write endurance is), so any size works — get the smallest cheap drive available from a reputable brand (SanDisk/Kingston), typically **16GB or 32GB** today since anything smaller is hard to find new.
+
 ---
 
 ### CARD-0019 · [idea] [vu-meter] Home theater VU meters

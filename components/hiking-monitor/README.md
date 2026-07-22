@@ -1,4 +1,4 @@
-# Hiking Sensor
+# Hiking Monitor
 
 Portable ESP32 environmental sensor carried on hikes — measures temperature, humidity,
 pressure, and UV index, displays live readings on an e-ink screen, logs to onboard flash
@@ -96,7 +96,7 @@ to sensor readings by timestamp and populates `lat`/`lon` in the Google Sheets a
 
 1. Copy `secrets.yaml.template` → `secrets.yaml` and fill in credentials from
    `credentials.local.md`
-2. See [JCTsh-hiking-sensor-phase1.md](JCTsh-hiking-sensor-phase1.md) for the full
+2. See [JCTsh-hiking-monitor-phase1.md](JCTsh-hiking-monitor-phase1.md) for the full
    build plan and step sequence
 3. See [flashing instructions in build doc] for first flash via USB
 4. See [testing.md](testing.md) to verify field and home mode operation
@@ -165,7 +165,7 @@ JCTsh battery-powered components.
 
 | File | Purpose |
 |---|---|
-| `hiking-sensor.yaml` | ESPHome firmware config |
+| `hiking-monitor.yaml` | ESPHome firmware config |
 | `secrets.yaml` | Credentials — gitignored, never commit |
 | `secrets.yaml.template` | Credential template |
 | `wiring.md` | Breadboard wiring reference and checklist |
@@ -180,4 +180,4 @@ JCTsh battery-powered components.
 | `testing.md` | End-to-end test procedure |
 | `mqtt-account-setup.md` | Mosquitto account creation |
 | `CLAUDE.md` | Claude Code context — constraints and gotchas |
-| `JCTsh-hiking-sensor-phase1.md` | Full planning document and build step sequence |
+| `JCTsh-hiking-monitor-phase1.md` | Full planning document and build step sequence |

@@ -1,10 +1,10 @@
-# JCTsh Hiking Sensor — Claude Code Instructions
+# JCTsh Hiking Monitor — Claude Code Instructions
 **Author:** Joseph C Thomas (JCT)
-**Purpose:** Step-by-step build instructions for the hiking-sensor (hiking-monitor) component.
+**Purpose:** Step-by-step build instructions for the hiking-monitor (hiking-monitor) component.
 **Project:** JCT Smart Home (JCTsh)
 **Version:** 1.2
 **Version description:** Added Steps 23–26: Hiking observations pipeline via Tasker — voice observations captured on the Pixel during hikes, posted directly to the Apps Script doPost endpoint, written to the Hiking Observations sheet with automatic category classification.
-**Related files:** JCTsh-hiking-sensor-phase1.md, core/data-pipeline/JCTsh-Environmental-Data-Architecture.md, JCTsh-Build-Standards.md, CLAUDE.md, components/front-porch-temp-sensor/
+**Related files:** JCTsh-hiking-monitor-phase1.md, core/data-pipeline/JCTsh-Environmental-Data-Architecture.md, JCTsh-Build-Standards.md, CLAUDE.md, components/front-porch-temp-sensor/
 
 ---
 
@@ -26,7 +26,7 @@ Claude Code creates documentation and configuration files. Joseph follows those 
 
 **1. JCTsh-Build-Standards.md appears to have incorrect content.** When Claude Code reads `JCTsh-Build-Standards.md`, it receives parts inventory content instead of build standards. This file may have been accidentally overwritten. Joseph should inspect the file and restore the correct content. Build standards patterns are derived from existing components (front-porch-temp-sensor, garage-radar) as a fallback.
 
-**2. LTR-390 UV sensor not confirmed in parts inventory.** The inventory update log from 2026-05-28 notes "hiking-sensor, Stock: E-ink display and push buttons added, various other." The LTR-390 is not listed explicitly in the Sensors table. Confirm receipt before Step 3. See Step 1.
+**2. LTR-390 UV sensor not confirmed in parts inventory.** The inventory update log from 2026-05-28 notes "hiking-monitor, Stock: E-ink display and push buttons added, various other." The LTR-390 is not listed explicitly in the Sensors table. Confirm receipt before Step 3. See Step 1.
 
 ---
 
@@ -206,7 +206,7 @@ Confirmed findings:
 **STATUS: COMPLETE (2026-06-02)**
 
 Files created:
-- `hiking-sensor.yaml` — ESPHome config (BME280, LTR-390, e-ink display, button, battery ADC, onboard flash replay, heartbeat)
+- `hiking-monitor.yaml` — ESPHome config (BME280, LTR-390, e-ink display, button, battery ADC, onboard flash replay, heartbeat)
 - `secrets.yaml` — populated with all credentials (gitignored)
 - `secrets.yaml.template` — template for reference
 - `wiring.md` — complete breadboard wiring reference with STEMMA QT header note for LTR-390
@@ -301,7 +301,7 @@ Display shows "P ->" (ASCII steady arrow) after the device ran for several hours
 
 ## Step 9 — Data Pipeline: Google Sheets Setup
 
-**Claude Code does:** ✓ COMPLETE — `components/hiking-sensor/data-pipeline.md` created. Covers Steps 9–11: Google Sheets setup, Apps Script code and deployment, and Node-RED flow JSON.
+**Claude Code does:** ✓ COMPLETE — `components/hiking-monitor/data-pipeline.md` created. Covers Steps 9–11: Google Sheets setup, Apps Script code and deployment, and Node-RED flow JSON.
 
 Section 9 of data-pipeline.md covers Google Sheets setup:
 - Create "JCTsh Environmental Data" Google Sheets workbook in Joseph's Google Drive
@@ -389,7 +389,7 @@ Where T = temp_f, H = humidity_pct. Use simple formula (T + H/5 - 10.3) when tem
 
 ## Step 12 — Full End-to-End Test
 
-**Claude Code does:** Create `components/hiking-sensor/testing.md` with the complete validation procedure.
+**Claude Code does:** Create `components/hiking-monitor/testing.md` with the complete validation procedure.
 
 **Joseph does:** Run the full end-to-end test:
 
@@ -427,13 +427,13 @@ Where T = temp_f, H = humidity_pct. Use simple formula (T + H/5 - 10.3) when tem
 **STATUS: COMPLETE (2026-06-04)**
 
 **Claude Code does:** Update `jctsh-parts-inventory.md` Inventory Update Log:
-- ESP32 ×1 used (hiking-sensor)
-- BME280 ×1 used (hiking-sensor)
-- LTR-390 ×1 used (hiking-sensor)
-- E-ink display ×1 used (hiking-sensor)
-- Push button ×1 used (hiking-sensor)
-- EEMB LiPo ×1 used (hiking-sensor)
-- TP4056+boost module ×1 used (hiking-sensor)
+- ESP32 ×1 used (hiking-monitor)
+- BME280 ×1 used (hiking-monitor)
+- LTR-390 ×1 used (hiking-monitor)
+- E-ink display ×1 used (hiking-monitor)
+- Push button ×1 used (hiking-monitor)
+- EEMB LiPo ×1 used (hiking-monitor)
+- TP4056+boost module ×1 used (hiking-monitor)
 
 Also update the LTR-390 Sensors table entry when confirmed received.
 
@@ -456,13 +456,13 @@ Do not proceed to Install Phase until all bench steps are confirmed complete.
 
 ## INSTALL PHASE
 
-The hiking sensor install phase is primarily a physical enclosure build, not a location-specific installation like wall-mounted sensors. The device does not have a fixed installed location — it is portable.
+The hiking monitor install phase is primarily a physical enclosure build, not a location-specific installation like wall-mounted sensors. The device does not have a fixed installed location — it is portable.
 
 ---
 
 ## Step 14 — Perfboard Build
 
-**Claude Code does:** Create `components/hiking-sensor/perfboard-layout.md` — COMPLETE (2026-06-04)
+**Claude Code does:** Create `components/hiking-monitor/perfboard-layout.md` — COMPLETE (2026-06-04)
 
 
 - ESP32 DevKit on two 19-pin female header strips (removable — do not solder directly)
@@ -483,13 +483,13 @@ The hiking sensor install phase is primarily a physical enclosure build, not a l
 
 ## Step 15 — Enclosure Design
 
-**Claude Code does:** Research and document enclosure design options in `components/hiking-sensor/enclosure.md`:
+**Claude Code does:** Research and document enclosure design options in `components/hiking-monitor/enclosure.md`:
 - Target footprint: ~75mm × 45mm × 20mm
 - Requirements: Stevenson-screen louvered port for BME280, LTR-390 on top face, micro USB external, JST external, USB-C internal, button on side, carabiner bail/loop, light-colored PETG
 - Evaluate: design from scratch vs. adapt existing open-source Stevenson screen STL
 
 Research questions for enclosure.md:
-1. Are there open-source STL files for similar hiking sensor enclosures with Stevenson-screen ventilation?
+1. Are there open-source STL files for similar hiking monitor enclosures with Stevenson-screen ventilation?
 2. What is the UV transmission rating of natural PETG? (LTR-390 may need a UV-transparent window if recessed — or can be flush-mounted on the top face)
 3. What free/low-cost 3D modeling tool is recommended for a first-time enclosure design (if designing from scratch)?
 
@@ -531,7 +531,7 @@ Research questions for enclosure.md:
 
 ## Step 18 — README and Final Housekeeping
 
-**Claude Code does:** Create `components/hiking-sensor/README.md` following the garage-radar README pattern. Must include:
+**Claude Code does:** Create `components/hiking-monitor/README.md` following the garage-radar README pattern. Must include:
 - What the component does (field mode + home mode)
 - Hardware table
 - GPIO assignment table
@@ -589,7 +589,7 @@ Voice observations via Google Recorder → Google Docs → Apps Script → Hikin
 
 ## Notes for Claude Code
 
-- **Flash path:** Always flash from `C:\esphome\hiking-sensor\` — not from the repo path. Spaces in "JCT Documents" break the ESP-IDF compiler. Copy YAML, secrets.yaml, and hiking_logger.h to that directory before every flash.
+- **Flash path:** Always flash from `C:\esphome\hiking-monitor\` — not from the repo path. Spaces in "JCT Documents" break the ESP-IDF compiler. Copy YAML, secrets.yaml, and hiking_logger.h to that directory before every flash.
 - **ESPHome MQTT discovery:** Set `discovery: false` — the hiking monitor is not integrated with Home Assistant. No HA entities needed.
 - **E-ink display model string:** The Waveshare 2.13" V4 SSD1680 likely uses model `2.13in-ttgo-b74` in ESPHome `waveshare_epaper` platform. Confirm at Step 5 — try `2.13in-ttgo-b74` first; if display shows garbage or doesn't initialize, try `2.13in-b74` or check current ESPHome docs for SSD1680 model strings.
 - **Unicode arrows on e-ink:** ESPHome `waveshare_epaper` rendering uses bitmap fonts. Unicode arrows (↑ → ↓) require the font to include those glyphs. If rendering fails, fall back to ASCII: `^` / `=` / `v`. Confirm in Step 7.
@@ -618,7 +618,7 @@ The Node-RED GPS pipeline built in Steps 19–20 is shared infrastructure. The a
 
 ## Step 19 — GPSLogger Configuration and Google Sheets GPS Track
 
-**Claude Code does:** Create `components/hiking-sensor/gps-pipeline.md` documenting the full GPS correlation architecture:
+**Claude Code does:** Create `components/hiking-monitor/gps-pipeline.md` documenting the full GPS correlation architecture:
 
 Section 1 — GPSLogger Android app configuration:
 - App: GPSLogger for Android (open source, F-Droid or Play Store)
@@ -700,7 +700,7 @@ The updated Node-RED flow:
 
 ## Step 21 — Pixel Hotspot Second WiFi Network
 
-**Claude Code does:** Update `hiking-sensor.yaml` to add the Pixel hotspot as a second WiFi network. Update `wiring.md` (or create a `wifi-config.md` note if wiring.md is not the right home) to document the two-network configuration.
+**Claude Code does:** Update `hiking-monitor.yaml` to add the Pixel hotspot as a second WiFi network. Update `wiring.md` (or create a `wifi-config.md` note if wiring.md is not the right home) to document the two-network configuration.
 
 ESPHome `wifi:` block change:
 ```yaml
@@ -738,7 +738,7 @@ Important constraints to document:
 **Joseph does:**
 1. Set a fixed Pixel hotspot SSID and password on the Pixel 10 Pro XL (note: changing these later requires re-flashing the device)
 2. Add hotspot credentials to `secrets.yaml`
-3. OTA flash updated YAML from `C:\esphome\hiking-sensor\`
+3. OTA flash updated YAML from `C:\esphome\hiking-monitor\`
 4. With home WiFi unavailable (or temporarily disabled on the device), enable Pixel hotspot
 5. Confirm device connects to hotspot
 6. Confirm device connects to home Mosquitto broker over cellular

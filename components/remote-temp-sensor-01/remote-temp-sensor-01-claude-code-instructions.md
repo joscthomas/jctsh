@@ -3,8 +3,8 @@
 **Purpose:** Step-by-step build instructions for `remote-temp-sensor-01`, converting the decisions made in `JCTsh-remote-temp-sensor-01-phase1.md` (Phases 1–3) into an executable build.
 **Project:** JCT Smart Home (JCTsh)
 **Version:** 1.0
-**Version description:** Initial release. Covers the bench electronics/firmware build only — enclosure design and backyard installation are deliberately deferred to a follow-on card (see "Future Enhancement" below), same split hiking-sensor used between its own bench build and its later enclosure card (CARD-0009).
-**Related files:** `JCTsh-remote-temp-sensor-01-phase1.md`, `CLAUDE.md`, `JCTsh-Build-Standards.md`, `components/front-porch-temp-sensor/`, `components/hiking-sensor/`
+**Version description:** Initial release. Covers the bench electronics/firmware build only — enclosure design and backyard installation are deliberately deferred to a follow-on card (see "Future Enhancement" below), same split hiking-monitor used between its own bench build and its later enclosure card (CARD-0009).
+**Related files:** `JCTsh-remote-temp-sensor-01-phase1.md`, `CLAUDE.md`, `JCTsh-Build-Standards.md`, `components/front-porch-temp-sensor/`, `components/hiking-monitor/`
 
 ---
 
@@ -12,7 +12,7 @@
 
 `remote-temp-sensor-01` is a standalone, solar+battery-powered outdoor environmental sensor for a full-sun backyard location. It measures temperature, humidity, pressure (BME280), ambient light (BH1750), and UV index (LTR-390), publishing a reading every 5 minutes via a wake/publish/deep-sleep firmware cycle — power-budget analysis in the Phase 1–3 doc showed continuous WiFi operation is not viable on the SUNYIMA solar panel this device uses.
 
-Unlike hiking-sensor, this device never leaves WiFi range — it's a fixed location — so it does not need offline flash logging or field/home mode switching. Unlike front-porch-temp-sensor, it is not wall-powered and is not sheltered, so it needs a real enclosure (deferred to a follow-on card) and a deep-sleep power architecture.
+Unlike hiking-monitor, this device never leaves WiFi range — it's a fixed location — so it does not need offline flash logging or field/home mode switching. Unlike front-porch-temp-sensor, it is not wall-powered and is not sheltered, so it needs a real enclosure (deferred to a follow-on card) and a deep-sleep power architecture.
 
 ---
 
@@ -52,7 +52,7 @@ Claude Code creates documentation and configuration files. Joseph follows those 
 - BME280 default address: 0x76
 - BH1750 default address: 0x23 (ADDR pin tied to GND)
 - LTR-390 default address: 0x53
-- No conflicts, no level shifter needed — same shared-bus pattern as hiking-sensor's BME280+LTR-390.
+- No conflicts, no level shifter needed — same shared-bus pattern as hiking-monitor's BME280+LTR-390.
 
 **Sensor power switch circuit (BC557B PNP, high-side):**
 ```
@@ -62,7 +62,7 @@ GPIO27 ──[10kΩ]──► BC557B Base
 ```
 GPIO27 LOW → base pulled low relative to emitter → transistor ON → sensors powered. GPIO27 HIGH (default/idle) → transistor OFF → sensors fully disconnected during deep sleep. This addresses the CARD-0027-class finding that ESP32 deep sleep does not cut power to downstream peripherals — sensors would otherwise draw their own current for the entire sleep interval, which is ~99% of this device's operating life.
 
-**Voltage dividers (`battery_v`, `solar_v`):** 68kΩ/68kΩ equal-resistor dividers, same pattern and resistor values as hiking-sensor (`components/hiking-sensor/voltage-divider.md`) — halves the input voltage, firmware multiplies the ADC reading by 2 to recover the real value. Resistors from Bag 17 assortment.
+**Voltage dividers (`battery_v`, `solar_v`):** 68kΩ/68kΩ equal-resistor dividers, same pattern and resistor values as hiking-monitor (`components/hiking-monitor/voltage-divider.md`) — halves the input voltage, firmware multiplies the ADC reading by 2 to recover the real value. Resistors from Bag 17 assortment.
 
 **Charger module quiescent current — known unresolved item, tested in this build (Step 6 below).**
 
@@ -181,7 +181,7 @@ Switch verified functional in both states.
 ## Step 6 — AEDIKO charger module quiescent current test
 
 **Claude Code does:**
-Write up the test procedure (already specified in `JCTsh-remote-temp-sensor-01-phase1.md`, "Charger Module Quiescent Current — Test and Mitigation Plan") as a standalone bench test doc, reusing hiking-sensor's CARD-0026 tester-rig method.
+Write up the test procedure (already specified in `JCTsh-remote-temp-sensor-01-phase1.md`, "Charger Module Quiescent Current — Test and Mitigation Plan") as a standalone bench test doc, reusing hiking-monitor's CARD-0026 tester-rig method.
 
 **Joseph does:**
 Wire one EVE 18650 cell into the AEDIKO module, boost output to a spare ESP32 forced into deep sleep, multimeter in series on the battery's positive lead. Take the unloaded and ESP32-loaded readings.
@@ -197,7 +197,7 @@ Record the result in both this doc and `JCTsh-remote-temp-sensor-01-phase1.md`. 
 ## Step 7 — Deep sleep wake/publish cycle firmware
 
 **Claude Code does:**
-Implement the 5-minute wake → power sensors on (GPIO27 low) → read → publish `/data` and `/heartbeat` → power sensors off (GPIO27 high) → `deep_sleep.enter` cycle. Include the 20–30s WiFi/MQTT connect timeout fallback into deep sleep (per Phase 3 timeout decision). Reference hiking-sensor's `on_boot` priority sequencing pattern (JCTsh-Build-Standards.md §2.13) for correctly ordering sensor power-up before I2C reads.
+Implement the 5-minute wake → power sensors on (GPIO27 low) → read → publish `/data` and `/heartbeat` → power sensors off (GPIO27 high) → `deep_sleep.enter` cycle. Include the 20–30s WiFi/MQTT connect timeout fallback into deep sleep (per Phase 3 timeout decision). Reference hiking-monitor's `on_boot` priority sequencing pattern (JCTsh-Build-Standards.md §2.13) for correctly ordering sensor power-up before I2C reads.
 
 **Joseph does:**
 Flash via USB, observe several wake cycles on the log dashboard, confirm ~5-minute spacing and successful publishes.
@@ -273,7 +273,7 @@ Do not proceed to any install/enclosure work until every bench step above is con
 
 ## INSTALL PHASE
 
-**Deliberately not detailed in this instruction set.** Per the Component Planning Pattern, enclosure and final mounting is a distinct phase — and per the Phase 1–3 planning doc's open questions (exact mounting location/coordinates, battery hatch mechanism, vent insert dimensions, screw length, solar panel mounting bracket), several CAD-level decisions depend on measurements and part choices this bench phase will only just have resolved (P-FET/BC557B validated in practice, AEDIKO quiescent current known, actual perfboard footprint known). Same split hiking-sensor used: firmware/electronics build completed first, enclosure (CARD-0009) planned and built as its own follow-on effort once the electronics were proven.
+**Deliberately not detailed in this instruction set.** Per the Component Planning Pattern, enclosure and final mounting is a distinct phase — and per the Phase 1–3 planning doc's open questions (exact mounting location/coordinates, battery hatch mechanism, vent insert dimensions, screw length, solar panel mounting bracket), several CAD-level decisions depend on measurements and part choices this bench phase will only just have resolved (P-FET/BC557B validated in practice, AEDIKO quiescent current known, actual perfboard footprint known). Same split hiking-monitor used: firmware/electronics build completed first, enclosure (CARD-0009) planned and built as its own follow-on effort once the electronics were proven.
 
 See "Future Enhancement" below.
 
@@ -283,11 +283,11 @@ See "Future Enhancement" below.
 
 Once the bench phase above is complete, open a new planning pass (or a follow-on Claude Code instruction set) covering:
 - Exact backyard mounting point from `house-lot-coordinates.md`, with full-sun exposure confirmed at that spot
-- Enclosure CAD, reusing hiking-sensor's OpenSCAD/Tinkercad toolchain and the louvered vent-insert pattern for the BME280 (re-derived for this enclosure's own opening dimensions, not copied verbatim)
+- Enclosure CAD, reusing hiking-monitor's OpenSCAD/Tinkercad toolchain and the louvered vent-insert pattern for the BME280 (re-derived for this enclosure's own opening dimensions, not copied verbatim)
 - Battery-access hatch mechanism (thumbscrew panel vs. friction-fit door), separate cavity from the main electronics
 - Solar panel external mounting bracket, tilted toward true south at roughly Tucson's latitude angle
-- M3 screw length confirmation once enclosure wall/insert dimensions exist — do not assume the on-hand M3×6 kit screws are sufficient (hiking-sensor needed 30mm)
-- Filament purchase at Xerocraft (PLA test-fit, then ASA final print) — second entry in the 3D-printing backlog behind hiking-sensor
+- M3 screw length confirmation once enclosure wall/insert dimensions exist — do not assume the on-hand M3×6 kit screws are sufficient (hiking-monitor needed 30mm)
+- Filament purchase at Xerocraft (PLA test-fit, then ASA final print) — second entry in the 3D-printing backlog behind hiking-monitor
 
 ## Future Enhancement — Soil Moisture / DS18B20
 
@@ -304,7 +304,7 @@ Only pursue if Step 6's quiescent-current measurement shows the AEDIKO module's 
 - Step 0 is mandatory: read `JCTsh-Build-Standards.md` in full, state which sections apply, confirm before writing any code or config
 - Read `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` — payload schema and MQTT topic convention defined there must be followed exactly (fields: `ts`, `lat`, `lon`, `temp_f`, `humidity_pct`, `pressure_hpa`, `illuminance_lx`, `uv_index`, `battery_v`, `solar_v`, `rssi_dbm`)
 - `lat`/`lon` are hardcoded constants for this fixed sensor (from `house-lot-coordinates.md`, exact point TBD in the install phase) — not GPS-derived, not null
-- No offline flash logging needed — this device is never expected to leave WiFi range, unlike hiking-sensor
+- No offline flash logging needed — this device is never expected to leave WiFi range, unlike hiking-monitor
 - Log format: JSON to `jctsh/components/remote-temp-sensor-01/log` — `{ "component": "remote-temp-sensor-01", "category": "<cat>", "message": "<text>" }`
 - Heartbeat and data publish share the same 5-minute wake cycle — no separate always-on interval timer
 - MQTT account: create dedicated Mosquitto account before first flash — see JCTsh-Build-Standards.md §2.7/§2.11

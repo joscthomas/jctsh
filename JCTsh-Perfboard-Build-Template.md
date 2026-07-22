@@ -3,7 +3,7 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Reusable section skeleton for a component's `perfboard-layout.md` — copy this structure when transferring a new component from breadboard to perfboard, fill in each section for the specific circuit.
 **Version:** 1.0
-**Version description:** Initial version, generalized from two real builds: hiking-sensor's original perfboard-layout.md (I2C sensors, battery/TP4056 power chain, display) and salt-sensor's CARD-0049 build (much simpler circuit, but which surfaced the bus-planning discipline, the silkscreen-label-over-position-number lesson, and the adjacent-pin isolation check practice).
+**Version description:** Initial version, generalized from two real builds: hiking-monitor's original perfboard-layout.md (I2C sensors, battery/TP4056 power chain, display) and salt-sensor's CARD-0049 build (much simpler circuit, but which surfaced the bus-planning discipline, the silkscreen-label-over-position-number lesson, and the adjacent-pin isolation check practice).
 **Related files:** `JCTsh-Build-Standards.md` (the actual rules this template's steps enact), `JCTsh-Component-Planning-Pattern.md` (the analogous template for the planning phase)
 
 ---
@@ -46,7 +46,7 @@ If a photo of the actual board's silkscreen was taken, reference it here and sav
 
 ## Wiring Connections
 
-*Table(s) per net type — Power, Ground, and each signal group (I2C, individual GPIO drive lines, etc.). Use the physical board's actual pin labels (per Board Note), not position numbers. Split into as many subsections as the circuit needs; a simple circuit might only need Power/Ground/Signal, a complex one may need per-peripheral subsections like hiking-sensor's (I2C, voltage dividers, display harness, etc.).*
+*Table(s) per net type — Power, Ground, and each signal group (I2C, individual GPIO drive lines, etc.). Use the physical board's actual pin labels (per Board Note), not position numbers. Split into as many subsections as the circuit needs; a simple circuit might only need Power/Ground/Signal, a complex one may need per-peripheral subsections like hiking-monitor's (I2C, voltage dividers, display harness, etc.).*
 
 ---
 

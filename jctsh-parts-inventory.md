@@ -53,7 +53,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Component           | Description                                  | Qty | Location | Notes                                                                         |
 |---------------------|----------------------------------------------|-----|----------|-------------------------------------------------------------------------------|
-| ESP32 DevKitC-32    | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT; supplemented with a second 6-pack (ESP-32D, CP2102, 38-pin, STA/AP/STA+AP, WiFi+BT dual-core, Type-C), ASIN B0DSZBH9N9. https://www.amazon.com/dp/B0DSZBH9N9 | 7   | Bag 1    | 1 used: garage radar. 1 used: front-porch-temp-sensor. 1 used: hiking-sensor. 6 received 2026-07-13 (second 6-pack, merged into this row). **1 discarded 2026-07-14 (CARD-0026)** — confirmed defective, bad flash chip communication (`esptool`: "Failed to communicate with the flash chip"), ruled out as a cable/port/bootloader-entry issue by successfully flashing a second spare board on the same setup; thrown away rather than returned to stock. Qty 8 → 7. 1 currently allocated: CARD-0026 sleep-current test rig (temporary, not a permanent deployment). |
+| ESP32 DevKitC-32    | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT; supplemented with a second 6-pack (ESP-32D, CP2102, 38-pin, STA/AP/STA+AP, WiFi+BT dual-core, Type-C), ASIN B0DSZBH9N9. https://www.amazon.com/dp/B0DSZBH9N9 | 7   | Bag 1    | 1 used: garage radar. 1 used: front-porch-temp-sensor. 1 used: hiking-monitor. 6 received 2026-07-13 (second 6-pack, merged into this row). **1 discarded 2026-07-14 (CARD-0026)** — confirmed defective, bad flash chip communication (`esptool`: "Failed to communicate with the flash chip"), ruled out as a cable/port/bootloader-entry issue by successfully flashing a second spare board on the same setup; thrown away rather than returned to stock. Qty 8 → 7. 1 currently allocated: CARD-0026 sleep-current test rig (temporary, not a permanent deployment). |
 | ESP32 (salt sensor) | Separate board, not from 6-pack              | 1   | Deployed | Deployed on salt sensor project.                                              |
 
 ---
@@ -75,8 +75,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | HLK-LD2412 | EC Buying, 24GHz mmWave radar, UART, ±75°, 9m range | 1 | Bag 18 | 1 used: garage radar project. |
 | BH1750 (GY-302) | hiBCTR 3-pack, illumination/light sensor, I2C | 5 | Bag 19 | 1 used: front-porch-temp-sensor. |
 | BMP280 (sold as BME280) | Podazz 3-pack, counterfeit — pressure/temp only, no humidity, I2C, 5V | 2 | Bag 2 | 3 returned 2026-05-26. 2 spares removed from front-porch-temp-sensor. |
-| BME280 (GY-BME280) | 2PCS packs, genuine — temp/humidity/pressure, I2C/SPI, 5V breakout | 3 | Bag 3 | 1 deployed: front-porch-temp-sensor (2026-05-26). 1 used: hiking-sensor. 2 spares. |
-| LTR390 UV Light Sensor | Adafruit #4831, STEMMA QT / Qwiic I2C, UV and ambient light, 3.3V/5V. https://www.amazon.com/dp/B0BPR31P59 | 1 | Bag 22 | 1 used: hiking-sensor. 1 spare. |
+| BME280 (GY-BME280) | 2PCS packs, genuine — temp/humidity/pressure, I2C/SPI, 5V breakout | 3 | Bag 3 | 1 deployed: front-porch-temp-sensor (2026-05-26). 1 used: hiking-monitor. 2 spares. |
+| LTR390 UV Light Sensor | Adafruit #4831, STEMMA QT / Qwiic I2C, UV and ambient light, 3.3V/5V. https://www.amazon.com/dp/B0BPR31P59 | 1 | Bag 22 | 1 used: hiking-monitor. 1 spare. |
 | SparkFun SEN-23715 | Sensirion **SEN55** (corrected 2026-07-09 — was mislabeled SEN54; part number SEN-23715 is the genuine SEN55 per SparkFun's own product listing), particle (PM1/2.5/4/10), VOC, NOx, humidity, temperature, I2C/UART. | 1 | Plastic Box | Allocated: air-quality-monitor project. Matches the air-quality-monitor plan's SEN55 requirement (NOx included) — no substitution occurred. **Caveat:** this correction trusts that the physical item on hand actually carries part number SEN-23715, which hasn't been checked against the item's own label/silkscreen — worth a quick physical glance next time the box is open. |
 | Adafruit SEN54/SEN55 Adapter Breakout | STEMMA QT / Qwiic, I2C adapter breakout for Sensirion SEN54/SEN55. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
 | DS3231 RTC Module | HiLetgo 5pcs, high precision real time clock, I2C, 3.3V/5V, CR2032 battery backup. https://www.amazon.com/dp/B01N1LZSK3 | 5 | Bag 28 | 1 allocated: bedside-clock. |
@@ -92,8 +92,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 18650 Battery Charger Module + Holder | AEDIKO 5-pack (charger + holder pairs), fast charge boost, PCB protection | 10 | Bag 4 | No project assigned. |
 | EVE 3.3V 18650 Cell | 18650BatteryStore.com, 3200mAh, 10A, flat top | 5 | Bag 5 | No project assigned. |
 | Mini Solar Panel | SUNYIMA, 5.5V 80mA, 2.36"×2.36", DIY photovoltaic | 10 | Bag 6 | No project assigned. |
-| LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 3 | Bag 7 | 1 in service: hiking-sensor. Hiking-sensor's original cell failed in the field (2026-07-03) and was replaced from this stock — physical recount confirmed 2 still remaining in Bag 7 afterward; trust this physical count over prior used/remaining math. |
-| TP4056 Battery Charger Modules | USB TP4056, 3.7V–4.2V to 9V/5V, 2A, charge/discharge integrated step-up. https://www.amazon.com/dp/B098989NRZ | 5 | Bag 8 | 1 used: hiking-sensor. |
+| LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 3 | Bag 7 | 1 in service: hiking-monitor. Hiking-monitor's original cell failed in the field (2026-07-03) and was replaced from this stock — physical recount confirmed 2 still remaining in Bag 7 afterward; trust this physical count over prior used/remaining math. |
+| TP4056 Battery Charger Modules | USB TP4056, 3.7V–4.2V to 9V/5V, 2A, charge/discharge integrated step-up. https://www.amazon.com/dp/B098989NRZ | 5 | Bag 8 | 1 used: hiking-monitor. |
 | DC Buck Converter 12V→5V 3A | 2pcs, 15W, USB-C output, compatible with Raspberry Pi 4. https://www.amazon.com/dp/B0CMZWN7WS | 2 | Bag 21 | No project assigned. |
 | Power Supply Module 3.3V/5V | HiLetgo, dual output 3.3V and 5V, breadboard-compatible. | 5 | Music Response bin | No project assigned. |
 | 9V Battery Clips I-Type DC Plug | HiLetgo, I-type DC barrel connector. | 10 | Music Response bin | No project assigned. |
@@ -143,7 +143,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | USB-C to Micro USB Adapter | JXMOX 4-pack, Type-C female to Micro USB male, supports charge and data sync, grey. https://www.amazon.com/dp/B07GH5KJH2 | 4 | Bag 20 | Useful for powering or connecting Micro USB devices from USB-C sources. |
 | 3M Mini-Clamp Connectors | 3M, 4-conductor. Pinout for p-w-firefly CAN bus: Red=12V+ (leave unconnected), White=CAN-H, Green/Blue=CAN-L, Black=GND. | 3 | Bag 24 | Allocated: p-w-firefly project. Do not connect Red (12V+) to PiCAN2. |
 | JST GH 1.25mm Pitch 6-Pin Cable | 100mm long. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
-| STEMMA QT / Qwiic Cable | Adafruit #4209, JST SH 4-pin to premium male headers, 150mm long. https://www.adafruit.com/product/4209 | 2 | Bag 31 | 1 used: hiking-sensor (LTR-390 sensor-side rewiring, CARD-0009). 1 spare. |
+| STEMMA QT / Qwiic Cable | Adafruit #4209, JST SH 4-pin to premium male headers, 150mm long. https://www.adafruit.com/product/4209 | 2 | Bag 31 | 1 used: hiking-monitor (LTR-390 sensor-side rewiring, CARD-0009). 1 spare. |
 | AreMe 90° USB-C Male to Female Adapter | 2-pack, 90-degree angled, USB-C male to USB-C female, metallic purple. https://www.amazon.com/dp/B0B2NJ3P3L | 2 | Bag 33 | No project assigned. |
 
 ---
@@ -194,7 +194,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
-| E-Ink Display | Waveshare 2.13" HAT V4, 250×122, SPI, partial refresh, compatible with Pi Zero W/2W/3B/4B/5/Pico. https://www.amazon.com/dp/B071S8HT76 | 0 | Deployed | 1 used: hiking-sensor. |
+| E-Ink Display | Waveshare 2.13" HAT V4, 250×122, SPI, partial refresh, compatible with Pi Zero W/2W/3B/4B/5/Pico. https://www.amazon.com/dp/B071S8HT76 | 0 | Deployed | 1 used: hiking-monitor. |
 | SH1106 OLED Display 1.3" | Hosyond 5pcs, 128×64, I2C, white, SH1106 driver (not SSD1306). https://www.amazon.com/dp/B0C3L7N917 | 5 | Bag 29 | 1 allocated: bedside-clock. |
 
 ---
@@ -234,7 +234,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-05-26 | BME280 order received | GY-BME280 ×4 received; Podazz BMP280 ×3 returned (counterfeit) |
 | 2026-05-26 | front-porch-temp-sensor | GY-BME280 ×1 deployed (replaced counterfeit BMP280); humidity now active |
 | 2026-05-27 | Stock | EVE 3.3V 18650 3200mAh ×5 received |
-| 2026-05-28 | hiking-sensor, Stock | E-ink display and push buttons added, various other |
+| 2026-05-28 | hiking-monitor, Stock | E-ink display and push buttons added, various other |
 | 2026-05-30 | Stock | Raspberry Pi Zero W ×1 added (Vilros kit B0748MPQT4, BCM2835 single-core); no project assigned |
 | 2026-05-30 | Structure | Added Location column; assigned bag numbers 1–19; added Tools section |
 | 2026-05-30 | Structure | Source cleanup: normalized table spacing, shortened placeholder text |
@@ -245,7 +245,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-06-07 | Stock | SparkFun SEN-23715 Sensirion sensor ×1 added (Sensors, Plastic Box) |
 | 2026-06-06 | Stock | Gebildet slide switch assortment added (Prototyping and Build Hardware, Plastic Box); FEITA 900M-T soldering tips ×5 added (Tools — Consumables, Bench) |
 | 2026-06-05 | Stock | iCrimp SN-28B crimping tool added (Tools — Bench Equipment, Shelf); Taiss 600pc Dupont connector kit added (Prototyping and Build Hardware, Plastic Box) |
-| 2026-06-04 | hiking-sensor | ESP32 ×1 used; BME280 ×1 used; LTR-390 ×1 used; e-ink display ×1 used; push button ×1 used; EEMB LiPo ×1 used; TP4056+boost ×1 used |
+| 2026-06-04 | hiking-monitor | ESP32 ×1 used; BME280 ×1 used; LTR-390 ×1 used; e-ink display ×1 used; push button ×1 used; EEMB LiPo ×1 used; TP4056+boost ×1 used |
 | 2026-06-10 | garage-radar | Build complete. ESP32 ×1 used; HLK-LD2412 ×1 used; green LED ×1 used; yellow LED ×1 used; 330Ω resistors ×2 used; female headers (19-pin ×2, 4-pin ×1) used; M3 standoffs ×4 used; 5×7cm perfboard ×1 used |
 | 2026-06-14 | Stock | No clean solder flux paste ×4 syringes (Plastic Box); M2 screw assortment 645 pcs (Plastic Box); 3M double-sided foam tape ×1 roll (Plastic Box); M2 hex brass standoff kit 390 pcs (Plastic Box); 2-pin screw terminal block 3.5mm ×50 (Plastic Box) |
 | 2026-07-01 | air-quality-monitor | Adafruit SEN54/SEN55 STEMMA QT adapter breakout ×1 received, added to Sensors, Bag 25; JST GH 1.25mm 6-pin cable (100mm) ×1 received, added to Cables and Adapters, Bag 25 |
@@ -260,7 +260,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-07-09 | Stock | JSN-SR04T-V3.0 waterproof ultrasonic distance sensor ×2 added (Sensors, Bag 30) |
 | 2026-07-09 | photo-server | GMKtec NucBox M8 deployed (Windows 11 replaced with Ubuntu 26.04 LTS); Seagate Backup Plus 1TB and Seagate Momentus 640GB (Insignia enclosure) deployed as primary library and local backup drives (new Storage section). Spares not deployed: Seagate Expansion 1TB (P/N 9SF2A4-500), WD 750GB (P/N WD7500H1U-00) |
 | 2026-07-12 | Stock | STEMMA QT / Qwiic cable (Adafruit #4209, JST SH 4-pin to premium male headers, 150mm) ×2 added (Cables and Adapters, Bag 31) |
-| 2026-07-12 | hiking-sensor | STEMMA QT / Qwiic cable ×1 allocated: LTR-390 UV sensor sensor-side rewiring (CARD-0009 enclosure work) — replaces soldered male headers on the LTR-390 breakout. 1 spare remains. |
+| 2026-07-12 | hiking-monitor | STEMMA QT / Qwiic cable ×1 allocated: LTR-390 UV sensor sensor-side rewiring (CARD-0009 enclosure work) — replaces soldered male headers on the LTR-390 breakout. 1 spare remains. |
 | 2026-07-13 | Stock | ESP32 DevKitC-32 ×6 received (second 6-pack, ASIN B0DSZBH9N9), merged into existing Microcontrollers row (Bag 1); Qty 2 → 8 |
 | 2026-07-13 | Stock | M3 screw assortment ×600 pcs received (ASIN B0D1457XQ3), added to Prototyping and Build Hardware, Plastic Box |
 | 2026-07-14 | CARD-0026 | ESP32 DevKitC-32 ×1 (Bag 1) confirmed defective — bad flash chip, consistent esptool failure across cables/ports/manual bootloader entry, ruled out as a connection issue by successfully flashing a second spare board. Discarded, not returned to stock. Qty 8 → 7 |

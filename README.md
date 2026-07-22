@@ -18,9 +18,9 @@ environmental monitoring into a single integrated ecosystem.
 | [front-porch-temp-sensor](components/front-porch-temp-sensor/) | Front porch temperature, pressure, and light with push notifications | Production |
 | [p-w-firefly](components/p-w-firefly/) | Firefly Integrations RV-C coach interface for Pleasure-Way Lexor FL | Production |
 | [photo-server](components/photo-server/) | Self-hosted Immich photo/video library on dedicated mini PC | Production |
-| [hiking-sensor](components/hiking-sensor/) | Portable environmental sensor — logs to flash during hikes, syncs on return | In Progress |
+| [hiking-monitor](components/hiking-monitor/) | Portable environmental sensor — logs to flash during hikes, syncs on return | In Progress |
 | [weather-station](components/weather-station/) | Outdoor DIY weather station posting to Weather Underground and Google Sheets | Planned |
-| [air-quality-monitor](components/air-quality-monitor/) | Portable PM/VOC/NOx sensor carried on hikes alongside the hiking sensor | Planned |
+| [air-quality-monitor](components/air-quality-monitor/) | Portable PM/VOC/NOx sensor carried on hikes alongside the hiking monitor | Planned |
 | [van-sensors](components/van-sensors/) | Indoor and outdoor environmental nodes for the Pleasure-Way ProMaster van | Planned |
 | [remote-temp-sensor-01](components/remote-temp-sensor-01/) | Solar/battery-powered backyard temp, humidity, pressure, light, and UV sensor | Planned |
 

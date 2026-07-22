@@ -1,10 +1,10 @@
 # Hike-izer
 
-Software-only application layer that turns raw hiking-sensor data (Environmental
+Software-only application layer that turns raw hiking-monitor data (Environmental
 Data, Hiking Observations, GPS Track) into a narrative Markdown summary of a hike
 — temperature/humidity/UV trends, elevation, the hiker's own voice observations,
 sun position along the route, and an explicit expected-vs-actual data-coverage
-section that doubles as a health check on the whole hiking-sensor pipeline.
+section that doubles as a health check on the whole hiking-monitor pipeline.
 
 **Status:** v1 built and verified end-to-end (2026-07-18) against the real
 2026-06-15 trip data. Tracking card: **CARD-0073** on `kanban-board.md`.
@@ -31,7 +31,7 @@ the structured JSON the Skill's narrative-writing step consumes.
 
 ## Related
 
-- `components/hiking-sensor/data-pipeline.md` — Environmental Data / Hiking Observations schema and the `action=export` API this depends on.
-- `components/hiking-sensor/gps-pipeline.md` — GPS Track schema (`accuracy_m`/`altitude_m`, not `acc`/`alt`).
+- `components/hiking-monitor/data-pipeline.md` — Environmental Data / Hiking Observations schema and the `action=export` API this depends on.
+- `components/hiking-monitor/gps-pipeline.md` — GPS Track schema (`accuracy_m`/`altitude_m`, not `acc`/`alt`).
 - CARD-0020 on `kanban-board.md` — complementary Looker Studio dashboard (raw charts/maps), not superseded by Hike-izer.
 - CARD-0073 on `kanban-board.md` — full build history, v1 scope, the deployment-migration saga, and known findings from the first real run.

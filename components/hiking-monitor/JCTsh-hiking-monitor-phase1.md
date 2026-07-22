@@ -2,7 +2,7 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Phase 1 discovery and feature decisions for the JCTsh hiking environmental sensor (hiking-monitor component). Covers feature analysis, all resolved decisions, deferred items, BOM, shopping list, and open questions for Phase 2.
 **Version:** 2.5
-**Version description:** GPS correlation and Pixel hotspot sync updated from deferred/manual to planned iterative additions. GPS correlation approach updated: GPSLogger automatic lat/lon population via Node-RED pipeline (Steps 19–20) replaces manual post-hike GaiaGPS timestamp matching. Pixel hotspot sync added as Step 21 — second WiFi network in ESPHome YAML. Both added as post-Step-18 iterative refinements in the Claude Code instructions. Motivation updated: hiking sensor used while traveling, not just at home. No other changes from v2.4.
+**Version description:** GPS correlation and Pixel hotspot sync updated from deferred/manual to planned iterative additions. GPS correlation approach updated: GPSLogger automatic lat/lon population via Node-RED pipeline (Steps 19–20) replaces manual post-hike GaiaGPS timestamp matching. Pixel hotspot sync added as Step 21 — second WiFi network in ESPHome YAML. Both added as post-Step-18 iterative refinements in the Claude Code instructions. Motivation updated: hiking monitor used while traveling, not just at home. No other changes from v2.4.
 **Project:** JCTsh Hiking Monitor
 **Status:** Phase 1 Complete — Parts Ordered — Build In Progress (Step 14 perfboard complete)
 **Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`, `jctsh-parts-inventory.md`

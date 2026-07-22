@@ -154,7 +154,7 @@ The template is in `core/offline-logger/sensor_logger.h`. It provides six functi
 ### Adapting the template for a new component
 
 1. Copy `core/offline-logger/sensor_logger.h` to `components/<name>/<name>_logger.h`
-2. Find-replace `sensor_log` → `<name>_log` throughout the file (e.g. `hike_log` for hiking-sensor)
+2. Find-replace `sensor_log` → `<name>_log` throughout the file (e.g. `hike_log` for hiking-monitor)
 3. Update `SENSOR_LOG_FILE` constant to `/spiffs/<name>_log.jsonl`
 4. Include the renamed header in the ESPHome YAML:
 
@@ -216,7 +216,7 @@ When a reading is written to flash (no WiFi connection), `rssi_dbm` is not avail
 
 ### Reference implementation
 
-`components/hiking-sensor/hiking_logger.h` and `hiking-sensor.yaml` are the production implementation. Read them alongside this section for a complete working example.
+`components/hiking-monitor/hiking_logger.h` and `hiking-monitor.yaml` are the production implementation. Read them alongside this section for a complete working example.
 
 ---
 
@@ -299,7 +299,7 @@ Confirm every field exists in `core/data-pipeline/JCTsh-Environmental-Data-Archi
 | Deployment | Power | Location | Connectivity | Offline | Custom automation |
 |---|---|---|---|---|---|
 | `front-porch-temp-sensor` | USB | Fixed — H8 (32.4612997, -111.1184154) | Home WiFi only | None | Cool/warm notifications |
-| `hiking-sensor` | Battery | Mobile / carried | Home WiFi + hotspot | SPIFFS logging | None |
+| `hiking-monitor` | Battery | Mobile / carried | Home WiFi + hotspot | SPIFFS logging | None |
 
 ---
 

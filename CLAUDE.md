@@ -246,7 +246,7 @@ Mosquitto requires auth (`allow_anonymous false`). Each component has its own ac
 | `garage-radar` | garage-radar ESPHome device |
 | `salt-sensor` | salt-sensor ESP32 sketch |
 | `front-porch-temp-sensor` | front-porch-temp-sensor ESPHome device |
-| `hiking-monitor` | hiking-sensor ESPHome device |
+| `hiking-monitor` | hiking-monitor ESPHome device |
 | `photo-server` | photo-server heartbeat script (Docker/Immich health check) |
 
 Passwords are stored in:

@@ -2,20 +2,20 @@
 
 ## 2026-07-13
 Closed CARD-0003 (TLS for Mosquitto, port 8883) — Phases D and E, the last two of five.
-Phase D (hiking-sensor OTA reflash) had been blocked on the device being off; it came
+Phase D (hiking-monitor OTA reflash) had been blocked on the device being off; it came
 back online and unblocked the reflash. Two real snags along the way: `esphome run` from
 the repo path failed with "Detected a whitespace character in project paths" (same class
 of issue as the 2026-05-20 garage-radar build), worked around via the existing
-whitespace-free mirror at `C:\esphome\hiking-sensor\` — but that mirror turned out to be
+whitespace-free mirror at `C:\esphome\hiking-monitor\` — but that mirror turned out to be
 stale, missing the TLS config/CA-cert changes entirely, and had to be re-synced from the
-repo copies of `hiking-sensor.yaml`/`secrets.yaml` first or it would have silently pushed
+repo copies of `hiking-monitor.yaml`/`secrets.yaml` first or it would have silently pushed
 the old plaintext-1883 config back onto the device. Also hit a locked leftover file in
 `.esphome/build/hiking-monitor/.pioenvs` from an earlier interrupted build, blocking the
 clean step until manually removed. OTA succeeded; verified via the live Mosquitto log on
 the Pi that `hiking-monitor-04b24797df2c`'s old plaintext-1883 session timed out and a new
 TLS session on 8883 came up immediately after, staying connected with no disconnects.
 
-Phase E: updated `jctsh-network.md`, `components/hiking-sensor/wifi-config.md`,
+Phase E: updated `jctsh-network.md`, `components/hiking-monitor/wifi-config.md`,
 `credentials.local.md`, and `jctsh-security-hardening.md` (dated superseded-note on the
 original port-inventory finding, history kept intact) to reflect 8883/TLS as the
 roaming-device path. Confirmed via `p-w-firefly/heartbeat.md` that coachproxyos reaches

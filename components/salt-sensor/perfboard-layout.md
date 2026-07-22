@@ -2,7 +2,7 @@
 
 ## Overview
 
-Transfer of the salt-sensor circuit from its current rewired-breadboard state (CARD-0049, follow-on to CARD-0004's ESPHome migration) to a permanent perfboard build. Much simpler than hiking-sensor's perfboard: no I2C sensors, no battery/TP4056/voltage-divider power chain, no display — just an ESP32 DevKitC-32, three status LEDs, and one JSN-SR04T ultrasonic distance sensor, powered by a 5V USB wall charger. GPIO assignments: Red LED GPIO32, Yellow LED GPIO33, Green LED GPIO27, JSN-SR04T Trig GPIO5, Echo GPIO18 (via divider) — see **Board Note** below before trusting any physical pin-position references.
+Transfer of the salt-sensor circuit from its current rewired-breadboard state (CARD-0049, follow-on to CARD-0004's ESPHome migration) to a permanent perfboard build. Much simpler than hiking-monitor's perfboard: no I2C sensors, no battery/TP4056/voltage-divider power chain, no display — just an ESP32 DevKitC-32, three status LEDs, and one JSN-SR04T ultrasonic distance sensor, powered by a 5V USB wall charger. GPIO assignments: Red LED GPIO32, Yellow LED GPIO33, Green LED GPIO27, JSN-SR04T Trig GPIO5, Echo GPIO18 (via divider) — see **Board Note** below before trusting any physical pin-position references.
 
 **STATUS: COMPLETE (2026-07-13).** Perfboard soldered, all Pre-Power Checks passed, power-on test passed, two clean cold power-cycles confirmed. CARD-0049 closed.
 
@@ -92,7 +92,7 @@ Reference photo of the actual board's silkscreen: `sparkleiot-xh-32s-pinout-phot
 
 ## Pre-Power Checks
 
-**STATUS: COMPLETE (2026-07-13). All 19 checks passed.** Real issue found and fixed during this pass: Trig was soldered to `RX2` instead of `D5` (see Board Note) — caught here, before power-on, by reading pad labels directly rather than trusting position numbers. Checks 2–3 from the original hiking-sensor-derived template (verifying a separate USB power-in header) were dropped as not applicable — this board has no such header, power enters through the ESP32's own onboard USB port. Checks 17–19 were added during this build, not part of the original template — isolation checks between visually-adjacent pin labels, prompted directly by the `RX2`/`D5` mistake.
+**STATUS: COMPLETE (2026-07-13). All 19 checks passed.** Real issue found and fixed during this pass: Trig was soldered to `RX2` instead of `D5` (see Board Note) — caught here, before power-on, by reading pad labels directly rather than trusting position numbers. Checks 2–3 from the original hiking-monitor-derived template (verifying a separate USB power-in header) were dropped as not applicable — this board has no such header, power enters through the ESP32's own onboard USB port. Checks 17–19 were added during this build, not part of the original template — isolation checks between visually-adjacent pin labels, prompted directly by the `RX2`/`D5` mistake.
 
 **Do the short circuit check first.** A VIN–GND short will damage the ESP32 on first power-up.
 
@@ -171,7 +171,7 @@ No GPIO32/33/27 boot-time glitching observed on either cycle (expected, since no
 ## Notes
 
 - **Do not solder ESP32 directly to perfboard** — female headers allow removal for rework or reuse, matching the standard used on every other JCTsh perfboard build.
-- **No 3.3V rail on this board.** Unlike hiking-sensor (which feeds BME280/LTR-390/e-ink from ESP32's 3V3 pin), nothing on salt-sensor needs 3.3V externally — the LEDs are driven directly from GPIO logic level (3.3V, well within the ~12mA a GPIO pin can safely source). This is a deliberate difference from hiking-sensor's design, not an oversight.
+- **No 3.3V rail on this board.** Unlike hiking-monitor (which feeds BME280/LTR-390/e-ink from ESP32's 3V3 pin), nothing on salt-sensor needs 3.3V externally — the LEDs are driven directly from GPIO logic level (3.3V, well within the ~12mA a GPIO pin can safely source). This is a deliberate difference from hiking-monitor's design, not an oversight.
 - **GPIO25/26 avoided** — GPIO25 (`D25`, DAC1) confirmed broken for digital output in ESPHome/Arduino; GPIO26 (`D26`, DAC2) avoided as a precaution for the same reinit family of issues. See `ESP32-project-pins.md` (corrected).
 - **GPIO5 (Trig) is a strapping pin** and logs a startup warning — unchanged from the original wiring, accepted as-is (matches the original breadboard behavior, not a new issue introduced by this transfer).
 - **Board-brand pin-order mismatch and the adjacent-label mistake it caused** — see Board Note at the top. Candidate for harvesting into `JCTsh-Build-Standards.md`: always verify against the physical board's silkscreen labels rather than a documented reference table, and add isolation checks between visually-adjacent labels as standard Pre-Power Checks practice, not just intentional-net continuity checks.

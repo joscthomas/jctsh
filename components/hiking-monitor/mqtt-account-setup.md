@@ -31,10 +31,10 @@ After running the command above, add a row to the MQTT credentials table in root
 
 | Account | Used by |
 |---|---|
-| `hiking-monitor` | hiking-sensor ESPHome device |
+| `hiking-monitor` | hiking-monitor ESPHome device |
 
 ---
 
 ## Credential Storage
 
-Password is stored in `components/hiking-sensor/secrets.yaml` (gitignored) as `mqtt_password`.
+Password is stored in `components/hiking-monitor/secrets.yaml` (gitignored) as `mqtt_password`.

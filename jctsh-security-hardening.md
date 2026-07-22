@@ -40,7 +40,7 @@ Read `JCTsh-Build-Standards.md` before executing any step. All findings and new 
 
 **Done when:** `git log` returns no results for secrets files and `.gitignore` is confirmed correct.
 
-**Findings (2026-06-20):** PASS. `.gitignore` excludes `secrets.yaml`, `secrets.h`, and `credentials.local.md`. `git log` returned no results for `**/secrets.yaml` or `**/*.key` — nothing ever committed. Secrets files confirmed on disk and untracked: `components/front-porch-temp-sensor/secrets.yaml`, `components/garage-radar/secrets.yaml`, `components/hiking-sensor/secrets.yaml`, `components/salt-sensor/secrets.h` (×2, one in subdirectory). No action needed.
+**Findings (2026-06-20):** PASS. `.gitignore` excludes `secrets.yaml`, `secrets.h`, and `credentials.local.md`. `git log` returned no results for `**/secrets.yaml` or `**/*.key` — nothing ever committed. Secrets files confirmed on disk and untracked: `components/front-porch-temp-sensor/secrets.yaml`, `components/garage-radar/secrets.yaml`, `components/hiking-monitor/secrets.yaml`, `components/salt-sensor/secrets.h` (×2, one in subdirectory). No action needed.
 
 ---
 

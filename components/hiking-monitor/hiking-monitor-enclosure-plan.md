@@ -13,7 +13,7 @@
 
 This section reflects what was actually decided during the Part 2 measurement and Part 3 CAD sessions — several details below **supersede** the original v1.3 sections that follow (footprint size, velcro strap design, switch/solar wall placement, etc.). Kept both so the history of *why* is preserved, but treat this section as the current source of truth.
 
-**Overall concept:** two 3D-printed shells (bottom + top) stack and join with four M3 screws through corner bosses. Uses the pb-tec `easyprojectboxv24.scad` parametric template (`components/hiking-sensor/enclosure/easyprojectboxv24.scad`), rendered twice with `Show=1` (body only, lid discarded both times) since the template is a box+thin-lid generator, not a native two-shell design.
+**Overall concept:** two 3D-printed shells (bottom + top) stack and join with four M3 screws through corner bosses. Uses the pb-tec `easyprojectboxv24.scad` parametric template (`components/hiking-monitor/enclosure/easyprojectboxv24.scad`), rendered twice with `Show=1` (body only, lid discarded both times) since the template is a box+thin-lid generator, not a native two-shell design.
 
 **Orientation terminology (established 2026-07-04, use this going forward):** reference is the ESP32's own USB-C port = **South**. Each shell has walls **N/S/E/W** in this shared frame. Bottom shell = closed floor + open top. Top shell = closed top + open floor, used **inverted** (flipped 180°) so its floor becomes the device's topmost exterior surface, mating its open floor against the bottom shell's open top — confirmed by physically assembling both shells in one Tinkercad workspace. **Key fact: the East wall of both shells faces up (sky) when the device is worn on a chest strap**; the closed top of the (flipped) top shell faces outward/forward (away from the chest), not up. This matters because holes needing sky exposure go on East walls, not the closed top.
 
@@ -81,7 +81,7 @@ This section reflects what was actually decided during the Part 2 measurement an
 
 **File management strategy:**
 ```
-components/hiking-sensor/enclosure/
+components/hiking-monitor/enclosure/
 ├── easyprojectboxv24.scad       — original downloaded template, left unmodified (reference/backup)
 ├── bottom-shell.scad            — template + bottom shell's specific parameter values
 ├── top-shell.scad               — template + top shell's specific parameter values

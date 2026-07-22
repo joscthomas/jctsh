@@ -106,8 +106,8 @@ logger:
   level: INFO
 
 # ── OTA updates ───────────────────────────────────────────────────────────────
-# First flash: USB from C:\esphome\hiking-sensor\
-# All subsequent updates: OTA  — esphome run hiking-sensor.yaml
+# First flash: USB from C:\esphome\hiking-monitor\
+# All subsequent updates: OTA  — esphome run hiking-monitor.yaml
 ota:
   - platform: esphome
     password: !secret ota_password

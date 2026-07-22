@@ -102,5 +102,5 @@ Account: joscthomas@gmail.com
 ## Notes
 
 - **`.local` hostnames** (raspberrypi.local, salt-sensor.local, etc.) are unreliable — use IPs or MagicDNS names instead.
-- **ESP32 devices** (garage-radar, salt-sensor, front-porch-temp-sensor, hiking-sensor) are managed through HA and Node-RED — you don't access them directly during normal use.
+- **ESP32 devices** (garage-radar, salt-sensor, front-porch-temp-sensor, hiking-monitor) are managed through HA and Node-RED — you don't access them directly during normal use.
 - Full IP/MAC table: `jctsh-network.md`

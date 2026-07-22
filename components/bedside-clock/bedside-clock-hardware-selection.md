@@ -16,7 +16,7 @@ Per the planning pattern, `JCTsh-Parts-Inventory.md` was scanned before any purc
 | ESP32 DevKitC-32 | Yes — 2 remaining | Bag 1 (hiBCTR 6-pack) |
 | EEMB 603449 LiPo, 1100mAh | Yes — **2 remaining** (physically recounted 2026-07-03 after the hiking-monitor battery swap — trust this count over prior inventory-doc arithmetic) | Bag 7 |
 | TP4056 charge module | Yes — 4 remaining | Bag 8 |
-| Boost converter (3.7V → 5V) | Not separately needed | TP4056 module (Bag 8) has integrated step-up; confirmed sufficient on its own — no additional boost module was required for the hiking-sensor build, and the same applies here |
+| Boost converter (3.7V → 5V) | Not separately needed | TP4056 module (Bag 8) has integrated step-up; confirmed sufficient on its own — no additional boost module was required for the hiking-monitor build, and the same applies here |
 | Momentary pushbutton (PCB-mount) | Yes | Plastic Box, QTEATAK 6×6mm micro momentary tact assortment |
 | Momentary pushbutton (panel-mount) | No | Not in inventory — ordered: Twidec PBS-33B-BK-X, 12mm momentary, prewired (see Enclosure section) |
 | DS3231 RTC module | No | Not in inventory. (Phase 1 doc originally and incorrectly stated this was on hand at Bag 19 — Bag 19 is actually BH1750 light sensors. Corrected in Phase 1 doc v1.1.) |
@@ -64,7 +64,7 @@ Bedside-clock uses the same EEMB 603449 LiPo + TP4056 charge/boost combo as hiki
 | §2.14 requirement | Status for bedside-clock |
 |---|---|
 | 1. PCM-protected cell | **Satisfied.** EEMB 603449 confirmed PCM-protected (overcharge/over-discharge/overcurrent/short-circuit) and UN 38.3 compliant — same cell, same confirmation as hiking-monitor. |
-| 2. Firmware low-battery cutoff | **Not yet designed — required for Phase 4.** The Claude Code instruction set must include a `battery_v`-watching cutoff (3.4V threshold) forcing safe shutdown, following the hiking-monitor pattern (`components/hiking-sensor/hiking-sensor.yaml`, `low_battery_shutdown` script), adapted for the OLED display instead of e-ink (OLED does not hold a frame with power removed, so the "recharge now" warning strategy needs rethinking for this display type — likely just show it briefly then power down, rather than relying on a persistent held frame). |
+| 2. Firmware low-battery cutoff | **Not yet designed — required for Phase 4.** The Claude Code instruction set must include a `battery_v`-watching cutoff (3.4V threshold) forcing safe shutdown, following the hiking-monitor pattern (`components/hiking-monitor/hiking-monitor.yaml`, `low_battery_shutdown` script), adapted for the OLED display instead of e-ink (OLED does not hold a frame with power removed, so the "recharge now" warning strategy needs rethinking for this display type — likely just show it briefly then power down, rather than relying on a persistent held frame). |
 | 3. Charging safety (fireproof bag, no unattended charging, never charge a damaged cell) | Operational practice — applies regardless of hardware, carries forward automatically. |
 | 4. Storage (40-60% charge for spares) | Applies to the 1 remaining spare EEMB cell in Bag 7 shared between projects. |
 | 5. Disposal | Applies if/when this cell is ever retired. |

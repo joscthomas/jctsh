@@ -14,7 +14,7 @@ Regional weather stations miles away don't capture hyperlocal conditions in Tucs
 temperature, UV, and wind vary significantly at the micro-scale. This station provides
 personal weather data at the installation address, contributes to the Weather Underground
 public PWS network, and feeds the JCTsh Google Sheets environmental archive alongside
-data from the hiking sensor and other environmental sensors.
+data from the hiking monitor and other environmental sensors.
 
 ---
 

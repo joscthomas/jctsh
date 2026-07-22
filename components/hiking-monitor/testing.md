@@ -85,7 +85,7 @@ This test confirms onboard flash logging and replay work correctly with original
 **Steps:**
 
 1. Edit `secrets.yaml` — change `wifi_password` to a wrong value
-2. Copy to `C:\esphome\hiking-sensor\` and OTA flash: `esphome run hiking-sensor.yaml`
+2. Copy to `C:\esphome\hiking-monitor\` and OTA flash: `esphome run hiking-monitor.yaml`
 3. Device will disconnect from WiFi (confirm: no new heartbeats in log dashboard)
 4. Wait 10+ minutes (5+ readings logged at 2-minute intervals)
 5. Restore correct `wifi_password` in `secrets.yaml`, copy and OTA flash again
@@ -227,7 +227,7 @@ Already confirmed in Step 8 (3.85V). Re-confirm current value is still in range.
 | 8 — Battery validation | PASS | battery_v 3.85–4.08V across session; fully charged at start of Step 12 |
 | 9 — Power cycle test | PASS | LiPo disconnected and reconnected; device rebooted and MQTT reconnected cleanly |
 | 10 — Power switch and upload mode | PASS | Deep sleep working; upload mode auto-wake confirmed; switch ON/OFF controls all modes correctly. Bugs fixed: captive_portal was preventing deep sleep; on_connect sleep path incorrectly looped when USB connected. |
-| 11 — Hike start/end event detection | PASS | Field session started/ended events fire correctly on rssi transitions; timestamps from sensor data not upload time. Flow in components/hiking-sensor/hiking-hike-events.flow.json. |
+| 11 — Hike start/end event detection | PASS | Field session started/ended events fire correctly on rssi transitions; timestamps from sensor data not upload time. Flow in components/hiking-monitor/hiking-hike-events.flow.json. |
 
 ---
 

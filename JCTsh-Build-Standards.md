@@ -2,7 +2,7 @@
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
 **Version:** 1.16
-**Version description:** §1.2 now points to `JCTsh-Perfboard-Build-Template.md` (new, repo root) — a reusable section skeleton for a component's `perfboard-layout.md`, generalized from hiking-sensor's and salt-sensor's builds now that there are two real examples to draw from.
+**Version description:** §1.2 now points to `JCTsh-Perfboard-Build-Template.md` (new, repo root) — a reusable section skeleton for a component's `perfboard-layout.md`, generalized from hiking-monitor's and salt-sensor's builds now that there are two real examples to draw from.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -269,7 +269,7 @@ Log file path: `/spiffs/<component>_log.jsonl` (JSON Lines — one payload objec
 
 **Naming:** Name the custom header and documentation files by their function, not by the library. Use `<component>_logger.h` and `<component>-logger.md`, not `littlefs_logger.h` or `spiffs_logger.h`. The library choice is an implementation detail.
 
-**Reference implementation:** `components/hiking-sensor/hiking_logger.h` — see `components/hiking-sensor/hiking-logger.md` for a complete description of the API, operating modes, replay flow, capacity, and troubleshooting.
+**Reference implementation:** `components/hiking-monitor/hiking_logger.h` — see `components/hiking-monitor/hiking-logger.md` for a complete description of the API, operating modes, replay flow, capacity, and troubleshooting.
 
 ---
 
@@ -328,7 +328,7 @@ if (isnan(temp) || isnan(hum) || isnan(uv)) {
 }
 ```
 
-**Reference implementation:** `components/hiking-sensor/hiking-sensor.yaml` display block.
+**Reference implementation:** `components/hiking-monitor/hiking-monitor.yaml` display block.
 
 ---
 
@@ -365,7 +365,7 @@ on_boot:
 
 Negative priorities run after all components are initialized. Any `on_boot` action that reads sensor values, updates a display, or enters sleep must use a negative priority.
 
-**Reference implementation:** `components/hiking-sensor/hiking-sensor.yaml` `on_boot:` block (priorities 600.0, -100.0, -200.0).
+**Reference implementation:** `components/hiking-monitor/hiking-monitor.yaml` `on_boot:` block (priorities 600.0, -100.0, -200.0).
 
 ---
 
@@ -375,7 +375,7 @@ Required for every component powered by a rechargeable LiPo/Li-ion cell — appl
 
 **1. Cell selection — built-in PCM protection required.** Only use cells with a Protection Circuit Module (PCM) covering overcharge, over-discharge, overcurrent, and short-circuit. Confirm this from the listing/datasheet before purchase and note it in `JCTsh-Parts-Inventory.md`. Reject bare/unprotected cells. Reference: the EEMB 603449 line in stock is PCM-protected and UN 38.3 compliant — confirmed via manufacturer documentation, not assumed.
 
-**2. Firmware low-battery cutoff required.** Watch the battery voltage sensor. Below a safe threshold (3.4V for single-cell LiPo — leaves margin above the cell's own PCM trip point and above boost-converter end-of-charge instability), force deep sleep regardless of any mode switch, and render a persistent on-screen warning if a display is present (e-ink holds the frame with zero power). Also check at boot, so waking a critically-low device shows the warning and safely re-sleeps instead of attempting normal operation. This layer exists to act *before* the cell's PCM has to trip — it gives an early, visible warning instead of a silent hard stop. Reference: `components/hiking-sensor/hiking-sensor.yaml` (`low_battery_shutdown` script).
+**2. Firmware low-battery cutoff required.** Watch the battery voltage sensor. Below a safe threshold (3.4V for single-cell LiPo — leaves margin above the cell's own PCM trip point and above boost-converter end-of-charge instability), force deep sleep regardless of any mode switch, and render a persistent on-screen warning if a display is present (e-ink holds the frame with zero power). Also check at boot, so waking a critically-low device shows the warning and safely re-sleeps instead of attempting normal operation. This layer exists to act *before* the cell's PCM has to trip — it gives an early, visible warning instead of a silent hard stop. Reference: `components/hiking-monitor/hiking-monitor.yaml` (`low_battery_shutdown` script).
 
 **3. Charging safety.**
 - Charge inside a fireproof LiPo charging bag (silicone-coated fiberglass, ~$10-15) — required, not optional, regardless of cell quality or PCM protection.
@@ -391,7 +391,7 @@ Required for every component powered by a rechargeable LiPo/Li-ion cell — appl
 
 **7. Power architecture — prefer direct LiPo-to-LDO over boost-then-buck (recommended default for new builds, not a retrofit requirement).** A boost converter that steps the LiPo's native 3.0–4.2V up to ~5V, followed by the microcontroller's onboard regulator stepping it back down to 3.3V, is two conversions in opposite directions — wasted efficiency, and each stage draws its own idle current even while "asleep." Since the ESP32 and most peripherals (BME280, LTR-390, e-ink, etc.) run natively on 3.3V, default new battery-powered builds to a single low-quiescent-current LDO taking the LiPo directly to 3.3V (Adafruit Feather-style), skipping the boost stage entirely. This also removes the boost converter's end-of-charge "voltage cliff" instability — a contributing factor in the hiking-monitor's original battery incident. Only use a boost converter when a specific peripheral requires 5V. Not applied retroactively to hiking-monitor's existing perfboard — apply to the next new battery-powered component.
 
-**8. [CANDIDATE — not yet required, pending validation] GPIO-controlled power gating for I2C/SPI peripherals during sleep.** Observed 2026-07-03: ESP32 deep sleep only stops the CPU from executing — it does not cut power to anything downstream. With no gating in place, I2C/SPI peripherals (BME280, LTR-390, etc.) stay fully powered and drawing their own operating current for the entire "sleep" duration, on top of any boost-converter quiescent draw (see point 7). Confirmed visually on hiking-monitor: the ESP32's and LTR-390's power-indicator LEDs stayed lit after the device entered deep sleep. Candidate fix: a P-FET (or similar high-side load switch) in-line on the 3.3V rail between the microcontroller's own 3.3V output and the peripherals — not between the boost module and the microcontroller's `VIN`, since the microcontroller must stay powered to control the gate signal — gated by a spare GPIO, cutting peripheral power during sleep and re-enabling it on wake. **Not promoted to a required standard yet** — this needs to be built and measured (see `components/hiking-sensor` backlog CARD-0026, CARD-0027) before it's confirmed worth the added complexity for future builds. Revisit this entry once validated.
+**8. [CANDIDATE — not yet required, pending validation] GPIO-controlled power gating for I2C/SPI peripherals during sleep.** Observed 2026-07-03: ESP32 deep sleep only stops the CPU from executing — it does not cut power to anything downstream. With no gating in place, I2C/SPI peripherals (BME280, LTR-390, etc.) stay fully powered and drawing their own operating current for the entire "sleep" duration, on top of any boost-converter quiescent draw (see point 7). Confirmed visually on hiking-monitor: the ESP32's and LTR-390's power-indicator LEDs stayed lit after the device entered deep sleep. Candidate fix: a P-FET (or similar high-side load switch) in-line on the 3.3V rail between the microcontroller's own 3.3V output and the peripherals — not between the boost module and the microcontroller's `VIN`, since the microcontroller must stay powered to control the gate signal — gated by a spare GPIO, cutting peripheral power during sleep and re-enabling it on wake. **Not promoted to a required standard yet** — this needs to be built and measured (see `components/hiking-monitor` backlog CARD-0026, CARD-0027) before it's confirmed worth the added complexity for future builds. Revisit this entry once validated.
 
 ---
 
@@ -467,7 +467,7 @@ This convention lets downstream processors distinguish reading types:
 
 Node-RED can detect field session boundaries using the `rssi_dbm` transition: nonzero → zero = field session started; zero → nonzero = field session ended. The `lastTs` at the transition is the precise start/end timestamp from the sensor payload.
 
-**Reference implementation:** `components/hiking-sensor/hiking-hike-events.flow.json` (`Detect field session start / end` function node).
+**Reference implementation:** `components/hiking-monitor/hiking-hike-events.flow.json` (`Detect field session start / end` function node).
 
 ---
 
@@ -577,7 +577,7 @@ ESPHome components with **I2C or SPI sensors** must publish explicit error log m
 - Message must name the specific sensor and the GPIO pins, not just "sensor error"
 - Check is run every 5 minutes — if the sensor recovers, the error stops appearing automatically
 
-**Backlog:** hiking-monitor has BME280 (`bme_temp`) and LTR390 (`ltr_uv_index`) — both need this pattern added. See `components/hiking-sensor/hiking-sensor-claude-code-instructions.md`.
+**Backlog:** hiking-monitor has BME280 (`bme_temp`) and LTR390 (`ltr_uv_index`) — both need this pattern added. See `components/hiking-monitor/hiking-monitor-claude-code-instructions.md`.
 
 ---
 
@@ -669,7 +669,7 @@ lat/lon populated in Environmental Data sheet
 
 **Apps Script note:** The lookup function is in the same `doGet(e)` handler as any other GET actions. Add it alongside existing actions without replacing them.
 
-**Reference:** `components/hiking-sensor/gps-pipeline.md`, `core/data-pipeline/environmental-data.gs`
+**Reference:** `components/hiking-monitor/gps-pipeline.md`, `core/data-pipeline/environmental-data.gs`
 
 ---
 
@@ -696,7 +696,7 @@ New components are picked up automatically by the wildcard subscription and get 
 
 **Important:** Node-RED in-memory context is cleared on service restart (`sudo systemctl restart nodered`). If you need to reset stale per-component state (e.g., after a long offline period), a restart is the cleanest method.
 
-**Reference:** `components/hiking-sensor/hiking-hike-events.flow.json`, `Detect field session start / end` function node.
+**Reference:** `components/hiking-monitor/hiking-hike-events.flow.json`, `Detect field session start / end` function node.
 
 ---
 
@@ -886,12 +886,12 @@ On the Windows dev machine, the private key (`~/.ssh/id_ed25519`) must be restri
 
 | Version | Change |
 |---|---|
-| 1.16 | §1.2 now points to `JCTsh-Perfboard-Build-Template.md` (new, repo root) — a reusable section skeleton for a component's `perfboard-layout.md`, generalized from hiking-sensor's and salt-sensor's builds now that there are two real examples to draw from. |
+| 1.16 | §1.2 now points to `JCTsh-Perfboard-Build-Template.md` (new, repo root) — a reusable section skeleton for a component's `perfboard-layout.md`, generalized from hiking-monitor's and salt-sensor's builds now that there are two real examples to draw from. |
 | 1.15 | Added §1.2 pin-verification guidance — harvested from salt-sensor's CARD-0049 perfboard build: identify pins by printed silkscreen label rather than a documented reference table's position numbers (different board brands/clones can have different physical pin order despite the same GPIO count), and add isolation checks between visually-adjacent pin labels to Pre-Power Checks, not just intentional-net continuity checks. |
 | 1.14 | Added §10 Security Standards — harvested from the completed JCTsh security hardening audit (CARD-0022/CARD-0023, `jctsh-security-hardening.md`). Covers SSH key-only auth, MQTT broker auth, `secrets.yaml` gitignore requirement, Node-RED `adminAuth`, Tailscale-as-sole-remote-access-path with the accepted MQTT-port-forward exception, MFA requirement across every cloud account (including per-user HA TOTP), router UPnP/remote-management policy, router admin password/firmware currency, and Windows SSH private key permissions. |
 | 1.13 | Added §9 Non-ESP32 / Docker-Based Component Standards — first section for non-ESP32/Docker host components, harvested from the `photo-server` (Immich) build. §9.1 Docker DNS pinning (twice-applied: HA, Immich). §9.2 UUID-based USB storage mounts with `nofail`, bus-powered drive preference. §9.3 incremental rsync local backup — explicit note that `rsync --delete` is incremental, not a full re-copy each run. §9.4 dashboard visibility for scheduled/background jobs — matched start/complete MQTT message pairs, the non-ESP32 equivalent of §4's heartbeat standard, established twice in one build (reboot notifications, backup notifications) with an identical shape. §9.5 cross-host schedule coordination via the `jctsh-network.md` Scheduled Maintenance Windows table, ≥1 hour clearance rule of thumb. §9.6 detached remote job execution (`nohup ... & disown`) with the rule to always verify via `ps aux`/`systemctl status` on the remote host, never assume a local monitor stopping affects a detached remote process. |
 | 1.12 | Added §2.14 point 3 charging-surface guidance: the fireproof bag must sit on a heat-insulating, non-combustible surface (concrete/masonry, ceramic tile, cement board, or a sand/kitty-litter-lined metal tray) — never bare sheet metal on a wooden workbench, since metal conducts thermal-runaway heat straight through to the wood rather than blocking it. |
-| 1.11 | Added §2.14 point 8: GPIO-controlled power gating for I2C/SPI peripherals during sleep (P-FET high-side switch on the microcontroller's 3.3V output, not the boost module's output) — flagged as a candidate pattern, not yet a required standard, pending validation via hiking-sensor CARD-0026/CARD-0027. |
+| 1.11 | Added §2.14 point 8: GPIO-controlled power gating for I2C/SPI peripherals during sleep (P-FET high-side switch on the microcontroller's 3.3V output, not the boost module's output) — flagged as a candidate pattern, not yet a required standard, pending validation via hiking-monitor CARD-0026/CARD-0027. |
 | 1.10 | Added §2.14 point 7: prefer direct LiPo-to-LDO power architecture over boost-then-buck for new battery-powered builds — avoids two-stage conversion idle draw and the boost converter's end-of-charge instability. Recommended default for the *next* build, not applied retroactively to hiking-monitor. |
 | 1.9 | Added §2.14 Battery-Powered Component Safety Standards: PCM-protected cells required (verify before purchase, EEMB 603449 confirmed compliant), firmware low-battery cutoff required (3.4V threshold, checked at boot and during operation, persistent e-ink warning), fireproof charging bag required, never charge a cell showing 0V/swelling/heat/smell, storage at 40-60% charge, disposal via battery recycling, connector polarity verification before first use. Established after hiking-monitor's original battery failed in the field with no advance warning (2026-07-03). |
 | 1.0 | Initial release. Enclosure convention, ESP32/ESPHome standards, MQTT conventions, observability standards, SmartThings integration, LED standards, documentation standards. |

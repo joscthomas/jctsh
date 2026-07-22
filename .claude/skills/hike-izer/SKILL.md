@@ -5,7 +5,7 @@ description: Generate a narrative Markdown summary of a JCTsh hiking trip from s
 
 # Hike-izer
 
-Generates a Markdown narrative summary of a hiking trip using JCTsh's hiking-sensor
+Generates a Markdown narrative summary of a hiking trip using JCTsh's hiking-monitor
 data pipeline (Environmental Data, Hiking Observations, GPS Track -- all in the
 "JCTsh Environmental Data" Google Sheets workbook). CARD-0073 on `kanban-board.md`
 is this skill's tracking card; its v1 scope note there is the source of truth for
@@ -159,11 +159,11 @@ the pattern (written before this classification logic existed, but the same
 
 - Environmental Data's `lat`/`lon` are often blank even when GPS Track has real
   coordinates for that time window -- a known correlation gap (Node-RED's GPS
-  lookup only matches within +/-5 minutes; see `components/hiking-sensor/data-pipeline.md`).
+  lookup only matches within +/-5 minutes; see `components/hiking-monitor/data-pipeline.md`).
   The fetch script uses GPS Track directly for sun-position calculations, so this
   gap doesn't block sun position -- but it's worth surfacing in the coverage
   section since a high miss rate might indicate a real pipeline issue.
 - `rssi_dbm == 0` means the reading was taken while the device had no WiFi (normal
   "field mode" while hiking, not an error).
 - Full Environmental Data schema (A-Z) and the `action=export` API reference:
-  `components/hiking-sensor/data-pipeline.md`.
+  `components/hiking-monitor/data-pipeline.md`.

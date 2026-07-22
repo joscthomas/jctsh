@@ -14,7 +14,7 @@
 // is sufficient; LittleFS wear-leveling and directory support are not needed here.
 // See JCTsh-Build-Standards.md §2.10 for the full technology rationale.
 //
-// REFERENCE: components/hiking-sensor/hiking_logger.h is the production implementation.
+// REFERENCE: components/hiking-monitor/hiking_logger.h is the production implementation.
 
 #pragma once
 #include <esp_spiffs.h>

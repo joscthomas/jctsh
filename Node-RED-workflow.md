@@ -30,7 +30,7 @@ The flow JSON files don't include a tab name. Match by filename:
 | `core/node-red/watchdog.flow.json` | Watchdog |
 | `core/data-pipeline/environmental-data.flow.json` | Environmental Data |
 | `components/garage-radar/garage-radar.flow.json` | Garage Radar |
-| `components/hiking-sensor/hiking-hike-events.flow.json` | Hiking Hike Events |
+| `components/hiking-monitor/hiking-hike-events.flow.json` | Hiking Hike Events |
 | `components/salt-sensor/salt-sensor.flow.json` | Salt Sensor |
 | `components/netalertx/netalertx.flow.json` | NetAlertX |
 

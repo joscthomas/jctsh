@@ -267,9 +267,9 @@ Set up a weekly rsync job to back up the Immich photo library from the Seagate B
    EOF
    sudo chmod +x /usr/local/bin/photo-library-backup.sh
    ```
-2. Add a weekly cron job (runs Sunday at 2:00 AM):
+2. Add a weekly cron job (runs Sunday at 2:15 AM — offset 15 min from Immich's own nightly 2:00 AM DB dump to avoid the file-vanished race CARD-0077 found; see `backup.md` for current live schedule):
    ```bash
-   (crontab -l 2>/dev/null; echo "0 2 * * 0 /usr/local/bin/photo-library-backup.sh >> /var/log/photo-library-backup.log 2>&1") | crontab -
+   (crontab -l 2>/dev/null; echo "15 2 * * 0 /usr/local/bin/photo-library-backup.sh >> /var/log/photo-library-backup.log 2>&1") | crontab -
    ```
 3. Run the script once manually to verify it works:
    ```bash

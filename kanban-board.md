@@ -176,24 +176,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ## Planning
 
-### CARD-0076 · [bug] [hiking-monitor] Rotate all secrets exposed via a botched redaction command, and finish outstanding device re-flashes
-**Notes:** Raised 2026-07-21. During CARD-0070's debugging session (2026-07-20), a `sed` redaction command intended to mask `secrets.yaml` values before display used a pattern (`key=value`) that didn't match the file's actual `key: "value"` YAML syntax — the redaction silently failed and the **entire** `hiking-monitor-test/secrets.yaml` file printed in plaintext into the conversation transcript: WiFi password, hotspot password, AP fallback password, MQTT password, and OTA password. (Process fix for the redaction mistake itself already logged separately, so this doesn't recur.) The repo's own copy of this file is confirmed gitignored (`components/hiking-monitor/.gitignore`) and was never committed/pushed — the exposure is contained to this session's transcript, not a public leak, but is still being treated as a real exposure event since transcripts can be logged/reviewed outside this conversation.
-
-**Scope (confirmed 2026-07-21):** all secrets from the exposed file, not just OTA as originally asked — since the whole file printed, every value in it is equally exposed regardless of which one prompted the request:
-1. WiFi password (`wifi_password` — appears to be the actual home network password, `JCTnet1`'s network, not device-specific — check whether this is shared by other devices/people before rotating, since it has a wider blast radius than a single-device credential)
-2. Hotspot password (`hotspot_password`)
-3. AP fallback password (`ap_password` — used for hiking-monitor-test's/hiking-monitor's own fallback AP, `hiking-monitor-test-fallback` / equivalent)
-4. MQTT password (`mqtt_password`)
-5. OTA password (`ota_password`) — **already rotated 2026-07-21**, see Progress below.
-
-**Progress (2026-07-21):** OTA password rotated to a new value in all three places that held the old one: `C:\esphome\hiking-monitor-test\secrets.yaml`, `C:\esphome\hiking-monitor\secrets.yaml` (real device's local build dir), and `components/hiking-monitor/secrets.yaml` (repo copy, gitignored). **Not yet reflashed to either device** — the test rig went to sleep after its last successful test with no wake source wired, so it's currently unreachable for OTA (needs the GPIO32→3.3V wake trick, then OTA push, or a USB flash); the real field-deployed hiking-monitor is physically elsewhere and can't be reached at all right now. Both devices are **still running their old OTA password** until reflashed — the new password only exists in the secrets files so far, not on the hardware.
-
-**WiFi/hotspot/AP/MQTT passwords: not yet touched.** Rotating the WiFi password in particular has a wider blast radius than device-specific secrets (likely shared across other devices/people on the network) — confirm actual scope/impact before rotating, not just swap the value.
-
-**Done when:** all five secrets above are rotated to new values; both the test rig and the real field-deployed hiking-monitor are confirmed running the new OTA password (not just the secrets file updated); WiFi/hotspot/AP/MQTT rotation is either completed or explicitly deferred with a documented reason; and this card's "still running old password" gap is closed for both devices, not just the test rig.
-
----
-
 ### CARD-0074 · [idea] [hike-izer] Hike-izer Version 2
 **Notes:** Raised 2026-07-18, split out from CARD-0073's closure (v1 done). Carries forward the items v1 explicitly deferred, not forgotten:
 
@@ -326,6 +308,24 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 ---
 
 ## Build
+
+### CARD-0076 · [bug] [hiking-monitor] Rotate all secrets exposed via a botched redaction command, and finish outstanding device re-flashes
+**Notes:** Raised 2026-07-21. During CARD-0070's debugging session (2026-07-20), a `sed` redaction command intended to mask `secrets.yaml` values before display used a pattern (`key=value`) that didn't match the file's actual `key: "value"` YAML syntax — the redaction silently failed and the **entire** `hiking-monitor-test/secrets.yaml` file printed in plaintext into the conversation transcript: WiFi password, hotspot password, AP fallback password, MQTT password, and OTA password. (Process fix for the redaction mistake itself already logged separately, so this doesn't recur.) The repo's own copy of this file is confirmed gitignored (`components/hiking-monitor/.gitignore`) and was never committed/pushed — the exposure is contained to this session's transcript, not a public leak, but is still being treated as a real exposure event since transcripts can be logged/reviewed outside this conversation.
+
+**Scope (confirmed 2026-07-21):** all secrets from the exposed file, not just OTA as originally asked — since the whole file printed, every value in it is equally exposed regardless of which one prompted the request:
+1. WiFi password (`wifi_password` — appears to be the actual home network password, `JCTnet1`'s network, not device-specific — check whether this is shared by other devices/people before rotating, since it has a wider blast radius than a single-device credential)
+2. Hotspot password (`hotspot_password`)
+3. AP fallback password (`ap_password` — used for hiking-monitor-test's/hiking-monitor's own fallback AP, `hiking-monitor-test-fallback` / equivalent)
+4. MQTT password (`mqtt_password`)
+5. OTA password (`ota_password`) — **already rotated 2026-07-21**, see Progress below.
+
+**Progress (2026-07-21):** OTA password rotated to a new value in all three places that held the old one: `C:\esphome\hiking-monitor-test\secrets.yaml`, `C:\esphome\hiking-monitor\secrets.yaml` (real device's local build dir), and `components/hiking-monitor/secrets.yaml` (repo copy, gitignored). **Not yet reflashed to either device** — the test rig went to sleep after its last successful test with no wake source wired, so it's currently unreachable for OTA (needs the GPIO32→3.3V wake trick, then OTA push, or a USB flash); the real field-deployed hiking-monitor is physically elsewhere and can't be reached at all right now. Both devices are **still running their old OTA password** until reflashed — the new password only exists in the secrets files so far, not on the hardware.
+
+**WiFi/hotspot/AP/MQTT passwords: not yet touched.** Rotating the WiFi password in particular has a wider blast radius than device-specific secrets (likely shared across other devices/people on the network) — confirm actual scope/impact before rotating, not just swap the value.
+
+**Done when:** all five secrets above are rotated to new values; both the test rig and the real field-deployed hiking-monitor are confirmed running the new OTA password (not just the secrets file updated); WiFi/hotspot/AP/MQTT rotation is either completed or explicitly deferred with a documented reason; and this card's "still running old password" gap is closed for both devices, not just the test rig.
+
+---
 
 ### CARD-0077 · [bug] [photo-server] Weekly backup cron collided with Immich's nightly DB dump, causing stale-backup alert
 **Notes:** Found 2026-07-22 via the CARD-0051 heartbeat check: `Immich degraded - backup:stale (10.3d since last success)`. Confirmed live via SSH — Docker containers all healthy, no data loss, disk usage normal on all three mounts (primary 73%, backups 39%/49%) — this was a stamp-write failure, not an actual backup outage.

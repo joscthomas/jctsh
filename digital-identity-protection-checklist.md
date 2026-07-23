@@ -1,8 +1,8 @@
 # Digital Identity Protection Checklist
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Step-by-step checklist for Joseph and Robin to close the single-point-of-failure risks described in the TIME article "How a Stranger Used One Text Message to Steal My Entire Digital Life" (July 2026).
-**Version:** 2.3
-**Version description:** Corrected the "ID document photos" plan — RoboForm cannot store document images (text fields only), so the plan now moves Google Photos copies into Locked Folder (not RoboForm) instead of deleting them, with a locator note (not a link) in RoboForm. Updated the matching Phase 5 travel item to reference Locked Folder instead of RoboForm Identity.
+**Version:** 3.0
+**Version description:** Incident Response Plan printed and placed in the safe (`Incident Response Plan.pdf`, repo root) — closes CARD-0072 item #7. Robin's App passwords check confirmed clean (none exist), closing item #2. Safe Contents manifest fully placed (IDs in safe done). Travel copy plan decided: unlabeled hard copy of half the backup codes in each passport folder, not yet implemented. Outside-contact copy moved to CARD-0071 — a nephew designated as outside contact, covering both that and RoboForm Emergency Access.
 
 ---
 
@@ -38,9 +38,9 @@ CARD-0034 (the original "complete this checklist" card) closed 2026-07-17 as **v
 - [X] Review "recent security activity" / connected devices, remove anything unrecognized or old
 - [N] Consider enrolling in Google Advanced Protection Program if either of you handles significant money
 - [X] App passwords: Joseph reviewed Security → "App passwords" and revoked any existing ones (these bypass 2-Step Verification/hardware key requirements)
-- [ ] App passwords: Robin to review and revoke any existing app passwords
-- [ ] Review "Third-party apps & services" with account access (Security settings), revoke unused/old connections — do for both
-- [ ] *(Under consideration)* Enable "Skip password when possible" so the passkey/hardware key becomes the default sign-in path instead of falling back to the password — holding off because always having the physical key on hand for everyday sign-in is an unfamiliar habit; want to live with the key day-to-day before locking this in
+- [X] App passwords: Robin to review and revoke any existing app passwords — **checked 2026-07-22 via `myaccount.google.com/apppasswords` — none exist**
+- [X] Review "Third-party apps & services" with account access (Security settings), revoke unused/old connections — do for both — **done 2026-07-22, both accounts**, via `myaccount.google.com/permissions` (Google renamed this to "Third-party apps with account access")
+- [X] Enable "Skip password when possible" so the passkey/hardware key becomes the default sign-in path instead of falling back to the password — **enabled 2026-07-22, both accounts**, after living with the key day-to-day for the everyday-carry habit first
 - [X] Confirm Google Account password itself (distinct from the PIN) is long, unique, generated, and stored in RoboForm
 - [ ] Set up Google Inactive Account Manager (Security settings) — define a trusted contact and inactivity timeout for account access/notification
 - [X] Confirm 2-Step Verification is enabled account-wide (foundation for everything above) — confirmed on
@@ -52,8 +52,8 @@ CARD-0034 (the original "complete this checklist" card) closed 2026-07-17 as **v
 - [X] Freeze credit at Equifax
 - [X] Freeze credit at Experian
 - [X] Freeze credit at TransUnion
-- [ ] Freeze at ChexSystems (received error trying to register for an account)
-- [ ] Freeze at LexisNexis (why this company? I don't want to create more accounts.)
+- [X] Freeze at ChexSystems — **done 2026-07-22, both accounts** (earlier registration error resolved)
+- [X] Freeze at LexisNexis — **done 2026-07-22, both accounts**
 
 ---
 
@@ -75,27 +75,27 @@ CARD-0034 (the original "complete this checklist" card) closed 2026-07-17 as **v
 
 ### ID document photos — consolidate and clean up
 - [ ] Add passport/DL numbers and expiration dates (Joseph and Robin) to RoboForm Identity entries — **correction:** RoboForm's Identity feature only stores structured text fields (number, dates), not document images/attachments; earlier guidance claiming image support was wrong
-- [ ] Move digital photos of IDs (DL, passport, credit/debit cards, etc.) that currently sit in Google Photos' general library into a **Locked Folder** (Security → Locked Folder) — excluded from search/Memories/family sharing, gated by device passcode/biometric on top of the account login, cross-device backed up, and content inside can't be link-shared without first being moved out
-- [ ] Add a locator note in RoboForm (not a link — Locked Folder content can't be link-shared anyway) pointing to where the photos live, e.g. "ID photos: Google Photos → Locked Folder"
-- [ ] Search Immich (self-hosted photo library, `photo-server`) for the same — delete; Immich has no equivalent protected-folder feature, so it doesn't get a "move to" option here
-- [ ] Check other likely locations: phone camera roll (pre-cloud-sync), email attachments/sent items, text/messaging apps — delete, or move into Locked Folder if worth keeping
-- [ ] Confirm no lingering copies remain in cloud photo trash/recently-deleted folders — Google Photos and Immich both hold deleted items for a retention window before permanent removal, so deleting isn't done until that window passes too
+- [X] Move digital photos of IDs (DL, passport, credit/debit cards, etc.) that currently sit in Google Photos' general library into a **Locked Folder** (Security → Locked Folder) — excluded from search/Memories/family sharing, gated by device passcode/biometric on top of the account login, cross-device backed up, and content inside can't be link-shared without first being moved out — **done 2026-07-22, both accounts**
+- [X] Add a locator note in RoboForm (not a link — Locked Folder content can't be link-shared anyway) pointing to where the photos live, e.g. "ID photos: Google Photos → Locked Folder" — **done 2026-07-22**
+- [X] Search Immich (self-hosted photo library, `photo-server`) for the same — delete; Immich has no equivalent protected-folder feature, so it doesn't get a "move to" option here — **done 2026-07-22, both accounts**
+- [X] Check other likely locations: phone camera roll (pre-cloud-sync), email attachments/sent items, text/messaging apps — delete, or move into Locked Folder if worth keeping — **done 2026-07-22, both accounts**
+- [X] Confirm no lingering copies remain in cloud photo trash/recently-deleted folders — Google Photos and Immich both hold deleted items for a retention window before permanent removal, so deleting isn't done until that window passes too — **done 2026-07-22, both accounts**
 
 > **Why this matters:** ID photos sitting in a general-purpose photo library (searchable, auto-organized/face-indexed, exposed to Memories resurfacing and family sharing) are easy to expose accidentally, even without a targeted attack. Locked Folder is Google's purpose-built answer — it inherits this account's existing hardening (hardware-key-only 2FA, no phone-based fallback) and adds a second, local gate on top. RoboForm can't hold the images at all, so it isn't part of the storage plan for the photos themselves — only for the passport/DL numbers, which are genuine text data it does support.
 
 ### Recovery contacts
-- [ ] Set Google Account Recovery Contacts: Robin ↔ Joseph (each other)
-- [ ] Add both children as recovery contacts (confirmed: both are adults, each with their own independent Google account)
+- [X] Set Google Account Recovery Contacts: Robin ↔ Joseph (each other) — **done 2026-07-22**
+- [N] Add both children as recovery contacts — **declined 2026-07-22**, decided not to add anyone else as a recovery contact at this time
 - [ ] *(Under consideration, not yet implemented)* Shared codeword system with children for identity verification
 
 ### Offline hardcopy vault
 - [X] Generate Google 2-Step Verification backup codes for Joseph and Robin
 - [X] Physically label all three Titan keys (sticker/tape/paint dot marking "J" / "R" / "Backup") — Titan keys have no printed serial number, so a label is the only way to tell the identical units apart; record the labeling scheme in the offline vault
-- [ ] Store offline hardcopy in the safe (see Safe Contents manifest below) — decided, current plan
-- [ ] *(Under consideration)* Travel copy: a small, unlabeled duplicate carried separately from phone/hardware key while traveling (see Phase 5)
-- [ ] *(Under consideration)* Outside-contact copy: a third duplicate held by someone outside the household — see "Outside-Contact Copy Pattern" note below
+- [X] Store offline hardcopy in the safe (see Safe Contents manifest below) — **done 2026-07-22**, all four items in the Safe Contents manifest now placed
+- [ ] Travel copy: **plan decided 2026-07-22, not yet implemented** — unlabeled hard copy of half the backup codes in each of Joseph's and Robin's passport folders (splits the set, carried separately from phone/hardware key while traveling; see Phase 5)
+- [ ] Outside-contact copy: **moved to CARD-0071** — a nephew has been designated as the outside contact (decided 2026-07-22), covering both this and RoboForm Emergency Access; see CARD-0071 in `kanban-board.md` for status, not tracked here
 
-> **Outside-Contact Copy Pattern:** the safe protects against a lost phone or device; it does not protect against a household-level event — a house fire, a burglary, or both of you traveling together and losing the same bag. A third duplicate of the backup codes/serials, held by someone who lives elsewhere (e.g., one of the children, since both are independent adults), survives exactly that scenario. It doesn't need to be requested often — it just needs to exist for the rare case where both the safe copy and any travel copy are unreachable at once. Same logic as having Recovery Contacts in a different location from your own household.
+> **Outside-Contact Copy Pattern:** the safe protects against a lost phone or device; it does not protect against a household-level event — a house fire, a burglary, or both of you traveling together and losing the same bag. A third duplicate of the backup codes/serials, held by someone who lives elsewhere, survives exactly that scenario. It doesn't need to be requested often — it just needs to exist for the rare case where both the safe copy and any travel copy are unreachable at once. Same logic as having Recovery Contacts in a different location from your own household. **Designated holder: a nephew (decided 2026-07-22)** — implementation tracked in CARD-0071, not here.
 
 ### General
 - [ ] Confirm neither of you can be fully locked out of money and communication by the loss of one single device or account (test/fire-drill)
@@ -109,7 +109,7 @@ Consolidated manifest of everything intended to physically live in the safe. Set
 - [X] Shared/backup Titan security key
 - [X] Google 2-Step Verification backup codes (Joseph and Robin)
 - [X] Note of the key labeling scheme (which physical marking = Joseph's / Robin's / shared-backup)
-- [ ] IDs (copies of driver's license/passport, etc.)
+- [X] IDs (copies of driver's license/passport, etc.) — **done 2026-07-22**
 
 **Deliberately excluded:** account numbers and insurance policy numbers. Both already live in RoboForm, which stays current as accounts/policies change; a paper copy would only go stale. The safe's backup Titan key already restores RoboForm access (hardware-key 2FA is enabled there) if you're locked out — so the recovery path is safe → key → RoboForm → current numbers, not a second manually-maintained copy. The one gap this doesn't cover — someone else (executor, recovery contact) needing account numbers without knowing the RoboForm master password — is what RoboForm Emergency Access is for (see Phase 2, Password manager section), not a paper backup.
 
@@ -128,6 +128,8 @@ Consolidated manifest of everything intended to physically live in the safe. Set
 ---
 
 ## Phase 4 — Incident Response Plan (keep a copy of this accessible offline)
+
+**Done 2026-07-22:** printed and placed in the safe. Source PDF kept at `Incident Response Plan.pdf` (repo root) for reprinting if needed.
 
 1. [ ] From another device, use a hardware security key to sign into Google, change the password, and revoke all active sessions immediately
 2. [ ] Call carrier to lock/freeze the SIM before anything else
@@ -165,13 +167,15 @@ Consolidated manifest of everything intended to physically live in the safe. Set
 
 ## Accounts Without 2FA — Compensating Controls (e.g., Credit Union)
 
-- [ ] Ask directly whether 2FA/MFA exists but isn't obvious (may live in the mobile app rather than the website)
-- [ ] Ask about setting a verbal password/passphrase required for any phone-based account changes or discussions
-- [ ] Turn on every available alert: new-device login, transaction/withdrawal alerts, failed-login alerts
-- [ ] Ask if they offer a callback/manual hold requirement for transfers above a set amount
-- [ ] Ensure the account password is long, unique, and generated — stored in RoboForm, never reused
-- [ ] Limit balance held there long-term; sweep excess to an account with real 2FA
-- [ ] Reassess whether this should remain a primary account long-term if 2FA is never added
+**Resolved 2026-07-22 — not applicable.** Confirmed all financial accounts, including the credit union originally flagged as the example case, already have 2FA enabled. No account currently qualifies for this section; nothing further to do unless a future account is opened without 2FA.
+
+- [N] Ask directly whether 2FA/MFA exists but isn't obvious (may live in the mobile app rather than the website)
+- [N] Ask about setting a verbal password/passphrase required for any phone-based account changes or discussions
+- [N] Turn on every available alert: new-device login, transaction/withdrawal alerts, failed-login alerts
+- [N] Ask if they offer a callback/manual hold requirement for transfers above a set amount
+- [N] Ensure the account password is long, unique, and generated — stored in RoboForm, never reused
+- [N] Limit balance held there long-term; sweep excess to an account with real 2FA
+- [N] Reassess whether this should remain a primary account long-term if 2FA is never added
 
 ---
 

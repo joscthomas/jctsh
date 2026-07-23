@@ -1,0 +1,16 @@
+[Unit]
+Description=JCTsh Log Server
+After=network.target mosquitto.service mnt-jctsh\x2dlogs.mount
+RequiresMountsFor=/mnt/jctsh-logs
+
+[Service]
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/etc/jctsh/log-server.env
+ExecStart=/usr/bin/python3 /home/pi/jctsh/core/logging/log_server.py
+WorkingDirectory=/home/pi/jctsh/core/logging
+Restart=always
+User=pi
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

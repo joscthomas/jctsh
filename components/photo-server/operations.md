@@ -91,6 +91,35 @@ loosely similar, which is close to random for a name it has no way to recognize.
 photos by tag, browse the Tags view directly (once enabled) rather than typing the name
 into search.
 
+## Standard Photo Import (external source, not Google Takeout)
+
+For any batch of photos found outside the Google Photos/Immich ecosystem (an old drive, a
+folder rescued from a dead computer, etc.) that need checking against and adding to Immich —
+the "standard job": `immich-go`'s generic folder-upload mode does the same dedup-and-load
+work the original Takeout migration used, minus the Takeout-specific JSON sidecar handling.
+
+1. Get the source folder onto `photo-server` if it isn't already (`scp -r <source>
+   jct@photo-server.local:~/import-staging/<batch-name>`).
+2. Run, from the M8:
+   ```bash
+   immich-go upload from-folder ~/import-staging/<batch-name> \
+     -s http://localhost:2283 \
+     -k <account's API key — see credentials.local.md> \
+     --on-errors continue \
+     --pause-immich-jobs=false \
+     --session-tag
+   ```
+3. `--session-tag` applies an automatic `{immich-go}/YYYY-MM-DD HH-MM-SS` tag to everything
+   uploaded in that run — same tagging behavior as the original migration's per-batch tags
+   (see "Immich Tags Feature" above), gives an easy way to find/review exactly what a given
+   import added. Immich's own checksum-based dedup skips anything already present — no
+   separate pre-check needed, matches the "self-correcting" reasoning already established in
+   `migration.md`.
+4. Confirm which account (Joseph's or Robin's) the batch belongs to before running — API key
+   selects the destination account, there's no folder-level choice.
+5. Report back the final asset count `immich-go` uploaded vs. skipped (dedup) so it's clear
+   what actually landed.
+
 ## Router Reboot Coordination
 
 KeepConnect (the router rebooter — see `keepconnect.md`) resets the router on its own weekly schedule, currently landing on a day that has drifted from its original Wednesday setting. This is expected: KeepConnect's "every 7 days" timer appears to restart from *any* reset, scheduled or outage-triggered, so the weekday it lands on shifts over time and can't be relied on as fixed. The Pi and M8 reboot schedule above is intentionally not synchronized to it — a router reboot is a brief (~30 sec cut, ~4 min reconnect) network blip that both machines tolerate regardless of whether they happen to be mid-boot at the same time.

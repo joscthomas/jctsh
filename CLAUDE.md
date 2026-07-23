@@ -152,6 +152,8 @@ The dividing line between `System` and `MQTT`: if the message is about the *devi
 
 **Collapsing convention:** Any repeating status message that should be collapsed into a single dashboard row (count + time range) must start with `"Heartbeat - "`. The log server groups consecutive same-state messages with this prefix per component. Messages without this prefix only collapse when consecutive identical runs are uninterrupted — unreliable for high-frequency or long-lived repeats.
 
+**Event-time convention:** since the log server timestamps every message by receipt time (see above), a message describing something that happened at a *different* time than when it's posted must include that actual event time in the message text itself — otherwise the dashboard timestamp silently misrepresents when the thing actually happened. This applies any time a component relays/re-reports an event from another system's own history rather than reporting something happening live (e.g., CARD-0078's NetAlertX relay, which can post about a device's original connection time well after the fact — the relayed message must say when the device actually connected, not just rely on the post time).
+
 ## Watchdog Heartbeat
 `core/logging/log_server.py` publishes an hourly heartbeat to `jctsh/core/log-server/log`:
 ```json

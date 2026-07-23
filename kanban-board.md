@@ -16,6 +16,19 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0078 · [bug] [netalertx] False "New device detected" alerts re-fire after any Node-RED restart
+**Notes:** Found 2026-07-22, triggered by CARD-0006's Pi reboot test. Three devices (Google Cast device, a phone/tablet with a randomized MAC, and the hiking-monitor-test rig's brief 07-20 OTA session) all showed "New device detected" alerts on the log dashboard timestamped tonight — despite NetAlertX's own history showing they first connected 07-14, 07-18, and 07-20 respectively. Confirmed via NetAlertX's SQLite DB (`/data/db/app.db` in the container) that its own Notifications system correctly computed zero new devices in its latest batch — the false alert isn't coming from NetAlertX's detection logic at all.
+
+**Root cause (confirmed):** `components/netalertx/netalertx.flow.json`'s `fn_device_info` node does its own new-device dedup against NetAlertX's raw per-scan MQTT device firehose (`system-sensors/sensor/mac_.../state`, republished after *every* scan per NetAlertX's `MQTT_RUN=always_after_scan` setting — not event-driven). It tracks "have I already alerted for this MAC" via Node-RED's in-memory `flow.set('newflag_'+mac, ...)` — which resets to empty on **any** Node-RED restart. NetAlertX's own `is_new` field for a device stays true until someone acknowledges/names it in the NetAlertX UI — these three never were. So the first scan after any Node-RED restart re-fires an alert for every still-unacknowledged device, regardless of how long ago it actually first appeared. CARD-0006's `sudo reboot` of the Pi restarted Node-RED, which is exactly what triggered tonight's false alerts — confirmed causally, not a coincidence.
+
+**Recommended fix:** stop re-deriving "is this new" from the raw per-scan firehose in Node-RED. NetAlertX already computes this correctly and persistently (SQLite-backed, survives restarts) via its Notifications system. Its `_publisher_webhook` plugin (`/app/front/plugins/_publisher_webhook/webhook.py` in the container) calls `NotificationInstance.getNew()` and POSTs each genuinely-new notification's `Text`/`HTML`/`JSON` to a configured URL — exactly the semantics needed. Plan: add a Node-RED `http in` endpoint, configure NetAlertX's `WEBHOOK_URL` (currently unset — no `WEBHOOK_*` keys exist yet in the Settings table) to point at it, and replace `fn_device_info`'s firehose-diffing logic with a simple passthrough of the webhook payload. This closes the restart-fragility bug at the root rather than trying to persist Node-RED's flow context instead.
+
+**Event-time requirement (per CLAUDE.md's new Event-time convention):** the notification's `JSON`/`Text` payload already includes a real `eveDateTime` field (ISO 8601 with offset, e.g. `2026-07-22T18:36:04-07:00`) distinct from `Report Date` (when NetAlertX generated the notification) — confirmed present via direct DB inspection. The replacement Node-RED logic must extract `eveDateTime` and include it in the composed log message text (e.g. "New device detected at 18:36: ..."), not rely on the dashboard's own receipt timestamp — this bug is exactly the case that convention exists to prevent.
+
+**Priority:** low — cosmetic false alarm, not a real detection failure (NetAlertX's own new-device detection is accurate; only the JCTsh log-dashboard relay is affected). Worth fixing since repeated false "new device" alerts erode trust in genuine ones.
+
+---
+
 ### CARD-0058 · [idea] [presence] BLE room-detection for the Pixel 7 via Bermuda
 **Notes:** Raised 2026-07-12. Goal: know which room the Pixel 7 is in (`sensor.pixel7_room` in HA) using BLE signal strength from ESPHome nodes already deployed around the house — no new hardware, no dedicated firmware.
 

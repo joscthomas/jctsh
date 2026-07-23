@@ -7,7 +7,10 @@ sun position along the route, and an explicit expected-vs-actual data-coverage
 section that doubles as a health check on the whole hiking-monitor pipeline.
 
 **Status:** v1 built and verified end-to-end (2026-07-18) against the real
-2026-06-15 trip data. Tracking card: **CARD-0073** on `kanban-board.md`.
+2026-06-15 trip data. Tracking card: **CARD-0073** on `kanban-board.md`. A
+styled HTML rendering of the same content (basic styling + structured stat-row
+layout) was added under **CARD-0081**; further HTML levels (embedded
+maps/charts, interactivity, hosting) are tracked separately as **CARD-0088**.
 
 ---
 
@@ -19,13 +22,15 @@ Hike-izer's files are deliberately split across three locations:
 |---|---|---|
 | The Skill itself (invokable instructions) | `.claude/skills/hike-izer/SKILL.md` | Claude Code only discovers/invokes skills from `.claude/skills/*/SKILL.md` — it can't live anywhere else. |
 | Code (data fetch, coverage math, sun-position calc) | `components/hike-izer/fetch_hike_data.py` | Matches every other JCTsh component's convention — code and docs for a component live under `components/<name>/`. |
-| Generated output (one Markdown file per hike) | `hike-izer/summaries/` (top-level, sibling to `components/`) | Kept separate from source code on purpose — if a future presentation layer generates HTML, it goes here too, not mixed in with the code that produced it. |
+| HTML presentation template (CSS + structure reference, CARD-0081) | `components/hike-izer/html-template.html` | Static boilerplate the Skill copies from each run — kept with the code, not the output, since it doesn't change per hike. |
+| Generated output (one Markdown + one HTML file per hike) | `hike-izer/summaries/` (top-level, sibling to `components/`) | Kept separate from source code on purpose. |
 
 To actually run Hike-izer, invoke the Skill (`.claude/skills/hike-izer/SKILL.md`)
 with a hike date or date range — it handles reading credentials, calling
-`fetch_hike_data.py`, and writing the narrative itself. Don't run
-`fetch_hike_data.py` standalone expecting a finished summary; it only produces
-the structured JSON the Skill's narrative-writing step consumes.
+`fetch_hike_data.py`, and writing the narrative (both Markdown and HTML)
+itself. Don't run `fetch_hike_data.py` standalone expecting a finished
+summary; it only produces the structured JSON the Skill's narrative-writing
+step consumes.
 
 ---
 

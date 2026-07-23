@@ -158,6 +158,30 @@ the pattern (written before this classification logic existed, but the same
 5. **Save the output** to `hike-izer/summaries/<start-date>_hike-summary.md`
    (create the directory if it doesn't exist). Tell Joseph the file path when done.
 
+6. **Also generate a styled HTML version (CARD-0081, Levels 1-2)** at
+   `hike-izer/summaries/<start-date>_hike-summary.html`, same directory as the
+   Markdown. Use `components/hike-izer/html-template.html` as the fixed
+   structural/CSS reference: copy its `<style>` block **verbatim** (this is
+   what keeps output visually consistent across independent runs -- don't
+   restyle it per hike), then fill in its sections with the same content as
+   the Markdown -- same narrative prose, same tables, nothing added or
+   summarized differently between the two formats. The one thing the HTML
+   has that the Markdown doesn't is a stat-row hero up top (Date, Duration,
+   Distance, Elevation Gain):
+   - **Distance** -- `stats.distance_mi` (only present when
+     `coverage.gps_track.hike_confirmed` is `true`; `null` otherwise)
+   - **Elevation Gain** -- `stats.altitude_ft.gain_ft`
+   - **Duration** -- the confirmed hike session's `duration_minutes` from
+     `coverage.gps_track.sessions`, or the Hiking Observations time span if
+     GPS is unavailable (see the `hike_confirmed: false` path)
+   - Any stat with no real source for that day must show as **"not
+     available"** (`.stat__value--na` in the template), never a blank or a
+     misleading zero.
+   See `components/hike-izer/html-template.html`'s own comments for the exact
+   section-by-section mapping. Levels 3-5 (embedded maps/charts, interactive
+   hover-sync, hosting) are **out of scope here** -- tracked separately on
+   `kanban-board.md` as CARD-0088.
+
 ## Explicitly out of scope for v1 (deferred -- see CARD-0073)
 
 - Photos (Immich integration not built)
@@ -166,7 +190,9 @@ the pattern (written before this classification logic existed, but the same
   from pure astronomy, not which way the hiker was facing (not tracked by any
   sensor)
 - Automatic triggering -- this only runs when asked
-- Rendered web page output -- Markdown only
+- Embedded maps/charts, interactivity, and hosting for the HTML output --
+  basic styling and structured layout (Levels 1-2) are in scope per CARD-0081
+  above; the rest is CARD-0088
 
 ## Notes on the data
 

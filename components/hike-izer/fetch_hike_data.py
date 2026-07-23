@@ -310,6 +310,15 @@ def _gps_sessions(gps_rows, session_gap_min=10):
         dur_sec = max(1, (end - start).total_seconds())
         expected = max(1, round(dur_sec / 30))
         is_hike, reasons, classify_details = _classify_hike(s)
+
+        distance_m = 0.0
+        for a, b in zip(s, s[1:]):
+            lat_a, lon_a = to_float(a.get('lat')), to_float(a.get('lon'))
+            lat_b, lon_b = to_float(b.get('lat')), to_float(b.get('lon'))
+            if None in (lat_a, lon_a, lat_b, lon_b):
+                continue
+            distance_m += _haversine_m(lat_a, lon_a, lat_b, lon_b)
+
         result.append({
             'start': s[0]['timestamp'],
             'end': s[-1]['timestamp'],
@@ -317,6 +326,7 @@ def _gps_sessions(gps_rows, session_gap_min=10):
             'points': len(s),
             'expected_points': expected,
             'coverage_pct': round(100 * len(s) / expected, 1),
+            'distance_mi': round(distance_m / 1609.34, 2),
             'is_hike': is_hike,
             'rejection_reasons': reasons,
             'classification_details': classify_details,
@@ -464,6 +474,15 @@ def main():
             'daylight': elevation > 0,
         })
 
+    stats = compute_stats(env_rows, gps_rows)
+    # Total on-trail distance, summed only across sessions classified as a real
+    # hike -- not all GPS activity for the day (e.g. driving between
+    # trailheads, or GPS drift while stationary at camp, shouldn't count).
+    stats['distance_mi'] = (
+        round(sum(s['distance_mi'] for s in coverage['gps_track']['sessions'] if s['is_hike']), 2)
+        if coverage['gps_track']['hike_confirmed'] else None
+    )
+
     out = {
         'query': {'start': args.start, 'end': args.end, 'source_filter': args.source},
         'counts': {
@@ -473,7 +492,7 @@ def main():
             'gps_track': len(gps_rows),
         },
         'coverage': coverage,
-        'stats': compute_stats(env_rows, gps_rows),
+        'stats': stats,
         'sun_position_samples': sun_samples,
         'environmental_data': env_rows,
         'hiking_observations': obs_rows,

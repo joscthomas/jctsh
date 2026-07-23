@@ -1,0 +1,305 @@
+<!--
+  Hike-izer HTML template (CARD-0081, Levels 1-2).
+
+  This is a REFERENCE file, not a real output file -- it is never served or
+  linked anywhere. When generating hike-izer/summaries/<date>_hike-summary.html
+  for a real hike:
+
+    1. Copy the entire <style> block below UNCHANGED. Consistency across
+       independently-authored runs is the whole point -- do not restyle,
+       retheme, or "improve" it per hike. If the styling itself ever needs to
+       change, change it here once, not ad hoc in a generated file.
+    2. Replace every {{PLACEHOLDER}} with real content from that hike's
+       fetched JSON (components/hike-izer/fetch_hike_data.py output) and the
+       narrative prose already being written for the .md file -- same content,
+       new presentation. See .claude/skills/hike-izer/SKILL.md for the exact
+       field-by-field mapping.
+    3. Sections are HTML comments below explaining what goes in each one and
+       where its data/content comes from. Remove the placeholder markup itself;
+       keep producing the same section structure every time.
+    4. Stat cards MUST show "not available" (styled via .stat__value--na), not
+       a blank or a zero, whenever the underlying figure doesn't exist --
+       e.g. distance/elevation on a day where hike_confirmed is false.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hike Summary — {{DATE}}</title>
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --surface-2: #eef0e8;
+    --ink: #2b2f27;
+    --ink-muted: #5b6156;
+    --ink-faint: #8b9186;
+    --line: #ddded4;
+    --line-strong: #c3c5b7;
+    --accent: #4b7a3f;
+    --accent-ink: #fbfff8;
+    --good: #3f7248;
+    --warning: #93701a;
+    --warning-bg: #fbf3df;
+    --danger: #a8503f;
+    --shadow: 0 1px 2px rgba(30,30,20,0.06), 0 6px 16px -8px rgba(30,30,20,0.18);
+    --radius: 8px;
+    --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #171d16;
+      --surface: #212a1f;
+      --surface-2: #28331f;
+      --ink: #eef1ea;
+      --ink-muted: #b7c2ae;
+      --ink-faint: #7f8b76;
+      --line: #35402f;
+      --line-strong: #46543c;
+      --accent: #8fc47a;
+      --accent-ink: #16210f;
+      --good: #7ab982;
+      --warning: #e0bd57;
+      --warning-bg: #332c17;
+      --danger: #e0897a;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 20px -10px rgba(0,0,0,0.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+  }
+  main {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+  h1 {
+    font-size: 1.7rem;
+    margin: 0 0 0.15rem;
+  }
+  .subtitle {
+    color: var(--ink-muted);
+    font-size: 0.85rem;
+    margin: 0 0 1.75rem;
+  }
+  .subtitle code {
+    font-family: var(--mono);
+    font-size: 0.92em;
+  }
+
+  /* Stat row (hero) -- Level 2 structured layout */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+  }
+  @media (max-width: 640px) {
+    .stat-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0.85rem 1rem;
+  }
+  .stat__label {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-muted);
+    margin-bottom: 0.3rem;
+  }
+  .stat__value {
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+  .stat__value--na {
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+
+  /* GPS-confirmation callout -- only rendered when hike_confirmed is false */
+  .callout {
+    background: var(--warning-bg);
+    border: 1px solid var(--warning);
+    border-radius: var(--radius);
+    padding: 1rem 1.15rem;
+    margin-bottom: 1.75rem;
+    font-size: 0.95rem;
+  }
+  .callout strong { color: var(--warning); }
+
+  section { margin-bottom: 2.25rem; }
+  section > h2 {
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.4rem;
+    margin: 0 0 1rem;
+  }
+
+  .narrative p { margin: 0 0 1rem; font-size: 1.02rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+  }
+  thead th {
+    background: var(--surface-2);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-muted);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 40%, transparent); }
+
+  /* Full observations table can run long -- sticky header while scrolling the page */
+  .obs-table thead th { position: sticky; top: 0; }
+
+  /* Pipeline health / coverage -- visually set apart as a diagnostic aside */
+  .coverage-panel {
+    background: var(--surface-2);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    padding: 1rem 1.15rem;
+  }
+  .coverage-panel table { background: transparent; border: none; }
+  .coverage-panel thead th { background: transparent; }
+
+  footer {
+    color: var(--ink-faint);
+    font-size: 0.75rem;
+    font-family: var(--mono);
+    margin-top: 2.5rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Hike Summary — {{DATE}}</h1>
+  <p class="subtitle">Generated by the Hike-izer skill (<code>CARD-0073</code>) &middot; data from the JCTsh Environmental Data pipeline</p>
+
+  <!--
+    Stat row: four cards, always in this order -- Date, Duration, Distance,
+    Elevation Gain. Source fields:
+      Date            -- the requested day
+      Duration        -- coverage.gps_track.sessions[].duration_minutes for the
+                         is_hike session (or the Hiking Observations time span
+                         if GPS is unavailable -- see 2026-07-23 for the pattern)
+      Distance        -- stats.distance_mi (round to 1 decimal for display)
+      Elevation Gain  -- stats.altitude_ft.gain_ft
+    If hike_confirmed is false and a figure has no real source, use the
+    .stat__value--na style with the text "not available" -- never a blank or 0.
+  -->
+  <div class="stat-row">
+    <div class="stat">
+      <div class="stat__label">Date</div>
+      <div class="stat__value">{{DATE_DISPLAY}}</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">Duration</div>
+      <div class="stat__value">{{DURATION}}</div>
+    </div>
+    <div class="stat">
+      <div class="stat__label">Distance</div>
+      <div class="stat__value">{{DISTANCE_MI}} mi</div>
+      <!-- when unavailable: <div class="stat__value stat__value--na">not available</div> -->
+    </div>
+    <div class="stat">
+      <div class="stat__label">Elevation Gain</div>
+      <div class="stat__value">{{ELEVATION_GAIN_FT}} ft</div>
+    </div>
+  </div>
+
+  <!--
+    Only present when coverage.gps_track.hike_confirmed is false -- mirrors
+    the .md's "GPS confirmation: unable to confirm" section. Omit entirely on
+    a normal confirmed-hike day.
+  -->
+  <div class="callout">
+    <strong>GPS confirmation: unable to confirm.</strong> {{GPS_CONFIRMATION_EXPLANATION}}
+  </div>
+
+  <section class="narrative">
+    <h2>The Hike</h2>
+    <!-- One <p> per paragraph of the same narrative prose written for the .md.
+         Do not summarize it further or expand it -- same words, new medium. -->
+    <p>{{NARRATIVE_PARAGRAPH}}</p>
+  </section>
+
+  <section>
+    <h2>Data Summary</h2>
+    <!-- Same rows as the Markdown "Data tables/summary" section. -->
+    <table>
+      <tbody>
+        <tr><td>Metric</td><td>Value</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Full Observations Log</h2>
+    <!-- One row per Hiking Observation, chronological. Same content as the
+         Markdown table: Time (MST), Observation (raw text), Categories. -->
+    <table class="obs-table">
+      <thead>
+        <tr><th>Time (MST)</th><th>Observation</th><th>Categories</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>{{TIME}}</td><td>{{OBSERVATION_TEXT}}</td><td>{{CATEGORIES}}</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Expected vs. Actual Data Coverage</h2>
+    <!-- Pipeline health check -- same content as the Markdown's coverage
+         section, visually set apart since it's a diagnostic aside, not part
+         of the story. -->
+    <div class="coverage-panel">
+      <table>
+        <thead>
+          <tr><th>Source</th><th>Expected</th><th>Actual</th><th>Coverage</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>{{SOURCE}}</td><td>{{EXPECTED}}</td><td>{{ACTUAL}}</td><td>{{COVERAGE_PCT}}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>hike-izer &middot; components/hike-izer/fetch_hike_data.py &middot; CARD-0081</footer>
+
+</main>
+</body>
+</html>

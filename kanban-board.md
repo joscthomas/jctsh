@@ -16,6 +16,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0088 · [idea] [hike-izer] HTML output hosting (real URL, not an email attachment)
+**Notes:** Filed 2026-07-23, narrowed 2026-07-24. Originally scoped as "HTML rendering, Levels 3-5" (embedded visuals, interactive, hosting) split out of CARD-0081. Narrowed further after realizing the embedded-visuals and interactive/photos items were pure duplicates of scope already owned elsewhere — CARD-0082 (Visual track + elevation graphic) already covers embedded maps/charts and its own interactive hover-sync level, and CARD-0084 already covers photo integration. Neither needed a third card as an intermediary; this card now covers only the one genuinely unowned piece: **publishing** the HTML Hike-izer already generates (CARD-0081, Done) somewhere with a real URL, instead of emailing a file as an attachment.
+
+**Decided direction, real constraint found:** Joseph wants to reuse an existing asset rather than pay for new hosting — a domain (believed to be `jctnet.com`, not yet confirmed exact spelling) already pointed at **Google Sites**. Found during scoping: the current ("new") Google Sites has no solid API for programmatic publishing — getting generated HTML onto it will likely mean a manual copy/paste or embed step each time a summary is published, not something Hike-izer's pipeline can push automatically. Confirm the exact domain/Sites setup before starting; may be worth revisiting the "no paid hosting" constraint if the manual-publish friction turns out to be worse than expected in practice.
+
+**Related:** CARD-0081 (HTML rendering, Levels 1-2, Done — produces the file this card publishes), CARD-0082 (embedded visuals/interactivity — separate card, not this one's job), CARD-0084 (photo integration — separate card, not this one's job), CARD-0073 (Hike-izer v1, Done).
+
+---
+
 ### CARD-0084 · [idea] [hike-izer] Photo integration (Immich)
 **Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature rather than a batched release item. Pull in photos taken during a hike, matched via `photo-server`'s Immich API to a confirmed hike's date/time range and GPS bounding box.
 
@@ -61,13 +70,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0082 · [idea] [hike-izer] Visual track + elevation graphic, Gaia-GPS-style
-**Notes:** Raised 2026-07-23. Add a visual graphic depicting the hike route and elevation profile, in the style of Gaia GPS's track view — route line plotted over a real topo/satellite basemap, paired with a distance-vs-elevation chart. **Deliberately kept separate from CARD-0088** (HTML rendering, Levels 3-5 — embedded visuals/interactivity/hosting; CARD-0081, Levels 1-2, is Done) despite real overlap with that card's embedded-visuals level — this is scoped as its own artifact so it can potentially be embedded as a static image in the *current* Markdown output too, not gated on CARD-0088's HTML work landing first.
+**Notes:** Raised 2026-07-23. Add a visual graphic depicting the hike route and elevation profile, in the style of Gaia GPS's track view — route line plotted over a real topo/satellite basemap, paired with a distance-vs-elevation chart. This card owns the embedded-visuals and interactive-hover-sync work directly (CARD-0088, once scoped as an intermediary "embedded visuals" level, was narrowed 2026-07-24 to just HTML hosting after realizing it was pure duplicate scope of this card) — this is its own standalone artifact so it can potentially be embedded as a static image in the *current* Markdown output too, not gated on any other card's work landing first.
 
 **Target experience (end goal):** route line + elevation profile shown together, with interactive sync between them — hovering the elevation chart highlights the matching point on the map, matching Gaia GPS's actual behavior.
 
 **Iteration path (agreed 2026-07-23):**
-1. **Static image, real basemap** — starting point. A single PNG (or similar) with the GPS route plotted over an actual topo/satellite basemap, plus a separate (not yet linked) elevation profile chart. Embeddable in Markdown output today via standard image syntax, independent of CARD-0088's progress.
-2. **Interactive, hover-synced** — the real Gaia GPS experience (map ↔ elevation profile linked via hover/scroll). This requires JS/HTML, so naturally becomes an embed within the HTML output CARD-0081 established (Levels 1-2, Done) once CARD-0088's embedded-visuals level exists, rather than a standalone file.
+1. **Static image, real basemap** — starting point. A single PNG (or similar) with the GPS route plotted over an actual topo/satellite basemap, plus a separate (not yet linked) elevation profile chart. Embeddable in Markdown output today via standard image syntax.
+2. **Interactive, hover-synced** — the real Gaia GPS experience (map ↔ elevation profile linked via hover/scroll). This requires JS/HTML, so naturally becomes an embed within the HTML output CARD-0081 established (Levels 1-2, Done), once this level is built, rather than a standalone file.
 3. **Event markers** (added 2026-07-23) — drop markers on the map for photos, hike observations, and other timestamped/geotagged events (bird sightings once CARD-0080 lands are an explicitly confirmed case, not just a hypothetical). Design the marker system generically/extensibly rather than hardcoding a fixed list of event types — whatever ends up timestamped and geotagged in the pipeline should be markerable, not just the types known today. Markers for photos specifically are blocked on CARD-0084 (photo integration, not yet built) — the marker mechanism itself doesn't have to wait, but that particular marker type has nothing to plot until photo data exists.
 
 **Basemap decision (agreed 2026-07-23):** a real topo/satellite basemap is required even for the first (static) iteration — not deferred. Candidate tile providers to evaluate when this is picked up (none confirmed yet):
@@ -77,7 +86,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Data source:** existing GPS track pipeline (GPSLogger → GPS Track sheet, already wired into `components/hike-izer/fetch_hike_data.py`) — no new data collection needed, this is purely a new rendering of data hike-izer already has.
 
-**Related:** CARD-0088 (HTML rendering, Levels 3-5 — sibling card, Level 2 of this card naturally lands as an embed there), CARD-0081 (HTML rendering, Levels 1-2, Done — established the HTML output this eventually embeds into), CARD-0084 (Photos — blocks the photo-marker case of Level 3), CARD-0080 (Bird ID — confirmed marker case of Level 3), CARD-0073 (Hike-izer v1, Done), `components/hike-izer/fetch_hike_data.py`.
+**Related:** CARD-0081 (HTML rendering, Levels 1-2, Done — established the HTML output this eventually embeds into), CARD-0088 (HTML output hosting — separate, unrelated to this card's scope now), CARD-0084 (Photos — blocks the photo-marker case of Level 3), CARD-0080 (Bird ID — confirmed marker case of Level 3), CARD-0073 (Hike-izer v1, Done), `components/hike-izer/fetch_hike_data.py`.
 
 ---
 
@@ -255,20 +264,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0088 · [idea] [hike-izer] HTML rendering, Levels 3-5 (embedded visuals, interactive, hosting)
-**Notes:** Filed 2026-07-23, split out of the original CARD-0081 (which covered a 5-level HTML-rendering iteration path in one card). Per Joseph's preference for shorter-running cards over long ones, CARD-0081 was narrowed to just Levels 1-2 (basic styling + structured layout — **Done**) and this card carries forward the remaining levels from that original iteration path, unstarted.
-
-**Iteration path (carried forward from CARD-0081):**
-1. **Embedded visuals** — GPS route as an embedded map, charts for sensor data over the hike duration. Candidate to eventually absorb CARD-0020 (Looker Studio dashboard) instead of that staying a separate external link. Overlaps with CARD-0082 (Visual track + elevation graphic) — see that card's own iteration path; its Level 2 (interactive, hover-synced) naturally becomes an embed here once both exist.
-2. **Interactive** — clickable/scrubbable map-timeline, embedded photos (once Hike-izer's photo integration exists — CARD-0084), maybe a presentation mode.
-3. **Actually shareable (hosting)** — publish somewhere with a real URL instead of emailing an HTML file as an attachment.
-
-**Hosting — decided direction, real constraint found:** Joseph wants to reuse an existing asset rather than pay for new hosting — a domain (believed to be `jctnet.com`, not yet confirmed exact spelling) already pointed at **Google Sites**. Found during scoping: the current ("new") Google Sites has no solid API for programmatic publishing — getting generated HTML onto it will likely mean a manual copy/paste or embed step each time a summary is published, not something Hike-izer's pipeline can push automatically. Confirm the exact domain/Sites setup before starting hosting work; may be worth revisiting the "no paid hosting" constraint if the manual-publish friction turns out to be worse than expected in practice.
-
-**Related:** CARD-0081 (HTML rendering, Levels 1-2, Done — predecessor, established the styled HTML output this builds on), CARD-0082 (Visual track + elevation graphic — sibling card, overlaps with the embedded-visuals level), CARD-0084 (Photos — needed before the interactive level's photo embeds are possible), CARD-0020 (Looker Studio dashboard — candidate to fold into the embedded-visuals level), CARD-0073 (Hike-izer v1, Done), `components/hike-izer/README.md`.
-
----
-
 ### CARD-0071 · [idea] [personal] Emergency Access preparation
 **Notes:** Raised 2026-07-17, split out from CARD-0034's closure. Covers the "both Joseph and Robin unavailable at once" gap that the rest of `digital-identity-protection-checklist.md` doesn't — since both spouses already have the RoboForm master password memorized, each already has full independent access if something happens to the other, so Emergency Access only matters for the joint-unavailability case.
 
@@ -397,7 +392,7 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 ## Build
 
 ### CARD-0081 · [idea] [hike-izer] HTML rendering, Levels 1-2 (basic styling + structured layout)
-**Notes:** Raised 2026-07-23. Current output (v1, CARD-0073) was Markdown only. Goal: improve readability and shareability via HTML rendering, built iteratively — start simple, layer in complexity over successive passes rather than one big build. Originally scoped as a 5-level iteration path in this one card; narrowed 2026-07-23 to just Levels 1-2 per Joseph's preference for shorter-running cards, with Levels 3-5 (embedded visuals, interactive, hosting) carried forward to the new **CARD-0088**.
+**Notes:** Raised 2026-07-23. Current output (v1, CARD-0073) was Markdown only. Goal: improve readability and shareability via HTML rendering, built iteratively — start simple, layer in complexity over successive passes rather than one big build. Originally scoped as a 5-level iteration path in this one card; narrowed 2026-07-23 to just Levels 1-2 per Joseph's preference for shorter-running cards, with Levels 3-5 (embedded visuals, interactive, hosting) split out to **CARD-0088**. CARD-0088 was itself narrowed 2026-07-24 after its embedded-visuals/interactive scope turned out to be pure duplicate of CARD-0082 (visuals) and CARD-0084 (photos) — it now covers only hosting.
 
 **Scope (this card):**
 1. **Basic styling** — real typography, readable width, light/dark support via CSS custom properties + `@media (prefers-color-scheme: dark)` (same convention as `core/logging/log_server.py`'s `_KANBAN_TEMPLATE`, no new dependency — no Markdown→HTML library exists anywhere in this repo). Same content as the `.md` output, just legible and presentable.
@@ -413,7 +408,7 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 - `hike-izer/summaries/2026-06-18_hike-summary.html` — confirmed-hike day, full stat row (2.0mi, 112ft, 68.3min), light-mode colors correct, dark-mode CSS-variable cascade confirmed correct across body/stat-cards/tables, mobile breakpoint rule (`@media max-width:640px`, 4→2 columns) confirmed present and correct in the parsed stylesheet.
 - `hike-izer/summaries/2026-07-23_hike-summary.html` — `hike_confirmed: false` day, Distance/Elevation Gain correctly render as styled "not available" (muted italic) while Date/Duration still show real values, GPS-confirmation callout renders, all 19 observation rows present.
 
-**Related:** CARD-0088 (Levels 3-5 — successor, embedded visuals/interactive/hosting), CARD-0073 (Hike-izer v1, Done), CARD-0082 (Visual track + elevation graphic — sibling card).
+**Related:** CARD-0088 (HTML output hosting — the one remaining piece of the original Levels 3-5 scope, narrowed), CARD-0082 (Visual track + elevation graphic — owns embedded-visuals/interactive scope directly), CARD-0084 (Photo integration — owns photo scope directly), CARD-0073 (Hike-izer v1, Done).
 
 ---
 

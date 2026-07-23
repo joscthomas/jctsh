@@ -16,6 +16,87 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0084 · [idea] [hike-izer] Photo integration (Immich)
+**Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature rather than a batched release item. Pull in photos taken during a hike, matched via `photo-server`'s Immich API to a confirmed hike's date/time range and GPS bounding box.
+
+**Blocking dependency (carried over from CARD-0074):** needs a fresh, confirmed-good real hiking dataset to build and verify against — same requirement as the other split-out cards below. V1's only good test data came from the June 15 trip; a later run found the hiking-monitor device producing zero readings despite real activity happening, so getting the device back into confirmed-working rotation comes first.
+
+**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (superseded — see that card for the original v2 batch this was split from), `components/hike-izer/fetch_hike_data.py`.
+
+---
+
+### CARD-0085 · [idea] [hike-izer] Hiker's own compass/heading
+**Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature. Real gap, not just missing analysis: v1 only computes the *sun's* compass direction from pure astronomy — nothing currently captures which way the hiker was actually facing at any point on the route. Needs new instrumentation (e.g. a magnetometer/compass sensor added to the hiking-monitor hardware) or a different data source entirely — this is likely a hardware-scope card, not a pure software one, and may tie into hiking-monitor's own build cards once scoped.
+
+**Blocking dependency (carried over from CARD-0074):** needs a fresh, confirmed-good real hiking dataset to build and verify against — hiking-monitor device must be back in confirmed-working rotation first (see CARD-0084 for the same note).
+
+**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (superseded), `components/hike-izer/fetch_hike_data.py`.
+
+---
+
+### CARD-0086 · [idea] [hike-izer] Automatic triggering
+**Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature. V1 is on-demand only (Joseph explicitly invokes a summary for a specific hike). This card is about detecting that a hike happened/finished and generating the summary automatically — needs a trigger mechanism decision (e.g. GPSLogger track completion, hiking-monitor's own wake/sleep pattern signaling a finished hike, a scheduled check) not yet made.
+
+**Blocking dependency (carried over from CARD-0074):** needs a fresh, confirmed-good real hiking dataset to build and verify against (see CARD-0084 for the same note).
+
+**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (superseded), `components/hike-izer/fetch_hike_data.py`.
+
+---
+
+### CARD-0083 · [idea] [hike-izer] Show the weather forecast as it stood at hike start
+**Notes:** Raised 2026-07-23. Show what the weather forecast *was* at the beginning of the hike — not a live/current forecast checked whenever the summary gets generated, and not actual observed conditions (that's already CARD-0074's separate "historical weather" item, explicitly scoped as actual-conditions lookup, not forecast).
+
+**Feasibility issue found and resolved by scoping decision:** historical forecasts generally aren't retrievable after the fact — weather services archive what actually happened, not what was predicted at some past moment, unless something captured that specific forecast snapshot at the time. Confirmed 2026-07-23: this card is scoped for **future hikes only**, captured live at hike start — not retroactive for hikes already recorded. No existing weather-fetch integration to build on: JCTsh's current Weather Underground integration (`core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`) only *posts* the household's own sensor data outward to WU, it doesn't pull forecast data in — this is a new integration either way.
+
+**Content scope (confirmed 2026-07-23):** full detail — temperature, precipitation chance, wind, humidity, and UV index. Not just a one-line summary.
+
+**Provider — not yet decided, no existing preference to constrain it.** Candidates to evaluate when this is picked up:
+- **National Weather Service API (api.weather.gov)** — free, no API key, US-only (fine, all current hikes are US-based). Covers temp/wind/precip. **Does not include UV index** — would need a second source for that piece specifically if NWS is chosen.
+- **OpenWeatherMap (One Call API)** — free tier available, needs an API key, covers temp/precip/wind/humidity/UV all in a single call — matches the full-detail scope without needing a second provider for UV.
+
+**Capture mechanism — open implementation question, not yet resolved.** "Captured live at hike start" needs *something* to trigger the forecast fetch at the right moment and persist it somewhere `fetch_hike_data.py` can read. Candidates: a Tasker action (matching the existing Tasker → Sheets pattern from CARD-0007's hiking observations pipeline) fired when GPSLogger starts, or a Node-RED handler triggered off the same signal — per the architecture doc's existing principle that Node-RED owns all external HTTP calls, not the ESP32 devices themselves. Needs a real decision before building, not just picking whichever seems easiest at the time.
+
+**Related:** CARD-0074 (Hike-izer v2 — sibling "historical weather" i.e. actual-conditions item lives there, not here), CARD-0007 (hiking observations pipeline, Tasker → Sheets precedent), `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `components/hike-izer/fetch_hike_data.py`.
+
+---
+
+### CARD-0082 · [idea] [hike-izer] Visual track + elevation graphic, Gaia-GPS-style
+**Notes:** Raised 2026-07-23. Add a visual graphic depicting the hike route and elevation profile, in the style of Gaia GPS's track view — route line plotted over a real topo/satellite basemap, paired with a distance-vs-elevation chart. **Deliberately kept separate from CARD-0081** (HTML rendering) despite real overlap with that card's Level 3 — this is scoped as its own artifact so it can potentially be embedded as a static image in the *current* Markdown output too, not gated on CARD-0081's HTML work landing first.
+
+**Target experience (end goal):** route line + elevation profile shown together, with interactive sync between them — hovering the elevation chart highlights the matching point on the map, matching Gaia GPS's actual behavior.
+
+**Iteration path (agreed 2026-07-23):**
+1. **Static image, real basemap** — starting point. A single PNG (or similar) with the GPS route plotted over an actual topo/satellite basemap, plus a separate (not yet linked) elevation profile chart. Embeddable in Markdown output today via standard image syntax, independent of CARD-0081's progress.
+2. **Interactive, hover-synced** — the real Gaia GPS experience (map ↔ elevation profile linked via hover/scroll). This requires JS/HTML, so naturally becomes an embed within CARD-0081's HTML output once that exists rather than a standalone file.
+3. **Event markers** (added 2026-07-23) — drop markers on the map for photos, hike observations, and other timestamped/geotagged events (bird sightings once CARD-0080 lands are an explicitly confirmed case, not just a hypothetical). Design the marker system generically/extensibly rather than hardcoding a fixed list of event types — whatever ends up timestamped and geotagged in the pipeline should be markerable, not just the types known today. Markers for photos specifically are blocked on CARD-0084 (photo integration, not yet built) — the marker mechanism itself doesn't have to wait, but that particular marker type has nothing to plot until photo data exists.
+
+**Basemap decision (agreed 2026-07-23):** a real topo/satellite basemap is required even for the first (static) iteration — not deferred. Candidate tile providers to evaluate when this is picked up (none confirmed yet):
+- **OpenStreetMap tiles** — free, no API key, but subject to OSM's tile usage policy (fine for personal/low-volume use, not for heavy automation); would need a stitching library (e.g. Python `staticmap`) to render tiles + route overlay into one image.
+- **Thunderforest "Outdoors" style** — topo/contour styling closest to Gaia GPS's actual look; free tier for personal/hobby use, needs an API key.
+- **Mapbox Static Images API** — flexible styling, needs an API key, has a free tier (verify current terms/limits at implementation time, not assumed here).
+
+**Data source:** existing GPS track pipeline (GPSLogger → GPS Track sheet, already wired into `components/hike-izer/fetch_hike_data.py`) — no new data collection needed, this is purely a new rendering of data hike-izer already has.
+
+**Related:** CARD-0081 (HTML rendering — sibling card, Level 2 of this card naturally lands as an embed there), CARD-0084 (Photos — blocks the photo-marker case of Level 3), CARD-0080 (Bird ID — confirmed marker case of Level 3), CARD-0073 (Hike-izer v1, Done), `components/hike-izer/fetch_hike_data.py`.
+
+---
+
+### CARD-0081 · [idea] [hike-izer] HTML rendering, iterative from basic to rich
+**Notes:** Raised 2026-07-23. Current output (v1, CARD-0073) is Markdown only. Goal: improve readability and shareability with others via HTML rendering, built iteratively — start simple, layer in complexity over successive passes rather than one big build. Overlaps with CARD-0074 (Hike-izer v2)'s existing "Rendered web page output" deferred item, but **kept standalone** — substantial enough to warrant its own multi-iteration thread rather than a single line item there.
+
+**Iteration path (simplest → most complex), agreed 2026-07-23:**
+1. **Basic styling (starting point)** — not bare Markdown→HTML conversion (which barely improves on Markdown itself), but real typography, readable width, light/dark support. Same content as today's `.md` output, just legible and presentable. Follows the existing code/output separation convention (`components/hike-izer/README.md`) — output alongside the Markdown in `hike-izer/summaries/`.
+2. **Structured layout** — move from "styled Markdown" to an actual template: a stat row up top (distance, elevation, duration, date) before the narrative, distinct sections for weather/observations/etc.
+3. **Embedded visuals** — GPS route as an embedded map, charts for sensor data over the hike duration. Candidate to eventually absorb CARD-0020 (Looker Studio dashboard) instead of that staying a separate external link.
+4. **Interactive** — clickable/scrubbable map-timeline, embedded photos (once Hike-izer's photo integration exists — CARD-0074), maybe a presentation mode.
+5. **Actually shareable (hosting)** — publish somewhere with a real URL instead of emailing an HTML file as an attachment.
+
+**Hosting (Level 5) — decided direction, real constraint found:** Joseph wants to reuse an existing asset rather than pay for new hosting — a domain (believed to be `jctnet.com`, not yet confirmed exact spelling) already pointed at **Google Sites**. Found during scoping: the current ("new") Google Sites has no solid API for programmatic publishing — getting generated HTML onto it will likely mean a manual copy/paste or embed step each time a summary is published, not something Hike-izer's pipeline can push automatically. Confirm the exact domain/Sites setup before starting Level 5 work; may be worth revisiting the "no paid hosting" constraint if the manual-publish friction turns out to be worse than expected in practice.
+
+**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (Hike-izer v2 — separate deferred-items list, this card's sibling not its parent), CARD-0020 (Looker Studio dashboard — candidate to fold into Level 3), `components/hike-izer/README.md`.
+
+---
+
 ### CARD-0080 · [idea] [hike-izer] Integrate bird species identified via Merlin Sound ID
 **Notes:** Raised 2026-07-23. Joseph has been using Cornell Lab's Merlin Bird ID app (Sound ID feature — real-time audio-based species identification, 2000+ species) while hiking and wants that data folded into Hike-izer's narrative summaries, correlated with GPS location and time on the route (e.g. "heard a Canyon Wren near the summit around 2pm") — same treatment the existing GPS track and Environmental Data sources already get, not just a flat species list.
 
@@ -202,19 +283,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 
 ## Planning
-
-### CARD-0074 · [idea] [hike-izer] Hike-izer Version 2
-**Notes:** Raised 2026-07-18, split out from CARD-0073's closure (v1 done). Carries forward the items v1 explicitly deferred, not forgotten:
-
-- **Photos** — Immich integration (`photo-server`) unbuilt; would need an API query matched to a confirmed hike's date/time range and GPS bounding box.
-- **Historical weather** — no source picked yet. Note: for a past hike, this means an actual-conditions lookup, not a live forecast.
-- **Hiker's own compass/heading** — still a real gap; no sensor captures which way the hiker was facing (v1 only computes the *sun's* compass direction, from pure astronomy). Would need new instrumentation or a different data source, not just more analysis.
-- **Automatic triggering** — v1 is on-demand only.
-- **Rendered web page output** — v1 is Markdown only; if this happens, output goes in `hike-izer/summaries/` alongside the Markdown, per the code/output separation already established (`components/hike-izer/README.md`).
-
-**Blocking dependency: the hiking-monitor device needs to be operational.** V1's real test data came from the June 15 trip (June 17/18 hikes) — that's the only confirmed-good dataset that exists. The 2026-07-18 run found the device producing **zero** Environmental Data readings that day despite real observations/GPS activity happening (see CARD-0073's resolution) — status unconfirmed: deployed? charged? powered on? V2 needs fresh real hiking data to build and verify against, the same way v1 was built against real data rather than assumptions — so getting the device back in active, confirmed-working rotation is a prerequisite, not a parallel task.
-
-**Related:** CARD-0073 (v1, Done) for the full build history and what's already working; `components/hike-izer/README.md`, `.claude/skills/hike-izer/SKILL.md`, `components/hike-izer/fetch_hike_data.py`.
 
 ---
 
@@ -1279,6 +1347,23 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 ---
 
 ## Defer
+
+### CARD-0074 · [idea] [hike-izer] Hike-izer Version 2 — SUPERSEDED, split into individual feature cards
+**Superseded 2026-07-23:** Joseph decided to move away from batching features into a versioned release after v1 — feature-driven instead, each item tracked as its own card. Split as follows: **Photos** → CARD-0084, **Hiker's own compass/heading** → CARD-0085, **Automatic triggering** → CARD-0086. **Historical weather** dropped entirely (not carried into any new card — distinct from CARD-0083, which covers forecast-at-hike-start, not actual-conditions history). **Rendered web page output** already covered by CARD-0081 (filed independently, same day, before this split happened). Kept here for the original batch's context and reasoning; the "Version 2" grouping concept itself is retired, not just this card.
+
+**Notes:** Raised 2026-07-18, split out from CARD-0073's closure (v1 done). Carried forward the items v1 explicitly deferred, not forgotten:
+
+- **Photos** — Immich integration (`photo-server`) unbuilt; would need an API query matched to a confirmed hike's date/time range and GPS bounding box.
+- **Historical weather** — no source picked yet. Note: for a past hike, this means an actual-conditions lookup, not a live forecast.
+- **Hiker's own compass/heading** — still a real gap; no sensor captures which way the hiker was facing (v1 only computes the *sun's* compass direction, from pure astronomy). Would need new instrumentation or a different data source, not just more analysis.
+- **Automatic triggering** — v1 is on-demand only.
+- **Rendered web page output** — v1 is Markdown only; if this happens, output goes in `hike-izer/summaries/` alongside the Markdown, per the code/output separation already established (`components/hike-izer/README.md`).
+
+**Blocking dependency: the hiking-monitor device needs to be operational.** V1's real test data came from the June 15 trip (June 17/18 hikes) — that's the only confirmed-good dataset that exists. The 2026-07-18 run found the device producing **zero** Environmental Data readings that day despite real observations/GPS activity happening (see CARD-0073's resolution) — status unconfirmed: deployed? charged? powered on? Carried forward individually into each split-out card above, since each still needs fresh real hiking data to build and verify against.
+
+**Related:** CARD-0073 (v1, Done) for the full build history and what's already working; `components/hike-izer/README.md`, `.claude/skills/hike-izer/SKILL.md`, `components/hike-izer/fetch_hike_data.py`.
+
+---
 
 ### CARD-0027 · [idea] [hiking-monitor] GPIO-controlled power gating for I2C peripherals during sleep — SUPERSEDED by CARD-0070
 **Superseded 2026-07-17:** folded into CARD-0070 (LDO swap), which now covers both the boost-to-LDO replacement and this card's peripheral power-gating idea as one combined power redesign — see CARD-0070 for the current part choice (BS250), wiring plan, and status. Kept here for the original observation and P-FET background reference.

@@ -25,17 +25,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0084 · [idea] [hike-izer] Photo integration (Immich)
-**Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature rather than a batched release item. Pull in photos taken during a hike, matched via `photo-server`'s Immich API to a confirmed hike's date/time range and GPS bounding box.
-
-**Actual data dependency (corrected 2026-07-24 — not what CARD-0074 originally said):** CARD-0074's blanket blocker note ("hiking-monitor device needs to be operational") was carried into this card mechanically without checking whether it actually applies. It doesn't: this feature needs (1) a confirmed hike time window — which comes from GPS Track/GPSLogger (phone-based), entirely independent of the hiking-monitor ESP32 device, confirmed working independently by CARD-0087 — and (2) real photos in Immich falling within that window. The hiking-monitor device only produces Environmental Data (temp/humidity/pressure/UV/battery/altitude), which this feature doesn't touch at all.
-
-**Test dataset confirmed available (2026-07-24):** queried Immich's `search/metadata` API (Joseph's account) directly against both confirmed-hike windows from June's trip — **9 real photos** land within the 2026-06-18 hike (14:46–15:55 UTC), **2 more** near the tail of the 2026-06-17 evening hike (23:51–02:59 UTC). All have correct `dateTimeOriginal` and real GPS EXIF (e.g. 33.183689, -107.209758 — Elephant Butte, NM), confirmed via a direct asset fetch. No blocker remains — this is buildable and verifiable right now.
-
-**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (superseded — see that card for the original v2 batch this was split from), `components/hike-izer/fetch_hike_data.py`.
-
----
-
 ### CARD-0085 · [idea] [hike-izer] Hiker's own compass/heading
 **Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature. Real gap, not just missing analysis: v1 only computes the *sun's* compass direction from pure astronomy — nothing currently captures which way the hiker was actually facing at any point on the route. Needs new instrumentation (e.g. a magnetometer/compass sensor added to the hiking-monitor hardware) or a different data source entirely — this is likely a hardware-scope card, not a pure software one, and may tie into hiking-monitor's own build cards once scoped.
 
@@ -263,6 +252,27 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 
 ## Planning
+
+---
+
+### CARD-0084 · [idea] [hike-izer] Photo integration (Immich)
+**Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature rather than a batched release item. Pull in photos taken during a hike, matched via `photo-server`'s Immich API to a confirmed hike's date/time range and GPS bounding box.
+
+**Actual data dependency (corrected 2026-07-24 — not what CARD-0074 originally said):** CARD-0074's blanket blocker note ("hiking-monitor device needs to be operational") was carried into this card mechanically without checking whether it actually applies. It doesn't: this feature needs (1) a confirmed hike time window — which comes from GPS Track/GPSLogger (phone-based), entirely independent of the hiking-monitor ESP32 device, confirmed working independently by CARD-0087 — and (2) real photos in Immich falling within that window. The hiking-monitor device only produces Environmental Data (temp/humidity/pressure/UV/battery/altitude), which this feature doesn't touch at all.
+
+**Test dataset confirmed available (2026-07-24):** queried Immich's `search/metadata` API (Joseph's account) directly against both confirmed-hike windows from June's trip — **9 real photos** land within the 2026-06-18 hike (14:46–15:55 UTC), **2 more** near the tail of the 2026-06-17 evening hike (23:51–02:59 UTC). All have correct `dateTimeOriginal` and real GPS EXIF (e.g. 33.183689, -107.209758 — Elephant Butte, NM), confirmed via a direct asset fetch. No blocker remains — this is buildable and verifiable right now.
+
+**Scope, decided 2026-07-24 (interview before build):**
+- **Matching:** time range (confirmed hike's start/end) AND GPS bounding box (hike's tracked route min/max lat/lon, expanded by a ~100m buffer for GPS drift + reasonable off-trail wandering) — both conditions required, not time alone.
+- **Account:** Joseph's Immich account only (`joscthomas@gmail.com`), not Robin's.
+- **Media types:** images and videos both included.
+- **Curation:** fully automatic — every asset matching time+location criteria gets included, no manual review/approval step (consistent with how every other Hike-izer data source already works).
+- **Output surface:** HTML only (CARD-0081's output) — the Markdown stays text-only as today; no photo references added there.
+- **Display:** a thumbnail gallery in the HTML, each thumbnail clickable/linking to the full-resolution original.
+- **Image storage/hosting:** extracted and downloaded locally at generation time (thumbnail + full-res per asset) into a directory alongside the HTML output — not linked directly to Immich's API (which requires an auth header no plain `<img>` tag can send) and not using Immich Shared Links (would make the page depend on photo-server staying reachable from wherever it's viewed, relevant given CARD-0088's future hosting plans). Self-contained output was preferred over avoiding duplication.
+- **Git tracking:** the extracted media files themselves are gitignored (like `secrets.yaml`) — only the HTML/Markdown summaries stay tracked in git, to avoid unbounded repo growth from binary media; Immich remains the real source of truth/backup for the photos.
+
+**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (superseded — see that card for the original v2 batch this was split from), CARD-0081 (HTML output this embeds into), CARD-0088 (hosting — relevant to the self-contained-storage decision above), `components/hike-izer/fetch_hike_data.py`.
 
 ---
 

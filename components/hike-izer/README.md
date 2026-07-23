@@ -11,6 +11,8 @@ section that doubles as a health check on the whole hiking-monitor pipeline.
 styled HTML rendering of the same content (basic styling + structured stat-row
 layout) was added under **CARD-0081**; further HTML levels (embedded
 maps/charts, interactivity, hosting) are tracked separately as **CARD-0088**.
+Photo/video integration (Immich, HTML-only, time-range matching) is
+**CARD-0084**.
 
 ---
 
@@ -23,14 +25,16 @@ Hike-izer's files are deliberately split across three locations:
 | The Skill itself (invokable instructions) | `.claude/skills/hike-izer/SKILL.md` | Claude Code only discovers/invokes skills from `.claude/skills/*/SKILL.md` — it can't live anywhere else. |
 | Code (data fetch, coverage math, sun-position calc) | `components/hike-izer/fetch_hike_data.py` | Matches every other JCTsh component's convention — code and docs for a component live under `components/<name>/`. |
 | HTML presentation template (CSS + structure reference, CARD-0081) | `components/hike-izer/html-template.html` | Static boilerplate the Skill copies from each run — kept with the code, not the output, since it doesn't change per hike. |
+| Photo/video fetcher (Immich, CARD-0084) | `components/hike-izer/fetch_hike_photos.py` | Same code/output split as `fetch_hike_data.py` — reads that script's JSON output, matches Immich assets by time range, downloads media. |
 | Generated output (one Markdown + one HTML file per hike) | `hike-izer/summaries/` (top-level, sibling to `components/`) | Kept separate from source code on purpose. |
+| Extracted photo/video media (one `<date>_photos/` dir per hike with photos) | `hike-izer/summaries/<date>_photos/` | **Gitignored** (`hike-izer/summaries/*_photos/`) — regenerated from Immich on demand, not versioned; Immich remains the real source of truth/backup. A fresh clone won't have these files until Hike-izer is re-run for that day, so any HTML referencing them will show broken images until then — an accepted tradeoff, not a bug. |
 
 To actually run Hike-izer, invoke the Skill (`.claude/skills/hike-izer/SKILL.md`)
 with a hike date or date range — it handles reading credentials, calling
-`fetch_hike_data.py`, and writing the narrative (both Markdown and HTML)
-itself. Don't run `fetch_hike_data.py` standalone expecting a finished
-summary; it only produces the structured JSON the Skill's narrative-writing
-step consumes.
+`fetch_hike_data.py` and `fetch_hike_photos.py`, and writing the narrative
+(both Markdown and HTML) itself. Don't run either script standalone expecting
+a finished summary; they only produce the structured data the Skill's
+narrative-writing step consumes.
 
 ---
 

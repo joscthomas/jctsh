@@ -255,27 +255,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0084 · [idea] [hike-izer] Photo integration (Immich)
-**Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature rather than a batched release item. Pull in photos taken during a hike, matched via `photo-server`'s Immich API to a confirmed hike's date/time range and GPS bounding box.
-
-**Actual data dependency (corrected 2026-07-24 — not what CARD-0074 originally said):** CARD-0074's blanket blocker note ("hiking-monitor device needs to be operational") was carried into this card mechanically without checking whether it actually applies. It doesn't: this feature needs (1) a confirmed hike time window — which comes from GPS Track/GPSLogger (phone-based), entirely independent of the hiking-monitor ESP32 device, confirmed working independently by CARD-0087 — and (2) real photos in Immich falling within that window. The hiking-monitor device only produces Environmental Data (temp/humidity/pressure/UV/battery/altitude), which this feature doesn't touch at all.
-
-**Test dataset confirmed available (2026-07-24):** queried Immich's `search/metadata` API (Joseph's account) directly against both confirmed-hike windows from June's trip — **9 real photos** land within the 2026-06-18 hike (14:46–15:55 UTC), **2 more** near the tail of the 2026-06-17 evening hike (23:51–02:59 UTC). All have correct `dateTimeOriginal` and real GPS EXIF (e.g. 33.183689, -107.209758 — Elephant Butte, NM), confirmed via a direct asset fetch. No blocker remains — this is buildable and verifiable right now.
-
-**Scope, decided 2026-07-24 (interview before build):**
-- **Matching:** time range (confirmed hike's start/end) AND GPS bounding box (hike's tracked route min/max lat/lon, expanded by a ~100m buffer for GPS drift + reasonable off-trail wandering) — both conditions required, not time alone.
-- **Account:** Joseph's Immich account only (`joscthomas@gmail.com`), not Robin's.
-- **Media types:** images and videos both included.
-- **Curation:** fully automatic — every asset matching time+location criteria gets included, no manual review/approval step (consistent with how every other Hike-izer data source already works).
-- **Output surface:** HTML only (CARD-0081's output) — the Markdown stays text-only as today; no photo references added there.
-- **Display:** a thumbnail gallery in the HTML, each thumbnail clickable/linking to the full-resolution original.
-- **Image storage/hosting:** extracted and downloaded locally at generation time (thumbnail + full-res per asset) into a directory alongside the HTML output — not linked directly to Immich's API (which requires an auth header no plain `<img>` tag can send) and not using Immich Shared Links (would make the page depend on photo-server staying reachable from wherever it's viewed, relevant given CARD-0088's future hosting plans). Self-contained output was preferred over avoiding duplication.
-- **Git tracking:** the extracted media files themselves are gitignored (like `secrets.yaml`) — only the HTML/Markdown summaries stay tracked in git, to avoid unbounded repo growth from binary media; Immich remains the real source of truth/backup for the photos.
-
-**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (superseded — see that card for the original v2 batch this was split from), CARD-0081 (HTML output this embeds into), CARD-0088 (hosting — relevant to the self-contained-storage decision above), `components/hike-izer/fetch_hike_data.py`.
-
----
-
 ### CARD-0071 · [idea] [personal] Emergency Access preparation
 **Notes:** Raised 2026-07-17, split out from CARD-0034's closure. Covers the "both Joseph and Robin unavailable at once" gap that the rest of `digital-identity-protection-checklist.md` doesn't — since both spouses already have the RoboForm master password memorized, each already has full independent access if something happens to the other, so Emergency Access only matters for the joint-unavailability case.
 
@@ -402,6 +381,44 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 ---
 
 ## Build
+
+---
+
+### CARD-0084 · [idea] [hike-izer] Photo integration (Immich)
+**Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature rather than a batched release item. Pull in photos taken during a hike, matched via `photo-server`'s Immich API to a confirmed hike's date/time range.
+
+**Actual data dependency (corrected 2026-07-24 — not what CARD-0074 originally said):** CARD-0074's blanket blocker note ("hiking-monitor device needs to be operational") was carried into this card mechanically without checking whether it actually applies. It doesn't: this feature needs (1) a confirmed hike time window — which comes from GPS Track/GPSLogger (phone-based), entirely independent of the hiking-monitor ESP32 device, confirmed working independently by CARD-0087 — and (2) real photos in Immich falling within that window. The hiking-monitor device only produces Environmental Data (temp/humidity/pressure/UV/battery/altitude), which this feature doesn't touch at all.
+
+**Test dataset confirmed available (2026-07-24):** queried Immich's `search/metadata` API (Joseph's account) directly against both confirmed-hike windows from June's trip — **9 real photos** land within the 2026-06-18 hike (14:46–15:55 UTC), **2 more** near the tail of the 2026-06-17 evening hike (23:51–02:59 UTC). All have correct `dateTimeOriginal` and real GPS EXIF, confirmed via a direct asset fetch. No blocker remains — this is buildable and verifiable right now.
+
+**Scope, decided 2026-07-24 (interview before build):**
+- **Matching:** time range only (each `is_hike` session's own start/end, queried separately per session — not merged into one enclosing span) — **not** GPS bounding box, changed during implementation planning. Reasoning: the time window already comes from the real GPS-confirmed session; if Joseph is out hiking and takes a photo inside that exact window, it was taken during the hike by definition. A bounding-box check only guards against a mismatch that mostly can't happen here, and has a real downside — it would silently drop legitimate hike photos lacking GPS EXIF (location services off, etc.).
+- **Account:** Joseph's Immich account only (`joscthomas@gmail.com`), not Robin's.
+- **Media types:** images and videos both included.
+- **Curation:** fully automatic — every asset matching time criteria gets included, no manual review/approval step (consistent with how every other Hike-izer data source already works).
+- **Output surface:** HTML only (CARD-0081's output) — the Markdown stays text-only as today; no photo references added there.
+- **Display:** a thumbnail gallery in the HTML, each thumbnail clickable/linking to the full-resolution original.
+- **Image storage/hosting:** extracted and downloaded locally at generation time (thumbnail + full-res per asset) into a directory alongside the HTML output — not linked directly to Immich's API (which requires an auth header no plain `<img>` tag can send) and not using Immich Shared Links (would make the page depend on photo-server staying reachable from wherever it's viewed, relevant given CARD-0088's future hosting plans). Self-contained output was preferred over avoiding duplication.
+- **Git tracking:** the extracted media files themselves are gitignored (like `secrets.yaml`) — only the HTML/Markdown summaries stay tracked in git, to avoid unbounded repo growth from binary media; Immich remains the real source of truth/backup for the photos.
+
+**Implementation (2026-07-24):**
+- `components/hike-izer/fetch_hike_photos.py` (new) — mirrors `fetch_hike_data.py`'s conventions (argparse, stdlib `urllib`, stderr progress, one JSON output). Reads a day's `hike_data.json`, queries Immich `POST /api/search/metadata` (`takenAfter`/`takenBefore`, `withExif: true`, paginated) **separately per `is_hike` session** (not merged into one span — see bug fixed below), downloads `thumbnail?size=preview` + `original` per non-trashed match into an output dir, writes `manifest.json` for the HTML-authoring step to consume.
+- `components/hike-izer/html-template.html` — new Photos gallery section (CSS grid, `auto-fill`/`minmax` so it reflows responsively with no extra breakpoint needed, plain link-to-original click-through, no JS lightbox), placed after Full Observations Log, before the Coverage section. Omitted entirely when the manifest is empty.
+- `.claude/skills/hike-izer/SKILL.md` — new step wiring the script into the existing HTML-generation flow, including the cross-midnight curation caveat below.
+- `.gitignore` — `hike-izer/summaries/*_photos/` (media stays local-only, HTML/Markdown stay tracked).
+- `components/hike-izer/README.md` — file listing update.
+
+**Real bug caught and fixed during verification (2026-07-24):** first implementation collapsed every `is_hike` session's window into one enclosing start-to-end span before querying Immich. On 2026-06-18 this pulled in 2 unrelated photos from ~12 hours before the real hike (from the query day's own leftover cross-midnight session fragment) alongside the 9 real ones — a real correctness bug, not the intended cross-midnight caveat. Fixed by querying each session's own window separately and merging results (deduped by asset ID). Re-verified: 2026-06-18 now correctly returns exactly the 9 real daytime-hike photos.
+
+**Cross-midnight caveat (real, inherent, not a bug — same edge case as this doc's day-scoping rule):** confirmed via a proper wide-window fetch (spanning 2026-06-17 into 2026-06-18) that the two 02:50-02:51 UTC photos are the tail of the *real* June 17 evening hike (23:51 UTC start — 4:51 PM MST local, an ordinary evening hike, not a night hike; "midnight" here is the UTC/MST offset, not local midnight), correctly split from the 9 June-18-daytime photos once sessions are queried by their true (non-truncated) start/end. `fetch_hike_photos.py` can't resolve this on its own from a single day's data (documented in its own docstring); SKILL.md instructs the same manual per-day curation already applied to CARD-0081's `distance_mi` on such days.
+
+**Verified end-to-end (2026-07-24):**
+- Real run against 2026-06-18: 9 real photos downloaded, added to a real gallery in `2026-06-18_hike-summary.html`, opened in Chrome — all 9 load correctly (confirmed real image bytes, not broken links), light-mode and dark-mode CSS-variable cascade both correct on the new `.photo-item`/`.photo-grid` rules, click-through to full-res confirmed reachable (200), correct section placement.
+- Real run against the wide 2026-06-17→18 window: confirmed the two sessions' assets split correctly (2 vs. 9, zero cross-contamination) at the manifest level.
+- `hike_confirmed: false` path: confirmed the script exits early with an empty manifest **without calling Immich at all**, and confirmed the real `2026-07-23_hike-summary.html` has zero "Photos" section, as intended.
+- `.gitignore`: confirmed via `git status` that neither `2026-06-18_photos/` nor `2026-06-17_photos/` shows as untracked/stageable — the pattern is working.
+
+**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (superseded — see that card for the original v2 batch this was split from), CARD-0081 (HTML output this embeds into), CARD-0088 (hosting — relevant to the self-contained-storage decision above), `components/hike-izer/fetch_hike_data.py`.
 
 ---
 

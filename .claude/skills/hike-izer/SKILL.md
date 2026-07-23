@@ -182,9 +182,49 @@ the pattern (written before this classification logic existed, but the same
    hover-sync, hosting) are **out of scope here** -- tracked separately on
    `kanban-board.md` as CARD-0088.
 
+7. **Fetch and embed photos/videos (CARD-0084).** Read Joseph's Immich API
+   key from `credentials.local.md` ("Immich (Docker, on photo-server)" --
+   Joseph's key, not Robin's) and the Immich Web UI URL from the same
+   section. Run:
+
+   ```
+   python components/hike-izer/fetch_hike_photos.py \
+     --data <scratch path>/hike_data.json \
+     --immich-url <Immich Web UI URL> --immich-key <Joseph's API key> \
+     --out-dir hike-izer/summaries/<start-date>_photos
+   ```
+
+   This queries each `is_hike`-confirmed session's own time window
+   separately and matches Immich assets by timestamp only -- **no GPS
+   bounding-box filter.** The hike's time window already comes from the real
+   GPS-confirmed session, so any photo Joseph takes inside it was taken
+   during the hike by definition; a location filter would only risk dropping
+   legitimate photos that lack GPS EXIF (location services off, etc.). It
+   writes a `manifest.json` in the output directory listing every matched
+   asset alongside the thumbnail and full-resolution files it downloaded.
+
+   **Cross-midnight caveat -- same edge case as this doc's day-scoping rule
+   above:** a session can appear to "start" right at a query day's midnight
+   boundary (e.g. `00:00:03`) while actually being the tail of a hike that
+   started the evening before -- the script can't detect this on its own
+   (see `fetch_hike_photos.py`'s docstring). Apply the same judgment already
+   used for that day's stats: if adjacent-day context (e.g. a same-trip
+   evening hike the day before) shows a manifest entry actually belongs to a
+   different day, exclude it from the gallery by hand rather than including
+   it uncritically.
+
+   Read `manifest.json`. If it has zero assets (no confirmed hike, no
+   Immich matches, or the fetch step failed/Immich was unreachable), **omit
+   the Photos section from the HTML entirely** -- same "not available"
+   philosophy as the stat row, no empty gallery scaffolding. Otherwise, add
+   the Photos section to the HTML per `html-template.html`'s gallery markup
+   (one `.photo-item` per manifest entry, `<img>` for `type: IMAGE`, `<video>`
+   for `type: VIDEO`, paths relative to the HTML file pointing into the
+   sibling `<date>_photos/` directory). This step never touches the
+   Markdown output -- photos are HTML-only, per CARD-0084's decided scope.
+
 ## Explicitly out of scope for v1 (deferred -- see CARD-0073)
 
-- Photos (Immich integration not built)
 - Live/historical weather API (no source picked)
 - Compass/heading of the *hiker* -- only the sun's compass direction is computed,
   from pure astronomy, not which way the hiker was facing (not tracked by any

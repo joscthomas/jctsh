@@ -183,6 +183,28 @@
   /* Full observations table can run long -- sticky header while scrolling the page */
   .obs-table thead th { position: sticky; top: 0; }
 
+  /* Photo/video gallery (CARD-0084) -- plain click-through to full-res, no JS lightbox */
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.6rem;
+  }
+  .photo-item {
+    display: block;
+    aspect-ratio: 1 / 1;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  .photo-item img,
+  .photo-item video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
   /* Pipeline health / coverage -- visually set apart as a diagnostic aside */
   .coverage-panel {
     background: var(--surface-2);
@@ -282,6 +304,29 @@
         <tr><td>{{TIME}}</td><td>{{OBSERVATION_TEXT}}</td><td>{{CATEGORIES}}</td></tr>
       </tbody>
     </table>
+  </section>
+
+  <!--
+    Photos (CARD-0084) -- only present when
+    hike-izer/summaries/<date>_photos/manifest.json has at least one asset.
+    Omit this whole <section> entirely when the manifest's "assets" array is
+    empty (no confirmed hike, no Immich matches, or the fetch step failed) --
+    no empty gallery scaffolding, same "not available" philosophy as the stat
+    row above. One .photo-item per manifest entry, in the manifest's order:
+      IMAGE -> <a href="<photos-dir>/<original>"><img src="<photos-dir>/<thumb>"></a>
+      VIDEO -> <a href="<photos-dir>/<original>"><video src="<photos-dir>/<original>"
+                 poster="<photos-dir>/<thumb>" muted></video></a>
+    Paths are relative to the HTML file, pointing into the sibling
+    <date>_photos/ directory fetch_hike_photos.py wrote (gitignored -- see
+    .gitignore and this component's README for why).
+  -->
+  <section>
+    <h2>Photos</h2>
+    <div class="photo-grid">
+      <a class="photo-item" href="{{PHOTOS_DIR}}/{{ORIGINAL_FILENAME}}">
+        <img src="{{PHOTOS_DIR}}/{{THUMB_FILENAME}}" alt="" loading="lazy">
+      </a>
+    </div>
   </section>
 
   <section>

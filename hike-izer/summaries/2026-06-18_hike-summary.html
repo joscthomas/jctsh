@@ -157,6 +157,27 @@
 
   .obs-table thead th { position: sticky; top: 0; }
 
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.6rem;
+  }
+  .photo-item {
+    display: block;
+    aspect-ratio: 1 / 1;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  .photo-item img,
+  .photo-item video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
   .coverage-panel {
     background: var(--surface-2);
     border: 1px solid var(--line-strong);
@@ -239,6 +260,21 @@
         <tr><td>15:55</td><td>46.4°</td><td>E</td><td>Yes</td></tr>
       </tbody>
     </table>
+  </section>
+
+  <section>
+    <h2>Photos</h2>
+    <div class="photo-grid">
+      <a class="photo-item" href="2026-06-18_photos/bd17ec4b-e841-4f29-9855-d1f9a8588bfa_original.jpg"><img src="2026-06-18_photos/bd17ec4b-e841-4f29-9855-d1f9a8588bfa_thumb.jpg" alt="" loading="lazy"></a>
+      <a class="photo-item" href="2026-06-18_photos/c49b6a72-01d3-42c4-b332-a3be21f91790_original.jpg"><img src="2026-06-18_photos/c49b6a72-01d3-42c4-b332-a3be21f91790_thumb.jpg" alt="" loading="lazy"></a>
+      <a class="photo-item" href="2026-06-18_photos/adef292e-52c8-4e04-a7a6-69c5c85a47d3_original.jpg"><img src="2026-06-18_photos/adef292e-52c8-4e04-a7a6-69c5c85a47d3_thumb.jpg" alt="" loading="lazy"></a>
+      <a class="photo-item" href="2026-06-18_photos/2cc40dc7-cac8-461d-954a-2cc6ff671f7a_original.jpg"><img src="2026-06-18_photos/2cc40dc7-cac8-461d-954a-2cc6ff671f7a_thumb.jpg" alt="" loading="lazy"></a>
+      <a class="photo-item" href="2026-06-18_photos/52f35f56-d0bc-4893-946d-fb9e697199e7_original.jpg"><img src="2026-06-18_photos/52f35f56-d0bc-4893-946d-fb9e697199e7_thumb.jpg" alt="" loading="lazy"></a>
+      <a class="photo-item" href="2026-06-18_photos/c0c3f8d3-34c6-45cc-80a7-7f4eb863bccc_original.jpg"><img src="2026-06-18_photos/c0c3f8d3-34c6-45cc-80a7-7f4eb863bccc_thumb.jpg" alt="" loading="lazy"></a>
+      <a class="photo-item" href="2026-06-18_photos/9395863f-c503-4713-8d76-a86ea0426e1a_original.jpg"><img src="2026-06-18_photos/9395863f-c503-4713-8d76-a86ea0426e1a_thumb.jpg" alt="" loading="lazy"></a>
+      <a class="photo-item" href="2026-06-18_photos/5f25ddfc-7136-42d1-86be-5a55552eacd2_original.jpg"><img src="2026-06-18_photos/5f25ddfc-7136-42d1-86be-5a55552eacd2_thumb.jpg" alt="" loading="lazy"></a>
+      <a class="photo-item" href="2026-06-18_photos/8045c985-c7bc-4169-999d-5579854b02f7_original.jpg"><img src="2026-06-18_photos/8045c985-c7bc-4169-999d-5579854b02f7_thumb.jpg" alt="" loading="lazy"></a>
+    </div>
   </section>
 
   <section>

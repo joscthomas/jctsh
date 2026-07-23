@@ -128,6 +128,19 @@ the pattern (written before this classification logic existed, but the same
    battery voltage range, duration, observation count by category. This is where
    precise figures belong -- the narrative shouldn't need to repeat them.
 
+   **Full observations table (added 2026-07-23):** in addition to the observation
+   *count* by category above, include the complete list of that day's Hiking
+   Observations as its own table -- columns Time (local, MST, not the sheet's raw
+   UTC), Observation (the raw text as logged, don't paraphrase or clean it up),
+   and Categories (comma-joined, or an em dash if the categories array is empty).
+   One row per observation, in chronological order. This is the raw record the
+   narrative draws its color from -- the narrative interprets and weaves a
+   selection of these into a story (per the non-redundant rule above), but the
+   table is where the complete, unabridged list lives. Include this table whenever
+   `hiking_observations` is non-empty, including on the `hike_confirmed: false`
+   path -- it's exactly the kind of "other data that does exist" that path already
+   calls for reporting.
+
    **c. Expected vs. actual data coverage** -- an explicit, clearly labeled
    section (not buried in a footnote) reporting the `coverage` block from the
    fetched JSON: Environmental Data readings expected vs. actual (and coverage

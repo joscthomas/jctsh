@@ -29,6 +29,30 @@ Naturalist notes carried most of the narrative weight today. A Roadrunner made a
 | GPS trackpoints | 0 |
 | Temperature / humidity / pressure / UV / battery / elevation | not available — zero hiking-monitor sensor readings today |
 
+### Full observations log
+
+| Time (MST) | Observation | Categories |
+|---|---|---|
+| 5:45:02 AM | hiking trail tortellita preserve perimeter Trail | trail |
+| 5:54:48 AM | nice | — |
+| 5:55:03 AM | nice Christmas Cholla | — |
+| 5:55:26 AM | this log observation closes too fast | — |
+| 6:00:16 AM | how can we integrate in the Maryland bird sounds | wildlife |
+| 6:04:12 AM | I don't know what these harvester ants are collecting they look like little berries what could that be | — |
+| 6:04:26 AM | could be creosote | — |
+| 6:19:14 AM | hour and 5 minutes for the first third little slow | — |
+| 6:22:22 AM | a nice pin cushion specimen with flowers and fruit | vegetation |
+| 6:31:11 AM | Roadrunner | — |
+| 6:32:58 AM | hard to get a photo of the Roadrunner you always keep something between my eyesight and him like a bush | weather |
+| 6:35:02 AM | we get an amount of rain and the grass just springs right up | vegetation, weather |
+| 6:37:53 AM | pyro Alexia | — |
+| 6:51:23 AM | Queen of the Night | — |
+| 6:53:59 AM | halfway about an hour 40 running 10 minutes behind because I'm stopping and taking photos and talking | weather |
+| 7:00:03 AM | now these harvester ants are working the trail you can see him move in the leaves from this Palo Verity up and down | trail |
+| 7:00:23 AM | looking in the Palo Verde tree I don't see any ants but a couple of branches look like they've been stripped but I don't see any heads up in the branches | vegetation |
+| 7:49:48 AM | now there's only four cowbones at the bone place along the northern stretch | — |
+| 8:27:57 AM | end of hike | — |
+
 ## Expected vs. actual data coverage (pipeline health check)
 
 | Source | Expected | Actual | Coverage |

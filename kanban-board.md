@@ -16,6 +16,24 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0080 · [idea] [hike-izer] Integrate bird species identified via Merlin Sound ID
+**Notes:** Raised 2026-07-23. Joseph has been using Cornell Lab's Merlin Bird ID app (Sound ID feature — real-time audio-based species identification, 2000+ species) while hiking and wants that data folded into Hike-izer's narrative summaries, correlated with GPS location and time on the route (e.g. "heard a Canyon Wren near the summit around 2pm") — same treatment the existing GPS track and Environmental Data sources already get, not just a flat species list.
+
+**Data source — real options found, not yet decided (2026-07-23 research):**
+1. **eBird bulk export** — "My eBird" → Download My Data → emailed link to a zipped `MyEBirdData.csv` covering all personal observations. Manual/periodic, not automatable on a per-hike basis without extra steps.
+2. **eBird per-checklist export** — open a specific checklist → Checklist tools → Download → CSV for just that outing. More precise for matching one hike, still a manual per-hike action.
+3. **eBird API** — programmatic access via a personal API key (same credential pattern already used elsewhere in this project — Immich, Apps Script). Described as "designed for limited, recent and summary outputs," not a full data-dump API — needs a closer look at actual response shape/limits before committing to this path.
+
+**Key dependency, not yet resolved:** all three options above require Merlin's Sound ID results to actually be **submitted to eBird** as a checklist — per eBird's own Sound ID best-practices guidance, this means reviewing/confirming each AI suggestion before submitting, not just leaving them in Merlin's local in-app history. If Joseph doesn't want to participate in eBird's citizen-science submission workflow per hike, none of the above apply and this becomes **manual entry** instead (review Merlin's local session history after a hike, type/dictate species list somewhere Hike-izer can read, similar to how the hiking observations pipeline already works — CARD-0007). This decision gates which implementation path makes sense and should happen before any build work starts.
+
+**Integration approach (decided):** correlate each bird ID with GPS location + timestamp from the existing hike-izer pipeline (`components/hike-izer/fetch_hike_data.py`), matching the treatment other data sources already get — not a flat unlinked species list.
+
+**Scope:** kept as its own standalone card, not folded into CARD-0074 (Hike-izer v2) — distinct data source with its own open questions (export mechanism, eBird submission workflow) worth resolving independently. Not blocked on the hiking-monitor device being back in active rotation (CARD-0074's blocker) — Merlin runs on Joseph's phone, independent of the ESP32 sensor hardware.
+
+**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (Hike-izer v2, has its own separate deferred-items list), `components/hike-izer/README.md`, `components/hike-izer/fetch_hike_data.py`.
+
+---
+
 ### CARD-0079 · [bug] [logging] Old null-byte corruption in the log file (536 bytes, historical, inactive)
 **Notes:** Found 2026-07-22 while testing CARD-0078's webhook fix. Initial concern was that a confirmed-published MQTT message never appeared in `/mnt/jctsh-logs/jctsh.log` or the live `/log` endpoint — **resolved as a false alarm, not a bug:** `log_server.py` holds the most recent non-heartbeat message in a single global `_pending` slot and only flushes it to disk once a *different* non-heartbeat message displaces it (`_store_entry()`, `core/logging/log_server.py`). The live `/data` endpoint (which includes `_pending`) had the message the whole time; sending a second distinct test payload immediately flushed the first to the file, confirmed directly. Working as designed.
 

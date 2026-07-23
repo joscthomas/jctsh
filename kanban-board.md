@@ -16,24 +16,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0087 · [bug] [hiking-monitor] GPSLogger ran during today's hike but zero rows reached the GPS Track sheet
-**Notes:** Found 2026-07-23 while running Hike-izer for today. Requested a Hike-izer summary for today's hike; `fetch_hike_data.py` returned zero GPS Track rows. Joseph confirmed GPSLogger was actively running for the entire hike today, and — importantly — **was not running on any other day in the past week**. So the only day with a real, confirmed expectation of GPS Track data is today, and today produced none. This is one concrete failure instance, not evidence of a long-running continuous outage — the GPS Track sheet's most recent row before today is 2026-06-18, but that gap likely just reflects GPSLogger not being used in between, not the pipeline being broken that whole time. Don't overclaim beyond what's actually confirmed.
-
-**Confirmed via direct investigation:** queried the GPS Track sheet's `action=export` endpoint with no date filter — 806 total rows, most recent timestamp 2026-06-18T21:55:32Z, nothing since. Meanwhile the Hiking Observations sheet *did* receive 19 real rows today (5:45–8:28 AM MST, clearly a real hike) via the same Apps Script deployment — so today's break is isolated to GPSLogger's specific upload path, not a general Apps Script/Sheets outage.
-
-**Root cause — confirmed 2026-07-23, not just theorized:**
-1. Server-side ingestion tested directly with a synthetic well-formed request (`action=gps&lat=...&key=<current API_KEY>`) — returned `{"status":"ok"}` and appended cleanly. Current deployment, current API key, and the `action=gps` code path are all confirmed working correctly.
-2. Joseph checked GPSLogger's actual configured Custom Logging URL — it was the **bare deployment URL with no query string at all**: no `action=gps`, no `lat`/`lon`/`acc`/`alt`/`ts` placeholders, and no `key`. Every request GPSLogger sent had zero parameters, which the script correctly rejects as `{"status":"error","message":"unauthorized"}` — **but returns that as an HTTP 200**, so GPSLogger had no signal anything was wrong.
-3. Fixed: full correct URL (`.../exec?action=gps&lat=%LAT&lon=%LON&acc=%ACC&alt=%ALT&ts=%TIME&key=<API_KEY>`) given to Joseph to paste into GPSLogger's Custom Logging URL field, replacing the bare URL.
-
-**How this happened despite being on the documented migration checklist:** `components/hiking-monitor/data-pipeline.md`'s 2026-07-18 redeploy note *does* correctly list GPSLogger's custom URL as one of the places to update during any future redeploy — this wasn't a case of nobody knowing to check it. The gap was verification, not identification. Every other consumer on that list has a way to machine-confirm the update actually stuck: Node-RED's env var was checked live via `/proc/<pid>/environ`, the read/export side was checked via `action=version`. GPSLogger's config lives only on the phone, outside anything checkable remotely — the only real verification is a live field test, and the *original* Step 19 build instructions (`hiking-monitor-claude-code-instructions.md`) actually required exactly that ("take a short outdoor walk... verify trackpoints appearing in the sheet") when the pipeline was first built. That same discipline wasn't re-applied when the URL was later swapped during the 2026-07-18 migration — a URL update felt lower-risk than the original build, but for a manually-typed URL with five placeholder tokens in it, it isn't. No hike happened between the 07-18 URL update and 2026-07-23 to exercise it, so this was actually the first live test of that edit, five days after the fact.
-
-**Process fix, so this doesn't recur:** `data-pipeline.md`'s migration checklist should flag GPSLogger specifically as requiring a live field-test confirmation, not just "update the URL" — it's the one consumer on that list with no machine-checkable verification path.
-
-**Related:** CARD-0073 (Hike-izer v1, Done — original GPSLogger URL migration), `components/hiking-monitor/gps-pipeline.md`, `components/hiking-monitor/data-pipeline.md` (redeploy checklist), `components/hike-izer/fetch_hike_data.py`.
-
----
-
 ### CARD-0084 · [idea] [hike-izer] Photo integration (Immich)
 **Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature rather than a batched release item. Pull in photos taken during a hike, matched via `photo-server`'s Immich API to a confirmed hike's date/time range and GPS bounding box.
 
@@ -130,21 +112,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 **Scope:** kept as its own standalone card, not folded into CARD-0074 (Hike-izer v2) — distinct data source with its own open questions (export mechanism, eBird submission workflow) worth resolving independently. Not blocked on the hiking-monitor device being back in active rotation (CARD-0074's blocker) — Merlin runs on Joseph's phone, independent of the ESP32 sensor hardware.
 
 **Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (Hike-izer v2, has its own separate deferred-items list), `components/hike-izer/README.md`, `components/hike-izer/fetch_hike_data.py`.
-
----
-
-### CARD-0079 · [bug] [logging] Old null-byte corruption in the log file (536 bytes, historical, inactive)
-**Notes:** Found 2026-07-22 while testing CARD-0078's webhook fix. Initial concern was that a confirmed-published MQTT message never appeared in `/mnt/jctsh-logs/jctsh.log` or the live `/log` endpoint — **resolved as a false alarm, not a bug:** `log_server.py` holds the most recent non-heartbeat message in a single global `_pending` slot and only flushes it to disk once a *different* non-heartbeat message displaces it (`_store_entry()`, `core/logging/log_server.py`). The live `/data` endpoint (which includes `_pending`) had the message the whole time; sending a second distinct test payload immediately flushed the first to the file, confirmed directly. Working as designed.
-
-**What's real:** while investigating, found genuine null-byte corruption in the log file — 536 bytes total, in two small contiguous runs (367 and 169 bytes), confirmed via direct Python byte-level scan (`/mnt/jctsh-logs/jctsh.log`). The earlier "7,634" figure quoted from `grep -c $'\x00'` was wrong — that shell substitution doesn't actually pass a null byte as a grep pattern, so it silently matched an empty pattern and just counted total lines in the file, not corruption. Both null-byte runs sit in **old content from around 2026-07-03** (real log lines resume immediately after each run) — not recent, not growing, not connected to CARD-0006's log-directory migration or tonight's testing.
-
-**Priority: low.** Two small historical byte-runs from mid-2026-07 in an otherwise-healthy, actively-written file. Not urgent, but worth a root-cause pass if there's ever a reason to trust the file's integrity for something specific (e.g. an audit).
-
-**To investigate (whenever picked up):**
-1. Confirm what was happening around 2026-07-03 in the log's history/git blame/deploy log that could explain a `RotatingFileHandler` write getting truncated or zero-padded (a crash/kill mid-write is the most likely mechanism).
-2. Decide whether it's worth surgically removing those two byte-runs, or just leaving them (they don't break parsing — `file` still reads the file as valid UTF-8 text, and `grep -a`/direct Python reads work fine around them).
-
-**Housekeeping:** two obviously-fake test entries from tonight's CARD-0078 verification are now in the real log (`Test Vendor Inc` / `aa:bb:cc:dd:ee:ff`, `Second Test Vendor` / `11:22:33:44:55:66`) — harmless and clearly labeled as test data, left in place rather than risk editing the live file; clean up manually if it bothers you.
 
 ---
 
@@ -431,6 +398,26 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 ## Build
 
+### CARD-0087 · [bug] [hiking-monitor] GPSLogger ran during today's hike but zero rows reached the GPS Track sheet
+**Notes:** Found 2026-07-23 while running Hike-izer for today. Requested a Hike-izer summary for today's hike; `fetch_hike_data.py` returned zero GPS Track rows. Joseph confirmed GPSLogger was actively running for the entire hike today, and — importantly — **was not running on any other day in the past week**. So the only day with a real, confirmed expectation of GPS Track data is today, and today produced none. This is one concrete failure instance, not evidence of a long-running continuous outage — the GPS Track sheet's most recent row before today is 2026-06-18, but that gap likely just reflects GPSLogger not being used in between, not the pipeline being broken that whole time. Don't overclaim beyond what's actually confirmed.
+
+**Confirmed via direct investigation:** queried the GPS Track sheet's `action=export` endpoint with no date filter — 806 total rows, most recent timestamp 2026-06-18T21:55:32Z, nothing since. Meanwhile the Hiking Observations sheet *did* receive 19 real rows today (5:45–8:28 AM MST, clearly a real hike) via the same Apps Script deployment — so today's break is isolated to GPSLogger's specific upload path, not a general Apps Script/Sheets outage.
+
+**Root cause — confirmed 2026-07-23, not just theorized:**
+1. Server-side ingestion tested directly with a synthetic well-formed request (`action=gps&lat=...&key=<current API_KEY>`) — returned `{"status":"ok"}` and appended cleanly. Current deployment, current API key, and the `action=gps` code path are all confirmed working correctly.
+2. Joseph checked GPSLogger's actual configured Custom Logging URL — it was the **bare deployment URL with no query string at all**: no `action=gps`, no `lat`/`lon`/`acc`/`alt`/`ts` placeholders, and no `key`. Every request GPSLogger sent had zero parameters, which the script correctly rejects as `{"status":"error","message":"unauthorized"}` — **but returns that as an HTTP 200**, so GPSLogger had no signal anything was wrong.
+3. Fixed: full correct URL (`.../exec?action=gps&lat=%LAT&lon=%LON&acc=%ACC&alt=%ALT&ts=%TIME&key=<API_KEY>`) given to Joseph to paste into GPSLogger's Custom Logging URL field, replacing the bare URL.
+
+**How this happened despite being on the documented migration checklist:** `components/hiking-monitor/data-pipeline.md`'s 2026-07-18 redeploy note *does* correctly list GPSLogger's custom URL as one of the places to update during any future redeploy — this wasn't a case of nobody knowing to check it. The gap was verification, not identification. Every other consumer on that list has a way to machine-confirm the update actually stuck: Node-RED's env var was checked live via `/proc/<pid>/environ`, the read/export side was checked via `action=version`. GPSLogger's config lives only on the phone, outside anything checkable remotely — the only real verification is a live field test, and the *original* Step 19 build instructions (`hiking-monitor-claude-code-instructions.md`) actually required exactly that ("take a short outdoor walk... verify trackpoints appearing in the sheet") when the pipeline was first built. That same discipline wasn't re-applied when the URL was later swapped during the 2026-07-18 migration — a URL update felt lower-risk than the original build, but for a manually-typed URL with five placeholder tokens in it, it isn't. No hike happened between the 07-18 URL update and 2026-07-23 to exercise it, so this was actually the first live test of that edit, five days after the fact.
+
+**Process fix, so this doesn't recur:** `data-pipeline.md`'s migration checklist should flag GPSLogger specifically as requiring a live field-test confirmation, not just "update the URL" — it's the one consumer on that list with no machine-checkable verification path.
+
+**Done when:** a real hike is run with the corrected Custom Logging URL in place and GPS Track sheet rows are confirmed to land for that hike's time window.
+
+**Related:** CARD-0073 (Hike-izer v1, Done — original GPSLogger URL migration), `components/hiking-monitor/gps-pipeline.md`, `components/hiking-monitor/data-pipeline.md` (redeploy checklist), `components/hike-izer/fetch_hike_data.py`.
+
+---
+
 ### CARD-0076 · [bug] [hiking-monitor] Rotate all secrets exposed via a botched redaction command, and finish outstanding device re-flashes
 **Notes:** Raised 2026-07-21. During CARD-0070's debugging session (2026-07-20), a `sed` redaction command intended to mask `secrets.yaml` values before display used a pattern (`key=value`) that didn't match the file's actual `key: "value"` YAML syntax — the redaction silently failed and the **entire** `hiking-monitor-test/secrets.yaml` file printed in plaintext into the conversation transcript: WiFi password, hotspot password, AP fallback password, MQTT password, and OTA password. (Process fix for the redaction mistake itself already logged separately, so this doesn't recur.) The repo's own copy of this file is confirmed gitignored (`components/hiking-monitor/.gitignore`) and was never committed/pushed — the exposure is contained to this session's transcript, not a public leak, but is still being treated as a real exposure event since transcripts can be logged/reviewed outside this conversation.
 
@@ -599,6 +586,17 @@ GPIO pin ───────────────────────�
 ---
 
 ## Done
+
+### CARD-0079 · [bug] [logging] Old null-byte corruption in the log file (536 bytes, historical, inactive) — RESOLVED 2026-07-23
+**Notes:** Found 2026-07-22 while testing CARD-0078's webhook fix. Initial concern was that a confirmed-published MQTT message never appeared in `/mnt/jctsh-logs/jctsh.log` or the live `/log` endpoint — **resolved as a false alarm, not a bug:** `log_server.py` holds the most recent non-heartbeat message in a single global `_pending` slot and only flushes it to disk once a *different* non-heartbeat message displaces it (`_store_entry()`, `core/logging/log_server.py`). The live `/data` endpoint (which includes `_pending`) had the message the whole time; sending a second distinct test payload immediately flushed the first to the file, confirmed directly. Working as designed.
+
+**What was real:** while investigating, found genuine null-byte corruption in the log file — 536 bytes total, in two small contiguous runs (367 and 169 bytes), confirmed via direct Python byte-level scan (`/mnt/jctsh-logs/jctsh.log`). The earlier "7,634" figure quoted from `grep -c $'\x00'` was wrong — that shell substitution doesn't actually pass a null byte as a grep pattern, so it silently matched an empty pattern and just counted total lines in the file, not corruption. Both null-byte runs sat in **old content from around 2026-07-03** (real log lines resumed immediately after each run) — not recent, not growing, not connected to CARD-0006's log-directory migration or that night's testing.
+
+**Surgical cleanup done (2026-07-23):** backed up the live file first (`/mnt/jctsh-logs/jctsh.log.bak-20260723-precard0079`), then re-scanned to get exact byte offsets — 367-byte run at offset 340640, 169-byte run at offset 360279 (offsets shifted slightly from the original find since the file kept growing between the initial report and cleanup). Confirmed both runs sat cleanly between two complete log lines with no partial-line truncation, then spliced them out (removing from the highest offset first so lower offsets stayed valid) and rewrote the file. Verified: 0 null bytes remaining, byte count dropped by exactly 536 (823545 → 823009), and both seams rejoin correctly (`...Log server connected.\n2026-07-01 03:11:54...` and `...Log server connected.\n2026-07-03 07:58:52...` both found intact, no merged/split lines).
+
+**Deliberately out of scope, not a remaining gap:** root-causing *why* the corruption happened around 2026-07-03 (crash/kill mid-`RotatingFileHandler`-write is the likely mechanism, but never confirmed against git history/deploy log for that date) — low priority, only worth revisiting if similar corruption recurs. Also unrelated: two harmless fake test entries from CARD-0078 verification (`Test Vendor Inc` / `aa:bb:cc:dd:ee:ff`, `Second Test Vendor` / `11:22:33:44:55:66`) are still in the real log — left in place, clean up manually if it bothers you.
+
+---
 
 ### CARD-0078 · [bug] [netalertx] False "New device detected" alerts re-fire after any Node-RED restart — RESOLVED 2026-07-23
 **Notes:** Found 2026-07-22, triggered by CARD-0006's Pi reboot test. Three devices showed "New device detected" alerts timestamped that night despite NetAlertX's own history showing they first connected 07-14, 07-18, and 07-20. Confirmed NetAlertX's own Notifications system correctly computed zero new devices in its latest batch — the false alert wasn't coming from NetAlertX's detection logic.

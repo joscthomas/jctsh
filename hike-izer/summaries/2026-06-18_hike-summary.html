@@ -107,6 +107,12 @@
     font-style: italic;
   }
 
+  .forecast-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+    gap: 0.75rem;
+  }
+
   .callout {
     background: var(--warning-bg);
     border: 1px solid var(--warning);
@@ -221,6 +227,32 @@
       <div class="stat__value">112 ft</div>
     </div>
   </div>
+
+  <section>
+    <h2>Weather Forecast at Hike Start</h2>
+    <div class="forecast-row">
+      <div class="stat">
+        <div class="stat__label">Temp</div>
+        <div class="stat__value stat__value--na">not available</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">Precip Chance</div>
+        <div class="stat__value stat__value--na">not available</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">Wind</div>
+        <div class="stat__value stat__value--na">not available</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">Humidity</div>
+        <div class="stat__value stat__value--na">not available</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">UV Index</div>
+        <div class="stat__value stat__value--na">not available</div>
+      </div>
+    </div>
+  </section>
 
   <section class="narrative">
     <h2>The Hike</h2>

@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-07-18.1-export-action';
+var SCRIPT_VERSION = '2026-07-24.2-hike-start-forecast-datefix';
 
 // ---------------------------------------------------------------------------
 // doPost — environmental sensor data (Node-RED → Sheets)
@@ -70,6 +70,11 @@ function doPost(e) {
 
       var obsCoords = _gpsLookup(ss, ts);
       obsSheet.appendRow([ts, obsText, JSON.stringify(categories), payload.source || 'voice', obsCoords.lat, obsCoords.lon]);
+
+      // CARD-0083: capture the weather forecast on the first observation of a
+      // new Arizona-local calendar day -- a live snapshot of what was
+      // forecast right as the hike began, written once and never re-fetched.
+      _maybeCaptureHikeStartForecast(ss, ts, obsCoords);
 
     } else {
       var envSheet = ss.getSheetByName('Environmental Data');
@@ -226,13 +231,100 @@ function _gpsLookup(ss, tsISO) {
 }
 
 // ---------------------------------------------------------------------------
+// _maybeCaptureHikeStartForecast -- CARD-0083
+// ---------------------------------------------------------------------------
+// Called from doPost's hiking-observations branch on every observation. Only
+// actually captures a forecast on the first observation of a new Arizona-
+// local calendar day (self-provisioning "Hike Start Forecast" sheet acts as
+// its own dedup log). Provider is Open-Meteo (api.open-meteo.com) -- free,
+// no API key, and its hourly forecast includes temp/humidity/precip
+// probability/wind/UV in one call. Open-Meteo has no named "nearest station"
+// concept (unlike NWS/METAR, which snaps to an airport or gridpoint office)
+// -- it's a gridded model interpolated to the exact coordinate requested, so
+// the response's own lat/lon (the actual grid point used) is stored, not the
+// input coordinates, recording precisely what point the forecast was for.
+//
+// Deliberately does NOT fall back to a hardcoded home-area location when the
+// observation has no GPS correlation yet -- that would silently report the
+// wrong location's weather for a hike that isn't near home. Skips capture
+// for this observation instead; a later observation the same day with a
+// resolved GPS position will retry, since "already captured today?" is only
+// true once a row has actually been written.
+function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
+  try {
+    if (coords.lat === null || coords.lon === null) return;
+
+    var dateAz = _azString(new Date(tsISO)).slice(0, 10); // YYYY-MM-DD
+
+    var forecastSheet = ss.getSheetByName('Hike Start Forecast');
+    if (!forecastSheet) {
+      forecastSheet = ss.insertSheet('Hike Start Forecast');
+      forecastSheet.appendRow([
+        'timestamp', 'date_az', 'lat', 'lon',
+        'temp_f', 'precip_pct', 'wind_mph', 'humidity_pct', 'uv_index', 'provider'
+      ]);
+    }
+    // Force column B (date_az) to plain text. Sheets silently auto-detects a
+    // bare "YYYY-MM-DD" string as a real Date value on write, which breaks
+    // the dedup comparison below -- a stored Date object never string-equals
+    // a freshly computed "YYYY-MM-DD" string, so every observation would
+    // re-trigger a capture instead of just the first one each day. Applied
+    // unconditionally (not just on sheet creation) so it's also safe against
+    // a sheet that already exists from before this fix.
+    forecastSheet.getRange('B:B').setNumberFormat('@');
+
+    var existing = forecastSheet.getDataRange().getValues();
+    for (var i = 1; i < existing.length; i++) {
+      if (String(existing[i][1]) === dateAz) return; // already captured for this day
+    }
+
+    var url = 'https://api.open-meteo.com/v1/forecast'
+      + '?latitude=' + coords.lat + '&longitude=' + coords.lon
+      + '&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,wind_speed_10m,uv_index'
+      + '&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FPhoenix';
+    var resp = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
+    if (resp.getResponseCode() !== 200) {
+      console.error('Open-Meteo request failed: HTTP ' + resp.getResponseCode());
+      return;
+    }
+
+    var body = JSON.parse(resp.getContentText());
+    var hourly = body.hourly;
+    if (!hourly || !hourly.time || hourly.time.length === 0) return;
+
+    // hourly.time values are local wall-clock strings (e.g. "2026-07-24T09:00")
+    // in the requested timezone -- Arizona has no DST, so a fixed -07:00
+    // offset always parses them correctly as real instants for comparison.
+    var targetMs = new Date(tsISO).getTime();
+    var idx = 0, bestDiff = Infinity;
+    for (var h = 0; h < hourly.time.length; h++) {
+      var diff = Math.abs(new Date(hourly.time[h] + ':00-07:00').getTime() - targetMs);
+      if (diff < bestDiff) { bestDiff = diff; idx = h; }
+    }
+
+    forecastSheet.appendRow([
+      tsISO, dateAz, body.latitude, body.longitude,
+      hourly.temperature_2m[idx],
+      hourly.precipitation_probability[idx],
+      hourly.wind_speed_10m[idx],
+      hourly.relative_humidity_2m[idx],
+      hourly.uv_index[idx],
+      'open-meteo'
+    ]);
+  } catch (err) {
+    // Never let a forecast-capture failure break observation logging.
+    console.error('Forecast capture failed: ' + err.toString());
+  }
+}
+
+// ---------------------------------------------------------------------------
 // _exportSheet — read-only export of any sheet as JSON, optionally date-filtered
 // ---------------------------------------------------------------------------
 // Used by action=export. Generic across "Environmental Data", "Hiking Observations",
-// and "GPS Track" — all three have a real ISO 8601 timestamp in column A, which this
-// filters on. ("Timeline" also works but its column A is an Arizona-local display
-// string, not UTC ISO — start/end filtering on it is not reliable; fetch it unfiltered
-// and filter client-side if needed.)
+// "GPS Track", and "Hike Start Forecast" — all four have a real ISO 8601 timestamp
+// in column A, which this filters on. ("Timeline" also works but its column A is an
+// Arizona-local display string, not UTC ISO — start/end filtering on it is not
+// reliable; fetch it unfiltered and filter client-side if needed.)
 //
 // Params: sheet=<name> (required), start=<ISO ts> (optional), end=<ISO ts> (optional)
 // Returns: {status:'ok', sheet, count, rows: [{header: value, ...}, ...]}

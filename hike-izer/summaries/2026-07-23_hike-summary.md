@@ -6,6 +6,10 @@ Hike-izer's GPS-based hike classification could not confirm a hike for today: th
 
 Scope note: the GPS Track sheet's most recent row before today is from 2026-06-18, but Joseph confirmed GPSLogger wasn't running on any other day in the past week — so that gap most likely reflects the app simply not being used in between, not a continuous multi-week outage. Today is the only day with a confirmed expectation of GPS data that didn't show up; whether this is a one-off or an ongoing break isn't established yet, and won't be until GPSLogger runs again during a real hike.
 
+## Weather Forecast at Hike Start
+
+No forecast was captured for this hike — it predates CARD-0083 (Hike Start Forecast, added 2026-07-24). Today's first observation ("hiking trail tortellita preserve perimeter Trail," 5:45:02 AM) would have triggered a capture had this feature existed yet.
+
 ## What we know happened (from Hiking Observations)
 
 Zero GPS or environmental-sensor data doesn't mean zero data — the voice-observation pipeline worked normally and captured a real hike. 19 observations were logged between **5:45 AM and 8:28 AM MST**, roughly 2 hours 43 minutes, opening with "hiking trail tortellita preserve perimeter Trail" and closing with "end of hike" — this was a loop or out-and-back on the Tortolita Preserve perimeter trail.

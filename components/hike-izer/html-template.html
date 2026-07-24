@@ -131,6 +131,15 @@
     font-style: italic;
   }
 
+  /* Weather forecast at hike start (CARD-0083) -- same card language as
+     .stat-row, but auto-fill instead of a fixed 4 columns since this row
+     holds 5 cards (Temp, Precip Chance, Wind, Humidity, UV Index). */
+  .forecast-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+    gap: 0.75rem;
+  }
+
   /* GPS-confirmation callout -- only rendered when hike_confirmed is false */
   .callout {
     background: var(--warning-bg);
@@ -274,6 +283,55 @@
   <div class="callout">
     <strong>GPS confirmation: unable to confirm.</strong> {{GPS_CONFIRMATION_EXPLANATION}}
   </div>
+
+  <!--
+    Weather Forecast at Hike Start (CARD-0083) -- always rendered, same
+    convention as the hero stat row above: when hike_start_forecast (from
+    fetch_hike_data.py's JSON) is empty (a hike from before this feature
+    shipped, or a capture failure that day), every card shows "not
+    available" (.stat__value--na) instead of the real value -- never a
+    blank or a fabricated number. This section is NOT omitted like Photos
+    below; unlike a variable-length gallery, five named values render a
+    "not available" placeholder cleanly, so the stat-row convention applies
+    here, not the Photos one.
+    Five cards, same .stat/.stat__label/.stat__value classes as the hero
+    stat row above:
+      Temp           -- hike_start_forecast[0].temp_f
+      Precip Chance  -- hike_start_forecast[0].precip_pct + "%"
+      Wind           -- hike_start_forecast[0].wind_mph + " mph"
+      Humidity       -- hike_start_forecast[0].humidity_pct + "%"
+      UV Index       -- hike_start_forecast[0].uv_index
+    This is a live snapshot captured the moment the hike began (Open-Meteo,
+    no station/airport concept -- interpolated to the exact GPS-correlated
+    coordinate of that first observation), not a forecast re-checked at
+    whenever the summary happens to be generated.
+  -->
+  <section>
+    <h2>Weather Forecast at Hike Start</h2>
+    <div class="forecast-row">
+      <div class="stat">
+        <div class="stat__label">Temp</div>
+        <div class="stat__value">{{FORECAST_TEMP_F}}&deg;F</div>
+        <!-- when unavailable: <div class="stat__value stat__value--na">not available</div> -->
+      </div>
+      <div class="stat">
+        <div class="stat__label">Precip Chance</div>
+        <div class="stat__value">{{FORECAST_PRECIP_PCT}}%</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">Wind</div>
+        <div class="stat__value">{{FORECAST_WIND_MPH}} mph</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">Humidity</div>
+        <div class="stat__value">{{FORECAST_HUMIDITY_PCT}}%</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">UV Index</div>
+        <div class="stat__value">{{FORECAST_UV_INDEX}}</div>
+      </div>
+    </div>
+  </section>
 
   <section class="narrative">
     <h2>The Hike</h2>

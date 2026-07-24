@@ -6,10 +6,12 @@ description: Generate a narrative Markdown summary of a JCTsh hiking trip from s
 # Hike-izer
 
 Generates a Markdown narrative summary of a hiking trip using JCTsh's hiking-monitor
-data pipeline (Environmental Data, Hiking Observations, GPS Track -- all in the
-"JCTsh Environmental Data" Google Sheets workbook). CARD-0073 on `kanban-board.md`
-is this skill's tracking card; its v1 scope note there is the source of truth for
-what's in/out of scope if this doc and the card ever disagree.
+data pipeline (Environmental Data, Hiking Observations, GPS Track, Hike Start
+Forecast -- all in the "JCTsh Environmental Data" Google Sheets workbook).
+CARD-0073 on `kanban-board.md` is this skill's tracking card; its v1 scope note
+there is the source of truth for what's in/out of scope if this doc and the
+card ever disagree. CARD-0083 tracks the weather-forecast-at-hike-start feature
+specifically (step 4 below).
 
 ## Core model: a hiking event is a single day
 
@@ -59,7 +61,8 @@ rejected -- **do not write a normal hike narrative.** Instead, the summary must
 say plainly that a hike could not be confirmed for that day, and explain why,
 using the specific `rejection_reasons` (or noting zero GPS activity if that's the
 case). Still report the other data that does exist for the day (Environmental
-Data readings, Hiking Observations) if any -- the day isn't necessarily
+Data readings, Hiking Observations, and the Hike Start Forecast section per
+CARD-0083 below if a forecast was captured) if any -- the day isn't necessarily
 uneventful, just not confirmable as a hike. This is a legitimate, expected output
 shape, not an error -- see `hike-izer/summaries/2026-07-18_hike-summary.md` for
 the pattern (written before this classification logic existed, but the same
@@ -90,7 +93,8 @@ the pattern (written before this classification logic existed, but the same
      --out <scratch path>/hike_data.json
    ```
 
-   This fetches all three sheets via the `action=export` endpoint, computes
+   This fetches all four sheets (Environmental Data, Hiking Observations, GPS
+   Track, and Hike Start Forecast) via the `action=export` endpoint, computes
    expected-vs-actual data coverage, computes the `stats` block (temp/humidity/
    pressure/UV/battery ranges, and altitude range **in feet** -- `stats.altitude_ft`,
    already converted, don't reconvert `altitude_m` by hand), and computes sun
@@ -102,7 +106,7 @@ the pattern (written before this classification logic existed, but the same
 
 4. **Write the narrative.** First check `coverage.gps_track.hike_confirmed` --
    if `false`, follow "What counts as a hike" above instead of the normal
-   three-part structure. Otherwise, produce one Markdown file with these three
+   structure below. Otherwise, produce one Markdown file with the following
    parts, in this order. **Tables and prose must not repeat each other.** The data
    table/summary (part b) is where the raw numbers and ranges live. The narrative
    (part a) should read those numbers as context to build the story from, not
@@ -112,6 +116,29 @@ the pattern (written before this classification logic existed, but the same
    than restating the exact temperature range that's already in the table two
    sections down). If a sentence in the narrative would just be a number already
    sitting in the table, cut it or turn it into an observation instead.
+
+   **Weather forecast at hike start (added 2026-07-24, CARD-0083)** -- shown
+   before part (a), since it's context the reader wants before the story
+   itself ("here's what was forecast going in"). **Applies on both the
+   normal and `hike_confirmed: false` paths** -- the forecast is captured
+   independently of GPS confirmation (it fires off the first Hiking
+   Observation, not off GPS data), so it counts as "other data that does
+   exist" per the `hike_confirmed: false` handling above and should be
+   included there too, not just in the three-part normal structure. If `hike_start_forecast` has
+   an entry, report its five fields plainly: temperature, precipitation
+   chance, wind, humidity, UV index. This is a live snapshot captured the
+   moment the hike began (the first Hiking Observation of the day triggers
+   an Open-Meteo fetch server-side, correlated to that observation's own GPS
+   position) -- not a forecast checked whenever the summary happens to be
+   generated later, and not actual observed conditions (a separate,
+   still-undecided item under CARD-0074). If `hike_start_forecast` is empty
+   (the hike predates this feature, or the capture failed that day), still
+   include this section, but say plainly that no forecast was captured --
+   never fabricate a value. Applies to both the Markdown and HTML output.
+   In HTML this section is **always rendered** (never omitted the way Photos
+   is) -- with five values it's the same "not available" convention as the
+   hero stat row, not the gallery-omission convention; see
+   `html-template.html`'s comments.
 
    **a. Narrative story of the hike** -- a genuinely readable account of the day
    using the real data: how conditions evolved, elevation change described
@@ -178,9 +205,13 @@ the pattern (written before this classification logic existed, but the same
      available"** (`.stat__value--na` in the template), never a blank or a
      misleading zero.
    See `components/hike-izer/html-template.html`'s own comments for the exact
-   section-by-section mapping. Levels 3-5 (embedded maps/charts, interactive
-   hover-sync, hosting) are **out of scope here** -- tracked separately on
-   `kanban-board.md` as CARD-0088.
+   section-by-section mapping. The Weather Forecast at Hike Start section
+   (CARD-0083, step 4 above) uses the template's `.forecast-row` -- always
+   rendered (unlike Photos), with each card showing **"not available"**
+   (`.stat__value--na`) instead of a value when `hike_start_forecast` is
+   empty. Levels 3-5 (embedded maps/charts, interactive hover-sync, hosting)
+   are **out of scope here** -- tracked separately on `kanban-board.md` as
+   CARD-0088.
 
 7. **Fetch and embed photos/videos (CARD-0084).** Read Joseph's Immich API
    key from `credentials.local.md` ("Immich (Docker, on photo-server)" --
@@ -225,7 +256,10 @@ the pattern (written before this classification logic existed, but the same
 
 ## Explicitly out of scope for v1 (deferred -- see CARD-0073)
 
-- Live/historical weather API (no source picked)
+- Historical/actual-conditions weather lookup -- separate, still-undecided item
+  under CARD-0074. (The forecast-*at-hike-start* piece is now in scope, via
+  CARD-0083 -- see step 4 above; don't confuse the two, they're deliberately
+  different things.)
 - Compass/heading of the *hiker* -- only the sun's compass direction is computed,
   from pure astronomy, not which way the hiker was facing (not tracked by any
   sensor)
@@ -244,5 +278,12 @@ the pattern (written before this classification logic existed, but the same
   section since a high miss rate might indicate a real pipeline issue.
 - `rssi_dbm == 0` means the reading was taken while the device had no WiFi (normal
   "field mode" while hiking, not an error).
+- `hike_start_forecast` (CARD-0083) is captured server-side by
+  `environmental-data.gs` on the first Hiking Observation of each Arizona-local
+  day, provider Open-Meteo (no API key needed). It will normally be a 0- or
+  1-entry list for a single-day query. `lat`/`lon` on that entry are the actual
+  grid point Open-Meteo used (from its response, not the input coordinates) --
+  see `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`'s "Hike
+  Start Forecast Architecture" section for the full schema/trigger design.
 - Full Environmental Data schema (A-Z) and the `action=export` API reference:
   `components/hiking-monitor/data-pipeline.md`.

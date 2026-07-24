@@ -449,6 +449,20 @@ def main():
     gps_rows = fetch_sheet(args.url, args.key, 'GPS Track', args.start, args.end)
     print(f'  {len(gps_rows)} rows', file=sys.stderr)
 
+    print('Fetching Hike Start Forecast...', file=sys.stderr)
+    try:
+        forecast_rows = fetch_sheet(args.url, args.key, 'Hike Start Forecast', args.start, args.end)
+    except RuntimeError as e:
+        # The sheet is self-provisioning (created by environmental-data.gs on
+        # first capture) -- until a forecast has ever been captured, it may
+        # not exist yet. Treat that as "no forecast for this window," not a
+        # hard failure.
+        if 'unknown sheet' in str(e):
+            forecast_rows = []
+        else:
+            raise
+    print(f'  {len(forecast_rows)} rows', file=sys.stderr)
+
     coverage = analyze_coverage(env_rows, gps_rows, obs_rows, start_dt, end_dt)
 
     # Sun position sampled along the GPS track (GPS Track has real lat/lon/alt on
@@ -490,6 +504,7 @@ def main():
             'environmental_data_other_sources_seen_but_excluded': other_sources,
             'hiking_observations': len(obs_rows),
             'gps_track': len(gps_rows),
+            'hike_start_forecast': len(forecast_rows),
         },
         'coverage': coverage,
         'stats': stats,
@@ -497,6 +512,7 @@ def main():
         'environmental_data': env_rows,
         'hiking_observations': obs_rows,
         'gps_track': gps_rows,
+        'hike_start_forecast': forecast_rows,
     }
 
     with open(args.out, 'w', encoding='utf-8') as f:
@@ -504,7 +520,8 @@ def main():
 
     print(
         f"Wrote {args.out}: {len(env_rows)} env rows, {len(obs_rows)} observations, "
-        f"{len(gps_rows)} GPS points, {len(sun_samples)} sun-position samples.",
+        f"{len(gps_rows)} GPS points, {len(sun_samples)} sun-position samples, "
+        f"{len(forecast_rows)} hike-start forecast row(s).",
         file=sys.stderr,
     )
 

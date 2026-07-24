@@ -1,8 +1,8 @@
 # JCTsh Environmental Data Architecture
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the architecture for JCTsh environmental sensor data — the standard message payload, Google Sheets archive design, Node-RED data handler pattern, Weather Underground integration, and the planned environmental sensor family. All environmental sensor components must conform to this standard.
-**Version:** 1.4
-**Version description:** Added `solar_v` field for solar panel voltage — distinguishes charging from draining on solar+battery devices without requiring a charge controller status pin. Added to field reference, Google Sheets schema, and Apps Script (column Z). No other changes from v1.3.
+**Version:** 1.5
+**Version description:** Added the `Hike Start Forecast` sheet and its Apps Script capture logic (CARD-0083) — a live weather-forecast snapshot captured on the first Hiking Observation of each day. New sheet in the Sheets Structure table and a new "Hike Start Forecast Architecture" section. No changes to the standard environmental payload schema from v1.4.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`
 
@@ -112,6 +112,7 @@ The workbook contains multiple sheets:
 | `Environmental Data` | One row per sensor reading — all environmental sensor sources |
 | `Hiking Observations` | One row per voice observation — see Hiking Observations Architecture section |
 | `Lightning Events` | One row per lightning strike event from weather station AS3935 detector |
+| `Hike Start Forecast` | One row per day a hike started — a live weather-forecast snapshot captured at that moment; see Hike Start Forecast Architecture section |
 
 ### Environmental Data Schema
 
@@ -306,6 +307,47 @@ The Apps Script processor (separate from the Sheets archive endpoint) handles ob
 7. Builds JSON payload
 8. Appends row to Hiking Observations sheet
 9. Publishes to `jctsh/components/hiking-observations/data` via MQTT (Path A only — Path B publishes before Apps Script)
+
+---
+
+## Hike Start Forecast Architecture
+
+### Overview
+
+A live snapshot of what the weather forecast *was* at the moment a hike began — captured once, server-side, then frozen. Distinct from a forecast re-checked whenever a Hike-izer summary happens to be generated later, and distinct from actual historical/observed conditions (a separate, still-undecided item — see CARD-0074). Added for CARD-0083.
+
+### Trigger
+
+Captured by the same Apps Script `doPost` handler that already processes every Hiking Observation (see Hiking Observations Architecture above) — no new mobile automation, no new Tasker/Node-RED work. On each incoming observation, the handler computes the Arizona-local calendar date and checks whether a forecast has already been captured for that date. If not, and if the observation resolved a GPS position via the existing `_gpsLookup` correlation, it fetches and stores a forecast. If GPS hasn't resolved yet for this particular observation, capture is skipped for it (not defaulted to a home-area location) — a later observation the same day with a resolved position will retry.
+
+This makes the *first* Hiking Observation of a hike the de facto trigger in practice, though the actual condition checked is "not yet captured today with a resolved GPS position," not literally "observation #1."
+
+### Provider
+
+[Open-Meteo](https://open-meteo.com) (`api.open-meteo.com`) — free, no API key or account required. Its hourly forecast endpoint returns temperature, relative humidity, precipitation probability, wind speed, and UV index in a single call, covering the full content scope Hike-izer needs without a second provider or any credential management.
+
+Open-Meteo has no named "nearest station" concept, unlike NWS/METAR-based sources which snap to an airport or gridpoint office — it's a gridded numerical model interpolated to the exact coordinate requested. The response's own `latitude`/`longitude` fields report the actual grid point used (can differ slightly from the input due to grid resolution); these are what's stored, not the input coordinates, so the record shows precisely what point the forecast was for.
+
+### Hike Start Forecast Sheet Schema
+
+Separate sheet in the same Google Sheets workbook as Environmental Data. Self-provisioning — the Apps Script creates the sheet with this header row on first use if it doesn't already exist, so no manual Sheets setup step is required.
+
+| Column | Source | Notes |
+|---|---|---|
+| `timestamp` | Triggering observation's `ts` | ISO 8601 UTC — join key for `action=export` date-range filtering, same as the other sheets |
+| `date_az` | Derived from `timestamp` | Arizona-local `YYYY-MM-DD` — the dedup key ("already captured today?") |
+| `lat` | Open-Meteo response | The actual grid point used, not the input coordinate |
+| `lon` | Open-Meteo response | Same as `lat` |
+| `temp_f` | Open-Meteo `hourly.temperature_2m` | °F, nearest hour to the triggering observation |
+| `precip_pct` | Open-Meteo `hourly.precipitation_probability` | % chance |
+| `wind_mph` | Open-Meteo `hourly.wind_speed_10m` | mph |
+| `humidity_pct` | Open-Meteo `hourly.relative_humidity_2m` | % RH |
+| `uv_index` | Open-Meteo `hourly.uv_index` | UVI |
+| `provider` | Constant | `open-meteo` — future-proofing if the provider ever changes |
+
+### Consumption
+
+`components/hike-izer/fetch_hike_data.py` reads this sheet the same way it reads Environmental Data, Hiking Observations, and GPS Track — via the generic `action=export` endpoint, filtered to the requested day's window — and includes it in its output JSON as `hike_start_forecast`. See `.claude/skills/hike-izer/SKILL.md` for how the narrative-writing step reports it (or reports its absence, never fabricating a value).
 
 ---
 

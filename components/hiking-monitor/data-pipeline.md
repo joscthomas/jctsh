@@ -177,7 +177,7 @@ Added 2026-07-18 for Hike-izer (CARD-0073) — a generic, read-only `doGet` acti
 GET <SCRIPT_URL>?key=<API_KEY>&action=export&sheet=<sheet name>&start=<ISO ts>&end=<ISO ts>
 ```
 
-- `sheet` (required) — `Environmental Data`, `Hiking Observations`, or `GPS Track`. All three have a real UTC ISO timestamp in column A, so date filtering works correctly.
+- `sheet` (required) — `Environmental Data`, `Hiking Observations`, `GPS Track`, or `Hike Start Forecast` (CARD-0083). All four have a real UTC ISO timestamp in column A, so date filtering works correctly.
 - `start` / `end` (optional) — ISO 8601 timestamps; omit either to leave that side unbounded.
 - `Timeline` also works as a `sheet` value, but its column A (`timestamp_az`) is an Arizona-local display string, not UTC ISO — `start`/`end` filtering on it isn't reliable. Fetch it unfiltered and filter client-side instead.
 

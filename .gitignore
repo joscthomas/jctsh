@@ -26,3 +26,9 @@ Thumbs.db
 # Hike-izer: extracted photo/video media (CARD-0084) - regenerated from
 # Immich on demand, not versioned; only the HTML/Markdown summaries are
 hike-izer/summaries/*_photos/
+
+# hike-izer-web: Cloudflare Tunnel credentials - real secrets, generated on
+# the M8 by `cloudflared tunnel create`, never tracked. Not currently in use
+# (CARD-0088 shipped on Tailscale Funnel instead, see CARD-0094 for the
+# deferred switch back to this) - left in place for when that happens.
+components/hike-izer-web/cloudflared/

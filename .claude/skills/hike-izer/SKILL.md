@@ -209,9 +209,9 @@ the pattern (written before this classification logic existed, but the same
    (CARD-0083, step 4 above) uses the template's `.forecast-row` -- always
    rendered (unlike Photos), with each card showing **"not available"**
    (`.stat__value--na`) instead of a value when `hike_start_forecast` is
-   empty. Levels 3-5 (embedded maps/charts, interactive hover-sync, hosting)
-   are **out of scope here** -- tracked separately on `kanban-board.md` as
-   CARD-0088.
+   empty. Levels 3-5 (embedded maps/charts, interactive hover-sync) are
+   **out of scope here** -- tracked separately on `kanban-board.md` as
+   CARD-0082. Hosting/publishing is step 8 below (CARD-0088).
 
 7. **Fetch and embed photos/videos (CARD-0084).** Read Joseph's Immich API
    key from `credentials.local.md` ("Immich (Docker, on photo-server)" --
@@ -254,6 +254,23 @@ the pattern (written before this classification logic existed, but the same
    sibling `<date>_photos/` directory). This step never touches the
    Markdown output -- photos are HTML-only, per CARD-0084's decided scope.
 
+8. **Publish to the M8 (CARD-0088).** Copy the day's HTML file and, if
+   present, its sibling `<date>_photos/` directory to the M8 so the summary
+   is reachable at a real public URL, not just a local file:
+
+   ```
+   scp hike-izer/summaries/<start-date>_hike-summary.html jct@photo-server.local:~/hike-izer-web-app/srv/
+   scp -r hike-izer/summaries/<start-date>_photos jct@photo-server.local:~/hike-izer-web-app/srv/   # only if it exists
+   ```
+
+   Uses the SSH key-based access to the M8 already set up from this
+   machine -- no password, no new credentials. The Markdown file is **not**
+   copied (this component only serves HTML, matching CARD-0088's scope).
+   Tell Joseph the live URL when done:
+   `https://photo-server.tailfe828a.ts.net/<start-date>_hike-summary.html`
+   (Tailscale Funnel, not a custom domain -- see CARD-0088/CARD-0094 for
+   why). See `components/hike-izer-web/README.md` for how this is hosted.
+
 ## Explicitly out of scope for v1 (deferred -- see CARD-0073)
 
 - Historical/actual-conditions weather lookup -- separate, still-undecided item
@@ -263,10 +280,11 @@ the pattern (written before this classification logic existed, but the same
 - Compass/heading of the *hiker* -- only the sun's compass direction is computed,
   from pure astronomy, not which way the hiker was facing (not tracked by any
   sensor)
-- Automatic triggering -- this only runs when asked
-- Embedded maps/charts, interactivity, and hosting for the HTML output --
-  basic styling and structured layout (Levels 1-2) are in scope per CARD-0081
-  above; the rest is CARD-0088
+- Automatic triggering -- this only runs when asked (CARD-0086)
+- Embedded maps/charts and interactivity for the HTML output -- basic
+  styling and structured layout (Levels 1-2) are in scope per CARD-0081
+  above; the rest is CARD-0082. (Hosting/publishing is now in scope --
+  step 8 above, CARD-0088.)
 
 ## Notes on the data
 

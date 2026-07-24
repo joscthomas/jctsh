@@ -1,0 +1,35 @@
+name: hike-izer-web
+
+services:
+  web:
+    container_name: hike-izer-web
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      # Loopback only -- not reachable from the LAN or WAN directly. Only
+      # the M8's own tailscaled daemon (running on the same host) reaches
+      # this via loopback; `tailscale funnel` is what actually exposes it
+      # publicly, gated by Tailscale's own auth/routing. Chosen over
+      # Cloudflare Tunnel's zero-published-port design for now -- see
+      # CARD-0088 on kanban-board.md for why (live email on jctnet.com made
+      # the nameserver migration Cloudflare Tunnel needed too risky;
+      # revisit after CARD-0093 cleans that up, if ever worth it).
+      - "127.0.0.1:8090:80"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./srv:/srv/hike-izer:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    environment:
+      TZ: America/Phoenix
+    healthcheck:
+      # caddy:2-alpine doesn't define its own HEALTHCHECK, which would
+      # leave `docker inspect --format '{{.State.Health.Status}}'`
+      # returning an empty string -- photo-server-heartbeat.py treats
+      # anything other than "healthy" as unhealthy, so an undefined
+      # healthcheck would false-alert every single cycle. wget is present
+      # via busybox on caddy:2-alpine; the root path returns 200 via
+      # Caddy's `browse` directive even against an empty directory.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

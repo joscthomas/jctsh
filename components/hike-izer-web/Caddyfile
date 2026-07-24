@@ -1,0 +1,4 @@
+:80 {
+    root * /srv/hike-izer
+    file_server browse
+}

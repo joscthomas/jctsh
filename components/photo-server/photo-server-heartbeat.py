@@ -9,7 +9,15 @@ LOG_TOPIC = f"jctsh/server/{COMPONENT}/log"
 HB_TOPIC  = f"jctsh/server/{COMPONENT}/heartbeat"
 USERNAME  = "photo-server"
 
-CONTAINERS = ["immich_server", "immich_postgres", "immich_machine_learning", "immich_redis"]
+CONTAINERS = [
+    "immich_server", "immich_postgres", "immich_machine_learning", "immich_redis",
+    # CARD-0088: hike-izer-web serves Hike-izer's HTML (exposed via Tailscale
+    # Funnel, not a container -- so only one container to check here). It
+    # defines its own HEALTHCHECK (docker-compose.yml) -- without one,
+    # docker inspect's health status comes back empty, which this script's
+    # `elif status != "healthy"` check would treat as unhealthy every cycle.
+    "hike-izer-web",
+]
 
 # Backup drives (CARD-0030) — Immich itself never touches these, only the standalone
 # photo-library-backup.sh script does, so the container-level storage check above has no

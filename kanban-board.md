@@ -24,32 +24,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0086 · [idea] [hike-izer] Automatic triggering
-**Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature. V1 is on-demand only (Joseph explicitly invokes a summary for a specific hike). This card is about detecting that a hike happened/finished and generating the summary automatically — needs a trigger mechanism decision (e.g. GPSLogger track completion, hiking-monitor's own wake/sleep pattern signaling a finished hike, a scheduled check) not yet made.
-
-**Blocking dependency (carried over from CARD-0074):** needs a fresh, confirmed-good real hiking dataset to build and verify against (see CARD-0084 for the same note).
-
-**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (superseded), `components/hike-izer/fetch_hike_data.py`.
-
----
-
-### CARD-0083 · [idea] [hike-izer] Show the weather forecast as it stood at hike start
-**Notes:** Raised 2026-07-23. Show what the weather forecast *was* at the beginning of the hike — not a live/current forecast checked whenever the summary gets generated, and not actual observed conditions (that's already CARD-0074's separate "historical weather" item, explicitly scoped as actual-conditions lookup, not forecast).
-
-**Feasibility issue found and resolved by scoping decision:** historical forecasts generally aren't retrievable after the fact — weather services archive what actually happened, not what was predicted at some past moment, unless something captured that specific forecast snapshot at the time. Confirmed 2026-07-23: this card is scoped for **future hikes only**, captured live at hike start — not retroactive for hikes already recorded. No existing weather-fetch integration to build on: JCTsh's current Weather Underground integration (`core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`) only *posts* the household's own sensor data outward to WU, it doesn't pull forecast data in — this is a new integration either way.
-
-**Content scope (confirmed 2026-07-23):** full detail — temperature, precipitation chance, wind, humidity, and UV index. Not just a one-line summary.
-
-**Provider — not yet decided, no existing preference to constrain it.** Candidates to evaluate when this is picked up:
-- **National Weather Service API (api.weather.gov)** — free, no API key, US-only (fine, all current hikes are US-based). Covers temp/wind/precip. **Does not include UV index** — would need a second source for that piece specifically if NWS is chosen.
-- **OpenWeatherMap (One Call API)** — free tier available, needs an API key, covers temp/precip/wind/humidity/UV all in a single call — matches the full-detail scope without needing a second provider for UV.
-
-**Capture mechanism — open implementation question, not yet resolved.** "Captured live at hike start" needs *something* to trigger the forecast fetch at the right moment and persist it somewhere `fetch_hike_data.py` can read. Candidates: a Tasker action (matching the existing Tasker → Sheets pattern from CARD-0007's hiking observations pipeline) fired when GPSLogger starts, or a Node-RED handler triggered off the same signal — per the architecture doc's existing principle that Node-RED owns all external HTTP calls, not the ESP32 devices themselves. Needs a real decision before building, not just picking whichever seems easiest at the time.
-
-**Related:** CARD-0074 (Hike-izer v2 — sibling "historical weather" i.e. actual-conditions item lives there, not here), CARD-0007 (hiking observations pipeline, Tasker → Sheets precedent), `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `components/hike-izer/fetch_hike_data.py`.
-
----
-
 ### CARD-0082 · [idea] [hike-izer] Visual track + elevation graphic, Gaia-GPS-style
 **Notes:** Raised 2026-07-23. Add a visual graphic depicting the hike route and elevation profile, in the style of Gaia GPS's track view — route line plotted over a real topo/satellite basemap, paired with a distance-vs-elevation chart. This card owns the embedded-visuals and interactive-hover-sync work directly (CARD-0088, once scoped as an intermediary "embedded visuals" level, was narrowed 2026-07-24 to just HTML hosting after realizing it was pure duplicate scope of this card) — this is its own standalone artifact so it can potentially be embedded as a static image in the *current* Markdown output too, not gated on any other card's work landing first.
 
@@ -224,6 +198,49 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 
 ## Planning
+
+---
+
+### CARD-0086 · [idea] [hike-izer] Automatic triggering
+**Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature. V1 is on-demand only (Joseph explicitly invokes a summary for a specific hike). This card is about detecting that a hike happened/finished and generating the summary automatically — needs a trigger mechanism decision (e.g. GPSLogger track completion, hiking-monitor's own wake/sleep pattern signaling a finished hike, a scheduled check) not yet made.
+
+**Blocking dependency, corrected 2026-07-24 (same stale carry-over already fixed on CARD-0084):** CARD-0074's blanket "hiking-monitor device needs to be operational" note doesn't actually apply here either — triggering off GPSLogger or the Hiking Observations pipeline is phone-based, entirely independent of the ESP32 hiking-monitor device. No real blocker.
+
+**Candidate trigger mechanisms considered 2026-07-24, while scoping CARD-0083's sibling need (hike-*start* detection):**
+- **Explicit "end of hike" phrase match** (via the Hiking Observations pipeline, CARD-0007) — real precedent exists (today's actual hike literally ended with the observation "end of hike"), but depends on Joseph remembering to say it every time; if he doesn't, the trigger silently never fires.
+- **GPS-session-based absence detection** (no new GPS point for N minutes) — doesn't depend on Joseph saying anything, but needs polling/a scheduled check rather than a clean event, has inherent lag (waiting out the N-minute window), and risks a false positive from a temporary GPS dead zone (canyon, dense tree cover) that isn't really the hike ending.
+
+**Leading candidate, found 2026-07-24 — GPSLogger's own native start/stop broadcast, via Tasker.** GPSLogger (the Android app already used for the GPS Track pipeline, `com.mendhak.gpslogger`) broadcasts a native Android event whenever logging starts or stops (`com.mendhak.gpslogger.EVENT`), confirmed via its own documentation: *"GPSLogger sends a broadcast start/stop of logging... which you can receive as an event"* in Tasker. This beats both candidates above:
+- Fully automatic — tied to something Joseph already reliably does (stopping GPSLogger when the hike ends), not a new verbal habit to remember.
+- Immediate, no lag — fires the instant logging actually stops, not after an inferred timeout, and no false-positive risk from a temporary signal dead zone.
+- Reuses proven infrastructure, not new territory — Tasker already fires an HTTP POST to the same Apps Script for the "Log Observation" task (CARD-0007, Steps 24-26 in `hiking-monitor-claude-code-instructions.md`). This would be a second, small Tasker profile copying that same pattern: trigger on "Intent Received" for GPSLogger's stop broadcast, action: HTTP POST to a hike-end endpoint.
+
+**Not yet confirmed:** the exact extras/payload GPSLogger's broadcast intent carries — its docs don't spell out the variable names precisely. Small thing to verify hands-on when this gets built, not a feasibility blocker.
+
+**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (superseded), CARD-0083 (sibling trigger-mechanism need, opposite end of the hike), CARD-0007 (Hiking Observations pipeline — the phrase-match fallback and the Tasker HTTP-POST pattern the leading candidate copies), `components/hiking-monitor/gps-pipeline.md` (GPSLogger app details), `components/hike-izer/fetch_hike_data.py`.
+
+---
+
+### CARD-0083 · [idea] [hike-izer] Show the weather forecast as it stood at hike start
+**Notes:** Raised 2026-07-23. Show what the weather forecast *was* at the beginning of the hike — not a live/current forecast checked whenever the summary gets generated, and not actual observed conditions (that's already CARD-0074's separate "historical weather" item, explicitly scoped as actual-conditions lookup, not forecast).
+
+**Feasibility issue found and resolved by scoping decision:** historical forecasts generally aren't retrievable after the fact — weather services archive what actually happened, not what was predicted at some past moment, unless something captured that specific forecast snapshot at the time. Confirmed 2026-07-23: this card is scoped for **future hikes only**, captured live at hike start — not retroactive for hikes already recorded. No existing weather-fetch integration to build on: JCTsh's current Weather Underground integration (`core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`) only *posts* the household's own sensor data outward to WU, it doesn't pull forecast data in — this is a new integration either way.
+
+**Content scope (confirmed 2026-07-23):** full detail — temperature, precipitation chance, wind, humidity, and UV index. Not just a one-line summary.
+
+**Provider — not yet decided, no existing preference to constrain it.** Candidates to evaluate when this is picked up:
+- **National Weather Service API (api.weather.gov)** — free, no API key, US-only (fine, all current hikes are US-based). Covers temp/wind/precip. **Does not include UV index** — would need a second source for that piece specifically if NWS is chosen.
+- **OpenWeatherMap (One Call API)** — free tier available, needs an API key, covers temp/precip/wind/humidity/UV all in a single call — matches the full-detail scope without needing a second provider for UV.
+
+**Capture mechanism — leading candidate identified 2026-07-24: reuse the existing Hiking Observations pipeline (CARD-0007), no new mobile automation.** Extend `environmental-data.gs` to fire the forecast fetch server-side the moment it receives **the first Hiking Observation of a new calendar day** — a positional/temporal heuristic, not a keyword match. Real observation text is messy (an actual captured first-observation was *"hiking trail tortellita preserve perimeter Trail"*, not a fixed phrase), so requiring specific trigger words would be fragile; "first observation of the day" is simple and reliable regardless of what Joseph actually says. This is genuinely real-time (fires the instant the observation POSTs, no batching delay) and needs zero new Tasker/Node-RED build — just an addition to the Apps Script that already receives every observation.
+
+**Location precision, optional refinement:** rather than always fetching a generic home-area forecast, correlate the trigger observation's timestamp against the nearest GPS trackpoint (same "nearest trackpoint" technique already designed for CARD-0080's bird-sighting correlation) to get a real per-hike coordinate for the forecast call, since GPSLogger and the first observation tend to fire around the same trailhead moment.
+
+**Related to CARD-0086, but not the same mechanism after further scoping:** this card needs a hike-**start** trigger (forecast snapshot); CARD-0086 needs a hike-**finish** trigger (auto-generate the summary). Initially assumed both would share the same Apps Script/Hiking-Observations extension — but CARD-0086's leading candidate turned out to be different: GPSLogger's own native start/stop broadcast Intent (`com.mendhak.gpslogger.EVENT`), picked up by a Tasker profile, not an Apps Script trigger at all. Worth noting this card's own start-trigger could theoretically also use **GPSLogger's *start* broadcast** (the same native-event mechanism, mirrored) instead of the "first observation of the day" heuristic — not yet compared head-to-head, but consistent with CARD-0086's finding that the GPSLogger-native-event approach beats phrase/positional heuristics on robustness. Worth revisiting which start-trigger to actually build when this is picked up.
+
+**Superseded/older candidates (Tasker action or Node-RED handler fired off GPSLogger start, from the original 2026-07-23 scoping) — now converging with the GPSLogger-native-event finding above** rather than being a separate fallback; kept for history.
+
+**Related:** CARD-0074 (Hike-izer v2 — sibling "historical weather" i.e. actual-conditions item lives there, not here), CARD-0007 (hiking observations pipeline, Tasker → Sheets precedent), `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `components/hike-izer/fetch_hike_data.py`.
 
 ---
 

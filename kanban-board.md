@@ -15,6 +15,20 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0092 · [idea] [hike-izer] Calendar view on a home page, clickable through to hike summaries
+**Notes:** Raised 2026-07-24. A calendar showing which days had a confirmed hike — visually marked, clickable through to that day's `hike-summary.html` page.
+
+**Real dependency, not yet resolved:** there is currently no "home page" or index at all for Hike-izer's output — CARD-0088 only scoped *publishing* the per-hike summary HTML files themselves (getting them onto a real URL), not a landing page that links across all of them. This card needs to either define that home page itself, or explicitly share it with whatever else eventually needs one — don't assume it already exists when this is picked up.
+
+**Open questions for when this is planned:**
+- Data source for "which days had a hike" — most likely scanning `hike-izer/summaries/` for real (`hike_confirmed: true`) days, or a small dedicated index/manifest file generated alongside each summary rather than re-deriving it by scanning the directory every time.
+- Calendar UI approach — plain CSS grid (matching Hike-izer's existing zero-`<script>` HTML template philosophy, per `components/hike-izer/html-template.html`) vs. a JS calendar widget. Leans toward zero-JS to match precedent unless a real need for interactivity beyond click-through shows up.
+- Whether the home page is statically regenerated each time a new summary is written, or built some other way.
+
+**Related:** CARD-0088 (HTML hosting — this card's home page would live there; the "home page" concept itself doesn't yet exist and may need defining as part of or alongside this card), CARD-0081 (HTML rendering template this would presumably match visually), CARD-0073 (Hike-izer v1, Done).
+
+---
+
 ### CARD-0091 · [idea] [hike-izer] Drop Markdown output, HTML becomes the sole format
 **Notes:** Raised 2026-07-24, during CARD-0083 planning — Joseph questioned the ongoing value of generating `.md` alongside `.html` now that HTML has become the richer format: CARD-0081 gave it real styling/structured layout, CARD-0084's photo gallery is already HTML-only (no equivalent in the Markdown), and CARD-0088 is standing up real public hosting specifically for the HTML output. Deliberately not folded into CARD-0083 — bigger move than one card, touches SKILL.md's core generation step and the historical `.md`-only scope of CARD-0073/CARD-0081, not just CARD-0083's own new content.
 

@@ -15,15 +15,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0088 · [idea] [hike-izer] HTML output hosting (real URL, not an email attachment)
-**Notes:** Filed 2026-07-23, narrowed 2026-07-24. Originally scoped as "HTML rendering, Levels 3-5" (embedded visuals, interactive, hosting) split out of CARD-0081. Narrowed further after realizing the embedded-visuals and interactive/photos items were pure duplicates of scope already owned elsewhere — CARD-0082 (Visual track + elevation graphic) already covers embedded maps/charts and its own interactive hover-sync level, and CARD-0084 already covers photo integration. Neither needed a third card as an intermediary; this card now covers only the one genuinely unowned piece: **publishing** the HTML Hike-izer already generates (CARD-0081, Done) somewhere with a real URL, instead of emailing a file as an attachment.
-
-**Decided direction, real constraint found:** Joseph wants to reuse an existing asset rather than pay for new hosting — a domain (believed to be `jctnet.com`, not yet confirmed exact spelling) already pointed at **Google Sites**. Found during scoping: the current ("new") Google Sites has no solid API for programmatic publishing — getting generated HTML onto it will likely mean a manual copy/paste or embed step each time a summary is published, not something Hike-izer's pipeline can push automatically. Confirm the exact domain/Sites setup before starting; may be worth revisiting the "no paid hosting" constraint if the manual-publish friction turns out to be worse than expected in practice.
-
-**Related:** CARD-0081 (HTML rendering, Levels 1-2, Done — produces the file this card publishes), CARD-0082 (embedded visuals/interactivity — separate card, not this one's job), CARD-0084 (photo integration — separate card, not this one's job), CARD-0073 (Hike-izer v1, Done).
-
----
-
 ### CARD-0085 · [idea] [hike-izer] Hiker's own compass/heading
 **Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature. Real gap, not just missing analysis: v1 only computes the *sun's* compass direction from pure astronomy — nothing currently captures which way the hiker was actually facing at any point on the route. Needs new instrumentation (e.g. a magnetometer/compass sensor added to the hiking-monitor hardware) or a different data source entirely — this is likely a hardware-scope card, not a pure software one, and may tie into hiking-monitor's own build cards once scoped.
 
@@ -233,6 +224,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 
 ## Planning
+
+---
+
+### CARD-0088 · [idea] [hike-izer] HTML output hosting (real URL, not an email attachment)
+**Notes:** Filed 2026-07-23, narrowed 2026-07-24. Originally scoped as "HTML rendering, Levels 3-5" (embedded visuals, interactive, hosting) split out of CARD-0081. Narrowed further after realizing the embedded-visuals and interactive/photos items were pure duplicates of scope already owned elsewhere — CARD-0082 (Visual track + elevation graphic) already covers embedded maps/charts and its own interactive hover-sync level, and CARD-0084 already covers photo integration. Neither needed a third card as an intermediary; this card now covers only the one genuinely unowned piece: **publishing** the HTML Hike-izer already generates (CARD-0081, Done) somewhere with a real URL, instead of emailing a file as an attachment.
+
+**Decided direction, real constraint found:** Joseph wants to reuse an existing asset rather than pay for new hosting — a domain (believed to be `jctnet.com`, not yet confirmed exact spelling) already pointed at **Google Sites**. Found during scoping: the current ("new") Google Sites has no solid API for programmatic publishing — getting generated HTML onto it will likely mean a manual copy/paste or embed step each time a summary is published, not something Hike-izer's pipeline can push automatically. Confirm the exact domain/Sites setup before starting; may be worth revisiting the "no paid hosting" constraint if the manual-publish friction turns out to be worse than expected in practice.
+
+**Alternative investigated 2026-07-24: self-host on photo-server (M8) instead of Google Sites.** Real option, not just theoretical — the M8 already runs Docker (Immich, NetAlertX) and already has Tailscale installed (`100.111.16.14`), which HA already uses for its own Tailscale HTTPS access URL (`https://tailfe828a.ts.net`) — real existing precedent, not new infrastructure. Three genuinely separate pieces:
+
+1. **Static file server** — a small nginx/Caddy container on the M8, own compose project (matches the NetAlertX/Immich pattern), serving whatever directory holds the generated HTML + photo galleries.
+2. **Getting files onto the M8** — Hike-izer currently runs on Joseph's Windows machine; the generated HTML + its sibling `_photos/` directory would need to land on the M8 (simplest v1: `scp`/`rsync` after each generation, same manual-deploy pattern already used for `log_server.py`/NetAlertX's flow — full automation would additionally need CARD-0086, separate scope).
+3. **External access — three real tiers, compared 2026-07-24:**
+   - **Tailscale HTTPS** (the same feature HA already uses) — lowest effort, but only reachable by devices already on the Tailscale account (Joseph, Robin) — not a link shareable with someone outside the household.
+   - **Tailscale Funnel** — same tool, different command (`tailscale funnel` vs. `serve`), no port-forwarding, genuine public HTTPS access via a generated `*.ts.net` address. **Leading candidate** — reuses infra already running, avoids port-forward risk on a host that also holds the photo library, actually shareable with anyone.
+   - **Cloudflare Tunnel + custom domain** (`jctnet.com`) — more setup (new tool/account, DNS moved to Cloudflare), but gives a real custom-domain URL instead of a random `*.ts.net` address. **Cost confirmed 2026-07-24: free** for this use case — the tunnel itself has no usage limits on Cloudflare's free plan; the ~$7/user/month figures that show up in searches are for a separate, unrelated product (Zero Trust/Access identity gating), not needed for a simple public-link use case.
+
+**Disk placement for the M8-hosting option, checked 2026-07-24:** confirmed via `lsblk`/`df -h` that the M8's boot disk (`nvme0n1`, 477GB, 421GB free, mounted `/`) is the *only SSD in the system* — `/mnt/photo-library` (Immich's live asset store, 73% full already) and both backup mounts are all spinning USB HDDs (`ROTA=1`). The boot disk is the right place for the HTML+photos data too, not just the container: best I/O for serving small files, most free space, and since the photos are a regenerable Immich cache (not primary data per CARD-0084's design) rather than something irreplaceable, keeping it on the same disk as the container is a reasonable single point of failure. Estimated footprint at 3 hikes/week, grounded in CARD-0084's real captured photo sizes (~3.9MB per photo, original+thumbnail): **~7.3GB/year** photos-only, **~12.5GB/year** with occasional video — trivial against 421GB free either way. Real caveat: this is an unbounded-growth local cache unless periodically pruned (Immich remains the real backup) — worth a retention/cleanup step if this path is built.
+
+**Not yet decided:** Google Sites (as originally scoped) vs. self-hosting on the M8 with Tailscale Funnel (the option that emerged from this investigation) — no final call made yet, both remain open.
+
+**Related:** CARD-0081 (HTML rendering, Levels 1-2, Done — produces the file this card publishes), CARD-0082 (embedded visuals/interactivity — separate card, not this one's job), CARD-0084 (photo integration — separate card, not this one's job), CARD-0073 (Hike-izer v1, Done).
 
 ---
 

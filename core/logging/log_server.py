@@ -604,7 +604,7 @@ def _build_status_html():
 
 
 # ── Kanban board (live-parsed from kanban-board.md, CARD-0057) ──────────────
-_KANBAN_COLUMNS = ["Backlog", "Planning", "Design", "Build", "Done", "Defer"]
+_KANBAN_COLUMNS = ["Backlog", "Planning", "Build", "Done", "Defer"]
 _KANBAN_COLUMN_RE = re.compile(
     r"^## (" + "|".join(_KANBAN_COLUMNS) + r")\s*$", re.MULTILINE
 )
@@ -804,7 +804,6 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   .column__empty { font-size: 0.8rem; color: var(--ink-faint); font-style: italic; padding: 0.5rem 0.15rem; }
   .column[data-col="Backlog"]  .column__head { border-top: 3px solid var(--ink-faint); }
   .column[data-col="Planning"] .column__head { border-top: 3px solid var(--idea); }
-  .column[data-col="Design"]   .column__head { border-top: 3px solid var(--accent); }
   .column[data-col="Build"]    .column__head { border-top: 3px solid var(--warning); }
   .column[data-col="Done"]     .column__head { border-top: 3px solid var(--good); }
   .column[data-col="Defer"]    .column__head { border-top: 3px dashed var(--ink-faint); }
@@ -861,9 +860,8 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
 (function () {
   var COLUMNS = [
     { key: 'Backlog',  desc: 'Captured, not yet being worked on.' },
-    { key: 'Planning', desc: 'Plan is being laid out.' },
-    { key: 'Design',   desc: 'Claude Code instructions being written.' },
-    { key: 'Build',    desc: 'Going through instructions, including testing.' },
+    { key: 'Planning', desc: 'Being scoped/interviewed; the plan itself is the design artifact.' },
+    { key: 'Build',    desc: 'Going through the plan/implementation, including testing.' },
     { key: 'Done',     desc: 'Complete.' },
     { key: 'Defer',    desc: 'A deliberate decision not to pursue for now.' }
   ];

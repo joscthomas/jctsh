@@ -2,11 +2,10 @@
 
 Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a unique ID.
 
-**Columns:** Backlog → Planning → Design → Build → Done, plus **Defer** (off to the side — reachable from any stage)
+**Columns:** Backlog → Planning → Build → Done, plus **Defer** (off to the side — reachable from any stage)
 - **Backlog** — captured, not yet being worked on
-- **Planning** — plan is being laid out
-- **Design** — Claude Code instructions being written
-- **Build** — going through Claude Code instructions, including testing
+- **Planning** — being scoped/interviewed, and (if non-trivial) an implementation plan written — no separate Design checkpoint; the plan itself is the design artifact
+- **Build** — going through the plan/implementation, including testing
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 

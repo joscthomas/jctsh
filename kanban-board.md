@@ -81,24 +81,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0080 · [idea] [hike-izer] Integrate bird species identified via Merlin Sound ID
-**Notes:** Raised 2026-07-23. Joseph has been using Cornell Lab's Merlin Bird ID app (Sound ID feature — real-time audio-based species identification, 2000+ species) while hiking and wants that data folded into Hike-izer's narrative summaries, correlated with GPS location and time on the route (e.g. "heard a Canyon Wren near the summit around 2pm") — same treatment the existing GPS track and Environmental Data sources already get, not just a flat species list.
-
-**Data source — real options found, not yet decided (2026-07-23 research):**
-1. **eBird bulk export** — "My eBird" → Download My Data → emailed link to a zipped `MyEBirdData.csv` covering all personal observations. Manual/periodic, not automatable on a per-hike basis without extra steps.
-2. **eBird per-checklist export** — open a specific checklist → Checklist tools → Download → CSV for just that outing. More precise for matching one hike, still a manual per-hike action.
-3. **eBird API** — programmatic access via a personal API key (same credential pattern already used elsewhere in this project — Immich, Apps Script). Described as "designed for limited, recent and summary outputs," not a full data-dump API — needs a closer look at actual response shape/limits before committing to this path.
-
-**Key dependency, not yet resolved:** all three options above require Merlin's Sound ID results to actually be **submitted to eBird** as a checklist — per eBird's own Sound ID best-practices guidance, this means reviewing/confirming each AI suggestion before submitting, not just leaving them in Merlin's local in-app history. If Joseph doesn't want to participate in eBird's citizen-science submission workflow per hike, none of the above apply and this becomes **manual entry** instead (review Merlin's local session history after a hike, type/dictate species list somewhere Hike-izer can read, similar to how the hiking observations pipeline already works — CARD-0007). This decision gates which implementation path makes sense and should happen before any build work starts.
-
-**Integration approach (decided):** correlate each bird ID with GPS location + timestamp from the existing hike-izer pipeline (`components/hike-izer/fetch_hike_data.py`), matching the treatment other data sources already get — not a flat unlinked species list.
-
-**Scope:** kept as its own standalone card, not folded into CARD-0074 (Hike-izer v2) — distinct data source with its own open questions (export mechanism, eBird submission workflow) worth resolving independently. Not blocked on the hiking-monitor device being back in active rotation (CARD-0074's blocker) — Merlin runs on Joseph's phone, independent of the ESP32 sensor hardware.
-
-**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (Hike-izer v2, has its own separate deferred-items list), `components/hike-izer/README.md`, `components/hike-izer/fetch_hike_data.py`.
-
----
-
 ### CARD-0058 · [idea] [presence] BLE room-detection for the Pixel 7 via Bermuda
 **Notes:** Raised 2026-07-12. Goal: know which room the Pixel 7 is in (`sensor.pixel7_room` in HA) using BLE signal strength from ESPHome nodes already deployed around the house — no new hardware, no dedicated firmware.
 
@@ -252,6 +234,30 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 
 ## Planning
+
+---
+
+### CARD-0080 · [idea] [hike-izer] Integrate bird species identified via Merlin Sound ID / BirdNET Live
+**Notes:** Raised 2026-07-23. Joseph has been using Cornell Lab's Merlin Bird ID app (Sound ID feature — real-time audio-based species identification, 2000+ species) while hiking and wants that data folded into Hike-izer's narrative summaries, correlated with GPS location and time on the route (e.g. "heard a Canyon Wren near the summit around 2pm") — same treatment the existing GPS track and Environmental Data sources already get, not just a flat species list.
+
+**Data source options considered 2026-07-23 (eBird-based, ruled out):**
+1. **eBird bulk export** — "My eBird" → Download My Data → emailed link to a zipped `MyEBirdData.csv` covering all personal observations. Manual/periodic, not automatable on a per-hike basis without extra steps.
+2. **eBird per-checklist export** — open a specific checklist → Checklist tools → Download → CSV for just that outing. More precise for matching one hike, still a manual per-hike action.
+3. **eBird API** — programmatic access via a personal API key (same credential pattern already used elsewhere in this project — Immich, Apps Script). Described as "designed for limited, recent and summary outputs," not a full data-dump API. **Fundamental grain problem, not just an access-method detail:** eBird's core unit is a checklist tied to one location (or a rough traveling track), not a GPS point per species — even a per-checklist export wouldn't give per-detection coordinates, so this path can't actually deliver "heard near the summit around 2pm"-style correlation regardless of which export/API option is used.
+
+**Key dependency — resolved 2026-07-24:** the eBird path requires Merlin's Sound ID results to actually be **submitted to eBird** as a checklist, which Joseph hasn't done and wasn't planning to commit to for this. Combined with the grain problem above, eBird is not the path.
+
+**Fallback data source investigated 2026-07-24: Merlin's Life List, via screenshot.** Merlin itself has no export/API at all (confirmed, browsing-only). Its **Life List** (cumulative all-time record, not per-session) shows **date + precise address + species per entry directly in the scrollable list view** — no need to tap into individual entries. Workflow would be: after a hike, screenshot that day's Life List entries; Claude reads the screenshot directly (native multimodal vision — no OCR tooling, no transcription). Merlin gives **no time of day, date only** — the design worked out to compensate for this: geocode each entry's address to lat/lon, match to the **nearest point on that day's confirmed GPS track**, and borrow *that trackpoint's own timestamp* as the inferred sighting time. This is a real, workable fallback, but adds a geocoding dependency (service not yet picked) and inherently approximate timing.
+
+**Delivery mechanism considered and rejected:** Quick Share (Android↔Windows, AirDrop-like) requires both devices awake and physically nearby at transfer time — real friction for reviewing a hike's sightings whenever convenient rather than immediately upon getting home. Better direction: auto-backup screenshots to Immich (photo-server) so delivery is decoupled from the laptop's state entirely — but `fetch_hike_photos.py`'s existing matching logic only searches within the hike's own GPS-tracked time window, and a post-hike Life List screenshot wouldn't fall inside that window, so bird-screenshot lookup would need separate matching logic (e.g. same-day screenshots taken after the hike ended) if this path is used.
+
+**Primary path now under evaluation, 2026-07-24: BirdNET Live.** Same Cornell Lab research lineage as Merlin's Sound ID (shared underlying identification tech). Confirmed via research: real-time on-device offline bird ID, a **Survey Mode** built for exactly this (GPS tracking alongside continuous audio detection during a transect), and **direct export to CSV/JSON/GPX/ZIP** — structured data, not a screenshot. **Not yet confirmed:** whether the export has lat/lon + timestamp on each individual detection row, or only session/survey-level GPS — this is the one open question that determines whether it fully replaces the Merlin screenshot-and-geocode fallback above. **Next step: Joseph tries Survey Mode on a real hike, exports a CSV, and reports the actual column structure** — that decides which of the two data-source designs above this card actually builds against. iNaturalist was also considered (clean per-observation API with real per-sighting GPS+timestamp) but its workflow is deliberate/manual per-sighting rather than continuous background listening like Merlin/BirdNET Live, so it's a weaker fit for preserving the current hands-free hiking UX.
+
+**Integration approach (decided):** correlate each bird ID with GPS location + timestamp from the existing hike-izer pipeline (`components/hike-izer/fetch_hike_data.py`), matching the treatment other data sources already get — not a flat unlinked species list.
+
+**Scope:** kept as its own standalone card, not folded into CARD-0074 (Hike-izer v2) — distinct data source with its own open questions worth resolving independently. Not blocked on the hiking-monitor device being back in active rotation (CARD-0074's blocker) — the bird-ID app runs on Joseph's phone, independent of the ESP32 sensor hardware.
+
+**Related:** CARD-0073 (Hike-izer v1, Done), CARD-0074 (Hike-izer v2, has its own separate deferred-items list), CARD-0081 (HTML output — undecided yet whether bird sightings surface in Markdown, HTML, or both), CARD-0084 (Photos — same Immich-backend pattern under consideration for screenshot delivery, if that path is used), `components/hike-izer/README.md`, `components/hike-izer/fetch_hike_data.py`.
 
 ---
 

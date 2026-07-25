@@ -1,36 +1,64 @@
 # hike-izer-orchestrator
 
-Webhook receiver (and, eventually, generator) for automatic Hike-izer
-triggering. Tracking card: **CARD-0086** on `kanban-board.md`. Companion to
+Webhook receiver and generator for automatic Hike-izer triggering. Tracking
+card: **CARD-0086** on `kanban-board.md`. Companion to
 CARD-0081 (HTML rendering) and CARD-0088 (hosting) — this is what makes
 Hike-izer run without Joseph asking for it.
 
 ---
 
-## Status: Stage 1 (trigger + connectivity) only
+## Status: Stage 1 verified, stage 2 built 2026-07-24
 
-`app.py` currently just validates the shared secret and logs what it
-received — no generation yet. Stage 2 (Python templating for the mechanical
-output + one Claude API call for narrative prose) is a follow-up build once
-stage 1 is proven with a real phone-triggered event, not a synthetic curl
-test.
+Stage 1 (trigger + connectivity) was proven end-to-end with a real
+GPSLogger stop event before stage 2 was built. Stage 2 adds the actual
+generation pipeline (`generation.py`): on a real `stopped` event, it runs
+`fetch_hike_data.py`/`fetch_hike_photos.py` exactly as the interactive
+Skill's steps 3/7 do, builds the mechanical Markdown/HTML output
+(`templating.py`, a direct port of `html-template.html`'s field mapping),
+makes one Claude API call for just the narrative paragraphs
+(`narrative.py`, reading the deployed `SKILL.md` copy at call time so
+future edits to the real Skill apply here too), and writes the result
+straight into `srv/` — no `scp` step, since the orchestrator and the served
+directory are on the same host. Publishes success/failure to
+`jctsh/hike-izer/publish/log` (`mqtt_log.py`).
 
 ## How it's deployed
 
-Not its own Docker Compose project. `app.py` runs as a second service
+Not its own Docker Compose project. This runs as a second service
 (`orchestrator`) inside `components/hike-izer-web/docker-compose.yml`, so it
 shares that project's default Docker network and is reachable from Caddy by
 service name (`orchestrator:8080`) — no second Tailscale Funnel port. See
 `components/hike-izer-web/Caddyfile`'s `/webhook/*` route.
 
-On the M8, the deployed source lives at
-`~/hike-izer-web-app/orchestrator/app.py` (same project directory as the
-`web` service's `srv/`/`Caddyfile`). To update:
+Unlike stage 1 (a single bind-mounted `app.py` against the stock
+`python:3.12-alpine` image), stage 2 needs pip packages (`anthropic`,
+`paho-mqtt`) that image doesn't have, so this is now a real Docker build
+(`Dockerfile`) rather than a bind mount. The build context also needs two
+files this component doesn't own — `fetch_hike_data.py`/`fetch_hike_photos.py`
+(canonical source: `components/hike-izer/`) and `SKILL.md` (canonical
+source: `.claude/skills/hike-izer/SKILL.md`) — deployed as copies, same
+"no git checkout on the M8" pattern used everywhere else in this repo.
+
+On the M8, the deploy directory is `~/hike-izer-web-app/orchestrator/`
+(same project directory as the `web` service's `srv/`/`Caddyfile`). To
+update:
 
 ```
-scp components/hike-izer-orchestrator/app.py jct@photo-server.local:~/hike-izer-web-app/orchestrator/app.py
-ssh jct@photo-server.local "cd ~/hike-izer-web-app && docker compose up -d orchestrator"
+scp components/hike-izer-orchestrator/*.py components/hike-izer-orchestrator/Dockerfile components/hike-izer-orchestrator/requirements.txt jct@photo-server.local:~/hike-izer-web-app/orchestrator/
+scp components/hike-izer/fetch_hike_data.py components/hike-izer/fetch_hike_photos.py jct@photo-server.local:~/hike-izer-web-app/orchestrator/
+scp .claude/skills/hike-izer/SKILL.md jct@photo-server.local:~/hike-izer-web-app/orchestrator/
+ssh jct@photo-server.local "cd ~/hike-izer-web-app && docker compose up -d --build orchestrator"
 ```
+
+**Required `.env` keys** (`~/hike-izer-web-app/.env`, shared with `web`) —
+see `components/hike-izer-web/.env.example` for the full list and
+`credentials.local.md` for real values: `WEBHOOK_SECRET`,
+`ANTHROPIC_API_KEY`, `APPS_SCRIPT_URL`, `APPS_SCRIPT_KEY`, `IMMICH_URL`,
+`IMMICH_KEY`, `MQTT_USERNAME`, `MQTT_PASSWORD`. The MQTT account needs to
+be created on the Pi once (`sudo mosquitto_passwd ...` — see
+`credentials.local.md`) before publish-visibility logging works; everything
+else works without it (a missing MQTT account just means `mqtt_log.py`
+prints a warning and skips the publish, not a generation failure).
 
 ## Webhook contract
 
@@ -130,10 +158,26 @@ curl -s -X POST "https://photo-server.tailfe828a.ts.net/webhook/hike-end?key=<WE
 docker logs hike-izer-orchestrator --tail 20                          # confirm it logged the event
 ```
 
+## Checking generation worked
+
+```
+docker logs hike-izer-orchestrator --tail 30                          # look for "Published hike summary for <date>"
+curl -s https://photo-server.tailfe828a.ts.net/<date>_hike-summary.html | head -5
+```
+
+A generation failure logs the exception to stdout (`docker logs`) and
+publishes an `Alert`-category message to `jctsh/hike-izer/publish/log`
+rather than crashing the webhook handler — the HTTP response to Tasker
+already went out before generation started (see `app.py`'s background
+thread), so a failure here is only visible via logs/MQTT, not an HTTP
+error.
+
 ## Related
 
 - CARD-0086 (this component's tracking card — full architecture reasoning)
 - CARD-0088 (hosting — this component rides its Funnel URL/Caddy/compose project)
 - CARD-0007 (Hiking Observations pipeline — the Tasker HTTP-POST pattern this profile copies)
-- `.claude/skills/hike-izer/SKILL.md` (the narrative-writing rules stage 2 will call Claude with)
-- `components/hike-izer/fetch_hike_data.py` / `fetch_hike_photos.py` (stage 2 will run these as subprocesses)
+- CARD-0084 (photo integration — `fetch_hike_photos.py`, same behavior reused here)
+- `.claude/skills/hike-izer/SKILL.md` (the narrative-writing rules `narrative.py` calls Claude with, and the mechanical-output rules `templating.py` ports)
+- `components/hike-izer/fetch_hike_data.py` / `fetch_hike_photos.py` (run as subprocesses by `generation.py`)
+- `components/hike-izer/html-template.html` (the styling `templating.py`'s `_HTML_STYLE` constant ports verbatim)

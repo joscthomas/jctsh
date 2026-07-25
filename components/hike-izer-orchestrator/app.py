@@ -3,14 +3,14 @@
 Hike-izer orchestrator -- webhook receiver for automatic hike-end triggering
 (CARD-0086).
 
-Stage 1 (this file, initial build): receives the Tasker HTTP POST fired when
-GPSLogger's native stop broadcast fires, validates the shared secret, and
-logs what it received. No generation yet -- proves the trigger chain works
-end-to-end (GPSLogger -> Tasker -> this receiver) before generation logic is
-added in stage 2.
+Receives the Tasker HTTP POST fired when GPSLogger's native stop broadcast
+fires, validates the shared secret, and (stage 2) kicks off the generation
+pipeline in a background thread -- the HTTP response returns immediately so
+Tasker's own request timeout doesn't fire while fetch/Immich/Claude calls
+that can take well over 10 seconds are still running.
 
-Standard library only -- no pip install required, matching
-components/hike-izer/fetch_hike_data.py's convention.
+Unlike fetch_hike_data.py, this file (and generation.py/narrative.py/
+mqtt_log.py) needs pip packages (anthropic, paho-mqtt) -- see Dockerfile.
 
 Expected POST body (JSON), matching GPSLogger's own broadcast extras plus
 the phone's local date/time as a single ISO 8601 string with UTC offset
@@ -36,9 +36,12 @@ import hmac
 import json
 import os
 import sys
+import threading
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
+
+import generation
 
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 PORT = int(os.environ.get("PORT", "8080"))
@@ -88,12 +91,9 @@ class Handler(BaseHTTPRequestHandler):
             self._respond(200, {"status": "ok", "message": f"logged, ignored ({event})"})
             return
 
-        # Stage 2 (not yet built): kick off fetch_hike_data.py / fetch_hike_photos.py
-        # and generation here, using payload['local_datetime'] (parseable via
-        # datetime.fromisoformat) as "today" for the hike -- never
-        # inferred/hardcoded as Arizona.
-        log("Stop event received -- generation not yet implemented (stage 2)")
-        self._respond(200, {"status": "ok", "message": "stop event logged"})
+        log("Stop event received -- starting generation in the background")
+        threading.Thread(target=generation.run_and_log, args=(payload,), daemon=True).start()
+        self._respond(200, {"status": "ok", "message": "stop event received, generating"})
 
     def _respond(self, status, body):
         data = json.dumps(body).encode()

@@ -250,6 +250,7 @@ Mosquitto requires auth (`allow_anonymous false`). Each component has its own ac
 | `front-porch-temp-sensor` | front-porch-temp-sensor ESPHome device |
 | `hiking-monitor` | hiking-monitor ESPHome device |
 | `photo-server` | photo-server heartbeat script (Docker/Immich health check) |
+| `hike-izer-orchestrator` | hike-izer-orchestrator container on photo-server (CARD-0086), publishes generation success/failure to `jctsh/hike-izer/publish/log` |
 
 Passwords are stored in:
 - **Log server** — `/etc/jctsh/log-server.env` on the Pi (injected via systemd `EnvironmentFile`)

@@ -1,0 +1,73 @@
+#!/usr/bin/env python
+"""
+Hike-izer narrative generation (CARD-0086 stage 2).
+
+The one place in the automated pipeline that genuinely needs an LLM: turning
+a day's structured hike data into readable narrative prose (SKILL.md step
+4a). Everything else (stats, tables, coverage) is deterministic templating
+in templating.py. Reads the deployed SKILL.md copy at call time rather than
+duplicating its narrative-writing rules here, so future edits to the real
+Skill automatically apply to the automated path too.
+"""
+
+from typing import List
+
+import anthropic
+from pydantic import BaseModel
+
+MODEL = "claude-opus-4-8"
+
+SYSTEM_PROMPT_PREFIX = """You are writing part (a), "Narrative story of the hike," of a Hike-izer \
+summary. Below is the full hike-izer Skill instructions document (SKILL.md) for context -- \
+follow its "Write the narrative" guidance (step 4, part a) exactly, including the \
+non-redundancy rule (don't restate numbers that belong in the data tables -- interpret and \
+connect instead) and the hike_confirmed:false handling if applicable. Ignore every other step \
+in this document (data fetching, HTML/Markdown mechanics, photos, publishing) -- those are \
+handled elsewhere; your only job is the narrative paragraphs.
+
+--- SKILL.md ---
+{skill_md}
+--- end SKILL.md ---
+
+Return only the narrative as a list of paragraphs (plain text, no Markdown formatting, no \
+headers) via the narrative_paragraphs field. Write 2-5 paragraphs depending on how much \
+happened that day -- a quiet short walk doesn't need padding to hit a paragraph count, and an \
+eventful all-day hike can run longer."""
+
+
+class NarrativeOutput(BaseModel):
+    narrative_paragraphs: List[str]
+
+
+def _trim_for_narrative(hike_data: dict) -> dict:
+    """The narrative only needs a subset of hike_data.json -- the raw
+    Environmental Data/GPS Track rows are already summarized into stats and
+    aren't useful raw (and would bloat the request for no benefit)."""
+    return {
+        "coverage": hike_data["coverage"],
+        "stats": hike_data["stats"],
+        "sun_position_samples": hike_data["sun_position_samples"],
+        "hiking_observations": hike_data["hiking_observations"],
+        "hike_start_forecast": hike_data.get("hike_start_forecast", []),
+    }
+
+
+def generate_narrative(hike_data: dict, skill_md_text: str, api_key: str) -> List[str]:
+    client = anthropic.Anthropic(api_key=api_key)
+    system_prompt = SYSTEM_PROMPT_PREFIX.format(skill_md=skill_md_text)
+
+    import json
+    user_content = (
+        "Here is the day's hike data (JSON):\n\n"
+        + json.dumps(_trim_for_narrative(hike_data), indent=2)
+    )
+
+    response = client.messages.parse(
+        model=MODEL,
+        max_tokens=4096,
+        thinking={"type": "adaptive"},
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_content}],
+        output_format=NarrativeOutput,
+    )
+    return response.parsed_output.narrative_paragraphs

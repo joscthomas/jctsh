@@ -15,6 +15,37 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0096 · [enhancement] [infrastructure] Rename photo-server → jct-server and raspberrypi → jct-hub, adopt a real host-naming convention
+**Notes:** Raised 2026-07-24. Motivation: both hosts' current names describe something true only at setup time, not their stable role, and both have already drifted —
+
+- **`photo-server`** (GMKtec M8) was named for its original single purpose (Immich). It has since picked up NetAlertX, hike-izer-web, hike-izer-orchestrator, and (planned) photo-tv-display — "photo-server" no longer describes what it does.
+- **`raspberrypi`** (Pi) was never renamed from its default vendor hostname — it describes the *hardware*, not the role. Despite being the actual coordination point of the whole stack (MQTT broker, Node-RED logic, Python log server, HA integration bridge), its name gives zero clue to that.
+
+**New convention decided this session:** general-purpose compute hosts (this pair) get a `jct-` prefix (matches the `jct` Linux username already on both machines, and the `JCT Hotspot` WiFi SSID — ties to personal/household identity, chosen over a `jctsh-` project-branded alternative) plus a stable **role-class** suffix — what *kind* of thing the host is architecturally, not its current specific app list, so the name doesn't go stale again as services are added/removed. Single-purpose edge sensors (`garage-radar`, `salt-sensor`, `front-porch-temp-sensor`, `hiking-monitor`, etc.) are explicitly **not** in scope for this convention change — function-based naming is correct for them since their function is genuinely fixed for the device's life; only the two general-purpose hosts have this problem.
+
+**New names:**
+- `photo-server` → **`jct-server`** (general-purpose Docker application host)
+- `raspberrypi` → **`jct-hub`** (the coordination point — broker/logic/log-server/integration-bridge)
+
+**Scope: full rename everywhere, both hosts** (explicitly decided over a docs-only/cosmetic option) — the real hostname, not just how it's referred to in conversation/docs. This is a large, genuinely disruptive, high-blast-radius piece of infrastructure work touching two live production machines — **do not execute without a real plan reviewed first**, not a routine edit. Known touch-points to account for when scoping the actual work (not exhaustive — audit before starting):
+
+- **Physical hostname** on both devices (`sudo hostnamectl set-hostname ...`), mDNS/`.local` resolution
+- **Tailscale device name/hostname** — `photo-server.tailfe828a.ts.net` is the M8's actual current Funnel FQDN; renaming it **breaks the live public hike-izer-web URL already in use** (`https://photo-server.tailfe828a.ts.net/...`) — the Funnel config needs re-pointing, and Joseph needs the new URL communicated once it changes. Same consideration for the Pi's Tailscale identity ("Home Pi" / `100.70.162.24` — check whether a hostname-based Tailscale reference exists anywhere, e.g. HA's Tailscale HTTPS URL).
+- **DHCP reservations** on the router (both hosts, per `jctsh-network.md`'s Devices table) — reservation is by MAC so this likely doesn't need to change, but the *label* in the router UI should match.
+- **MQTT**: broker address references (`raspberrypi.local` / `192.168.1.117` — check whether any config uses the hostname vs. the bare IP), the `jctsh/server/photo-server/...` topic segment and `photo-server` heartbeat/log MQTT account name, `jctsh-log-server` account name (does this get touched, or stays project-branded regardless of host rename?).
+- **Docker**: `components/photo-server/` repo directory name and every doc link to it, `docker-compose.yml` project/container names, `~/hike-izer-web-app/` and other deployed-app directories living on the M8 (do their *paths* need to change, or just the host they're reached at?).
+- **SSH access patterns** everywhere (`ssh jct@photo-server.local`, `ssh pi@raspberrypi.local`) — `credentials.local.md`, this file, component docs.
+- **Home Assistant / Node-RED config** — any hostname-based (not IP-based) references to the Pi.
+- **ESP32 `secrets.yaml` files** — check whether any reference `raspberrypi.local` by name (vs. IP or DuckDNS) for MQTT broker address.
+- **DuckDNS** (`jctsh.duckdns.org`) — likely unaffected (points at the router's public IP via port-forward, not tied to the Pi's own hostname), but confirm.
+- **All documentation**: `CLAUDE.md`, `jctsh-network.md`, `credentials.local.md`, every component's own docs, this kanban board (going-forward references — historical/Done card entries should probably keep their as-written host name for accuracy at the time, not be silently rewritten).
+
+**Done when:** both hosts respond to their new names for real (SSH, Tailscale, MQTT, HTTP) with no remaining `photo-server`/`raspberrypi` references in active documentation or live config, the hike-izer-web public URL is updated and reachable at its new address, and nothing that depended on the old names (ESP32 devices, HA, Node-RED, the heartbeat script, NetAlertX) broke in the process — verified live, not just "files edited."
+
+**Related:** CARD-0088 (hike-izer-web hosting — owns the Funnel URL this rename breaks), `jctsh-network.md`, `components/photo-server/`.
+
+---
+
 ### CARD-0095 · [enhancement] [photo-server] M8 OS/firmware maintenance backlog
 **Notes:** Raised 2026-07-24, surfaced via the SSH login MOTD while working on CARD-0088. Four separate items, none acted on yet — all deserve deliberate, scheduled handling rather than an ad hoc mid-task fix, since this host runs live production services (Immich, NetAlertX, hike-izer-web):
 

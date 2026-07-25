@@ -33,3 +33,31 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  orchestrator:
+    # CARD-0086: webhook receiver for automatic hike-end triggering. Runs as
+    # a second service in this same compose project (rather than its own
+    # project) so it shares this project's default Docker network with
+    # `web` and is reachable from Caddy by service name -- no second
+    # Tailscale Funnel port needed, see Caddyfile's /webhook/* route.
+    container_name: hike-izer-orchestrator
+    image: python:3.12-alpine
+    restart: unless-stopped
+    command: ["python3", "/app/app.py"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./orchestrator/app.py:/app/app.py:ro
+    env_file:
+      - .env
+    environment:
+      TZ: America/Phoenix
+      PORT: "8080"
+    expose:
+      - "8080"
+    healthcheck:
+      # python3 (the base image itself) hits our own /health endpoint --
+      # no extra package needed, matching app.py's stdlib-only design.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

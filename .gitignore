@@ -2,6 +2,8 @@
 secrets.h
 secrets.yaml
 credentials.local.md
+.env
+!.env.example
 
 # Arduino build artifacts
 build/

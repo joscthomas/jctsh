@@ -17,6 +17,11 @@ CONTAINERS = [
     # docker inspect's health status comes back empty, which this script's
     # `elif status != "healthy"` check would treat as unhealthy every cycle.
     "hike-izer-web",
+    # CARD-0086: webhook receiver for automatic hike-end triggering, second
+    # service in the same hike-izer-web compose project. Also defines its
+    # own HEALTHCHECK (python3 hitting its /health endpoint) for the same
+    # reason as hike-izer-web above.
+    "hike-izer-orchestrator",
 ]
 
 # Backup drives (CARD-0030) — Immich itself never touches these, only the standalone

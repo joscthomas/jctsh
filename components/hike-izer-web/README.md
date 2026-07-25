@@ -8,11 +8,16 @@ Tracking card: **CARD-0088** on `kanban-board.md`.
 
 ## What runs where
 
-One container, deployed on the M8 (`photo-server`):
+Two containers, deployed on the M8 (`photo-server`), one compose project:
 
 - **`web`** (`caddy:2-alpine`) — serves `~/hike-izer-web-app/srv/` (on the
   M8) as static files. Publishes only to `127.0.0.1:8090` on the host — not
   reachable from the LAN or WAN directly, only via loopback.
+- **`orchestrator`** (`python:3.12-alpine`, `components/hike-izer-orchestrator/`,
+  CARD-0086) — webhook receiver for automatic hike-end triggering, not
+  published to the host at all. Reachable only via Caddy's `/webhook/*`
+  route on this same URL (`web`'s `reverse_proxy`) — no second Funnel port.
+  See `components/hike-izer-orchestrator/README.md`.
 
 **Tailscale Funnel** (`tailscale funnel --bg 8090`, run on the M8 host, not
 in a container) exposes that loopback port publicly at

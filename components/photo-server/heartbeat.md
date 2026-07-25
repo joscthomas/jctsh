@@ -18,7 +18,10 @@ for all four Immich containers (`immich_server`, `immich_postgres`,
 added 2026-07-24 — defines its own `HEALTHCHECK` in
 `components/hike-izer-web/docker-compose.yml` specifically so this check has
 a real "healthy" status to read, not an empty one; exposed via Tailscale
-Funnel, so there's no second container to check here). If all are `healthy`, it publishes a normal
+Funnel, so there's no second container to check here) and `hike-izer-orchestrator`
+(CARD-0086, added 2026-07-24 — second service in the same compose project,
+same reasoning: its own `HEALTHCHECK` hits its `/health` endpoint via
+`python3`/`urllib`, no extra package needed). If all are `healthy`, it publishes a normal
 `System` heartbeat. If any container is missing, stopped, or reports a non-`healthy`
 status, it publishes an `Alert`-category log message instead (not prefixed
 `"Heartbeat - "`, so it doesn't collapse and stays visible) while still publishing the
@@ -109,7 +112,7 @@ stored in `/etc/jctsh/heartbeat.env` on photo-server and in `credentials.local.m
 | Broker | Home Pi — `192.168.1.117:1883`, direct LAN (no Tailscale) |
 | Timer schedule | 2min after boot, every 30min thereafter |
 | Watchdog timeout | 35 minutes |
-| Containers checked | immich_server, immich_postgres, immich_machine_learning, immich_redis, hike-izer-web |
+| Containers checked | immich_server, immich_postgres, immich_machine_learning, immich_redis, hike-izer-web, hike-izer-orchestrator |
 | paho-mqtt version | 2.1.0 (apt) |
 
 Verified live 2026-07-04: heartbeat confirmed on dashboard (`/data` endpoint, collapsing

@@ -1,4 +1,15 @@
 :80 {
-    root * /srv/hike-izer
-    file_server browse
+    # CARD-0086: webhook receiver, reached at
+    # https://photo-server.tailfe828a.ts.net/webhook/hike-end -- proxied to
+    # the `orchestrator` service (same compose project, reachable by
+    # service name on the project's default Docker network). Must come
+    # before the catch-all file_server block below.
+    handle /webhook/* {
+        reverse_proxy orchestrator:8080
+    }
+
+    handle {
+        root * /srv/hike-izer
+        file_server browse
+    }
 }

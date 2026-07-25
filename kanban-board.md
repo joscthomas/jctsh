@@ -16,6 +16,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0096 · [enhancement] [infrastructure] Rename photo-server → jct-server and raspberrypi → jct-hub, adopt a real host-naming convention
+**Sequencing decided 2026-07-24: deliberately held until after CARD-0094 lands (or gets explicitly deferred for good).** CARD-0094 would move hike-izer-web's public URL off the Tailscale hostname (`photo-server.tailfe828a.ts.net`) onto a Cloudflare custom domain — doing that first means this rename doesn't have to change the public URL at all, instead of changing it twice. Also worth letting CARD-0086 (just shipped, no real automatic hike-triggered run yet) prove itself in the field before touching the hostname its output currently publishes to. Not blocked on anything, just intentionally not next.
+
 **Notes:** Raised 2026-07-24. Motivation: both hosts' current names describe something true only at setup time, not their stable role, and both have already drifted —
 
 - **`photo-server`** (GMKtec M8) was named for its original single purpose (Immich). It has since picked up NetAlertX, hike-izer-web, hike-izer-orchestrator, and (planned) photo-tv-display — "photo-server" no longer describes what it does.

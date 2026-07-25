@@ -15,6 +15,36 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0101 · [bug] [hike-izer] A real hike can be misclassified as "not a hike" if GPSLogger keeps running into a trailing car drive
+**Raised 2026-07-25**, same conversation as CARD-0100 — Joseph asked the mirror-image question: what if he hikes normally, forgets to stop GPSLogger, gets in the car, and starts driving?
+
+**Real gap, opposite failure mode from CARD-0100:** CARD-0100 is a false *trigger* (no real hike, but the pipeline still runs/publishes). This one risks **losing a real hike's summary entirely.**
+
+`fetch_hike_data.py`'s `_gps_sessions()` only splits candidate sessions on a **time gap** (`session_gap_min=10` — 10+ minutes of no GPS activity). It never sub-segments a session by a *speed change* within one continuous recording. If Joseph walks straight from the trailhead to his parked car (no 10+ minute pause) and starts driving, GPSLogger records one unbroken session spanning both the hike and the drive. `_classify_hike()` then computes a single **median speed across the entire blended session** — if the drive segment contributes enough fast-speed point-to-point intervals relative to the hike's walking-pace ones (a longer drive, or a shorter hike), the median can tip into "too fast for walking," and `is_hike` comes back `false` for the *whole* session, including the genuine hike. Rejections aren't silently dropped (a reason is recorded), but the real hike still loses its narrative/summary.
+
+**Decided direction:** sub-segment sessions by speed, not just by time gap — detect where a sustained walking-pace regime ends and a sustained vehicle-pace regime begins *within* a session, classify each sub-segment independently, and use only the walking-pace portion as the confirmed hike candidate. The trailing drive portion becomes its own correctly-rejected non-hike sub-segment instead of dragging the whole session down.
+
+**Not yet designed in detail — flagged for Planning when picked up:** the actual breakpoint-detection algorithm needs care to avoid false positives (e.g. a single fast downhill/running burst, or brief GPS jitter, shouldn't split a real hike into two segments or wrongly trigger a "drive" sub-segment). A minimum sustained-duration/point-count threshold for a regime change is likely necessary, not just a single-point speed spike. Needs real test data (a hike + drive-home GPX trace) to validate against before considering this done — synthetic data alone risks tuning the threshold wrong in either direction.
+
+**Related:** CARD-0100 (Backlog — the mirror-image false-trigger case, raised same session), `components/hike-izer/fetch_hike_data.py` (`_gps_sessions`/`_classify_hike` — the functions this card would modify).
+
+---
+
+### CARD-0100 · [bug] [hike-izer] Automatic trigger (CARD-0086) generates and publishes a page even when no hike is confirmed (e.g. GPSLogger left on during a car errand)
+**Raised 2026-07-25**, Joseph asked what happens if GPSLogger is accidentally left running in a car and then stopped.
+
+**Already handled, confirmed via code read:** `fetch_hike_data.py` already classifies each GPS session by median speed (`WALKING_SPEED_MIN_MPS`/`MAX_MPS`, ~0.15–3.0 m/s) plus daylight/stationary checks, marking anything outside walking pace `is_hike: false` with a rejection reason (e.g. "likely vehicle travel, not a hike") — a car trip's data is not mistaken for a hike at the classification level.
+
+**Real gap:** the automatic webhook path (`hike-izer-orchestrator/generation.py`) doesn't act on that classification before doing real work. `hike_data["coverage"]["gps_track"]["hike_confirmed"]` currently only gates whether photos get fetched (line 85) — regardless of its value, `run()` unconditionally: (1) makes a real Claude API call (`narrative.generate_narrative`) — real cost, (2) writes and publishes an `.html`/`.md` page to the live public URL for that date, (3) logs `"Published hike summary for <date>"` to MQTT. So a car errand that's the only GPS activity for a day would still produce a real published page and a real API charge, even though the content would presumably say "no hike detected."
+
+**Decided scope:** skip entirely when no hike is confirmed for the day — no Claude API call, no published page, no MQTT "Published" message. Instead, a quiet log noting a stopped event with no confirmed hike (e.g. `System` category, non-`Alert`, something like `"GPSLogger stopped, no hike confirmed for <date> -- skipped generation."`). This applies to the **automatic webhook path only** — the interactive Skill (Joseph explicitly asking "summarize today's hike") is a different case: if he explicitly asks and there was no hike, telling him so is a correct, wanted answer, not a bug.
+
+**Implementation sketch (not yet built):** in `generation.py`'s `run()`, check `hike_data["coverage"]["gps_track"]["hike_confirmed"]` right after the `fetch_hike_data.py` subprocess call, before the photos/narrative/templating/publish steps — if false, log the quiet skip message via `mqtt_log.publish_log` and return early, same shape as the existing photos-gate but covering the whole rest of the pipeline instead of just photos.
+
+**Related:** CARD-0086 (Done — the automatic-triggering component this gap lives in), `components/hike-izer-orchestrator/generation.py`, `components/hike-izer/fetch_hike_data.py` (the existing car-vs-hike classification this card builds on, not replaces).
+
+---
+
 ### CARD-0096 · [enhancement] [infrastructure] Rename photo-server → jct-server and raspberrypi → jct-hub, adopt a real host-naming convention
 **Sequencing decided 2026-07-24: deliberately held until after CARD-0094 lands (or gets explicitly deferred for good).** CARD-0094 would move hike-izer-web's public URL off the Tailscale hostname (`photo-server.tailfe828a.ts.net`) onto a Cloudflare custom domain — doing that first means this rename doesn't have to change the public URL at all, instead of changing it twice. Also worth letting CARD-0086 (just shipped, no real automatic hike-triggered run yet) prove itself in the field before touching the hostname its output currently publishes to. Not blocked on anything, just intentionally not next.
 

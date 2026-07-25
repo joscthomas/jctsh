@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-07-24.2-hike-start-forecast-datefix';
+var SCRIPT_VERSION = '2026-07-25.2-timeline-local-timezone-fix';
 
 // ---------------------------------------------------------------------------
 // doPost — environmental sensor data (Node-RED → Sheets)
@@ -138,7 +138,13 @@ function onOpen() {
 // refreshTimeline — merge Environmental Data + Hiking Observations → Timeline
 // ---------------------------------------------------------------------------
 // Run from the JCTsh menu after a hike to build a unified time-sorted view.
-// Timeline columns: timestamp_az | type | summary | categories | lat | lon
+// Timeline columns: timestamp_local | type | summary | categories | lat | lon
+//
+// CARD-0099: timestamp_local (previously timestamp_az) used to be hardcoded
+// Arizona local time (UTC-7, no DST) for every row regardless of where the
+// reading/observation actually happened -- silently wrong for anything
+// recorded on a Michigan or Egypt hike, same class of bug as CARD-0097. Now
+// resolved per-row via each row's own lat/lon, same as CARD-0097's fix.
 
 function refreshTimeline() {
   var ss           = SpreadsheetApp.getActiveSpreadsheet();
@@ -146,6 +152,11 @@ function refreshTimeline() {
   var obsSheet     = ss.getSheetByName('Hiking Observations');
   var timelineSheet = ss.getSheetByName('Timeline');
   if (!timelineSheet) timelineSheet = ss.insertSheet('Timeline');
+
+  // One timezone-offset lookup per unique (rounded) location per run, not per
+  // row -- a single hike's readings cluster within a small area, so this
+  // stays a handful of real UrlFetchApp calls even across hundreds of rows.
+  var offsetCache = {};
 
   var rows = [];
 
@@ -164,7 +175,7 @@ function refreshTimeline() {
     if (r[16] !== '') parts.push(Number(r[16]).toFixed(2) + 'V');
     if (Number(r[17]) === 0) parts.push('field');
 
-    rows.push([tsDate, _azString(tsDate), 'sensor', parts.join(' · '), '', r[2] || null, r[3] || null]);
+    rows.push([tsDate, _localString(tsDate, r[2], r[3], offsetCache), 'sensor', parts.join(' · '), '', r[2] || null, r[3] || null]);
   }
 
   // Hiking Observations (row 0 = header, skip it)
@@ -175,7 +186,7 @@ function refreshTimeline() {
     var oDate = new Date(o[0]);
     if (isNaN(oDate.getTime())) continue;
 
-    rows.push([oDate, _azString(oDate), 'observation', o[1], o[2], o[4] || null, o[5] || null]);
+    rows.push([oDate, _localString(oDate, o[4], o[5], offsetCache), 'observation', o[1], o[2], o[4] || null, o[5] || null]);
   }
 
   // Sort by UTC timestamp
@@ -183,7 +194,7 @@ function refreshTimeline() {
 
   // Write to Timeline sheet — drop sort key (col 0)
   timelineSheet.clearContents();
-  timelineSheet.getRange(1, 1, 1, 6).setValues([['timestamp_az', 'type', 'summary', 'categories', 'lat', 'lon']]);
+  timelineSheet.getRange(1, 1, 1, 6).setValues([['timestamp_local', 'type', 'summary', 'categories', 'lat', 'lon']]);
   if (rows.length > 0) {
     var output = rows.map(function(r) { return [r[1], r[2], r[3], r[4], r[5], r[6]]; });
     timelineSheet.getRange(2, 1, output.length, 6).setValues(output);
@@ -193,14 +204,72 @@ function refreshTimeline() {
 }
 
 // ---------------------------------------------------------------------------
-// _azString — format a UTC Date as Arizona local time string (UTC-7, no DST)
+// _localString -- CARD-0099: format a UTC Date as *that row's own* local time
 // ---------------------------------------------------------------------------
+// Replaces the old _azString, which hardcoded Arizona (UTC-7, no DST) for
+// every row. Resolves the real UTC offset for the given lat/lon via
+// Open-Meteo's timezone=auto (same provider/mechanism as CARD-0097's Hike
+// Start Forecast fix), cached per rounded coordinate for the life of one
+// refreshTimeline() run so repeated calls for the same location (the common
+// case -- a fixed home sensor, or many readings from one hike) cost one real
+// HTTP call, not one per row.
+//
+// If lat/lon is null (no GPS correlation yet -- see the Environmental Data
+// architecture doc's note on mobile sensors without GPS hardware), there is
+// no location to resolve a timezone from -- rather than silently guessing
+// Arizona (the old bug), this returns the UTC time explicitly labeled as
+// such, so it's never confused with a real local time in the same column.
 
-function _azString(utcDate) {
-  var az = new Date(utcDate.getTime() - 7 * 60 * 60 * 1000);
-  var p  = function(n) { return n < 10 ? '0' + n : String(n); };
-  return az.getFullYear() + '-' + p(az.getMonth()+1) + '-' + p(az.getDate()) +
-         ' ' + p(az.getHours()) + ':' + p(az.getMinutes()) + ':' + p(az.getSeconds());
+function _localString(utcDate, lat, lon, offsetCache) {
+  var p = function(n) { return n < 10 ? '0' + n : String(n); };
+  var utcFallback = function() {
+    return utcDate.getUTCFullYear() + '-' + p(utcDate.getUTCMonth()+1) + '-' + p(utcDate.getUTCDate()) +
+           ' ' + p(utcDate.getUTCHours()) + ':' + p(utcDate.getUTCMinutes()) + ':' + p(utcDate.getUTCSeconds()) + ' UTC';
+  };
+
+  if (lat === null || lat === '' || lon === null || lon === '') {
+    return utcFallback();
+  }
+
+  var key = Number(lat).toFixed(2) + ',' + Number(lon).toFixed(2);
+  if (!(key in offsetCache)) {
+    try {
+      var url = 'https://api.open-meteo.com/v1/forecast'
+        + '?latitude=' + lat + '&longitude=' + lon
+        + '&current_weather=true&timezone=auto';
+      var resp = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
+      if (resp.getResponseCode() === 200) {
+        var body = JSON.parse(resp.getContentText());
+        offsetCache[key] = {offsetSec: body.utc_offset_seconds, tzName: body.timezone};
+      } else {
+        offsetCache[key] = null;
+      }
+    } catch (err) {
+      offsetCache[key] = null;
+    }
+  }
+
+  var cached = offsetCache[key];
+  if (!cached) {
+    // Timezone lookup failed -- fall back to explicit UTC rather than a
+    // wrong guess, same reasoning as the no-lat/lon case above.
+    return utcFallback();
+  }
+
+  // The IANA zone name (e.g. "Africa/Cairo", "America/Detroit") leads --
+  // a bare "+03:00" tells you nothing without already knowing which place
+  // that is -- with the raw UTC offset in parentheses alongside it, since
+  // that's still useful for at-a-glance arithmetic between rows.
+  var sign = cached.offsetSec < 0 ? '-' : '+';
+  var absSec = Math.abs(cached.offsetSec);
+  var offH = Math.floor(absSec / 3600);
+  var offM = Math.floor((absSec % 3600) / 60);
+  var offsetStr = sign + p(offH) + ':' + p(offM);
+
+  var local = new Date(utcDate.getTime() + cached.offsetSec * 1000);
+  return local.getUTCFullYear() + '-' + p(local.getUTCMonth()+1) + '-' + p(local.getUTCDate()) +
+         ' ' + p(local.getUTCHours()) + ':' + p(local.getUTCMinutes()) + ':' + p(local.getUTCSeconds()) +
+         ' ' + cached.tzName + ' (' + offsetStr + ')';
 }
 
 // ---------------------------------------------------------------------------
@@ -231,18 +300,27 @@ function _gpsLookup(ss, tsISO) {
 }
 
 // ---------------------------------------------------------------------------
-// _maybeCaptureHikeStartForecast -- CARD-0083
+// _maybeCaptureHikeStartForecast -- CARD-0083, timezone fix CARD-0097
 // ---------------------------------------------------------------------------
 // Called from doPost's hiking-observations branch on every observation. Only
-// actually captures a forecast on the first observation of a new Arizona-
-// local calendar day (self-provisioning "Hike Start Forecast" sheet acts as
-// its own dedup log). Provider is Open-Meteo (api.open-meteo.com) -- free,
-// no API key, and its hourly forecast includes temp/humidity/precip
-// probability/wind/UV in one call. Open-Meteo has no named "nearest station"
-// concept (unlike NWS/METAR, which snaps to an airport or gridpoint office)
-// -- it's a gridded model interpolated to the exact coordinate requested, so
-// the response's own lat/lon (the actual grid point used) is stored, not the
-// input coordinates, recording precisely what point the forecast was for.
+// actually captures a forecast on the first observation of a new *local*
+// calendar day at the hike's own location (self-provisioning "Hike Start
+// Forecast" sheet acts as its own dedup log). Provider is Open-Meteo
+// (api.open-meteo.com) -- free, no API key, and its hourly forecast includes
+// temp/humidity/precip probability/wind/UV in one call. Open-Meteo has no
+// named "nearest station" concept (unlike NWS/METAR, which snaps to an
+// airport or gridpoint office) -- it's a gridded model interpolated to the
+// exact coordinate requested, so the response's own lat/lon (the actual grid
+// point used) is stored, not the input coordinates, recording precisely what
+// point the forecast was for.
+//
+// Timezone is resolved via Open-Meteo's own `timezone=auto` (CARD-0097) --
+// it looks up the IANA zone for the requested lat/lon server-side and
+// returns `utc_offset_seconds` for it, so this works correctly at any
+// location (previously hardcoded `America/Phoenix`, which silently broke
+// for any hike outside Arizona -- see CARD-0097). The offset is fetched
+// before the dedup check specifically so "today" is always the hike's own
+// local date, not Arizona's.
 //
 // Deliberately does NOT fall back to a hardcoded home-area location when the
 // observation has no GPS correlation yet -- that would silently report the
@@ -254,34 +332,30 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
   try {
     if (coords.lat === null || coords.lon === null) return;
 
-    var dateAz = _azString(new Date(tsISO)).slice(0, 10); // YYYY-MM-DD
-
     var forecastSheet = ss.getSheetByName('Hike Start Forecast');
     if (!forecastSheet) {
       forecastSheet = ss.insertSheet('Hike Start Forecast');
       forecastSheet.appendRow([
-        'timestamp', 'date_az', 'lat', 'lon',
+        'timestamp', 'date_local', 'lat', 'lon',
         'temp_f', 'precip_pct', 'wind_mph', 'humidity_pct', 'uv_index', 'provider'
       ]);
     }
-    // Force column B (date_az) to plain text. Sheets silently auto-detects a
-    // bare "YYYY-MM-DD" string as a real Date value on write, which breaks
+    // Force column B (date_local) to plain text. Sheets silently auto-detects
+    // a bare "YYYY-MM-DD" string as a real Date value on write, which breaks
     // the dedup comparison below -- a stored Date object never string-equals
     // a freshly computed "YYYY-MM-DD" string, so every observation would
     // re-trigger a capture instead of just the first one each day. Applied
     // unconditionally (not just on sheet creation) so it's also safe against
-    // a sheet that already exists from before this fix.
+    // a sheet that already exists from before this fix. (Note: a sheet
+    // created before CARD-0097 will still have a literal "date_az" header
+    // cell from the old code -- harmless, since matching below is positional
+    // by column, not by header name; relabel manually if desired.)
     forecastSheet.getRange('B:B').setNumberFormat('@');
-
-    var existing = forecastSheet.getDataRange().getValues();
-    for (var i = 1; i < existing.length; i++) {
-      if (String(existing[i][1]) === dateAz) return; // already captured for this day
-    }
 
     var url = 'https://api.open-meteo.com/v1/forecast'
       + '?latitude=' + coords.lat + '&longitude=' + coords.lon
       + '&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,wind_speed_10m,uv_index'
-      + '&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FPhoenix';
+      + '&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto';
     var resp = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
     if (resp.getResponseCode() !== 200) {
       console.error('Open-Meteo request failed: HTTP ' + resp.getResponseCode());
@@ -292,18 +366,31 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
     var hourly = body.hourly;
     if (!hourly || !hourly.time || hourly.time.length === 0) return;
 
-    // hourly.time values are local wall-clock strings (e.g. "2026-07-24T09:00")
-    // in the requested timezone -- Arizona has no DST, so a fixed -07:00
-    // offset always parses them correctly as real instants for comparison.
+    // Real UTC offset (seconds) for the hike's own coordinates, as resolved
+    // by Open-Meteo's `timezone=auto` -- replaces the old fixed -07:00.
+    var offsetSec = body.utc_offset_seconds;
     var targetMs = new Date(tsISO).getTime();
+
+    // "Today" in the hike's own local timezone, not Arizona's.
+    var dateLocal = new Date(targetMs + offsetSec * 1000).toISOString().slice(0, 10);
+
+    var existing = forecastSheet.getDataRange().getValues();
+    for (var i = 1; i < existing.length; i++) {
+      if (String(existing[i][1]) === dateLocal) return; // already captured for this day
+    }
+
+    // hourly.time values are local wall-clock strings (e.g. "2026-07-24T09:00")
+    // in the auto-detected timezone -- convert each back to a real UTC
+    // instant using the same offset before comparing to targetMs.
     var idx = 0, bestDiff = Infinity;
     for (var h = 0; h < hourly.time.length; h++) {
-      var diff = Math.abs(new Date(hourly.time[h] + ':00-07:00').getTime() - targetMs);
+      var instantMs = new Date(hourly.time[h] + ':00Z').getTime() - offsetSec * 1000;
+      var diff = Math.abs(instantMs - targetMs);
       if (diff < bestDiff) { bestDiff = diff; idx = h; }
     }
 
     forecastSheet.appendRow([
-      tsISO, dateAz, body.latitude, body.longitude,
+      tsISO, dateLocal, body.latitude, body.longitude,
       hourly.temperature_2m[idx],
       hourly.precipitation_probability[idx],
       hourly.wind_speed_10m[idx],

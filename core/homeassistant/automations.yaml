@@ -145,3 +145,106 @@
     action: notify.mobile_app_pixel_7_pro
   - delay: '04:00:00'
   mode: single
+- id: '1785200000001'
+  alias: Traveling Lights - Randomize Daily Times
+  description: >-
+    CARD-0098. Regenerates the on/off clock times for the traveling-lights
+    presence simulation every night at 3am, so the actual time varies day to
+    day instead of firing at the exact same minute every night. Always
+    enabled -- harmless when the automation below is toggled off.
+    On-time is tied to sun.sun's next_setting (not a fixed clock window) so
+    it tracks Tucson's real sunset swing (~5:25pm Dec to ~7:35pm Jun) rather
+    than firing while it's still bright in summer or staying dark well past
+    dusk in winter.
+  triggers:
+  - trigger: time
+    at: '03:00:00'
+  actions:
+  - action: input_datetime.set_datetime
+    target:
+      entity_id: input_datetime.traveling_lights_on_time
+    data:
+      time: "{{ as_local(as_datetime(state_attr('sun.sun', 'next_setting'))\
+        \ + timedelta(minutes=range(0,36)|random)).strftime('%H:%M:%S') }}"
+  - action: input_datetime.set_datetime
+    target:
+      entity_id: input_datetime.traveling_lights_off_time
+    data:
+      time: "{{ (today_at('22:00') + timedelta(minutes=range(0,91)|random)).strftime('%H:%M:%S') }}"
+  mode: single
+- id: '1785200000002'
+  alias: Traveling Lights
+  description: >-
+    CARD-0098 presence simulation while traveling. Single on/off toggle
+    (Settings > Automations) covers both directions -- toggle on before a
+    trip, off after. Two triggers, tagged 'on'/'off', fire at
+    input_datetime.traveling_lights_on_time/off_time (both re-randomized
+    nightly by "Traveling Lights - Randomize Daily Times") and a choose
+    block runs the matching branch. All 3 entities are in the same room, so
+    each event shuffles the order and staggers each light with a random
+    1-5 min gap -- looks like someone moving through the room, not a single
+    master-switch flip.
+  triggers:
+  - trigger: time
+    at: input_datetime.traveling_lights_on_time
+    id: 'on'
+  - trigger: time
+    at: input_datetime.traveling_lights_off_time
+    id: 'off'
+  actions:
+  - variables:
+      lights_order: "{{ ['light.nook', 'light.pendants', 'light.chandelier']\
+        \ | shuffle }}"
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: 'on'
+      sequence:
+      - repeat:
+          for_each: "{{ lights_order }}"
+          sequence:
+          - delay: "00:0{{ range(1,6) | random }}:00"
+          - action: homeassistant.turn_on
+            target:
+              entity_id: "{{ repeat.item }}"
+      - data:
+          title: Traveling Lights
+          message: '{{ now().strftime(''%I:%M %p'') }} — Turned on: {{ lights_order
+            | join('', '') }}.
+
+            '
+        action: notify.mobile_app_pixel_10_pro_xl
+      - data:
+          title: Traveling Lights
+          message: '{{ now().strftime(''%I:%M %p'') }} — Turned on: {{ lights_order
+            | join('', '') }}.
+
+            '
+        action: notify.mobile_app_pixel_7_pro
+    - conditions:
+      - condition: trigger
+        id: 'off'
+      sequence:
+      - repeat:
+          for_each: "{{ lights_order }}"
+          sequence:
+          - delay: "00:0{{ range(1,6) | random }}:00"
+          - action: homeassistant.turn_off
+            target:
+              entity_id: "{{ repeat.item }}"
+      - data:
+          title: Traveling Lights
+          message: '{{ now().strftime(''%I:%M %p'') }} — Turned off: {{ lights_order
+            | join('', '') }}.
+
+            '
+        action: notify.mobile_app_pixel_10_pro_xl
+      - data:
+          title: Traveling Lights
+          message: '{{ now().strftime(''%I:%M %p'') }} — Turned off: {{ lights_order
+            | join('', '') }}.
+
+            '
+        action: notify.mobile_app_pixel_7_pro
+  initial_state: false
+  mode: single

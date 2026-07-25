@@ -335,7 +335,7 @@ Separate sheet in the same Google Sheets workbook as Environmental Data. Self-pr
 | Column | Source | Notes |
 |---|---|---|
 | `timestamp` | Triggering observation's `ts` | ISO 8601 UTC — join key for `action=export` date-range filtering, same as the other sheets |
-| `date_az` | Derived from `timestamp` | Arizona-local `YYYY-MM-DD` — the dedup key ("already captured today?") |
+| `date_az` | Derived from `timestamp` | Column header name is legacy (pre-CARD-0097) — value is the hike's own local `YYYY-MM-DD` (via Open-Meteo `timezone=auto`), not necessarily Arizona's. The dedup key ("already captured today, at this location?"). Header text itself wasn't renamed since the sheet already existed when CARD-0097 shipped; matching is positional, not by header name. |
 | `lat` | Open-Meteo response | The actual grid point used, not the input coordinate |
 | `lon` | Open-Meteo response | Same as `lat` |
 | `temp_f` | Open-Meteo `hourly.temperature_2m` | °F, nearest hour to the triggering observation |

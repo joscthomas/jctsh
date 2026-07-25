@@ -14,6 +14,7 @@ environmental monitoring into a single integrated ecosystem.
 | [salt-sensor](components/salt-sensor/) | Water softener salt level monitor with SmartThings alerts | Production |
 | [garage-radar](components/garage-radar/) | 24GHz mmWave workbench presence sensor | Production |
 | [garage-presence](components/garage-presence/) | Garage presence countdown timer and lights automation | Production |
+| [traveling-lights](components/traveling-lights/) | Randomized/staggered occupancy-simulation lighting while traveling | Production |
 | [automatic-garage-door-opener-closer](components/automatic-garage-door-opener-closer/) | Voice and auto-close control for LiftMaster opener | Production |
 | [front-porch-temp-sensor](components/front-porch-temp-sensor/) | Front porch temperature, pressure, and light with push notifications | Production |
 | [p-w-firefly](components/p-w-firefly/) | Firefly Integrations RV-C coach interface for Pleasure-Way Lexor FL | Production |

@@ -179,7 +179,7 @@ GET <SCRIPT_URL>?key=<API_KEY>&action=export&sheet=<sheet name>&start=<ISO ts>&e
 
 - `sheet` (required) — `Environmental Data`, `Hiking Observations`, `GPS Track`, or `Hike Start Forecast` (CARD-0083). All four have a real UTC ISO timestamp in column A, so date filtering works correctly.
 - `start` / `end` (optional) — ISO 8601 timestamps; omit either to leave that side unbounded.
-- `Timeline` also works as a `sheet` value, but its column A (`timestamp_az`) is an Arizona-local display string, not UTC ISO — `start`/`end` filtering on it isn't reliable. Fetch it unfiltered and filter client-side instead.
+- `Timeline` also works as a `sheet` value, but its column A (`timestamp_local`, renamed from `timestamp_az` by CARD-0099) is a display string in *that row's own* local time zone (with the IANA zone name appended, e.g. `2026-07-25 17:24:37 Africa/Cairo`) — not UTC ISO, and not uniformly Arizona either now. `start`/`end` filtering on it isn't reliable regardless. Fetch it unfiltered and filter client-side instead.
 
 Response: `{"status": "ok", "sheet": "...", "count": N, "rows": [{header: value, ...}, ...]}` — one object per row, keyed by the sheet's actual header row.
 

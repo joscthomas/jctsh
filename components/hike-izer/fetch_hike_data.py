@@ -211,6 +211,18 @@ DAYLIGHT_ELEVATION_DEG = -6.0     # civil twilight
 WALKING_SPEED_MIN_MPS = 0.15      # below this: effectively stationary (camp/parked), not hiking
 WALKING_SPEED_MAX_MPS = 3.0       # above this (~6.7 mph sustained): too fast for walking, likely a vehicle
 
+# CARD-0101: a session with no 10-min gap (e.g. hike -> straight into a car,
+# no stop) blends walking- and vehicle-pace points into one cluster, which can
+# tip the whole-session median speed into "too fast" and reject a real hike
+# along with the trailing drive. These control the regime-boundary detection
+# that sub-segments such a session by speed instead of rejecting it whole --
+# see _sub_segment_by_speed(). Provisional defaults, not yet validated against
+# a real hike+drive trace (none available at implementation time) -- retune
+# if a real trailing-drive event doesn't split cleanly.
+REGIME_WINDOW_MIN = 3.0           # trailing time window for the local rolling-median speed
+REGIME_MIN_DURATION_MIN = 3.0     # a labeled run shorter than this is jitter/a burst, not a real regime change
+REGIME_MIN_POINTS = 3             # a run also needs at least this many points to count as sustained
+
 
 def _classify_hike(points):
     """Given one candidate GPS cluster, decide whether it plausibly represents a
@@ -279,6 +291,139 @@ def _classify_hike(points):
     return len(reasons) == 0, reasons, details
 
 
+def _build_session_entry(s, sub_segmented=False):
+    """Build one session's result dict from its points -- shared by the normal
+    per-session path and by each CARD-0101 sub-segment, so both report the
+    same shape (duration, coverage, distance, classification)."""
+    start = parse_ts(s[0]['timestamp'])
+    end = parse_ts(s[-1]['timestamp'])
+    dur_sec = max(1, (end - start).total_seconds())
+    expected = max(1, round(dur_sec / 30))
+    is_hike, reasons, classify_details = _classify_hike(s)
+
+    distance_m = 0.0
+    for a, b in zip(s, s[1:]):
+        lat_a, lon_a = to_float(a.get('lat')), to_float(a.get('lon'))
+        lat_b, lon_b = to_float(b.get('lat')), to_float(b.get('lon'))
+        if None in (lat_a, lon_a, lat_b, lon_b):
+            continue
+        distance_m += _haversine_m(lat_a, lon_a, lat_b, lon_b)
+
+    entry = {
+        'start': s[0]['timestamp'],
+        'end': s[-1]['timestamp'],
+        'duration_minutes': round(dur_sec / 60, 1),
+        'points': len(s),
+        'expected_points': expected,
+        'coverage_pct': round(100 * len(s) / expected, 1),
+        'distance_mi': round(distance_m / 1609.34, 2),
+        'is_hike': is_hike,
+        'rejection_reasons': reasons,
+        'classification_details': classify_details,
+    }
+    if sub_segmented:
+        entry['sub_segmented_from_trailing_activity'] = True
+    return entry
+
+
+def _sub_segment_by_speed(points):
+    """CARD-0101: detect sustained walking-pace vs vehicle-pace regime changes
+    within one candidate session (e.g. a hike that runs straight into a car
+    with no 10-min stop, so _gps_sessions never splits it on a time gap) and
+    split the session at those boundaries instead of classifying it as one
+    blended cluster. Returns a list of point-index sub-segments; a single-
+    element list containing the original points if no sustained regime change
+    is found (nothing to split). Only meant to be tried on sessions
+    _classify_hike already rejected specifically for excess speed -- see
+    caller in _gps_sessions.
+
+    A local rolling-median speed (trailing REGIME_WINDOW_MIN window) labels
+    each point 'slow'/'walking'/'fast' using the same thresholds _classify_hike
+    uses session-wide; consecutive same-label points form a run; any run
+    shorter than REGIME_MIN_DURATION_MIN/REGIME_MIN_POINTS is a burst or GPS
+    jitter, not a real regime change, and gets absorbed into a neighboring
+    run rather than becoming a boundary."""
+    if len(points) < 2 * REGIME_MIN_POINTS:
+        return [points]
+
+    ts_list = [parse_ts(p.get('timestamp')) for p in points]
+    if any(t is None for t in ts_list):
+        return [points]
+
+    # speeds[i] = speed of the interval ending at points[i]; speeds[0] unused
+    speeds = [None] * len(points)
+    for i in range(1, len(points)):
+        lat_a, lon_a = to_float(points[i - 1].get('lat')), to_float(points[i - 1].get('lon'))
+        lat_b, lon_b = to_float(points[i].get('lat')), to_float(points[i].get('lon'))
+        dt = (ts_list[i] - ts_list[i - 1]).total_seconds()
+        if None in (lat_a, lon_a, lat_b, lon_b) or dt <= 0:
+            continue
+        speeds[i] = _haversine_m(lat_a, lon_a, lat_b, lon_b) / dt
+
+    def label(v):
+        if v is None:
+            return None
+        if v < WALKING_SPEED_MIN_MPS:
+            return 'slow'
+        if v > WALKING_SPEED_MAX_MPS:
+            return 'fast'
+        return 'walking'
+
+    labels = []
+    for i in range(len(points)):
+        window_start_epoch = ts_list[i].timestamp() - REGIME_WINDOW_MIN * 60
+        end_epoch = ts_list[i].timestamp()
+        window_speeds = sorted(
+            speeds[j] for j in range(len(points))
+            if speeds[j] is not None and window_start_epoch <= ts_list[j].timestamp() <= end_epoch
+        )
+        local_median = window_speeds[len(window_speeds) // 2] if window_speeds else None
+        labels.append(label(local_median))
+
+    # run-length encode as [label, start_idx, end_idx_inclusive]
+    runs = []
+    run_start = 0
+    for i in range(1, len(labels) + 1):
+        if i == len(labels) or labels[i] != labels[run_start]:
+            runs.append([labels[run_start], run_start, i - 1])
+            run_start = i
+
+    def duration_min(run):
+        return (ts_list[run[2]].timestamp() - ts_list[run[1]].timestamp()) / 60
+
+    def is_sustained(run):
+        return duration_min(run) >= REGIME_MIN_DURATION_MIN and (run[2] - run[1] + 1) >= REGIME_MIN_POINTS
+
+    # absorb short (jitter/burst) runs into a neighbor until only sustained
+    # runs remain, or only one run is left
+    changed = True
+    while changed and len(runs) > 1:
+        changed = False
+        for i, run in enumerate(runs):
+            if is_sustained(run):
+                continue
+            if i > 0:
+                runs[i - 1][2] = run[2]
+                del runs[i]
+            else:
+                runs[1][1] = run[1]
+                del runs[0]
+            changed = True
+            break
+
+    # merge any now-adjacent runs that share a label (cosmetic tidy-up)
+    merged = [runs[0]]
+    for run in runs[1:]:
+        if run[0] == merged[-1][0]:
+            merged[-1][2] = run[2]
+        else:
+            merged.append(run)
+
+    if len(merged) < 2:
+        return [points]
+    return [points[start:end + 1] for _, start, end in merged]
+
+
 def _gps_sessions(gps_rows, session_gap_min=10):
     """Split GPS Track rows into discrete candidate sessions, splitting wherever
     the gap between consecutive points exceeds session_gap_min, then classify
@@ -305,32 +450,28 @@ def _gps_sessions(gps_rows, session_gap_min=10):
 
     result = []
     for s in sessions:
-        start = parse_ts(s[0]['timestamp'])
-        end = parse_ts(s[-1]['timestamp'])
-        dur_sec = max(1, (end - start).total_seconds())
-        expected = max(1, round(dur_sec / 30))
-        is_hike, reasons, classify_details = _classify_hike(s)
+        entry = _build_session_entry(s)
 
-        distance_m = 0.0
-        for a, b in zip(s, s[1:]):
-            lat_a, lon_a = to_float(a.get('lat')), to_float(a.get('lon'))
-            lat_b, lon_b = to_float(b.get('lat')), to_float(b.get('lon'))
-            if None in (lat_a, lon_a, lat_b, lon_b):
-                continue
-            distance_m += _haversine_m(lat_a, lon_a, lat_b, lon_b)
+        # CARD-0101: a session rejected specifically for being too fast might
+        # be a real hike blended with a trailing (or leading) drive that never
+        # triggered a time-gap split. Try sub-segmenting by speed; only keep
+        # the split if it actually rescues a hike, otherwise report the
+        # session as before (e.g. a genuine all-drive session, CARD-0100,
+        # stays a single correctly-rejected entry).
+        too_fast = (
+            not entry['is_hike']
+            and entry['classification_details'].get('median_speed_mps') is not None
+            and entry['classification_details']['median_speed_mps'] > WALKING_SPEED_MAX_MPS
+        )
+        if too_fast:
+            sub_segments = _sub_segment_by_speed(s)
+            if len(sub_segments) > 1:
+                sub_entries = [_build_session_entry(seg, sub_segmented=True) for seg in sub_segments]
+                if any(e['is_hike'] for e in sub_entries):
+                    result.extend(sub_entries)
+                    continue
 
-        result.append({
-            'start': s[0]['timestamp'],
-            'end': s[-1]['timestamp'],
-            'duration_minutes': round(dur_sec / 60, 1),
-            'points': len(s),
-            'expected_points': expected,
-            'coverage_pct': round(100 * len(s) / expected, 1),
-            'distance_mi': round(distance_m / 1609.34, 2),
-            'is_hike': is_hike,
-            'rejection_reasons': reasons,
-            'classification_details': classify_details,
-        })
+        result.append(entry)
     return result
 
 

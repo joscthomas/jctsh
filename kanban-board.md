@@ -32,21 +32,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0101 · [bug] [hike-izer] A real hike can be misclassified as "not a hike" if GPSLogger keeps running into a trailing car drive
-**Raised 2026-07-25**, same conversation as CARD-0100 — Joseph asked the mirror-image question: what if he hikes normally, forgets to stop GPSLogger, gets in the car, and starts driving?
-
-**Real gap, opposite failure mode from CARD-0100:** CARD-0100 is a false *trigger* (no real hike, but the pipeline still runs/publishes). This one risks **losing a real hike's summary entirely.**
-
-`fetch_hike_data.py`'s `_gps_sessions()` only splits candidate sessions on a **time gap** (`session_gap_min=10` — 10+ minutes of no GPS activity). It never sub-segments a session by a *speed change* within one continuous recording. If Joseph walks straight from the trailhead to his parked car (no 10+ minute pause) and starts driving, GPSLogger records one unbroken session spanning both the hike and the drive. `_classify_hike()` then computes a single **median speed across the entire blended session** — if the drive segment contributes enough fast-speed point-to-point intervals relative to the hike's walking-pace ones (a longer drive, or a shorter hike), the median can tip into "too fast for walking," and `is_hike` comes back `false` for the *whole* session, including the genuine hike. Rejections aren't silently dropped (a reason is recorded), but the real hike still loses its narrative/summary.
-
-**Decided direction:** sub-segment sessions by speed, not just by time gap — detect where a sustained walking-pace regime ends and a sustained vehicle-pace regime begins *within* a session, classify each sub-segment independently, and use only the walking-pace portion as the confirmed hike candidate. The trailing drive portion becomes its own correctly-rejected non-hike sub-segment instead of dragging the whole session down.
-
-**Not yet designed in detail — flagged for Planning when picked up:** the actual breakpoint-detection algorithm needs care to avoid false positives (e.g. a single fast downhill/running burst, or brief GPS jitter, shouldn't split a real hike into two segments or wrongly trigger a "drive" sub-segment). A minimum sustained-duration/point-count threshold for a regime change is likely necessary, not just a single-point speed spike. Needs real test data (a hike + drive-home GPX trace) to validate against before considering this done — synthetic data alone risks tuning the threshold wrong in either direction.
-
-**Related:** CARD-0100 (Backlog — the mirror-image false-trigger case, raised same session), `components/hike-izer/fetch_hike_data.py` (`_gps_sessions`/`_classify_hike` — the functions this card would modify).
-
----
-
 ### CARD-0100 · [bug] [hike-izer] Automatic trigger (CARD-0086) generates and publishes a page even when no hike is confirmed (e.g. GPSLogger left on during a car errand)
 **Raised 2026-07-25**, Joseph asked what happens if GPSLogger is accidentally left running in a car and then stopped.
 
@@ -481,6 +466,24 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 ---
 
 ## Build
+
+---
+
+### CARD-0101 · [bug] [hike-izer] A real hike can be misclassified as "not a hike" if GPSLogger keeps running into a trailing car drive — implemented 2026-07-27, needs real-world validation
+**Raised 2026-07-25**, same conversation as CARD-0100 — Joseph asked the mirror-image question: what if he hikes normally, forgets to stop GPSLogger, gets in the car, and starts driving?
+
+**Real gap, opposite failure mode from CARD-0100:** CARD-0100 is a false *trigger* (no real hike, but the pipeline still runs/publishes). This one risks **losing a real hike's summary entirely.** `fetch_hike_data.py`'s `_gps_sessions()` only split candidate sessions on a time gap (10+ min of no GPS activity) — never sub-segmented one continuous recording by a *speed change* within it. If Joseph walked straight from the trailhead to his parked car (no 10-min pause) and drove off, GPSLogger recorded one unbroken session; `_classify_hike()`'s single median-speed-across-the-whole-session check could then tip into "too fast for walking" if the drive contributed enough fast intervals relative to the hike's walking ones (a longer drive, or a shorter hike), rejecting the real hike along with the drive.
+
+**Implemented 2026-07-27** in `components/hike-izer/fetch_hike_data.py`. New `_sub_segment_by_speed()`: for a session `_classify_hike()` already rejected specifically for excess speed (not daylight or too-slow — narrow, targeted trigger), builds a local rolling-median speed per point (trailing `REGIME_WINDOW_MIN`=3 min window, reusing the existing `WALKING_SPEED_MIN_MPS`/`MAX_MPS` thresholds to label each point slow/walking/fast), run-length-encodes the labels, and absorbs any run shorter than `REGIME_MIN_DURATION_MIN`=3 min / `REGIME_MIN_POINTS`=3 into a neighboring run so a brief downhill jog or GPS jitter can't itself create a false regime boundary. Surviving regime boundaries split the session; each sub-segment is independently re-classified through the existing (unmodified) `_classify_hike()`. `_gps_sessions()` only keeps the split if it actually rescues a hike (at least one sub-segment classifies `is_hike: true`) — otherwise the original single rejected entry is reported unchanged, so a genuine all-drive session (CARD-0100's case) isn't affected. Refactored the per-session dict-building into a shared `_build_session_entry()` helper used by both the normal path and each sub-segment, avoiding duplicating that logic.
+
+**Synthetic-verified 2026-07-27** (no real trailing-drive GPX trace was available — Joseph opted to proceed with documented default parameters now rather than wait): three constructed cases against real Dove Mountain coordinates (`house-lot-coordinates.md`) at a real daylight timestamp —
+1. 15-min walk (~1.3 m/s) directly into a 40-min drive (~15 m/s), no gap: whole-session median tips to "too fast" as the bug describes; sub-segmentation correctly rescues the walking portion (`is_hike: true`) and reports the drive as its own correctly-rejected segment.
+2. An all-drive session (CARD-0100's case): stays a single correctly-rejected entry, not spuriously split — confirms the "only keep the split if it rescues a hike" guard doesn't regress the existing behavior.
+3. A real hike with one brief (1.5 min) fast burst in the middle (simulating a downhill jog or GPS jitter): burst is absorbed into the surrounding walking run per `REGIME_MIN_DURATION_MIN`/`REGIME_MIN_POINTS`, session stays one unsplit `is_hike: true` entry — confirms the false-positive-split concern from the original design discussion is handled.
+
+**Not yet done — needs a real trailing-drive trace before fully closing.** All three constructed cases pass, but `REGIME_WINDOW_MIN`/`REGIME_MIN_DURATION_MIN`/`REGIME_MIN_POINTS` are documented-provisional defaults, same caveat the card always had: synthetic data alone risks tuning them wrong in either direction. **Done when:** a genuine hike-that-rolled-into-a-drive event happens naturally and the resulting GPS Track sheet data confirms the split lands in the right place — or Joseph decides the synthetic validation above is sufficient to close it without waiting for a real occurrence.
+
+**Related:** CARD-0100 (Backlog — the mirror-image false-trigger case, raised same session), `components/hike-izer/fetch_hike_data.py` (`_gps_sessions`/`_classify_hike`/`_sub_segment_by_speed`/`_build_session_entry`).
 
 ---
 

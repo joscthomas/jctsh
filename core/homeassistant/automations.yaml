@@ -180,7 +180,7 @@
     trip, off after. Two triggers, tagged 'on'/'off', fire at
     input_datetime.traveling_lights_on_time/off_time (both re-randomized
     nightly by "Traveling Lights - Randomize Daily Times") and a choose
-    block runs the matching branch. All 3 entities are in the same room, so
+    block runs the matching branch. Both entities are in the same room, so
     each event shuffles the order and staggers each light with a random
     1-5 min gap -- looks like someone moving through the room, not a single
     master-switch flip.
@@ -193,8 +193,8 @@
     id: 'off'
   actions:
   - variables:
-      lights_order: "{{ ['light.nook', 'light.pendants', 'light.chandelier']\
-        \ | shuffle }}"
+      lights_order: "{{ ['light.nook', 'light.pendants'] | shuffle }}"
+      lights_names: "{{ lights_order | map('state_attr', 'friendly_name') | join(', ') }}"
   - choose:
     - conditions:
       - condition: trigger
@@ -209,17 +209,11 @@
               entity_id: "{{ repeat.item }}"
       - data:
           title: Traveling Lights
-          message: '{{ now().strftime(''%I:%M %p'') }} — Turned on: {{ lights_order
-            | join('', '') }}.
-
-            '
+          message: "{{ now().strftime('%I:%M %p') }} — Turned on: {{ lights_names }}."
         action: notify.mobile_app_pixel_10_pro_xl
       - data:
           title: Traveling Lights
-          message: '{{ now().strftime(''%I:%M %p'') }} — Turned on: {{ lights_order
-            | join('', '') }}.
-
-            '
+          message: "{{ now().strftime('%I:%M %p') }} — Turned on: {{ lights_names }}."
         action: notify.mobile_app_pixel_7_pro
     - conditions:
       - condition: trigger
@@ -234,17 +228,10 @@
               entity_id: "{{ repeat.item }}"
       - data:
           title: Traveling Lights
-          message: '{{ now().strftime(''%I:%M %p'') }} — Turned off: {{ lights_order
-            | join('', '') }}.
-
-            '
+          message: "{{ now().strftime('%I:%M %p') }} — Turned off: {{ lights_names }}."
         action: notify.mobile_app_pixel_10_pro_xl
       - data:
           title: Traveling Lights
-          message: '{{ now().strftime(''%I:%M %p'') }} — Turned off: {{ lights_order
-            | join('', '') }}.
-
-            '
+          message: "{{ now().strftime('%I:%M %p') }} — Turned off: {{ lights_names }}."
         action: notify.mobile_app_pixel_7_pro
-  initial_state: false
   mode: single

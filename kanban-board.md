@@ -467,7 +467,7 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 ---
 
-### CARD-0098 · [enhancement] [traveling-lights] Randomized/staggered occupancy-simulation lighting while traveling — merged to single toggle + entity list trimmed 2026-07-25
+### CARD-0098 · [enhancement] [traveling-lights] Randomized/staggered occupancy-simulation lighting while traveling — entity list trimmed to 2, restart-disable bug fixed 2026-07-27
 **Raised 2026-07-25**, prompted by Joseph asking how feasible an HA lights-while-traveling automation would be, then asking to build it now. New HA-only component, `components/traveling-lights/` (README.md + CLAUDE.md), following the `garage-presence` precedent for HA-only components with no hardware.
 
 **Design went through five rounds before landing:**
@@ -485,7 +485,14 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 **Cosmetic-only leftovers from the merge (documented, not blocking):** the merged automation kept the old entity ID `automation.traveling_lights_evening_on` (HA doesn't re-slugify entity IDs to match a changed alias) even though it's now named "Traveling Lights" and covers both directions. `automation.traveling_lights_night_off` is now an orphaned `unavailable` entity — safe to delete via Settings → Entities, or ignore.
 
-**Not yet done:** the merged single-automation `choose:` structure hasn't had its own full live on+off run with the trimmed 3-entity list — only the pre-merge 5-entity/2-automation version was live-tested. **Done when:** the current merged **Traveling Lights** automation has been enabled at least once and confirmed to stagger `light.nook`/`light.pendants`/`light.chandelier` correctly for both the on and off branch (see `components/traveling-lights/CLAUDE.md` Testing section), then left disabled again until an actual trip.
+**Full on+off run confirmed live 2026-07-26/27 (pre-trim, 3 entities):** on-branch triggered 19:35:22 local, chandelier/pendants/nook fired at 19:38/19:41/19:42 (staggered ~1–3 min apart, matching the 1–5 min per-light delay design). Off-branch triggered 22:02:00 local (inside the 22:00–23:30 window), same 3 lights turned off at 22:06/22:10/22:12. Confirms the merged single-automation `choose:` structure works correctly for both directions — verified via HA `/api/logbook` rather than Joseph watching the house live.
+
+**Round 6 — 2026-07-27, prompted by Joseph reviewing the verified run:**
+1. Noticed the push notification's light list was raw entity IDs (`light.chandelier, light.pendants, light.nook`) instead of readable names. **Fix:** added a `lights_names` variable (`lights_order | map('state_attr', 'friendly_name') | join(', ')`) and pointed both notification templates at it — messages now read e.g. "Turned on: Nook, Pendants."
+2. Asked to drop `light.chandelier` — down to 2 entities: `light.nook`, `light.pendants`.
+3. Asked why the automation was found disabled despite having been manually enabled and live-tested the night before. **Root cause:** the Pi's pre-existing weekly `scheduled-reboot.timer` (CARD-0036) fired at 03:00 local on 2026-07-27, restarting Docker → the `homeassistant` container (confirmed via `docker inspect` StartedAt + HA's own "stopped"/"started" logbook entries 3 min apart). The automation's `initial_state: false` key forces that *specific* state on every HA startup — not just first-ever load with no registry entry, as CLAUDE.md previously (incorrectly) documented from the round-5 reload finding. **Fix:** removed `initial_state: false` entirely, so HA now restores whatever the toggle was last set to across any restart, including future scheduled reboots.
+
+**Status: deployed and re-enabled 2026-07-27, 2-entity/friendly-name version armed for tonight's live cycle** (on/off times already randomized for today: ~19:58/22:14 local). **Done when:** tonight's natural on+off run is confirmed via logbook to (a) stagger `light.nook`/`light.pendants` correctly and (b) show friendly names in the push notification, then left disabled again until an actual trip.
 
 **Related:** `components/garage-presence/` (the HA-only-component precedent this follows), `components/traveling-lights/README.md`, `components/traveling-lights/CLAUDE.md`.
 
@@ -748,6 +755,26 @@ GPIO pin ───────────────────────�
 ---
 
 ## Done
+
+### CARD-0102 · [investigation] [infrastructure] Audit: what else breaks when the Pi/M8 weekly scheduled reboots discard in-flight state — RESOLVED 2026-07-27
+**Raised 2026-07-27**, prompted by the CARD-0098 finding that the Pi's `scheduled-reboot.timer` (CARD-0035) silently disabled the Traveling Lights automation via HA's `initial_state:` key. Joseph asked what else that same weekly-reboot blast radius could be quietly breaking, on both hosts CARD-0035 covers.
+
+**Confirmed the reboot's actual scope on the Pi:** it's a full `/sbin/reboot` (not a targeted Docker/HA bounce) — `uptime -s`, and `mosquitto`/`nodered`/`jctsh-logging`/`docker` `ActiveEnterTimestamp` all landed within the same ~90 sec window as `scheduled-reboot.timer`'s last run (2026-07-27 03:00 MST).
+
+**Pi audit:**
+- **HA automations:** grepped all of `automations.yaml` for `initial_state:` — Traveling Lights was the only automation using it (fixed under CARD-0098). No other automation carries the same "forced state on every restart" risk.
+- **Garage Presence countdown timer** (`timer.garage_presence_timer`): HA's native `timer` domain always resets to idle on any restart (never resumes a countdown) — but "Garage Presence - Sync timer to vswitch" already anticipates this, re-arming the timer at full duration on a `homeassistant: event: start` trigger if `switch.garage_presence_vswitch` is still "on" (regular switches do restore their last state). Already resilient, no fix needed.
+- **Mosquitto:** `persistence true` set in `mosquitto.conf` — retained messages/subscriptions survive the broker restart.
+- **Docker:** only one container runs on the Pi (`homeassistant`) — no other containerized service in scope.
+- **Node-RED:** `contextStorage` is commented out in `settings.js` (in-memory only) — grepped all flow JSON for `context.get/set` and found only the watchdog's per-component 35-min silence timers (`fn_timer_manager`). Those are inherently ephemeral `setTimeout` handles anyway and self-heal on each component's next heartbeat (30 min cadence) — a reboot just means a brief re-arm window, not lost tracking.
+
+**M8 audit** (its own `scheduled-reboot.timer`, Monday 4:00 AM local — staggered 1 hr after the Pi's 3:00 AM specifically so its heartbeat's MQTT publish doesn't collide with the Pi mid-reboot, per CARD-0035): all 7 containers (`hike-izer-orchestrator`, `hike-izer-web`, `netalertx`, `immich_server`, `immich_postgres`, `immich_machine_learning`, `immich_redis`) run `unless-stopped`/`always` restart policies and came back healthy after this morning's reboot. No equivalent to HA's `initial_state:` exists anywhere in the M8 stack — there's no "disabled by default, manually armed before use" toggle pattern the way Traveling Lights has. App-level settings (Immich job state, NetAlertX config) live in Postgres/SQLite on persisted volumes, not restart-time config, so they aren't at risk the same way. The weekly backup cron (Sun 2:15 AM) doesn't overlap the Monday 4:00 AM reboot.
+
+**Conclusion:** the Traveling Lights `initial_state:` bug (fixed under CARD-0098) was the only real gap found. Everything else either doesn't use the risky "force a state on every startup" pattern or was already designed with the weekly reboot in mind.
+
+**Related:** [[project-jctsh]], CARD-0098, CARD-0035 (weekly reboot origin), CARD-0036 (reboot dashboard visibility).
+
+---
 
 ### CARD-0099 · [bug] [core] Timeline sheet's `timestamp_az` column hardcodes Arizona local time for every row, regardless of where it happened — RESOLVED 2026-07-25
 **Raised 2026-07-25**, discovered while confirming CARD-0097's fix — Joseph asked "are there any other columns in any sheet so named," which surfaced this second, more serious instance of the same standing principle ([[feedback_no_location_assumptions]]).

@@ -32,21 +32,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0100 · [bug] [hike-izer] Automatic trigger (CARD-0086) generates and publishes a page even when no hike is confirmed (e.g. GPSLogger left on during a car errand)
-**Raised 2026-07-25**, Joseph asked what happens if GPSLogger is accidentally left running in a car and then stopped.
-
-**Already handled, confirmed via code read:** `fetch_hike_data.py` already classifies each GPS session by median speed (`WALKING_SPEED_MIN_MPS`/`MAX_MPS`, ~0.15–3.0 m/s) plus daylight/stationary checks, marking anything outside walking pace `is_hike: false` with a rejection reason (e.g. "likely vehicle travel, not a hike") — a car trip's data is not mistaken for a hike at the classification level.
-
-**Real gap:** the automatic webhook path (`hike-izer-orchestrator/generation.py`) doesn't act on that classification before doing real work. `hike_data["coverage"]["gps_track"]["hike_confirmed"]` currently only gates whether photos get fetched (line 85) — regardless of its value, `run()` unconditionally: (1) makes a real Claude API call (`narrative.generate_narrative`) — real cost, (2) writes and publishes an `.html`/`.md` page to the live public URL for that date, (3) logs `"Published hike summary for <date>"` to MQTT. So a car errand that's the only GPS activity for a day would still produce a real published page and a real API charge, even though the content would presumably say "no hike detected."
-
-**Decided scope:** skip entirely when no hike is confirmed for the day — no Claude API call, no published page, no MQTT "Published" message. Instead, a quiet log noting a stopped event with no confirmed hike (e.g. `System` category, non-`Alert`, something like `"GPSLogger stopped, no hike confirmed for <date> -- skipped generation."`). This applies to the **automatic webhook path only** — the interactive Skill (Joseph explicitly asking "summarize today's hike") is a different case: if he explicitly asks and there was no hike, telling him so is a correct, wanted answer, not a bug.
-
-**Implementation sketch (not yet built):** in `generation.py`'s `run()`, check `hike_data["coverage"]["gps_track"]["hike_confirmed"]` right after the `fetch_hike_data.py` subprocess call, before the photos/narrative/templating/publish steps — if false, log the quiet skip message via `mqtt_log.publish_log` and return early, same shape as the existing photos-gate but covering the whole rest of the pipeline instead of just photos.
-
-**Related:** CARD-0086 (Done — the automatic-triggering component this gap lives in), `components/hike-izer-orchestrator/generation.py`, `components/hike-izer/fetch_hike_data.py` (the existing car-vs-hike classification this card builds on, not replaces).
-
----
-
 ### CARD-0096 · [enhancement] [infrastructure] Rename photo-server → jct-server and raspberrypi → jct-hub, adopt a real host-naming convention
 **Sequencing decided 2026-07-24: deliberately held until after CARD-0094 lands (or gets explicitly deferred for good).** CARD-0094 would move hike-izer-web's public URL off the Tailscale hostname (`photo-server.tailfe828a.ts.net`) onto a Cloudflare custom domain — doing that first means this rename doesn't have to change the public URL at all, instead of changing it twice. Also worth letting CARD-0086 (just shipped, no real automatic hike-triggered run yet) prove itself in the field before touching the hostname its output currently publishes to. Not blocked on anything, just intentionally not next.
 
@@ -744,6 +729,23 @@ GPIO pin ───────────────────────�
 ---
 
 ## Done
+
+### CARD-0100 · [bug] [hike-izer] Automatic trigger (CARD-0086) generates and publishes a page even when no hike is confirmed (e.g. GPSLogger left on during a car errand) — RESOLVED 2026-07-27
+**Raised 2026-07-25**, Joseph asked what happens if GPSLogger is accidentally left running in a car and then stopped.
+
+**Already handled, confirmed via code read:** `fetch_hike_data.py` already classifies each GPS session by median speed (`WALKING_SPEED_MIN_MPS`/`MAX_MPS`, ~0.15–3.0 m/s) plus daylight/stationary checks, marking anything outside walking pace `is_hike: false` with a rejection reason (e.g. "likely vehicle travel, not a hike") — a car trip's data is not mistaken for a hike at the classification level.
+
+**Real gap that existed:** the automatic webhook path (`hike-izer-orchestrator/generation.py`) didn't act on that classification before doing real work. `hike_data["coverage"]["gps_track"]["hike_confirmed"]` only gated whether photos got fetched — regardless of its value, `run()` unconditionally made a real Claude API call, wrote and published an `.html`/`.md` page to the live public URL, and logged `"Published hike summary for <date>"` to MQTT. A car errand that was the only GPS activity for a day would still produce a real published page and a real API charge.
+
+**Fixed 2026-07-27** in `generation.py`: `run()` now checks `hike_data["coverage"]["gps_track"]["hike_confirmed"]` immediately after the `fetch_hike_data.py` subprocess call, before photos/narrative/templating/publish. If false, it publishes a quiet `System`-category log (`"GPSLogger stopped, no hike confirmed for <date> -- skipped generation."`) and returns `None`; `run_and_log()` treats a `None` return as "already logged, nothing more to do" so it doesn't also publish a "Published hike summary" message. Scoped to the automatic webhook path only — the interactive Skill still correctly reports "no hike" when Joseph explicitly asks, since that's a wanted answer, not a bug. The old redundant `if hike_confirmed:` photos-gate was removed since it's now always true past the new early return. `_build_session_entry`/etc. untouched — this card only touches control flow in `generation.py`, not classification.
+
+**Mock-verified 2026-07-27** (subprocess/API/MQTT all mocked, no real cost): no-hike-confirmed case skips narrative/templating entirely and publishes exactly one skip log; `run_and_log()` publishes nothing extra on that path; hike-confirmed case still reaches narrative/templating unaffected — new gate doesn't touch the working path.
+
+**Live-verified 2026-07-27, real deployment.** Rebuilt and redeployed the `hike-izer-orchestrator` Docker image on the M8 (`docker compose up -d --build orchestrator` — also picked up the CARD-0101 `fetch_hike_data.py` fix, whose copy on the M8 was stale until this deploy). Sent a real `POST` to the live webhook (`https://photo-server.tailfe828a.ts.net/webhook/hike-end`) for a date with zero GPS/environmental activity: `docker logs` showed 0 rows fetched → immediate `"No hike confirmed ... skipping generation"` with no narrative step in between; `curl` against the would-be published page returned `404` (nothing written); the exact skip message showed up live on the JCTsh log dashboard (`http://100.70.162.24/data`, component `hike-izer-orchestrator`, category `System`) via the real MQTT path, not just a mock.
+
+**Related:** CARD-0086 (Done — the automatic-triggering component this gap lived in), CARD-0101 (Build — the sibling GPS-classification fix deployed in the same M8 rebuild), `components/hike-izer-orchestrator/generation.py`, `components/hike-izer/fetch_hike_data.py` (the existing car-vs-hike classification this card builds on, not replaces).
+
+---
 
 ### CARD-0093 · [enhancement] [personal] Clean up DNS records on both `jctnet.com` and `jctnet.net` — RESOLVED 2026-07-27
 **Both originally-open decisions resolved 2026-07-27:** `jctnet.com`'s root `A`/parking records — full removal, domain goes fully dormant (Joseph opted for the simplest teardown, splitting the 3 still-wanted Google Sites pages out into **CARD-0103** instead of keeping any DNS around for them). `jctnet.net`'s dangling `google-site-verification` TXT — confirmed safe to remove; both `jctnet.com` and `jctnet.net` showed zero indexed pages in Search Console, so there was nothing live to lose, and `jctnet.com` isn't being re-verified in Search Console at all going forward (nothing left to index once it's parked).

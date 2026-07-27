@@ -81,28 +81,43 @@ def run(payload):
     with open(hike_data_path, "r", encoding="utf-8") as f:
         hike_data = json.load(f)
 
+    # CARD-0100: don't spend a real Claude API call or publish a live page
+    # for a day with no confirmed hike (e.g. GPSLogger left running during a
+    # car errand) -- fetch_hike_data.py's own classification already knows
+    # this, the automatic path just wasn't checking it before doing real
+    # work. This gate is specific to the automatic webhook path; the
+    # interactive Skill correctly still reports "no hike" when Joseph
+    # explicitly asks, since that's a wanted answer, not a bug.
+    if not hike_data["coverage"]["gps_track"]["hike_confirmed"]:
+        print(f"No hike confirmed for {date_str} -- skipping generation", file=sys.stderr, flush=True)
+        mqtt_log.publish_log(
+            "System",
+            f"GPSLogger stopped, no hike confirmed for {date_str} -- skipped generation.",
+        )
+        return None
+
+    # hike_confirmed is true past this point (checked above) -- fetch photos
     photos_manifest = None
-    if hike_data["coverage"]["gps_track"]["hike_confirmed"]:
-        photos_dir = os.path.join(SRV_DIR, f"{date_str}_photos")
-        try:
-            subprocess.run(
-                [
-                    sys.executable, FETCH_PHOTOS_SCRIPT,
-                    "--data", hike_data_path,
-                    "--immich-url", _env("IMMICH_URL"), "--immich-key", _env("IMMICH_KEY"),
-                    "--out-dir", photos_dir,
-                ],
-                check=True, timeout=180,
-            )
-            with open(os.path.join(photos_dir, "manifest.json"), "r", encoding="utf-8") as f:
-                manifest = json.load(f)
-            if manifest.get("assets"):
-                photos_manifest = manifest
-        except subprocess.CalledProcessError as e:
-            # Photos are a nice-to-have (CARD-0084) -- never let a photo-fetch
-            # failure block the summary itself, same as the interactive Skill's
-            # "omit the Photos section" handling for a failed/empty manifest.
-            print(f"fetch_hike_photos.py failed ({e}) -- continuing without photos", file=sys.stderr)
+    photos_dir = os.path.join(SRV_DIR, f"{date_str}_photos")
+    try:
+        subprocess.run(
+            [
+                sys.executable, FETCH_PHOTOS_SCRIPT,
+                "--data", hike_data_path,
+                "--immich-url", _env("IMMICH_URL"), "--immich-key", _env("IMMICH_KEY"),
+                "--out-dir", photos_dir,
+            ],
+            check=True, timeout=180,
+        )
+        with open(os.path.join(photos_dir, "manifest.json"), "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        if manifest.get("assets"):
+            photos_manifest = manifest
+    except subprocess.CalledProcessError as e:
+        # Photos are a nice-to-have (CARD-0084) -- never let a photo-fetch
+        # failure block the summary itself, same as the interactive Skill's
+        # "omit the Photos section" handling for a failed/empty manifest.
+        print(f"fetch_hike_photos.py failed ({e}) -- continuing without photos", file=sys.stderr)
 
     with open(SKILL_MD_PATH, "r", encoding="utf-8") as f:
         skill_md_text = f.read()
@@ -125,6 +140,10 @@ def run(payload):
 def run_and_log(payload):
     try:
         date_str = run(payload)
+        if date_str is None:
+            # CARD-0100: no hike confirmed -- run() already published its own
+            # quiet skip log, nothing more to do here.
+            return
         print(f"Publishing MQTT log line for {date_str}...", file=sys.stderr, flush=True)
         mqtt_log.publish_log(
             "System",

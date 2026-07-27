@@ -15,6 +15,23 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0103 · [idea] [personal] Migrate 3 legacy Google Sites pages (Cochie Springs hike, Mustang, Karli's Summer) to the M8 webserver — low priority
+
+**Raised 2026-07-27**, during CARD-0093 (DNS cleanup). CARD-0093's original plan let `jctnet.com`'s Google Sites content go entirely (Joseph had called it unimportant), but revisiting surfaced that 3 specific pages are still wanted — dropping the `www` CNAME and `google-site-verification` TXT as part of CARD-0093 will break their reachability at `jctnet.com`/`www.jctnet.com`, even though the underlying Google Sites content itself isn't deleted by a DNS change (it stays live at its own `sites.google.com` URL, just unmapped from the custom domain).
+
+**Scope:**
+- Export the source content (text/photos) for all 3 pages from the live Google Sites pages — content only exists there right now, not backed up elsewhere.
+- Rebuild them as static pages served from the M8 (alongside the existing `hike-izer-web` static content / Caddy setup, or a sibling route — exact placement TBD at build time).
+- **Done when:** all 3 pages are publicly reachable at a real URL again (not just archived files on disk) — final URL/path scheme (e.g. under the existing Tailscale Funnel domain, a new subdomain, etc.) is an open decision for whoever picks this up.
+
+**Open question, deferred to this card (raised 2026-07-27 while resolving CARD-0093's Search Console question):** both `jctnet.com` and `jctnet.net` currently show zero indexed pages in Search Console, so CARD-0093 doesn't bother re-verifying/maintaining Search Console for the now-dormant `jctnet.com`. But once these 3 pages are actually live again on the M8, whether they should be discoverable/indexed by Google (i.e. set up Search Console for wherever they end up living) is a separate decision — not resolved, not urgent, revisit when this card is picked up.
+
+**Priority:** Backlog, low — not blocking CARD-0093, which proceeds with full jctnet.com teardown (including the Google Sites CNAME/TXT records and the root A/parking records) regardless of when this is picked up. Google Sites keeps serving the content at its native URL in the meantime, so there's no hard deadline to act before CARD-0093 executes.
+
+**Related:** CARD-0093 (the DNS cleanup that prompted this), CARD-0088/CARD-0092 (existing M8 static-hosting precedent via Caddy).
+
+---
+
 ### CARD-0101 · [bug] [hike-izer] A real hike can be misclassified as "not a hike" if GPSLogger keeps running into a trailing car drive
 **Raised 2026-07-25**, same conversation as CARD-0100 — Joseph asked the mirror-image question: what if he hikes normally, forgets to stop GPSLogger, gets in the car, and starts driving?
 
@@ -498,37 +515,6 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 ---
 
-### CARD-0093 · [enhancement] [personal] Clean up DNS records on both `jctnet.com` and `jctnet.net` — MOVED TO BUILD 2026-07-24
-**Ready to build, not started tonight — Joseph wants to work this next.** Every record on both domains has a keep/remove decision (see below) except two explicitly-flagged checks to make at execution time: `jctnet.com`'s root `A`/forwarding-parking decision (tied to the separate `/lander` bug), and a quick Search Console glance before dropping `jctnet.net`'s dangling `google-site-verification` TXT. Both domains confirmed at GoDaddy — one registrar login covers the actual editing.
-
-**Notes:** Raised 2026-07-24, during CARD-0088's Cloudflare Tunnel setup — reviewing `jctnet.com`'s DNS in Cloudflare's onboarding scan surfaced 27 records, most of them dead cruft. Not part of CARD-0088 itself (that card doesn't touch the root domain at all) — a separate, standalone cleanup. **Broadened 2026-07-24** after Joseph flagged a second, separate domain also in play — `jctnet.net` — with its own live DNS and its own history; checked directly via public DNS lookup (Cloudflare's DoH API), not assumed. Folded into this same card rather than a sibling one, since it's the same underlying pattern (per-record keep/remove decision) — split back out if that turns out to be the wrong call.
-
-**Context on the two domains, from Joseph directly (2026-07-24):** `jctnet.net` was his long-time personal email domain (`jcthomas@jctnet.net`), managed across a GoDaddy-hosted-email/Microsoft 365 history. He's since migrated nearly everything important to `joscthomas@gmail.com` (a few stragglers not yet identified) and set up Zoho on `jctnet.net` purely to catch remaining mail and forward it to Gmail during that transition — **this forwarding needs to stay live, indefinitely, no target date** (not an email-disable case like `jctnet.com`). While setting up Zoho he also incidentally created `jcthomas@jctnet.com`, but never gave that address to anyone, so `jctnet.com`'s email is fully safe to drop. `jctnet.com`'s Google Sites content (a couple of pages) is also unimportant to him — willing to let that go too, which **broadens the original cleanup scope** (the `www` CNAME/Google verification TXT were originally marked "Keep," now also slated for removal). `jctnet.net` separately turned out to have its own live Canva-connected site (found via DNS scan, not something Joseph had mentioned) — confirmed he's willing to let that go as well.
-
-**Both domains are registered/managed at GoDaddy** (confirmed by Joseph, matches `jctnet.net`'s NS records independently found to still be GoDaddy's defaults) — one registrar login covers the DNS editing for both, not two separate systems to work in.
-
----
-
-**`jctnet.com` — full teardown to essentially nothing.**
-- **Remove — email disabled entirely** (never gave this address to anyone): `MX` ×3 (Zoho), `TXT "v=spf1 include:zohomail.com ~all"`, `TXT "zoho-verification=..."`.
-- **Remove — Google Sites, now also unwanted** (broadened 2026-07-24): `CNAME www → ghs.googlehosted.com`, `TXT google-site-verification=...`. (Originally marked "Keep" — superseded.)
-- **Remove — dead legacy cruft** from a Microsoft 365/Skype-for-Business + GoDaddy-hosted-email history predating Zoho: `CNAME autodiscover, lyncdiscover, sip, msoid` + both `SRV` records (`_sipfederationtls._tcp`, `_sip._tls`) — Microsoft federation; `CNAME e, email, mail, imap, pop, smtp, webmail, mobilemail, pda` → `secureserver.net` (GoDaddy's hosted-email infra); `CNAME ftp → jctnet.com` — unused FTP alias; `CNAME _domainconnect → ...gd.domaincontrol.com` — GoDaddy's one-click-setup convenience record; `TXT "v=verifydomain MS=..."` — old Microsoft domain-verification, same family as the dead Microsoft records.
-- **Still an open decision, not yet made:** the root `jctnet.com` `A` records (`15.197.148.33`, `3.33.130.190`) — GoDaddy's own domain-forwarding/parking infrastructure, not Google's. Almost certainly the root cause of the separate `/lander`-resolves-blank bug Joseph is investigating independently. Now that nothing is meant to be served at `jctnet.com` at all (no email, no site), it's worth asking at execution time whether fixing that forwarding target is even still worth doing, or whether the domain should just sit fully parked — genuinely open, not answered yet.
-- **End state:** no active records at all beyond whatever the parked-domain/forwarding decision above resolves to. A fully dormant domain.
-
-**`jctnet.net` — keep the email bridge, drop everything else.** Confirmed live via public DNS lookup 2026-07-24 (NS still GoDaddy defaults — `ns11/ns12.domaincontrol.com`, not delegated anywhere, so unrelated to CARD-0088's Cloudflare work):
-- **Keep — the active forwarding bridge:** `MX` ×3 (Zoho — `mx.zoho.com`, `mx2`, `mx3`), `TXT "v=spf1 include:zohomail.com ~all"` (needed for Zoho deliverability), the `zoho-verification=...` TXT record(s) (likely required by Zoho to keep the service authorized — confirm before removing anything Zoho-related, unlike `jctnet.com` where Zoho is being dropped entirely).
-- **Remove — the Canva site, now unwanted:** `TXT "canva-domain-verify=..."`, and the root + `www` `A` records currently pointing at Canva's hosting (resolved to a Cloudflare anycast IP — the standard signature of Canva's custom-domain connection).
-- **Remove — dead cruft, same Microsoft-history pattern as `jctnet.com`:** `TXT "v=verifydomain MS=..."`.
-- **Needs a quick check before removing:** `TXT "google-site-verification=..."` — unlike `jctnet.com`'s, this one has no corresponding Google Sites CNAME on `jctnet.net`, so it looks like a dangling verification with nothing live behind it, but worth a glance (Search Console) before dropping in case it's tied to something Joseph still uses (e.g. a Google Workspace/Search Console property under this domain).
-- **End state:** just the Zoho email records — nothing else.
-
-**Side effect worth knowing about, not a driver of this card:** once `jctnet.com` genuinely has no live email, the single biggest risk factor against a full-domain Cloudflare nameserver migration (which CARD-0088 explicitly avoided, falling back to Tailscale Funnel instead, specifically because live Zoho mail made that migration too risky for what CARD-0088 needed) goes away. Doesn't mean CARD-0088 should be redone — just worth knowing this reopens that path as a future option if a real reason to revisit it ever comes up. `jctnet.net` keeping live email doesn't reopen anything, since CARD-0088 never considered that domain.
-
-**Related:** CARD-0088 (the card whose Cloudflare setup surfaced `jctnet.com`'s cleanup — not itself blocked or affected by this), the separate (not yet carded) `/lander` blank-page bug Joseph is fixing independently on `jctnet.com`.
-
----
-
 ### CARD-0086 · [idea] [hike-izer] Automatic triggering — MOVED TO BUILD 2026-07-24
 **Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature. V1 is on-demand only (Joseph explicitly invokes a summary for a specific hike). This card is about detecting that a hike happened/finished and generating the summary automatically — needs a trigger mechanism decision (e.g. GPSLogger track completion, hiking-monitor's own wake/sleep pattern signaling a finished hike, a scheduled check) not yet made.
 
@@ -755,6 +741,38 @@ GPIO pin ───────────────────────�
 ---
 
 ## Done
+
+### CARD-0093 · [enhancement] [personal] Clean up DNS records on both `jctnet.com` and `jctnet.net` — RESOLVED 2026-07-27
+**Both originally-open decisions resolved 2026-07-27:** `jctnet.com`'s root `A`/parking records — full removal, domain goes fully dormant (Joseph opted for the simplest teardown, splitting the 3 still-wanted Google Sites pages out into **CARD-0103** instead of keeping any DNS around for them). `jctnet.net`'s dangling `google-site-verification` TXT — confirmed safe to remove; both `jctnet.com` and `jctnet.net` showed zero indexed pages in Search Console, so there was nothing live to lose, and `jctnet.com` isn't being re-verified in Search Console at all going forward (nothing left to index once it's parked).
+
+**Notes:** Raised 2026-07-24, during CARD-0088's Cloudflare Tunnel setup — reviewing `jctnet.com`'s DNS in Cloudflare's onboarding scan surfaced 27 records, most of them dead cruft. Not part of CARD-0088 itself (that card doesn't touch the root domain at all) — a separate, standalone cleanup. **Broadened 2026-07-24** after Joseph flagged a second, separate domain also in play — `jctnet.net` — with its own live DNS and its own history; checked directly via public DNS lookup (Cloudflare's DoH API), not assumed. Folded into this same card rather than a sibling one, since it's the same underlying pattern (per-record keep/remove decision).
+
+**Context on the two domains, from Joseph directly (2026-07-24):** `jctnet.net` was his long-time personal email domain (`jcthomas@jctnet.net`), managed across a GoDaddy-hosted-email/Microsoft 365 history. He's since migrated nearly everything important to `joscthomas@gmail.com` and set up Zoho on `jctnet.net` purely to catch remaining mail and forward it to Gmail during that transition — **this forwarding stays live indefinitely** (not an email-disable case like `jctnet.com`). While setting up Zoho he also incidentally created `jcthomas@jctnet.com`, but never gave that address to anyone, so `jctnet.com`'s email was fully safe to drop. `jctnet.com`'s Google Sites content was also mostly unwanted (3 specific pages carved out into CARD-0103), which **broadened the original cleanup scope** (the `www` CNAME/Google verification TXT were originally marked "Keep," superseded by full removal). `jctnet.net` separately turned out to have its own live Canva-connected site (found via DNS scan, not something Joseph had mentioned) — confirmed removable too.
+
+**Both domains registered/managed at GoDaddy** — one registrar login covered the DNS editing for both.
+
+---
+
+**`jctnet.com` — full teardown to zero active records. DONE, confirmed live 2026-07-27.**
+- **Removed — email disabled entirely** (never gave this address to anyone): `MX` ×3 (Zoho), `TXT "v=spf1 include:zohomail.com ~all"`, `TXT "zoho-verification=..."`.
+- **Removed — Google Sites, now unwanted:** `CNAME www → ghs.googlehosted.com`, `TXT google-site-verification=...`. The 3 pages Joseph still wants (Cochie Springs hike, Mustang, Karli's Summer) are being re-homed on the M8 separately via **CARD-0103** — the content stays live at its native `sites.google.com` URL regardless of this DNS removal.
+- **Removed — dead legacy cruft** from a Microsoft 365/Skype-for-Business + GoDaddy-hosted-email history predating Zoho: `CNAME autodiscover, lyncdiscover, sip, msoid` + both `SRV` records (`_sipfederationtls._tcp`, `_sip._tls`) — Microsoft federation; `CNAME e, email, mail, imap, pop, smtp, webmail, mobilemail, pda` → `secureserver.net`; `CNAME ftp → jctnet.com`; `CNAME _domainconnect → ...gd.domaincontrol.com`; `TXT "v=verifydomain MS=..."`.
+- **Root `A` records removed too** (`15.197.148.33`, `3.33.130.190` — GoDaddy's forwarding/parking infra, likely root cause of the separate `/lander`-resolves-blank bug Joseph is investigating independently). Joseph opted for the simplest end state — fully parked, nothing forwarding — over fixing the forwarding target. Showed in GoDaddy's UI as `A @ → "Parked"` rather than raw IPs, and (same as `jctnet.net`'s `jct1` below) couldn't be deleted from the plain DNS table — removed via GoDaddy → **Forwarding** tab instead.
+- **Live GoDaddy re-check 2026-07-27 confirmed no surprises** — no DKIM/DMARC records existed for `jctnet.com` (unlike `jctnet.net`; Joseph never actually used `jcthomas@jctnet.com`, so Zoho's optional DKIM/DMARC setup was never done here). All 24 non-infrastructure records matched the plan exactly.
+- **Final state:** just `NS` ×2 (`ns23`/`ns24.domaincontrol.com`) and `SOA` — registrar infrastructure only. Zero active records, fully dormant, parked domain.
+
+**`jctnet.net` — keep the email bridge, drop everything else. DONE, confirmed live 2026-07-27.**
+- **Kept — the active forwarding bridge:** `MX` ×3 (`mx.zoho.com`, `mx2`, `mx3`), `TXT "v=spf1 include:zohomail.com ~all"`, `TXT "zoho-verification=..."` ×2 (`zb46987192...`, `zb84210231...`).
+- **Kept — missed by the original 2026-07-24 research, found live 2026-07-27:** `TXT jctnet._domainkey` (Zoho's DKIM signing key) and `TXT _dmarc` (DMARC policy, `rua`/`ruf` → `jcthomas@jctnet.net`) — active email-authentication records supporting the same Zoho mail flow. Removing either wouldn't have stopped forwarding outright but would have risked deliverability/reputation for anything sent as `jctnet.net` — the opposite of what this card was protecting. Worth remembering for any future domain-cleanup card: a scan done for one purpose (Cloudflare onboarding, a DoH lookup) can miss records like DKIM/DMARC that don't show up unless you check the live registrar panel directly.
+- **Removed:** the Canva site (`TXT "canva-domain-verify=..."`, root + `www` `A` records → Canva's hosting, `103.169.142.0`), `TXT "v=verifydomain MS=..."`, `TXT "google-site-verification=..."` (confirmed via Search Console — zero indexed pages), the full Microsoft/GoDaddy legacy-email bucket (`CNAME autodiscover, e, email, ftp, imap, lyncdiscover, mail, mobilemail, msoid, pda, pop, sip, smtp, webmail, _domainconnect` + `SRV _autodiscover._tcp, _sip._tls, _sipfederationtls._tcp` — 21 records, same pattern as `jctnet.com` but not individually enumerated in the original write-up), and `CNAME litesrv._domainkey → litesrv._domainkey.mlsend.com` (MailerSend, not Zoho — also missed by the original research).
+- **`A jct1` ×2 (`15.197.142.173`, `3.33.152.147`)** — same GoDaddy forwarding-IP pattern as `jctnet.com`'s parked root, also missed by the original research. Joseph didn't recognize it, called it legacy cruft. Couldn't be deleted from the DNS table ("delete not allowed" — GoDaddy blocks direct deletion of records auto-generated by its **Domain Forwarding** feature); removed via GoDaddy → `jctnet.net` → **Forwarding** tab → deleting the `jct1` subdomain-forwarding entry, which cleared the underlying A records.
+- **Final state:** exactly the target 8 records (`MX` ×3, SPF `TXT`, `zoho-verification` `TXT` ×2, `jctnet._domainkey` `TXT`, `_dmarc` `TXT`) plus `NS` ×2/`SOA` (untouched, registrar infrastructure).
+
+**Side effect worth knowing about, not a driver of this card:** now that `jctnet.com` genuinely has no live email, the single biggest risk factor against a full-domain Cloudflare nameserver migration (which CARD-0088 explicitly avoided, falling back to Tailscale Funnel instead, specifically because live Zoho mail made that migration too risky) is gone. Doesn't mean CARD-0088 should be redone — just reopens that path as a future option if a real reason to revisit it ever comes up (see CARD-0094). `jctnet.net` keeping live email doesn't reopen anything, since CARD-0088 never considered that domain.
+
+**Related:** CARD-0088 (the card whose Cloudflare setup surfaced `jctnet.com`'s cleanup), CARD-0094 (deferred Cloudflare switch, now lower-risk), CARD-0103 (migrating the 3 still-wanted Google Sites pages to the M8, split out 2026-07-27), the separate (not yet carded) `/lander` blank-page bug Joseph is fixing independently on `jctnet.com`.
+
+---
 
 ### CARD-0102 · [investigation] [infrastructure] Audit: what else breaks when the Pi/M8 weekly scheduled reboots discard in-flight state — RESOLVED 2026-07-27
 **Raised 2026-07-27**, prompted by the CARD-0098 finding that the Pi's `scheduled-reboot.timer` (CARD-0035) silently disabled the Traveling Lights automation via HA's `initial_state:` key. Joseph asked what else that same weekly-reboot blast radius could be quietly breaking, on both hosts CARD-0035 covers.

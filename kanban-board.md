@@ -450,31 +450,6 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 ---
 
-### CARD-0092 · [idea] [hike-izer] Calendar view on a home page, clickable through to hike summaries — implemented 2026-07-28, automatic-path trigger not yet real-world tested
-**Raised 2026-07-24.** A calendar showing which days had a confirmed hike — visually marked, clickable through to that day's `hike-summary.html` page.
-
-**Interview before building, three open questions resolved with Joseph:**
-1. **Data source:** a small sidecar `<date>_hike-summary.meta.json` (`{"hike_confirmed": true/false}`) written by both publish paths alongside their HTML, read by the calendar-builder — chosen over scanning/parsing HTML content. This turned out to matter for a real correctness reason found during planning: CARD-0100 made the *automatic* pipeline skip publishing entirely on unconfirmed days, but the *interactive* Skill still publishes a page saying "couldn't confirm a hike" when Joseph explicitly asks about a day — a naive "file exists = hike happened" scan would have wrongly marked those interactive-only unconfirmed days as hikes.
-2. **Rebuild trigger:** after every publish, both paths — no manual step to remember, no drift.
-3. **UI:** plain CSS grid, zero JS — matches `html-template.html`'s existing no-`<script>`-anywhere philosophy.
-
-**Built:** new `components/hike-izer/build_calendar_index.py` (stdlib only) — scans a served directory for `*.meta.json` sidecars, groups by year/month, renders a reverse-chronological calendar grid (confirmed-hike days highlighted + linked, published-but-unconfirmed days outlined + linked, everything else plain) to `index.html`. Reuses the same CSS custom-property color system as `html-template.html` (copied variables, not a shared file, since this page has exactly one generator unlike the per-hike template's "consistency across independently-authored runs" concern). Grid uses `repeat(7, 1fr)` + `aspect-ratio: 1/1` so it reflows to any screen width without a breakpoint — deliberately kept at 7 columns on mobile too, unlike the stat-row's 4→2 breakpoint, since collapsing a calendar's day-of-week columns would break its meaning.
-
-**Wired into both publish paths:**
-- `generation.py` (automatic): writes the `.meta.json` (always `hike_confirmed: true` here, since CARD-0100's gate already returned early otherwise) and calls `build_calendar_index.py` via subprocess, same pattern as its existing `fetch_hike_data.py`/`fetch_hike_photos.py` calls.
-- `SKILL.md` (interactive, step 5/7): writes the `.meta.json` locally alongside the HTML, `scp`s it up with the rest, then triggers `docker exec hike-izer-orchestrator python3 /app/build_calendar_index.py --srv-dir /srv/hike-izer` remotely — runs inside the container so the path matches regardless of trigger source.
-- `Dockerfile` updated to include `build_calendar_index.py` in the deployed copy set.
-
-**Verified 2026-07-28:** unit-style test against synthetic manifests confirmed correct month-grouping, reverse-chronological ordering, and day-of-week grid alignment. Deployed live to the M8, backfilled `.meta.json` for the 2 real summaries that predated this card (`2026-06-18`, `2026-07-23`), ran the builder for real — `https://hikes.jctnet.com/` now serves the calendar instead of Caddy's directory listing, both summary links resolve (`HTTP 200`). Browser screenshot verification was attempted but the tool kept timing out after several tries — stopped rather than loop on it; styling reuses already-visually-confirmed (CARD-0081) color variables, and markup structure was confirmed correct by direct inspection instead.
-
-**Data bug found and fixed 2026-07-28, while working CARD-0104:** the `2026-07-23` backfill above was wrong — it was marked `hike_confirmed: true` from an assumption ("used in real verification tests earlier this session"), but that page's own content says the opposite: GPS confirmation actually *failed* that day (a since-resolved pipeline bug, CARD-0087) even though a real hike happened per Joseph's own confirmation. The calendar was showing it highlighted (confirmed) when it should have shown outlined (published, not GPS-confirmed). Corrected the `.meta.json` to `false` and rebuilt the index — verified live, July 23 now renders `cal-day--not-confirmed` not `cal-day--hike`. Worth remembering: backfilling manifest data from session-memory assumptions instead of checking the actual page content is exactly the kind of gap this session's other cards (CARD-0093's Cloudflare zone, CARD-0101's classification) kept finding — check the source of truth, don't infer it.
-
-**Not yet done:** the automatic path's new manifest-write + rebuild code in `generation.py` is deployed and syntax-checked but hasn't been exercised by a real confirmed hike yet (the only way to test it live would cost a real Claude API call for no informational gain beyond what's already proven — same script, same args as the already-verified manual trigger). **Done when:** the next real automatic hike-confirmed generation run is confirmed via `docker logs`/the live calendar to have written its own `.meta.json` and triggered a correct rebuild.
-
-**Related:** CARD-0088 (Done — HTML hosting, the home page this now lives at), CARD-0091 (Done — HTML-only output, same session, the manifest/calendar work builds on top of it), CARD-0100 (Done — the automatic-path confirmation gate this card's data-source design depends on), CARD-0081 (Done — HTML rendering template this reuses styling from), CARD-0073 (Done — Hike-izer v1).
-
----
-
 ### CARD-0101 · [bug] [hike-izer] A real hike can be misclassified as "not a hike" if GPSLogger keeps running into a trailing car drive — implemented 2026-07-27, needs real-world validation
 **Raised 2026-07-25**, same conversation as CARD-0100 — Joseph asked the mirror-image question: what if he hikes normally, forgets to stop GPSLogger, gets in the car, and starts driving?
 
@@ -750,6 +725,31 @@ GPIO pin ───────────────────────�
 ---
 
 ## Done
+
+### CARD-0092 · [idea] [hike-izer] Calendar view on a home page, clickable through to hike summaries — RESOLVED 2026-07-28
+**Raised 2026-07-24.** A calendar showing which days had a confirmed hike — visually marked, clickable through to that day's `hike-summary.html` page.
+
+**Interview before building, three open questions resolved with Joseph:**
+1. **Data source:** a small sidecar `<date>_hike-summary.meta.json` (`{"hike_confirmed": true/false}`) written by both publish paths alongside their HTML, read by the calendar-builder — chosen over scanning/parsing HTML content. This turned out to matter for a real correctness reason found during planning: CARD-0100 made the *automatic* pipeline skip publishing entirely on unconfirmed days, but the *interactive* Skill still publishes a page saying "couldn't confirm a hike" when Joseph explicitly asks about a day — a naive "file exists = hike happened" scan would have wrongly marked those interactive-only unconfirmed days as hikes.
+2. **Rebuild trigger:** after every publish, both paths — no manual step to remember, no drift.
+3. **UI:** plain CSS grid, zero JS — matches `html-template.html`'s existing no-`<script>`-anywhere philosophy.
+
+**Built:** new `components/hike-izer/build_calendar_index.py` (stdlib only) — scans a served directory for `*.meta.json` sidecars, groups by year/month, renders a reverse-chronological calendar grid (confirmed-hike days highlighted + linked, published-but-unconfirmed days outlined + linked, everything else plain) to `index.html`. Reuses the same CSS custom-property color system as `html-template.html` (copied variables, not a shared file, since this page has exactly one generator unlike the per-hike template's "consistency across independently-authored runs" concern). Grid uses `repeat(7, 1fr)` + `aspect-ratio: 1/1` so it reflows to any screen width without a breakpoint — deliberately kept at 7 columns on mobile too, unlike the stat-row's 4→2 breakpoint, since collapsing a calendar's day-of-week columns would break its meaning.
+
+**Wired into both publish paths:**
+- `generation.py` (automatic): writes the `.meta.json` (always `hike_confirmed: true` here, since CARD-0100's gate already returned early otherwise) and calls `build_calendar_index.py` via subprocess, same pattern as its existing `fetch_hike_data.py`/`fetch_hike_photos.py` calls.
+- `SKILL.md` (interactive, step 5/7): writes the `.meta.json` locally alongside the HTML, `scp`s it up with the rest, then triggers `docker exec hike-izer-orchestrator python3 /app/build_calendar_index.py --srv-dir /srv/hike-izer` remotely — runs inside the container so the path matches regardless of trigger source.
+- `Dockerfile` updated to include `build_calendar_index.py` in the deployed copy set.
+
+**Verified 2026-07-28:** unit-style test against synthetic manifests confirmed correct month-grouping, reverse-chronological ordering, and day-of-week grid alignment. Deployed live to the M8, backfilled `.meta.json` for the 2 real summaries that predated this card (`2026-06-18`, `2026-07-23`), ran the builder for real — `https://hikes.jctnet.com/` now serves the calendar instead of Caddy's directory listing, both summary links resolve (`HTTP 200`). Browser screenshot verification was attempted but the tool kept timing out after several tries — stopped rather than loop on it; styling reuses already-visually-confirmed (CARD-0081) color variables, and markup structure was confirmed correct by direct inspection instead.
+
+**Data bug found and fixed 2026-07-28, while working CARD-0104:** the `2026-07-23` backfill above was wrong — it was marked `hike_confirmed: true` from an assumption ("used in real verification tests earlier this session"), but that page's own content says the opposite: GPS confirmation actually *failed* that day (a since-resolved pipeline bug, CARD-0087) even though a real hike happened per Joseph's own confirmation. The calendar was showing it highlighted (confirmed) when it should have shown outlined (published, not GPS-confirmed). Corrected the `.meta.json` to `false` and rebuilt the index — verified live, July 23 now renders `cal-day--not-confirmed` not `cal-day--hike`. Worth remembering: backfilling manifest data from session-memory assumptions instead of checking the actual page content is exactly the kind of gap this session's other cards (CARD-0093's Cloudflare zone, CARD-0101's classification) kept finding — check the source of truth, don't infer it.
+
+**Automatic path verified live 2026-07-28, real hike.** A genuine GPSLogger stop event (`2026-07-28`, a ~32 min/2.0mi walk) triggered the full pipeline for real: `docker logs` showed `hike_confirmed: true`, generation completed, and — the thing this card needed — `generation.py` wrote its own `.meta.json` (`{"hike_confirmed": true}`) and correctly triggered `build_calendar_index.py` (`"Wrote /srv/hike-izer/index.html: 3 summaries indexed."`). Confirmed via the live calendar (`cal-day--hike` for `2026-07-28`) and the MQTT publish log, which correctly referenced the new `hikes.jctnet.com` URL (not the retired `.ts.net` one) — incidentally also a real-world confirmation of CARD-0094's URL fix in production. Same run surfaced a zero-environmental-readings day, explained by Joseph not having the hiking-monitor device with him — not a pipeline bug, nothing further needed.
+
+**Related:** CARD-0088 (Done — HTML hosting, the home page this now lives at), CARD-0091 (Done — HTML-only output, same session, the manifest/calendar work builds on top of it), CARD-0100 (Done — the automatic-path confirmation gate this card's data-source design depends on, confirmed live in the same real run), CARD-0094 (Done — the domain switch this run's MQTT log incidentally re-confirmed), CARD-0081 (Done — HTML rendering template this reuses styling from), CARD-0073 (Done — Hike-izer v1).
+
+---
 
 ### CARD-0091 · [idea] [hike-izer] Drop Markdown output, HTML becomes the sole format — RESOLVED 2026-07-28
 **Raised 2026-07-24**, during CARD-0083 planning — Joseph questioned the ongoing value of generating `.md` alongside `.html` now that HTML had become the richer format: CARD-0081 gave it real styling/structured layout, CARD-0084's photo gallery was already HTML-only (no equivalent in the Markdown), and CARD-0088 was standing up real public hosting specifically for the HTML output.

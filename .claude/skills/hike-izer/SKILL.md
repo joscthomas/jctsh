@@ -267,9 +267,10 @@ the pattern (written before this classification logic existed, but the same
    machine -- no password, no new credentials. The Markdown file is **not**
    copied (this component only serves HTML, matching CARD-0088's scope).
    Tell Joseph the live URL when done:
-   `https://photo-server.tailfe828a.ts.net/<start-date>_hike-summary.html`
-   (Tailscale Funnel, not a custom domain -- see CARD-0088/CARD-0094 for
-   why). See `components/hike-izer-web/README.md` for how this is hosted.
+   `https://hikes.jctnet.com/<start-date>_hike-summary.html`
+   (Cloudflare Tunnel + custom domain, CARD-0094 -- previously Tailscale
+   Funnel under CARD-0088). See `components/hike-izer-web/README.md` for
+   how this is hosted.
 
 ## Explicitly out of scope for v1 (deferred -- see CARD-0073)
 

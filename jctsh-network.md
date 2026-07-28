@@ -24,7 +24,7 @@ All device IPs are DHCP-reserved on the router. Update this file when adding a n
 | front-porch-temp-sensor ESP32 | 192.168.1.202 | front-porch-temp-sensor.local | B4-BF-E9-C9-EF-68 | ESPHome |
 | hiking-monitor ESP32 | 192.168.1.161 | hiking-monitor.local | 04-B2-47-97-DF-2C | ESPHome |
 | SmartThings Hub | 192.168.1.112 | — | 24-FD-5B-01-72-23 | Samsung hub — stable IP required for HA integration |
-| photo-server (GMKtec M8) | 192.168.1.165 | photo-server.local | 70-70-FC-09-AD-A5 | Immich photo server + hike-izer-web (Hike-izer HTML hosting, `photo-server.tailfe828a.ts.net` via Tailscale Funnel — see CARD-0094 for the deferred Cloudflare Tunnel + custom-domain option) + photo-tv-display (planned); wired gigabit direct to router; DHCP-reserved |
+| photo-server (GMKtec M8) | 192.168.1.165 | photo-server.local | 70-70-FC-09-AD-A5 | Immich photo server + hike-izer-web (Hike-izer HTML hosting, `hikes.jctnet.com` via Cloudflare Tunnel — CARD-0094, switched from Tailscale Funnel 2026-07-27) + photo-tv-display (planned); wired gigabit direct to router; DHCP-reserved |
 | KeepConnect-27F8 (router rebooter) | 192.168.1.108 | esp32-5227F8 | 34-98-7A-52-27-F8 | Not a JCTsh component — see `keepconnect.md`; DHCP-reserved |
 
 ## Tailscale
@@ -35,7 +35,7 @@ Tailscale creates a private encrypted mesh network so enrolled devices can reach
 |---|---|---|
 | Home Pi | 100.70.162.24 | MQTT broker, Node-RED, HA, log server — always reachable when Tailscale is running |
 | RV Pi (coachproxyos) | 100.90.246.43 | eRVin dashboard at `http://100.90.246.43`; comes up when Pi has internet via Pixel hotspot |
-| photo-server (GMKtec M8) | 100.111.16.14 | Immich + photo-tv-display (planned) — reachable remotely for admin; also serves hike-izer-web publicly via Funnel at `photo-server.tailfe828a.ts.net` (CARD-0088) |
+| photo-server (GMKtec M8) | 100.111.16.14 | Immich + photo-tv-display (planned) — reachable remotely for admin. hike-izer-web's public exposure moved off Tailscale Funnel to Cloudflare Tunnel (`hikes.jctnet.com`, CARD-0094, 2026-07-27) — this Tailscale IP is now admin/SSH access only for that component, not its public path. |
 
 ## Scheduled Maintenance Windows
 

@@ -148,7 +148,7 @@ def run_and_log(payload):
         mqtt_log.publish_log(
             "System",
             f"Published hike summary for {date_str}: "
-            f"https://photo-server.tailfe828a.ts.net/{date_str}_hike-summary.html",
+            f"https://hikes.jctnet.com/{date_str}_hike-summary.html",
         )
     except Exception as e:
         print(f"Generation failed: {e}", file=sys.stderr)

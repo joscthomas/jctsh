@@ -1,0 +1,12 @@
+# CARD-0094: Cloudflare Tunnel config for hike-izer-web, replacing Tailscale
+# Funnel now that jctnet.com's DNS is clean (CARD-0093) and the nameserver
+# migration is no longer a live-email risk. Tunnel created via
+# `cloudflared tunnel create hike-izer` on the M8; credentials/cert live in
+# the gitignored `cloudflared/` directory, never committed.
+tunnel: aa58cd9e-7535-404a-b144-9c4646143bdd
+credentials-file: /home/nonroot/.cloudflared/aa58cd9e-7535-404a-b144-9c4646143bdd.json
+
+ingress:
+  - hostname: hikes.jctnet.com
+    service: http://web:80
+  - service: http_status:404

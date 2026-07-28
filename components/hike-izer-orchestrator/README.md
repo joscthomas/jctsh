@@ -62,7 +62,7 @@ prints a warning and skips the publish, not a generation failure).
 
 ## Webhook contract
 
-`POST https://photo-server.tailfe828a.ts.net/webhook/hike-end?key=<WEBHOOK_SECRET>`
+`POST https://hikes.jctnet.com/webhook/hike-end?key=<WEBHOOK_SECRET>`
 
 JSON body, built by the Tasker profile from GPSLogger's own broadcast
 extras (`com.mendhak.gpslogger.EVENT`) plus the phone's local date/time as
@@ -109,10 +109,16 @@ Task, since this has to fire itself the instant GPSLogger stops.
    - This gets the phone's *current* local date/time with UTC offset — e.g.
      `2026-07-24T14:32:10-07:00` — never a hardcoded timezone.
 
-2. **Action 2 — HTTP Request:**
+2. **Action 2 — HTTP Post** (older Tasker versions may only offer "HTTP Post"
+   rather than "HTTP Request" — same purpose, but it splits the URL into two
+   separate fields instead of one):
    - Method: `POST`
-   - URL: `https://photo-server.tailfe828a.ts.net/webhook/hike-end?key=G3sOgsf6Ly5N9XwYN2cb1r0qokkHkmug`
-     *(from `credentials.local.md` — `WEBHOOK_SECRET`)*
+   - Server:Port: `https://hikes.jctnet.com`
+   - Path: `/webhook/hike-end?key=G3sOgsf6Ly5N9XwYN2cb1r0qokkHkmug`
+     *(`WEBHOOK_SECRET` from `credentials.local.md`. **Both fields matter** —
+     a Server:Port-only URL with the path/key crammed in wrong silently fails
+     to reach the receiver at all, with no Tasker-visible error; confirmed via
+     live `docker logs` debugging 2026-07-28.)*
    - Headers: `Content-Type: application/json`
    - Body:
      ```
@@ -152,7 +158,7 @@ can't be done from a desk (CARD-0086's stage 1 verification, step 3).
 
 ```
 docker ps                                                              # orchestrator should show Up (healthy)
-curl -s -X POST "https://photo-server.tailfe828a.ts.net/webhook/hike-end?key=<WEBHOOK_SECRET>" \
+curl -s -X POST "https://hikes.jctnet.com/webhook/hike-end?key=<WEBHOOK_SECRET>" \
     -H "Content-Type: application/json" \
     -d '{"gpsloggerevent":"stopped","local_datetime":"2026-07-24T14:32:10-07:00"}'
 docker logs hike-izer-orchestrator --tail 20                          # confirm it logged the event
@@ -162,7 +168,7 @@ docker logs hike-izer-orchestrator --tail 20                          # confirm 
 
 ```
 docker logs hike-izer-orchestrator --tail 30                          # look for "Published hike summary for <date>"
-curl -s https://photo-server.tailfe828a.ts.net/<date>_hike-summary.html | head -5
+curl -s https://hikes.jctnet.com/<date>_hike-summary.html | head -5
 ```
 
 A generation failure logs the exception to stdout (`docker logs`) and

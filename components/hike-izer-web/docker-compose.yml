@@ -6,14 +6,16 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      # Loopback only -- not reachable from the LAN or WAN directly. Only
-      # the M8's own tailscaled daemon (running on the same host) reaches
-      # this via loopback; `tailscale funnel` is what actually exposes it
-      # publicly, gated by Tailscale's own auth/routing. Chosen over
-      # Cloudflare Tunnel's zero-published-port design for now -- see
-      # CARD-0088 on kanban-board.md for why (live email on jctnet.com made
-      # the nameserver migration Cloudflare Tunnel needed too risky;
-      # revisit after CARD-0093 cleans that up, if ever worth it).
+      # Loopback only -- not reachable from the LAN or WAN directly via this
+      # port. Originally the only public path (via the M8's own tailscaled
+      # + `tailscale funnel`, CARD-0088) while jctnet.com still had live
+      # email and a nameserver migration was too risky (CARD-0088's
+      # reasoning). CARD-0093 cleaned that up, so CARD-0094 (2026-07-27)
+      # added the `cloudflared` service below as the new public path --
+      # it reaches `web` directly over the compose network (`http://web:80`
+      # in cloudflared-config.yml), not through this host port mapping.
+      # This loopback binding stays for now as a local-debugging path and
+      # until Tailscale Funnel is explicitly turned off as part of cutover.
       - "127.0.0.1:8090:80"
     volumes:
       - /etc/localtime:/etc/localtime:ro
@@ -66,3 +68,22 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  cloudflared:
+    # CARD-0094: public exposure via Cloudflare Tunnel (hikes.jctnet.com),
+    # replacing Tailscale Funnel. No published ports -- the tunnel makes an
+    # outbound-only connection to Cloudflare's edge and routes
+    # hikes.jctnet.com to `web` over this compose project's default Docker
+    # network (see cloudflared-config.yml's `service: http://web:80`).
+    # Credentials (cert.pem, the tunnel's own credentials JSON) live in the
+    # gitignored ./cloudflared/ dir, generated on this host via
+    # `cloudflared tunnel login` / `tunnel create` -- never committed.
+    container_name: hike-izer-cloudflared
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared:/home/nonroot/.cloudflared
+      - ./cloudflared-config.yml:/etc/cloudflared/config.yml:ro
+    depends_on:
+      - web

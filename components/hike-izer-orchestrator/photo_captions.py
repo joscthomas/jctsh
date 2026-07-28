@@ -1,0 +1,101 @@
+#!/usr/bin/env python
+"""
+Hike-izer photo captioning (CARD-0107).
+
+Identifies the clear focal-point subject of each hike photo -- a species,
+landmark, or named facility/sign -- as a short caption. Deliberately not part
+of narrative.py's call: captions render directly on the photo grid (as
+visible text and as real alt text, replacing the empty alt="" every photo
+previously shipped with), so they can't drift into the same table/narrative
+redundancy problem CARD-0109 exists to prevent, and CARD-0108's scoped-search
+enrichment can key off a named subject once one exists.
+
+Uses Immich's already-downloaded `thumb` variant, not `original` -- CARD-0107's
+real experiment (2026-07-28, 3 real photos) found identical identification
+quality at ~24% lower cost.
+"""
+
+import base64
+import os
+import sys
+
+import anthropic
+from pydantic import BaseModel
+
+MODEL = "claude-opus-4-8"
+
+PROMPT = (
+    "This photo was taken during a hike. Two separate things:\n\n"
+    "1. caption: a short caption (under 12 words) naming the clear focal "
+    "subject -- a specific plant or wildlife species, or a landmark -- but "
+    "ONLY if that identification adds something a viewer can't already see "
+    "for themselves in the photo. Do NOT just repeat or paraphrase text "
+    "that's already legible on a sign, plaque, or label in the photo -- "
+    "restating visible text is redundant with what the photo already shows, "
+    "not a real caption. If the photo's clear subject is a sign/plaque and "
+    "there's nothing to add beyond what it already says, leave caption "
+    "empty. Also leave it empty if nothing is confidently identifiable, or "
+    "the photo is self-explanatory with no specific subject (a general "
+    "view, a person, an unremarkable trail shot). Don't guess and don't "
+    "force a caption where there's nothing to add.\n\n"
+    "2. sign_text: if a sign, plaque, or other readable text is the photo's "
+    "clear subject, transcribe its text here as accurately as you can. This "
+    "is NOT shown to the reader as a caption -- it's captured as raw "
+    "material for a later search step that looks up what the named place or "
+    "thing actually is. Leave empty if there's no such text in the photo."
+)
+
+
+class PhotoObservation(BaseModel):
+    caption: str
+    sign_text: str
+
+
+def _caption_one(client, thumb_path, cost_tracker=None):
+    with open(thumb_path, "rb") as f:
+        data = base64.standard_b64encode(f.read()).decode("utf-8")
+    response = client.messages.parse(
+        model=MODEL,
+        # sign_text can run long on a busy promotional sign (found live,
+        # 2026-07-28 -- 100 was tuned for caption alone and truncated
+        # mid-JSON-string on two real photos, failing to parse).
+        max_tokens=400,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": data}},
+                {"type": "text", "text": PROMPT},
+            ],
+        }],
+        output_format=PhotoObservation,
+    )
+    if cost_tracker:
+        cost_tracker.record(response)
+    return response.parsed_output.caption.strip(), response.parsed_output.sign_text.strip()
+
+
+def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None):
+    """Adds 'caption' (shown to the reader) and 'sign_text' (not shown --
+    raw text transcribed from a sign/plaque in the photo, captured for
+    CARD-0108's later search step) to each image asset in photos_manifest
+    (mutates and returns it). Videos are skipped -- this is a still-image
+    task."""
+    if not photos_manifest or not photos_manifest.get("assets"):
+        return photos_manifest
+
+    client = anthropic.Anthropic(api_key=api_key)
+    for asset in photos_manifest["assets"]:
+        if asset.get("type") != "IMAGE":
+            continue
+        thumb_path = os.path.join(photos_dir, asset["thumb"])
+        try:
+            asset["caption"], asset["sign_text"] = _caption_one(client, thumb_path, cost_tracker=cost_tracker)
+        except Exception as e:
+            # A captioning failure shouldn't block the rest of the gallery --
+            # same "never let an optional enrichment step break the pipeline"
+            # principle already applied to photo fetch (CARD-0084) and
+            # forecast capture (CARD-0083/CARD-0106).
+            print(f"Caption failed for {asset['thumb']}: {e}", file=sys.stderr)
+            asset["caption"] = ""
+            asset["sign_text"] = ""
+    return photos_manifest

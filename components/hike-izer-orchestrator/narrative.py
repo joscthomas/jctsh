@@ -52,14 +52,20 @@ def _trim_for_narrative(hike_data: dict) -> dict:
     }
 
 
-def generate_narrative(hike_data: dict, skill_md_text: str, api_key: str) -> List[str]:
+def generate_narrative(hike_data: dict, skill_md_text: str, api_key: str, place_context=None, cost_tracker=None) -> List[str]:
     client = anthropic.Anthropic(api_key=api_key)
     system_prompt = SYSTEM_PROMPT_PREFIX.format(skill_md=skill_md_text)
 
     import json
+    trimmed = _trim_for_narrative(hike_data)
+    # CARD-0108: grounded facts about where the hike happened (place
+    # ownership/history, answers to whatever was voiced aloud) -- gathered
+    # by place_context.py, passed in already-deduped-as-best-effort. Woven
+    # into the narrative per SKILL.md's guidance, not a separate section.
+    trimmed["place_context"] = place_context or []
     user_content = (
         "Here is the day's hike data (JSON):\n\n"
-        + json.dumps(_trim_for_narrative(hike_data), indent=2)
+        + json.dumps(trimmed, indent=2)
     )
 
     response = client.messages.parse(
@@ -70,4 +76,6 @@ def generate_narrative(hike_data: dict, skill_md_text: str, api_key: str) -> Lis
         messages=[{"role": "user", "content": user_content}],
         output_format=NarrativeOutput,
     )
+    if cost_tracker:
+        cost_tracker.record(response)
     return response.parsed_output.narrative_paragraphs

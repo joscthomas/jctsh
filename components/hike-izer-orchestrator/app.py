@@ -42,6 +42,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
 
 import generation
+import mqtt_log
 
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 PORT = int(os.environ.get("PORT", "8080"))
@@ -50,6 +51,25 @@ PORT = int(os.environ.get("PORT", "8080"))
 def log(message):
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
     print(f"[{ts}] {message}", flush=True)
+
+
+def _log_mqtt_async(category, message):
+    # Fire-and-forget, off the request-handling thread -- an MQTT publish
+    # takes up to 5s (mqtt_log.py's own wait_for_publish timeout) and must
+    # never add latency to a webhook response or delay server startup.
+    # Also the durable half of every log() call site below: a container's
+    # own stdout/stderr dies with it on any rebuild (confirmed live
+    # 2026-07-28 -- a real webhook's receipt was provably lost this way,
+    # untraceable after the container that received it got replaced),
+    # while this MQTT line lands on the dashboard independent of container
+    # lifecycle.
+    def _send():
+        try:
+            mqtt_log.publish_log(category, message)
+        except Exception as e:
+            log(f"mqtt_log publish failed: {e}")
+
+    threading.Thread(target=_send, daemon=True).start()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -71,6 +91,10 @@ class Handler(BaseHTTPRequestHandler):
         provided_key = parse_qs(parts.query).get("key", [""])[0]
         if not WEBHOOK_SECRET or not hmac.compare_digest(provided_key, WEBHOOK_SECRET):
             log("Rejected webhook POST: missing or incorrect key")
+            # Alert, not System -- a rejected auth attempt reaching us at
+            # all is the one signal a totally-silent failure (nothing ever
+            # arriving) can't produce, so it's worth flagging distinctly.
+            _log_mqtt_async("Alert", "Webhook POST rejected: missing or incorrect key.")
             self._respond(401, {"status": "error", "message": "unauthorized"})
             return
 
@@ -85,6 +109,11 @@ class Handler(BaseHTTPRequestHandler):
 
         event = payload.get("gpsloggerevent", "<missing>")
         log(f"Received gpsloggerevent={event} payload={json.dumps(payload)}")
+        # The durable half of the line above -- generation.py already
+        # publishes its own completion/failure line once a 'stopped' run
+        # finishes, but there was previously no durable record that the
+        # webhook itself was ever received in the first place.
+        _log_mqtt_async("System", f"Webhook received: gpsloggerevent={event}.")
 
         if event != "stopped":
             log(f"Ignoring event '{event}' (only 'stopped' triggers generation)")
@@ -109,6 +138,10 @@ def main():
         log("FATAL: WEBHOOK_SECRET not set -- refusing to start")
         sys.exit(1)
     log(f"Starting hike-izer-orchestrator webhook receiver on :{PORT}")
+    # Makes a container rebuild/restart itself visible on the dashboard --
+    # today's investigation (2026-07-28) spent a long time on SSH forensics
+    # specifically because a container churn was invisible from here.
+    _log_mqtt_async("System", "Orchestrator webhook receiver started.")
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     server.serve_forever()
 

@@ -18,8 +18,11 @@ import os
 import subprocess
 import sys
 
+import cost_tracking
 import mqtt_log
 import narrative
+import photo_captions
+import place_context as place_context_module
 import templating
 
 SRV_DIR = "/srv/hike-izer"
@@ -46,6 +49,7 @@ def _local_date_and_offset(local_datetime):
 
 
 def run(payload):
+    tracker = cost_tracking.CostTracker()
     local_datetime = payload.get("local_datetime")
     if not local_datetime:
         raise ValueError("payload missing local_datetime -- cannot determine which day to generate")
@@ -95,7 +99,7 @@ def run(payload):
             "System",
             f"GPSLogger stopped, no hike confirmed for {date_str} -- skipped generation.",
         )
-        return None
+        return None, tracker
 
     # hike_confirmed is true past this point (checked above) -- fetch photos
     photos_manifest = None
@@ -120,10 +124,25 @@ def run(payload):
         # "omit the Photos section" handling for a failed/empty manifest.
         print(f"fetch_hike_photos.py failed ({e}) -- continuing without photos", file=sys.stderr)
 
+    if photos_manifest:
+        photos_manifest = photo_captions.caption_photos(
+            photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker
+        )
+
     with open(SKILL_MD_PATH, "r", encoding="utf-8") as f:
         skill_md_text = f.read()
 
-    paragraphs = narrative.generate_narrative(hike_data, skill_md_text, _env("ANTHROPIC_API_KEY"))
+    # CARD-0108: runs after photo captioning so sign_text (if any) is
+    # already on the manifest and available as search-anchor material.
+    place_context = place_context_module.gather_place_context(
+        hike_data, photos_manifest, _env("ANTHROPIC_API_KEY"),
+        regional_cache_path=os.path.join(SRV_DIR, "regional_context_cache.json"),
+        cost_tracker=tracker,
+    )
+
+    paragraphs = narrative.generate_narrative(
+        hike_data, skill_md_text, _env("ANTHROPIC_API_KEY"), place_context=place_context, cost_tracker=tracker
+    )
 
     html_text = templating.render_html(hike_data, paragraphs, date_str, offset_str, photos_manifest)
 
@@ -143,13 +162,13 @@ def run(payload):
         check=True, timeout=30,
     )
 
-    print(f"Generation complete for {date_str}", file=sys.stderr, flush=True)
-    return date_str
+    print(f"Generation complete for {date_str} -- {tracker.summary()}", file=sys.stderr, flush=True)
+    return date_str, tracker
 
 
 def run_and_log(payload):
     try:
-        date_str = run(payload)
+        date_str, tracker = run(payload)
         if date_str is None:
             # CARD-0100: no hike confirmed -- run() already published its own
             # quiet skip log, nothing more to do here.
@@ -158,7 +177,8 @@ def run_and_log(payload):
         mqtt_log.publish_log(
             "System",
             f"Published hike summary for {date_str}: "
-            f"https://hikes.jctnet.com/{date_str}_hike-summary.html",
+            f"https://hikes.jctnet.com/{date_str}_hike-summary.html "
+            f"(API cost: {tracker.summary()})",
         )
     except Exception as e:
         print(f"Generation failed: {e}", file=sys.stderr)

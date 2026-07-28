@@ -182,7 +182,10 @@ answer them.
 2. Research brief, genuinely interesting background on the named places/things above -- \
 history, why they're named what they're named, what a mentioned program or organization \
 actually is. Prioritize what would surprise someone; skip generic filler.
-3. Your ENTIRE final response must be either a flat list of short, independent facts (one \
+3. Budget your searches: use at most 4 total, and prefer one strong source per topic over \
+cross-verifying the same fact with multiple searches -- a confident answer from a single \
+good source is enough, and each additional search adds real cost.
+4. Your ENTIRE final response must be either a flat list of short, independent facts (one \
 per line, no bullets or numbering), or the single word NONE and nothing else. Each fact \
 must stand alone and not overlap with any other fact in your list -- if two searches turn \
 up the same underlying fact, state it once. If you can't find a confident answer to \
@@ -303,8 +306,11 @@ def gather_enrichment(named, sign_texts, observations_text, api_key, cost_tracke
     )
     # Room for both thinking and a genuinely long facts list -- found live
     # (2026-07-28) that a real research pass produces upwards of 15-20
-    # substantive facts.
-    return _run_research_call(prompt, api_key, max_tokens=3000, max_uses=6, cost_tracker=cost_tracker)
+    # substantive facts. max_uses cut 6->4 same day, after a real combined
+    # enrichment+regional run cost $1.86 (300K input tokens, 11 searches) --
+    # each search's results compound into every later turn's input tokens
+    # within the call, so trimming max_uses cuts more than proportionally.
+    return _run_research_call(prompt, api_key, max_tokens=3000, max_uses=4, cost_tracker=cost_tracker)
 
 
 REGIONAL_PROMPT_TEMPLATE = """You're gathering brief, genuinely interesting regional \
@@ -325,6 +331,10 @@ Keep it regional, not hyper-local -- these facts should hold true anywhere in {r
 not be specific to one exact GPS point (a separate step already handles that). Prioritize \
 what would genuinely surprise someone; skip generic filler.
 
+Budget your searches: use at most 3 total, and prefer one strong source per topic over \
+cross-verifying the same fact with multiple searches -- a confident answer from a single \
+good source is enough, and each additional search adds real cost.
+
 Your ENTIRE final response must be either a flat list of short, independent facts (one \
 per line, no bullets or numbering), or the single word NONE and nothing else. If you \
 can't find a confident answer, leave it out entirely rather than guessing.
@@ -340,7 +350,10 @@ def gather_regional_context(region, api_key, cost_tracker=None):
     if not region:
         return []
     prompt = REGIONAL_PROMPT_TEMPLATE.format(region=region)
-    return _run_research_call(prompt, api_key, max_tokens=2000, max_uses=5, cost_tracker=cost_tracker)
+    # max_uses cut 5->3 same day as the enrichment cut above, same reasoning
+    # -- this is a one-time-per-region cost, but still worth trimming since
+    # it's the same compounding-input-tokens effect.
+    return _run_research_call(prompt, api_key, max_tokens=2000, max_uses=3, cost_tracker=cost_tracker)
 
 
 def _load_regional_cache(cache_path):

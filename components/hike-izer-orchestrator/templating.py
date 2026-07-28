@@ -147,6 +147,14 @@ def _range_display(rng, unit="", decimals=1):
     return f"{fmt.format(rng['min'])}–{fmt.format(rng['max'])}{unit}"
 
 
+def _sun_direction_display(stats):
+    start = stats.get("sun_direction_start")
+    end = stats.get("sun_direction_end")
+    if not start or not end:
+        return NA
+    return start if start == end else f"{start} → {end}"
+
+
 def category_counts(hiking_observations):
     counts = {}
     for o in hiking_observations:
@@ -169,17 +177,20 @@ def _parse_categories(raw):
         return []
 
 
-def data_summary_rows(hike_data, offset_delta):
+def data_summary_rows(hike_data):
+    # Duration and Elevation Gain deliberately excluded -- both already appear
+    # verbatim in the hero stat row at the top of the page (CARD-0109); this
+    # table is the hiking-sensor readings (temp/humidity/UV/battery) plus the
+    # elevation range and observation breakdown, not a second copy of the
+    # hero stats. Sun position has its own table (sun_summary_rows) for the
+    # same reason -- it's not a sensor reading, and doesn't belong mixed in.
     stats = hike_data["stats"]
     coverage = hike_data["coverage"]
     rows = [
         ("Temperature", _range_display(stats.get("temp_f"), "°F")),
         ("Humidity", _range_display(stats.get("humidity_pct"), "%")),
         ("UV Index", _range_display(stats.get("uv_index"))),
-        ("Elevation Range", _elevation_range_display(stats)),
-        ("Elevation Gain", f"{elevation_gain_display(stats)} ft" if stats.get("altitude_ft") else NA),
         ("Battery Voltage", _range_display(stats.get("battery_v"), "V", decimals=2)),
-        ("Duration", duration_display(hike_data, offset_delta)),
     ]
     counts = category_counts(hike_data.get("hiking_observations", []))
     if counts:
@@ -189,11 +200,11 @@ def data_summary_rows(hike_data, offset_delta):
     return rows
 
 
-def _elevation_range_display(stats):
-    alt = stats.get("altitude_ft")
-    if not alt:
-        return NA
-    return f"{alt['min']}–{alt['max']} ft"
+def sun_summary_rows(stats):
+    return [
+        ("Sun Elevation Range", _range_display(stats.get("sun_elevation_deg"), "°")),
+        ("Sun Direction", _sun_direction_display(stats)),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -330,8 +341,9 @@ _HTML_STYLE = """
   tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 40%, transparent); }
   .obs-table thead th { position: sticky; top: 0; }
   .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.6rem; }
-  .photo-item { display: block; aspect-ratio: 1 / 1; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); }
-  .photo-item img, .photo-item video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-item { display: flex; flex-direction: column; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); }
+  .photo-item img, .photo-item video { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; }
+  .photo-caption { font-size: 0.75rem; line-height: 1.3; color: var(--ink-muted); padding: 0.35rem 0.5rem; min-height: 2.6em; }
   .coverage-panel { background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 1rem 1.15rem; }
   .coverage-panel table { background: transparent; border: none; }
   .coverage-panel thead th { background: transparent; }
@@ -385,7 +397,12 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
 
     summary_rows = "".join(
         f"<tr><td>{_esc(label)}</td><td>{_esc(value)}</td></tr>"
-        for label, value in data_summary_rows(hike_data, offset_delta)
+        for label, value in data_summary_rows(hike_data)
+    )
+
+    sun_rows = "".join(
+        f"<tr><td>{_esc(label)}</td><td>{_esc(value)}</td></tr>"
+        for label, value in sun_summary_rows(stats)
     )
 
     obs = hike_data.get("hiking_observations", [])
@@ -410,14 +427,27 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
         items = []
         for a in photos_manifest["assets"]:
             if a["type"] == "VIDEO":
+                # Empty photo-caption span here too, even though videos never
+                # get one -- keeps every tile's height equal (image + reserved
+                # caption space) regardless of media type, same reason images
+                # always reserve the space below.
                 items.append(
                     f'<a class="photo-item" href="{photos_dir}/{a["original"]}">'
-                    f'<video src="{photos_dir}/{a["original"]}" poster="{photos_dir}/{a["thumb"]}" muted></video></a>'
+                    f'<video src="{photos_dir}/{a["original"]}" poster="{photos_dir}/{a["thumb"]}" muted></video>'
+                    f'<span class="photo-caption"></span></a>'
                 )
             else:
+                # CARD-0107: caption doubles as real alt text -- previously
+                # every photo shipped with alt="", a real accessibility gap --
+                # and renders visibly below the thumbnail. photo-caption
+                # always reserves its space (min-height, even when empty) so
+                # grid rows stay aligned regardless of which photos have a
+                # caption.
+                caption = a.get("caption", "")
                 items.append(
                     f'<a class="photo-item" href="{photos_dir}/{a["original"]}">'
-                    f'<img src="{photos_dir}/{a["thumb"]}" alt="" loading="lazy"></a>'
+                    f'<img src="{photos_dir}/{a["thumb"]}" alt="{_esc(caption)}" loading="lazy">'
+                    f'<span class="photo-caption">{_esc(caption)}</span></a>'
                 )
         photos_section = f"""
   <section>
@@ -456,6 +486,10 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   <section>
     <h2>Data Summary</h2>
     <table><tbody>{summary_rows}</tbody></table>
+  </section>
+  <section>
+    <h2>Sun Position</h2>
+    <table><tbody>{sun_rows}</tbody></table>
   </section>
   {obs_section}
   {photos_section}

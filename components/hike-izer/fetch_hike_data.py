@@ -630,6 +630,19 @@ def main():
         })
 
     stats = compute_stats(env_rows, gps_rows)
+    # Sun elevation range + start/end compass direction, for the Data Summary
+    # table (CARD-0109) -- moved out of narrative prose, same treatment as
+    # every other measured range (temp, humidity, elevation). sun_samples is
+    # already chronologically ordered (built by iterating sorted_gps above).
+    if sun_samples:
+        elevations = [s['sun_elevation_deg'] for s in sun_samples]
+        stats['sun_elevation_deg'] = {'min': min(elevations), 'max': max(elevations)}
+        stats['sun_direction_start'] = sun_samples[0]['sun_direction']
+        stats['sun_direction_end'] = sun_samples[-1]['sun_direction']
+    else:
+        stats['sun_elevation_deg'] = None
+        stats['sun_direction_start'] = None
+        stats['sun_direction_end'] = None
     # Total on-trail distance, summed only across sessions classified as a real
     # hike -- not all GPS activity for the day (e.g. driving between
     # trailheads, or GPS drift while stationary at camp, shouldn't count).

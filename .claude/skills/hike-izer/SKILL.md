@@ -109,29 +109,45 @@ section.
 4. **Write the narrative.** First check `coverage.gps_track.hike_confirmed` --
    if `false`, follow "What counts as a hike" above instead of the normal
    structure below. Otherwise, produce the HTML output with the following
-   parts, in this order. **Tables and prose must not repeat each other.** The data
-   table/summary (part b) is where the raw numbers and ranges live. The narrative
-   (part a) should read those numbers as context to build the story from, not
-   restate them -- interpret, connect, and draw conclusions instead ("the trail
-   climbed steadily through the afternoon" rather than "elevation ranged from
-   X ft to Y ft, see table"; "conditions stayed comfortably mild all day" rather
-   than restating the exact temperature range that's already in the table two
-   sections down). If a sentence in the narrative would just be a number already
-   sitting in the table, cut it or turn it into an observation instead.
+   parts, in this order. **Tables and prose must not repeat each other -- including
+   paraphrased restatement.** The data table/summary (part b) is where the raw
+   numbers and ranges live. The narrative (part a) should read those numbers as
+   context to build the story from, not restate them -- interpret, connect, and
+   draw conclusions instead ("the trail climbed steadily through the afternoon"
+   rather than "elevation ranged from X ft to Y ft, see table"; "conditions
+   stayed comfortably mild all day" rather than restating the exact temperature
+   range that's already in the table two sections down). **Restating a number in
+   softer words is still restating it** -- "wrapped up in a little over half an
+   hour" for a 32-minute duration, or "roughly two miles of ground" for a 2.0 mi
+   distance, tell the reader nothing they can't already see in the stat row
+   above; avoiding digits doesn't make a sentence an exception to this rule.
+   Before including a sentence built from a table number, ask: does this connect
+   the number to something else -- what it felt like, why it happened, what it
+   enabled or prevented -- or does it just describe the number in prose? If it's
+   the latter, cut it. This applies to coverage/data-gap reporting too: if a data
+   source came back empty, note that briefly only if it genuinely limits what the
+   story can say (e.g. "no temperature story to tell from the sensor itself"),
+   but don't restate the expected/actual counts, and never point ahead to
+   "detailed in the coverage section below" -- that section already exists and
+   speaks for itself; a forward-reference like that is a tell that the sentence
+   shouldn't be in the narrative at all.
 
    **Weather forecast at hike start (added 2026-07-24, CARD-0083)** -- shown
    before part (a), since it's context the reader wants before the story
    itself ("here's what was forecast going in"). **Applies on both the
    normal and `hike_confirmed: false` paths** -- the forecast is captured
-   independently of GPS confirmation (it fires off the first Hiking
-   Observation, not off GPS data), so it counts as "other data that does
+   independently of hike-confirmation status (it fires off the first raw GPS
+   point of the day, before any hike-vs-not-hike classification happens --
+   moved from the first Hiking Observation by CARD-0106, since that was
+   optional and arbitrarily timed relative to when the hike actually started),
+   so it counts as "other data that does
    exist" per the `hike_confirmed: false` handling above and should be
    included there too, not just in the three-part normal structure. If `hike_start_forecast` has
    an entry, report its five fields plainly: temperature, precipitation
    chance, wind, humidity, UV index. This is a live snapshot captured the
-   moment the hike began (the first Hiking Observation of the day triggers
-   an Open-Meteo fetch server-side, correlated to that observation's own GPS
-   position) -- not a forecast checked whenever the summary happens to be
+   moment the hike began (the first GPS point of the day triggers an
+   Open-Meteo fetch server-side, using that point's own coordinates) -- not
+   a forecast checked whenever the summary happens to be
    generated later, and not actual observed conditions (a separate,
    still-undecided item under CARD-0074). If `hike_start_forecast` is empty
    (the hike predates this feature, or the capture failed that day), still
@@ -144,12 +160,30 @@ section.
    **a. Narrative story of the hike** -- a genuinely readable account of the day
    using the real data: how conditions evolved, elevation change described
    qualitatively (climbing, descending, flat) rather than by restating the exact
-   figures, sun position at key moments (e.g., "the sun was low in the eastern
-   sky, about 15deg above the horizon" near the start, or note if a stretch
-   happened after sunset -- `daylight: false` in a sun sample), and the hiker's
-   own voice observations woven in chronologically (they're already categorized --
-   vegetation, wildlife, weather, sky, trail, etc. -- use that). Write this as a
-   story, not a data dump.
+   figures, sun position at key moments described the same qualitative way (e.g.,
+   "the sun was still low in the eastern sky, casting long morning light" rather
+   than quoting the exact elevation degrees -- those now live in the Data
+   Summary table's Sun Elevation Range / Sun Direction rows, CARD-0109 --
+   or note if a stretch happened after sunset -- `daylight: false` in a sun
+   sample), and the hiker's own voice observations woven in chronologically
+   (they're already categorized -- vegetation, wildlife, weather, sky, trail,
+   etc. -- use that). Write this as a story, not a data dump.
+
+   **Place context (added 2026-07-28, CARD-0108)** -- `place_context` is a flat
+   list of independently-true facts about where the hike happened: named
+   park/school/trail and its operator, researched history, answers to things
+   the hiker wondered aloud. Gathered before this call specifically so it can
+   be woven into the story, not bolted on as a separate section -- weave it in,
+   don't list it. If an observation is a genuine open question (e.g. "wonder
+   what that stands for"), don't report that the question was asked -- it's
+   already visible in the Full Observations Log table -- just answer it, tied
+   to that moment in the story. Apply the same non-redundancy discipline here
+   as with the data tables: never state the same fact twice, even phrased
+   differently or arrived at from two different original sources (e.g. an
+   operator confirmed by both the location data and a researched fact appears
+   once, not twice). If `place_context` is empty, say nothing about it --
+   unlike the weather forecast, there's no standing reader expectation that
+   this exists for every hike, so there's nothing to report the absence of.
 
    **b. Data tables/summary** -- the actual numbers: temperature range, humidity
    range, UV index range, elevation range/gain **in feet** (`stats.altitude_ft`),

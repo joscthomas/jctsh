@@ -132,6 +132,9 @@ The ADC voltage divider reads ~0.1V high at full charge (4.2V actual reads ~4.3V
 5. Use the Tasker widget to log voice observations during the hike
 6. At end: turn switch **OFF** — device enters deep sleep; data safely stored in flash
 
+For the full phone-side picture (Gaia GPS, why there's no manual Tasker
+start/end step, the automatic Hike-izer pipeline) see `phone-workflow.md`.
+
 ### Van/Camp Monitoring
 1. Turn switch **ON**
 2. Device enters field mode and begins reading every 2 minutes

@@ -15,6 +15,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0110 · [idea] [hike-izer] Hiking stats — elevation graph, elevation summary, speed graph, other stats
+
+**Raised 2026-07-28**, distinct from CARD-0082 (route map + elevation profile, Gaia-GPS-style): this card is about the numeric/chart stats layer — no basemap, no route visualization, purely derived from data hike-izer's GPS Track already has.
+
+**Reference material — Joseph's own Gaia GPS data-summary screenshot for today's hike:**
+- A combined **Speed + Elevation chart**, both series plotted on one graph against Distance on the X-axis (Gaia also offers Time as an X-axis option) — Speed in one color, Elevation in another, distinct Y-axes (mph / ft).
+- A **stats block** richer than hike-izer's current Duration + Elevation Gain: **Distance** (1.27 mi), **Moving Time** (29m 47s) vs **Total Time** (32m 23s) vs **Stopped Time** (2m 36s) as three distinct values — not just one duration, **Pace** (25:27 min/mi), **Moving Speed** (2.6 mph) vs **Avg Speed** (2.3 mph) as distinct values, and **Ascent** (49 ft) / **Descent** (40 ft) as separate numbers — richer than hike-izer's current single net "Elevation Gain."
+
+**Scope:**
+1. Elevation graph (distance or time on X-axis, elevation on Y-axis).
+2. Elevation summary stats — likely Ascent/Descent as separate values, replacing or supplementing the current single Elevation Gain figure (CARD-0109 already removed the old Elevation Range row from Data Summary as prep for this).
+3. Speed graph — new; hike-izer has no speed-over-time/distance visualization today.
+4. Other stats — Moving Time/Stopped Time/Total Time as distinct values, Moving Speed/Avg Speed as distinct values, Pace.
+
+**Data source:** existing GPS Track data (`fetch_hike_data.py`'s `gps_rows` — timestamp/lat/lon/altitude per point, already flowing through the same pipeline CARD-0082 uses) — ascent/descent, speed, and moving-vs-stopped time are all derivable from consecutive-point deltas; no new data collection needed.
+
+**Build-vs-embed decision, not yet made:** CARD-0104 chose to embed Gaia GPS's own map/track view directly rather than building a custom route renderer, since Joseph already uses Gaia on every hike and Gaia's real widget is "authentically Gaia-GPS-style" for free. The same trade-off applies here, arguably more directly — Gaia is already computing and rendering exactly this chart and these stats today, per the reference screenshot. Worth evaluating the same lighter-weight "embed it" path before committing to a from-scratch native chart, though CARD-0104 already flagged that Gaia's embed requires Joseph to manually mark the track Public and copy embed code each time — not automatable — so a native render (zero-JS, matching this project's convention elsewhere) may still win out for the automatic (CARD-0086) pipeline path even if embedding is used for the interactive/manual path.
+
+**Related:** CARD-0082 (Backlog — route map + elevation profile, the visual/map-focused sibling of this stats-focused card, same underlying GPS Track data source), CARD-0104 (Backlog — the Gaia-embed precedent and its "not automatable" caveat), CARD-0109 (Done — removed the old single Elevation Range row from Data Summary, freeing that space for this card's richer stats), `components/hike-izer/fetch_hike_data.py`.
+
+---
+
 ### CARD-0103 · [idea] [personal] Migrate 3 legacy Google Sites pages (Cochie Springs hike, Mustang, Karli's Summer) to the M8 webserver — low priority
 
 **Raised 2026-07-27**, during CARD-0093 (DNS cleanup). CARD-0093's original plan let `jctnet.com`'s Google Sites content go entirely (Joseph had called it unimportant), but revisiting surfaced that 3 specific pages are still wanted — dropping the `www` CNAME and `google-site-verification` TXT as part of CARD-0093 will break their reachability at `jctnet.com`/`www.jctnet.com`, even though the underlying Google Sites content itself isn't deleted by a DNS change (it stays live at its own `sites.google.com` URL, just unmapped from the custom domain).
@@ -265,6 +287,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0109 · [enhancement] [hike-izer] Tighten the narrative's non-redundancy rule — RESOLVED 2026-07-28
+
+**Raised 2026-07-28**, split out of CARD-0105 after Joseph's review of today's automatically-generated narrative: it mostly restates numbers and facts already present in the Data Summary / Coverage tables, in prose, with added words but not much added value — despite `SKILL.md`'s narrative-writing step already containing a non-redundancy rule ("don't restate numbers that belong in the data tables — interpret and connect instead").
+
+**Diagnosed against real evidence:** compared today's actual narrative to the tables it's meant not to repeat. Four sentences were restatement in different words, not the digit-quoting the existing rule's examples focused on — "wrapped up in a little over half an hour" (Duration: 32m), "a gentle undulation of a few dozen feet" (Elevation Range/Gain), "roughly two miles of ground" (Distance: 2.0 mi), and, most tellingly, "the environmental sensor logged nothing... **detailed in the coverage section below**" — the narrative itself pointing at the exact section it duplicates. Root cause: the rule's worked examples only covered elevation and temperature; for other stats the model satisfied a literal reading of "turn it into an observation" with a soft paraphrase instead of real interpretation.
+
+**Fixed — `SKILL.md` rule rewrite:** tightened the non-redundancy rule to explicitly cover paraphrase ("restating a number in softer words is still restating it"), added a concrete test ("does this connect the number to something else... or does it just describe the number in prose?"), and specifically addressed the coverage-section case (brief mention only if it limits the story, no forward-references to sections that already exist).
+
+**Scope grew mid-card, 2026-07-28 (Joseph):** sun position in the narrative had the identical problem (raw degree values quoted in prose — "about ten degrees above the horizon... swings from east-southeast toward due east"), directly in tension with the rule just tightened. Fix: move sun elevation/direction into the Data Summary table, same treatment as every other measured range — **this was not actually prompt-only** (corrected mid-implementation after checking `templating.py`): the Data Summary table is deterministically templated from computed `stats`, not freely written, so this needed real code:
+1. `components/hike-izer/fetch_hike_data.py` — compute `sun_elevation_deg` (min/max range) and `sun_direction_start`/`sun_direction_end` from `sun_position_samples`, added to `stats`.
+2. `components/hike-izer-orchestrator/templating.py` — new `_sun_direction_display()` helper, two new Data Summary rows ("Sun Elevation Range", "Sun Direction").
+3. `SKILL.md` part (a) — removed the instruction to quote sun degrees in prose, replaced with the same qualitative treatment already used for elevation.
+
+**Verified against real data 2026-07-28:** ran `fetch_hike_data.py` fresh against today's real hike, rendered `templating.py`'s `data_summary_rows()` against the output — `Sun Elevation Range: 10.7–16.0°`, `Sun Direction: ESE → E`, matching the original narrative's own description almost exactly, confirming both the astronomy computation and the new table rows work correctly end-to-end.
+
+**Related:** CARD-0105 (the unscoped idea this splits out of), `.claude/skills/hike-izer/SKILL.md`, `components/hike-izer/fetch_hike_data.py`, `components/hike-izer-orchestrator/templating.py`.
+
+---
+
 ### CARD-0080 · [idea] [hike-izer] Integrate bird species identified via Merlin Sound ID / BirdNET Live
 **Notes:** Raised 2026-07-23. Joseph has been using Cornell Lab's Merlin Bird ID app (Sound ID feature — real-time audio-based species identification, 2000+ species) while hiking and wants that data folded into Hike-izer's narrative summaries, correlated with GPS location and time on the route (e.g. "heard a Canyon Wren near the summit around 2pm") — same treatment the existing GPS track and Environmental Data sources already get, not just a flat species list.
 
@@ -418,6 +459,81 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 ---
 
+### CARD-0108 · [enhancement] [hike-izer] Grounded external context for the narrative (place identification, scoped search, regional knowledge)
+
+**Raised 2026-07-28**, split out of CARD-0105's unscoped "answer voiced questions" and "provide history about the area" ideas after real design work and live experiments.
+
+**Purpose, narrowed 2026-07-28 after testing:** three specific things, not "web search for general context":
+1. Answer explicit questions Joseph voices during the hike and captures in Hiking Observations (e.g. today's real examples: *"what high school is it their mascot is the Bengals"*, *"wonder what that stands for"*).
+2. Identify the specific named place (park, school, trail) at the hike's own coordinates.
+3. Enrich with real formation-history, ownership, biology, or geology context once a place is confirmed.
+
+**Explicitly out of scope, decided 2026-07-28:**
+- General place-identification via blind web search against raw coordinates — tested directly (real Grand Rapids coordinates, Opus 4.8 + `web_search`): the tool hit a rate limit and returned zero working results across 5 attempts, still billed ~$0.35 for an *unconfirmed* guess, versus ~$0.015 for a plain no-search call that honestly said "I can't tell, here's how to check yourself." Reverse-geocoding (below) replaces this entirely, for free.
+- Trail-condition / closure lookups — genuinely time-sensitive info, but by the time a hike is underway it's too late to act on; more relevant during hike *planning*, a separate concern outside this narrative-generation pipeline.
+
+**Governing rules (carried forward from the existing `hike_start_forecast` "never fabricate absence" discipline in `SKILL.md`, and to be kept regardless of implementation):**
+- Every augmented fact must come from an actual found source, not recalled from general training-data impression — omit rather than guess when it can't be confidently found.
+- Every fact ties back to something that actually happened on the hike (a specific spot, a specific photo) — no disconnected trivia paragraphs. Otherwise this just trades "restates the tables" for "reads like a Wikipedia excerpt," a different flavor of the same original complaint.
+
+**Real pipeline validated 2026-07-28, against today's actual hike coordinates:**
+- **Base layer — deterministic, free, no hallucination risk.** Plain Nominatim reverse-geocoding (tested at zoom 14/16/17/18) only ever returns street/suburb-level address text — never a named park or school. **Overpass API** (a different free OSM query: "what named polygon features are near/contain this point," not "what's the nearest address") is the piece that actually works — a real query against today's coordinates correctly returned `Ottawa Hills High School` and `Ottawa Hills High School Athletic Fields` (operator: Grand Rapids Public Schools) and the separate `Ottawa Hills Park` nearby. This answers land ownership/type directly, no search or LLM guessing needed. The same mechanism (querying `route=hiking` relations) can surface named trail-network membership.
+- **Enrichment layer — scoped search, only once a name is confirmed.** Targeted queries against a specific known name, not blind coordinate search — e.g. *"why is Ottawa Hills High School named that"*, *"what is Ottawa Hills High School known for (curriculum, sports records/championships)"* (both raised by Joseph 2026-07-28, using today's real sign photo as the concrete example), or *"what is [named program] Grand Rapids Parks & Rec"* once a specific public facility is identified — e.g. today's hike passed a public outdoor fitness course that appears to be a City of Grand Rapids Parks & Rec installation in 1-2 photos; once CARD-0107's vision step (or Overpass, if it's a named/tagged feature) identifies the specific program, a scoped search on that name is real value-add, distinct from guessing at unnamed equipment. This layer is the vision → search handoff described in CARD-0107.
+- **Regional-scope layer — same search mechanism, keyed to the broad area, not the exact point.** Geology/topology and biology/ecology are inherently regional facts ("this area sits on glacial till from the Wisconsin glaciation," "you're in [ecoregion], where trumpet vine's presence means X") — treating them as regional rather than point-specific is both more accurate and reusable across hikes in the same area, rather than a fresh lookup every time.
+
+**Architecture, resolved 2026-07-28 (Joseph):** no separate "Local Context" section after all — findings feed into `narrative.py`'s existing call and get woven into "The Hike" as one continuous story, same voice as the rest of the narrative. Reasoning: a separate section would need its own de-duplication pass against both the observations table and the narrative itself; folding everything into one generation call lets the same non-redundancy discipline (CARD-0109) dedupe against everything it can see in a single pass instead of needing a second reconciliation step. Also decided: the narrative should never report that a question was voiced (that's already visible in the Full Observations Log table) — it should just answer it, tied to the moment in the story.
+
+**Built 2026-07-28:**
+1. `components/hike-izer-orchestrator/place_context.py` (new) — `gather_place_context(hike_data, photos_manifest, api_key)`. Base layer: Nominatim (address) + Overpass (named park/school/trail + operator), both plain `urllib`, no new dependency. Enrichment layer: one Claude + `web_search` call, scoped only to confirmed names (from Overpass or a photo's `sign_text`, CARD-0107) and real Hiking Observations text — never a blind coordinate guess.
+2. `narrative.py` — `generate_narrative()` takes a new `place_context` list, added to the JSON payload alongside `hiking_observations`/`stats`/etc.
+3. `SKILL.md` part (a) — new guidance: weave `place_context` in, don't list it; answer a voiced question instead of reporting it was asked; apply the same non-redundancy discipline across `place_context`, the observations table, and the narrative's own sentences. Also fixed a stale doc reference found in passing — the weather-forecast section still described the pre-CARD-0106 "fires off the first Hiking Observation" trigger.
+4. `generation.py` — calls `place_context.gather_place_context()` after photo captioning (so `sign_text` is available), passes the result into `narrative.generate_narrative()`.
+
+**Two real bugs found and fixed via live testing against today's actual hike:**
+- **Narration-leak bug.** Without a dedicated place to reason, the model's own research process ("I'll research...", "Search limit reached...") landed directly in the final text response — structurally indistinguishable from a real fact once split into lines. A live run actually discarded a **good** research pass because one narration line tripped the (correct) all-or-nothing guard. Root-fixed by adding `thinking: {"type": "adaptive"}` to the enrichment call, giving the model somewhere to reason that isn't the parsed output; the strict-format prompt instruction and the narration-keyword guard both stay as defense in depth, not the primary fix.
+- **Overpass reliability, addressed 2026-07-28.** The same free public Overpass instance that worked cleanly in CARD-0107's earlier testing returned `504 Gateway Timeout` on two consecutive real runs. Added a second independent public mirror (Kumi Systems) as fallback — but a direct isolated test of that second mirror *also* timed out, on its own, nothing else running. Three timeouts across two independent providers this session reads as broadly unreliable public Overpass access during this window, not one instance having a bad day, so mirror-fallback alone wasn't enough confidence. **Fix:** up to 2 attempts per mirror (2 mirrors, 4 total attempts), raised timeouts (client 35s, Overpass's own internal `[timeout:25]`, both up from 30s/15s), 3s pause between same-mirror attempts. Re-tested afterward: succeeded in 2.3s on the very first attempt — confirms the retry/fallback code itself is correct, and that availability is genuinely intermittent (sometimes instant, sometimes down) rather than something to eliminate outright. This raises the odds of success; it isn't and can't be a guarantee against a free service with no SLA — `named_features()` returning `[]` (graceful degradation, unchanged) remains the real safety net, not this loop succeeding every time.
+
+**Full pipeline verified against today's real hike** (base layer degraded by the Overpass timeout above, enrichment layer worked): real woven narrative produced, answering both voiced questions in-story ("The high school with the Bengals mascot is Ottawa Hills High School itself — and the 'OHHS' that prompted a puzzled aside is simply that school's abbreviation"), with genuinely surprising researched color (the school's prior "Indians" mascot and Native-American-motif building history, an NFL alumnus, the National Fitness Campaign's Dianne Feinstein-backed 1979 origin) woven into the story rather than listed. No forward-reference regression (the sensor-outage paragraph stayed clean).
+
+**One residual issue, honestly not fully solved:** the generated narrative's opening line — "a loop of a little over two miles" — is a softer echo of the exact paraphrase-restatement problem CARD-0109 targeted (Distance: 2.0 mi is in the hero stat row). CARD-0109's rule caught 3 of the 4 original violations outright but doesn't 100%-reliably catch every instance of this shape of paraphrase. Not a new regression from this card's work, but surfaced by it -- worth a closer look at whether the rule needs another pass, or whether this is normal LLM-output variance to tolerate.
+
+**Not yet built:** the regional-scope layer (geology/topology/biology, keyed to the broad area rather than the exact point) — the base + enrichment layers above cover purpose #1 and #2 from this card's original scope; #3 (regional context) hasn't been implemented yet.
+
+**Related:** CARD-0105 (the unscoped idea this splits out of), CARD-0107 (Done — the vision step this receives named subjects from), CARD-0109 (Done — the non-redundancy rule this shares, and the residual issue noted above), CARD-0083/CARD-0097/CARD-0106 (the existing `hike_start_forecast` "never fabricate" pattern this design extends).
+
+---
+
+### CARD-0106 · [bug] [hike-izer] Hike Start Forecast has captured zero rows since at least June 2026, despite CARD-0083/CARD-0097 shipping and being verified live
+
+**Raised 2026-07-28**, while investigating today's hike summary showing "not available" across the entire Weather Forecast at Hike Start section.
+
+**Confirmed via direct investigation:**
+- `Hike Start Forecast` sheet has 0 rows for the whole window 2026-06-01 through 2026-07-29 (checked via the live `action=export` endpoint) — not a one-day miss, the mechanism hasn't captured anything in at least ~2 months.
+- Today's trigger condition was clearly met: all 7 real Hiking Observations logged today (11:52–11:56 AM UTC) carry resolved GPS coordinates via `_gpsLookup` — the "GPS hasn't resolved yet" skip path in `_maybeCaptureHikeStartForecast` doesn't explain this.
+- Open-Meteo itself is healthy: replicated the exact forecast call the script makes, using one of today's real coordinates — HTTP 200, valid hourly data, correct `utc_offset_seconds: -14400` for Michigan.
+- Live deployment reports version `2026-07-25.2-timeline-local-timezone-fix` — a version *after* CARD-0097's forecast-timezone fix, so the fix should be live, though there's no way to directly confirm the deployed source matches the repo copy of `environmental-data.gs` without OAuth access to the Apps Script API (these deploys are manual copy-paste, so repo/live drift is a real possibility given this project's history).
+- **Executions log checked 2026-07-28 (Joseph):** all POSTs/GETs completed successfully, no errors logged.
+- **Live source diffed 2026-07-28:** Joseph pasted the full live `_maybeCaptureHikeStartForecast` function body from the Apps Script editor; diffed byte-for-byte against the repo copy — identical. Drift/stale-deploy hypothesis ruled out. The version-string check that suggested this earlier is not proof of content match (it's a hand-typed label, not a checksum) — noting that distinction for future investigations on this file.
+- **Duplicate/mismatched sheet name ruled out:** Joseph confirmed only one tab named "Hike Start Forecast" exists.
+- **Synthetic test observation sent 2026-07-28** (timestamped inside today's real GPS-track window, so `_gpsLookup` resolved a real position) — **and it worked.** A real forecast row was captured (`temp_f: 67.3, precip_pct: 0, wind_mph: 5.9, humidity_pct: 93, uv_index: 0.5`). This proved the function itself is not broken, and reframed the question: why did an isolated test succeed where all 7 of today's real observations (and every real observation for ~2 months) did not?
+- **Real bug #1 found via that test:** the captured row's `date_local` value came back as `2026-07-28T07:00:00.000Z` — a full Date object, not the plain `"2026-07-28"` string the dedup comparison needs. `forecastSheet.getRange('B:B').setNumberFormat('@')` does not reliably stop Sheets' `appendRow()` from auto-detecting a bare `"YYYY-MM-DD"` string as a real Date on write. This wouldn't explain zero rows on its own (a mismatched dedup key means *more* captures, not fewer) but is a real latent bug.
+- **Leading theory for the actual zero-rows cause:** today's 7 real observations arrived in a tight burst (11:52:26–11:56:55, roughly one every 20–40s) — real concurrency risk, since Apps Script doesn't serialize concurrent `doPost` executions. It's also possible one of those executions hit an exception caught by the function's own internal `try/catch` (logged via `console.error`) without failing the overall request — the outer `doPost` always returns 200 regardless of inner forecast-capture outcome, so "no errors" at the Executions **list** level doesn't rule this out; it would require opening each individual execution's own log output, which wasn't done.
+
+**Design flaw identified, 2026-07-28 (Joseph) — bigger than either bug above:** the whole trigger mechanism was unreliable by construction, independent of the bugs. Capture was keyed to the first *Hiking Observation* of the day — but a voice observation is optional (a hike with none never captures a forecast at all) and arbitrarily timed relative to when the hike actually started (could be a minute in, could be an hour in). **Proposed fix: trigger off the first *GPS point* of the day instead.** GPS logging is continuous and always present during a real hike, fires every ~30 seconds (not in a tight multi-request burst the way today's 7 observations did — incidentally also reduces the concurrency risk above), and each `action=gps` request already carries its own resolved `lat`/`lon`, so no `_gpsLookup` correlation step is even needed.
+
+**Fixed 2026-07-28, in the repo** (`core/data-pipeline/environmental-data.gs`, not yet deployed):
+1. Moved the `_maybeCaptureHikeStartForecast(...)` call from `doPost`'s hiking-observations branch to `doGet`'s `action === 'gps'` branch, right after the GPS point is appended to `GPS Track` — passes `{lat: lat, lon: lon}` directly from the request's own parsed coordinates.
+2. Fixed the `date_local` Date-object bug: the appended value is now prefixed with a leading apostrophe (`"'" + dateLocal`) — the same mechanism Sheets' own UI uses to force literal text, and the reliable fix now that `setNumberFormat('@')` alone is confirmed insufficient.
+3. Bumped `SCRIPT_VERSION` to `2026-07-28.1-hike-start-forecast-gps-trigger`.
+
+**Deployed and synthetically verified 2026-07-28:** new script pasted into the Apps Script editor and redeployed — confirmed live via `action=version` (`2026-07-28.1-hike-start-forecast-gps-trigger`). A synthetic GPS point (`action=gps`, no observation involved at all) produced a real forecast row (`temp_f: 69.7, date_local: '2026-07-28'` — genuine plain string, not the old Date-object artifact). Both fixes confirmed working under a controlled test. Test rows (one in `GPS Track`, one in `Hike Start Forecast`) still need manual deletion — no delete endpoint on this API.
+
+**Staying open — decided 2026-07-28 (Joseph):** the synthetic test proves the mechanism works, but not that it holds up under real conditions end-to-end (real GPSLogger → Apps Script path, including whatever timing/concurrency characteristics the original burst-of-observations failure may have depended on). Closing criterion is a real hike, not another synthetic test.
+
+**Related:** CARD-0083 (Done — original feature), CARD-0097 (Done — timezone fix, the behavior this card's symptom contradicts), CARD-0099 (Done — Timeline sheet fix, deployed same day, matches the currently-live version string), `core/data-pipeline/environmental-data.gs`, `components/hike-izer/fetch_hike_data.py`.
+
+---
+
 ### CARD-0105 · [enhancement] [hike-izer] Continuous improvement — running list of small Hike-izer enhancements
 
 **Raised 2026-07-28**, reviewing the calendar and the first real automatic-pipeline hike. Ongoing catch-all for small Hike-izer polish items, not a one-shot scoped feature — expect this list to grow over time as more real hikes surface things worth improving.
@@ -429,10 +545,10 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 **Local unit tests before deploying:** synthetic multi-month/multi-year manifest sets confirmed correct month-page generation, `index.html`-mirrors-latest-month behavior, Prev/Next disabled-state at both ends of the range, year-picker links, and the empty-state page (zero summaries published).
 
-**Ideas, not yet scoped — need real design work before building:**
-- **Answer questions captured in voice observations** (e.g. "what high school is this?", "wonder what that stands for") as part of the narrative. Needs some grounded lookup at generation time (reverse geocoding / place lookup / web search against the hike's GPS coordinates) — not decided which, and whether this runs on the automatic (M8-side, already has `ANTHROPIC_API_KEY`) path, the interactive path, or both.
-- **Identify things in photos** (flowers, wildlife, etc.) and describe them in the summary. Needs a vision/image-recognition step — likely a Claude vision call against the actual photo files, not yet designed; cost-per-hike consideration (extra API call(s) beyond the existing one narrative-only call).
-- **Provide history about the area** the hike passed through. Same grounded-research need as the questions item above — likely the same underlying lookup mechanism could serve both.
+**Ideas below outgrew this catch-all and moved to their own cards, 2026-07-28** (real design work + live experiments made them each substantial enough to need their own thread):
+- **Answer questions captured in voice observations** + **provide history about the area** → CARD-0108 (Build — base + enrichment layers built and verified against a real hike, woven into the narrative, Overpass reliability mitigated with retry+mirror-fallback; regional-scope layer still open) — grounded external context.
+- **Identify things in photos** → CARD-0107 (Done) — vision-based photo identification, captions on the photo grid.
+- Also newly split off, discovered while scoping the above: CARD-0109 (Planning) — tighten the narrative's non-redundancy rule (today's real narrative mostly restates the data tables in prose).
 
 **Related:** CARD-0073 (Hike-izer v1, Done), CARD-0081 (HTML rendering, Done — the template this strips card-refs from), CARD-0086 (automatic triggering, Done — the orchestrator this strips card-refs from), CARD-0091 (HTML-only output, Done), CARD-0092 (calendar home page, Done — the page this reworks), CARD-0087 (the GPS-confirmation pipeline bug behind the "not a bug" item above).
 
@@ -485,37 +601,6 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 **Not yet done — needs a real trailing-drive trace before fully closing.** All three constructed cases pass, but `REGIME_WINDOW_MIN`/`REGIME_MIN_DURATION_MIN`/`REGIME_MIN_POINTS` are documented-provisional defaults, same caveat the card always had: synthetic data alone risks tuning them wrong in either direction. **Done when:** a genuine hike-that-rolled-into-a-drive event happens naturally and the resulting GPS Track sheet data confirms the split lands in the right place — or Joseph decides the synthetic validation above is sufficient to close it without waiting for a real occurrence.
 
 **Related:** CARD-0100 (Backlog — the mirror-image false-trigger case, raised same session), `components/hike-izer/fetch_hike_data.py` (`_gps_sessions`/`_classify_hike`/`_sub_segment_by_speed`/`_build_session_entry`).
-
----
-
-### CARD-0098 · [enhancement] [traveling-lights] Randomized/staggered occupancy-simulation lighting while traveling — entity list trimmed to 2, restart-disable bug fixed 2026-07-27
-**Raised 2026-07-25**, prompted by Joseph asking how feasible an HA lights-while-traveling automation would be, then asking to build it now. New HA-only component, `components/traveling-lights/` (README.md + CLAUDE.md), following the `garage-presence` precedent for HA-only components with no hardware.
-
-**Design went through five rounds before landing:**
-1. First cut controlled all 5 entities (`light.overhead_light`, `switch.kitchen_overhead`, `light.nook`, `light.pendants`, `light.chandelier`) via a single `homeassistant.turn_on`/`turn_off` at one randomized time per night.
-2. Joseph flagged the real flaw: all 5 are in the same room, so firing them simultaneously looks like a single master-switch flip regardless of how random the clock time is — not real occupancy behavior. **Fix:** each light gets its own random 1–5 min delay and the firing order is shuffled fresh every run (`| shuffle` + `repeat: for_each`).
-3. Joseph asked how he'd know it actually ran while traveling, with no lights dashboard to check. **Fix:** both action automations end with a push notification (both Pixels) stating the fire time and which lights were turned on/off — same pattern as CARD-0036 (scheduled-reboot notifications) and front-porch-temp-sensor's threshold alerts.
-4. Joseph noted the household normally turns lights on before full dark, not at a fixed clock time — and Tucson's real sunset swings ~5:25pm (Dec) to ~7:35pm (Jun), so a fixed window would look wrong most of the year. **Fix:** on-time is now `sun.sun`'s `next_setting` + a random 0–35 min offset, computed fresh each night. Off-time stays a fixed 10:00–11:30pm window (bedtime doesn't track the seasons).
-5. After live-testing the two-automation design, Joseph asked why two switches were needed instead of one, and separately asked to drop `light.overhead_light`/`switch.kitchen_overhead` (down to 3 entities: nook, pendants, chandelier). **Fix:** merged "Evening On"/"Night Off" into a single **Traveling Lights** automation — two triggers tagged `id: 'on'`/`id: 'off'`, a `choose:` block runs the matching branch. One entity, one toggle, both directions.
-
-**How it works:** "Traveling Lights - Randomize Daily Times" (always enabled) runs nightly at 3am, writing tonight's on-time (sunset-relative) and off-time (fixed window) into two `input_datetime` helpers. The single **Traveling Lights** automation (disabled by default) fires at whichever time comes due, staggers the 3 entities in a shuffled order with random per-light delays, then pushes a confirmation notification. Toggling that one automation (Settings → Automations → search "traveling") is the full "traveling mode" switch.
-
-**Status: deployed 2026-07-25, partially live-verified.** Both `input_datetime` helpers created by Joseph via Settings → Devices & Services → Helpers → Date and/or time (Time-only). `automations.yaml` deployed to the Pi and reloaded four times as the design evolved — confirmed live each time via the HA API. Manually triggered the randomizer directly against real `sun.sun` data: actual sunset was `19:27` local, computed on-time landed at `19:33` (6 min after sunset, inside the intended window) — confirms the sunset-relative calc is correct against real data. Live-tested the pre-merge 5-entity/2-automation design end-to-end: enabled Evening On with a near-future test time, confirmed `light.overhead_light`, `light.pendants`, and `light.chandelier` actually turned on at staggered (non-simultaneous) times, exactly as designed.
-
-**Real finding from the merge deploy:** the automation was still mid-run (`current: 1`) when the round-5 merge was reloaded — its manually-toggled `on` state reset to `off` afterward, unlike the three earlier reloads (which were minor content edits and preserved toggle state). Documented in `CLAUDE.md` as a practical rule: minor tweaks preserve the toggle across a reload, but a reload that restructures triggers/`choose:` logic under the same automation `id` may not — always re-check after any structural reload.
-
-**Cosmetic-only leftovers from the merge (documented, not blocking):** the merged automation kept the old entity ID `automation.traveling_lights_evening_on` (HA doesn't re-slugify entity IDs to match a changed alias) even though it's now named "Traveling Lights" and covers both directions. `automation.traveling_lights_night_off` is now an orphaned `unavailable` entity — safe to delete via Settings → Entities, or ignore.
-
-**Full on+off run confirmed live 2026-07-26/27 (pre-trim, 3 entities):** on-branch triggered 19:35:22 local, chandelier/pendants/nook fired at 19:38/19:41/19:42 (staggered ~1–3 min apart, matching the 1–5 min per-light delay design). Off-branch triggered 22:02:00 local (inside the 22:00–23:30 window), same 3 lights turned off at 22:06/22:10/22:12. Confirms the merged single-automation `choose:` structure works correctly for both directions — verified via HA `/api/logbook` rather than Joseph watching the house live.
-
-**Round 6 — 2026-07-27, prompted by Joseph reviewing the verified run:**
-1. Noticed the push notification's light list was raw entity IDs (`light.chandelier, light.pendants, light.nook`) instead of readable names. **Fix:** added a `lights_names` variable (`lights_order | map('state_attr', 'friendly_name') | join(', ')`) and pointed both notification templates at it — messages now read e.g. "Turned on: Nook, Pendants."
-2. Asked to drop `light.chandelier` — down to 2 entities: `light.nook`, `light.pendants`.
-3. Asked why the automation was found disabled despite having been manually enabled and live-tested the night before. **Root cause:** the Pi's pre-existing weekly `scheduled-reboot.timer` (CARD-0036) fired at 03:00 local on 2026-07-27, restarting Docker → the `homeassistant` container (confirmed via `docker inspect` StartedAt + HA's own "stopped"/"started" logbook entries 3 min apart). The automation's `initial_state: false` key forces that *specific* state on every HA startup — not just first-ever load with no registry entry, as CLAUDE.md previously (incorrectly) documented from the round-5 reload finding. **Fix:** removed `initial_state: false` entirely, so HA now restores whatever the toggle was last set to across any restart, including future scheduled reboots.
-
-**Status: deployed and re-enabled 2026-07-27, 2-entity/friendly-name version armed for tonight's live cycle** (on/off times already randomized for today: ~19:58/22:14 local). **Done when:** tonight's natural on+off run is confirmed via logbook to (a) stagger `light.nook`/`light.pendants` correctly and (b) show friendly names in the push notification, then left disabled again until an actual trip.
-
-**Related:** `components/garage-presence/` (the HA-only-component precedent this follows), `components/traveling-lights/README.md`, `components/traveling-lights/CLAUDE.md`.
 
 ---
 
@@ -745,6 +830,75 @@ GPIO pin ───────────────────────�
 ---
 
 ## Done
+
+### CARD-0098 · [enhancement] [traveling-lights] Randomized/staggered occupancy-simulation lighting while traveling — RESOLVED 2026-07-28
+**Raised 2026-07-25**, prompted by Joseph asking how feasible an HA lights-while-traveling automation would be, then asking to build it now. New HA-only component, `components/traveling-lights/` (README.md + CLAUDE.md), following the `garage-presence` precedent for HA-only components with no hardware.
+
+**Design went through five rounds before landing:**
+1. First cut controlled all 5 entities (`light.overhead_light`, `switch.kitchen_overhead`, `light.nook`, `light.pendants`, `light.chandelier`) via a single `homeassistant.turn_on`/`turn_off` at one randomized time per night.
+2. Joseph flagged the real flaw: all 5 are in the same room, so firing them simultaneously looks like a single master-switch flip regardless of how random the clock time is — not real occupancy behavior. **Fix:** each light gets its own random 1–5 min delay and the firing order is shuffled fresh every run (`| shuffle` + `repeat: for_each`).
+3. Joseph asked how he'd know it actually ran while traveling, with no lights dashboard to check. **Fix:** both action automations end with a push notification (both Pixels) stating the fire time and which lights were turned on/off — same pattern as CARD-0036 (scheduled-reboot notifications) and front-porch-temp-sensor's threshold alerts.
+4. Joseph noted the household normally turns lights on before full dark, not at a fixed clock time — and Tucson's real sunset swings ~5:25pm (Dec) to ~7:35pm (Jun), so a fixed window would look wrong most of the year. **Fix:** on-time is now `sun.sun`'s `next_setting` + a random 0–35 min offset, computed fresh each night. Off-time stays a fixed 10:00–11:30pm window (bedtime doesn't track the seasons).
+5. After live-testing the two-automation design, Joseph asked why two switches were needed instead of one, and separately asked to drop `light.overhead_light`/`switch.kitchen_overhead` (down to 3 entities: nook, pendants, chandelier). **Fix:** merged "Evening On"/"Night Off" into a single **Traveling Lights** automation — two triggers tagged `id: 'on'`/`id: 'off'`, a `choose:` block runs the matching branch. One entity, one toggle, both directions.
+
+**How it works:** "Traveling Lights - Randomize Daily Times" (always enabled) runs nightly at 3am, writing tonight's on-time (sunset-relative) and off-time (fixed window) into two `input_datetime` helpers. The single **Traveling Lights** automation (disabled by default) fires at whichever time comes due, staggers the 3 entities in a shuffled order with random per-light delays, then pushes a confirmation notification. Toggling that one automation (Settings → Automations → search "traveling") is the full "traveling mode" switch.
+
+**Status: deployed 2026-07-25, partially live-verified.** Both `input_datetime` helpers created by Joseph via Settings → Devices & Services → Helpers → Date and/or time (Time-only). `automations.yaml` deployed to the Pi and reloaded four times as the design evolved — confirmed live each time via the HA API. Manually triggered the randomizer directly against real `sun.sun` data: actual sunset was `19:27` local, computed on-time landed at `19:33` (6 min after sunset, inside the intended window) — confirms the sunset-relative calc is correct against real data. Live-tested the pre-merge 5-entity/2-automation design end-to-end: enabled Evening On with a near-future test time, confirmed `light.overhead_light`, `light.pendants`, and `light.chandelier` actually turned on at staggered (non-simultaneous) times, exactly as designed.
+
+**Real finding from the merge deploy:** the automation was still mid-run (`current: 1`) when the round-5 merge was reloaded — its manually-toggled `on` state reset to `off` afterward, unlike the three earlier reloads (which were minor content edits and preserved toggle state). Documented in `CLAUDE.md` as a practical rule: minor tweaks preserve the toggle across a reload, but a reload that restructures triggers/`choose:` logic under the same automation `id` may not — always re-check after any structural reload.
+
+**Cosmetic-only leftovers from the merge (documented, not blocking):** the merged automation kept the old entity ID `automation.traveling_lights_evening_on` (HA doesn't re-slugify entity IDs to match a changed alias) even though it's now named "Traveling Lights" and covers both directions. `automation.traveling_lights_night_off` is now an orphaned `unavailable` entity — safe to delete via Settings → Entities, or ignore.
+
+**Full on+off run confirmed live 2026-07-26/27 (pre-trim, 3 entities):** on-branch triggered 19:35:22 local, chandelier/pendants/nook fired at 19:38/19:41/19:42 (staggered ~1–3 min apart, matching the 1–5 min per-light delay design). Off-branch triggered 22:02:00 local (inside the 22:00–23:30 window), same 3 lights turned off at 22:06/22:10/22:12. Confirms the merged single-automation `choose:` structure works correctly for both directions — verified via HA `/api/logbook` rather than Joseph watching the house live.
+
+**Round 6 — 2026-07-27, prompted by Joseph reviewing the verified run:**
+1. Noticed the push notification's light list was raw entity IDs (`light.chandelier, light.pendants, light.nook`) instead of readable names. **Fix:** added a `lights_names` variable (`lights_order | map('state_attr', 'friendly_name') | join(', ')`) and pointed both notification templates at it — messages now read e.g. "Turned on: Nook, Pendants."
+2. Asked to drop `light.chandelier` — down to 2 entities: `light.nook`, `light.pendants`.
+3. Asked why the automation was found disabled despite having been manually enabled and live-tested the night before. **Root cause:** the Pi's pre-existing weekly `scheduled-reboot.timer` (CARD-0036) fired at 03:00 local on 2026-07-27, restarting Docker → the `homeassistant` container (confirmed via `docker inspect` StartedAt + HA's own "stopped"/"started" logbook entries 3 min apart). The automation's `initial_state: false` key forces that *specific* state on every HA startup — not just first-ever load with no registry entry, as CLAUDE.md previously (incorrectly) documented from the round-5 reload finding. **Fix:** removed `initial_state: false` entirely, so HA now restores whatever the toggle was last set to across any restart, including future scheduled reboots.
+
+**Status: deployed and re-enabled 2026-07-27, 2-entity/friendly-name version armed for the night's live cycle** (on/off times randomized for that day: ~19:58/22:14 local).
+
+**Closing criteria confirmed 2026-07-28.** The natural overnight cycle (2026-07-27 evening → 2026-07-28 early morning) ran on its own, verified via HA `/api/logbook`:
+- On-branch triggered 19:58:41 local (exact match to the randomized on-time) — Pendants on at 20:01:47, Nook on at 20:03:47 (staggered, ~2 min apart).
+- Off-branch triggered 22:14:00 local (exact match to the randomized off-time) — Pendants off at 22:15:06, Nook off at 22:17:06 (staggered, ~2 min apart).
+- No `unavailable`/error states in this window. (a) staggering confirmed via logbook, (b) friendly names in the push notification confirmed by Joseph directly.
+
+**Automation left enabled, not disabled — correcting an assumption caught by Joseph 2026-07-28.** The original closing note said "disable again until an actual trip," carried forward from stale text in an earlier scheduled check-in task rather than a live confirmation of travel status. Joseph is on an active trip as of this closing, so the automation stays on.
+
+**Related:** `components/garage-presence/` (the HA-only-component precedent this follows), `components/traveling-lights/README.md`, `components/traveling-lights/CLAUDE.md`.
+
+---
+
+### CARD-0107 · [enhancement] [hike-izer] Vision-based photo identification — captions, not narrative — RESOLVED 2026-07-28
+
+**Raised 2026-07-28**, split out of CARD-0105's unscoped "identify things in photos" idea after real design work and a live experiment.
+
+**Purpose:** identify wildlife, plants, landmarks, or named facilities/signage that are the clear focal point of a photo, as a short caption on the photo grid. Explicitly does NOT force an identification of incidental background elements (e.g. a tree species visible behind an unrelated sign) — if a photo is self-explanatory or nothing is confidently identifiable, the caption is empty, not a guess nobody asked for.
+
+**Real experiment, 2026-07-28** (3 real photos from today's hike, Claude Opus 4.8, `messages.create` with base64 images): Immich's `?size=preview` thumbnail (1913×1440, ~3,676 input tokens, ~$0.018/photo) gave identical species-ID quality and confidence to the full-res original (4080×3072, downscaled to Opus 4.8's high-res cap, ~4,828 tokens, ~$0.024/photo) on all 3 photos. **Default to `thumb`** — ~24% cheaper, no observed quality loss. (Smaller saving than a naive "downsize aggressively" assumption would suggest — Immich's real preview resolution is already close to Opus 4.8's native cap, so there isn't much headroom left to trade away.)
+
+**Prompt design correction (same experiment):** an unqualified "identify any notable plants/wildlife/landmarks" prompt forced an ID of a background pine species behind an Ottawa Hills HS sign photo — not useful, and exactly what the focal-point rule above exists to prevent. Any implementation needs that qualifier explicit in the prompt, not implied.
+
+**Scope expansion, 2026-07-28 (Joseph):** vision's job here isn't only species ID — it should also read/recognize named facilities and institutional signage in-frame (e.g. a public outdoor fitness course installed by a city parks department, a school's own sign). Those identified names become the anchor for CARD-0108's scoped-search enrichment layer — a photo ID feeding a targeted lookup, not two disconnected features. See CARD-0108 for the specific fitness-course and Ottawa Hills examples this pairing was raised against.
+
+**Architecture, resolved 2026-07-28 (Joseph):** photo IDs become **per-photo captions on the photo grid, not prose folded into the narrative.** Decouples this entirely from `narrative.py`'s call — no combined-call-vs-pre-pass tradeoff to make, since captioning doesn't feed `hike_data.json` or the narrative prompt at all. A per-photo step attaches its output to the photo manifest; `templating.py`'s photo-grid section renders it. Two direct wins from this shape: (1) a caption is inherently scoped to "what's in this picture," so it can't drift into the same restatement problem CARD-0109 targets in the narrative text; (2) every photo currently renders with `alt=""` (confirmed against today's real output) — captions double as real `alt` text, fixing actual accessibility as a free byproduct, not just adding a visible label.
+
+**Built 2026-07-28:**
+1. `components/hike-izer-orchestrator/photo_captions.py` (new) — `caption_photos(photos_manifest, photos_dir, api_key)`, one vision call per image asset against its `thumb` file, structured output so "nothing identifiable" comes back as a clean empty string rather than a forced guess. A captioning failure on one photo logs and continues rather than blocking the rest of the gallery (same principle as CARD-0084's photo-fetch and CARD-0083/CARD-0106's forecast capture).
+2. `generation.py` — calls it right after photo fetch, before narrative generation.
+3. `templating.py` — photo `<img>` tags now use the caption as real `alt` text (was `alt=""` on every photo, confirmed against real output).
+
+**Caption/sign_text split, 2026-07-28 (Joseph):** a caption that just transcribes text already legible in the photo is redundant with what the photo itself shows — the same restatement problem CARD-0109 targets, in a new shape. Split the vision output into two fields: `caption` (shown to the reader, only for genuine non-textual identification — species, wildlife) and `sign_text` (not shown — raw transcription of any sign/plaque, captured as search-query material for CARD-0108). On the school-sign photo this took the caption from a lossy 12-word paraphrase down to correctly empty, while `sign_text` captured the full text: *"OTTAWA HILLS HIGH SCHOOL. GRAND RAPIDS PUBLIC SCHOOLS. GRPS my choice. Cherry Health Walk-ins welcome. GALAXY"* — real search material a caption could never hold. Same on the fitness-court sign: *"...NATIONAL FITNESS CAMPAIGN - EST. 1979 - FITNESS COURT... Parks and Recreation - CITY OF GRAND RAPIDS... Campaign Partner Since 2022. Priority Health for good..."*.
+
+**Bug found and fixed by this same test:** `max_tokens=100` (tuned for caption alone) truncated mid-JSON-string on the two busiest signs once `sign_text` was added, failing to parse — caught by the existing failure handling (logged, degraded to empty, didn't crash the pipeline) but silently losing exactly the data this field exists to capture. Raised to `max_tokens=400`; re-verified clean on all 7 real photos, no truncation.
+
+**Verified against all 7 of today's real photos** (two full passes — initial design, then the caption/sign_text split): focal-point rule held throughout, species IDs correct (`"Trumpet vine (Campsis radicans) in bloom"`, two distinct Rose of Sharon captions), one photo correctly returned empty on both fields (nothing identifiable), and both sign-bearing photos now yield rich `sign_text` instead of a lossy caption.
+
+**Visible caption display, built and confirmed 2026-07-28:** Joseph's call — caption below the thumbnail, always reserving the space (even when empty) rather than a per-row-conditional treatment, which isn't practical on this responsive `auto-fill` grid without JS (row membership shifts with viewport width; this project avoids JS elsewhere, e.g. the zero-JS calendar pages from CARD-0092). `.photo-item` changed from a plain square `<a>` to a flex column (image + `.photo-caption` span with a fixed `min-height` so every tile stays equal height regardless of caption content); videos get an empty caption span too, for the same alignment reason. Rendered against real data (today's 7 real photos, real hike_data) and checked live in a browser via a local preview server — **Joseph confirmed the result directly ("Looks great to me")** after the in-session Chrome-automation screenshot attempts failed repeatedly and were abandoned in favor of a manual look.
+
+**Related:** CARD-0105 (the unscoped idea this splits out of), CARD-0108 (the search-enrichment layer this hands named subjects to — now with a real example), CARD-0084 (Done — the photo fetch/gallery pipeline this builds on, `fetch_hike_photos.py`'s `thumb`/`original` manifest fields).
+
+---
 
 ### CARD-0092 · [idea] [hike-izer] Calendar view on a home page, clickable through to hike summaries — RESOLVED 2026-07-28
 **Raised 2026-07-24.** A calendar showing which days had a confirmed hike — visually marked, clickable through to that day's `hike-summary.html` page.

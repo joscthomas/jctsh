@@ -91,17 +91,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0091 · [idea] [hike-izer] Drop Markdown output, HTML becomes the sole format
-**Notes:** Raised 2026-07-24, during CARD-0083 planning — Joseph questioned the ongoing value of generating `.md` alongside `.html` now that HTML has become the richer format: CARD-0081 gave it real styling/structured layout, CARD-0084's photo gallery is already HTML-only (no equivalent in the Markdown), and CARD-0088 is standing up real public hosting specifically for the HTML output. Deliberately not folded into CARD-0083 — bigger move than one card, touches SKILL.md's core generation step and the historical `.md`-only scope of CARD-0073/CARD-0081, not just CARD-0083's own new content.
-
-**Recommended timing:** wait until CARD-0088 (HTML hosting) actually ships. Once the HTML has a real public URL, it becomes unambiguously "the" deliverable Joseph shares/reads, and Markdown's remaining rationale (plain-text diffability in git, readable without a browser or a working template) mostly evaporates. Before that, HTML only exists as local files with no hosted fallback if the template/CSS ever breaks — dropping the plain-text version early would leave no way to read a summary in that failure case. Until this card is picked up, new Hike-izer content (including CARD-0083's weather forecast) continues to go into both formats, per existing convention.
-
-**Scope when picked up:** retire the `.md` generation step in `.claude/skills/hike-izer/SKILL.md`; decide whether existing `.md` files under `hike-izer/summaries/` become a frozen historical archive or get removed; update CARD-0073's/CARD-0081's cross-references to reflect the format change; confirm nothing outside Hike-izer reads the `.md` files before removing the step.
-
-**Related:** CARD-0088 (HTML hosting — this card's recommended trigger point), CARD-0081 (HTML rendering, Done — the format this card would make sole), CARD-0084 (Photos, HTML-only — the existing precedent that HTML is already the richer format), CARD-0073 (Hike-izer v1, Done — original `.md`-only scope), CARD-0083 (the card whose planning surfaced this question).
-
----
-
 ### CARD-0085 · [idea] [hike-izer] Hiker's own compass/heading
 **Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature. Real gap, not just missing analysis: v1 only computes the *sun's* compass direction from pure astronomy — nothing currently captures which way the hiker was actually facing at any point on the route. Needs new instrumentation (e.g. a magnetometer/compass sensor added to the hiking-monitor hardware) or a different data source entirely — this is likely a hardware-scope card, not a pure software one, and may tie into hiking-monitor's own build cards once scoped.
 
@@ -716,6 +705,26 @@ GPIO pin ───────────────────────�
 ---
 
 ## Done
+
+### CARD-0091 · [idea] [hike-izer] Drop Markdown output, HTML becomes the sole format — RESOLVED 2026-07-28
+**Raised 2026-07-24**, during CARD-0083 planning — Joseph questioned the ongoing value of generating `.md` alongside `.html` now that HTML had become the richer format: CARD-0081 gave it real styling/structured layout, CARD-0084's photo gallery was already HTML-only (no equivalent in the Markdown), and CARD-0088 was standing up real public hosting specifically for the HTML output.
+
+**Trigger condition met:** the card's own "recommended timing" was to wait until CARD-0088 (HTML hosting) actually shipped — it had, well before this was picked up, and had been live/verified through several subsequent cards (CARD-0086, CARD-0093, CARD-0094, CARD-0100, CARD-0101).
+
+**Real scope was bigger than the card originally described.** The original "Scope when picked up" note only mentioned `.claude/skills/hike-izer/SKILL.md` — written before CARD-0086 (automatic triggering) existed. Auditing the actual current codebase found `components/hike-izer-orchestrator/generation.py`/`templating.py` independently duplicating the same `.md` + `.html` generation, and unlike the interactive Skill (which explicitly documented "the Markdown file is not copied"), the automatic path wrote both straight into the M8's publicly-served directory — a real, live inconsistency found via `docker logs`/`ssh` inspection, not something the original card anticipated.
+
+**Executed 2026-07-28:**
+1. **SKILL.md:** removed the standalone "save to `.md`" step, merged HTML generation into what's now a single step 5, renumbered steps 6-7 accordingly, dropped every "Markdown" reference (frontmatter description, step 4's structure framing, the weather-forecast "applies to both formats" clause, the publish step's "Markdown file is not copied" note, the file-extension example in the multi-day-trip handling), and removed a stale pointer to an example `.md` file that's now deleted.
+2. **`templating.py`:** removed `render_markdown()` entirely (53 lines) and its section header; updated the module docstring.
+3. **`generation.py`:** removed the `md_text` generation and file-write; updated a stale "SKILL.md's interactive steps 3/7" docstring reference to the new step numbers (3/6).
+4. **`narrative.py`:** updated the system prompt's "ignore every other step... (data fetching, HTML/Markdown mechanics...)" to drop "Markdown" — left the separate, unrelated "no Markdown formatting" instruction alone (that one's about prose syntax within the narrative paragraphs, not the output file format).
+5. **Both hike-izer READMEs** (`components/hike-izer/README.md`, `components/hike-izer-orchestrator/README.md`): dropped remaining "Markdown"/`.md` references, fixed the same stale step-number reference.
+6. **Existing `.md` files — deleted** (Joseph's call): 4 local files under `hike-izer/summaries/` (`2026-06-17`, `2026-06-18`, `2026-07-18`, `2026-07-23`) plus the one stray copy already live-published on the M8 (`2026-06-18_hike-summary.md`, a leftover from CARD-0086 stage 2's test run against real data).
+7. **Deployed and verified:** `generation.py`/`templating.py`/`narrative.py`/`SKILL.md` redeployed to the M8, orchestrator rebuilt, confirmed healthy and `hikes.jctnet.com` still serving correctly, confirmed no `.md` files remain in the M8's served directory. Also smoke-tested `templating.render_html()` locally against a synthetic `hike_data` fixture post-edit to confirm no leftover reference to the removed `render_markdown` broke anything (a first attempt caught a fixture bug, not a code bug — fixed and re-ran clean).
+
+**Related:** CARD-0088 (Done — HTML hosting, this card's trigger condition), CARD-0081 (Done — HTML rendering, the format this card made sole), CARD-0084 (Done — Photos, HTML-only, the existing precedent), CARD-0073 (Done — Hike-izer v1, original `.md`-only scope), CARD-0086 (Done — automatic triggering, the component whose duplicate `.md` generation this card also had to catch), CARD-0083 (the card whose planning surfaced this question).
+
+---
 
 ### CARD-0094 · [idea] [hike-izer] Switch hike-izer-web from Tailscale Funnel to Cloudflare Tunnel — RESOLVED 2026-07-27
 **Raised 2026-07-24**, during CARD-0088's build. CARD-0088 shipped on Tailscale Funnel instead of the originally-planned Cloudflare Tunnel + `hikes.jctnet.com` subdomain, after discovering Cloudflare's free-tier onboarding doesn't support adding a subdomain as its own independent zone — it requires the full `jctnet.com` apex, which would have meant migrating the domain's nameservers to Cloudflare while it still had live Zoho email (MX + SPF records) running through it. Too risky a change for what CARD-0088 needed at the time.

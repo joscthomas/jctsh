@@ -1,17 +1,20 @@
 ---
 name: hike-izer
-description: Generate a narrative Markdown summary of a JCTsh hiking trip from sensor, GPS, and observation data (Google Sheets). Use when Joseph asks to summarize, narrate, recap, or review a specific hike or hiking trip by date -- e.g. "summarize the June 15 hike", "write up last week's trip", "how did the hiking monitor do on the camping trip".
+description: Generate a narrative HTML summary of a JCTsh hiking trip from sensor, GPS, and observation data (Google Sheets). Use when Joseph asks to summarize, narrate, recap, or review a specific hike or hiking trip by date -- e.g. "summarize the June 15 hike", "write up last week's trip", "how did the hiking monitor do on the camping trip".
 ---
 
 # Hike-izer
 
-Generates a Markdown narrative summary of a hiking trip using JCTsh's hiking-monitor
+Generates a narrative HTML summary of a hiking trip using JCTsh's hiking-monitor
 data pipeline (Environmental Data, Hiking Observations, GPS Track, Hike Start
 Forecast -- all in the "JCTsh Environmental Data" Google Sheets workbook).
 CARD-0073 on `kanban-board.md` is this skill's tracking card; its v1 scope note
 there is the source of truth for what's in/out of scope if this doc and the
 card ever disagree. CARD-0083 tracks the weather-forecast-at-hike-start feature
-specifically (step 4 below).
+specifically (step 4 below). **HTML is the sole output format** (CARD-0091,
+2026-07-28) -- v1 (CARD-0073) originally also produced a `.md` file, dropped
+once CARD-0088 gave the HTML output a real public URL and made it unambiguously
+the deliverable Joseph actually reads/shares.
 
 ## Core model: a hiking event is a single day
 
@@ -23,7 +26,7 @@ summary file per day, not one combined summary across a multi-day trip.**
 - If Joseph names a multi-day trip (e.g., "summarize the June 15 camping trip"),
   identify which individual days within that range actually have a **confirmed
   hike** (see "What counts as a hike" below, not just any GPS activity) and
-  generate a separate `<date>_hike-summary.md` for each such day. Don't generate
+  generate a separate `<date>_hike-summary.html` for each such day. Don't generate
   summaries for days with zero activity.
 - **Session-crosses-midnight edge case:** a GPS session that starts before UTC
   midnight and continues after it (e.g., an evening hike that runs past midnight)
@@ -64,9 +67,8 @@ case). Still report the other data that does exist for the day (Environmental
 Data readings, Hiking Observations, and the Hike Start Forecast section per
 CARD-0083 below if a forecast was captured) if any -- the day isn't necessarily
 uneventful, just not confirmable as a hike. This is a legitimate, expected output
-shape, not an error -- see `hike-izer/summaries/2026-07-18_hike-summary.md` for
-the pattern (written before this classification logic existed, but the same
-"state plainly what's missing and why" spirit applies).
+shape, not an error -- state plainly what's missing and why, same as any other
+section.
 
 ## When invoked
 
@@ -106,7 +108,7 @@ the pattern (written before this classification logic existed, but the same
 
 4. **Write the narrative.** First check `coverage.gps_track.hike_confirmed` --
    if `false`, follow "What counts as a hike" above instead of the normal
-   structure below. Otherwise, produce one Markdown file with the following
+   structure below. Otherwise, produce the HTML output with the following
    parts, in this order. **Tables and prose must not repeat each other.** The data
    table/summary (part b) is where the raw numbers and ranges live. The narrative
    (part a) should read those numbers as context to build the story from, not
@@ -134,11 +136,10 @@ the pattern (written before this classification logic existed, but the same
    still-undecided item under CARD-0074). If `hike_start_forecast` is empty
    (the hike predates this feature, or the capture failed that day), still
    include this section, but say plainly that no forecast was captured --
-   never fabricate a value. Applies to both the Markdown and HTML output.
-   In HTML this section is **always rendered** (never omitted the way Photos
-   is) -- with five values it's the same "not available" convention as the
-   hero stat row, not the gallery-omission convention; see
-   `html-template.html`'s comments.
+   never fabricate a value. This section is **always rendered** (never
+   omitted the way Photos is) -- with five values it's the same "not
+   available" convention as the hero stat row, not the gallery-omission
+   convention; see `html-template.html`'s comments.
 
    **a. Narrative story of the hike** -- a genuinely readable account of the day
    using the real data: how conditions evolved, elevation change described
@@ -182,19 +183,14 @@ the pattern (written before this classification logic existed, but the same
    the full requested window, so a lower-than-usual figure isn't necessarily a
    problem.
 
-5. **Save the output** to `hike-izer/summaries/<start-date>_hike-summary.md`
-   (create the directory if it doesn't exist). Tell Joseph the file path when done.
-
-6. **Also generate a styled HTML version (CARD-0081, Levels 1-2)** at
-   `hike-izer/summaries/<start-date>_hike-summary.html`, same directory as the
-   Markdown. Use `components/hike-izer/html-template.html` as the fixed
-   structural/CSS reference: copy its `<style>` block **verbatim** (this is
-   what keeps output visually consistent across independent runs -- don't
-   restyle it per hike), then fill in its sections with the same content as
-   the Markdown -- same narrative prose, same tables, nothing added or
-   summarized differently between the two formats. The one thing the HTML
-   has that the Markdown doesn't is a stat-row hero up top (Date, Duration,
-   Distance, Elevation Gain):
+5. **Generate the styled HTML output (CARD-0081, Levels 1-2)** at
+   `hike-izer/summaries/<start-date>_hike-summary.html` (create the directory
+   if it doesn't exist). Use `components/hike-izer/html-template.html` as the
+   fixed structural/CSS reference: copy its `<style>` block **verbatim** (this
+   is what keeps output visually consistent across independent runs -- don't
+   restyle it per hike), then fill in its sections with the content from step
+   4 above. On top of that content, the template has a stat-row hero up top
+   (Date, Duration, Distance, Elevation Gain):
    - **Distance** -- `stats.distance_mi` (only present when
      `coverage.gps_track.hike_confirmed` is `true`; `null` otherwise)
    - **Elevation Gain** -- `stats.altitude_ft.gain_ft`
@@ -211,9 +207,10 @@ the pattern (written before this classification logic existed, but the same
    (`.stat__value--na`) instead of a value when `hike_start_forecast` is
    empty. Levels 3-5 (embedded maps/charts, interactive hover-sync) are
    **out of scope here** -- tracked separately on `kanban-board.md` as
-   CARD-0082. Hosting/publishing is step 8 below (CARD-0088).
+   CARD-0082. Hosting/publishing is step 7 below (CARD-0088). Tell Joseph the
+   file path when done.
 
-7. **Fetch and embed photos/videos (CARD-0084).** Read Joseph's Immich API
+6. **Fetch and embed photos/videos (CARD-0084).** Read Joseph's Immich API
    key from `credentials.local.md` ("Immich (Docker, on photo-server)" --
    Joseph's key, not Robin's) and the Immich Web UI URL from the same
    section. Run:
@@ -251,10 +248,9 @@ the pattern (written before this classification logic existed, but the same
    the Photos section to the HTML per `html-template.html`'s gallery markup
    (one `.photo-item` per manifest entry, `<img>` for `type: IMAGE`, `<video>`
    for `type: VIDEO`, paths relative to the HTML file pointing into the
-   sibling `<date>_photos/` directory). This step never touches the
-   Markdown output -- photos are HTML-only, per CARD-0084's decided scope.
+   sibling `<date>_photos/` directory).
 
-8. **Publish to the M8 (CARD-0088).** Copy the day's HTML file and, if
+7. **Publish to the M8 (CARD-0088).** Copy the day's HTML file and, if
    present, its sibling `<date>_photos/` directory to the M8 so the summary
    is reachable at a real public URL, not just a local file:
 
@@ -264,9 +260,7 @@ the pattern (written before this classification logic existed, but the same
    ```
 
    Uses the SSH key-based access to the M8 already set up from this
-   machine -- no password, no new credentials. The Markdown file is **not**
-   copied (this component only serves HTML, matching CARD-0088's scope).
-   Tell Joseph the live URL when done:
+   machine -- no password, no new credentials. Tell Joseph the live URL when done:
    `https://hikes.jctnet.com/<start-date>_hike-summary.html`
    (Cloudflare Tunnel + custom domain, CARD-0094 -- previously Tailscale
    Funnel under CARD-0088). See `components/hike-izer-web/README.md` for

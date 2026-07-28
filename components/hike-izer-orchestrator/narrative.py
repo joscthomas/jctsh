@@ -22,7 +22,7 @@ summary. Below is the full hike-izer Skill instructions document (SKILL.md) for 
 follow its "Write the narrative" guidance (step 4, part a) exactly, including the \
 non-redundancy rule (don't restate numbers that belong in the data tables -- interpret and \
 connect instead) and the hike_confirmed:false handling if applicable. Ignore every other step \
-in this document (data fetching, HTML/Markdown mechanics, photos, publishing) -- those are \
+in this document (data fetching, HTML mechanics, photos, publishing) -- those are \
 handled elsewhere; your only job is the narrative paragraphs.
 
 --- SKILL.md ---

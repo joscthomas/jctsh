@@ -13,7 +13,7 @@ Stage 1 (trigger + connectivity) was proven end-to-end with a real
 GPSLogger stop event before stage 2 was built. Stage 2 adds the actual
 generation pipeline (`generation.py`): on a real `stopped` event, it runs
 `fetch_hike_data.py`/`fetch_hike_photos.py` exactly as the interactive
-Skill's steps 3/7 do, builds the mechanical Markdown/HTML output
+Skill's steps 3/6 do, builds the mechanical HTML output
 (`templating.py`, a direct port of `html-template.html`'s field mapping),
 makes one Claude API call for just the narrative paragraphs
 (`narrative.py`, reading the deployed `SKILL.md` copy at call time so

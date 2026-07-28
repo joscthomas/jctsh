@@ -3,7 +3,7 @@
 Hike-izer generation pipeline (CARD-0086 stage 2).
 
 Runs on a real GPSLogger "stopped" event: fetches the day's data exactly as
-SKILL.md's interactive steps 3/7 do, builds the mechanical output
+SKILL.md's interactive steps 3/6 do, builds the mechanical output
 (templating.py) plus one narrative-generation call (narrative.py), and
 writes the result straight into the directory hike-izer-web already serves
 -- no scp step, unlike the interactive Skill's Windows-based flow.
@@ -124,12 +124,9 @@ def run(payload):
 
     paragraphs = narrative.generate_narrative(hike_data, skill_md_text, _env("ANTHROPIC_API_KEY"))
 
-    md_text = templating.render_markdown(hike_data, paragraphs, date_str, offset_str)
     html_text = templating.render_html(hike_data, paragraphs, date_str, offset_str, photos_manifest)
 
     os.makedirs(SRV_DIR, exist_ok=True)
-    with open(os.path.join(SRV_DIR, f"{date_str}_hike-summary.md"), "w", encoding="utf-8") as f:
-        f.write(md_text)
     with open(os.path.join(SRV_DIR, f"{date_str}_hike-summary.html"), "w", encoding="utf-8") as f:
         f.write(html_text)
 

@@ -7,8 +7,8 @@ Ports the field-by-field mapping described in
 to Python, for everything except the narrative prose. Given fetch_hike_data.py's
 JSON, a list of narrative paragraphs (from the one Claude API call), the local
 calendar date being summarized, and the hike's local UTC offset (never
-hardcoded Arizona -- see CARD-0086), produces the same Markdown and HTML a
-human following the interactive Skill would produce by hand.
+hardcoded Arizona -- see CARD-0086), produces the same HTML a human following
+the interactive Skill would produce by hand.
 
 Standard library only -- matches fetch_hike_data.py's convention.
 """
@@ -251,63 +251,6 @@ def coverage_notes(coverage, offset_delta, offset_str):
         )
         notes.append(f"Gaps over 6 minutes in Environmental Data: {gap_strs}.")
     return notes
-
-
-# ---------------------------------------------------------------------------
-# Markdown renderer
-# ---------------------------------------------------------------------------
-
-def render_markdown(hike_data, narrative_paragraphs, date_str, offset_str):
-    offset_delta = _parse_offset(offset_str)
-    coverage = hike_data["coverage"]
-    stats = hike_data["stats"]
-    hike_confirmed = coverage["gps_track"]["hike_confirmed"]
-
-    lines = [f"# Hike Summary — {format_date_display(date_str)}", ""]
-
-    forecast = forecast_view(hike_data.get("hike_start_forecast"))
-    lines += [
-        "## Weather Forecast at Hike Start", "",
-        f"- Temp: {forecast['temp_f']}°F" if forecast['temp_f'] != NA else f"- Temp: {NA}",
-        f"- Precip Chance: {forecast['precip_pct']}%" if forecast['precip_pct'] != NA else f"- Precip Chance: {NA}",
-        f"- Wind: {forecast['wind_mph']} mph" if forecast['wind_mph'] != NA else f"- Wind: {NA}",
-        f"- Humidity: {forecast['humidity_pct']}%" if forecast['humidity_pct'] != NA else f"- Humidity: {NA}",
-        f"- UV Index: {forecast['uv_index']}" if forecast['uv_index'] != NA else f"- UV Index: {NA}",
-        "",
-    ]
-
-    if not hike_confirmed:
-        lines += [
-            "## GPS Confirmation: Unable to Confirm", "",
-            gps_confirmation_explanation(coverage), "",
-        ]
-
-    lines += ["## The Hike", ""]
-    for p in narrative_paragraphs:
-        lines += [p, ""]
-
-    lines += ["## Data Summary", ""]
-    for label, value in data_summary_rows(hike_data, offset_delta):
-        lines.append(f"- {label}: {value}")
-    lines.append("")
-
-    obs = hike_data.get("hiking_observations", [])
-    if obs:
-        lines += ["## Full Observations Log", "", f"| Time ({offset_label(offset_str)}) | Observation | Categories |",
-                   "|---|---|---|"]
-        for row in observations_table_rows(obs, offset_delta):
-            lines.append(f"| {row['time']} | {row['observation']} | {row['categories']} |")
-        lines.append("")
-
-    lines += ["## Expected vs. Actual Data Coverage", "", "| Source | Expected | Actual | Coverage |", "|---|---|---|---|"]
-    for source, expected, actual, pct in coverage_table_rows(coverage):
-        lines.append(f"| {source} | {expected} | {actual} | {pct} |")
-    lines.append("")
-    for note in coverage_notes(coverage, offset_delta, offset_str):
-        lines.append(f"- {note}")
-    lines.append("")
-
-    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------

@@ -123,6 +123,19 @@
   }
   .callout strong { color: var(--warning); }
 
+  /* Gaia GPS route-map embed (CARD-0104 manual trial) -- Gaia's own inline
+     styles on the iframe (border:none, responsive width up to 420px, fixed
+     height) are left as-is; just centered and given the same card framing
+     as everything else on the page. */
+  .map-embed {
+    display: flex;
+    justify-content: center;
+  }
+  .map-embed iframe {
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
   section { margin-bottom: 2.25rem; }
   section > h2 {
     font-size: 1.05rem;
@@ -218,6 +231,13 @@
     it's isolated to GPSLogger's own upload path specifically. Filed as
     <strong>CARD-0087</strong> (resolved 2026-07-23) on <code>kanban-board.md</code>.
   </div>
+
+  <section>
+    <h2>Route Map</h2>
+    <div class="map-embed">
+      <iframe src="https://www.gaiagps.com/public/wCtqnggxYuVeFONdijVtQhcx/?embed=True" style="border:none; overflow-y: hidden; background-color:white; min-width: 320px; max-width:420px; width:100%; height: 420px;" seamless></iframe>
+    </div>
+  </section>
 
   <section>
     <h2>Weather Forecast at Hike Start</h2>

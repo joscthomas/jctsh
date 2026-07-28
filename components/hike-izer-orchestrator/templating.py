@@ -442,7 +442,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
 <body>
 <main>
   <h1>Hike Summary</h1>
-  <p class="subtitle">Generated automatically by hike-izer-orchestrator (<code>CARD-0086</code>) &middot; data from the JCTsh Environmental Data pipeline</p>
+  <p class="subtitle">Generated automatically by hike-izer-orchestrator &middot; data from the JCTsh Environmental Data pipeline</p>
   <div class="stat-row">{stat_row}</div>
   {callout}
   <section>
@@ -469,7 +469,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
       {coverage_note_html}
     </div>
   </section>
-  <footer>hike-izer-orchestrator &middot; CARD-0086</footer>
+  <footer>hike-izer-orchestrator</footer>
 </main>
 </body>
 </html>

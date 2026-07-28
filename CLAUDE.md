@@ -4,7 +4,14 @@ Smart home automation monorepo. See `components/<name>/CLAUDE.md` for component-
 
 ## Session Start
 
-At the start of every Claude Code session in this repo, read the Build column of `kanban-board.md` for context on what's actively in progress before doing anything else.
+At the start of every Claude Code session in this repo, before doing anything else, read:
+1. The Build column of `kanban-board.md` — what's actively in progress.
+2. Any card in `kanban-board.md`, in any column, that's been updated in the last 7 days —
+   catches recently-Done or recently-touched Backlog/Planning cards that Build alone would
+   miss. Cards in this project consistently carry an explicit date in their title or body
+   (`Raised`, `RESOLVED`, `verified`, `Built`, etc.) — scan for those rather than relying on
+   file mtime or git blame, since a single edit to `kanban-board.md` often touches many
+   cards' surrounding text at once and would make every card look recently modified.
 
 ## Repository Layout
 ```

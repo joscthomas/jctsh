@@ -77,20 +77,6 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0092 · [idea] [hike-izer] Calendar view on a home page, clickable through to hike summaries
-**Notes:** Raised 2026-07-24. A calendar showing which days had a confirmed hike — visually marked, clickable through to that day's `hike-summary.html` page.
-
-**Real dependency, not yet resolved:** there is currently no "home page" or index at all for Hike-izer's output — CARD-0088 only scoped *publishing* the per-hike summary HTML files themselves (getting them onto a real URL), not a landing page that links across all of them. This card needs to either define that home page itself, or explicitly share it with whatever else eventually needs one — don't assume it already exists when this is picked up.
-
-**Open questions for when this is planned:**
-- Data source for "which days had a hike" — most likely scanning `hike-izer/summaries/` for real (`hike_confirmed: true`) days, or a small dedicated index/manifest file generated alongside each summary rather than re-deriving it by scanning the directory every time.
-- Calendar UI approach — plain CSS grid (matching Hike-izer's existing zero-`<script>` HTML template philosophy, per `components/hike-izer/html-template.html`) vs. a JS calendar widget. Leans toward zero-JS to match precedent unless a real need for interactivity beyond click-through shows up.
-- Whether the home page is statically regenerated each time a new summary is written, or built some other way.
-
-**Related:** CARD-0088 (HTML hosting — this card's home page would live there; the "home page" concept itself doesn't yet exist and may need defining as part of or alongside this card), CARD-0081 (HTML rendering template this would presumably match visually), CARD-0073 (Hike-izer v1, Done).
-
----
-
 ### CARD-0085 · [idea] [hike-izer] Hiker's own compass/heading
 **Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature. Real gap, not just missing analysis: v1 only computes the *sun's* compass direction from pure astronomy — nothing currently captures which way the hiker was actually facing at any point on the route. Needs new instrumentation (e.g. a magnetometer/compass sensor added to the hiking-monitor hardware) or a different data source entirely — this is likely a hardware-scope card, not a pure software one, and may tie into hiking-monitor's own build cards once scoped.
 
@@ -427,6 +413,29 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 ---
 
 ## Build
+
+---
+
+### CARD-0092 · [idea] [hike-izer] Calendar view on a home page, clickable through to hike summaries — implemented 2026-07-28, automatic-path trigger not yet real-world tested
+**Raised 2026-07-24.** A calendar showing which days had a confirmed hike — visually marked, clickable through to that day's `hike-summary.html` page.
+
+**Interview before building, three open questions resolved with Joseph:**
+1. **Data source:** a small sidecar `<date>_hike-summary.meta.json` (`{"hike_confirmed": true/false}`) written by both publish paths alongside their HTML, read by the calendar-builder — chosen over scanning/parsing HTML content. This turned out to matter for a real correctness reason found during planning: CARD-0100 made the *automatic* pipeline skip publishing entirely on unconfirmed days, but the *interactive* Skill still publishes a page saying "couldn't confirm a hike" when Joseph explicitly asks about a day — a naive "file exists = hike happened" scan would have wrongly marked those interactive-only unconfirmed days as hikes.
+2. **Rebuild trigger:** after every publish, both paths — no manual step to remember, no drift.
+3. **UI:** plain CSS grid, zero JS — matches `html-template.html`'s existing no-`<script>`-anywhere philosophy.
+
+**Built:** new `components/hike-izer/build_calendar_index.py` (stdlib only) — scans a served directory for `*.meta.json` sidecars, groups by year/month, renders a reverse-chronological calendar grid (confirmed-hike days highlighted + linked, published-but-unconfirmed days outlined + linked, everything else plain) to `index.html`. Reuses the same CSS custom-property color system as `html-template.html` (copied variables, not a shared file, since this page has exactly one generator unlike the per-hike template's "consistency across independently-authored runs" concern). Grid uses `repeat(7, 1fr)` + `aspect-ratio: 1/1` so it reflows to any screen width without a breakpoint — deliberately kept at 7 columns on mobile too, unlike the stat-row's 4→2 breakpoint, since collapsing a calendar's day-of-week columns would break its meaning.
+
+**Wired into both publish paths:**
+- `generation.py` (automatic): writes the `.meta.json` (always `hike_confirmed: true` here, since CARD-0100's gate already returned early otherwise) and calls `build_calendar_index.py` via subprocess, same pattern as its existing `fetch_hike_data.py`/`fetch_hike_photos.py` calls.
+- `SKILL.md` (interactive, step 5/7): writes the `.meta.json` locally alongside the HTML, `scp`s it up with the rest, then triggers `docker exec hike-izer-orchestrator python3 /app/build_calendar_index.py --srv-dir /srv/hike-izer` remotely — runs inside the container so the path matches regardless of trigger source.
+- `Dockerfile` updated to include `build_calendar_index.py` in the deployed copy set.
+
+**Verified 2026-07-28:** unit-style test against synthetic manifests confirmed correct month-grouping, reverse-chronological ordering, and day-of-week grid alignment. Deployed live to the M8, backfilled `.meta.json` for the 2 real summaries that predated this card (`2026-06-18`, `2026-07-23`, both confirmed hikes), ran the builder for real — `https://hikes.jctnet.com/` now serves the calendar instead of Caddy's directory listing, both summary links resolve (`HTTP 200`). Browser screenshot verification was attempted but the tool kept timing out after several tries — stopped rather than loop on it; styling reuses already-visually-confirmed (CARD-0081) color variables, and markup structure was confirmed correct by direct inspection instead.
+
+**Not yet done:** the automatic path's new manifest-write + rebuild code in `generation.py` is deployed and syntax-checked but hasn't been exercised by a real confirmed hike yet (the only way to test it live would cost a real Claude API call for no informational gain beyond what's already proven — same script, same args as the already-verified manual trigger). **Done when:** the next real automatic hike-confirmed generation run is confirmed via `docker logs`/the live calendar to have written its own `.meta.json` and triggered a correct rebuild.
+
+**Related:** CARD-0088 (Done — HTML hosting, the home page this now lives at), CARD-0091 (Done — HTML-only output, same session, the manifest/calendar work builds on top of it), CARD-0100 (Done — the automatic-path confirmation gate this card's data-source design depends on), CARD-0081 (Done — HTML rendering template this reuses styling from), CARD-0073 (Done — Hike-izer v1).
 
 ---
 

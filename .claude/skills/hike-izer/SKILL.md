@@ -210,6 +210,15 @@ section.
    CARD-0082. Hosting/publishing is step 7 below (CARD-0088). Tell Joseph the
    file path when done.
 
+   **Also write the calendar sidecar (CARD-0092)** at
+   `hike-izer/summaries/<start-date>_hike-summary.meta.json`:
+   ```json
+   {"hike_confirmed": true}
+   ```
+   (or `false` on the `hike_confirmed: false` path above). This is what the
+   calendar home page (step 7) reads to tell real hikes from published-but-
+   unconfirmed reports -- don't skip it even on a `hike_confirmed: false` day.
+
 6. **Fetch and embed photos/videos (CARD-0084).** Read Joseph's Immich API
    key from `credentials.local.md` ("Immich (Docker, on photo-server)" --
    Joseph's key, not Robin's) and the Immich Web UI URL from the same
@@ -250,13 +259,23 @@ section.
    for `type: VIDEO`, paths relative to the HTML file pointing into the
    sibling `<date>_photos/` directory).
 
-7. **Publish to the M8 (CARD-0088).** Copy the day's HTML file and, if
-   present, its sibling `<date>_photos/` directory to the M8 so the summary
-   is reachable at a real public URL, not just a local file:
+7. **Publish to the M8 (CARD-0088).** Copy the day's HTML file, its
+   `.meta.json` sidecar (CARD-0092), and, if present, its sibling
+   `<date>_photos/` directory to the M8 so the summary is reachable at a
+   real public URL, not just a local file:
 
    ```
-   scp hike-izer/summaries/<start-date>_hike-summary.html jct@photo-server.local:~/hike-izer-web-app/srv/
+   scp hike-izer/summaries/<start-date>_hike-summary.html hike-izer/summaries/<start-date>_hike-summary.meta.json jct@photo-server.local:~/hike-izer-web-app/srv/
    scp -r hike-izer/summaries/<start-date>_photos jct@photo-server.local:~/hike-izer-web-app/srv/   # only if it exists
+   ```
+
+   Then rebuild the calendar home page (CARD-0092) so it picks up the new
+   day -- runs inside the `hike-izer-orchestrator` container so the path
+   matches what `build_calendar_index.py` expects regardless of whether
+   it's triggered this way or by the automatic pipeline:
+
+   ```
+   ssh jct@photo-server.local "docker exec hike-izer-orchestrator python3 /app/build_calendar_index.py --srv-dir /srv/hike-izer"
    ```
 
    Uses the SSH key-based access to the M8 already set up from this
@@ -264,7 +283,8 @@ section.
    `https://hikes.jctnet.com/<start-date>_hike-summary.html`
    (Cloudflare Tunnel + custom domain, CARD-0094 -- previously Tailscale
    Funnel under CARD-0088). See `components/hike-izer-web/README.md` for
-   how this is hosted.
+   how this is hosted. The calendar home page itself (CARD-0092) is at
+   `https://hikes.jctnet.com/`.
 
 ## Explicitly out of scope for v1 (deferred -- see CARD-0073)
 

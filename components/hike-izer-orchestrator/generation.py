@@ -26,6 +26,7 @@ SRV_DIR = "/srv/hike-izer"
 SKILL_MD_PATH = "/app/SKILL.md"
 FETCH_DATA_SCRIPT = "/app/fetch_hike_data.py"
 FETCH_PHOTOS_SCRIPT = "/app/fetch_hike_photos.py"
+BUILD_CALENDAR_SCRIPT = "/app/build_calendar_index.py"
 
 
 def _env(name):
@@ -129,6 +130,18 @@ def run(payload):
     os.makedirs(SRV_DIR, exist_ok=True)
     with open(os.path.join(SRV_DIR, f"{date_str}_hike-summary.html"), "w", encoding="utf-8") as f:
         f.write(html_text)
+
+    # CARD-0092: sidecar manifest for the calendar home page. Always
+    # hike_confirmed: true here -- CARD-0100 already returned early above
+    # for any day that isn't a confirmed hike, so this automatic path only
+    # ever reaches this point on a real hike.
+    with open(os.path.join(SRV_DIR, f"{date_str}_hike-summary.meta.json"), "w", encoding="utf-8") as f:
+        json.dump({"hike_confirmed": True}, f)
+
+    subprocess.run(
+        [sys.executable, BUILD_CALENDAR_SCRIPT, "--srv-dir", SRV_DIR],
+        check=True, timeout=30,
+    )
 
     print(f"Generation complete for {date_str}", file=sys.stderr, flush=True)
     return date_str

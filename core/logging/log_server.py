@@ -42,7 +42,7 @@ _HOME_HB_THRESHOLD_MIN = 70   # hourly beat + 10 min grace
 LOG_DIR     = "/mnt/jctsh-logs"
 LOG_FILE    = os.path.join(LOG_DIR, "jctsh.log")
 STATE_FILE  = os.path.join(LOG_DIR, "state.json")
-MAX_ENTRIES = 200
+MAX_ENTRIES = 1000
 KANBAN_RAW_URL = "https://raw.githubusercontent.com/joscthomas/jctsh/main/kanban-board.md"
 
 # ── Shared state ─────────────────────────────────────────────────────────────

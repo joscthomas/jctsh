@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-07-25.2-timeline-local-timezone-fix';
+var SCRIPT_VERSION = '2026-07-28.1-hike-start-forecast-gps-trigger';
 
 // ---------------------------------------------------------------------------
 // doPost — environmental sensor data (Node-RED → Sheets)
@@ -70,11 +70,6 @@ function doPost(e) {
 
       var obsCoords = _gpsLookup(ss, ts);
       obsSheet.appendRow([ts, obsText, JSON.stringify(categories), payload.source || 'voice', obsCoords.lat, obsCoords.lon]);
-
-      // CARD-0083: capture the weather forecast on the first observation of a
-      // new Arizona-local calendar day -- a live snapshot of what was
-      // forecast right as the hike began, written once and never re-fetched.
-      _maybeCaptureHikeStartForecast(ss, ts, obsCoords);
 
     } else {
       var envSheet = ss.getSheetByName('Environmental Data');
@@ -340,16 +335,20 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
         'temp_f', 'precip_pct', 'wind_mph', 'humidity_pct', 'uv_index', 'provider'
       ]);
     }
-    // Force column B (date_local) to plain text. Sheets silently auto-detects
-    // a bare "YYYY-MM-DD" string as a real Date value on write, which breaks
-    // the dedup comparison below -- a stored Date object never string-equals
-    // a freshly computed "YYYY-MM-DD" string, so every observation would
-    // re-trigger a capture instead of just the first one each day. Applied
-    // unconditionally (not just on sheet creation) so it's also safe against
-    // a sheet that already exists from before this fix. (Note: a sheet
-    // created before CARD-0097 will still have a literal "date_az" header
-    // cell from the old code -- harmless, since matching below is positional
-    // by column, not by header name; relabel manually if desired.)
+    // Force column B (date_local) to plain text, AND prefix the value with a
+    // leading apostrophe when writing it below (same mechanism as typing
+    // '2026-07-28 into a cell by hand) -- CARD-0106 confirmed live that
+    // setNumberFormat('@') alone does not reliably stop Sheets from
+    // auto-detecting a bare "YYYY-MM-DD" string as a real Date value on
+    // write via appendRow(), which breaks the dedup comparison below (a
+    // stored Date object never string-equals a freshly computed
+    // "YYYY-MM-DD" string, so every observation would re-trigger a capture
+    // instead of just the first one each day). Format set unconditionally
+    // (not just on sheet creation) so it's also safe against a sheet that
+    // already exists from before this fix. (Note: a sheet created before
+    // CARD-0097 will still have a literal "date_az" header cell from the
+    // old code -- harmless, since matching below is positional by column,
+    // not by header name; relabel manually if desired.)
     forecastSheet.getRange('B:B').setNumberFormat('@');
 
     var url = 'https://api.open-meteo.com/v1/forecast'
@@ -390,7 +389,7 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
     }
 
     forecastSheet.appendRow([
-      tsISO, dateLocal, body.latitude, body.longitude,
+      tsISO, "'" + dateLocal, body.latitude, body.longitude,
       hourly.temperature_2m[idx],
       hourly.precipitation_probability[idx],
       hourly.wind_speed_10m[idx],
@@ -514,6 +513,18 @@ function doGet(e) {
       var ss = SpreadsheetApp.getActiveSpreadsheet();
       var gpsSheet = ss.getSheetByName('GPS Track');
       gpsSheet.appendRow([tsISO, lat, lon, acc, alt]);
+
+      // CARD-0106: capture the weather forecast on the first GPS point of a
+      // new local calendar day -- a live snapshot of what was forecast right
+      // as the hike began, written once and never re-fetched. Moved here
+      // from the first Hiking Observation of the day (CARD-0083) -- a voice
+      // observation is optional and arbitrarily timed relative to when the
+      // hike actually started, where GPS logging is continuous and always
+      // present during a real hike, making it a reliable "hike start" signal
+      // in a way an optional observation never was. lat/lon are already
+      // resolved here (this request's own coordinates), so no _gpsLookup
+      // correlation is needed the way the observations path required.
+      _maybeCaptureHikeStartForecast(ss, tsISO, {lat: lat, lon: lon});
 
       return ContentService
         .createTextOutput(JSON.stringify({status: 'ok'}))

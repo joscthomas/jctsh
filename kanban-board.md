@@ -15,6 +15,32 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0104 · [idea] [hike-izer] Embed Gaia GPS's own track/map view instead of building a custom route+elevation renderer
+
+**Raised 2026-07-28**, exploring CARD-0082 (custom Gaia-GPS-style route+elevation graphic) — Joseph pointed out he already uses Gaia GPS on every hike, which raised the question of integrating with Gaia directly instead of re-rendering the same visual from scratch.
+
+**Researched 2026-07-28:** Gaia GPS has no official public API (confirmed via their own help-center community posts — a public API has been a standing community request for years, not shipped). It does have an official **"Embed on your website"** feature: mark a specific track Public on gaiagps.com, then copy an iframe embed code from that track's page. The embed shows the Gaia Topo map with the track overlaid, plus stats and a link back to the source. An unofficial reverse-engineered Python client (`gaiagpsclient` on GitHub) also exists but isn't a real option for anything meant to run long-term — no support, can break on any internal API change, real ToS risk.
+
+**Why this over CARD-0082:** dramatically less engineering — no basemap-provider decision, no tile-rendering/elevation-chart code to build, no new dependency. It's authentically "Gaia GPS style" because it *is* Gaia GPS. **Positioned as the lighter-weight path to try first** — CARD-0082 (full custom render, automatable, self-contained) stays available as the heavier fallback if this doesn't pan out or a fully-automatic/self-hosted version is wanted later.
+
+**Trade-offs, both explicitly accepted by Joseph when this card was raised (not open questions):**
+- **No API means a manual step every time** — Joseph marks the track Public and copies the embed code himself; this can't be scripted. Accepted: this is a nice-to-have visual, not core pipeline function.
+- **That day's exact route becomes link-visible** (not searchable/indexed, but reachable by anyone with the URL) once marked Public. Accepted trade-off for the convenience.
+
+**Real architectural point — the map has to be a follow-up patch, not part of the original generation.** CARD-0086's automatic pipeline publishes the summary the instant GPSLogger stops, often before Joseph has gotten around to the Gaia-side manual step at all — the two are decoupled in time. So this can't be step N of the existing generation flow; it needs its own **insert-into-an-already-published-page** mechanism. Three candidate shapes, sequenced deliberately (2026-07-28) rather than picked upfront:
+
+1. **Conversational (try this first)** — Joseph pastes the embed code to Claude in any session whenever he gets around to it ("here's the Gaia embed for the June 15 hike"); Claude finds that day's already-published HTML on the M8, inserts a new "Route Map" section, re-publishes. Zero new tooling — proves out whether the whole idea (does the embed actually look good, does the insert-into-a-published-page workflow feel worth it) is worth investing in before building anything.
+2. **Tasker phone widget + new webhook route** — once the manual version has proven the idea is worth keeping, this removes the human-in-the-loop-with-Claude step: a home-screen shortcut/Quick Settings tile runs a Tasker Task that prompts for the hike date, reads the embed code off the clipboard (still copied from Gaia's website by hand — no way around that part), and `POST`s both to a new `/webhook/gaia-embed` route on the existing orchestrator (`app.py`), same shared-secret `?key=` auth pattern as `/webhook/hike-end`. Server-side, it does the same find-file/insert-section/rewrite/rebuild-calendar-index work option 1 does by hand, just triggered by a phone tap instead of a conversation.
+3. **Dedicated CLI script** — `add_gaia_embed.py --date <date> --embed-code <code>` run over SSH. Considered and effectively superseded by option 2 once a phone-side trigger exists; would only make sense if the Tasker route turns out not to fit for some reason.
+
+**Deliberately building option 1 before option 2/3** — proving the concept manually first means not building phone-side tooling for something that might turn out not to be worth doing regularly once actually seen on a real page.
+
+**Also not yet confirmed:** whether the embed includes Gaia's real interactive elevation-hover-sync (their own app has it; unclear whether the public embed replicates it, versus just a static map + separate stats) — worth actually creating one test embed to check before committing to this path over CARD-0082.
+
+**Related:** CARD-0082 (Backlog — the heavier custom-render alternative this is being tried instead of first), CARD-0088 (Done — HTML hosting this would patch into), CARD-0086 (Done — automatic triggering, the source of the timing/decoupling problem above), CARD-0092 (Done — calendar home page, same `srv/` directory this would patch files within).
+
+---
+
 ### CARD-0103 · [idea] [personal] Migrate 3 legacy Google Sites pages (Cochie Springs hike, Mustang, Karli's Summer) to the M8 webserver — low priority
 
 **Raised 2026-07-27**, during CARD-0093 (DNS cleanup). CARD-0093's original plan let `jctnet.com`'s Google Sites content go entirely (Joseph had called it unimportant), but revisiting surfaced that 3 specific pages are still wanted — dropping the `www` CNAME and `google-site-verification` TXT as part of CARD-0093 will break their reachability at `jctnet.com`/`www.jctnet.com`, even though the underlying Google Sites content itself isn't deleted by a DNS change (it stays live at its own `sites.google.com` URL, just unmapped from the custom domain).
@@ -87,7 +113,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0082 · [idea] [hike-izer] Visual track + elevation graphic, Gaia-GPS-style
-**Notes:** Raised 2026-07-23. Add a visual graphic depicting the hike route and elevation profile, in the style of Gaia GPS's track view — route line plotted over a real topo/satellite basemap, paired with a distance-vs-elevation chart. This card owns the embedded-visuals and interactive-hover-sync work directly (CARD-0088, once scoped as an intermediary "embedded visuals" level, was narrowed 2026-07-24 to just HTML hosting after realizing it was pure duplicate scope of this card) — this is its own standalone artifact so it can potentially be embedded as a static image in the *current* Markdown output too, not gated on any other card's work landing first.
+**Sequencing update 2026-07-28:** Joseph is trying **CARD-0104** (embedding Gaia GPS's own track view directly, since he already uses Gaia on every hike) first — much less engineering than this card's from-scratch render. This card stays available as the heavier fallback: fully automatable and self-contained (no dependency on Gaia's servers/account staying available), if CARD-0104's embed approach doesn't pan out or a fully-automatic/self-hosted version is wanted later. Not blocked, not deferred indefinitely — just not next.
+
+**Notes:** Raised 2026-07-23. Add a visual graphic depicting the hike route and elevation profile, in the style of Gaia GPS's track view — route line plotted over a real topo/satellite basemap, paired with a distance-vs-elevation chart. This card owns the embedded-visuals and interactive-hover-sync work directly (CARD-0088, once scoped as an intermediary "embedded visuals" level, was narrowed 2026-07-24 to just HTML hosting after realizing it was pure duplicate scope of this card) — this is its own standalone artifact so it can potentially be embedded as a static image in the *current* Markdown output too, not gated on any other card's work landing first. (Note: the Markdown-output reference predates CARD-0091, 2026-07-28 — HTML is now the sole output format; this card's static-image level would embed there instead.)
 
 **Target experience (end goal):** route line + elevation profile shown together, with interactive sync between them — hovering the elevation chart highlights the matching point on the map, matching Gaia GPS's actual behavior.
 
@@ -103,7 +131,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Data source:** existing GPS track pipeline (GPSLogger → GPS Track sheet, already wired into `components/hike-izer/fetch_hike_data.py`) — no new data collection needed, this is purely a new rendering of data hike-izer already has.
 
-**Related:** CARD-0081 (HTML rendering, Levels 1-2, Done — established the HTML output this eventually embeds into), CARD-0088 (HTML output hosting — separate, unrelated to this card's scope now), CARD-0084 (Photos — blocks the photo-marker case of Level 3), CARD-0080 (Bird ID — confirmed marker case of Level 3), CARD-0073 (Hike-izer v1, Done), `components/hike-izer/fetch_hike_data.py`.
+**Related:** CARD-0104 (Backlog — the lighter Gaia-embed alternative being tried first), CARD-0081 (HTML rendering, Levels 1-2, Done — established the HTML output this eventually embeds into), CARD-0088 (HTML output hosting — separate, unrelated to this card's scope now), CARD-0084 (Photos, Done — unblocks the photo-marker case of Level 3), CARD-0080 (Bird ID — confirmed marker case of Level 3), CARD-0073 (Hike-izer v1, Done), `components/hike-izer/fetch_hike_data.py`.
 
 ---
 

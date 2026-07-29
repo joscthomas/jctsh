@@ -242,7 +242,7 @@ def run(payload):
     # rendering only. templating.render_html omits the whole narrative
     # section when narrative_paragraphs is empty, same convention as the
     # Photos section's own omit-when-empty handling.
-    html_text = templating.render_html(hike_data, [], date_str, offset_str, photos_manifest)
+    html_text = templating.render_html(hike_data, [], date_str, offset_str, photos_manifest, file_stem=file_stem)
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
         f.write(html_text)
@@ -313,7 +313,7 @@ def run_step2(file_stem):
 
     html_text = templating.render_html(
         hike_data, paragraphs, date_str, offset_str, photos_manifest,
-        gaia_embed_html=staged.get("gaia_embed_html"),
+        gaia_embed_html=staged.get("gaia_embed_html"), file_stem=file_stem,
     )
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:

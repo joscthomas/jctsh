@@ -398,7 +398,8 @@ def _stat_card(label, value, na=False):
     return f'<div class="stat"><div class="stat__label">{_esc(label)}</div><div class="{cls}">{_esc(value)}</div></div>'
 
 
-def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None, gaia_embed_html=None):
+def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None,
+                 gaia_embed_html=None, file_stem=None):
     offset_delta = _parse_offset(offset_str)
     coverage = hike_data["coverage"]
     stats = hike_data["stats"]
@@ -485,7 +486,15 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   </section>"""
 
     photos_section = ""
-    photos_dir = f"{date_str}_photos"
+    # CARD-0113/CARD-0115: the photos directory on disk is named after the
+    # file stem ('<date>' for the first hike of a day, '<date>-2' etc. for a
+    # later one), not the plain date -- a second same-day hike's photos live
+    # in '<date>-2_photos/', so referencing '<date>_photos/' here (found live
+    # 2026-07-29, broken thumbnails + 404s on click for exactly this case)
+    # pointed at the wrong directory whenever more than one hike published on
+    # the same day. Falls back to date_str if file_stem isn't given (should
+    # only happen if a caller is missed -- keeps this from hard-crashing).
+    photos_dir = f"{file_stem or date_str}_photos"
     if photos_manifest and photos_manifest.get("assets"):
         items = []
         for a in photos_manifest["assets"]:

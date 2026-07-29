@@ -381,9 +381,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **One honest caveat, not a defect in this card's own work:** this second hike's `stopped` event (11:49 MST) fired in the window before CARD-0112's step-1/step-2 split was actually deployed to the M8 (confirmed by reading the container's live `generation.py`, which is correct now — no narrative/place_context call in step 1). So this particular page ran under the old single-shot pipeline (data + narrative + photos all at once, 43 API calls/$1.29, dominated by captioning 41 photos) rather than CARD-0112's data-only-then-enrich flow. That's a one-off artifact of tonight's deploy timing, not a bug in either card — the next automatic hike will exercise both cards' logic together correctly. The narrative itself reads cleanly on inspection, no issues found.
 
-**Related addition:** CARD-0112 (Done — the two-step split this page predates; the timing here is exactly why session-keyed addressing had to land first, per the sequencing decision above).
+**Related addition:** CARD-0112 (the two-step split this page predates; the timing here is exactly why session-keyed addressing had to land first, per the sequencing decision above).
 
-**Related:** CARD-0111 (Done — the investigation that surfaced this), CARD-0112 (Done — sequenced to follow this card), CARD-0086 (automatic triggering; the webhook payload this reads `startedtimestamp`/`duration` from), CARD-0101/CARD-0100 (existing session-detection/classification logic this builds on, doesn't replace), `components/hike-izer/fetch_hike_data.py`, `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/templating.py`, `components/hike-izer/build_calendar_index.py`.
+**Related:** CARD-0111 (the investigation that surfaced this), CARD-0112 (sequenced to follow this card), CARD-0086 (automatic triggering; the webhook payload this reads `startedtimestamp`/`duration` from), CARD-0101/CARD-0100 (existing session-detection/classification logic this builds on, doesn't replace), `components/hike-izer/fetch_hike_data.py`, `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/templating.py`, `components/hike-izer/build_calendar_index.py`.
 
 ---
 
@@ -425,9 +425,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Verified end-to-end against real July 29 data (re-run after the two fixes above), full step 2 succeeded:** Immich re-fetch found all 7 real photos (uploaded since CARD-0111's investigation), 4/7 captioned successfully (3 hit transient 529s, degraded gracefully per existing design), narrative generated on the second attempt (529 retry), full page republished. Total cost **$0.5052** (6 API calls, 4 web searches). Narrative dropped from 471 to 298 words. One residual narrative-quality miss found in this same real output — a forward-reference to the Coverage section survived despite tonight's `SKILL.md` tightening (same "doesn't 100%-reliably catch every instance" pattern already noted on CARD-0108) — **left for a later review pass, per Joseph.**
 
-**Sequencing:** built after CARD-0113 (Done) as planned — this card's session-keyed staging design was built against CARD-0113's already-landed addressing scheme, no rework needed.
+**Sequencing:** built after CARD-0113 as planned — this card's session-keyed staging design was built against CARD-0113's already-landed addressing scheme, no rework needed.
 
-**Related:** CARD-0111 (Done — the July 29 photo-bug investigation that surfaced this), CARD-0113 (Done — session-scoped generation, sequenced ahead of this card), CARD-0104 (Gaia GPS embed, the original manual-step precedent this generalizes), CARD-0080 (BirdNET bird ID, same manual-step shape — staging directory ready for it), CARD-0108 (Done — place context, stays in step 1; the `named_features` fix landed here without reopening that card), CARD-0107 (Done — photo captions; decoupling from narrative left as-is, not revisited), CARD-0086 (Done — automatic triggering; its webhook now only fires step 1, not full generation as originally built).
+**Related:** CARD-0111 (the July 29 photo-bug investigation that surfaced this), CARD-0113 (session-scoped generation, sequenced ahead of this card), CARD-0104 (Gaia GPS embed, the original manual-step precedent this generalizes), CARD-0080 (BirdNET bird ID, same manual-step shape — staging directory ready for it), CARD-0108 (place context, stays in step 1; the `named_features` fix landed here without reopening that card), CARD-0107 (photo captions; decoupling from narrative left as-is, not revisited), CARD-0086 (automatic triggering; its webhook now only fires step 1, not full generation as originally built).
 
 ---
 
@@ -642,7 +642,7 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 **Live page corrected 2026-07-29 15:46 MST, Joseph's call.** Initially left the already-published `2026-07-29-2_hike-summary.html` untouched (same reasoning as CARD-0101's own record-preservation instinct), but Joseph asked directly for the distance to be fixed. Re-fetched the real GPS Track data fresh through the now-corrected pipeline and re-rendered (existing narrative/photos reused, zero additional API cost) — live page now correctly shows **2.5 mi** (was 3.8 mi) and **2h 9m** (was 2h 18m, also now correctly excluding the drive time, not just distance).
 
-**Related:** CARD-0100 (Done — the mirror-image false-trigger case, raised same session), CARD-0113 (Done — the session-scoped generation whose real second-hike test surfaced this), `components/hike-izer/fetch_hike_data.py` (`_gps_sessions`/`_classify_hike`/`_truncate_trailing_fast_activity`/`_build_session_entry`).
+**Related:** CARD-0100 (the mirror-image false-trigger case, raised same session), CARD-0113 (the session-scoped generation whose real second-hike test surfaced this), `components/hike-izer/fetch_hike_data.py` (`_gps_sessions`/`_classify_hike`/`_truncate_trailing_fast_activity`/`_build_session_entry`).
 
 ---
 

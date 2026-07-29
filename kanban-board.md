@@ -2496,6 +2496,8 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 **Deployment note:** this is Apps Script, deployed by pasting into the Apps Script editor (no `clasp`/CI tooling in this repo) — I can't deploy it myself. **Needs Joseph to paste the updated `_maybeCaptureHikeStartForecast` function (and the new `SESSION_GAP_MIN` constant above it) into the Apps Script editor and redeploy**, same as CARD-0106's own deployment.
 
-**Not yet done:** deploy (see note above) and verify against a real multi-hike day — the closing criterion CARD-0101 and CARD-0106 both used, and the same one this card should meet before moving to Done.
+**Deployed and confirmed 2026-07-29 15:36 MST** — Joseph pasted and redeployed; `action=version` confirmed live at `2026-07-29.1-hike-start-forecast-session-scoped`.
+
+**Not yet done:** verify against a real multi-hike day (each hike capturing its own forecast) — the same closing criterion CARD-0101 and CARD-0106 both used. Stays in Build until that happens naturally.
 
 **Related:** CARD-0113 (Done — the session-vs-day redesign this extends to the Apps Script side), CARD-0106 (Done — original GPS-triggered capture this builds on), CARD-0083/CARD-0097 (Done — original feature and its timezone fix), `core/data-pipeline/environmental-data.gs`.

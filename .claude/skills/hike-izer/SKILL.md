@@ -16,23 +16,35 @@ specifically (step 4 below). **HTML is the sole output format** (CARD-0091,
 once CARD-0088 gave the HTML output a real public URL and made it unambiguously
 the deliverable Joseph actually reads/shares.
 
-## Core model: a hiking event is a single day
+## Core model: a hiking event is a detected hike session, not a calendar day
 
-**A hiking event is, by definition, a single calendar day** -- even if it's only a
-few hours within that day. A multi-day backpacking or camping trip is a *series*
-of single-day hiking events, not one event spanning the whole trip. **Generate one
-summary file per day, not one combined summary across a multi-day trip.**
+**A hiking event is a single detected hike session** (`is_hike: true` in
+`coverage.gps_track.sessions`) -- **not** a calendar day (revised CARD-0113; a day
+is just the query unit used to find sessions, same reasoning the automatic
+pipeline now applies). Two real hikes on the same day are two events, not one
+merged report -- summing their distances or blending their elevation ranges into
+a single figure is exactly the bug CARD-0113 fixed. A multi-day backpacking or
+camping trip is a *series* of single-day query windows, each of which may itself
+contain more than one real session.
 
+- Query a day's window as that day's 00:00:00Z-23:59:59Z (the interactive flow has
+  no webhook-precise session bounds to narrow to, unlike the automatic path) --
+  but generate one summary file **per `is_hike` session found**, not one per day
+  queried.
+- **Naming (CARD-0113):** the first hike-summary for a given date keeps the plain
+  `<date>_hike-summary.html` stem; a second real hike on that same date gets
+  `<date>-2_hike-summary.html`, a third `<date>-3_hike-summary.html`, etc. Never
+  rename an existing file to make room for this -- the first hike found keeps
+  stem `1` (no `-1` suffix) regardless of discovery order.
 - If Joseph names a multi-day trip (e.g., "summarize the June 15 camping trip"),
-  identify which individual days within that range actually have a **confirmed
-  hike** (see "What counts as a hike" below, not just any GPS activity) and
-  generate a separate `<date>_hike-summary.html` for each such day. Don't generate
-  summaries for days with zero activity.
+  identify which individual days within that range actually have at least one
+  **confirmed hike** (see "What counts as a hike" below, not just any GPS
+  activity), and within each such day, one summary per session found. Don't
+  generate summaries for days with zero activity.
 - **Session-crosses-midnight edge case:** a GPS session that starts before UTC
   midnight and continues after it (e.g., an evening hike that runs past midnight)
   belongs to the day it *started* on -- don't split one real hike into two
-  day-summaries at the UTC boundary. Query a day's window as that day's
-  00:00:00Z-23:59:59Z, but attribute any session by its start timestamp.
+  day-summaries at the UTC boundary.
 - If Joseph asks about "today" and the day is still in progress, that's a fine,
   normal single-day event -- see the `window_truncated_to_now` handling below.
 

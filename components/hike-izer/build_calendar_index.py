@@ -37,7 +37,10 @@ import re
 import sys
 from pathlib import Path
 
-META_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})_hike-summary\.meta\.json$")
+# CARD-0113: a day can now produce more than one hike-summary -- the first
+# keeps the plain '<date>' stem, each later same-day one is '<date>-2',
+# '<date>-3', etc. The trailing '(?:-(\d+))?' group is None for the first.
+META_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:-(\d+))?_hike-summary\.meta\.json$")
 
 _STYLE = """
   :root {
@@ -176,9 +179,21 @@ _STYLE = """
   .cal-day--logged {
     background: var(--accent);
     color: var(--accent-ink);
-    font-weight: 700;
-    text-decoration: none;
     box-shadow: var(--shadow);
+    gap: 0.15rem;
+  }
+  .cal-day-num, .cal-day-extra {
+    color: var(--accent-ink);
+    text-decoration: none;
+    font-weight: 700;
+  }
+  /* CARD-0113: a second (or third) same-day hike gets a small extra link
+     next to the day number -- never nested inside it, <a> inside <a> is
+     invalid HTML. */
+  .cal-day-extra {
+    font-size: 0.6rem;
+    align-self: flex-start;
+    margin-top: 0.15rem;
   }
   .cal-day--logged:hover { filter: brightness(1.08); }
 
@@ -193,21 +208,25 @@ _STYLE = """
 
 
 def scan_summaries(srv_dir):
-    """Returns {(year, month, day): hike_confirmed_bool}, one entry per
-    <date>_hike-summary.meta.json found directly in srv_dir. hike_confirmed
-    is kept for possible future use but no longer drives calendar styling
-    (CARD-0105) -- every entry here renders the same way."""
+    """Returns {(year, month, day): [hike numbers found, e.g. [1] or [1, 2]]},
+    one list entry per <date>[-N]_hike-summary.meta.json found directly in
+    srv_dir (CARD-0113: a day can produce more than one). hike_confirmed
+    itself is read but no longer drives calendar styling (CARD-0105) --
+    every entry here renders the same way regardless."""
     entries = {}
     for p in Path(srv_dir).glob("*_hike-summary.meta.json"):
         m = META_RE.match(p.name)
         if not m:
             continue
         y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        hike_num = int(m.group(4)) if m.group(4) else 1
         try:
-            data = json.loads(p.read_text(encoding="utf-8"))
+            json.loads(p.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             continue
-        entries[(y, mo, d)] = bool(data.get("hike_confirmed"))
+        entries.setdefault((y, mo, d), []).append(hike_num)
+    for key in entries:
+        entries[key].sort()
     return entries
 
 
@@ -222,9 +241,20 @@ def _render_calendar_grid(year, month, days_with_entries):
 
     cells = ['<div class="cal-day cal-day--empty"></div>' for _ in range(first_weekday_sun0)]
     for day in range(1, num_days + 1):
-        if day in days_with_entries:
+        hike_nums = days_with_entries.get(day)
+        if hike_nums:
             date_str = f"{year:04d}-{month:02d}-{day:02d}"
-            cells.append(f'<a class="cal-day cal-day--logged" href="{date_str}_hike-summary.html">{day}</a>')
+            # CARD-0113: the day number always links to hike #1; any further
+            # same-day hike gets its own small sibling link (never nested --
+            # <a> inside <a> is invalid HTML) in the same cell (2-3 hikes in
+            # a day is the realistic ceiling, so this stays readable at the
+            # cell's small size without a redesign).
+            main_link = f'<a class="cal-day-num" href="{date_str}_hike-summary.html">{day}</a>'
+            extra_links = "".join(
+                f'<a class="cal-day-extra" href="{date_str}-{n}_hike-summary.html">{n}</a>'
+                for n in hike_nums[1:]
+            )
+            cells.append(f'<div class="cal-day cal-day--logged">{main_link}{extra_links}</div>')
         else:
             cells.append(f'<div class="cal-day cal-day--none">{day}</div>')
 
@@ -319,8 +349,8 @@ def build_pages(entries):
         return {"index.html": _empty_page()}
 
     by_month = {}
-    for (y, mo, d), _confirmed in entries.items():
-        by_month.setdefault((y, mo), set()).add(d)
+    for (y, mo, d), hike_nums in entries.items():
+        by_month.setdefault((y, mo), {})[d] = hike_nums
     months_sorted = sorted(by_month.keys())  # chronological, oldest first
 
     years_latest_month = {}

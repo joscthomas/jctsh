@@ -17,6 +17,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 
 import cost_tracking
 import mqtt_log
@@ -30,6 +31,15 @@ SKILL_MD_PATH = "/app/SKILL.md"
 FETCH_DATA_SCRIPT = "/app/fetch_hike_data.py"
 FETCH_PHOTOS_SCRIPT = "/app/fetch_hike_photos.py"
 BUILD_CALENDAR_SCRIPT = "/app/build_calendar_index.py"
+
+# CARD-0113: the automatic path's own webhook payload already carries the
+# session's exact start/end (startedtimestamp + duration), unlike the
+# interactive Skill flow which only ever knows which calendar day to
+# summarize. Padding covers Environmental Data readings or voice
+# observations landing a few minutes outside GPSLogger's own reported
+# bounds -- not a guess at how imprecise those bounds are, just slack for
+# ordinary clock/logging jitter between independent devices.
+SESSION_QUERY_PADDING = timedelta(minutes=10)
 
 
 def _env(name):
@@ -48,6 +58,45 @@ def _local_date_and_offset(local_datetime):
     return date_str, offset_str
 
 
+def _session_query_window(payload, date_str, offset_str):
+    """CARD-0113: bound the query to this specific hike session (its own
+    start/end, from the webhook payload, plus SESSION_QUERY_PADDING) instead
+    of the full calendar day. Narrowing per-trigger is what actually fixes
+    two same-day hikes getting merged into one report -- each webhook fire
+    only ever sees its own session's data. Falls back to the old full-day
+    window if the payload is missing the fields this needs (defensive, not
+    expected in practice -- every real 'stopped' payload observed so far
+    carries both)."""
+    try:
+        session_end_utc = datetime.fromisoformat(payload["local_datetime"]).astimezone(timezone.utc)
+        session_start_utc = datetime.fromtimestamp(
+            int(payload["startedtimestamp"]) / 1000, tz=timezone.utc
+        )
+    except (KeyError, ValueError, TypeError) as e:
+        print(
+            f"_session_query_window: payload missing usable session bounds ({e}) "
+            f"-- falling back to full-day query window",
+            file=sys.stderr,
+        )
+        return f"{date_str}T00:00:00{offset_str}", f"{date_str}T23:59:59{offset_str}"
+
+    start_utc = session_start_utc - SESSION_QUERY_PADDING
+    end_utc = session_end_utc + SESSION_QUERY_PADDING
+    return start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"), end_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _next_file_stem(date_str):
+    """CARD-0113: a day can now produce more than one hike-summary -- the
+    first keeps the plain '<date>' stem (no rename of existing files),
+    each subsequent one gets '<date>-2', '<date>-3', etc."""
+    stem = date_str
+    n = 1
+    while os.path.exists(os.path.join(SRV_DIR, f"{stem}_hike-summary.html")):
+        n += 1
+        stem = f"{date_str}-{n}"
+    return stem
+
+
 def run(payload):
     tracker = cost_tracking.CostTracker()
     local_datetime = payload.get("local_datetime")
@@ -55,25 +104,21 @@ def run(payload):
         raise ValueError("payload missing local_datetime -- cannot determine which day to generate")
     date_str, offset_str = _local_date_and_offset(local_datetime)
 
-    # Query window uses the hike's own local offset, not a hardcoded Z
-    # boundary -- SKILL.md's "query 00:00:00Z-23:59:59Z, attribute a session
-    # by its start timestamp" convention is a manual-judgment workaround for
-    # the fact that a Z-bounded window doesn't line up with any real local
-    # day. With no human in the loop to apply that judgment in the automated
-    # path, bounding the query by the hike's *actual* local offset avoids
-    # the ambiguity outright: a session that truly belongs to the previous
-    # local day (e.g. an evening session that only looks "cross-midnight"
-    # because UTC and local calendar days don't line up) is correctly
-    # excluded by the window itself, no reattachment logic needed. (Verified
-    # 2026-07-24 against a real multi-session day -- an initial test using
-    # the wrong offset for that trip's actual location/DST state looked like
-    # this approach was dropping real data; it wasn't, the offset was just
-    # wrong. The Apps Script itself confirms live data is unaffected -- see
-    # CARD-0086 notes.)
-    start_iso = f"{date_str}T00:00:00{offset_str}"
-    end_iso = f"{date_str}T23:59:59{offset_str}"
+    # CARD-0113: query window is scoped to this specific session (not the
+    # full calendar day) -- see _session_query_window for why. date_str/
+    # offset_str themselves are unaffected; they still name and localize
+    # the output the same way regardless of query width.
+    start_iso, end_iso = _session_query_window(payload, date_str, offset_str)
 
-    hike_data_path = f"/tmp/hike_data_{date_str}.json"
+    os.makedirs(SRV_DIR, exist_ok=True)
+    # CARD-0113: a day can produce more than one hike-summary now -- decide
+    # this run's own file stem ('<date>' for the first, '<date>-2' etc. for
+    # any later same-day hike) before anything gets written, so every output
+    # path (HTML, meta.json, photos dir, temp fetch file) uses it
+    # consistently.
+    file_stem = _next_file_stem(date_str)
+
+    hike_data_path = f"/tmp/hike_data_{file_stem}.json"
     subprocess.run(
         [
             sys.executable, FETCH_DATA_SCRIPT,
@@ -94,16 +139,16 @@ def run(payload):
     # interactive Skill correctly still reports "no hike" when Joseph
     # explicitly asks, since that's a wanted answer, not a bug.
     if not hike_data["coverage"]["gps_track"]["hike_confirmed"]:
-        print(f"No hike confirmed for {date_str} -- skipping generation", file=sys.stderr, flush=True)
+        print(f"No hike confirmed for {file_stem} -- skipping generation", file=sys.stderr, flush=True)
         mqtt_log.publish_log(
             "System",
-            f"GPSLogger stopped, no hike confirmed for {date_str} -- skipped generation.",
+            f"GPSLogger stopped, no hike confirmed for {file_stem} -- skipped generation.",
         )
         return None, tracker
 
     # hike_confirmed is true past this point (checked above) -- fetch photos
     photos_manifest = None
-    photos_dir = os.path.join(SRV_DIR, f"{date_str}_photos")
+    photos_dir = os.path.join(SRV_DIR, f"{file_stem}_photos")
     try:
         subprocess.run(
             [
@@ -146,15 +191,14 @@ def run(payload):
 
     html_text = templating.render_html(hike_data, paragraphs, date_str, offset_str, photos_manifest)
 
-    os.makedirs(SRV_DIR, exist_ok=True)
-    with open(os.path.join(SRV_DIR, f"{date_str}_hike-summary.html"), "w", encoding="utf-8") as f:
+    with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
         f.write(html_text)
 
     # CARD-0092: sidecar manifest for the calendar home page. Always
     # hike_confirmed: true here -- CARD-0100 already returned early above
     # for any day that isn't a confirmed hike, so this automatic path only
     # ever reaches this point on a real hike.
-    with open(os.path.join(SRV_DIR, f"{date_str}_hike-summary.meta.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.meta.json"), "w", encoding="utf-8") as f:
         json.dump({"hike_confirmed": True}, f)
 
     subprocess.run(
@@ -162,22 +206,22 @@ def run(payload):
         check=True, timeout=30,
     )
 
-    print(f"Generation complete for {date_str} -- {tracker.summary()}", file=sys.stderr, flush=True)
-    return date_str, tracker
+    print(f"Generation complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
+    return file_stem, tracker
 
 
 def run_and_log(payload):
     try:
-        date_str, tracker = run(payload)
-        if date_str is None:
+        file_stem, tracker = run(payload)
+        if file_stem is None:
             # CARD-0100: no hike confirmed -- run() already published its own
             # quiet skip log, nothing more to do here.
             return
-        print(f"Publishing MQTT log line for {date_str}...", file=sys.stderr, flush=True)
+        print(f"Publishing MQTT log line for {file_stem}...", file=sys.stderr, flush=True)
         mqtt_log.publish_log(
             "System",
-            f"Published hike summary for {date_str}: "
-            f"https://hikes.jctnet.com/{date_str}_hike-summary.html "
+            f"Published hike summary for {file_stem}: "
+            f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
             f"(API cost: {tracker.summary()})",
         )
     except Exception as e:

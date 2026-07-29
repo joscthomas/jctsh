@@ -336,7 +336,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0113 · [bug] [hike-izer] Session-scoped generation — one summary per detected hike, not per calendar day
-**Status:** Planning
+**Status:** Build
 
 **Raised 2026-07-29 06:59 MST**, during CARD-0111's investigation into the July 29 coverage-message wording. Surfaced two real problems with the current "a hiking event is a single calendar day" model (`SKILL.md`'s core model, written for the original interactive Skill flow):
 
@@ -357,7 +357,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Sequencing, decided 2026-07-29:** build this **before** CARD-0112 (two-step generation redesign), not in parallel and not combined into one change. CARD-0112's staging-directory design and its "regenerate the rich version of `<date>`" conversational trigger phrase need to be built against the *corrected* session-keyed addressing scheme from the start — building 112 first against today's date-only keys would mean reworking its addressing scheme the moment this card lands. Keeping them as separate cards also keeps each independently testable, matching how every other card in this project has been scoped.
 
-**Related:** CARD-0111 (the investigation that surfaced this), CARD-0112 (sequenced to follow this card), CARD-0086 (automatic triggering; the webhook payload this reads `startedtimestamp`/`duration` from), CARD-0101/CARD-0100 (existing session-detection/classification logic this builds on, doesn't replace), `components/hike-izer/fetch_hike_data.py`, `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/templating.py`, `components/hike-izer/build_calendar_index.py`.
+**File-naming decided, 2026-07-29 (Joseph):** first hike of a day keeps the plain `<date>_hike-summary.html` stem (no rename of existing files); a second same-day hike gets `<date>-2_hike-summary.html`, a third `<date>-3`, etc.
+
+**Implemented 2026-07-29 (still Build — deployment and real-world validation pending, see below):**
+1. `components/hike-izer-orchestrator/generation.py` — new `_session_query_window()` computes the query bounds from the webhook payload's own `startedtimestamp` + `duration` (session start/end) with a `SESSION_QUERY_PADDING` of ±10 min, replacing the full `00:00:00`–`23:59:59` calendar-day window; falls back to the old day-wide window if the payload is missing those fields (defensive, not expected in practice). New `_next_file_stem()` scans `SRV_DIR` for existing `<date>_hike-summary.html`/`<date>-2_...` etc. and picks the next unused stem, used consistently for the HTML, meta.json, photos dir, and temp fetch-data path.
+2. `components/hike-izer/fetch_hike_data.py` — new `_rows_in_hike_sessions()` scopes altitude/elevation-gain computation to the confirmed `is_hike` session's own GPS points (via each session's own `[start, end]`), not every raw point in the query window — closes the "car time before/after the hike inflates elevation gain" gap. Distance/duration were already `is_hike`-scoped from CARD-0101; this was the one remaining unscoped stat.
+3. `components/hike-izer/build_calendar_index.py` — `META_RE` now recognizes the `<date>-N` naming; `scan_summaries()` returns a list of hike numbers per day instead of a single bool; a day with more than one hike renders the day number linking to hike #1 plus a small sibling link per additional hike (never nested `<a>` tags — confirmed invalid HTML and avoided).
+4. `.claude/skills/hike-izer/SKILL.md` — "Core model" section rewritten from "a hiking event is a single calendar day" to "a hiking event is a detected hike session" for consistency with the automatic path; documents the same `<date>`/`<date>-2` naming convention for the interactive flow (which still queries by full day — no webhook-precise session to narrow to — but must not merge multiple real sessions found within one day into a single summary either).
+
+**Verified 2026-07-29, no regressions:**
+- `_session_query_window()` against the real July 29 payload produces a ~50-minute window (10:57:58Z–11:47:44Z) instead of the previous ~24-hour one, correctly derived from `startedtimestamp`/`local_datetime`.
+- `_next_file_stem()` tested against a temp directory: empty → `2026-07-29`, one existing → `2026-07-29-2`, two existing → `2026-07-29-3`.
+- `_rows_in_hike_sessions()` re-run against the real July 29 `hike_data.json`: identical `altitude_ft` result (`min 604 / max 651 / gain 47`) before and after scoping, since that day's whole query window already belonged to the one confirmed session — confirms the fix is a no-op in the already-correct case and only changes behavior when non-hike points are actually present.
+- `build_calendar_index.py` tested against synthetic two-hike-same-day data: both links render correctly, confirmed no nested-anchor HTML.
+
+**Deployed 2026-07-29 08:18 MST** — `generation.py`, `fetch_hike_data.py`, `build_calendar_index.py`, and `SKILL.md` copied into the orchestrator's build context on the M8, image rebuilt and container recreated, confirmed healthy.
+
+**Still needed before Done:** real-world validation against an actual multi-hike day and an actual session-narrowed automatic trigger (unit/synthetic tests above cover the logic, but neither the narrowed query window nor the multi-file naming has fired on a genuine live hike yet). Stays in Build until that happens.
+
+**Related:** CARD-0111 (Done — the investigation that surfaced this), CARD-0112 (Planning — sequenced to follow this card), CARD-0086 (automatic triggering; the webhook payload this reads `startedtimestamp`/`duration` from), CARD-0101/CARD-0100 (existing session-detection/classification logic this builds on, doesn't replace), `components/hike-izer/fetch_hike_data.py`, `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/templating.py`, `components/hike-izer/build_calendar_index.py`.
 
 ---
 

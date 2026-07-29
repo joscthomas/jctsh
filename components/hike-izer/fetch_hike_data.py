@@ -161,6 +161,26 @@ def m_to_ft(meters):
 # throughout Hike-izer's output, per Joseph's call -- meters isn't reported.
 # ---------------------------------------------------------------------------
 
+def _rows_in_hike_sessions(rows, sessions):
+    """CARD-0113: rows (GPS or otherwise) whose timestamp falls within any
+    is_hike session's own [start, end] window -- lets a stat be scoped to
+    the confirmed hike itself rather than the full query window, which can
+    include non-hike time. Falls back to returning every row unchanged if
+    there are no is_hike sessions (caller is expected to only invoke this
+    when hike_confirmed is true)."""
+    windows = [(parse_ts(s['start']), parse_ts(s['end'])) for s in sessions if s['is_hike']]
+    if not windows:
+        return rows
+    result = []
+    for r in rows:
+        ts = parse_ts(r.get('timestamp'))
+        if ts is None:
+            continue
+        if any(start <= ts <= end for start, end in windows):
+            result.append(r)
+    return result
+
+
 def compute_stats(env_rows, gps_rows):
     def rng(rows, key):
         vals = [to_float(r.get(key)) for r in rows]
@@ -629,7 +649,16 @@ def main():
             'daylight': elevation > 0,
         })
 
-    stats = compute_stats(env_rows, gps_rows)
+    # CARD-0113: altitude/elevation-gain scoped to the confirmed hike
+    # session's own points, not every GPS row in the query window -- the
+    # window can include non-hike time (e.g. sitting in a car before/after
+    # a session-narrowed automatic trigger), which would otherwise inflate
+    # the reported elevation gain with points that aren't part of the hike.
+    altitude_gps_rows = (
+        _rows_in_hike_sessions(gps_rows, coverage['gps_track']['sessions'])
+        if coverage['gps_track']['hike_confirmed'] else gps_rows
+    )
+    stats = compute_stats(env_rows, altitude_gps_rows)
     # Sun elevation range + start/end compass direction, for the Data Summary
     # table (CARD-0109) -- moved out of narrative prose, same treatment as
     # every other measured range (temp, humidity, elevation). sun_samples is

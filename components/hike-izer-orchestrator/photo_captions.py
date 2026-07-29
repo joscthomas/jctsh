@@ -16,6 +16,7 @@ quality at ~24% lower cost.
 """
 
 import base64
+import json
 import os
 import sys
 
@@ -79,7 +80,17 @@ def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None):
     raw text transcribed from a sign/plaque in the photo, captured for
     CARD-0108's later search step) to each image asset in photos_manifest
     (mutates and returns it). Videos are skipped -- this is a still-image
-    task."""
+    task.
+
+    CARD-0117: also writes the captioned manifest back to
+    <photos_dir>/manifest.json, overwriting fetch_hike_photos.py's original
+    caption-less version. Previously captions only ever existed in memory
+    for the one render call that immediately followed -- found live
+    2026-07-29 when a page got re-rendered (to fix an unrelated bug) from
+    the on-disk manifest and silently lost real, already-paid-for captions,
+    since the file on disk had never actually held them. Persisting here
+    means any future re-render reads the real thing instead of a stale
+    caption-less copy."""
     if not photos_manifest or not photos_manifest.get("assets"):
         return photos_manifest
 
@@ -98,4 +109,15 @@ def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None):
             print(f"Caption failed for {asset['thumb']}: {e}", file=sys.stderr)
             asset["caption"] = ""
             asset["sign_text"] = ""
+
+    try:
+        manifest_path = os.path.join(photos_dir, "manifest.json")
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(photos_manifest, f, indent=2)
+    except OSError as e:
+        # Captions still render on this run either way (they're already in
+        # the in-memory manifest returned below) -- a write failure here
+        # only risks a future re-render missing them, not this one.
+        print(f"Failed to persist captioned manifest to {manifest_path}: {e}", file=sys.stderr)
+
     return photos_manifest

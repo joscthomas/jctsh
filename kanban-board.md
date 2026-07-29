@@ -636,7 +636,9 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 3. Real hike with a brief 2-min jog burst mid-hike: stays one unsplit `is_hike: true` entry — the burst is correctly too short to trigger truncation.
 4. **The real July 29 trace:** splits into a 129.3-min/270-point walking session (2.48 mi) and an 8.3-min/17-point rejected trailing block, explicitly reasoned as "sustained non-walking pace detected... e.g. driving after the hike ended." 2.48 mi lines up closely with Gaia's 2.3 mi (the small residual gap is normal cross-app GPS variance, not a bug) — a dramatic improvement over the original 3.8 mi.
 
-**Deployed 2026-07-29 15:23 MST** to the M8's orchestrator; not yet re-published to the live `2026-07-29-2_hike-summary.html` page (that page still shows the old, uncorrected 3.8 mi) — offered to Joseph as a same-pattern zero-narrative-cost mechanical re-render, matching how CARD-0111's July 29 page fix was applied.
+**Deployed 2026-07-29 15:23 MST** to the M8's orchestrator.
+
+**Live page corrected 2026-07-29 15:46 MST, Joseph's call.** Initially left the already-published `2026-07-29-2_hike-summary.html` untouched (same reasoning as CARD-0101's own record-preservation instinct), but Joseph asked directly for the distance to be fixed. Re-fetched the real GPS Track data fresh through the now-corrected pipeline and re-rendered (existing narrative/photos reused, zero additional API cost) — live page now correctly shows **2.5 mi** (was 3.8 mi) and **2h 9m** (was 2h 18m, also now correctly excluding the drive time, not just distance).
 
 **Related:** CARD-0100 (Done — the mirror-image false-trigger case, raised same session), CARD-0113 (Done — the session-scoped generation whose real second-hike test surfaced this), `components/hike-izer/fetch_hike_data.py` (`_gps_sessions`/`_classify_hike`/`_truncate_trailing_fast_activity`/`_build_session_entry`).
 

@@ -35,6 +35,7 @@ import calendar
 import json
 import re
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # CARD-0113: a day can now produce more than one hike-summary -- the first
@@ -180,21 +181,28 @@ _STYLE = """
     background: var(--accent);
     color: var(--accent-ink);
     box-shadow: var(--shadow);
-    gap: 0.15rem;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.25rem 0.1rem;
   }
-  .cal-day-num, .cal-day-extra {
+  .cal-day-num {
+    font-weight: 700;
+    line-height: 1;
+  }
+  /* CARD-0118: every hike that day (including the first) gets its own
+     stacked link below the day number, labeled with its local start time --
+     replaces the old day-number-is-hike-1 / tiny-corner-number scheme.
+     CSS Grid rows auto-size to their tallest cell, so a multi-hike day only
+     grows the one week it's in. */
+  .cal-day-hike {
+    font-size: 0.55rem;
+    line-height: 1.3;
     color: var(--accent-ink);
     text-decoration: none;
-    font-weight: 700;
+    font-weight: 600;
+    white-space: nowrap;
   }
-  /* CARD-0113: a second (or third) same-day hike gets a small extra link
-     next to the day number -- never nested inside it, <a> inside <a> is
-     invalid HTML. */
-  .cal-day-extra {
-    font-size: 0.6rem;
-    align-self: flex-start;
-    margin-top: 0.15rem;
-  }
+  .cal-day-hike:hover { text-decoration: underline; }
   .cal-day--logged:hover { filter: brightness(1.08); }
 
   footer {
@@ -207,12 +215,33 @@ _STYLE = """
 """.strip("\n")
 
 
+def _format_time_compact(start_ts, offset_str):
+    """CARD-0118: '7:07a' / '12:31p' style local time label for a hike's
+    calendar-cell link. Returns None if either input is missing/unparseable
+    (e.g. a meta.json written before this card existed) -- callers fall back
+    to a plain hike-number label in that case."""
+    if not start_ts or not offset_str:
+        return None
+    try:
+        sign = 1 if offset_str[0] == "+" else -1
+        hh, mm = offset_str[1:].split(":")
+        offset_delta = timedelta(hours=sign * int(hh), minutes=sign * int(mm))
+        dt = datetime.fromisoformat(start_ts.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local = dt.astimezone(timezone.utc) + offset_delta
+    except (ValueError, IndexError):
+        return None
+    hour12 = local.hour % 12 or 12
+    return f"{hour12}:{local.minute:02d}{'a' if local.hour < 12 else 'p'}"
+
+
 def scan_summaries(srv_dir):
-    """Returns {(year, month, day): [hike numbers found, e.g. [1] or [1, 2]]},
-    one list entry per <date>[-N]_hike-summary.meta.json found directly in
-    srv_dir (CARD-0113: a day can produce more than one). hike_confirmed
-    itself is read but no longer drives calendar styling (CARD-0105) --
-    every entry here renders the same way regardless."""
+    """Returns {(year, month, day): [(hike number, compact local start time
+    label or None), ...]}, one list entry per <date>[-N]_hike-summary.meta.json
+    found directly in srv_dir (CARD-0113: a day can produce more than one).
+    hike_confirmed itself is read but no longer drives calendar styling
+    (CARD-0105) -- every entry here renders the same way regardless."""
     entries = {}
     for p in Path(srv_dir).glob("*_hike-summary.meta.json"):
         m = META_RE.match(p.name)
@@ -221,12 +250,13 @@ def scan_summaries(srv_dir):
         y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
         hike_num = int(m.group(4)) if m.group(4) else 1
         try:
-            json.loads(p.read_text(encoding="utf-8"))
+            meta = json.loads(p.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             continue
-        entries.setdefault((y, mo, d), []).append(hike_num)
+        label = _format_time_compact(meta.get("start_ts"), meta.get("offset_str"))
+        entries.setdefault((y, mo, d), []).append((hike_num, label))
     for key in entries:
-        entries[key].sort()
+        entries[key].sort(key=lambda t: t[0])
     return entries
 
 
@@ -241,20 +271,22 @@ def _render_calendar_grid(year, month, days_with_entries):
 
     cells = ['<div class="cal-day cal-day--empty"></div>' for _ in range(first_weekday_sun0)]
     for day in range(1, num_days + 1):
-        hike_nums = days_with_entries.get(day)
-        if hike_nums:
+        hikes = days_with_entries.get(day)
+        if hikes:
             date_str = f"{year:04d}-{month:02d}-{day:02d}"
-            # CARD-0113: the day number always links to hike #1; any further
-            # same-day hike gets its own small sibling link (never nested --
-            # <a> inside <a> is invalid HTML) in the same cell (2-3 hikes in
-            # a day is the realistic ceiling, so this stays readable at the
-            # cell's small size without a redesign).
-            main_link = f'<a class="cal-day-num" href="{date_str}_hike-summary.html">{day}</a>'
-            extra_links = "".join(
-                f'<a class="cal-day-extra" href="{date_str}-{n}_hike-summary.html">{n}</a>'
-                for n in hike_nums[1:]
+            # CARD-0118: day number is a plain label (not a link); every
+            # hike that day -- including the first -- gets its own stacked
+            # link below it, labeled with its local start time. Uniform
+            # across 1-hike and multi-hike days, rather than special-casing
+            # hike #1 vs. later ones (CARD-0113's original scheme).
+            hike_links = "".join(
+                f'<a class="cal-day-hike" href="{date_str}{"" if n == 1 else f"-{n}"}_hike-summary.html">'
+                f'{label or f"#{n}"}</a>'
+                for n, label in hikes
             )
-            cells.append(f'<div class="cal-day cal-day--logged">{main_link}{extra_links}</div>')
+            cells.append(
+                f'<div class="cal-day cal-day--logged"><span class="cal-day-num">{day}</span>{hike_links}</div>'
+            )
         else:
             cells.append(f'<div class="cal-day cal-day--none">{day}</div>')
 

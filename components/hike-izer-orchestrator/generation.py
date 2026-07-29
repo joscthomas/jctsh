@@ -252,9 +252,13 @@ def run(payload):
     # for any day that isn't a confirmed hike, so this automatic path only
     # ever reaches this point on a real hike. offset_str is carried along so
     # step 2 (run hours/days later, from just a file stem) doesn't need to
-    # re-derive it.
+    # re-derive it. start_ts (CARD-0118) is the earliest confirmed session's
+    # raw UTC start, so build_calendar_index.py can label this hike's
+    # calendar-cell link with its actual local start time.
+    confirmed_sessions = [s for s in hike_data["coverage"]["gps_track"]["sessions"] if s["is_hike"]]
+    start_ts = min((s["start"] for s in confirmed_sessions), default=None)
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.meta.json"), "w", encoding="utf-8") as f:
-        json.dump({"hike_confirmed": True, "offset_str": offset_str}, f)
+        json.dump({"hike_confirmed": True, "offset_str": offset_str, "start_ts": start_ts}, f)
 
     subprocess.run(
         [sys.executable, BUILD_CALENDAR_SCRIPT, "--srv-dir", SRV_DIR],

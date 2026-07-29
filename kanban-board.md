@@ -335,8 +335,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0113 · [bug] [hike-izer] Session-scoped generation — one summary per detected hike, not per calendar day
-**Status:** Build
+### CARD-0113 · [bug] [hike-izer] Session-scoped generation — one summary per detected hike, not per calendar day — RESOLVED 2026-07-29 14:46 MST
+**Status:** Done
 
 **Raised 2026-07-29 06:59 MST**, during CARD-0111's investigation into the July 29 coverage-message wording. Surfaced two real problems with the current "a hiking event is a single calendar day" model (`SKILL.md`'s core model, written for the original interactive Skill flow):
 
@@ -374,6 +374,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 **Deployed 2026-07-29 08:18 MST** — `generation.py`, `fetch_hike_data.py`, `build_calendar_index.py`, and `SKILL.md` copied into the orchestrator's build context on the M8, image rebuilt and container recreated, confirmed healthy.
 
 **Still needed before Done:** real-world validation against an actual multi-hike day and an actual session-narrowed automatic trigger (unit/synthetic tests above cover the logic, but neither the narrowed query window nor the multi-file naming has fired on a genuine live hike yet). Stays in Build until that happens.
+
+**Closing criterion met 2026-07-29, for real, on a genuine second hike.** Joseph hiked twice today — a short morning neighborhood walk (`2026-07-29`) and a real afternoon hike at Frederik Meijer Gardens & Sculpture Park (2h 18m, 3.8 mi, 108 ft gain, 41 photos). The second `stopped` webhook correctly published to `2026-07-29-2_hike-summary.html` — confirmed via the durable MQTT log (`Published hike summary for 2026-07-29-2...`, 11:53:32 MST) and the live page itself — with no merging of the two hikes' stats. This is exactly the untested path this card was waiting on.
+
+**One honest caveat, not a defect in this card's own work:** this second hike's `stopped` event (11:49 MST) fired in the window before CARD-0112's step-1/step-2 split was actually deployed to the M8 (confirmed by reading the container's live `generation.py`, which is correct now — no narrative/place_context call in step 1). So this particular page ran under the old single-shot pipeline (data + narrative + photos all at once, 43 API calls/$1.29, dominated by captioning 41 photos) rather than CARD-0112's data-only-then-enrich flow. That's a one-off artifact of tonight's deploy timing, not a bug in either card — the next automatic hike will exercise both cards' logic together correctly. The narrative itself reads cleanly on inspection, no issues found.
+
+**Related addition:** CARD-0112 (Done — the two-step split this page predates; the timing here is exactly why session-keyed addressing had to land first, per the sequencing decision above).
 
 **Related:** CARD-0111 (Done — the investigation that surfaced this), CARD-0112 (Done — sequenced to follow this card), CARD-0086 (automatic triggering; the webhook payload this reads `startedtimestamp`/`duration` from), CARD-0101/CARD-0100 (existing session-detection/classification logic this builds on, doesn't replace), `components/hike-izer/fetch_hike_data.py`, `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/templating.py`, `components/hike-izer/build_calendar_index.py`.
 

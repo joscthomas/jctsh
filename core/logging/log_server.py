@@ -603,44 +603,52 @@ def _build_status_html():
     return html
 
 
-# ── Kanban board (live-parsed from kanban-board.md, CARD-0057) ──────────────
+# ── Kanban board (live-parsed from kanban-board.md, CARD-0057/CARD-0114) ────
 _KANBAN_COLUMNS = ["Backlog", "Planning", "Build", "Done", "Defer"]
-_KANBAN_COLUMN_RE = re.compile(
-    r"^## (" + "|".join(_KANBAN_COLUMNS) + r")\s*$", re.MULTILINE
-)
 _KANBAN_CARD_RE = re.compile(
     r"^### CARD-(\d{4}) · \[(\w+)\] \[([\w-]+)\] (.+?)\s*$", re.MULTILINE
+)
+# CARD-0114: a card's column now comes from its own '**Status:** X' line,
+# not from physical position under a '## ColumnName' section (that section
+# structure no longer exists in kanban-board.md at all -- every status
+# change used to mean relocating a whole prose block between sections,
+# which is exactly the operation that corrupted this file once already).
+# Anchored to the very start of the card's body (right after its header
+# line) rather than searched anywhere in the body, so a card's own prose
+# could never accidentally produce a false match.
+_KANBAN_STATUS_RE = re.compile(
+    r"\A\n\*\*Status:\*\*\s*(" + "|".join(_KANBAN_COLUMNS) + r")\s*\n"
 )
 
 
 def _parse_kanban_board(text):
     """Parse kanban-board.md into a list of card dicts (id/type/tag/column/
     title/notes/flag). Best-effort: only recognizes the file's established
-    '### CARD-XXXX · [type] [tag] Title' / '## ColumnName' conventions —
-    a card that doesn't match those is silently skipped, not an error."""
-    col_matches = list(_KANBAN_COLUMN_RE.finditer(text))
+    '### CARD-XXXX · [type] [tag] Title' / '**Status:** ColumnName' (CARD-0114)
+    conventions — a card that doesn't match those, or that has no recognizable
+    Status line, is silently skipped, not an error."""
+    card_matches = list(_KANBAN_CARD_RE.finditer(text))
     cards = []
-    for i, cm in enumerate(col_matches):
-        col_name = cm.group(1)
-        start = cm.end()
-        end = col_matches[i + 1].start() if i + 1 < len(col_matches) else len(text)
-        section = text[start:end]
-        card_matches = list(_KANBAN_CARD_RE.finditer(section))
-        for j, m in enumerate(card_matches):
-            cid, ctype, ctag, title = m.group(1), m.group(2), m.group(3), m.group(4)
-            body_start = m.end()
-            body_end = (card_matches[j + 1].start() if j + 1 < len(card_matches)
-                        else len(section))
-            body = section[body_start:body_end]
-            body = re.sub(r"(?m)^---\s*$", "", body).strip()
-            body = re.sub(r"^\*\*Notes:\*\*\s*", "", body)
-            card = {
-                "id": cid, "type": ctype, "tag": ctag,
-                "column": col_name, "title": title.strip(), "notes": body,
-            }
-            if re.search(r"(?m)^\*\*Blocked", body):
-                card["flag"] = "blocked"
-            cards.append(card)
+    for j, m in enumerate(card_matches):
+        cid, ctype, ctag, title = m.group(1), m.group(2), m.group(3), m.group(4)
+        body_start = m.end()
+        body_end = (card_matches[j + 1].start() if j + 1 < len(card_matches)
+                    else len(text))
+        body = text[body_start:body_end]
+        status_m = _KANBAN_STATUS_RE.match(body)
+        if not status_m:
+            continue
+        col_name = status_m.group(1)
+        body = body[status_m.end():]
+        body = re.sub(r"(?m)^---\s*$", "", body).strip()
+        body = re.sub(r"^\*\*Notes:\*\*\s*", "", body)
+        card = {
+            "id": cid, "type": ctype, "tag": ctag,
+            "column": col_name, "title": title.strip(), "notes": body,
+        }
+        if re.search(r"(?m)^\*\*Blocked", body):
+            card["flag"] = "blocked"
+        cards.append(card)
     return cards
 
 

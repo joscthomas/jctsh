@@ -9,13 +9,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
----
-
-## Backlog
+<!-- next-card-id: CARD-0115 -->
 
 ---
 
 ### CARD-0110 · [idea] [hike-izer] Hiking stats — elevation graph, elevation summary, speed graph, other stats
+**Status:** Backlog
 
 **Raised 2026-07-28**, distinct from CARD-0082 (route map + elevation profile, Gaia-GPS-style): this card is about the numeric/chart stats layer — no basemap, no route visualization, purely derived from data hike-izer's GPS Track already has.
 
@@ -33,11 +32,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Build-vs-embed decision, not yet made:** CARD-0104 chose to embed Gaia GPS's own map/track view directly rather than building a custom route renderer, since Joseph already uses Gaia on every hike and Gaia's real widget is "authentically Gaia-GPS-style" for free. The same trade-off applies here, arguably more directly — Gaia is already computing and rendering exactly this chart and these stats today, per the reference screenshot. Worth evaluating the same lighter-weight "embed it" path before committing to a from-scratch native chart, though CARD-0104 already flagged that Gaia's embed requires Joseph to manually mark the track Public and copy embed code each time — not automatable — so a native render (zero-JS, matching this project's convention elsewhere) may still win out for the automatic (CARD-0086) pipeline path even if embedding is used for the interactive/manual path.
 
-**Related:** CARD-0082 (Backlog — route map + elevation profile, the visual/map-focused sibling of this stats-focused card, same underlying GPS Track data source), CARD-0104 (Backlog — the Gaia-embed precedent and its "not automatable" caveat), CARD-0109 (Done — removed the old single Elevation Range row from Data Summary, freeing that space for this card's richer stats), `components/hike-izer/fetch_hike_data.py`.
+**Related:** CARD-0082 (route map + elevation profile, the visual/map-focused sibling of this stats-focused card, same underlying GPS Track data source), CARD-0104 (the Gaia-embed precedent and its "not automatable" caveat), CARD-0109 (removed the old single Elevation Range row from Data Summary, freeing that space for this card's richer stats), `components/hike-izer/fetch_hike_data.py`.
 
 ---
 
 ### CARD-0103 · [idea] [personal] Migrate 3 legacy Google Sites pages (Cochie Springs hike, Mustang, Karli's Summer) to the M8 webserver — low priority
+**Status:** Backlog
 
 **Raised 2026-07-27**, during CARD-0093 (DNS cleanup). CARD-0093's original plan let `jctnet.com`'s Google Sites content go entirely (Joseph had called it unimportant), but revisiting surfaced that 3 specific pages are still wanted — dropping the `www` CNAME and `google-site-verification` TXT as part of CARD-0093 will break their reachability at `jctnet.com`/`www.jctnet.com`, even though the underlying Google Sites content itself isn't deleted by a DNS change (it stays live at its own `sites.google.com` URL, just unmapped from the custom domain).
 
@@ -55,6 +55,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0096 · [enhancement] [infrastructure] Rename photo-server → jct-server and raspberrypi → jct-hub, adopt a real host-naming convention
+**Status:** Backlog
+
 **Sequencing update 2026-07-27: CARD-0094 landed** — hike-izer-web's public URL is now `hikes.jctnet.com` via Cloudflare Tunnel, no longer tied to the Tailscale hostname at all, so the original reason to sequence this rename *after* CARD-0094 (avoiding changing the public URL twice) no longer applies — a rename now wouldn't touch the public URL either way. Still not picked up, just no longer blocked/sequenced by anything. The Tailscale hostname (`photo-server.tailfe828a.ts.net`) touch-point below is accordingly lower-stakes than originally noted (it's admin/SSH access only now, not a live public dependency) — kept for completeness since Tailscale device identity still matters for remote access regardless.
 
 **Notes:** Raised 2026-07-24. Motivation: both hosts' current names describe something true only at setup time, not their stable role, and both have already drifted —
@@ -88,6 +90,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0095 · [enhancement] [photo-server] M8 OS/firmware maintenance backlog
+**Status:** Backlog
+
 **Notes:** Raised 2026-07-24, surfaced via the SSH login MOTD while working on CARD-0088. Four separate items, none acted on yet — all deserve deliberate, scheduled handling rather than an ad hoc mid-task fix, since this host runs live production services (Immich, NetAlertX, hike-izer-web):
 
 1. **23 apt package updates pending** — `apt list --upgradable` for the list. Routine, but should be reviewed before blindly applying (check for anything touching Docker/kernel specifically).
@@ -100,6 +104,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0085 · [idea] [hike-izer] Hiker's own compass/heading
+**Status:** Backlog
+
 **Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature. Real gap, not just missing analysis: v1 only computes the *sun's* compass direction from pure astronomy — nothing currently captures which way the hiker was actually facing at any point on the route. Needs new instrumentation (e.g. a magnetometer/compass sensor added to the hiking-monitor hardware) or a different data source entirely — this is likely a hardware-scope card, not a pure software one, and may tie into hiking-monitor's own build cards once scoped.
 
 **Blocking dependency (carried over from CARD-0074):** needs a fresh, confirmed-good real hiking dataset to build and verify against — hiking-monitor device must be back in confirmed-working rotation first (see CARD-0084 for the same note).
@@ -109,6 +115,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0082 · [idea] [hike-izer] Visual track + elevation graphic, Gaia-GPS-style
+**Status:** Backlog
+
 **Sequencing update 2026-07-28:** Joseph is trying **CARD-0104** (embedding Gaia GPS's own track view directly, since he already uses Gaia on every hike) first — much less engineering than this card's from-scratch render. This card stays available as the heavier fallback: fully automatable and self-contained (no dependency on Gaia's servers/account staying available), if CARD-0104's embed approach doesn't pan out or a fully-automatic/self-hosted version is wanted later. Not blocked, not deferred indefinitely — just not next.
 
 **Notes:** Raised 2026-07-23. Add a visual graphic depicting the hike route and elevation profile, in the style of Gaia GPS's track view — route line plotted over a real topo/satellite basemap, paired with a distance-vs-elevation chart. This card owns the embedded-visuals and interactive-hover-sync work directly (CARD-0088, once scoped as an intermediary "embedded visuals" level, was narrowed 2026-07-24 to just HTML hosting after realizing it was pure duplicate scope of this card) — this is its own standalone artifact so it can potentially be embedded as a static image in the *current* Markdown output too, not gated on any other card's work landing first. (Note: the Markdown-output reference predates CARD-0091, 2026-07-28 — HTML is now the sole output format; this card's static-image level would embed there instead.)
@@ -127,11 +135,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Data source:** existing GPS track pipeline (GPSLogger → GPS Track sheet, already wired into `components/hike-izer/fetch_hike_data.py`) — no new data collection needed, this is purely a new rendering of data hike-izer already has.
 
-**Related:** CARD-0104 (Backlog — the lighter Gaia-embed alternative being tried first), CARD-0081 (HTML rendering, Levels 1-2, Done — established the HTML output this eventually embeds into), CARD-0088 (HTML output hosting — separate, unrelated to this card's scope now), CARD-0084 (Photos, Done — unblocks the photo-marker case of Level 3), CARD-0080 (Bird ID — confirmed marker case of Level 3), CARD-0073 (Hike-izer v1, Done), `components/hike-izer/fetch_hike_data.py`.
+**Related:** CARD-0104 (the lighter Gaia-embed alternative being tried first), CARD-0081 (HTML rendering, Levels 1-2, Done — established the HTML output this eventually embeds into), CARD-0088 (HTML output hosting — separate, unrelated to this card's scope now), CARD-0084 (Photos, Done — unblocks the photo-marker case of Level 3), CARD-0080 (Bird ID — confirmed marker case of Level 3), CARD-0073 (Hike-izer v1, Done), `components/hike-izer/fetch_hike_data.py`.
 
 ---
 
 ### CARD-0058 · [idea] [presence] BLE room-detection for the Pixel 7 via Bermuda
+**Status:** Backlog
+
 **Notes:** Raised 2026-07-12. Goal: know which room the Pixel 7 is in (`sensor.pixel7_room` in HA) using BLE signal strength from ESPHome nodes already deployed around the house — no new hardware, no dedicated firmware.
 
 **How it works:** each stationary ESPHome node runs an ESPHome `bluetooth_proxy:` component, listening for the phone's BLE advertisements and reporting RSSI to Home Assistant. The **Bermuda** integration (HACS) compares RSSI across all proxies and picks the strongest as the phone's room. Candidate proxy nodes (already deployed, just need `bluetooth_proxy:` added to their YAML): `front-porch-temp-sensor`, `garage-radar`, `salt-sensor`, and `remote-temp-sensor-01` once built (CARD-0044) — needs an ESP32 variant with BLE (the project's standard ESP32 DevKitC-32 qualifies; ESP8266 and ESP32-S2 nodes don't).
@@ -147,6 +157,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0055 · [bug] [garage-presence] Reconcile garage-radar/SmartThings light control — lights sometimes don't turn on
+**Status:** Backlog
+
 **Notes:** Joseph reports lights sometimes don't come on when entering the garage. Found during a components-vs-backlog reconciliation pass (2026-07-11): the repo fully documents the "presence off" SmartThings routine (closes door, turns off lights — `garage-presence/CLAUDE.md`) but has **no documentation anywhere of the "presence on" routine** presumably responsible for turning lights on when `switch.garage_presence_vswitch` turns on. `garage-radar/README.md` and `garage-presence/README.md` both reference "lights on" only as an outcome label on the vswitch, never as a documented ST routine with its own trigger/conditions — it exists only inside the SmartThings app, unaudited.
 
 **Known chain (from `garage-radar/integration-notes.md`):** LD2412 radar → `binary_sensor.garage_radar_presence` (30s `delayed_off` filter) → triggers HA's "Garage Presence - Restart timer on activity" automation → starts `timer.garage_presence_timer` and turns on `switch.garage_presence_vswitch` → HA is the sole owner of the vswitch state (SmartThings routines must not set it directly, since ST→HA sync is documented unreliable for other sensors — `garage-presence/CLAUDE.md`) → SmartThings observes the vswitch turning on and is presumed to fire a "lights on" routine, which is undocumented and unverified.
@@ -161,6 +173,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0045 · [bug] [hiking-monitor] `wifi.ap:` fallback may prevent `reboot_timeout` from working
+**Status:** Backlog
+
 **Notes:** Found 2026-07-09 while researching a timeout decision for air-quality-monitor (which follows hiking-monitor's firmware pattern). `hiking-monitor.yaml`'s `wifi:` block has no explicit `reboot_timeout` override, so it relies on ESPHome's default (15 minutes before rebooting on failed WiFi connection). However, ESPHome's own issue tracker (esphome/issues#7222) documents that `reboot_timeout` does not apply when a `wifi.ap:` fallback block is configured — and hiking-monitor's config does have one (`ap: ssid: "hiking-monitor-fallback"`). So the 15-minute default may not actually be functioning as designed on the currently-deployed device.
 
 **Priority: low.** Hiking-monitor's upload/home mode requires USB dock power to stay awake (same architecture as air-quality-monitor's charging-based home mode) — if the bug does prevent the reboot from firing, the device would get stuck awake trying to reconnect, but on USB power, not draining battery. No confirmed real-world failure — CARD-0008's actual field test (2026-06-17 camping trip) succeeded without issue. Worst case is a minor operational annoyance (stuck device needing a physical USB reflash to recover), not data loss or a safety risk.
@@ -170,11 +184,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0038 · [idea] [garage-entry-hallway] Direction-of-travel sensor for hallway to garage entry door
+**Status:** Backlog
+
 **Notes:** Detect which direction a person is walking through the hallway leading to the garage entry door (coming in from the garage vs. heading out to it) — e.g. for automations like arming/disarming, lighting, or logging comings and goings. Discussed 2026-07-09: single HLK-LD2412 mmWave radar (already proven in `components/garage-radar/garage-radar.yaml`) recommended over a two-JSN-SR04T ultrasonic beam-gate — direction derived from the `moving_distance` trend (falling = approaching, rising = receding) via ESPHome's native `ld2412` component, rather than needing two sensors racing to trigger first. Two JSN-SR04T-V3.0 units already in inventory (Bag 30) but better reserved for a point-distance use case (e.g. tank level) rather than this one. No planning doc yet — not started.
 
 ---
 
 ### CARD-0031 · [bug] [p-w-firefly] Fix coachproxyos heartbeat's same publish/disconnect race condition
+**Status:** Backlog
+
 **Notes:** While debugging false "photo-server silent for 35 minutes" watchdog alerts (2026-07-06), found the root cause: `photo-server-heartbeat.py` published its `/log` and `/heartbeat` MQTT messages (QoS 1) back-to-back then called `client.disconnect()` immediately without running the network loop — occasionally the second publish's packet hadn't fully flushed before the socket closed, silently dropping the `/heartbeat` message while `/log` (published first) always got through. Fixed in photo-server's script via `client.loop_start()` + `wait_for_publish(timeout=5)` on both messages before `loop_stop()`/`disconnect()`. See `components/photo-server/heartbeat.md` for full root-cause writeup.
 
 `components/p-w-firefly/jctsh-heartbeat.py` (coachproxyos, the RV Pi) uses the identical publish-then-disconnect pattern and almost certainly has the same latent bug — just less noticeable since a stray "coachproxyos silent" alert is easy to dismiss for a device that's expected to roam in and out of Tailscale range. Apply the same fix: `loop_start()` → publish both → `wait_for_publish()` on both → `loop_stop()` → `disconnect()`.
@@ -186,6 +204,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0028 · [idea] [photo-server] Automated post-import quality scan (blur/duplicate detection)
+**Status:** Backlog
+
 **Notes:** Decided during photo-server migration (2026-07-04) to skip a manual pre-import quality pass entirely — importing everything as-is and relying on Immich's built-in duplicate detection (CLIP-embedding-based visual similarity, not just byte-hash) plus an ongoing "favorites" curation habit over time. This card captures the option to add an *automated* (no manual photo review) quality pass later, run after the Immich import so you can see real results first before deciding if it's worth doing.
 
 **Tools considered (all scriptable, no manual visual review required):**
@@ -204,6 +224,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0025 · [enhancement] [hiking-monitor] Test retired LiPo battery — good or bad?
+**Status:** Backlog
+
 **Notes:** The hiking-monitor's original LiPo battery failed in the field (2026-07-03) with no advance warning and was replaced from spare stock (2 EEMB 603449 cells remain in Bag 7). Before permanently retiring/recycling the original cell, run this test to determine whether it's actually damaged or just tripped its built-in PCM protection circuit (which would reset after a proper recharge).
 
 **Tier 1 — recharge-and-rest check:**
@@ -227,11 +249,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0024 · [enhancement] [p-w-firefly] Coachproxy remote health monitoring
+**Status:** Backlog
+
 **Notes:** The coachproxy heartbeat (every 30 min via Tailscale) confirms the RV Pi and Tailscale link are alive, but it can't distinguish between "Pi is powered off" vs "Tailscale is down" vs "RV is in a dead zone." A more useful health check would poll the Tailscale status directly from the home Pi: `tailscale ping 100.90.246.43` or checking the Tailscale admin API for last-seen timestamp. This gives richer diagnostic output (latency, path) without depending on the RV Pi to actively publish. Implement as a scheduled script on the home Pi that posts results to the log dashboard. Alternative: use Tailscale's built-in status API at `localhost:41112` on the home Pi to check peer state without any external requests.
 
 ---
 
 ### CARD-0005 · [enhancement] [p-w-firefly] Overlay filesystem
+**Status:** Backlog
+
 **Notes:** The Pi in the RV runs continuously, accumulating writes from logs, Tailscale state, and OS housekeeping — SD cards have a finite write cycle life and will eventually fail silently. An overlay filesystem makes the SD card effectively read-only during normal operation: all writes go to RAM, the card is only written during a deliberate shutdown sequence.
 
 **Tailscale complication:** Tailscale stores its node identity and keys in `/var/lib/tailscale/`. If that directory is in the overlay (RAM-only), Tailscale loses its identity on every reboot and needs to re-authenticate. Fix: a persistent bind mount (small USB stick or dedicated partition) mapped to `/var/lib/tailscale/` so it survives reboots.
@@ -244,6 +270,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 
 ### CARD-0019 · [idea] [vu-meter] Home theater VU meters
+**Status:** Backlog
+
 **Notes:** VU meter displays for home theater speakers — Left, Right, Center, Subwoofer (4 channels). Circuit to be breadboarded first to validate the analog front end before any JCTsh integration work begins.
 
 **Hardware:**
@@ -283,11 +311,32 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 
-## Planning
+### CARD-0114 · [enhancement] [kanban-board] Status field per card, replacing physical column position
+**Status:** Build
+
+**Raised 2026-07-29 07:59 MST**, after tonight's CARD-0106/0108/0104 move to Done briefly corrupted a large stretch of `kanban-board.md` — a script assumed a fixed line-offset for the insertion point instead of a real content marker, and a second recovery attempt made the same mistake in reverse (discarding everything before a search anchor). Both were caught and repaired, but the underlying problem is structural: a card's column is encoded as *physical location in a 2000+ line file*, so every status change requires relocating a whole prose block — exactly the operation that's error-prone for both a script and a human eyeballing large diffs.
+
+**Confirmed via discussion:** Joseph never reads `kanban-board.md`'s raw file directly — he only ever views it through the live-parsing Pi page (CARD-0057, `/kanban`). So raw-file top-to-bottom column grouping has no reader-facing value; it only exists for whoever (or whatever) parses the file, and is the thing actually causing the risk.
+
+**Decided approach:**
+1. **Add `**Status:** <Column>` as a line directly under every card's header**, values being exactly the 5 existing column names (Backlog, Planning, Build, Done, Defer). This becomes the single source of truth for a card's state.
+2. **Remove the `## ColumnName` section headers from `kanban-board.md` entirely** — once status lives on the card itself, physical position is redundant and risks disagreeing with the real status field. Cards become one flat, append-only list.
+3. **Never physically relocate a card block again.** Moving a card between columns becomes a one-line edit to its `**Status:**` field. New cards get appended to the end of the file; existing cards are never moved once written.
+4. **Drop the stale status word from cross-references.** Lines like "CARD-0104 (Backlog — the Gaia-embed precedent...)" go stale the moment the referenced card's status changes, and hunting these down by hand after every move is its own recurring chore (done 3 times tonight alone). Change the convention to omit the status word — just "CARD-0104 (the Gaia-embed precedent...)".
+5. **Add a `<!-- next-card-id: CARD-XXXX -->` marker near the top of the file**, so creating a new card never requires grepping for the current highest ID.
+
+**Required dependency, found while scoping this:** `core/logging/log_server.py`'s `_parse_kanban_board()` (the Pi's live `/kanban` page, CARD-0057) currently finds a card's column by locating physical `## ColumnName` section boundaries via `_KANBAN_COLUMN_RE` — removing those headers would break it outright (zero columns found). Must be updated in the same change to instead read each card's `**Status:**` line, and redeployed to the Pi, or the live board goes dark.
+
+**Explicitly out of scope, considered and rejected:** splitting into one file per card (would also solve the relocation-risk problem, but breaks the single-file `kanban-board.md` convention referenced throughout the repo and CARD-0057's parser far more invasively, for no benefit beyond what the status-field change already achieves).
+
+**Done when:** every existing card carries a `**Status:**` line matching its current column, the `## ColumnName` headers are gone, `log_server.py`'s parser is updated and redeployed to the Pi with the live `/kanban` page confirmed still grouping cards correctly, stale status words are stripped from cross-references, and the next-card-id marker is in place.
+
+**Related:** CARD-0057 (the Pi-hosted live parser this depends on and must update), CARD-0056 (original persistent-board effort, superseded by CARD-0057's dynamic fetch), CARD-0111 (the card-move work that surfaced this problem).
 
 ---
 
 ### CARD-0113 · [bug] [hike-izer] Session-scoped generation — one summary per detected hike, not per calendar day
+**Status:** Planning
 
 **Raised 2026-07-29 06:59 MST**, during CARD-0111's investigation into the July 29 coverage-message wording. Surfaced two real problems with the current "a hiking event is a single calendar day" model (`SKILL.md`'s core model, written for the original interactive Skill flow):
 
@@ -306,13 +355,14 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 4. `build_calendar_index.py` currently assumes one page per day; needs to link to multiple pages on a day that has more than one.
 5. Once queries are session-scoped, the "window extends into the future" coverage-truncation note (CARD-0111) shrinks to near-negligible magnitude — revisit whether it's still worth showing at all, especially once CARD-0112's step 1/step 2 model makes "incomplete on purpose" a first-class, expected part of the page rather than something to caveat inline.
 
-**Sequencing, decided 2026-07-29:** build this **before** CARD-0112 (Planning — two-step generation redesign), not in parallel and not combined into one change. CARD-0112's staging-directory design and its "regenerate the rich version of `<date>`" conversational trigger phrase need to be built against the *corrected* session-keyed addressing scheme from the start — building 112 first against today's date-only keys would mean reworking its addressing scheme the moment this card lands. Keeping them as separate cards also keeps each independently testable, matching how every other card in this project has been scoped.
+**Sequencing, decided 2026-07-29:** build this **before** CARD-0112 (two-step generation redesign), not in parallel and not combined into one change. CARD-0112's staging-directory design and its "regenerate the rich version of `<date>`" conversational trigger phrase need to be built against the *corrected* session-keyed addressing scheme from the start — building 112 first against today's date-only keys would mean reworking its addressing scheme the moment this card lands. Keeping them as separate cards also keeps each independently testable, matching how every other card in this project has been scoped.
 
-**Related:** CARD-0111 (Build — the investigation that surfaced this), CARD-0112 (Planning — sequenced to follow this card), CARD-0086 (Done — automatic triggering; the webhook payload this reads `startedtimestamp`/`duration` from), CARD-0101/CARD-0100 (Done — existing session-detection/classification logic this builds on, doesn't replace), `components/hike-izer/fetch_hike_data.py`, `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/templating.py`, `components/hike-izer/build_calendar_index.py`.
+**Related:** CARD-0111 (the investigation that surfaced this), CARD-0112 (sequenced to follow this card), CARD-0086 (automatic triggering; the webhook payload this reads `startedtimestamp`/`duration` from), CARD-0101/CARD-0100 (existing session-detection/classification logic this builds on, doesn't replace), `components/hike-izer/fetch_hike_data.py`, `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/templating.py`, `components/hike-izer/build_calendar_index.py`.
 
 ---
 
 ### CARD-0112 · [enhancement] [hike-izer] Two-step generation — automatic data-only publish, then manually-triggered enrichment + narrative
+**Status:** Planning
 
 **Raised 2026-07-29 06:31 MST**, during CARD-0111's investigation into the July 29 hike's missing photos. That investigation (SSH into the M8, direct Immich API query) confirmed the root cause isn't a code defect: Immich's Android background sync is documented as unreliable (multiple open Immich GitHub issues) — uploads only actually happen when the Immich app is opened/foregrounded, not on any predictable schedule or WiFi-arrival trigger. All 7 of that day's photos landed in Immich within the same ~12-second burst, regardless of when each was taken, confirming a single app-open event, not a rolling background upload.
 
@@ -345,11 +395,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Sequencing, decided 2026-07-29: blocked behind CARD-0113 (Planning).** CARD-0113 moves the whole pipeline from date-keyed to session-keyed addressing (a day can produce more than one hike-summary page). This card's staging-directory design and its "regenerate the rich version of `<date>`" trigger phrase both assume one file per date today — building this first would mean reworking that addressing scheme the moment CARD-0113 lands, so CARD-0113 goes first.
 
-**Related:** CARD-0111 (Build — the July 29 photo-bug investigation that surfaced this), CARD-0113 (Planning — sequenced ahead of this card; session-scoped addressing this card's staging design depends on), CARD-0104 (Backlog — Gaia GPS embed, the original manual-step precedent this generalizes), CARD-0080 (Backlog — BirdNET bird ID, same manual-step shape), CARD-0108 (Build — place context, stays in step 1), CARD-0107 (Done — photo captions, decoupling decision worth revisiting per open question 4), CARD-0086 (Done — automatic triggering; its webhook now only fires step 1, not full generation as originally built).
+**Related:** CARD-0111 (the July 29 photo-bug investigation that surfaced this), CARD-0113 (sequenced ahead of this card; session-scoped addressing this card's staging design depends on), CARD-0104 (Gaia GPS embed, the original manual-step precedent this generalizes), CARD-0080 (BirdNET bird ID, same manual-step shape), CARD-0108 (place context, stays in step 1), CARD-0107 (photo captions, decoupling decision worth revisiting per open question 4), CARD-0086 (automatic triggering; its webhook now only fires step 1, not full generation as originally built).
 
 ---
 
 ### CARD-0080 · [idea] [hike-izer] Integrate bird species identified via Merlin Sound ID / BirdNET Live
+**Status:** Planning
+
 **Notes:** Raised 2026-07-23. Joseph has been using Cornell Lab's Merlin Bird ID app (Sound ID feature — real-time audio-based species identification, 2000+ species) while hiking and wants that data folded into Hike-izer's narrative summaries, correlated with GPS location and time on the route (e.g. "heard a Canyon Wren near the summit around 2pm") — same treatment the existing GPS track and Environmental Data sources already get, not just a flat species list.
 
 **Data source options considered 2026-07-23 (eBird-based, ruled out):**
@@ -374,6 +426,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0071 · [idea] [personal] Emergency Access preparation
+**Status:** Planning
+
 **Notes:** Raised 2026-07-17, split out from CARD-0034's closure. Covers the "both Joseph and Robin unavailable at once" gap that the rest of `digital-identity-protection-checklist.md` doesn't — since both spouses already have the RoboForm master password memorized, each already has full independent access if something happens to the other, so Emergency Access only matters for the joint-unavailability case.
 
 **Designated outside contact: a nephew** (decided 2026-07-22) — not one of the adult children as originally assumed; supersedes the "still need to pick which child" open question below. Same person covers both roles this card and CARD-0072 identified as needing a trusted third party outside the household: RoboForm Emergency Access designee, and holder of the outside-contact copy of the offline backup codes (moved here from CARD-0072, item #6 — see `digital-identity-protection-checklist.md`'s "Outside-Contact Copy Pattern" note).
@@ -391,6 +445,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0067 · [enhancement] [salt-sensor] Design and build a 3D-printed enclosure
+**Status:** Planning
+
 **Notes:** Raised 2026-07-13, following CARD-0049's perfboard build. Salt-sensor is installed near the water softener, where salt loading creates real splash risk — per `JCTsh-Build-Standards.md`'s enclosure decision rule ("installed outdoors or in a weather-exposed location → use a weatherproof project box"), this triggers an actual enclosure rather than the default open standoff mount. Board/components to house: ESP32 (SparkleIoT XH-32S), 3 status LEDs (Red/Yellow/Green, need visibility), JSN-SR04T connector (cable exit toward the tank), USB power port.
 
 **Explicitly a skills-practice build, not just a functional requirement:** Joseph wants to drive the actual Tinkercad/OpenSCAD CAD work hands-on — same interactive Claude-Code-guides/Joseph-executes pattern as CARD-0009's hiking-monitor enclosure (`hiking-monitor-enclosure-instructions.md`), not something handed off or auto-generated.
@@ -406,6 +462,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0041 · [idea] [photo-server] Disk capacity growth analysis — wait for steady state
+**Status:** Planning
+
 **Notes:** Discussed 2026-07-09: want to estimate photo-library growth rate and project when the primary drive (Backup Plus 1TB, currently 615G/71% used) or backup drive (Momentus 640GB) will need replacing/upsizing. Deliberately not started yet — Joseph's call: current disk numbers are all noise from one-off events (CARD-0039 added 3,433 assets in one shot, CARD-0030 just freed 818GB by deleting zips, first post-cleanup backup run is still doing a full reconciliation rather than a normal weekly delta), not representative of organic day-to-day growth.
 
 **Wait for:** the backup cron (CARD-0030/CARD-0040) running its normal weekly incremental cadence for a few cycles, so disk usage tracking reflects only real photo uploads from Joseph's and Robin's phones. At that point, weekly rsync deltas become a meaningful proxy for actual growth rate and a "months until full" estimate becomes trustworthy rather than a guess. Revisit this card once that's true — no fixed date, just "after the dust settles."
@@ -413,6 +471,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0010 · [enhancement] [front-porch-temp-sensor] Use case definition
+**Status:** Planning
+
 **Notes:** Perfboard transfer complete. No enclosure planned. Sensor publishes temp, humidity, pressure, illuminance every 5 min. Perfboard layout: `components/front-porch-temp-sensor/perfboard-layout.md`.
 
 Existing automations: Temp Alert (above threshold+2°F for 10 min) and Temp Dropping (below threshold−2°F for 10 min). Threshold: `input_number.front_porch_temp_threshold` (currently 90°F).
@@ -448,6 +508,8 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 ---
 
 ### CARD-0044 · [idea] [remote-temp-sensor-01] Backyard solar/battery environmental sensor
+**Status:** Planning
+
 **Planning docs:** `components/remote-temp-sensor-01/JCTsh-remote-temp-sensor-01-phase1.md` (Phases 1–3), `components/remote-temp-sensor-01/remote-temp-sensor-01-claude-code-instructions.md` (Phase 4)
 **Notes:** Started 2026-07-09 as a "replicant" of front-porch-temp-sensor, diverged into a separate component once the location moved from the sheltered porch to full-sun backyard. Phases 1–4 complete. Sensors: BME280 + BH1750 + LTR-390. Power: single swappable EVE 18650 + AEDIKO charger/holder + SUNYIMA solar panel — everything on hand, zero purchases. Firmware: 5-minute wake/publish/deep-sleep cycle (continuous WiFi not viable on this solar panel — ~10x power shortfall). Sensor power gated during sleep via an on-hand BC557B PNP transistor high-side switch (substitutes for a P-FET, same CARD-0027 pattern from hiking-monitor). AEDIKO module's own quiescent current is unmeasured — bench Step 6 of the instructions doc tests it, with a TPL5111 nanopower timer as a contingent (not assumed) mitigation if it's significant. SmartThings/Google Home exposure planned; no LEDs. Deliberately scoped smaller than weather-station (CARD-0011) — no wind/rain/lightning.
 
@@ -462,29 +524,39 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 ---
 
 ### CARD-0020 · [enhancement] [hiking-monitor] Hike data visualization (Looker Studio)
+**Status:** Planning
+
 **Notes:** Build a Google Looker Studio dashboard connected to the GPS Track and Environmental Data Google Sheets. GPS route on a map, sensor readings (temp/humidity/pressure/battery) over hike duration. Review-after-the-fact use case — no real-time requirement. No new infrastructure needed.
 
 ---
 
 ### CARD-0012 · [idea] [air-quality-monitor] Air quality monitor
+**Status:** Planning
+
 **Planning docs:** `components/air-quality-monitor/JCTsh-air-quality-monitor-phase1.md` (Phases 1–3), `components/air-quality-monitor/air-quality-monitor-claude-code-instructions.md` (Phase 4)  
 **Notes:** Portable clip-mounted SEN55 air quality sensor (PM1.0/2.5/4.0/10, VOC, NOx) carried on hikes alongside the hiking monitor. Phases 1–4 complete (2026-07-09). Parts confirmed on hand: SEN55, Adafruit #5964 adapter, JST GH cable — `jctsh-parts-inventory.md`'s SparkFun SEN-23715 entry was mislabeled "SEN54," corrected to reflect it's the genuine SEN55. SEN55 sensor reading uses ESPHome's native `sen5x` platform (no custom component needed there); a custom component is still needed for onboard flash logging + WiFi replay, adapted from hiking-monitor's `hiking_logger.h`. SEN55 power-gated via an on-hand BC547B NPN transistor (same substitution pattern as remote-temp-sensor-01's BC557B) — bench-tested current draw, not just calculated, in Phase 4 Step 6. Follows hiking-monitor's firmware pattern (onboard flash logging, WiFi replay, field/home mode) exactly — that pattern is field-proven (CARD-0008), and the dependency is architectural only, **not** gated by hiking-monitor's still-open enclosure (CARD-0009). Phase 3 timeout policy matches hiking-monitor but explicitly avoids inheriting CARD-0045's `wifi.ap:`/`reboot_timeout` bug. Perfboard footprint measurement and LiPo polarity check moved from Phase 2 planning blockers to Phase 4 bench steps. Clip-case enclosure (with SEN55 intake/exhaust ports — orientation guidance currently flagged low-confidence, needs re-verification) deferred to a follow-on card, same split as hiking-monitor/remote-temp-sensor-01. Ready for Phase 5 (execution) when directed.
 
 ---
 
 ### CARD-0013 · [idea] [van-sensors] Van sensors (indoor + outdoor)
+**Status:** Planning
+
 **Planning doc:** `components/van-sensors/JCTsh-van-sensor-phase1.md`  
 **Notes:** Two ESP32 ESPHome nodes for the Pleasure-Way ProMaster 3500 van. Outdoor: BME280 + LTR-390 UV + SEN55 air quality, LiPo powered. Indoor: BME280 + SCD40 CO2 + MQ-6 propane, 12V coach power. Both log to onboard flash during travel, sync to home MQTT on WiFi reconnect (home or Pixel hotspot). DS3231 RTC for accurate timestamps during extended trips. GPS correlation via GPSLogger on Pixel. Phase 1 complete — ready for Phase 2 (hardware selection, inventory scan, open questions resolved).
 
 ---
 
 ### CARD-0053 · [idea] [photo-tv-display] Ambient photo slideshow + phone controller
+**Status:** Planning
+
 **Planning docs:** `components/photo-tv-display/photo-tv-display-phase1-planning.md` (Phase 1), `components/photo-tv-display/photo-tv-display-phase2-planning.md` (Phase 2), `components/photo-tv-display/photo-tv-display-claude-code-instructions.md` (Phase 4)
 **Notes:** Two views of one web app: a fullscreen ambient photo slideshow cast to the gathering room Google TV, and a touch-based phone controller (Joseph's/Robin's Pixel, browser bookmark, no app install) for curation/control. Node.js backend runs on the `photo-server` M8 alongside Immich, serving the web app, syncing TV↔phone over WebSocket (`ws`), and making all Immich API calls on the controller's behalf (including asset deletion, logged before/after the Immich delete confirms per the instructions doc). Hard dependency: `photo-server` must be operational (Immich running, both accounts created, at least a test subset of photos importable) before this build starts — already satisfied. Phase 1–2 planning and Phase 4 Claude Code instructions all complete; instructions doc status is "Ready for execution." Build (Phase 5) has not yet started — no code, service files, or deploy activity yet, this card exists to track that upcoming work.
 
 ---
 
 ### CARD-0054 · [idea] [bedside-clock] Battery-powered tap-to-wake bedside clock for camper van
+**Status:** Planning
+
 **Planning docs:** `components/bedside-clock/bedside-clock-planning.md` (Phase 1, v1.2), `components/bedside-clock/bedside-clock-hardware-selection.md` (Phase 2, v1.3)
 **Notes:** DS3231 RTC-based bedside clock for the Pleasure-Way van — tap/short-press wakes an SH1106 OLED to show time (DS3231 read/display/sleep), long-press triggers a WiFi-hotspot + NTP resync used only for timezone changes (not routine drift correction — DS3231 alone is accurate to ~1-2 min/year). Original "zero network footprint" BLE Current Time Service sync plan was found not viable (stock Android has no CTS server) and superseded by this DS3231+occasional-NTP approach in Phase 1 v1.2. No MQTT, SmartThings, HA, or watchdog registration — narrowest network footprint of any JCTsh component. Hardware confirmed on hand or ordered: 2 spare ESP32 DevKitC-32, EEMB 603449 LiPo + TP4056 (same combo as hiking-monitor), HiLetgo DS3231 5-pack (avoiding a documented trickle-charge/CR2032 safety hazard on generic combo boards), hiBCTR SH1106 OLED, Twidec panel-mount pushbutton. §2.14 battery-safety compliance table complete — point 7 (boost vs. direct-LDO) decided 2026-07-03 to keep TP4056+boost (matches on-hand stock, van's low over-discharge risk since it's usually shelved near USB power). Only remaining pre-build item is firmware low-battery cutoff design, explicitly deferred to Phase 4.
 
@@ -493,16 +565,16 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 ---
 
 ### CARD-0011 · [idea] [weather-station] Weather station
+**Status:** Planning
+
 **Planning doc:** `components/weather-station/jctsh-weather-station-planning.md`  
 **Notes:** Full DIY outdoor weather station — BME280 (temp/humidity/pressure), VEML6075 (UV), SI1145 (solar irradiance), SparkFun Weather Meter Kit (wind/rain), AS3935 lightning detector, DS3231 RTC, SD card backup, solar+LiPo power. Posts to Weather Underground and Google Sheets. Phase 3 (architecture) complete — MQTT topics, payload schema, SmartThings integration, and six-phase build strategy all decided. Ready for Phase 4 (Claude Code instructions) when directed. Most parts to purchase (~$227 estimated).
 
 ---
 
-## Build
-
----
-
 ### CARD-0101 · [bug] [hike-izer] A real hike can be misclassified as "not a hike" if GPSLogger keeps running into a trailing car drive — implemented 2026-07-27, needs real-world validation
+**Status:** Build
+
 **Raised 2026-07-25**, same conversation as CARD-0100 — Joseph asked the mirror-image question: what if he hikes normally, forgets to stop GPSLogger, gets in the car, and starts driving?
 
 **Real gap, opposite failure mode from CARD-0100:** CARD-0100 is a false *trigger* (no real hike, but the pipeline still runs/publishes). This one risks **losing a real hike's summary entirely.** `fetch_hike_data.py`'s `_gps_sessions()` only split candidate sessions on a time gap (10+ min of no GPS activity) — never sub-segmented one continuous recording by a *speed change* within it. If Joseph walked straight from the trailhead to his parked car (no 10-min pause) and drove off, GPSLogger recorded one unbroken session; `_classify_hike()`'s single median-speed-across-the-whole-session check could then tip into "too fast for walking" if the drive contributed enough fast intervals relative to the hike's walking ones (a longer drive, or a shorter hike), rejecting the real hike along with the drive.
@@ -516,11 +588,13 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 **Not yet done — needs a real trailing-drive trace before fully closing.** All three constructed cases pass, but `REGIME_WINDOW_MIN`/`REGIME_MIN_DURATION_MIN`/`REGIME_MIN_POINTS` are documented-provisional defaults, same caveat the card always had: synthetic data alone risks tuning them wrong in either direction. **Done when:** a genuine hike-that-rolled-into-a-drive event happens naturally and the resulting GPS Track sheet data confirms the split lands in the right place — or Joseph decides the synthetic validation above is sufficient to close it without waiting for a real occurrence.
 
-**Related:** CARD-0100 (Backlog — the mirror-image false-trigger case, raised same session), `components/hike-izer/fetch_hike_data.py` (`_gps_sessions`/`_classify_hike`/`_sub_segment_by_speed`/`_build_session_entry`).
+**Related:** CARD-0100 (the mirror-image false-trigger case, raised same session), `components/hike-izer/fetch_hike_data.py` (`_gps_sessions`/`_classify_hike`/`_sub_segment_by_speed`/`_build_session_entry`).
 
 ---
 
 ### CARD-0076 · [bug] [hiking-monitor] Rotate all secrets exposed via a botched redaction command, and finish outstanding device re-flashes
+**Status:** Build
+
 **Notes:** Raised 2026-07-21. During CARD-0070's debugging session (2026-07-20), a `sed` redaction command intended to mask `secrets.yaml` values before display used a pattern (`key=value`) that didn't match the file's actual `key: "value"` YAML syntax — the redaction silently failed and the **entire** `hiking-monitor-test/secrets.yaml` file printed in plaintext into the conversation transcript: WiFi password, hotspot password, AP fallback password, MQTT password, and OTA password. (Process fix for the redaction mistake itself already logged separately, so this doesn't recur.) The repo's own copy of this file is confirmed gitignored (`components/hiking-monitor/.gitignore`) and was never committed/pushed — the exposure is contained to this session's transcript, not a public leak, but is still being treated as a real exposure event since transcripts can be logged/reviewed outside this conversation.
 
 **Scope (confirmed 2026-07-21, revised 2026-07-22):** all secrets from the exposed file, not just OTA as originally asked — since the whole file printed, every value in it is equally exposed regardless of which one prompted the request:
@@ -544,6 +618,8 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 ---
 
 ### CARD-0070 · [enhancement] [hiking-monitor] Replace boost converter with LDO + gate peripheral power for lower standby draw
+**Status:** Build
+
 **Notes:** Raised 2026-07-16, directly motivated by CARD-0026's measurement — the test rig's TP4056+boost module draws 22.6mA steady in deep sleep, dominated by the boost stage's always-on quiescent current (est. ~48.7hr / ~2 day runtime on a 1100mAh cell). This matches the existing recommendation in `JCTsh-Build-Standards.md` §2.14 point 7 (prefer direct LiPo→LDO over boost-then-buck) — this card is the concrete follow-through on that recommendation.
 
 **Expanded 2026-07-17 to absorb CARD-0027** (GPIO-controlled peripheral power gating, moved to Defer as superseded — see that card for the original writeup and P-FET/high-side-switch background). CARD-0026's closing note flagged why these two fixes belong together: once the LDO removes the boost stage's ~22.6mA quiescent draw, BME280 + LTR-390's own ungated idle current (previously negligible next to the boost module, estimated tens to a few hundred µA) becomes the largest remaining contributor to sleep current. Doing the LDO swap without also gating the peripherals would leave real savings on the table.
@@ -620,6 +696,8 @@ GPIO pin ───────────────────────�
 ---
 
 ### CARD-0072 · [idea] [personal] Digital Identity Checklist Version 2
+**Status:** Build
+
 **Notes:** Raised 2026-07-17, split out from CARD-0034's closure as the next layer of hardening on top of the v1-done core (phone/SIM-swap single point of failure closed). Works through `digital-identity-protection-checklist.md`'s remaining open items, targeting v3.0.
 
 **Scope (in rough priority order):**
@@ -641,6 +719,8 @@ GPIO pin ───────────────────────�
 ---
 
 ### CARD-0009 · [enhancement] [hiking-monitor] Enclosure design and build
+**Status:** Build
+
 **Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-monitor/enclosure-prototype.md`. Standoffs arrive 2026-06-14; temp enclosure build before camping trip departure 2026-06-15. Device will be used in the field for ~2 weeks on that trip — hiking and van sensor simulation. Full 3D-printed permanent enclosure is a later step.
 
 **LTR-390 rewiring (2026-07-12):** in progress. Replacing the LTR-390's soldered 0.1" male headers with a 150mm STEMMA QT / Qwiic cable (Adafruit #4209, `jctsh-parts-inventory.md` Bag 31) plugged into the sensor's STEMMA QT port, with the male-header end going into the perfboard's existing LTR-390 female header (unchanged). Gives slack to mount the sensor at the correct sky-facing orientation in the enclosure independent of the perfboard's own orientation — this is what the enclosure build actually needed the flexibility for. Only the sensor-side segment changes; perfboard-to-ESP32 traces (GPIO21/GPIO22) untouched. Docs updated: `wiring.md` (new wire-color table — STEMMA QT cable colors are SDA/SCL-swapped from the old breadboard colors, flagged explicitly), `perfboard-layout.md` (dated addendum on the LTR-390 header row, original build history kept intact).
@@ -672,9 +752,9 @@ GPIO pin ───────────────────────�
 
 ---
 
-## Done
-
 ### CARD-0077 · [bug] [photo-server] Weekly backup cron collided with Immich's nightly DB dump, causing stale-backup alert — RESOLVED 2026-07-28
+**Status:** Done
+
 **Notes:** Found 2026-07-22 via the CARD-0051 heartbeat check: `Immich degraded - backup:stale (10.3d since last success)`. Confirmed live via SSH — Docker containers all healthy, no data loss, disk usage normal on all three mounts (primary 73%, backups 39%/49%) — this was a stamp-write failure, not an actual backup outage.
 
 **Root cause:** `photo-library-backup.sh` runs weekly via cron at `0 2 * * 0`. Immich's built-in nightly DB dump also runs at 02:00 daily (confirmed by `immich-db-backup-*-020000-*.sql.gz` filenames). On the 2026-07-19 run, rsync caught the DB dump's temp file mid-write/rename on both legs — Joseph's leg exited code 23, Robin's exited code 24 ("file has vanished... immich-db-backup-20260719T020000...sql.gz.tmp"), the same vanished-temp-file race already visible as a stale log entry from 2026-07-05. Since the script only touches `/home/jct/photo-library-backup-success.stamp` when both rsync legs return 0, this run's failure silently skipped the stamp (and correctly fired an MQTT "Backup failed" alert that apparently wasn't seen standing alone).
@@ -695,6 +775,7 @@ The reschedule held on its first real scheduled run, not just the manual rerun �
 ---
 
 ### CARD-0108 · [enhancement] [hike-izer] Grounded external context for the narrative (place identification, scoped search, regional knowledge) — RESOLVED 2026-07-29 07:44 MST
+**Status:** Done
 
 **Raised 2026-07-28**, split out of CARD-0105's unscoped "answer voiced questions" and "provide history about the area" ideas after real design work and live experiments.
 
@@ -748,11 +829,12 @@ The reschedule held on its first real scheduled run, not just the manual rerun �
 
 **Closing note, 2026-07-29:** all three layers (base, enrichment, regional) are built, deployed, and verified against multiple real hikes, with cost tracking in place. The residual paraphrase issue above stays as documented color, not a blocker. One real accuracy gap surfaced since — `named_features()` anchors to the hike's first GPS point only, not the whole route, which can attribute a landmark from a *different* day's hike at the same starting point (found reviewing the July 29 narrative) — tracked forward as its own item in CARD-0112, not reopening this card.
 
-**Related:** CARD-0105 (the unscoped idea this splits out of), CARD-0107 (Done — the vision step this receives named subjects from), CARD-0109 (Done — the non-redundancy rule this shares, and the residual issue noted above), CARD-0083/CARD-0097/CARD-0106 (the existing `hike_start_forecast` "never fabricate" pattern this design extends), CARD-0112 (Planning — the `named_features` first-point-anchor accuracy fix tracked forward there), CARD-0111 (Done — the July 29 hike review that surfaced that gap).
+**Related:** CARD-0105 (the unscoped idea this splits out of), CARD-0107 (the vision step this receives named subjects from), CARD-0109 (the non-redundancy rule this shares, and the residual issue noted above), CARD-0083/CARD-0097/CARD-0106 (the existing `hike_start_forecast` "never fabricate" pattern this design extends), CARD-0112 (the `named_features` first-point-anchor accuracy fix tracked forward there), CARD-0111 (the July 29 hike review that surfaced that gap).
 
 ---
 
 ### CARD-0106 · [bug] [hike-izer] Hike Start Forecast has captured zero rows since at least June 2026, despite CARD-0083/CARD-0097 shipping and being verified live — RESOLVED 2026-07-29 07:44 MST
+**Status:** Done
 
 **Raised 2026-07-28**, while investigating today's hike summary showing "not available" across the entire Weather Forecast at Hike Start section.
 
@@ -781,11 +863,12 @@ The reschedule held on its first real scheduled run, not just the manual rerun �
 
 **Closing criterion met 2026-07-29.** The real July 29 Michigan hike — a genuine GPSLogger → Apps Script path, no synthetic data involved — captured a real Hike Start Forecast row (`temp_f: 59, precip_pct: 0, wind_mph: 5, humidity_pct: 81, uv_index: 0`), confirmed rendering correctly on the live page's Weather Forecast at Hike Start section. The GPS-point trigger (moved off the optional/arbitrarily-timed Hiking Observation trigger) held up under real end-to-end conditions, not just the earlier synthetic test.
 
-**Related:** CARD-0083 (Done — original feature), CARD-0097 (Done — timezone fix, the behavior this card's symptom contradicts), CARD-0099 (Done — Timeline sheet fix, deployed same day, matches the currently-live version string), CARD-0111 (Done — the July 29 hike review that confirmed this closing criterion), `core/data-pipeline/environmental-data.gs`, `components/hike-izer/fetch_hike_data.py`.
+**Related:** CARD-0083 (original feature), CARD-0097 (timezone fix, the behavior this card's symptom contradicts), CARD-0099 (Timeline sheet fix, deployed same day, matches the currently-live version string), CARD-0111 (the July 29 hike review that confirmed this closing criterion), `core/data-pipeline/environmental-data.gs`, `components/hike-izer/fetch_hike_data.py`.
 
 ---
 
 ### CARD-0104 · [idea] [hike-izer] Embed Gaia GPS's own track/map view instead of building a custom route+elevation renderer — option 1 verified live on 2 real hikes 2026-07-28 — RESOLVED 2026-07-29 07:44 MST
+**Status:** Done
 
 **Raised 2026-07-28**, exploring CARD-0082 (custom Gaia-GPS-style route+elevation graphic) — Joseph pointed out he already uses Gaia GPS on every hike, which raised the question of integrating with Gaia directly instead of re-rendering the same visual from scratch.
 
@@ -815,11 +898,13 @@ The reschedule held on its first real scheduled run, not just the manual rerun �
 
 **Resolved 2026-07-29, decided (Joseph):** option 2 (a bespoke Gaia-specific Tasker/webhook route) won't be built as its own thing — CARD-0112's two-step generation redesign (staging directory + conversational trigger) is the general mechanism this card was reinventing a narrower version of. Once CARD-0112 lands, "paste a Gaia embed and trigger a rich regeneration" is just one instance of the same staged-resources + step-2 pattern every enrichment source uses, not a special case needing its own webhook. Option 1 (conversational, proven on 2 real hikes) stays as the model going forward, formalized by CARD-0112 rather than superseded by it.
 
-**Related:** CARD-0082 (Backlog — the heavier custom-render alternative, still available as a fallback), CARD-0088 (Done — HTML hosting this patches into), CARD-0086 (Done — automatic triggering, the source of the timing/decoupling problem above), CARD-0092 (Done — calendar home page, same `srv/` directory this patches files within, and the manifest bug this trial caught), CARD-0112 (Planning — the two-step redesign that generalizes this card's option 1 into the standard staging/trigger pattern for every enrichment source).
+**Related:** CARD-0082 (the heavier custom-render alternative, still available as a fallback), CARD-0088 (HTML hosting this patches into), CARD-0086 (automatic triggering, the source of the timing/decoupling problem above), CARD-0092 (calendar home page, same `srv/` directory this patches files within, and the manifest bug this trial caught), CARD-0112 (the two-step redesign that generalizes this card's option 1 into the standard staging/trigger pattern for every enrichment source).
 
 ---
 
 ### CARD-0086 · [idea] [hike-izer] Automatic triggering — RESOLVED 2026-07-28
+**Status:** Done
+
 **Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature. V1 is on-demand only (Joseph explicitly invokes a summary for a specific hike). This card is about detecting that a hike happened/finished and generating the summary automatically — needs a trigger mechanism decision (e.g. GPSLogger track completion, hiking-monitor's own wake/sleep pattern signaling a finished hike, a scheduled check) not yet made.
 
 **Moved to Build 2026-07-24, now that CARD-0088 (Done) gives the M8 a real public HTTPS endpoint to receive the webhook.** Full implementation plan finalized this session — two-stage build: (1) Tasker trigger → webhook receiver on the M8, logging only, proves the field-verification risk (does GPSLogger's broadcast actually reach Tasker); (2) the generation pipeline itself (Python templating for all mechanical output + one narrow Claude API call for just narrative prose). New component: `components/hike-izer-orchestrator/`, joins `hike-izer-web`'s compose project, reachable at `https://photo-server.tailfe828a.ts.net/webhook/hike-end` via a new Caddy `reverse_proxy` route (no second Funnel port). Shared-secret query-param auth, same pattern as the existing Apps Script `key=`.
@@ -880,6 +965,8 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 ---
 
 ### CARD-0098 · [enhancement] [traveling-lights] Randomized/staggered occupancy-simulation lighting while traveling — RESOLVED 2026-07-28
+**Status:** Done
+
 **Raised 2026-07-25**, prompted by Joseph asking how feasible an HA lights-while-traveling automation would be, then asking to build it now. New HA-only component, `components/traveling-lights/` (README.md + CLAUDE.md), following the `garage-presence` precedent for HA-only components with no hardware.
 
 **Design went through five rounds before landing:**
@@ -918,6 +1005,7 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 ---
 
 ### CARD-0105 · [enhancement] [hike-izer] Continuous improvement — running list of small Hike-izer enhancements — RESOLVED 2026-07-29 05:35 MST
+**Status:** Done
 
 **Raised 2026-07-28**, reviewing the calendar and the first real automatic-pipeline hike. Ongoing catch-all for small Hike-izer polish items, not a one-shot scoped feature — expect this list to grow over time as more real hikes surface things worth improving.
 
@@ -931,7 +1019,7 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 **Local unit tests before deploying:** synthetic multi-month/multi-year manifest sets confirmed correct month-page generation, `index.html`-mirrors-latest-month behavior, Prev/Next disabled-state at both ends of the range, year-picker links, and the empty-state page (zero summaries published).
 
 **Ideas below outgrew this catch-all and moved to their own cards, 2026-07-28** (real design work + live experiments made them each substantial enough to need their own thread):
-- **Answer questions captured in voice observations** + **provide history about the area** → CARD-0108 (Done — all three layers now built and verified against a real hike: base + enrichment + regional-scope, woven into the narrative, Overpass reliability mitigated with retry+mirror-fallback, per-hike cost tracking added) — grounded external context.
+- **Answer questions captured in voice observations** + **provide history about the area** → CARD-0108 (all three layers now built and verified against a real hike: base + enrichment + regional-scope, woven into the narrative, Overpass reliability mitigated with retry+mirror-fallback, per-hike cost tracking added) — grounded external context.
 - **Identify things in photos** → CARD-0107 (Done) — vision-based photo identification, captions on the photo grid.
 - Also newly split off, discovered while scoping the above: CARD-0109 (Done) — tighten the narrative's non-redundancy rule (today's real narrative mostly restates the data tables in prose).
 
@@ -942,6 +1030,7 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 ---
 
 ### CARD-0111 · [enhancement] [hike-izer] Iterative refinement resulting from hike of July 29 — RESOLVED 2026-07-29 07:37 MST
+**Status:** Done
 
 **Raised 2026-07-29 05:35 MST**, reviewing the July 29 hike's automatically-generated page. Successor to CARD-0105 (Done) — same running-catch-all shape, re-seeded from this hike's findings rather than closed out.
 
@@ -964,11 +1053,12 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 - The real `2026-07-29_hike-summary.html` was re-rendered locally from the already-fetched `hike_data.json` and the *existing* narrative text (reused verbatim, no new Claude call) through the fixed `templating.py`, then pushed into the M8's `srv/` directory — items 2/3/5/6 are live on the actual page, without spending anything on items 1 or 7.
 - `templating.py` and `SKILL.md` were deployed into the orchestrator's own Docker image (rebuilt + recreated on the M8) so every future automatic hike picks up all of the above — this also caught a real gap along the way: the container's baked-in `SKILL.md` copy was stale (356 lines vs. the repo's 393), meaning tonight's narrative-rule refinements wouldn't have applied to any future hike without this redeploy.
 
-**Related:** CARD-0105 (Done — the predecessor running-list card this succeeds), CARD-0112 (Planning — item 1's photo-timing fix and the item-7-adjacent `named_features` accuracy bug both tracked forward here), CARD-0113 (Planning — session-scoped generation, sequenced ahead of CARD-0112), CARD-0086 (automatic triggering), CARD-0084 (photo fetch/gallery pipeline — confirmed working correctly; the bug is upstream timing, not this script), CARD-0104 (Backlog — the Gaia-embed "patch a published page later" precedent CARD-0112's fix follows), CARD-0110 (Backlog — richer route/speed stats the narrative now deliberately defers to).
+**Related:** CARD-0105 (the predecessor running-list card this succeeds), CARD-0112 (item 1's photo-timing fix and the item-7-adjacent `named_features` accuracy bug both tracked forward here), CARD-0113 (session-scoped generation, sequenced ahead of CARD-0112), CARD-0086 (automatic triggering), CARD-0084 (photo fetch/gallery pipeline — confirmed working correctly; the bug is upstream timing, not this script), CARD-0104 (the Gaia-embed "patch a published page later" precedent CARD-0112's fix follows), CARD-0110 (richer route/speed stats the narrative now deliberately defers to).
 
 ---
 
 ### CARD-0109 · [enhancement] [hike-izer] Tighten the narrative's non-redundancy rule — RESOLVED 2026-07-28
+**Status:** Done
 
 **Raised 2026-07-28**, split out of CARD-0105 after Joseph's review of today's automatically-generated narrative: it mostly restates numbers and facts already present in the Data Summary / Coverage tables, in prose, with added words but not much added value — despite `SKILL.md`'s narrative-writing step already containing a non-redundancy rule ("don't restate numbers that belong in the data tables — interpret and connect instead").
 
@@ -990,6 +1080,7 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 ---
 
 ### CARD-0107 · [enhancement] [hike-izer] Vision-based photo identification — captions, not narrative — RESOLVED 2026-07-28
+**Status:** Done
 
 **Raised 2026-07-28**, split out of CARD-0105's unscoped "identify things in photos" idea after real design work and a live experiment.
 
@@ -1016,11 +1107,13 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 
 **Visible caption display, built and confirmed 2026-07-28:** Joseph's call — caption below the thumbnail, always reserving the space (even when empty) rather than a per-row-conditional treatment, which isn't practical on this responsive `auto-fill` grid without JS (row membership shifts with viewport width; this project avoids JS elsewhere, e.g. the zero-JS calendar pages from CARD-0092). `.photo-item` changed from a plain square `<a>` to a flex column (image + `.photo-caption` span with a fixed `min-height` so every tile stays equal height regardless of caption content); videos get an empty caption span too, for the same alignment reason. Rendered against real data (today's 7 real photos, real hike_data) and checked live in a browser via a local preview server — **Joseph confirmed the result directly ("Looks great to me")** after the in-session Chrome-automation screenshot attempts failed repeatedly and were abandoned in favor of a manual look.
 
-**Related:** CARD-0105 (the unscoped idea this splits out of), CARD-0108 (the search-enrichment layer this hands named subjects to — now with a real example), CARD-0084 (Done — the photo fetch/gallery pipeline this builds on, `fetch_hike_photos.py`'s `thumb`/`original` manifest fields).
+**Related:** CARD-0105 (the unscoped idea this splits out of), CARD-0108 (the search-enrichment layer this hands named subjects to — now with a real example), CARD-0084 (the photo fetch/gallery pipeline this builds on, `fetch_hike_photos.py`'s `thumb`/`original` manifest fields).
 
 ---
 
 ### CARD-0092 · [idea] [hike-izer] Calendar view on a home page, clickable through to hike summaries — RESOLVED 2026-07-28
+**Status:** Done
+
 **Raised 2026-07-24.** A calendar showing which days had a confirmed hike — visually marked, clickable through to that day's `hike-summary.html` page.
 
 **Interview before building, three open questions resolved with Joseph:**
@@ -1041,11 +1134,13 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 
 **Automatic path verified live 2026-07-28, real hike.** A genuine GPSLogger stop event (`2026-07-28`, a ~32 min/2.0mi walk) triggered the full pipeline for real: `docker logs` showed `hike_confirmed: true`, generation completed, and — the thing this card needed — `generation.py` wrote its own `.meta.json` (`{"hike_confirmed": true}`) and correctly triggered `build_calendar_index.py` (`"Wrote /srv/hike-izer/index.html: 3 summaries indexed."`). Confirmed via the live calendar (`cal-day--hike` for `2026-07-28`) and the MQTT publish log, which correctly referenced the new `hikes.jctnet.com` URL (not the retired `.ts.net` one) — incidentally also a real-world confirmation of CARD-0094's URL fix in production. Same run surfaced a zero-environmental-readings day, explained by Joseph not having the hiking-monitor device with him — not a pipeline bug, nothing further needed.
 
-**Related:** CARD-0088 (Done — HTML hosting, the home page this now lives at), CARD-0091 (Done — HTML-only output, same session, the manifest/calendar work builds on top of it), CARD-0100 (Done — the automatic-path confirmation gate this card's data-source design depends on, confirmed live in the same real run), CARD-0094 (Done — the domain switch this run's MQTT log incidentally re-confirmed), CARD-0081 (Done — HTML rendering template this reuses styling from), CARD-0073 (Done — Hike-izer v1).
+**Related:** CARD-0088 (HTML hosting, the home page this now lives at), CARD-0091 (HTML-only output, same session, the manifest/calendar work builds on top of it), CARD-0100 (the automatic-path confirmation gate this card's data-source design depends on, confirmed live in the same real run), CARD-0094 (the domain switch this run's MQTT log incidentally re-confirmed), CARD-0081 (HTML rendering template this reuses styling from), CARD-0073 (Hike-izer v1).
 
 ---
 
 ### CARD-0091 · [idea] [hike-izer] Drop Markdown output, HTML becomes the sole format — RESOLVED 2026-07-28
+**Status:** Done
+
 **Raised 2026-07-24**, during CARD-0083 planning — Joseph questioned the ongoing value of generating `.md` alongside `.html` now that HTML had become the richer format: CARD-0081 gave it real styling/structured layout, CARD-0084's photo gallery was already HTML-only (no equivalent in the Markdown), and CARD-0088 was standing up real public hosting specifically for the HTML output.
 
 **Trigger condition met:** the card's own "recommended timing" was to wait until CARD-0088 (HTML hosting) actually shipped — it had, well before this was picked up, and had been live/verified through several subsequent cards (CARD-0086, CARD-0093, CARD-0094, CARD-0100, CARD-0101).
@@ -1061,11 +1156,13 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 6. **Existing `.md` files — deleted** (Joseph's call): 4 local files under `hike-izer/summaries/` (`2026-06-17`, `2026-06-18`, `2026-07-18`, `2026-07-23`) plus the one stray copy already live-published on the M8 (`2026-06-18_hike-summary.md`, a leftover from CARD-0086 stage 2's test run against real data).
 7. **Deployed and verified:** `generation.py`/`templating.py`/`narrative.py`/`SKILL.md` redeployed to the M8, orchestrator rebuilt, confirmed healthy and `hikes.jctnet.com` still serving correctly, confirmed no `.md` files remain in the M8's served directory. Also smoke-tested `templating.render_html()` locally against a synthetic `hike_data` fixture post-edit to confirm no leftover reference to the removed `render_markdown` broke anything (a first attempt caught a fixture bug, not a code bug — fixed and re-ran clean).
 
-**Related:** CARD-0088 (Done — HTML hosting, this card's trigger condition), CARD-0081 (Done — HTML rendering, the format this card made sole), CARD-0084 (Done — Photos, HTML-only, the existing precedent), CARD-0073 (Done — Hike-izer v1, original `.md`-only scope), CARD-0086 (Done — automatic triggering, the component whose duplicate `.md` generation this card also had to catch), CARD-0083 (the card whose planning surfaced this question).
+**Related:** CARD-0088 (HTML hosting, this card's trigger condition), CARD-0081 (HTML rendering, the format this card made sole), CARD-0084 (Photos, HTML-only, the existing precedent), CARD-0073 (Hike-izer v1, original `.md`-only scope), CARD-0086 (automatic triggering, the component whose duplicate `.md` generation this card also had to catch), CARD-0083 (the card whose planning surfaced this question).
 
 ---
 
 ### CARD-0094 · [idea] [hike-izer] Switch hike-izer-web from Tailscale Funnel to Cloudflare Tunnel — RESOLVED 2026-07-27
+**Status:** Done
+
 **Raised 2026-07-24**, during CARD-0088's build. CARD-0088 shipped on Tailscale Funnel instead of the originally-planned Cloudflare Tunnel + `hikes.jctnet.com` subdomain, after discovering Cloudflare's free-tier onboarding doesn't support adding a subdomain as its own independent zone — it requires the full `jctnet.com` apex, which would have meant migrating the domain's nameservers to Cloudflare while it still had live Zoho email (MX + SPF records) running through it. Too risky a change for what CARD-0088 needed at the time.
 
 **Unblocked by CARD-0093** (Done, same day) — once `jctnet.com`'s DNS was cleaned up and email genuinely disabled, the nameserver-migration risk that ruled out Cloudflare was gone. Joseph confirmed picking this up anyway even though the card explicitly wasn't a commitment ("if the `*.ts.net` URL turns out to be perfectly fine in practice, there's no real reason to ever do this").
@@ -1084,11 +1181,13 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 
 **Tasker update, done and verified 2026-07-28.** Joseph's Tasker uses the "HTTP Post" action (not "HTTP Request" as the README assumed), which splits the URL into separate **Server:Port** and **Path** fields rather than one combined URL. First update only changed Server:Port to `https://jctnet.com` (missing the `hikes.` subdomain, and now a 301-redirect target besides) while leaving **Path** as bare `key=G3sOgsf6Ly5N9XwYN2cb1r0qokkHkmug` — missing the `/webhook/hike-end` prefix entirely, so nothing reached the M8 across two attempts (confirmed via live `docker logs` tailing — the Task ran and its Flash action fired both times, so the failure was silent at the network layer, not a Tasker error). Fixed: **Server:Port** → `https://hikes.jctnet.com`, **Path** → `/webhook/hike-end?key=G3sOgsf6Ly5N9XwYN2cb1r0qokkHkmug`. Manual play-button test confirmed live afterward: request received correctly, `%variable` placeholders present as expected outside a real GPSLogger broadcast, correctly ignored since `gpsloggerevent` wasn't literally `stopped`. `components/hike-izer-orchestrator/README.md`'s Tasker build steps updated with the Server:Port/Path split for this action type, plus the silent-failure warning, so a future rebuild doesn't hit the same gap.
 
-**Related:** CARD-0088 (Done — original hosting card, the Tailscale Funnel-era design this replaces), CARD-0093 (Done — the DNS cleanup that unblocked this), CARD-0086 (the webhook path this also affects), CARD-0096 (Backlog — host-naming convention, touch-point note updated to reflect this card landing).
+**Related:** CARD-0088 (original hosting card, the Tailscale Funnel-era design this replaces), CARD-0093 (the DNS cleanup that unblocked this), CARD-0086 (the webhook path this also affects), CARD-0096 (host-naming convention, touch-point note updated to reflect this card landing).
 
 ---
 
 ### CARD-0100 · [bug] [hike-izer] Automatic trigger (CARD-0086) generates and publishes a page even when no hike is confirmed (e.g. GPSLogger left on during a car errand) — RESOLVED 2026-07-27
+**Status:** Done
+
 **Raised 2026-07-25**, Joseph asked what happens if GPSLogger is accidentally left running in a car and then stopped.
 
 **Already handled, confirmed via code read:** `fetch_hike_data.py` already classifies each GPS session by median speed (`WALKING_SPEED_MIN_MPS`/`MAX_MPS`, ~0.15–3.0 m/s) plus daylight/stationary checks, marking anything outside walking pace `is_hike: false` with a rejection reason (e.g. "likely vehicle travel, not a hike") — a car trip's data is not mistaken for a hike at the classification level.
@@ -1101,11 +1200,13 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 
 **Live-verified 2026-07-27, real deployment.** Rebuilt and redeployed the `hike-izer-orchestrator` Docker image on the M8 (`docker compose up -d --build orchestrator` — also picked up the CARD-0101 `fetch_hike_data.py` fix, whose copy on the M8 was stale until this deploy). Sent a real `POST` to the live webhook (`https://photo-server.tailfe828a.ts.net/webhook/hike-end`) for a date with zero GPS/environmental activity: `docker logs` showed 0 rows fetched → immediate `"No hike confirmed ... skipping generation"` with no narrative step in between; `curl` against the would-be published page returned `404` (nothing written); the exact skip message showed up live on the JCTsh log dashboard (`http://100.70.162.24/data`, component `hike-izer-orchestrator`, category `System`) via the real MQTT path, not just a mock.
 
-**Related:** CARD-0086 (Done — the automatic-triggering component this gap lived in), CARD-0101 (Build — the sibling GPS-classification fix deployed in the same M8 rebuild), `components/hike-izer-orchestrator/generation.py`, `components/hike-izer/fetch_hike_data.py` (the existing car-vs-hike classification this card builds on, not replaces).
+**Related:** CARD-0086 (the automatic-triggering component this gap lived in), CARD-0101 (the sibling GPS-classification fix deployed in the same M8 rebuild), `components/hike-izer-orchestrator/generation.py`, `components/hike-izer/fetch_hike_data.py` (the existing car-vs-hike classification this card builds on, not replaces).
 
 ---
 
 ### CARD-0093 · [enhancement] [personal] Clean up DNS records on both `jctnet.com` and `jctnet.net` — RESOLVED 2026-07-27
+**Status:** Done
+
 **Both originally-open decisions resolved 2026-07-27:** `jctnet.com`'s root `A`/parking records — full removal, domain goes fully dormant (Joseph opted for the simplest teardown, splitting the 3 still-wanted Google Sites pages out into **CARD-0103** instead of keeping any DNS around for them). `jctnet.net`'s dangling `google-site-verification` TXT — confirmed safe to remove; both `jctnet.com` and `jctnet.net` showed zero indexed pages in Search Console, so there was nothing live to lose, and `jctnet.com` isn't being re-verified in Search Console at all going forward (nothing left to index once it's parked).
 
 **Notes:** Raised 2026-07-24, during CARD-0088's Cloudflare Tunnel setup — reviewing `jctnet.com`'s DNS in Cloudflare's onboarding scan surfaced 27 records, most of them dead cruft. Not part of CARD-0088 itself (that card doesn't touch the root domain at all) — a separate, standalone cleanup. **Broadened 2026-07-24** after Joseph flagged a second, separate domain also in play — `jctnet.net` — with its own live DNS and its own history; checked directly via public DNS lookup (Cloudflare's DoH API), not assumed. Folded into this same card rather than a sibling one, since it's the same underlying pattern (per-record keep/remove decision).
@@ -1138,6 +1239,8 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 ---
 
 ### CARD-0102 · [investigation] [infrastructure] Audit: what else breaks when the Pi/M8 weekly scheduled reboots discard in-flight state — RESOLVED 2026-07-27
+**Status:** Done
+
 **Raised 2026-07-27**, prompted by the CARD-0098 finding that the Pi's `scheduled-reboot.timer` (CARD-0035) silently disabled the Traveling Lights automation via HA's `initial_state:` key. Joseph asked what else that same weekly-reboot blast radius could be quietly breaking, on both hosts CARD-0035 covers.
 
 **Confirmed the reboot's actual scope on the Pi:** it's a full `/sbin/reboot` (not a targeted Docker/HA bounce) — `uptime -s`, and `mosquitto`/`nodered`/`jctsh-logging`/`docker` `ActiveEnterTimestamp` all landed within the same ~90 sec window as `scheduled-reboot.timer`'s last run (2026-07-27 03:00 MST).
@@ -1158,6 +1261,8 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 ---
 
 ### CARD-0099 · [bug] [core] Timeline sheet's `timestamp_az` column hardcodes Arizona local time for every row, regardless of where it happened — RESOLVED 2026-07-25
+**Status:** Done
+
 **Raised 2026-07-25**, discovered while confirming CARD-0097's fix — Joseph asked "are there any other columns in any sheet so named," which surfaced this second, more serious instance of the same standing principle ([[feedback_no_location_assumptions]]).
 
 **Real gap, not just a stale label (unlike `date_az` in Hike Start Forecast, which CARD-0097 already made cosmetic-only):** `refreshTimeline()` (JCTsh menu → Refresh Timeline) merges Environmental Data + Hiking Observations into the "Timeline" sheet, and unconditionally formatted every row's display time via `_azString()` — hardcoded Arizona (UTC-7, no DST) — regardless of where that reading/observation actually happened. A Michigan or Egypt hike's rows would have silently shown the wrong wall-clock time, mislabeled as if it were correct.
@@ -1172,11 +1277,13 @@ Note on "Cowork": not a current Anthropic product name I recognize — didn't wa
 
 **Related discovery, not yet acted on:** verifying this fix via the `action=export` HTTP endpoint turned out to be unreliable in a way that goes beyond the endpoint's already-documented Timeline caveat — `_exportSheet` silently drops (not just mis-filters) any row whose column A doesn't parse as a valid JS `Date`, and this happens *unconditionally*, even when no `start`/`end` filter is requested. The old Arizona-only format happened to still parse via V8's lenient date parsing; the new zone-name format (e.g. `... Africa/Cairo (+03:00)`) does not, so the export endpoint was quietly hiding exactly the rows needed to verify this fix. Verification was completed instead by having Joseph read the Sheet directly. Not fixed as part of this card — flagged for a possible follow-up if `action=export` needs to reliably return Timeline rows in the future.
 
-**Related:** CARD-0097 (Done — same standing principle, same Open-Meteo `timezone=auto` mechanism, found first), [[feedback_no_location_assumptions]] (the standing principle both cards are instances of), `core/data-pipeline/environmental-data.gs`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `components/hiking-monitor/data-pipeline.md`.
+**Related:** CARD-0097 (same standing principle, same Open-Meteo `timezone=auto` mechanism, found first), [[feedback_no_location_assumptions]] (the standing principle both cards are instances of), `core/data-pipeline/environmental-data.gs`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `components/hiking-monitor/data-pipeline.md`.
 
 ---
 
 ### CARD-0097 · [bug] [hike-izer] Hike Start Forecast capture hardcodes Arizona timezone — breaks anywhere but Arizona (Michigan trip, then Egypt trip Feb 2027) — RESOLVED 2026-07-25
+**Status:** Done
+
 **Raised 2026-07-25**, originally scoped ahead of a planned Egypt hiking trip in February. **Re-scoped same day:** this is not a US-vs-international issue — Phoenix is fixed UTC-7 with no DST, so *any other timezone*, including Michigan (Eastern, UTC-4/-5 depending on DST), hits the same bug. Moved to Build immediately because Joseph is traveling to Michigan and needs Hike-izer working correctly there before the Egypt trip.
 
 **Fix written and desk-verified 2026-07-25** — `core/data-pipeline/environmental-data.gs`'s `_maybeCaptureHikeStartForecast` now calls Open-Meteo with `timezone=auto` (server-side IANA lookup from lat/lon) instead of hardcoded `America/Phoenix`, and derives both the day-bucket and the nearest-hour match from the returned `utc_offset_seconds` instead of a fixed `-07:00`. `SCRIPT_VERSION` bumped to `2026-07-25.1-hike-start-forecast-timezone-fix`. Verified via a standalone Python port of the exact date arithmetic (Apps Script can't run outside its own editor) covering: Egypt/Giza (UTC+2), Michigan winter (EST, UTC-5), and a Michigan near-midnight edge case — all bucketed to the correct local calendar day and matched the correct local hour. A regression check confirmed the *old* hardcoded logic would have picked a forecast hour ~8.75 hours off for the Egypt case, i.e. the bug was real, not theoretical.
@@ -1193,11 +1300,13 @@ Open-Meteo itself is a global provider (not US-only), so this is a fix, not a pr
 
 **General principle (Joseph, 2026-07-25):** no component Hike-izer touches should assume a fixed home timezone or location — every timezone/location-dependent computation must derive from the hike's actual coordinates/local offset, never a hardcoded Phoenix/home default. This fix is the one confirmed instance; if another hardcoded-Arizona assumption turns up elsewhere in the Hike-izer path later, it's an instance of this same principle, not a separate one-off.
 
-**Related:** CARD-0083 (Done — original Hike Start Forecast feature, source of the hardcoded assumption), `core/data-pipeline/environmental-data.gs`.
+**Related:** CARD-0083 (original Hike Start Forecast feature, source of the hardcoded assumption), `core/data-pipeline/environmental-data.gs`.
 
 ---
 
 ### CARD-0088 · [idea] [hike-izer] HTML output hosting (real URL, not an email attachment) — RESOLVED 2026-07-24
+**Status:** Done
+
 **Notes:** Filed 2026-07-23, narrowed 2026-07-24, moved to Build 2026-07-24, resolved 2026-07-24. Originally scoped as "HTML rendering, Levels 3-5" (embedded visuals, interactive, hosting) split out of CARD-0081. Narrowed further after realizing the embedded-visuals and interactive/photos items were pure duplicates of scope already owned elsewhere — CARD-0082 (Visual track + elevation graphic) already covers embedded maps/charts, CARD-0084 already covers photo integration. This card covers only the one genuinely unowned piece: **publishing** the HTML Hike-izer already generates (CARD-0081, Done) somewhere with a real URL, instead of emailing a file as an attachment.
 
 **Decided 2026-07-24: self-host on the M8** (`photo-server`), not Google Sites — Google Sites' manual-publish friction (no programmatic API) was the deciding factor against it.
@@ -1222,6 +1331,8 @@ Open-Meteo itself is a global provider (not US-only), so this is a fix, not a pr
 ---
 
 ### CARD-0083 · [idea] [hike-izer] Show the weather forecast as it stood at hike start — RESOLVED 2026-07-24
+**Status:** Done
+
 **Notes:** Raised 2026-07-23, moved to Build 2026-07-24, resolved 2026-07-24. Show what the weather forecast *was* at the beginning of the hike — not a live/current forecast checked whenever the summary gets generated, and not actual observed conditions (that's already CARD-0074's separate "historical weather" item, explicitly scoped as actual-conditions lookup, not forecast).
 
 **Feasibility issue found and resolved by scoping decision:** historical forecasts generally aren't retrievable after the fact — weather services archive what actually happened, not what was predicted at some past moment, unless something captured that specific forecast snapshot at the time. Scoped for **future hikes only**, captured live at hike start — not retroactive for hikes already recorded. No existing weather-fetch integration to build on: JCTsh's Weather Underground integration only *posts* the household's own sensor data outward, it doesn't pull forecast data in — this is a new integration either way.
@@ -1249,6 +1360,8 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 ---
 
 ### CARD-0089 · [bug] [netalertx] Test upstream fix for the webhook HMAC signature bug (netalertx/NetAlertX#1720) — RESOLVED 2026-07-24
+**Status:** Done
+
 **Notes:** Raised 2026-07-24. Maintainer response to the upstream bug filed during CARD-0078 (compact-vs-default JSON serialization mismatch between what NetAlertX signs and what it actually transmits in `_publisher_webhook/webhook.py`) — said it's fixed in an unreleased build and asked for confirmation testing against `ghcr.io/netalertx/netalertx-dev-unsafe` before merging/releasing, or the fix may be reverted.
 
 **Not blocking JCTsh:** the production webhook consumer (Node-RED, CARD-0078) already works around this bug independently (re-serializes to match NetAlertX's buggy signature before verifying) — this test was purely to help the upstream fix land for the wider NetAlertX community, not something JCTsh needed.
@@ -1262,11 +1375,13 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 
 **Not yet done:** report the confirmation back on the GitHub issue — that's a public action (commenting on someone else's issue) needing Joseph's explicit go-ahead, not something to post unprompted.
 
-**Related:** CARD-0078 (Done — where the bug was found and worked around), `netalertx/NetAlertX#1720` (upstream issue), `components/netalertx/docker-compose.yml`.
+**Related:** CARD-0078 (where the bug was found and worked around), `netalertx/NetAlertX#1720` (upstream issue), `components/netalertx/docker-compose.yml`.
 
 ---
 
 ### CARD-0084 · [idea] [hike-izer] Photo integration (Immich) — RESOLVED 2026-07-24
+**Status:** Done
+
 **Notes:** Raised 2026-07-23, split out of CARD-0074 (Hike-izer v2, superseded) as an individually-tracked feature rather than a batched release item. Pull in photos taken during a hike, matched via `photo-server`'s Immich API to a confirmed hike's date/time range.
 
 **Actual data dependency (corrected 2026-07-24 — not what CARD-0074 originally said):** CARD-0074's blanket blocker note ("hiking-monitor device needs to be operational") was carried into this card mechanically without checking whether it actually applies. It doesn't: this feature needs (1) a confirmed hike time window — which comes from GPS Track/GPSLogger (phone-based), entirely independent of the hiking-monitor ESP32 device, confirmed working independently by CARD-0087 — and (2) real photos in Immich falling within that window. The hiking-monitor device only produces Environmental Data (temp/humidity/pressure/UV/battery/altitude), which this feature doesn't touch at all.
@@ -1305,6 +1420,8 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 ---
 
 ### CARD-0081 · [idea] [hike-izer] HTML rendering, Levels 1-2 (basic styling + structured layout) — RESOLVED 2026-07-24
+**Status:** Done
+
 **Notes:** Raised 2026-07-23. Current output (v1, CARD-0073) was Markdown only. Goal: improve readability and shareability via HTML rendering, built iteratively — start simple, layer in complexity over successive passes rather than one big build. Originally scoped as a 5-level iteration path in this one card; narrowed 2026-07-23 to just Levels 1-2 per Joseph's preference for shorter-running cards, with Levels 3-5 (embedded visuals, interactive, hosting) split out to **CARD-0088**. CARD-0088 was itself narrowed 2026-07-24 after its embedded-visuals/interactive scope turned out to be pure duplicate of CARD-0082 (visuals) and CARD-0084 (photos) — it now covers only hosting.
 
 **Scope (this card):**
@@ -1328,6 +1445,8 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 ---
 
 ### CARD-0087 · [bug] [hiking-monitor] GPSLogger ran during today's hike but zero rows reached the GPS Track sheet — RESOLVED 2026-07-23
+**Status:** Done
+
 **Notes:** Found 2026-07-23 while running Hike-izer for today. Requested a Hike-izer summary for today's hike; `fetch_hike_data.py` returned zero GPS Track rows. Joseph confirmed GPSLogger was actively running for the entire hike today, and — importantly — **was not running on any other day in the past week**. So the only day with a real, confirmed expectation of GPS Track data was today, and today produced none. This was one concrete failure instance, not evidence of a long-running continuous outage — the GPS Track sheet's most recent row before today was 2026-06-18, but that gap likely just reflected GPSLogger not being used in between, not the pipeline being broken that whole time.
 
 **Confirmed via direct investigation:** queried the GPS Track sheet's `action=export` endpoint with no date filter — 806 total rows, most recent timestamp 2026-06-18T21:55:32Z, nothing since. Meanwhile the Hiking Observations sheet *did* receive 19 real rows today (5:45–8:28 AM MST, clearly a real hike) via the same Apps Script deployment — so today's break was isolated to GPSLogger's specific upload path, not a general Apps Script/Sheets outage.
@@ -1348,6 +1467,8 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 ---
 
 ### CARD-0079 · [bug] [logging] Old null-byte corruption in the log file (536 bytes, historical, inactive) — RESOLVED 2026-07-23
+**Status:** Done
+
 **Notes:** Found 2026-07-22 while testing CARD-0078's webhook fix. Initial concern was that a confirmed-published MQTT message never appeared in `/mnt/jctsh-logs/jctsh.log` or the live `/log` endpoint — **resolved as a false alarm, not a bug:** `log_server.py` holds the most recent non-heartbeat message in a single global `_pending` slot and only flushes it to disk once a *different* non-heartbeat message displaces it (`_store_entry()`, `core/logging/log_server.py`). The live `/data` endpoint (which includes `_pending`) had the message the whole time; sending a second distinct test payload immediately flushed the first to the file, confirmed directly. Working as designed.
 
 **What was real:** while investigating, found genuine null-byte corruption in the log file — 536 bytes total, in two small contiguous runs (367 and 169 bytes), confirmed via direct Python byte-level scan (`/mnt/jctsh-logs/jctsh.log`). The earlier "7,634" figure quoted from `grep -c $'\x00'` was wrong — that shell substitution doesn't actually pass a null byte as a grep pattern, so it silently matched an empty pattern and just counted total lines in the file, not corruption. Both null-byte runs sat in **old content from around 2026-07-03** (real log lines resumed immediately after each run) — not recent, not growing, not connected to CARD-0006's log-directory migration or that night's testing.
@@ -1359,6 +1480,8 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 ---
 
 ### CARD-0078 · [bug] [netalertx] False "New device detected" alerts re-fire after any Node-RED restart — RESOLVED 2026-07-23
+**Status:** Done
+
 **Notes:** Found 2026-07-22, triggered by CARD-0006's Pi reboot test. Three devices showed "New device detected" alerts timestamped that night despite NetAlertX's own history showing they first connected 07-14, 07-18, and 07-20. Confirmed NetAlertX's own Notifications system correctly computed zero new devices in its latest batch — the false alert wasn't coming from NetAlertX's detection logic.
 
 **Root cause (confirmed):** `components/netalertx/netalertx.flow.json`'s old `fn_device_info` node did its own new-device dedup against NetAlertX's raw per-scan MQTT firehose, tracked via Node-RED's in-memory `flow.set('newflag_'+mac, ...)` — which resets on any Node-RED restart. NetAlertX's own `is_new` field stays true until a device is acknowledged/named in its UI, so the first scan after any restart re-fired alerts for every still-unacknowledged device. CARD-0006's Pi reboot restarted Node-RED, directly causing that night's false alerts.
@@ -1377,6 +1500,8 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 ---
 
 ### CARD-0006 · [enhancement] [logging] Move log directory to USB stick — RESOLVED 2026-07-22
+**Status:** Done
+
 **Notes:** Moved `LOG_DIR` in `log_server.py` from the SD card to a dedicated USB stick plugged into the Pi for better write endurance. Sizing check beforehand found the actual log volume (jctsh.log + state.json) under 1MB after 1.5 months across all 8 heartbeat components — capacity was never the constraint, write endurance was.
 
 **Before formatting the drive:** it was a reused spare, not blank — checked its 19 existing files (an old personal photo archive, 47.5MB) against both Immich libraries by filename (zero matches), then ran the newly-established standard `immich-go upload from-folder` import into Joseph's account per `components/photo-server/operations.md`: 12 genuinely new assets uploaded and tagged, 7 caught as checksum-based duplicates Immich already had under different filenames. Confirmed safe to reuse only after that.
@@ -1388,6 +1513,8 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 ---
 
 ### CARD-0075 · [enhancement] [hiking-monitor] Rename project from hiking-sensor to hiking-monitor throughout — RESOLVED 2026-07-21
+**Status:** Done
+
 **Notes:** Raised 2026-07-21. Resolved the folder/prose-vs-device-name mismatch CARD-0009's Reflection step flagged as worth capturing: the real device's firmware had always identified itself as `hiking-monitor` (`esphome: name: hiking-monitor`, confirmed in the real yaml before this rename) and its MQTT username was `hiking-monitor` — but the git repo's folder, several filenames, and most prose throughout the project still said "hiking-sensor" / "hiking sensor." This rename brought the project's own naming into line with what the device had called itself all along.
 
 **Confirmed low-risk, documentation/repo-organization only:** since the device's `esphome:name` was already `hiking-monitor`, this rename did **not** require re-flashing the real field-deployed device or the test rig — no firmware, MQTT identity, or OTA/wake behavior changes. Pure file/folder/text rename.
@@ -1408,6 +1535,8 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 ---
 
 ### CARD-0073 · [idea] [hike-izer] Hike-izer — narrative summary application layer for hiking data — RESOLVED 2026-07-18
+**Status:** Done
+
 **Notes:** Raised 2026-07-18. JCTsh's hiking-monitor pipeline already covers data collection (ESP32 sensors — BME280, LTR-390 UV; GPS track via Pixel GPSLogger) and data storage (GPS Track and Environmental Data Google Sheets, per CARD-0020). Hike-izer adds the missing layers on top: a controller layer (rules/analysis) and a rudimentary presentation layer, turning raw hike data into a narrative story of the hiking event rather than just charts.
 
 **Relationship to CARD-0020:** complementary, not competing (Joseph's call). CARD-0020's Looker Studio dashboard stays scoped to raw charts/maps; Hike-izer's output is the narrative layer, generated from the same underlying Sheets data. Neither supersedes the other.
@@ -1473,6 +1602,8 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 ---
 
 ### CARD-0034 · [idea] [personal] Complete digital-identity-protection-checklist.md — RESOLVED 2026-07-17
+**Status:** Done
+
 **Notes:** Work through `digital-identity-protection-checklist.md` (repo root) — Joseph and Robin's personal security checklist closing single-point-of-failure risks (carrier port-out PIN, 2FA off SMS, credit freezes, password manager, household verification protocol, incident response plan). Almost entirely manual actions by Joseph/Robin themselves (phone calls to carriers/bureaus, account settings changes) — not something Claude Code can execute directly, but worth tracking to completion since it's currently all unchecked. Also has an "Open Items to Fill In" section (list specific banks/brokerages in use, confirm current password manager/2FA setup, set a 6-month review date) that needs input from Joseph before those parts can be finished.
 
 **Blocked (2026-07-11):** waiting on delivery of Google Titan Security Key hardware authenticators (3 ordered) — needed for the hardware-key 2FA portion of the checklist before those items can be checked off.
@@ -1484,6 +1615,8 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 ---
 
 ### CARD-0026 · [enhancement] [hiking-monitor] Measure hiking-monitor sleep-mode current draw — RESOLVED 2026-07-16
+**Status:** Done
+
 **Notes:** The hiking-monitor's actual standby battery life is unknown. The ESP32's own deep-sleep draw is negligible (~10µA), but `VOUT+` runs directly to the ESP32's `VIN` with the switch NOT in the power path, so the TP4056+boost module stays active even while the ESP32 sleeps — its quiescent current (undocumented by the manufacturer, plausibly 1-5mA for a cheap module) is almost certainly the real bottleneck. This measurement gives an actual number instead of a guess.
 
 **Reuses the CARD-0025 tester rig** (spare ESP32 from Bag 1 + spare TP4056 from Bag 8) — build both cards in the same bench session.
@@ -1550,6 +1683,8 @@ Re-tested on battery power alone (USB disconnected, fresh reset): still bouncing
 ---
 
 ### CARD-0068 · [enhancement] [netalertx] Remove online/offline presence messages from the log — RESOLVED 2026-07-15
+**Status:** Done
+
 **Notes:** Raised 2026-07-14, follow-up to CARD-0063. With the translation flow live for a bit, the online/offline presence transition messages (`<device> came online` / `went offline`) turned out to be noisy and not actionable — mobile/known-flappy devices dominate, and even a real device flip doesn't carry enough context (how long, why it matters) to be worth a log line. New-device alerts and the heartbeat are working well and stay. No future use anticipated for presence data elsewhere (NetAlertX's own UI already covers online/offline if ever needed) — clean removal, not a toggle/config flag.
 
 **Scope:** in `components/netalertx/netalertx.flow.json` — remove the `mqtt_in_netalertx_binary` node (`system-sensors/binary_sensor/+/state` subscription) and the `fn_presence` function node entirely. Also remove the `devinfo_<mac>` vendor/model caching in `fn_device_info`, since it only existed to label presence messages that won't exist anymore. New-device alert messages already build their label directly from the per-device sensor payload (`payload.model || payload.vendor`), not from that cache, so no functional change there. Heartbeat and new-device detection otherwise untouched.
@@ -1565,6 +1700,8 @@ Re-tested on battery power alone (USB disconnected, fresh reset): still bouncing
 ---
 
 ### CARD-0069 · [bug] [infrastructure] log_server.py silently drops heartbeat-only components' messages — RESOLVED 2026-07-15
+**Status:** Done
+
 **Notes:** Raised 2026-07-15, found while checking on CARD-0068's netalertx changes at Xerocraft (accessed remotely via Tailscale). `netalertx` appeared completely silent on the log dashboard since 20:36 the prior evening — 14+ hours, no heartbeat displayed anywhere — despite `/status` showing it "Online, 4m ago." Root-caused directly on the Pi (SSH via Tailscale), not guessed:
 
 1. Confirmed Node-RED's flow is healthy and correct — `netalertx.flow.json`'s wiring matches the source exactly (pulled the live `flows.json` and diffed against the repo copy), the watchdog's own timer-reset log entries prove the machine-readable heartbeat (`jctsh/components/netalertx/heartbeat`) fires every 5 minutes as designed.
@@ -1606,6 +1743,8 @@ All five flushed cleanly with formatting identical to the pre-fix collapse patte
 ---
 
 ### CARD-0060 · [bug] [infrastructure] Pi running in active soft thermal throttling &mdash; no cooling &mdash; RESOLVED 2026-07-15
+**Status:** Done
+
 **Notes:** Found 2026-07-12 during a Pi health evaluation. `vcgencmd get_throttled` returns `0x80008` (bit 3: soft temperature limit *currently active*; bit 19: has occurred) at a measured 63&ndash;64&deg;C, confirmed on two separate checks. No under-voltage bits set &mdash; power supply is fine, this is purely thermal. No heatsink/fan apparent on this Pi 3B+. Likely compounded by an enclosed/warm install location, matching the pattern of other JCTsh closet-installed devices (photo-server M8, KeepConnect).
 
 **Impact:** the Pi is right now running with reduced ARM clock speed to manage heat. Not causing instability (uptime is solid, no OOM/crash pattern), but is a real, currently-active performance ceiling on the device that hosts Home Assistant, Node-RED, Mosquitto, and the JCTsh log/watchdog server for the whole fleet.
@@ -1646,6 +1785,8 @@ Joseph is installing the fan next; re-check `vcgencmd get_throttled` afterward p
 ---
 
 ### CARD-0063 · [idea] [infrastructure] NetAlertX MQTT event richness experiment + log dashboard wiring — RESOLVED 2026-07-14
+**Status:** Done
+
 **Notes:** Raised 2026-07-12, deferred from CARD-0059. Whether NetAlertX's MQTT plugin publishes rich, human-readable event text (new device / down / reconnected, with name/MAC/IP) or only structured Home-Assistant-discovery-style state (per-device online/offline binary sensor + aggregate counts) is genuinely unclear from the docs — there was an open GitHub feature request (#1339) to bring MQTT up to webhook-level richness, closed with a "next release/in dev image" label, but not confirmed against the exact `ghcr.io/netalertx/netalertx:latest` image pulled for this deployment.
 
 **Resolution path — a 5-minute live test, not more research:** enable the MQTT plugin in NetAlertX's Settings, point it at the `netalertx` broker account (`credentials.local.md`), unplug or disconnect something on the LAN, and watch what actually publishes to the Pi's Mosquitto broker (`mosquitto_sub -u netalertx -P ... -t '#'` or similar). That resolves the uncertainty directly.
@@ -1697,6 +1838,8 @@ After the fix, live-verified end to end: heartbeat shows real stats (`Heartbeat 
 ---
 
 ### CARD-0064 · [enhancement] [netalertx] Device checking & naming workflow — RESOLVED 2026-07-14
+**Status:** Done
+
 **Notes:** Raised 2026-07-12. CARD-0059 deployed NetAlertX and confirmed the one-time naming setup works, but never established a *repeatable* process for ongoing use &mdash; and CARD-0063 explicitly holds off further NetAlertX/dashboard integration work until the tool is "checked periodically, devices named as new ones show up, genuinely relied on instead of ignored." This card is that missing piece: a concrete, repeatable workflow, not another one-time pass.
 
 **Content:** `components/netalertx/naming-workflow.md` &mdash; access details, a weekly check cadence, the actual per-device steps (vendor-guess first, cross-reference `jctsh-network.md` before assuming a device is new, assign a name/icon), a documented gotcha (Android/iOS MAC randomization can make one physical phone look like repeated "new" devices unless switched to a stable per-network MAC), and an explicit rule against naming drift between NetAlertX and `jctsh-network.md` for devices that exist in both.
@@ -1720,6 +1863,8 @@ After the fix, live-verified end to end: heartbeat shows real stats (`Heartbeat 
 ---
 
 ### CARD-0049 · [enhancement] [salt-sensor] Move from breadboard to perfboard — RESOLVED 2026-07-13
+**Status:** Done
+
 **Progress (2026-07-10):** Follow-on to CARD-0004 (ESPHome migration). Moved all three LEDs off their original breadboard pins onto a perfboard-friendly layout: Red GPIO2→GPIO32, Yellow GPIO15→GPIO33, Green GPIO4→GPIO27 — gets Red/Yellow off strapping pins entirely and lines all three LEDs up on the same header row (left pins 7/8/11) for easier soldering. GPIO25/26 (DAC1/DAC2) were considered since they sit physically between GPIO32/33 and GPIO27, but ruled out — GPIO25 is confirmed broken for digital output in ESPHome/Arduino, GPIO26 avoided as a precaution for the same DAC-reinit reason. Trig (GPIO5) and Echo (GPIO18) unchanged.
 
 Updated `salt-sensor.yaml` (wiring comment + `output:` block), `components/salt-sensor/CLAUDE.md`, and `components/salt-sensor/ESP32-project-pins.md` to match. Physical rewiring done; reflashed over OTA and field-verified — LEDs confirmed matching the `ok` status (green solid, red/yellow off) on the new pins, MQTT `/data` and `/status` reporting normally post-flash.
@@ -1745,6 +1890,8 @@ Updated `salt-sensor.yaml` (wiring comment + `output:` block), `components/salt-
 ---
 
 ### CARD-0066 · [enhancement] [photo-server] Verify legacy USB photo archive against Joseph's Immich library — RESOLVED 2026-07-13
+**Status:** Done
+
 **Notes:** Raised 2026-07-13. Joseph has a USB stick drive (E:) with a legacy photo archive — 941 `.jpg` files at the drive root (camera-original filenames like `CIMG0002.jpg`, dated 2002-2009), plus one unrelated `.exe` and several empty placeholder folders (`Documents/Pictures`, `Documents/Videos`, `Documents/Downloads`, `Documents/Music`, `System/Apps`, `System Volume Information`) — confirmed via direct inspection, no duplicate filenames within the 941. Wants to verify these are already in Immich (or upload whatever's missing) before wiping the drive, using the same checksum-based matching approach already established for the original Takeout migration (`components/photo-server/migration.md`) — matches skip, gaps upload, no separate dry-run needed.
 
 **Plan:**
@@ -1771,6 +1918,8 @@ Updated `salt-sensor.yaml` (wiring comment + `output:` block), `components/salt-
 ---
 
 ### CARD-0065 · [bug] [hiking-monitor] Validate LTR-390 UV Index readings in real sunlight — RESOLVED 2026-07-13
+**Status:** Done
+
 **Notes:** Raised 2026-07-13. During post-CARD-0009-rework field testing, UVI read 0 (then 0.01) when the device was taken off dock power into "direct sunshine," raising concern about a wiring fault introduced by CARD-0009's STEMMA QT rework on the LTR-390. Split out as its own card rather than folded into CARD-0009, since that card scopes the enclosure/build work specifically and this is a sensor-correctness question that outlived it.
 
 **Investigation:** ruled out, in order — enclosure/case blocking the sensor (device wasn't in the box), SDA/SCL swap from the STEMMA QT rework (wiring confirmed correct by direct inspection), and a loose STEMMA QT connector. BME280 (shared I2C bus) read normally throughout, narrowing any real fault to the LTR-390 itself. Sensor pointed straight at the sun and left to complete a full `update_interval: 2min` cycle — UVI climbed to **6.90**, a plausible value for clear midday sun. No hardware fault; the earlier near-zero readings were just pre-settle values from before the sensor had a clean, unobstructed, correctly-oriented exposure.
@@ -1784,6 +1933,8 @@ Updated `salt-sensor.yaml` (wiring comment + `output:` block), `components/salt-
 ---
 
 ### CARD-0003 · [enhancement] [infrastructure] TLS for Mosquitto (port 8883) — RESOLVED 2026-07-13
+**Status:** Done
+
 **Notes:** Port 1883 is internet-exposed via DuckDNS/port-forward with fail2ban, but credentials and sensor data are cleartext for any device using that path. TLS on 8883 eliminates this — scoped as a **split-port design**, not a fleet-wide switch: 1883 stays plaintext and LAN-only (not forwarded through the router), continuing to serve stationary home devices (garage-radar, salt-sensor, front-porch-temp-sensor, remote-temp-sensor-01, etc.) with no `secrets.yaml`/firmware changes needed. 8883 (TLS) becomes the *only* port forwarded via DuckDNS, used exclusively by devices that actually leave the home network — hiking-monitor today, air-quality-monitor once built (CARD-0012, "carried on hikes alongside the hiking monitor"). Steps: get Let's Encrypt cert for the DuckDNS hostname (certbot with duckdns plugin), add a TLS listener on port 8883 in mosquitto.conf, change the router port-forward from 1883→8883, add CA-cert trust config + updated broker port to the remote-capable devices' `secrets.yaml`/`mqtt:` block, reflash those devices only, update Node-RED broker node / HA MQTT integration if either connects over the forwarded path. CARD-0002 prerequisite complete.
 
 **Decision rationale (2026-07-10):** considered reflashing the whole fleet uniformly vs. this split; chose the split because most devices are stationary and never traverse the internet-facing path, so fleet-wide TLS would add CA-cert config/maintenance to every device for no real exposure reduction on the stationary ones. This card protects only the internet-exposed path (roaming devices via DuckDNS/port-forward); it does not encrypt LAN-local port 1883 traffic for stationary devices — that residual, accepted risk is documented under CARD-0050, which was deprioritized 2026-07-10 on its own risk-analysis merits (see that card — CARD-0003 was mistakenly framed there at first as a substitute for it and later corrected).
@@ -1810,6 +1961,8 @@ Execution detail/history: `C:\Users\jcthomas\.claude\plans\misty-fluttering-porc
 ---
 
 ### CARD-0061 · [enhancement] [infrastructure] Add Docker health check for the Pi's Home Assistant container &mdash; RESOLVED 2026-07-12
+**Status:** Done
+
 **Notes:** Found 2026-07-12 during a Pi health evaluation. The `homeassistant` Docker container had no configured `HEALTHCHECK` &mdash; `docker ps`/`docker inspect` only reflected process liveness, not actual HA responsiveness. Same class of blind spot already found and fixed on photo-server (CARD-0032/CARD-0046: Docker's own health check only pings the API, doesn't verify real functionality) &mdash; HA is arguably the single most critical container on the Pi, since it's the sole bridge to SmartThings/Google Home for the whole house.
 
 **Resolution:** added a `healthcheck` block to `core/homeassistant/docker-compose.yml`: `curl -f http://localhost:8123/manifest.json` (lightweight, unauthenticated, confirmed working) every 60s, 10s timeout, 3 retries, 90s start period to cover HA's own boot time. Deployed to the Pi (`/home/pi/docker-compose.yml`) and recreated the container &mdash; the existing `homeassistant` container predated this compose project (no compose labels), so it had to be stopped and removed before `docker compose up -d` would take over management of it; HA's actual config lives in the bind-mounted `/home/pi/homeassistant` volume, not the container, so nothing was lost.
@@ -1823,6 +1976,8 @@ Execution detail/history: `C:\Users\jcthomas\.claude\plans\misty-fluttering-porc
 ---
 
 ### CARD-0062 · [enhancement] [infrastructure] Switch Pi to headless boot &mdash; drop the desktop GUI &mdash; RESOLVED 2026-07-12
+**Status:** Done
+
 **Notes:** Found 2026-07-12 during a Pi health evaluation. The Pi boots into `graphical.target` with a full desktop session running (`pcmanfm --desktop`, `wf-panel-pi`) even though normal access is SSH-only &mdash; Joseph used the physical desktop once, during initial setup, never since. On a Pi 3B+ with only ~905MB RAM already under real pressure (zram swap sitting at ~50% used while running HA, Node-RED, Mosquitto, the log server, Tailscale, and fail2ban concurrently), this was pure reclaimable overhead.
 
 **Pre-check:** confirmed no VNC/RealVNC/xrdp service configured, and `/etc/xdg/autostart/` + `~/.config/autostart/` contained only standard desktop-session plumbing (polkit agents, on-screen keyboard, compositor) &mdash; nothing load-bearing for SSH-only use.
@@ -1834,6 +1989,8 @@ Execution detail/history: `C:\Users\jcthomas\.claude\plans\misty-fluttering-porc
 ---
 
 ### CARD-0059 · [idea] [infrastructure] NetAlertX — self-hosted LAN device tracker with custom naming — RESOLVED 2026-07-12
+**Status:** Done
+
 **Notes:** Raised 2026-07-12. Motivated by the router (TP-Link Archer AXE75) listing most connected devices with meaningless names, with no built-in way to rename them — the JCTsh-managed fleet already has this solved via DHCP reservations + `jctsh-network.md`'s device table + ESPHome hostnames, but third-party/commercial devices (Ring, Ecobee, Cast devices, guest phones) aren't part of that convention and the router won't let their names be overridden.
 
 **What it is:** NetAlertX (formerly Pi.Alert) — open-source, self-hosted LAN device scanner and presence tracker. Maintains its own device database independent of the router, so naming lives there regardless of what the router shows.
@@ -1853,6 +2010,8 @@ Two real deploy bugs found and fixed: (1) my first compose file was based on a l
 ---
 
 ### CARD-0057 · [enhancement] [kanban-board] Serve the kanban board as a live-parsing Pi page — RESOLVED 2026-07-11
+**Status:** Done
+
 **Notes:** Raised 2026-07-11. The manual regenerate-after-edit discipline agreed to when closing CARD-0056 is already slipping — updates to `kanban-board.md` aren't reliably followed by a republish. That's exactly the condition CARD-0056 named as the trigger to revisit this alternative, and it's now been hit. There's a second, measured cost beyond just forgetting: a regenerate cycle means re-reading the full ~600-line file (multiple large reads once the board grows) plus manually cross-checking it against the embedded JSON, which alone runs over 20k tokens — expensive as well as easy to skip.
 
 **Skipped Planning/Design (2026-07-11):** the card's own architecture sketch below already functioned as the plan, and the one open question (getting `kanban-board.md` onto the Pi) already had a settled answer — same situation the TOS doc calls out for CARD-0003/CARD-0034, so this went straight from Backlog to Build.
@@ -1888,6 +2047,8 @@ Two real parser bugs found and fixed during local testing, both edge cases expos
 ---
 
 ### CARD-0004 · [enhancement] [salt-sensor] Migrate Arduino C++ → ESPHome — RESOLVED 2026-07-11
+**Status:** Done
+
 **Resolution:** `salt-sensor.yaml` written and compiles clean (RAM 13.2%, Flash 52.3%). Direct translation of the Arduino sketch — same 15-sample-median 12h reading cycle, same MQTT topics/payloads (`jctsh/sensors/salt-sensor/data`, `/status`, `/log`), same LED state machine (GPIO2/15/4, unchanged pins), same thresholds (still owned entirely by Node-RED — flow untouched). Added a 30-min heartbeat (`.../heartbeat`) that didn't exist before, closing the gap CARD-0021 flagged (salt-sensor showing `?` on the status dashboard). `secrets.yaml` created from `secrets.h`'s values; old v3 Arduino sketch archived to `archive/salt-sensor-v3-arduino/`; `C:\esphome\salt-sensor\` flash path set up matching the other ESPHome components.
 
 **Two real compile bugs found and fixed during translation** (both are ESPHome `globals:` gotchas, not obvious from the docs): a fixed-size C array global (`float[15]`) fails to compile (`GlobalsComponent` can't take an array by value — decays to a pointer); switched to `std::vector<float>`. Its `initial_value: '{}'` was then ambiguous between two constructor overloads; fixed with an explicit `std::vector<float>()` initializer.
@@ -1905,6 +2066,8 @@ Two real parser bugs found and fixed during local testing, both edge cases expos
 ---
 
 ### CARD-0056 · [enhancement] [kanban-board] Persistent visual kanban board — RESOLVED 2026-07-11
+**Status:** Done
+
 **Notes:** Raised 2026-07-11: every time the board gets summarized in chat, it comes out in a different ad hoc format and scrolls out of view while working, with no stable place to return to it. Agreed approach: a browser-hosted Artifact with a persistent URL, redeployed to the same link whenever `kanban-board.md` changes, rather than a fresh chat message each time.
 
 Built as a single self-contained HTML page (no external requests, per the Artifact sandbox) — a blueprint-styled board with one column per kanban state (Backlog, Planning, Design, Build, Done, Defer), each independently scrollable and collapsible, card tiles that expand in place for full notes, a live text search across id/title/tag/notes, and type filter chips (bug/enhancement/idea). Card data is baked into the page at build time as a JSON blob, not read live from the repo — so it goes stale exactly the way any snapshot does, and needs a manual regenerate-and-republish pass after edits, same discipline as keeping any other doc in sync.
@@ -1918,6 +2081,8 @@ Built as a single self-contained HTML page (no external requests, per the Artifa
 ---
 
 ### CARD-0052 · [idea] [infrastructure] JCTsh Team Operating System (TOS) — RESOLVED 2026-07-11
+**Status:** Done
+
 **Notes:** Defines how the team works — the conceptual process governing all work, independent of any single component. Written up 2026-07-11 at Joseph's direction after a series of card/backlog/commit/push questions surfaced that this process was implicit (living in `backlog.md`'s column definitions and the user's global CLAUDE.md workflow notes) but never stated as its own document.
 
 **Resolution:** `JCTsh-Operating-System.md` (repo root, v1.0 — this card's full output *is* version 1 of the doc) defines:
@@ -1936,6 +2101,8 @@ Cross-checked against `JCTsh-Component-Planning-Pattern.md` (CPP) during develop
 ---
 
 ### CARD-0043 · [bug] [photo-server] Robin's library missing metadata (null width/height/orientation) for large fraction of assets — RESOLVED 2026-07-10
+**Status:** Done
+
 **Notes:** Discovered 2026-07-09 following up on CARD-0042 — Joseph reported a specific HEIC photo (`IMG_20260625_165423.heic`, Robin's account) with a fine-looking thumbnail but a visibly distorted full image (elongated heads). Checked the asset directly via `/api/assets/{id}`: `width`, `height`, `exifImageWidth`, `exifImageHeight`, and `orientation` all `null` — Immich never successfully extracted this file's real dimensions/orientation, which plausibly explains the distortion (wrong aspect-ratio assumption during preview rendering). Sampled 100 assets per account: **Joseph 0/100 null width; Robin 89/100 (89%)** — same lopsided pattern as CARD-0037/CARD-0039/CARD-0042, again far worse for Robin despite her "clean" import history.
 
 Triggered `metadataExtraction` via `PUT /api/jobs/metadataExtraction` (`{"command":"start"}`) — unlike CARD-0042's thumbnail gap, this one *is* partially caught by the normal queue trigger: 13,311 assets queued immediately. However this is likely not the full picture — some assets (like the specific HEIC file that started this) may be marked "complete" in the database despite holding null values, the same DB-vs-reality mismatch pattern as CARD-0042, which would need the same forced per-asset fix (`refresh-metadata`, another valid job name on the same `/api/assets/jobs` endpoint used for CARD-0042's `regenerate-thumbnail`).
@@ -1947,6 +2114,8 @@ Triggered `metadataExtraction` via `PUT /api/jobs/metadataExtraction` (`{"comman
 ---
 
 ### CARD-0042 · [bug] [photo-server] Robin's library missing thumbnails for ~81% of assets — RESOLVED 2026-07-10
+**Status:** Done
+
 **Notes:** Discovered 2026-07-09 while troubleshooting Robin's phone backup — Joseph noticed "Error Loading Image" on several thumbnails, both in the phone's local gallery view and (critically) in the web UI too, which ruled out a phone-side rendering glitch. Diagnosed via direct HTTP checks against `/api/assets/{id}/thumbnail`: a 150-asset sample came back 122/150 (81%) returning `404` for Robin, versus **0/150** for Joseph — confirmed real, server-side, and isolated to Robin's account. Root cause not pinned down (her import was the "clean" one per `migration.md`, yet has by far the worse thumbnail gap — consistent with the same pattern already seen in CARD-0037/CARD-0039 where Robin's account had the larger gap despite the cleaner import history). The standard `thumbnailGeneration` job queue didn't surface these (`waiting: 1` when triggered normally) because Immich's database already considered them complete — the gap is between DB state and actual thumbnail files on disk, not a "job never ran" situation like CARD-0037.
 
 **Fix:** used the per-asset job endpoint (`POST /api/assets/jobs`, `{"name":"regenerate-thumbnail","assetIds":[...]}` — found via the same schema-discovery trick as CARD-0037/CARD-0039, sending an invalid body and reading the validation error's allowed values) to force-regenerate every one of Robin's 77,123 assets in 155 batches of 500. Confirmed working on a small scale first (9 known-broken assets, all fixed, verified via HTTP 200) before committing to the full-library run. Submitted successfully in full — `thumbnailGeneration` queue confirmed at 76,996 waiting immediately after. Verified live at every step (new photo from Robin's phone arrived with a working thumbnail, confirming upload itself was never broken — only historical thumbnails were affected).
@@ -1958,6 +2127,8 @@ Running concurrently with CARD-0030's backup verification and the tail end of CA
 ---
 
 ### CARD-0051 · [enhancement] [photo-server] Extend heartbeat with disk-capacity and backup-staleness checks
+**Status:** Done
+
 **Notes:** Found 2026-07-11 during a health check + log-dashboard history review. CARD-0032/CARD-0046 made the heartbeat check that storage is *readable/writable*, but two real gaps remained:
 1. **Disk capacity** — nothing checked how *full* a mount was. A drive filling up (primary or either backup) would degrade Immich or fail backups with no advance warning.
 2. **Backup staleness** — CARD-0040 made `photo-library-backup.sh` report its own per-run success/failure, but nothing watched for the run simply not happening at all (cron broken, script missing, host down over a scheduled run) — an absence-of-signal gap the per-run report can't cover.
@@ -1969,6 +2140,8 @@ Running concurrently with CARD-0030's backup verification and the tail end of CA
 ---
 
 ### CARD-0046 · [enhancement] [photo-server] Extend storage-health check to cover backup drive(s), not just primary
+**Status:** Done
+
 **Resolution:** `photo-server-heartbeat.py`'s storage check now also writes/reads/removes a marker file directly on both backup mounts (`/mnt/photo-library-backup`, `/mnt/photo-library-backup-joseph`) every 30-minute cycle — plain host-level file I/O, not `docker exec`, since these mounts aren't inside any container (Immich itself never touches them, only the standalone backup script does). Failures reported as `backup-robin:<error>` / `backup-joseph:<error>` in the same non-collapsing `Alert` path already used for the primary library and container checks.
 
 **Live-tested 2026-07-10** using the same safe `mount -o remount,ro` technique as the original CARD-0032 test, applied to each backup drive in turn: both correctly triggered `Immich degraded - backup-<name>:[Errno 30] Read-only file system` on the dashboard, and both recovered cleanly to normal status after `mount -o remount,rw`. Closes the exact visibility gap that let Momentus's real hardware failure go undetected for over 2 hours earlier the same day. Full detail in `components/photo-server/heartbeat.md`.
@@ -1976,6 +2149,8 @@ Running concurrently with CARD-0030's backup verification and the tail end of CA
 ---
 
 ### CARD-0040 · [enhancement] [photo-server] Dashboard visibility for backup runs
+**Status:** Done
+
 **Resolution:** `photo-library-backup.sh` publishes MQTT log messages so backup success/failure is visible on the JCTsh log dashboard without SSHing in — `"Backup starting."` before either rsync job, `"Backup complete."` (category `System`) if both succeed, or `"Backup failed (joseph exit <code>, robin exit <code>)."` (category `Alert`, non-collapsing) if either fails. Same pattern as CARD-0036's reboot notifications, reusing the existing `photo-server` MQTT account.
 
 **Both paths confirmed live 2026-07-10.** The failure path fired correctly earlier in the day when both rsync jobs were killed mid-run while debugging CARD-0030 (`"Backup failed (joseph exit 20, robin exit 11)."` — exit 20 being rsync's SIGTERM code). Once CARD-0030's `--delete-before --delete-excluded` fix was in place and both accounts were already fully synced, ran the actual script end-to-end (not manual isolated rsync calls) to verify the success path: `"Backup starting."` at launch, both jobs completed with zero errors, `"Backup complete."` at the end.
@@ -1983,6 +2158,8 @@ Running concurrently with CARD-0030's backup verification and the tail end of CA
 ---
 
 ### CARD-0030 · [bug] [photo-server] Re-enable weekly backup cron once Takeout zips are cleared
+**Status:** Done
+
 **Resolution:** Zips deleted 2026-07-09 (818GB reclaimed), cron re-enabled. The manual verification run then failed overnight — `No space left on device` — revealing the primary library (624GB) had genuinely outgrown Momentus (586GB usable), not just a slow first run as assumed.
 
 **Fix: split backup by account across two drives.** Deployed a second backup drive (Seagate 1TB, formatted, mounted at `/mnt/photo-library-backup-joseph`) and rewrote `photo-library-backup.sh` to run two UUID-filtered `rsync` jobs — Joseph's account to the new drive, Robin's to Momentus. Getting this working cleanly took two more rsync flag fixes: `--delete-before` (plain `--delete` defaults to `--delete-during`, which deletes incrementally by directory-walk order — the shared `backups/` dir gets walked before the per-user dirs where the actual space-freeing deletions live, causing a chicken-and-egg failure on an already-full destination) and `--delete-excluded` (none of rsync's `--delete*` variants touch files matched by `--exclude` by default — a protective rsync behavior that meant Joseph's excluded files were never actually being removed from Momentus across two earlier attempts).
@@ -1994,6 +2171,8 @@ Running concurrently with CARD-0030's backup verification and the tail end of CA
 ---
 
 ### CARD-0048 · [bug] [photo-server] Stale Immich container bind mount after drive remounts — "Error loading image" on both accounts
+**Status:** Done
+
 **Resolution:** Discovered 2026-07-10 when Joseph reported "beaucoup" thumbnail and full-image load failures on his account, then confirmed Robin had the same issue. Initial theory (I/O contention from the actively-running backup rsync) was wrong — killing the backup didn't fix anything. Root cause: the `immich_server` container's bind mount had gone stale after the day's repeated remounting (read-only, I/O errors, primary library's device path changing `sda`→`sdd`). Confirmed via a specific 404ing asset: the file was genuinely present on disk with correct content, ruling out real data loss — the container just had a broken cached view of the mount. The storage-health check (CARD-0032) had actually been correctly alerting on this the whole time (recurring `Input/output error` every 30-minute cycle for 2+ hours) — the miss was diagnostic, not detection; time was spent chasing the wrong theory first.
 
 **Fix:** `docker compose restart` (all four containers) from `~/immich-app`. Verified immediately: every previously-404ing asset (thumbnail and original) on both accounts returned to `200`. Also confirmed by Joseph directly in the Immich web UI on both accounts.
@@ -2003,6 +2182,8 @@ Runbook note added to `components/photo-server/heartbeat.md`: if storage alerts 
 ---
 
 ### CARD-0047 · [enhancement] [photo-server] Daily Immich update-availability check with dashboard notification
+**Status:** Done
+
 **Resolution:** Joseph noticed an Immich update available in the web UI and asked how to manage updates going forward — discussed and agreed on notify-only (not auto-update), given this instance has already surfaced real bugs in a single patch version this week (CARD-0037/0042/0043, the HEIC distortion issue) and the data at stake (irreplaceable family photos) doesn't justify unattended auto-updates.
 
 Built `immich-update-check.py` (deployed to `/usr/local/bin/`) + `immich-update-check.service`/`.timer` (daily, 6:00 AM `America/Phoenix`), following the same MQTT dashboard-notification pattern as CARD-0036/CARD-0040: compares `/api/server/version` against `/api/server/version-check`, publishes `"Immich update available: <latest> (currently running <current>)"` (component `photo-server`, category `System`) when they differ. De-duplicated via a state file so the same pending update doesn't re-notify daily — only fires again if an even newer version appears after the first notice.
@@ -2012,16 +2193,22 @@ First deploy attempt crashed on the state-file write (`/etc/jctsh/` isn't writab
 ---
 
 ### CARD-0022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
+**Status:** Done
+
 **Resolution:** All 8 steps complete. Steps 1–5 and 8 passed clean or were fixed on 2026-06-20 (SSH key-only auth, MQTT auth, port audit, Node-RED adminAuth). Step 7 (HA MFA) done 2026-07-09: TOTP enabled for both Joseph and Robin via HA profile → Multi-Factor Authentication Modules. Step 6 (router UPnP) done 2026-07-09: found enabled with zero registered clients, disabled with no functional impact. Full findings in `jctsh-security-hardening.md`. Patterns harvested to `JCTsh-Build-Standards.md` §10 Security Standards (v1.14).
 
 ---
 
 ### CARD-0023 · [enhancement] [infrastructure] Security hardening — cloud accounts (Steps 9–14 + Final)
+**Status:** Done
+
 **Resolution:** All steps complete. Steps 9–12 and 14 passed clean 2026-06-20 (Ring/Amazon, SmartThings, Google ×2, Windows machine — one stale SmartThings connected app, SharpTools, revoked). Step 13 done 2026-07-09: router admin password rotated to a new strong unique password (`credentials.local.md`), remote/WAN management confirmed disabled, DNS confirmed intentional (CenturyLink/Quantum Fiber bypass-modem setup), firmware found one version behind (1.5.2 → 1.5.3 available) with auto-update now enabled (nightly 3–5 AM) rather than relying on manual checks going forward. Final Step complete: findings harvested to `JCTsh-Build-Standards.md` §10 Security Standards (v1.14).
 
 ---
 
 ### CARD-0039 · [bug] [photo-server] Re-verify Takeout import completeness — 3,433 assets were genuinely missing
+**Status:** Done
+
 **Resolution:** Following up on the original migration verification discussion, and given CARD-0037 had just found a large ML-processing gap from the same import, re-ran `immich-go upload from-google-photos` (real run, not `--dry-run`, so gaps found would get fixed immediately) against all retained Takeout zips for both accounts — `/mnt/photo-library-backup/takeout-staging/joseph/` (9 zips), `/home/jct/takeout-staging/joseph/` (3 zips), `/home/jct/takeout-staging/robin/` (5 zips). Used the same `--on-errors continue --pause-immich-jobs=false` flags that fixed the original migration's crash patterns, plus `--no-ui --log-file=...` this time for a persisted per-pass log (a gap in the original run). Launched fully detached via `nohup ... & disown` directly on the M8 so it survived independent of the SSH session — relevant since the home internet/network was intermittently down around this time.
 
 **Result:** ran clean in a single pass, no restarts needed, zero upload errors. Found **3,433 assets that were genuinely missing** from Immich and uploaded them (zero data loss risk — upload-only, nothing deleted): 58 (Joseph, backup-drive zips), 119 (Joseph, NVMe-staged zips), 3,256 (Robin). Also found 109 cases where the server's copy was upgraded (better-quality version found in the zip) and 160,701 correctly-matching duplicates confirmed (skipped, no re-upload).
@@ -2033,6 +2220,8 @@ Full run logs retained on the M8 at `/home/jct/immich-go-verify-20260709/` (`jos
 ---
 
 ### CARD-0032 · [bug] [photo-server] Heartbeat doesn't detect real storage failures (found 2026-07-08)
+**Status:** Done
+
 **Resolution:** `photo-server-heartbeat.py` now writes, reads back, and removes a marker file (`/data/upload/.heartbeat_check`) *inside* the `immich_server` container on every run where the container itself is confirmed up, catching the exact class of failure Docker's own health check misses (it only pings the Immich API, never touches `/data`). A failure is appended to the same `unhealthy` list and reported as `Alert - storage:<error text>`, using the identical non-collapsing path CARD-0029 established for degraded containers. Immediate fix (remount, container restart) and root-cause mitigation (udev auto-remount rule) from the original incident were already in place; this closes the actual monitoring gap.
 
 Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o remount,ro`) — chosen over physically disconnecting the drive, and over a plain `chmod` on the host-side directory (tried first; silently didn't work, since the container runs as root and root bypasses POSIX permission bits — a read-only remount is enforced at the VFS level instead). Dashboard correctly showed `Immich degraded - storage:sh: 1: cannot create /data/upload/.heartbeat_check: Read-only file system`; remounting read-write restored normal status on the next run. Full writeup in `components/photo-server/heartbeat.md`.
@@ -2042,16 +2231,22 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 ---
 
 ### CARD-0029 · [enhancement] [photo-server] Live-test Immich degraded-heartbeat alert path
+**Status:** Done
+
 **Resolution:** Live-tested 2026-07-08 now that the Immich migration is complete. `docker stop immich_redis` produced `Immich degraded - immich_redis:unhealthy` (then `:starting` during the restart race) as a non-collapsing `Alert` row on the dashboard; `docker start immich_redis` restored normal `System`/online status on the next run. Combined with the CARD-0032 storage-check test in the same session. Full writeup in `components/photo-server/heartbeat.md`.
 
 ---
 
 ### CARD-0036 · [enhancement] [infrastructure] Dashboard visibility for scheduled reboots
+**Status:** Done
+
 **Resolution:** CARD-0035's scheduled reboots were invisible on the JCTsh log dashboard — confirming success required manually SSHing in and checking `systemctl`/`docker ps`. Added a matched pair of MQTT log messages around each reboot: `scheduled-reboot.service` now publishes `"Scheduled reboot about to occur."` immediately before calling `/sbin/reboot` (multiple `ExecStart=` lines in the oneshot unit), and a new `reboot-complete.service` (enabled via `WantedBy=multi-user.target`) publishes `"Boot complete."` on every boot once the MQTT broker is reachable. Pi publishes as component `jctsh-core` to `jctsh/core/log-server/log` using the existing `jctsh-log-server` MQTT account (`/etc/jctsh/log-server.env`) via `mosquitto_pub` (already installed). M8 publishes as component `photo-server` to `jctsh/server/photo-server/log` using the existing `photo-server` MQTT account (`/etc/jctsh/heartbeat.env`) — required installing the `mosquitto-clients` apt package on the M8 (the heartbeat script uses Python `paho-mqtt` instead, so the CLI wasn't already present). Neither message uses the `"Heartbeat - "` prefix, so each occurrence stays visible as its own dashboard row rather than collapsing. Per-host unit files split out: `scheduled-reboot-pi.service`/`scheduled-reboot-m8.service` replace the old shared `scheduled-reboot.service` (now host-specific since the MQTT broker address, credentials file, and topic differ per host). Verified live 2026-07-08 via manual `systemctl start reboot-complete.service` on both hosts — confirmed on the dashboard (`/data` live view and, after flushing, the persisted `/log` file).
 
 ---
 
 ### CARD-0037 · [bug] [photo-server] ML processing (faces, smart search, duplicates, OCR) never ran on a large fraction of the library
+**Status:** Done
+
 **Resolution:** Discovered 2026-07-08 while answering Joseph's question about why most photos showed no identified people in Properties. Diagnosed via the Immich API (not guesswork): a random sample showed ~80% of assets with zero detected faces; a targeted CLIP-search sample of clearly-portrait photos still showed clean detection (26/30 correct), ruling out a model-confidence issue. Definitive proof came from a duplicate pair — the exact same restaurant photo (Immich's own duplicate-detection linked the two copies) had 7 faces detected on one copy and 0 on the other.
 
 **Not specific to Joseph's chaotic import:** checked Robin's library too (via her own API key, since search is scoped per-user) — 96% zero-face rate, even higher than Joseph's ~80%, despite her import running clean with no crashes/restarts (see `components/photo-server/migration.md`). This ruled out the 5-restart-import theory as the sole cause and confirmed the gap was server-wide, affecting both accounts roughly equally.
@@ -2063,68 +2258,92 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 ---
 
 ### CARD-0035 · [enhancement] [infrastructure] Weekly scheduled reboot — Pi and M8 photo-server
+**Status:** Done
+
 **Resolution:** Deployed systemd timers on both hosts: `scheduled-reboot.timer` → `scheduled-reboot.service` (`/sbin/reboot`), `Persistent=true`. Pi: Monday 3:00 AM. M8: Monday 4:00 AM — staggered one hour later so the M8 heartbeat script's MQTT publish to the Pi's Mosquitto broker doesn't collide with the Pi being mid-reboot. Not synchronized to KeepConnect's own weekly router reset — that schedule has drifted from its original Wednesday setting, most likely because its "every 7 days" timer restarts from any reset (scheduled or outage-triggered), so it can't be relied on as a fixed weekday anyway; a router reboot's brief network blip is tolerated regardless of timing. Version-controlled unit files in `core/maintenance/`; documented in `SOFTWARE-ENVIRONMENT.md` (Pi) and new `components/photo-server/operations.md` (M8). Verified live via `systemctl list-timers` on both hosts — next run confirmed Mon 2026-07-13. 2026-07-08.
 
 ---
 
 ### CARD-0033 · [idea] [infrastructure] Document Keep Connect configuration and schedule
+**Status:** Done
+
 **Resolution:** KeepConnect is a standalone router-rebooter device (Johnson Creative KeepConnect-27F8, not a JCTsh component). New dedicated doc `keepconnect.md` created at repo root with full device identity, network config, physical outlet-scoping rationale, and complete monitor/timing/schedule/notification configuration. Linked from `jctsh-network.md` devices table (IP 192.168.1.108, DHCP-reserved) and `ENVIRONMENT.md` Hub & Controller table; added to `README.md` repository layout. Remaining open item (scheduled Pi/Immich reboot via cron, separate from power-strip cycling) carried forward in `keepconnect.md` itself. 2026-07-08.
 
 ---
 
 ### CARD-0021 · [enhancement] [logging] Device status dashboard
+**Status:** Done
+
 **Resolution:** Added `/status` endpoint to `core/logging/log_server.py`. Two-section layout: Home (Online/Offline/? per component based on heartbeat presence and 70-min threshold) and Remote (`coachproxyos` always shows last-activity + `?`). Auto-detects heartbeat-capable components — salt-sensor shows `?` until CARD-0004 ESPHome migration adds heartbeats. Deployed to Pi 2026-06-30. Added CARD-0024 (coachproxy remote health monitoring via Tailscale ping).
 
 ---
 
 ### CARD-0018 · [idea] [immich] Self-hosted photo library
+**Status:** Done
+
 **Resolution:** Superseded. Hardware (GMKtec M8) in hand. Replaced by `components/photo-server/` (Immich install + immich-go migration) and `components/photo-tv-display/` (Node.js TV slideshow + phone companion) — full planning docs committed 2026-06-30.
 
 ---
 
 ### CARD-0014 · [enhancement] [core] Move environmental data pipeline to core
+**Status:** Done
+
 **Resolution:** Moved `environmental-data.gs` → `core/data-pipeline/`, `JCTsh-Environmental-Data-Architecture.md` → `core/data-pipeline/`, and `core/node-red/environmental-data.flow.json` → `core/data-pipeline/`. Updated references across 15 files (CLAUDE.md, README.md, Node-RED-workflow.md, JCTsh-Build-Standards.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Property-Sensor-Pattern.md, all component planning docs, hiking-monitor instructions). 2026-06-30.
 
 ---
 
 ### CARD-0002 · [enhancement] [infrastructure] MQTT v3.1.1 → v5 upgrade
+**Status:** Done
+
 **Resolution:** Mosquitto 2.0.21 already supports v5 — no broker config change needed. Changed `protocolVersion` from 4 → 5 in the Node-RED broker config node (`core/node-red/core.flow.json`) and updated the live Pi flows.json in place. Confirmed via Mosquitto log: client `nodered-saltlevel` connected with `p5`. ESP32/ESPHome devices unaffected (remain on v3.1.1). 2026-06-30.
 
 ---
 
 ### CARD-0008 · [enhancement] [hiking-monitor] Pixel hotspot second WiFi field test
+**Status:** Done
+
 **Notes:** Confirmed 2026-06-17 during camping trip. Device connected to JCT Hotspot (IP 10.57.172.159 — Pixel hotspot subnet), reached home MQTT broker via jctsh.duckdns.org over cellular, replayed 7 SPIFFS readings on reconnect. DuckDNS + port 1883 forward confirmed working in the field.
 
 ---
 
 ### CARD-0017 · [enhancement] [infrastructure] Charging state schema fields for solar/battery sensors
+**Status:** Done
+
 **Resolution:** Added `solar_v` (solar panel voltage, V, ADC voltage divider) to the environmental data schema. Decision: `solar_v` chosen over `charging` boolean (not universally available on all charge controllers) and `charge_current_ma` (requires INA219, overkill). Combined with `battery_v`, charging state is derivable in Node-RED or Sheets as `solar_v > battery_v + ~0.3V`. Added to field reference and Sheets schema in `JCTsh-Environmental-Data-Architecture.md` (v1.4), column Z in `components/hiking-monitor/environmental-data.gs`, and Apps Script redeployed. 2026-06-15.
 
 ---
 
 ### CARD-0016 · [enhancement] [infrastructure] Offline flash logging — extract reusable standard
+**Status:** Done
+
 **Resolution:** Created `core/offline-logger/sensor_logger.h` — generic template header with `sensor_log_*` function prefix (adapt by renaming to `<name>_log_*` and updating the log file path). Added "Offline Flash Logging" section to `JCTsh-Property-Sensor-Pattern.md` with template adaptation instructions, on_boot mount snippet, on_connect replay block (500ms settle delay), and interval guard (connected → publish, offline → log_write). Removed CARD-0016 from pattern doc Open Gaps. 2026-06-14.
 
 ---
 
 ### CARD-0015 · [enhancement] [front-porch-temp-sensor] Environmental data pipeline integration
+**Status:** Done
+
 **Resolution:** Added SNTP, humidity/pressure IDs, and 5-min `/data` publish to firmware (temp, humidity, pressure, illuminance, lat/lon H8, rssi, ISO 8601 UTC). Added `illuminance_lx` to the environmental data schema and Apps Script. Node-RED wildcard caught it automatically — no flow changes. OTA flashed 2026-06-14.
 
 ---
 
 ### CARD-0007 · [idea] [hiking-monitor] Hiking observations pipeline (Tasker → Sheets)
+**Status:** Done
+
 **Resolution:** Tasker widget → Android speech recognition → HTTP POST to Apps Script → Hiking Observations sheet with automatic category classification. No keyword prefix — widget tap is the intent signal. Steps 23–26 complete 2026-06-13.
 
 ---
 
 ### CARD-0001 · [bug] [garage-radar] Garage-radar false presence on door close
+**Status:** Done
+
 **Resolution:** Ill-defined and no longer applicable — closed.
 
 ---
 
-## Defer
-
 ### CARD-0090 · [enhancement] [hiking-monitor] Tasker "Log Observation" widget cuts off recording too early on normal speech pauses
+**Status:** Defer
+
 **Notes:** Raised 2026-07-24. Joseph reports the Tasker voice-observation widget (CARD-0007, Steps 24-25 — "Log Observation" task, **Get Voice** action → `%VOICE` → POST to Apps Script) stops recording too eagerly, not allowing enough time for normal mid-sentence pauses while speaking an observation.
 
 **Root cause investigated:** confirmed via Tasker's own action documentation that **Get Voice** only exposes two configuration fields — a **Language Model** hint and an overall **Timeout** (max wait before giving up if nothing is heard at all). Neither controls mid-speech pause tolerance. That behavior is governed one level down, by the underlying Android speech recognizer's own silence-detection threshold, which Get Voice doesn't expose or let you configure.
@@ -2144,6 +2363,8 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 ---
 
 ### CARD-0074 · [idea] [hike-izer] Hike-izer Version 2 — SUPERSEDED, split into individual feature cards
+**Status:** Defer
+
 **Superseded 2026-07-23:** Joseph decided to move away from batching features into a versioned release after v1 — feature-driven instead, each item tracked as its own card. Split as follows: **Photos** → CARD-0084, **Hiker's own compass/heading** → CARD-0085, **Automatic triggering** → CARD-0086. **Historical weather** dropped entirely (not carried into any new card — distinct from CARD-0083, which covers forecast-at-hike-start, not actual-conditions history). **Rendered web page output** already covered by CARD-0081 (filed independently, same day, before this split happened). Kept here for the original batch's context and reasoning; the "Version 2" grouping concept itself is retired, not just this card.
 
 **Notes:** Raised 2026-07-18, split out from CARD-0073's closure (v1 done). Carried forward the items v1 explicitly deferred, not forgotten:
@@ -2161,6 +2382,8 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 ---
 
 ### CARD-0027 · [idea] [hiking-monitor] GPIO-controlled power gating for I2C peripherals during sleep — SUPERSEDED by CARD-0070
+**Status:** Defer
+
 **Superseded 2026-07-17:** folded into CARD-0070 (LDO swap), which now covers both the boost-to-LDO replacement and this card's peripheral power-gating idea as one combined power redesign — see CARD-0070 for the current part choice (BS250), wiring plan, and status. Kept here for the original observation and P-FET background reference.
 
 **Notes:** Observed 2026-07-03: after putting the device to sleep (display correctly shows "Hiking monitor asleep"), the ESP32's and LTR-390's onboard power-indicator LEDs stayed lit. These are hardwired to their respective 3.3V rails, not GPIO-controlled — ESP32 deep sleep only stops the CPU from executing, it does not cut power to anything downstream. Since `VOUT+` runs directly to ESP32 `VIN` (switch not in the power path) and nothing gates the I2C peripherals' power, BME280 and LTR-390 stay fully powered and drawing their own operating current for the entire "sleep" duration, in addition to the boost module's own quiescent draw (see CARD-0026).
@@ -2186,6 +2409,8 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 ---
 
 ### CARD-0050 · [idea] [infrastructure] Network segmentation to contain a compromised/hostile device on home WiFi
+**Status:** Defer
+
 **Priority: low (deprioritized 2026-07-10) — accepted as a residual risk, not offloaded onto CARD-0003.**
 
 **Notes:** Raised 2026-07-10 during CARD-0003 (MQTT TLS) discussion. WPA2/3-Personal on `JCTnet1` only protects the radio hop and doesn't stop a device that's already authenticated on the LAN — anyone holding the shared PSK can capture another client's handshake and derive its session key, and more practically, any device on the same `192.168.1.x` subnet can ARP-spoof to MITM traffic between other devices, bypassing WiFi encryption entirely since that attack happens at L2/L3, not over the air. Right now there's no segmentation at all — every JCTsh device, guest device, and IoT gadget shares one flat subnet, confirmed via `jctsh-network.md` and `jctsh-security-hardening.md` (no VLAN/isolation findings from CARD-0022/0023's audit). Note HA's existing HTTPS proxy (nginx on 443, cert for `raspberrypi.tailfe828a.ts.net`) is Tailscale-only — it doesn't protect LAN-side access today (cert error on direct LAN hit).

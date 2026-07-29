@@ -91,19 +91,33 @@ def gps_confirmation_explanation(coverage):
     return "Every GPS session that day was rejected -- " + " | ".join(parts)
 
 
-def duration_display(hike_data, offset_delta):
+def hero_time_display(hike_data, offset_delta):
+    # CARD-0111: hero box combines start/end/duration into one figure rather
+    # than a bare "Date" (redundant with the H1, which now carries the date --
+    # see render_html) and a separate "Duration" box next to it.
     coverage = hike_data["coverage"]
     sessions = hike_sessions(coverage)
     if sessions:
-        return format_duration_minutes(sum(s["duration_minutes"] for s in sessions))
+        start_ts = min(s["start"] for s in sessions)
+        end_ts = max(s["end"] for s in sessions)
+        duration = format_duration_minutes(sum(s["duration_minutes"] for s in sessions))
+        return {
+            "start": format_time_local(start_ts, offset_delta),
+            "end": format_time_local(end_ts, offset_delta),
+            "duration": duration,
+        }
     obs = hike_data.get("hiking_observations", [])
     if obs:
         times = sorted(o["timestamp"] for o in obs if o.get("timestamp"))
         if len(times) >= 2:
             start = datetime.fromisoformat(times[0].replace("Z", "+00:00"))
             end = datetime.fromisoformat(times[-1].replace("Z", "+00:00"))
-            return format_duration_minutes((end - start).total_seconds() / 60)
-    return NA
+            return {
+                "start": format_time_local(times[0], offset_delta),
+                "end": format_time_local(times[-1], offset_delta),
+                "duration": format_duration_minutes((end - start).total_seconds() / 60),
+            }
+    return {"start": NA, "end": NA, "duration": NA}
 
 
 def distance_display(stats):
@@ -228,12 +242,25 @@ def observations_table_rows(hiking_observations, offset_delta):
 # ---------------------------------------------------------------------------
 
 def coverage_table_rows(coverage):
+    # CARD-0111: GPS Trackpoints previously hardcoded Expected/Coverage to
+    # "not available" -- a leftover placeholder, never actually finished.
+    # _build_session_entry already computes expected_points/coverage per
+    # session (same 30s-cadence assumption as the note below); sum across
+    # every detected session that day (hike or rejected) to match
+    # total_trackpoints, which itself counts all of that day's raw GPS rows.
     env = coverage["environmental_data"]
     gps = coverage["gps_track"]
+    gps_sessions = gps["sessions"]
+    gps_expected = sum(s["expected_points"] for s in gps_sessions)
+    gps_actual = gps["total_trackpoints"]
+    gps_coverage_pct = round(100 * gps_actual / gps_expected, 1) if gps_expected else None
     rows = [
         ("Environmental Data", str(env["expected_readings"]), str(env["actual_readings"]),
          f"{env['coverage_pct']}%" if env["coverage_pct"] is not None else NA),
-        ("GPS Trackpoints (sessions)", NA, str(gps["total_trackpoints"]), NA),
+        ("GPS Trackpoints (sessions)",
+         str(gps_expected) if gps_sessions else NA,
+         str(gps_actual),
+         f"{gps_coverage_pct}%" if gps_coverage_pct is not None else NA),
     ]
     return rows
 
@@ -246,9 +273,19 @@ def coverage_notes(coverage, offset_delta, offset_str):
     notes = []
     env = coverage["environmental_data"]
     if coverage.get("window_truncated_to_now"):
+        # CARD-0111: reworded from a vague "window extends into the future"
+        # (technically true but reads like an anomaly) to name the actual
+        # generation-time cutoff -- this fires on essentially every
+        # automatically-generated page, since generation always runs the same
+        # day, well before midnight, so it's worth stating plainly rather than
+        # as an alarming-sounding edge case.
+        effective_end_local = _format_gap_bound(
+            coverage["effective_end_used_for_expected_calc"], offset_delta, offset_str
+        )
         notes.append(
-            "The requested window extends into the future, so coverage was computed "
-            "through the current time, not the full requested window."
+            f"Expected-reading counts reflect data through {effective_end_local} "
+            f"(when this summary was generated) -- the rest of that calendar day "
+            f"hadn't happened yet."
         )
     notes.append(
         f"{env['readings_with_gps_coords']} of {env['actual_readings']} Environmental Data "
@@ -322,8 +359,7 @@ _HTML_STYLE = """
   h1 { font-size: 1.7rem; margin: 0 0 0.15rem; }
   .subtitle { color: var(--ink-muted); font-size: 0.85rem; margin: 0 0 1.75rem; }
   .subtitle code { font-family: var(--mono); font-size: 0.92em; }
-  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 2rem; }
-  @media (max-width: 640px) { .stat-row { grid-template-columns: repeat(2, 1fr); } }
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; margin-bottom: 2rem; }
   .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 0.85rem 1rem; }
   .stat__label { font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); margin-bottom: 0.3rem; }
   .stat__value { font-size: 1.35rem; font-weight: 700; }
@@ -366,13 +402,14 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     stats = hike_data["stats"]
     hike_confirmed = coverage["gps_track"]["hike_confirmed"]
 
-    duration = duration_display(hike_data, offset_delta)
+    hero_time = hero_time_display(hike_data, offset_delta)
+    time_na = hero_time["start"] == NA
+    time_value = NA if time_na else f"{hero_time['start']} – {hero_time['end']} ({hero_time['duration']})"
     distance = distance_display(stats)
     elevation_gain = elevation_gain_display(stats)
 
     stat_row = "".join([
-        _stat_card("Date", format_date_display(date_str)),
-        _stat_card("Duration", duration, na=(duration == NA)),
+        _stat_card("Time", time_value, na=time_na),
         _stat_card("Distance", f"{distance} mi" if distance != NA else NA, na=(distance == NA)),
         _stat_card("Elevation Gain", f"{elevation_gain} ft" if elevation_gain != NA else NA, na=(elevation_gain == NA)),
     ])
@@ -466,12 +503,12 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hike Summary — {_esc(date_str)}</title>
+<title>Hike Summary for {_esc(format_date_display(date_str))}</title>
 <style>{_HTML_STYLE}</style>
 </head>
 <body>
 <main>
-  <h1>Hike Summary</h1>
+  <h1>Hike Summary for {_esc(format_date_display(date_str))}</h1>
   <p class="subtitle">Generated automatically by hike-izer-orchestrator &middot; data from the JCTsh Environmental Data pipeline</p>
   <div class="stat-row">{stat_row}</div>
   {callout}

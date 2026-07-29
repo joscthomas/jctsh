@@ -109,7 +109,12 @@ section.
 4. **Write the narrative.** First check `coverage.gps_track.hike_confirmed` --
    if `false`, follow "What counts as a hike" above instead of the normal
    structure below. Otherwise, produce the HTML output with the following
-   parts, in this order. **Tables and prose must not repeat each other -- including
+   parts, in this order. **Target roughly 250 words total across all
+   paragraphs (added 2026-07-29, after review of a real 471-word narrative
+   that restated several tables and gave a tangential landmark a full
+   paragraph)** -- a tight, well-chosen set of observations beats an
+   exhaustive one; if it's running long, cut before padding. **Tables and prose
+   must not repeat each other -- including
    paraphrased restatement.** The data table/summary (part b) is where the raw
    numbers and ranges live. The narrative (part a) should read those numbers as
    context to build the story from, not restate them -- interpret, connect, and
@@ -120,17 +125,33 @@ section.
    softer words is still restating it** -- "wrapped up in a little over half an
    hour" for a 32-minute duration, or "roughly two miles of ground" for a 2.0 mi
    distance, tell the reader nothing they can't already see in the stat row
-   above; avoiding digits doesn't make a sentence an exception to this rule.
+   above; avoiding digits doesn't make a sentence an exception to this rule. The
+   Weather Forecast at Hike Start section (below) is its own table too --
+   don't re-describe conditions ("cool and calm," "no chance of rain") in the
+   narrative just because it's phrased as prose there instead of numbers; the
+   same non-redundancy rule applies across section boundaries, not just within
+   one table.
    Before including a sentence built from a table number, ask: does this connect
    the number to something else -- what it felt like, why it happened, what it
    enabled or prevented -- or does it just describe the number in prose? If it's
-   the latter, cut it. This applies to coverage/data-gap reporting too: if a data
-   source came back empty, note that briefly only if it genuinely limits what the
-   story can say (e.g. "no temperature story to tell from the sensor itself"),
-   but don't restate the expected/actual counts, and never point ahead to
+   the latter, cut it. **This applies to empty-data reporting too, more strictly
+   than before (tightened 2026-07-29):** if a data source came back empty, the
+   Data Summary table and Coverage section already show that plainly (a blank
+   "not available" cell, an actual/expected count of zero) -- don't add a prose
+   sentence that just restates the absence ("the sensor logged nothing this
+   session, so there's no temperature story to tell" tells the reader nothing
+   the table doesn't already show). Only mention an empty data source in prose
+   if there's something genuinely narrative to say *about why*, not just *that*
+   it's empty. Never point ahead to
    "detailed in the coverage section below" -- that section already exists and
    speaks for itself; a forward-reference like that is a tell that the sentence
-   shouldn't be in the narrative at all.
+   shouldn't be in the narrative at all. Same principle for GPS confirmation:
+   don't editorialize that the GPS track "confirmed a steady walking pace" or
+   similar -- `hike_confirmed: true` is exactly what put the page in this normal
+   narrative path rather than the `false` path above, so it's already implied,
+   and trackpoint coverage itself belongs to the Coverage section (part c), not
+   the story. Detailed pace/speed commentary is reserved for the richer stats a
+   future card is expected to add (CARD-0110) -- don't anticipate it here.
 
    **Weather forecast at hike start (added 2026-07-24, CARD-0083)** -- shown
    before part (a), since it's context the reader wants before the story
@@ -167,7 +188,13 @@ section.
    or note if a stretch happened after sunset -- `daylight: false` in a sun
    sample), and the hiker's own voice observations woven in chronologically
    (they're already categorized -- vegetation, wildlife, weather, sky, trail,
-   etc. -- use that). Write this as a story, not a data dump.
+   etc. -- use that). Write this as a story, not a data dump. **Sun position and
+   route shape are optional color, not required beats (added 2026-07-29)** --
+   include them only if there's something genuinely worth saying (a notably
+   dramatic light or an unusual route shape); a routine "gently undulating loop"
+   or "the sun climbed gradually over the half hour" adds length without adding
+   anything the reader couldn't guess. When in doubt, cut it rather than include
+   it for completeness.
 
    **Place context (added 2026-07-28, CARD-0108)** -- `place_context` is a flat
    list of independently-true facts about where the hike happened: named
@@ -181,7 +208,17 @@ section.
    as with the data tables: never state the same fact twice, even phrased
    differently or arrived at from two different original sources (e.g. an
    operator confirmed by both the location data and a researched fact appears
-   once, not twice). If `place_context` is empty, say nothing about it --
+   once, not twice). **Weight space by how central a fact is to *this* hike's
+   actual route, not by how much material was found about it (added 2026-07-29,
+   after a real narrative gave a full paragraph -- founding year, mascot
+   history -- to a school from a *different* day's hike from the same starting
+   point, while the school actually passed today got one clause).** A
+   well-documented public landmark with lots of searchable history is not
+   automatically more relevant than an obscure one that's actually on today's
+   path -- if it's uncertain whether something was genuinely encountered versus
+   just nearby the start, say less about it, not more. (`place_context.py`'s own
+   accuracy here is tracked separately, CARD-0112 -- this is the writing-side
+   guard regardless of how good the underlying data gets.) If `place_context` is empty, say nothing about it --
    unlike the weather forecast, there's no standing reader expectation that
    this exists for every hike, so there's nothing to report the absence of.
 

@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-07-28.1-hike-start-forecast-gps-trigger';
+var SCRIPT_VERSION = '2026-07-29.1-hike-start-forecast-session-scoped';
 
 // ---------------------------------------------------------------------------
 // doPost — environmental sensor data (Node-RED → Sheets)
@@ -295,12 +295,20 @@ function _gpsLookup(ss, tsISO) {
 }
 
 // ---------------------------------------------------------------------------
-// _maybeCaptureHikeStartForecast -- CARD-0083, timezone fix CARD-0097
+// _maybeCaptureHikeStartForecast -- CARD-0083, timezone fix CARD-0097,
+// session-scoped CARD-0115
 // ---------------------------------------------------------------------------
-// Called from doPost's hiking-observations branch on every observation. Only
-// actually captures a forecast on the first observation of a new *local*
-// calendar day at the hike's own location (self-provisioning "Hike Start
-// Forecast" sheet acts as its own dedup log). Provider is Open-Meteo
+// Called from doGet's action=gps branch on every GPS point. Captures a
+// forecast at the start of each detected *session* (a gap of more than
+// SESSION_GAP_MIN minutes since the previous GPS point recorded, ever --
+// not scoped to "that day"), not once per calendar day -- CARD-0115, found
+// when a real second hike hours after
+// the first got no forecast of its own, since the old dedup only checked
+// "has any row been written for today." Two real hikes hours apart can have
+// genuinely different weather; reusing (or omitting) the first hike's
+// snapshot for the second was wrong. Self-provisioning "Hike Start
+// Forecast" sheet no longer doubles as its own dedup log for this -- see
+// the GPS Track gap check below. Provider is Open-Meteo
 // (api.open-meteo.com) -- free, no API key, and its hourly forecast includes
 // temp/humidity/precip probability/wind/UV in one call. Open-Meteo has no
 // named "nearest station" concept (unlike NWS/METAR, which snaps to an
@@ -313,19 +321,40 @@ function _gpsLookup(ss, tsISO) {
 // it looks up the IANA zone for the requested lat/lon server-side and
 // returns `utc_offset_seconds` for it, so this works correctly at any
 // location (previously hardcoded `America/Phoenix`, which silently broke
-// for any hike outside Arizona -- see CARD-0097). The offset is fetched
-// before the dedup check specifically so "today" is always the hike's own
-// local date, not Arizona's.
+// for any hike outside Arizona -- see CARD-0097). Used below only for the
+// recorded date_local display field and picking the closest forecast hour --
+// the session-gap dedup check (CARD-0115) doesn't depend on it at all.
 //
-// Deliberately does NOT fall back to a hardcoded home-area location when the
-// observation has no GPS correlation yet -- that would silently report the
-// wrong location's weather for a hike that isn't near home. Skips capture
-// for this observation instead; a later observation the same day with a
-// resolved GPS position will retry, since "already captured today?" is only
-// true once a row has actually been written.
+// Deliberately does NOT fall back to a hardcoded home-area location -- that
+// would silently report the wrong location's weather for a hike that isn't
+// near home. Every action=gps point already carries its own resolved
+// coordinates (CARD-0106), so this only ever skips on a malformed request.
+// CARD-0115: matches fetch_hike_data.py's own session_gap_min=10 convention
+// (see components/hike-izer/fetch_hike_data.py's _gps_sessions) -- kept in
+// sync deliberately, since this is approximating the same "is this a new
+// hiking session" judgment in real time, one point at a time, that the
+// Python pipeline later makes in batch over a full day's data.
+var SESSION_GAP_MIN = 10;
+
 function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
   try {
     if (coords.lat === null || coords.lon === null) return;
+
+    // CARD-0115: session-gap check first, before any sheet writes or the
+    // Open-Meteo call -- cheap way to avoid both wasted API calls and (the
+    // actual bug) skipping every session after the first one each day.
+    // GPS Track's current point was already appended by the caller just
+    // before this runs, so the *second-to-last* row is the true "previous"
+    // point to gap-check against. Fewer than 2 real rows (header + this
+    // point only) means this is the first GPS point ever recorded --
+    // trivially a new session.
+    var gpsSheet = ss.getSheetByName('GPS Track');
+    var lastRow = gpsSheet.getLastRow();
+    if (lastRow > 2) {
+      var prevTs = gpsSheet.getRange(lastRow - 1, 1).getValue();
+      var gapMin = (new Date(tsISO).getTime() - new Date(prevTs).getTime()) / 60000;
+      if (gapMin <= SESSION_GAP_MIN) return; // continuing an existing session
+    }
 
     var forecastSheet = ss.getSheetByName('Hike Start Forecast');
     if (!forecastSheet) {
@@ -335,20 +364,9 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
         'temp_f', 'precip_pct', 'wind_mph', 'humidity_pct', 'uv_index', 'provider'
       ]);
     }
-    // Force column B (date_local) to plain text, AND prefix the value with a
-    // leading apostrophe when writing it below (same mechanism as typing
-    // '2026-07-28 into a cell by hand) -- CARD-0106 confirmed live that
-    // setNumberFormat('@') alone does not reliably stop Sheets from
-    // auto-detecting a bare "YYYY-MM-DD" string as a real Date value on
-    // write via appendRow(), which breaks the dedup comparison below (a
-    // stored Date object never string-equals a freshly computed
-    // "YYYY-MM-DD" string, so every observation would re-trigger a capture
-    // instead of just the first one each day). Format set unconditionally
-    // (not just on sheet creation) so it's also safe against a sheet that
-    // already exists from before this fix. (Note: a sheet created before
-    // CARD-0097 will still have a literal "date_az" header cell from the
-    // old code -- harmless, since matching below is positional by column,
-    // not by header name; relabel manually if desired.)
+    // Force column B (date_local) to plain text, same reasoning as before
+    // (CARD-0106) -- date_local is still recorded for readability, it's just
+    // no longer what dedup is keyed on (CARD-0115).
     forecastSheet.getRange('B:B').setNumberFormat('@');
 
     var url = 'https://api.open-meteo.com/v1/forecast'
@@ -370,13 +388,10 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
     var offsetSec = body.utc_offset_seconds;
     var targetMs = new Date(tsISO).getTime();
 
-    // "Today" in the hike's own local timezone, not Arizona's.
+    // "Today" in the hike's own local timezone, not Arizona's -- still
+    // recorded below for readability (CARD-0115: no longer the dedup key,
+    // see the session-gap check near the top of this function).
     var dateLocal = new Date(targetMs + offsetSec * 1000).toISOString().slice(0, 10);
-
-    var existing = forecastSheet.getDataRange().getValues();
-    for (var i = 1; i < existing.length; i++) {
-      if (String(existing[i][1]) === dateLocal) return; // already captured for this day
-    }
 
     // hourly.time values are local wall-clock strings (e.g. "2026-07-24T09:00")
     // in the auto-detected timezone -- convert each back to a real UTC

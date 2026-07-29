@@ -602,8 +602,8 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 ---
 
-### CARD-0101 · [bug] [hike-izer] A real hike can be misclassified as "not a hike" if GPSLogger keeps running into a trailing car drive — implemented 2026-07-27, needs real-world validation
-**Status:** Build
+### CARD-0101 · [bug] [hike-izer] A real hike can be misclassified as "not a hike" if GPSLogger keeps running into a trailing car drive — RESOLVED 2026-07-29 15:23 MST
+**Status:** Done
 
 **Raised 2026-07-25**, same conversation as CARD-0100 — Joseph asked the mirror-image question: what if he hikes normally, forgets to stop GPSLogger, gets in the car, and starts driving?
 
@@ -618,7 +618,27 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 **Not yet done — needs a real trailing-drive trace before fully closing.** All three constructed cases pass, but `REGIME_WINDOW_MIN`/`REGIME_MIN_DURATION_MIN`/`REGIME_MIN_POINTS` are documented-provisional defaults, same caveat the card always had: synthetic data alone risks tuning them wrong in either direction. **Done when:** a genuine hike-that-rolled-into-a-drive event happens naturally and the resulting GPS Track sheet data confirms the split lands in the right place — or Joseph decides the synthetic validation above is sufficient to close it without waiting for a real occurrence.
 
-**Related:** CARD-0100 (the mirror-image false-trigger case, raised same session), `components/hike-izer/fetch_hike_data.py` (`_gps_sessions`/`_classify_hike`/`_sub_segment_by_speed`/`_build_session_entry`).
+**The real trace arrived, 2026-07-29 — and it broke the original design.** Joseph's second hike that day (CARD-0113's Frederik Meijer Gardens hike) deliberately left GPSLogger running through a real drive home. The published page reported 3.8 mi; Gaia GPS reported 2.3 mi for the actual walk — a ~1.5 mi discrepancy that led straight back to this card.
+
+**Root cause of the gap, found by inspecting the real GPS Track data directly:** the trailing drive was only ~7 minutes inside a 138-minute session — far too brief to move the *whole-session median* speed above the walking-pace ceiling, so `_classify_hike()` correctly accepted the session as `is_hike: true`. But the old design (`_sub_segment_by_speed()`) only ever ran its regime-detection scan on sessions `_classify_hike()` had **already rejected** for excess speed — since this session wasn't rejected, sub-segmentation never triggered at all, and the drive's real distance got silently summed into the reported hike distance.
+
+**First redesign attempt failed too, against the same real data — a second, more revealing finding.** Simply removing the "only if rejected" gate wasn't enough: the real drive included genuine stop-and-go driving (accelerate, stop at a light, accelerate again), with several near-zero-speed points from traffic stops interleaved among the fast ones. A trailing rolling-median classifier — mirroring the original bidirectional design's own approach — got dragged back under the walking threshold by those interleaved stops for most of the drive's actual duration, so it still failed to detect a sustained regime.
+
+**Redesigned and verified against real data, 2026-07-29:**
+1. `_truncate_trailing_fast_activity()` replaces `_sub_segment_by_speed()` — instead of a windowed median, it scans for the first raw-fast point corroborated by at least `REGIME_MIN_POINTS` more raw-fast points within `TRAILING_ACTIVITY_CONFIRM_WINDOW_MIN` (8 min) forward, spanning at least `REGIME_MIN_DURATION_MIN` (3 min) — robust to interleaved slow points, since it only cares how many genuinely fast points show up nearby, not what the smoothed local average reads. Runs unconditionally on every session now, not gated behind prior rejection.
+2. Deliberately **one-directional**: once a transition is confirmed, everything from that point to the end of the session is truncated as a single trailing block, full stop — it doesn't hunt for a "return to walking" afterward, which sidesteps misreading a stop-light pause as resumed hiking.
+3. `_build_session_entry()` gained `force_reject_reason` — the truncated trailing block is marked `is_hike: false` directly rather than being re-classified by the same median-speed test that's unreliable on real stop-and-go driving in isolation too.
+4. Guard against a degenerate near-empty "prefix": since the very first point in any session has no prior point to compute a speed from, the earliest a transition can be detected is index 1, not 0 — a confirmed transition before `REGIME_MIN_POINTS` keeps the whole session as one entry (an all-drive session, CARD-0100's case, stays a single correctly-rejected entry rather than splitting off a 1-point degenerate stub).
+
+**Verified against all 4 cases — the original 3 synthetic scenarios (corrected for a unit bug in the synthetic-point generator found while re-testing) plus the real trace:**
+1. 15-min walk → 40-min drive, no gap: splits correctly, walking rescued (`is_hike: true`), drive rejected.
+2. All-drive session (CARD-0100's case): stays one correctly-rejected entry, not spuriously split.
+3. Real hike with a brief 2-min jog burst mid-hike: stays one unsplit `is_hike: true` entry — the burst is correctly too short to trigger truncation.
+4. **The real July 29 trace:** splits into a 129.3-min/270-point walking session (2.48 mi) and an 8.3-min/17-point rejected trailing block, explicitly reasoned as "sustained non-walking pace detected... e.g. driving after the hike ended." 2.48 mi lines up closely with Gaia's 2.3 mi (the small residual gap is normal cross-app GPS variance, not a bug) — a dramatic improvement over the original 3.8 mi.
+
+**Deployed 2026-07-29 15:23 MST** to the M8's orchestrator; not yet re-published to the live `2026-07-29-2_hike-summary.html` page (that page still shows the old, uncorrected 3.8 mi) — offered to Joseph as a same-pattern zero-narrative-cost mechanical re-render, matching how CARD-0111's July 29 page fix was applied.
+
+**Related:** CARD-0100 (Done — the mirror-image false-trigger case, raised same session), CARD-0113 (Done — the session-scoped generation whose real second-hike test surfaced this), `components/hike-izer/fetch_hike_data.py` (`_gps_sessions`/`_classify_hike`/`_truncate_trailing_fast_activity`/`_build_session_entry`).
 
 ---
 

@@ -232,16 +232,19 @@ WALKING_SPEED_MIN_MPS = 0.15      # below this: effectively stationary (camp/par
 WALKING_SPEED_MAX_MPS = 3.0       # above this (~6.7 mph sustained): too fast for walking, likely a vehicle
 
 # CARD-0101: a session with no 10-min gap (e.g. hike -> straight into a car,
-# no stop) blends walking- and vehicle-pace points into one cluster, which can
-# tip the whole-session median speed into "too fast" and reject a real hike
-# along with the trailing drive. These control the regime-boundary detection
-# that sub-segments such a session by speed instead of rejecting it whole --
-# see _sub_segment_by_speed(). Provisional defaults, not yet validated against
-# a real hike+drive trace (none available at implementation time) -- retune
-# if a real trailing-drive event doesn't split cleanly.
-REGIME_WINDOW_MIN = 3.0           # trailing time window for the local rolling-median speed
-REGIME_MIN_DURATION_MIN = 3.0     # a labeled run shorter than this is jitter/a burst, not a real regime change
-REGIME_MIN_POINTS = 3             # a run also needs at least this many points to count as sustained
+# no stop) blends walking- and vehicle-pace points into one cluster. These
+# control _truncate_trailing_fast_activity()'s detection of a real, sustained
+# transition to non-walking pace, as distinct from a brief jog or a single
+# noisy GPS point. Tuned 2026-07-29 against a real trailing-drive trace (the
+# first attempt, a trailing rolling-median classifier, failed on it -- real
+# stop-and-go driving interleaves near-zero speeds at traffic stops among the
+# fast ones, which drags a windowed median down for much of the drive; a
+# forward-looking count of raw-fast points is robust to that, since it
+# doesn't matter how many slow points are interspersed as long as enough
+# genuinely fast ones show up within the confirmation window).
+TRAILING_ACTIVITY_CONFIRM_WINDOW_MIN = 8.0  # how far forward to look for corroborating fast points
+REGIME_MIN_DURATION_MIN = 3.0     # the fast points found must span at least this long -- excludes a brief jog
+REGIME_MIN_POINTS = 3             # ...and there must be at least this many of them
 
 
 def _classify_hike(points):
@@ -311,15 +314,28 @@ def _classify_hike(points):
     return len(reasons) == 0, reasons, details
 
 
-def _build_session_entry(s, sub_segmented=False):
+def _build_session_entry(s, sub_segmented=False, force_reject_reason=None):
     """Build one session's result dict from its points -- shared by the normal
     per-session path and by each CARD-0101 sub-segment, so both report the
-    same shape (duration, coverage, distance, classification)."""
+    same shape (duration, coverage, distance, classification).
+
+    force_reject_reason: CARD-0101 -- for a trailing block truncated off by
+    _truncate_trailing_fast_activity(), skip the normal median-speed
+    classification entirely rather than re-running it. The same problem that
+    broke median-based classification of the *whole* session (a real drive's
+    near-zero traffic-stop points can drag the median back under the walking
+    threshold) applies just as much to classifying the truncated block in
+    isolation -- we already know why this piece was cut off, so trust that
+    reason instead of asking a classifier that's known not to handle
+    interleaved stop-and-go pace well."""
     start = parse_ts(s[0]['timestamp'])
     end = parse_ts(s[-1]['timestamp'])
     dur_sec = max(1, (end - start).total_seconds())
     expected = max(1, round(dur_sec / 30))
-    is_hike, reasons, classify_details = _classify_hike(s)
+    if force_reject_reason:
+        is_hike, reasons, classify_details = False, [force_reject_reason], None
+    else:
+        is_hike, reasons, classify_details = _classify_hike(s)
 
     distance_m = 0.0
     for a, b in zip(s, s[1:]):
@@ -346,24 +362,36 @@ def _build_session_entry(s, sub_segmented=False):
     return entry
 
 
-def _sub_segment_by_speed(points):
-    """CARD-0101: detect sustained walking-pace vs vehicle-pace regime changes
-    within one candidate session (e.g. a hike that runs straight into a car
-    with no 10-min stop, so _gps_sessions never splits it on a time gap) and
-    split the session at those boundaries instead of classifying it as one
-    blended cluster. Returns a list of point-index sub-segments; a single-
-    element list containing the original points if no sustained regime change
-    is found (nothing to split). Only meant to be tried on sessions
-    _classify_hike already rejected specifically for excess speed -- see
-    caller in _gps_sessions.
+def _truncate_trailing_fast_activity(points):
+    """CARD-0101, redesigned 2026-07-29 against a real trailing-drive trace:
+    finds the first point whose raw point-to-point speed exceeds walking pace
+    AND is corroborated by at least REGIME_MIN_POINTS more raw-fast points
+    within the next TRAILING_ACTIVITY_CONFIRM_WINDOW_MIN minutes, spanning at
+    least REGIME_MIN_DURATION_MIN minutes -- confirming a real, sustained
+    transition rather than a brief jog or a single noisy GPS point. Truncates
+    the session there: everything from that point to the end is treated as
+    one trailing non-hike block, regardless of how speed fluctuates
+    afterward (e.g. stopping at a traffic light mid-drive). Returns [points]
+    unchanged if no sustained transition is found.
 
-    A local rolling-median speed (trailing REGIME_WINDOW_MIN window) labels
-    each point 'slow'/'walking'/'fast' using the same thresholds _classify_hike
-    uses session-wide; consecutive same-label points form a run; any run
-    shorter than REGIME_MIN_DURATION_MIN/REGIME_MIN_POINTS is a burst or GPS
-    jitter, not a real regime change, and gets absorbed into a neighboring
-    run rather than becoming a boundary."""
-    if len(points) < 2 * REGIME_MIN_POINTS:
+    Run unconditionally on every session now, not just ones _classify_hike
+    already rejected for excess speed -- a real trace showed a ~7-minute
+    drive inside a 138-minute session, far too brief to move the *whole-
+    session median* into outright rejection (the old gate), while still
+    inflating the reported distance via the plain sum. A first redesign
+    attempt used a trailing rolling-median classifier (mirroring the
+    original bidirectional version this replaced) and failed on that same
+    real trace: genuine stop-and-go driving interleaves several near-zero-
+    speed points (traffic stops) among the fast ones, which drags a windowed
+    median down for most of the drive's actual duration. Counting raw-fast
+    points within a forward window, rather than requiring a windowed median
+    to itself read fast, is robust to that -- it doesn't matter how many
+    slow points are interspersed as long as enough genuinely fast ones show
+    up nearby. One-directional by design, not bidirectional: once a
+    transition is confirmed, nothing after it is re-considered as hiking
+    data, which also sidesteps misreading a stop-light pause as "back to
+    walking" and fragmenting one real drive into several pieces."""
+    if len(points) < REGIME_MIN_POINTS:
         return [points]
 
     ts_list = [parse_ts(p.get('timestamp')) for p in points]
@@ -380,68 +408,37 @@ def _sub_segment_by_speed(points):
             continue
         speeds[i] = _haversine_m(lat_a, lon_a, lat_b, lon_b) / dt
 
-    def label(v):
-        if v is None:
-            return None
-        if v < WALKING_SPEED_MIN_MPS:
-            return 'slow'
-        if v > WALKING_SPEED_MAX_MPS:
-            return 'fast'
-        return 'walking'
+    fast = [s is not None and s > WALKING_SPEED_MAX_MPS for s in speeds]
 
-    labels = []
-    for i in range(len(points)):
-        window_start_epoch = ts_list[i].timestamp() - REGIME_WINDOW_MIN * 60
-        end_epoch = ts_list[i].timestamp()
-        window_speeds = sorted(
-            speeds[j] for j in range(len(points))
-            if speeds[j] is not None and window_start_epoch <= ts_list[j].timestamp() <= end_epoch
-        )
-        local_median = window_speeds[len(window_speeds) // 2] if window_speeds else None
-        labels.append(label(local_median))
+    n = len(points)
+    i = 0
+    while i < n:
+        if not fast[i]:
+            i += 1
+            continue
+        window_end_epoch = ts_list[i].timestamp() + TRAILING_ACTIVITY_CONFIRM_WINDOW_MIN * 60
+        fast_in_window = [
+            j for j in range(i, n)
+            if ts_list[j].timestamp() <= window_end_epoch and fast[j]
+        ]
+        if len(fast_in_window) >= REGIME_MIN_POINTS:
+            span_min = (ts_list[fast_in_window[-1]].timestamp() - ts_list[fast_in_window[0]].timestamp()) / 60
+            if span_min >= REGIME_MIN_DURATION_MIN:
+                # speeds[0] (and so fast[0]) is always undefined -- there's no
+                # prior point to compute it from -- so the earliest a real
+                # transition can be detected is i=1, not i=0. A prefix that
+                # short isn't a walking segment worth rescuing either; require
+                # at least REGIME_MIN_POINTS points before treating this as a
+                # real split, otherwise the whole thing opens already fast
+                # (e.g. a genuine all-drive session, CARD-0100) and should
+                # stay one single session for _classify_hike to reject as a
+                # whole, not a degenerate near-empty "prefix" plus the rest.
+                if i < REGIME_MIN_POINTS:
+                    return [points]
+                return [points[:i], points[i:]]
+        i += 1
 
-    # run-length encode as [label, start_idx, end_idx_inclusive]
-    runs = []
-    run_start = 0
-    for i in range(1, len(labels) + 1):
-        if i == len(labels) or labels[i] != labels[run_start]:
-            runs.append([labels[run_start], run_start, i - 1])
-            run_start = i
-
-    def duration_min(run):
-        return (ts_list[run[2]].timestamp() - ts_list[run[1]].timestamp()) / 60
-
-    def is_sustained(run):
-        return duration_min(run) >= REGIME_MIN_DURATION_MIN and (run[2] - run[1] + 1) >= REGIME_MIN_POINTS
-
-    # absorb short (jitter/burst) runs into a neighbor until only sustained
-    # runs remain, or only one run is left
-    changed = True
-    while changed and len(runs) > 1:
-        changed = False
-        for i, run in enumerate(runs):
-            if is_sustained(run):
-                continue
-            if i > 0:
-                runs[i - 1][2] = run[2]
-                del runs[i]
-            else:
-                runs[1][1] = run[1]
-                del runs[0]
-            changed = True
-            break
-
-    # merge any now-adjacent runs that share a label (cosmetic tidy-up)
-    merged = [runs[0]]
-    for run in runs[1:]:
-        if run[0] == merged[-1][0]:
-            merged[-1][2] = run[2]
-        else:
-            merged.append(run)
-
-    if len(merged) < 2:
-        return [points]
-    return [points[start:end + 1] for _, start, end in merged]
+    return [points]
 
 
 def _gps_sessions(gps_rows, session_gap_min=10):
@@ -470,28 +467,33 @@ def _gps_sessions(gps_rows, session_gap_min=10):
 
     result = []
     for s in sessions:
-        entry = _build_session_entry(s)
-
-        # CARD-0101: a session rejected specifically for being too fast might
-        # be a real hike blended with a trailing (or leading) drive that never
-        # triggered a time-gap split. Try sub-segmenting by speed; only keep
-        # the split if it actually rescues a hike, otherwise report the
-        # session as before (e.g. a genuine all-drive session, CARD-0100,
-        # stays a single correctly-rejected entry).
-        too_fast = (
-            not entry['is_hike']
-            and entry['classification_details'].get('median_speed_mps') is not None
-            and entry['classification_details']['median_speed_mps'] > WALKING_SPEED_MAX_MPS
-        )
-        if too_fast:
-            sub_segments = _sub_segment_by_speed(s)
-            if len(sub_segments) > 1:
-                sub_entries = [_build_session_entry(seg, sub_segmented=True) for seg in sub_segments]
-                if any(e['is_hike'] for e in sub_entries):
-                    result.extend(sub_entries)
-                    continue
-
-        result.append(entry)
+        # CARD-0101, extended 2026-07-29: run the trailing-fast-activity
+        # check on every session, not just ones already rejected for speed --
+        # a short trailing drive (e.g. straight into a car with no 10-min
+        # stop) can be too brief to move the whole-session median into
+        # outright rejection, while still inflating the reported distance if
+        # left in. Truncation only fires on a sustained regime change (see
+        # _truncate_trailing_fast_activity), so a normal hike with ordinary
+        # pace variation is unaffected.
+        segments = _truncate_trailing_fast_activity(s)
+        if len(segments) > 1:
+            # segments[0] is the walking prefix -- classify normally (it can
+            # still be rejected for other reasons, e.g. insufficient
+            # daylight). segments[1] is the truncated trailing block -- we
+            # already know why it was cut off, so force-reject it rather
+            # than re-running median-speed classification on it in
+            # isolation, which is exactly the check that's unreliable here
+            # (see _build_session_entry's force_reject_reason docstring).
+            result.append(_build_session_entry(segments[0], sub_segmented=True))
+            result.append(_build_session_entry(
+                segments[1], sub_segmented=True,
+                force_reject_reason=(
+                    "sustained non-walking pace detected partway through this GPS session "
+                    "(e.g. driving after the hike ended) -- excluded from the hike's own stats"
+                ),
+            ))
+        else:
+            result.append(_build_session_entry(s))
     return result
 
 

@@ -58,6 +58,12 @@ OVERPASS_URLS = [
     "https://overpass.kumi.systems/api/interpreter",
 ]
 USER_AGENT = "jctsh-hike-izer/1.0 (personal project, https://hikes.jctnet.com)"
+# CARD-0112: caps total named-feature queries per hike (route samples +
+# distinct photo locations combined) and paces them -- found necessary
+# against a real hike (2026-07-29) where an uncapped, back-to-back run
+# tripped Overpass's own "Too Many Requests" almost immediately.
+MAX_NAMED_FEATURE_QUERIES = 5
+NAMED_FEATURE_QUERY_DELAY_S = 3
 
 
 def _first_gps_point(hike_data):
@@ -66,6 +72,60 @@ def _first_gps_point(hike_data):
         return None
     sorted_rows = sorted(gps_rows, key=lambda r: r.get("timestamp") or "")
     return sorted_rows[0]
+
+
+def _hike_session_points(hike_data):
+    """CARD-0112: every GPS point belonging to a confirmed is_hike session,
+    chronologically ordered. Timestamps are compared as plain ISO 8601
+    strings (not parsed to datetime) -- they sort correctly lexicographically
+    since every timestamp in this pipeline shares the same format/offset, and
+    this avoids a second parsing convention alongside fetch_hike_data.py's
+    own. Returns [] if there's no confirmed hike."""
+    coverage = hike_data.get("coverage", {})
+    gps_track_coverage = coverage.get("gps_track", {})
+    if not gps_track_coverage.get("hike_confirmed"):
+        return []
+    windows = [
+        (s["start"], s["end"]) for s in gps_track_coverage.get("sessions", [])
+        if s.get("is_hike")
+    ]
+    if not windows:
+        return []
+    gps_rows = hike_data.get("gps_track") or []
+    points = [
+        r for r in gps_rows
+        if r.get("timestamp") and any(start <= r["timestamp"] <= end for start, end in windows)
+    ]
+    return sorted(points, key=lambda r: r["timestamp"])
+
+
+def _sample_points(points, max_samples=3):
+    """Evenly-spaced subset of points (always including the first and last),
+    capped at max_samples -- enough to ground named-feature lookups along
+    the whole route without one Overpass call per point."""
+    if len(points) <= max_samples:
+        return points
+    step = (len(points) - 1) / (max_samples - 1)
+    return [points[round(i * step)] for i in range(max_samples)]
+
+
+def _dedupe_locations(points, precision=4):
+    """Rounds lat/lon to `precision` decimals (~11m at 4 places) and drops
+    repeats -- avoids firing near-identical Overpass queries for points
+    that are effectively the same spot (e.g. several photos taken standing
+    in one place, or a route sample landing close to another)."""
+    seen = set()
+    result = []
+    for p in points:
+        lat, lon = p.get("lat"), p.get("lon")
+        if lat is None or lon is None:
+            continue
+        key = (round(lat, precision), round(lon, precision))
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(p)
+    return result
 
 
 def _nominatim_reverse(lat, lon):
@@ -406,10 +466,51 @@ def gather_place_context(hike_data, photos_manifest, api_key, regional_cache_pat
         return []
     lat, lon = point["lat"], point["lon"]
 
+    # Address/region are about "where is this hike, broadly" -- the first
+    # point is a fine anchor for that regardless of route shape, and using
+    # it keeps this to one Nominatim call as before.
     nominatim_body = _nominatim_reverse(lat, lon)
     address = nominatim_body.get("display_name") if nominatim_body else None
     region = _region_key(nominatim_body)
-    named = named_features(lat, lon)
+
+    # CARD-0112: named-feature lookup, in contrast, is about "what's actually
+    # along the route" -- querying only the first point confirmed wrong on a
+    # real hike (a neighborhood loop that starts from the same spot every
+    # day surfaced a landmark from a *different* day's hike, since the fixed
+    # anchor doesn't reflect which direction that day's hike actually went).
+    # Sample a handful of points along the confirmed hike session instead of
+    # one, plus every distinct photo capture location when photos exist
+    # (step 2) -- the strongest possible signal for what was near a specific
+    # photographed moment. Deduped by rounded coordinate first (avoid
+    # firing near-identical Overpass queries) and by feature name after.
+    #
+    # Capped and paced, found necessary against a real hike (2026-07-29):
+    # an uncapped run fired 8+ Overpass queries back-to-back and tripped
+    # its own "Too Many Requests" almost immediately, on top of Overpass's
+    # already-documented flakiness (CARD-0108) -- MAX_NAMED_FEATURE_QUERIES
+    # keeps the total request count sane, and the pause between calls gives
+    # each a fair shot instead of queuing into the same rate limit. Route
+    # samples are prioritized (they define the path); photo locations only
+    # fill whatever budget remains.
+    hike_points = _hike_session_points(hike_data)
+    route_samples = _dedupe_locations(_sample_points(hike_points) if hike_points else [point])
+    photo_points = _dedupe_locations((photos_manifest or {}).get("assets", []))
+    already_queried = {(round(p["lat"], 4), round(p["lon"], 4)) for p in route_samples}
+    photo_samples = [
+        p for p in photo_points
+        if (round(p["lat"], 4), round(p["lon"], 4)) not in already_queried
+    ]
+    query_points = (route_samples + photo_samples)[:MAX_NAMED_FEATURE_QUERIES]
+
+    named = []
+    seen_names = set()
+    for i, p in enumerate(query_points):
+        if i > 0:
+            time.sleep(NAMED_FEATURE_QUERY_DELAY_S)
+        for f in named_features(p["lat"], p["lon"]):
+            if f["name"] not in seen_names:
+                seen_names.add(f["name"])
+                named.append(f)
 
     facts = []
     if address:

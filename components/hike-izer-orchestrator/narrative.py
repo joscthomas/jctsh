@@ -10,12 +10,23 @@ duplicating its narrative-writing rules here, so future edits to the real
 Skill automatically apply to the automated path too.
 """
 
+import sys
+import time
 from typing import List
 
 import anthropic
 from pydantic import BaseModel
 
 MODEL = "claude-opus-4-8"
+# CARD-0112: the SDK itself already retries transient errors (default 2
+# attempts) before raising -- a 529 surviving that already means a real,
+# if brief, overload window, not a one-off blip. Found necessary against a
+# real step-2 run (2026-07-29) where the SDK's own retries were exhausted
+# and the whole run died, discarding the photo/place-context work already
+# done. Backoff grows well past what the SDK's own short internal retry
+# spacing covers, to actually ride out a longer overload window.
+NARRATIVE_MAX_RETRIES = 3
+NARRATIVE_RETRY_BACKOFF_S = [15, 30, 60]
 
 SYSTEM_PROMPT_PREFIX = """You are writing part (a), "Narrative story of the hike," of a Hike-izer \
 summary. Below is the full hike-izer Skill instructions document (SKILL.md) for context -- \
@@ -68,14 +79,28 @@ def generate_narrative(hike_data: dict, skill_md_text: str, api_key: str, place_
         + json.dumps(trimmed, indent=2)
     )
 
-    response = client.messages.parse(
-        model=MODEL,
-        max_tokens=4096,
-        thinking={"type": "adaptive"},
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_content}],
-        output_format=NarrativeOutput,
-    )
+    response = None
+    for attempt in range(NARRATIVE_MAX_RETRIES + 1):
+        try:
+            response = client.messages.parse(
+                model=MODEL,
+                max_tokens=4096,
+                thinking={"type": "adaptive"},
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_content}],
+                output_format=NarrativeOutput,
+            )
+            break
+        except (anthropic.APIStatusError, anthropic.APIConnectionError) as e:
+            if attempt == NARRATIVE_MAX_RETRIES:
+                raise
+            delay = NARRATIVE_RETRY_BACKOFF_S[attempt]
+            print(
+                f"generate_narrative attempt {attempt + 1} failed ({e}) -- retrying in {delay}s",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+
     if cost_tracker:
         cost_tracker.record(response)
     return response.parsed_output.narrative_paragraphs

@@ -54,6 +54,15 @@ services:
       # same directory `web` serves, no scp step (unlike the interactive
       # Skill's Windows-based flow).
       - ./srv:/srv/hike-izer
+      # CARD-0112: step 1 persists the full fetched hike_data.json (raw GPS
+      # trackpoints, full Environmental Data) so step 2 can reuse it without
+      # re-querying the Apps Script. That file reveals far more than the
+      # curated HTML summary -- notably the exact home address, via every
+      # hike's own start/end coordinates -- so it lives in a directory NOT
+      # mounted into `web` at all, never Caddy's `file_server browse` root,
+      # rather than relying on a path-exclusion rule in the Caddyfile that
+      # would need remembering to update for every new internal file.
+      - ./private:/srv/hike-izer-private
     env_file:
       - .env
     environment:

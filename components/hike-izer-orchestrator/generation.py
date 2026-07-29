@@ -1,12 +1,24 @@
 #!/usr/bin/env python
 """
-Hike-izer generation pipeline (CARD-0086 stage 2).
+Hike-izer generation pipeline (CARD-0086 stage 2, split into two steps by
+CARD-0112).
 
-Runs on a real GPSLogger "stopped" event: fetches the day's data exactly as
-SKILL.md's interactive steps 3/6 do, builds the mechanical output
-(templating.py) plus one narrative-generation call (narrative.py), and
-writes the result straight into the directory hike-izer-web already serves
--- no scp step, unlike the interactive Skill's Windows-based flow.
+Step 1 (run/run_and_log) fires automatically on a real GPSLogger "stopped"
+event and publishes a **data-only** page immediately -- no narrative, since
+photos (Immich's own background-upload delay), a Gaia GPS embed (a manual
+per-hike step Joseph does himself), and BirdNET bird-ID data (CARD-0080) are
+all things this pipeline can't force or reliably predict the timing of.
+Trying to retry/backfill around each of those individually fights the
+actual limitation; publishing what's genuinely available right now and
+enriching later doesn't.
+
+Step 2 (run_step2) is triggered conversationally, whenever Joseph has staged
+what he can (opened Immich, dropped a Gaia embed snippet or BirdNET export
+into that hike's staging directory) and asks for "the rich version" of a
+hike. It reuses step 1's persisted hike_data.json (no re-querying the Apps
+Script), re-fetches photos, reads the staging directory, and runs the one
+narrative-generation call -- with everything actually available, instead of
+one written blind before anything else was ready.
 
 Determines "today" from the webhook payload's own local_datetime (never
 Arizona-hardcoded) -- a hike can happen anywhere Joseph is carrying his
@@ -27,6 +39,12 @@ import place_context as place_context_module
 import templating
 
 SRV_DIR = "/srv/hike-izer"
+# CARD-0112: hike_data.json (raw GPS trackpoints, full Environmental Data)
+# reveals far more than the curated HTML summary -- notably the exact home
+# address, via every hike's own start/end coordinates -- so it's persisted
+# here instead, a directory never mounted into the `web` service at all,
+# rather than relying on a Caddyfile exclusion rule for every internal file.
+PRIVATE_DIR = "/srv/hike-izer-private"
 SKILL_MD_PATH = "/app/SKILL.md"
 FETCH_DATA_SCRIPT = "/app/fetch_hike_data.py"
 FETCH_PHOTOS_SCRIPT = "/app/fetch_hike_photos.py"
@@ -97,7 +115,60 @@ def _next_file_stem(date_str):
     return stem
 
 
+def _date_str_from_stem(file_stem):
+    # '2026-07-29' -> '2026-07-29'; '2026-07-29-2' -> '2026-07-29'
+    return file_stem[:10]
+
+
+def _fetch_photos(hike_data_path, photos_dir):
+    """Shared by step 1 (best-effort attempt) and step 2 (the real fetch,
+    now that Immich has hopefully caught up -- CARD-0111/CARD-0112). Returns
+    a manifest dict with at least one asset, or None."""
+    try:
+        subprocess.run(
+            [
+                sys.executable, FETCH_PHOTOS_SCRIPT,
+                "--data", hike_data_path,
+                "--immich-url", _env("IMMICH_URL"), "--immich-key", _env("IMMICH_KEY"),
+                "--out-dir", photos_dir,
+            ],
+            check=True, timeout=180,
+        )
+        with open(os.path.join(photos_dir, "manifest.json"), "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        return manifest if manifest.get("assets") else None
+    except subprocess.CalledProcessError as e:
+        # Photos are a nice-to-have (CARD-0084) -- never let a photo-fetch
+        # failure block the summary itself, same as the interactive Skill's
+        # "omit the Photos section" handling for a failed/empty manifest.
+        print(f"fetch_hike_photos.py failed ({e}) -- continuing without photos", file=sys.stderr)
+        return None
+
+
+def _read_staging(file_stem):
+    """CARD-0112: whatever Joseph has dropped into this hike's staging
+    directory (mounted as a Windows drive via SSHFS-Win) -- read here
+    instead of relaying file content through chat text. Returns a dict with
+    whichever of the known keys were actually found; a key is simply absent
+    if that resource hasn't been staged (or doesn't apply to this hike)."""
+    staging_dir = os.path.join(SRV_DIR, f"{file_stem}_staging")
+    staged = {}
+    gaia_path = os.path.join(staging_dir, "gaia_embed.html")
+    if os.path.exists(gaia_path):
+        with open(gaia_path, "r", encoding="utf-8") as f:
+            staged["gaia_embed_html"] = f.read()
+    # birdnet_export.csv: CARD-0080 isn't built yet -- no consumption logic
+    # here, just leaving room for the file to land in the same place once
+    # that card designs its own schema/parsing.
+    return staged
+
+
 def run(payload):
+    """Step 1 (CARD-0112): fully automatic, unchanged trigger (CARD-0086's
+    GPSLogger 'stopped' webhook). Publishes a data-only page immediately --
+    no place_context, no narrative call. Photos still get a best-effort
+    attempt (cheap, in case they happen to already be uploaded), but the
+    real photo pass is step 2's job."""
     tracker = cost_tracking.CostTracker()
     local_datetime = payload.get("local_datetime")
     if not local_datetime:
@@ -111,14 +182,18 @@ def run(payload):
     start_iso, end_iso = _session_query_window(payload, date_str, offset_str)
 
     os.makedirs(SRV_DIR, exist_ok=True)
+    os.makedirs(PRIVATE_DIR, exist_ok=True)
     # CARD-0113: a day can produce more than one hike-summary now -- decide
     # this run's own file stem ('<date>' for the first, '<date>-2' etc. for
     # any later same-day hike) before anything gets written, so every output
-    # path (HTML, meta.json, photos dir, temp fetch file) uses it
-    # consistently.
+    # path (HTML, meta.json, photos dir) uses it consistently.
     file_stem = _next_file_stem(date_str)
 
-    hike_data_path = f"/tmp/hike_data_{file_stem}.json"
+    # CARD-0112: persisted in PRIVATE_DIR (never web-exposed, see that
+    # constant's own comment), not /tmp -- so step 2 can reuse it hours or
+    # days later, even across a container restart, without re-querying the
+    # Apps Script for data that can't have changed since the hike happened.
+    hike_data_path = os.path.join(PRIVATE_DIR, f"{file_stem}_hike_data.json")
     subprocess.run(
         [
             sys.executable, FETCH_DATA_SCRIPT,
@@ -144,41 +219,88 @@ def run(payload):
             "System",
             f"GPSLogger stopped, no hike confirmed for {file_stem} -- skipped generation.",
         )
+        os.remove(hike_data_path)  # nothing for step 2 to ever reuse for this non-hike
         return None, tracker
 
-    # hike_confirmed is true past this point (checked above) -- fetch photos
-    photos_manifest = None
-    photos_dir = os.path.join(SRV_DIR, f"{file_stem}_photos")
-    try:
-        subprocess.run(
-            [
-                sys.executable, FETCH_PHOTOS_SCRIPT,
-                "--data", hike_data_path,
-                "--immich-url", _env("IMMICH_URL"), "--immich-key", _env("IMMICH_KEY"),
-                "--out-dir", photos_dir,
-            ],
-            check=True, timeout=180,
-        )
-        with open(os.path.join(photos_dir, "manifest.json"), "r", encoding="utf-8") as f:
-            manifest = json.load(f)
-        if manifest.get("assets"):
-            photos_manifest = manifest
-    except subprocess.CalledProcessError as e:
-        # Photos are a nice-to-have (CARD-0084) -- never let a photo-fetch
-        # failure block the summary itself, same as the interactive Skill's
-        # "omit the Photos section" handling for a failed/empty manifest.
-        print(f"fetch_hike_photos.py failed ({e}) -- continuing without photos", file=sys.stderr)
+    # CARD-0112: staging directory created up front (even though nothing's
+    # in it yet) so Joseph's SSHFS-Win-mounted drive shows a real folder to
+    # drop files into immediately, rather than needing to create it himself
+    # before staging anything for this hike.
+    os.makedirs(os.path.join(SRV_DIR, f"{file_stem}_staging"), exist_ok=True)
 
+    # hike_confirmed is true past this point (checked above). Photos: best-
+    # effort only -- CARD-0111 confirmed Immich's own upload almost never
+    # happens this fast, but it costs nothing to check.
+    photos_dir = os.path.join(SRV_DIR, f"{file_stem}_photos")
+    photos_manifest = _fetch_photos(hike_data_path, photos_dir)
     if photos_manifest:
         photos_manifest = photo_captions.caption_photos(
             photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker
         )
 
+    # CARD-0112: no place_context, no narrative call in step 1 -- mechanical
+    # rendering only. templating.render_html omits the whole narrative
+    # section when narrative_paragraphs is empty, same convention as the
+    # Photos section's own omit-when-empty handling.
+    html_text = templating.render_html(hike_data, [], date_str, offset_str, photos_manifest)
+
+    with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
+        f.write(html_text)
+
+    # CARD-0092: sidecar manifest for the calendar home page. Always
+    # hike_confirmed: true here -- CARD-0100 already returned early above
+    # for any day that isn't a confirmed hike, so this automatic path only
+    # ever reaches this point on a real hike. offset_str is carried along so
+    # step 2 (run hours/days later, from just a file stem) doesn't need to
+    # re-derive it.
+    with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.meta.json"), "w", encoding="utf-8") as f:
+        json.dump({"hike_confirmed": True, "offset_str": offset_str}, f)
+
+    subprocess.run(
+        [sys.executable, BUILD_CALENDAR_SCRIPT, "--srv-dir", SRV_DIR],
+        check=True, timeout=30,
+    )
+
+    print(f"Step 1 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
+    return file_stem, tracker
+
+
+def run_step2(file_stem):
+    """Step 2 (CARD-0112): conversationally triggered, once Joseph has
+    staged what he can (opened Immich, dropped a Gaia embed/BirdNET export
+    into the staging directory). Re-fetches photos for real, reads staging,
+    runs place_context + the one narrative call, and republishes the full
+    page in place of step 1's data-only version."""
+    tracker = cost_tracking.CostTracker()
+    date_str = _date_str_from_stem(file_stem)
+
+    hike_data_path = os.path.join(PRIVATE_DIR, f"{file_stem}_hike_data.json")
+    with open(hike_data_path, "r", encoding="utf-8") as f:
+        hike_data = json.load(f)
+
+    meta_path = os.path.join(SRV_DIR, f"{file_stem}_hike-summary.meta.json")
+    with open(meta_path, "r", encoding="utf-8") as f:
+        meta = json.load(f)
+    offset_str = meta["offset_str"]
+
+    # Real photo fetch this time, not step 1's best-effort attempt.
+    photos_dir = os.path.join(SRV_DIR, f"{file_stem}_photos")
+    photos_manifest = _fetch_photos(hike_data_path, photos_dir)
+    if photos_manifest:
+        photos_manifest = photo_captions.caption_photos(
+            photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker
+        )
+
+    staged = _read_staging(file_stem)
+
     with open(SKILL_MD_PATH, "r", encoding="utf-8") as f:
         skill_md_text = f.read()
 
-    # CARD-0108: runs after photo captioning so sign_text (if any) is
-    # already on the manifest and available as search-anchor material.
+    # CARD-0108/CARD-0112: runs after photo captioning so sign_text (if any)
+    # is already on the manifest, and now with real photo locations
+    # available to ground named_features() along the actual route (see
+    # place_context.py's own CARD-0112 fix) rather than just the hike's
+    # first GPS point.
     place_context = place_context_module.gather_place_context(
         hike_data, photos_manifest, _env("ANTHROPIC_API_KEY"),
         regional_cache_path=os.path.join(SRV_DIR, "regional_context_cache.json"),
@@ -189,28 +311,25 @@ def run(payload):
         hike_data, skill_md_text, _env("ANTHROPIC_API_KEY"), place_context=place_context, cost_tracker=tracker
     )
 
-    html_text = templating.render_html(hike_data, paragraphs, date_str, offset_str, photos_manifest)
+    html_text = templating.render_html(
+        hike_data, paragraphs, date_str, offset_str, photos_manifest,
+        gaia_embed_html=staged.get("gaia_embed_html"),
+    )
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
         f.write(html_text)
-
-    # CARD-0092: sidecar manifest for the calendar home page. Always
-    # hike_confirmed: true here -- CARD-0100 already returned early above
-    # for any day that isn't a confirmed hike, so this automatic path only
-    # ever reaches this point on a real hike.
-    with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.meta.json"), "w", encoding="utf-8") as f:
-        json.dump({"hike_confirmed": True}, f)
 
     subprocess.run(
         [sys.executable, BUILD_CALENDAR_SCRIPT, "--srv-dir", SRV_DIR],
         check=True, timeout=30,
     )
 
-    print(f"Generation complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
+    print(f"Step 2 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
     return file_stem, tracker
 
 
 def run_and_log(payload):
+    """Step 1's entry point -- called by app.py on every real webhook."""
     try:
         file_stem, tracker = run(payload)
         if file_stem is None:
@@ -220,10 +339,46 @@ def run_and_log(payload):
         print(f"Publishing MQTT log line for {file_stem}...", file=sys.stderr, flush=True)
         mqtt_log.publish_log(
             "System",
-            f"Published hike summary for {file_stem}: "
+            f"Published data-only hike summary for {file_stem}: "
             f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
-            f"(API cost: {tracker.summary()})",
+            f"(API cost: {tracker.summary()}). Ask for the rich version once photos/Gaia/bird data are staged.",
         )
     except Exception as e:
-        print(f"Generation failed: {e}", file=sys.stderr)
-        mqtt_log.publish_log("Alert", f"Hike summary generation failed: {e}")
+        print(f"Step 1 generation failed: {e}", file=sys.stderr)
+        mqtt_log.publish_log("Alert", f"Hike summary step 1 generation failed: {e}")
+
+
+def run_step2_and_log(file_stem):
+    """Step 2's entry point -- called from the CLI (see main()) when Joseph
+    asks, conversationally, for the rich version of a specific hike."""
+    try:
+        file_stem, tracker = run_step2(file_stem)
+        mqtt_log.publish_log(
+            "System",
+            f"Published enriched hike summary for {file_stem}: "
+            f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
+            f"(API cost: {tracker.summary()}).",
+        )
+    except Exception as e:
+        print(f"Step 2 generation failed: {e}", file=sys.stderr)
+        mqtt_log.publish_log("Alert", f"Hike summary step 2 generation failed for {file_stem}: {e}")
+        raise
+
+
+def main():
+    import argparse
+
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--step2", metavar="FILE_STEM",
+        help="Run step 2 (photos + place context + narrative) for an already-published "
+             "file stem, e.g. 2026-07-29 or 2026-07-29-2 for a second same-day hike.",
+    )
+    args = ap.parse_args()
+    if not args.step2:
+        ap.error("nothing to do -- pass --step2 <file_stem> (step 1 runs via the webhook, not this CLI)")
+    run_step2_and_log(args.step2)
+
+
+if __name__ == "__main__":
+    main()

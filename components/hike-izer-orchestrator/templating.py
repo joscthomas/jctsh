@@ -383,6 +383,8 @@ _HTML_STYLE = """
   .coverage-panel { background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 1rem 1.15rem; }
   .coverage-panel table { background: transparent; border: none; }
   .coverage-panel thead th { background: transparent; }
+  .map-embed { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  .map-embed iframe { display: block; width: 100%; border: none; }
   footer { color: var(--ink-faint); font-size: 0.75rem; font-family: var(--mono); margin-top: 2.5rem; border-top: 1px solid var(--line); padding-top: 1rem; }
 """
 
@@ -396,7 +398,7 @@ def _stat_card(label, value, na=False):
     return f'<div class="stat"><div class="stat__label">{_esc(label)}</div><div class="{cls}">{_esc(value)}</div></div>'
 
 
-def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None):
+def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None, gaia_embed_html=None):
     offset_delta = _parse_offset(offset_str)
     coverage = hike_data["coverage"]
     stats = hike_data["stats"]
@@ -430,7 +432,31 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
         _stat_card("UV Index", forecast['uv_index'], na=(forecast['uv_index'] == NA)),
     ])
 
-    narrative_html = "".join(f"<p>{_esc(p)}</p>" for p in narrative_paragraphs)
+    # CARD-0112: step 1 publishes with no narrative at all yet -- omit the
+    # whole section rather than show an empty "The Hike" heading over
+    # nothing, same convention as the Photos section's own omit-when-empty
+    # handling. Step 2 re-renders with real paragraphs once they exist.
+    narrative_section = ""
+    if narrative_paragraphs:
+        narrative_html = "".join(f"<p>{_esc(p)}</p>" for p in narrative_paragraphs)
+        narrative_section = f"""
+  <section class="narrative">
+    <h2>The Hike</h2>
+    {narrative_html}
+  </section>"""
+
+    # CARD-0112/CARD-0104: Gaia GPS embed, staged by Joseph and inserted by
+    # step 2 -- right after the hero stat-row, before Weather Forecast, per
+    # CARD-0104's decided placement. Gaia's own inline iframe styles are
+    # left untouched; just given the same card framing as the rest of the
+    # page via the wrapper below.
+    gaia_section = ""
+    if gaia_embed_html:
+        gaia_section = f"""
+  <section>
+    <h2>Route Map</h2>
+    <div class="map-embed">{gaia_embed_html}</div>
+  </section>"""
 
     summary_rows = "".join(
         f"<tr><td>{_esc(label)}</td><td>{_esc(value)}</td></tr>"
@@ -512,14 +538,12 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   <p class="subtitle">Generated automatically by hike-izer-orchestrator &middot; data from the JCTsh Environmental Data pipeline</p>
   <div class="stat-row">{stat_row}</div>
   {callout}
+  {gaia_section}
   <section>
     <h2>Weather Forecast at Hike Start</h2>
     <div class="forecast-row">{forecast_row}</div>
   </section>
-  <section class="narrative">
-    <h2>The Hike</h2>
-    {narrative_html}
-  </section>
+  {narrative_section}
   <section>
     <h2>Data Summary</h2>
     <table><tbody>{summary_rows}</tbody></table>

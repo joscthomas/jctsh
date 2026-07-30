@@ -2585,8 +2585,8 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 ---
 
-### CARD-0119 · [enhancement] [hike-izer] Mount the M8 staging directory as a Windows drive (SSHFS-Win), document operational steps for managing staged data
-**Status:** Build
+### CARD-0119 · [enhancement] [hike-izer] Mount the M8 staging directory as a Windows drive (SSHFS-Win), document operational steps for managing staged data — RESOLVED 2026-07-30 13:10 MST
+**Status:** Done
 
 **Raised 2026-07-29 17:24 MST** — CARD-0112 designed the `<file_stem>_staging/` mechanism and specifically the SSHFS-Win mount as the no-friction way to get files into it (drag-and-drop from Explorer), but nothing ever tracked Joseph actually setting it up. Confirmed tonight it's genuinely unused: CARD-0080's real BirdNET exports came in through Downloads and got `scp`'d in manually instead.
 
@@ -2595,9 +2595,15 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 2. **Write a new doc**, `components/hike-izer-orchestrator/staging.md`, covering the operational steps for managing this data day to day: how to find/confirm today's hike's correct `file_stem` (matters once a second same-day hike exists, per CARD-0113), the exact expected filenames/formats per staged resource (`gaia_embed.html` for CARD-0104's iframe snippet; any `.zip`/`.json` for a CARD-0080 BirdNET export — `birdnet.py` scans for either), and the fact that staged files are left in place after consumption (not deleted), so nothing needs re-staging for a later re-render.
 3. Link the new doc from `components/hike-izer-orchestrator/README.md` (or create one if it doesn't exist) so it's discoverable outside this card.
 
-**Done when:** the mount is live and verified with a real file round-trip, `staging.md` exists and covers all three staged-resource types this component currently supports, and it's linked from somewhere discoverable outside kanban-board.md.
+**Item 1 done, 2026-07-30 13:03 MST.** WinFsp was already present; `winget install --id SSHFS-Win.SSHFS-Win -e` installed the rest. The mount actually landed as drive `Z:` (rooted at `jct`'s whole home directory, not just the `srv` subpath — `Z:\hike-izer-web-app\srv` reaches the same place the original `\\sshfs\...\srv` UNC path was meant to) rather than the UNC path resolving directly; a bare attempt at the raw UNC path in Explorer failed once the share was already connected via the drive letter, which turned out to be a red herring, not a real problem — confirmed via `Z:`. Verified with a real round-trip: wrote a test file through `Z:\hike-izer-web-app\srv\`, confirmed it landed correctly via direct SSH `cat` on the M8, then removed it.
 
-**Not done by Claude alone:** installing WinFsp/SSHFS-Win needs an elevated, interactive Windows installer — Joseph runs that step himself; Claude verifies the mount and writes the documentation once it's in.
+**Note:** "Done when" below originally said "all three staged-resource types" but only two are actually named anywhere in this card or `_read_staging()` (Gaia embed, BirdNET export) — corrected to two; no third type exists to document.
+
+**Items 2 and 3 done, 2026-07-30 13:10 MST.** Wrote `components/hike-izer-orchestrator/staging.md` — covers finding the right hike's staging directory, the Gaia embed (manual, laptop-only, exact filename `gaia_embed.html`), the BirdNET export (automatic per CARD-0122, with the mount as fallback, any `.zip`/`.json` filename), the mount setup itself, and that staged files persist after use. Linked from a new "Staging data for step 2" section in `components/hike-izer-orchestrator/README.md`.
+
+**Done when:** the mount is live and verified with a real file round-trip ✓, `staging.md` exists and covers both staged-resource types this component currently supports ✓, and it's linked from somewhere discoverable outside kanban-board.md ✓.
+
+**Not done by Claude alone:** installing WinFsp/SSHFS-Win needed an elevated, interactive Windows installer — Joseph ran that step himself; Claude verified the mount and wrote the documentation once it was in.
 
 **Related:** CARD-0112 (designed this mechanism, Done), CARD-0104 (Gaia embed, the first staged-resource type), CARD-0080 (BirdNET export, the second staged-resource type, Done), `components/hike-izer-orchestrator/generation.py` (`_read_staging()`).
 

@@ -178,6 +178,12 @@ already went out before generation started (see `app.py`'s background
 thread), so a failure here is only visible via logs/MQTT, not an HTTP
 error.
 
+## Staging data for step 2
+
+See `staging.md` for the day-to-day runbook: where the Gaia GPS embed
+snippet and BirdNET Live exports go, how to find the right hike's staging
+directory, and the SSHFS-Win mount that gets them there from Windows.
+
 ## Related
 
 - CARD-0086 (this component's tracking card — full architecture reasoning)

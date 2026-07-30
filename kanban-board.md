@@ -9,7 +9,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0122 -->
+<!-- next-card-id: CARD-0123 -->
 
 ---
 
@@ -2643,3 +2643,39 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 **Scope not yet defined** — needs interview/design before moving to Planning. Rough shape: some periodic or backstop check that notices "real GPS trace data exists in the Sheet consistent with a hike, but no corresponding page was ever generated for it," and either generates it late or at minimum surfaces a visible alert (dashboard log line) rather than the gap staying invisible.
 
 **Related:** CARD-0086 (automatic triggering, the system this gap is in), CARD-0120 (the investigation that surfaced this), `components/hike-izer-orchestrator/app.py`.
+
+---
+
+### CARD-0122 · [enhancement] [hike-izer] Automated staging: phone Share sheet → webhook → M8 staging directory
+**Status:** Build
+
+**Raised 2026-07-30 06:40 MST** — Joseph asked how to get two files captured at the end of today's hike (Gaia GPS's iframe embed snippet, a BirdNET Live session export) into the correct `<file_stem>_staging/` directory (CARD-0112's mechanism) without a manual step. Both apps offer Android's native Share sheet on the phone. Considered and rejected email-to-self and Google Drive upload as the transport: both are zero-code but not actually automated (something still has to notice the file arrived and move it, taking on a new external-API credential surface — Gmail/Drive auth — to do it), and both add a third-party store-and-forward hop this project doesn't otherwise have. Decision: reuse the pattern already proven for GPSLogger (CARD-0086) — Tasker intercepts the Share intent and POSTs directly to a new orchestrator endpoint, over the same authenticated webhook channel everything else here already uses.
+
+**Design sketch:**
+
+1. **New orchestrator endpoint**, alongside the existing `/webhook/hike-end` in `app.py`: `POST /webhook/stage-file?key=<secret>&kind=gaia|birdnet[&ext=zip|json]`.
+   - Same auth pattern as today: reject unless `key` matches (reuse `WEBHOOK_SECRET`, or mint a second secret if Joseph would rather keep this channel separable — open question below).
+   - `kind=gaia`: read the POST body as UTF-8 text, write it to `<file_stem>_staging/gaia_embed.html` (the exact filename `_read_staging()` already looks for — no change needed on the read side).
+   - `kind=birdnet`: read the POST body as bytes, write it to `<file_stem>_staging/birdnet_<timestamp>.<ext>`. `birdnet.parse_detections()` already globs `*.zip`/`*.json` in the staging dir regardless of filename and already supports multiple staged exports, so no read-side change needed here either.
+   - Unlike `/webhook/hike-end`, this can respond synchronously — writing a file is fast, no background thread needed.
+   - Every receipt (and any write failure) gets a durable MQTT dashboard log line, same convention as every other webhook receipt in this component.
+2. **Resolving *which* hike's staging directory** — the phone has no concept of `file_stem` (CARD-0113's `<date>`/`<date>-2` scheme is a server-side idea). **Refined during Build:** rather than "latest file stem for today's date," use whichever `*_hike-summary.html` file has the most recent mtime, full stop — "today" has no single safe definition here, since a hike's own local date (from GPSLogger's `local_datetime`) can differ from the M8's fixed server TZ (`America/Phoenix`) whenever Joseph is traveling (exactly the case this week, Michigan/Eastern). mtime-based selection sidesteps that date-boundary ambiguity entirely and still matches the real usage pattern (files get shared within minutes of the hike they belong to ending, so its page is reliably the most recently published one).
+3. **Tasker side** (per app, two profiles): "Event → Intent Received," filtered to the Share intent each app actually fires, running one task: extract the shared text (`%astext`, for Gaia's embed snippet) or shared file (`%aextras`'s content URI, for BirdNET's export) and HTTP POST it to `https://hikes.jctnet.com/webhook/stage-file?key=...&kind=...`.
+
+**Open questions — need Joseph testing live on his phone, not guessable from here:**
+- Exactly what Gaia GPS's Share action actually produces (raw HTML text via `ACTION_SEND`/`EXTRA_TEXT`, or something else, e.g. a link) — CARD-0110 already noted marking a track Public + copying its embed code is a manual step Joseph does himself; this card only automates getting the *already-copied* snippet from phone to M8, not that step.
+- Exactly what BirdNET Live's Share action produces (`.zip` vs `.json`, confirmed either way per CARD-0080) and whether it's delivered as a real file Tasker can attach to an HTTP POST, or needs an intermediate "copy to local path" task step first.
+- Whether Tasker's HTTP Request action can POST a `content://` URI directly as a file body, or needs that intermediate copy step.
+- Reuse `WEBHOOK_SECRET` or mint a new one for this endpoint.
+
+**Done when:** both apps' Share sheets land their file in the correct hike's `_staging/` directory on the M8 with no manual step (no email, no Drive, no SCP), verified with a real share from a real hike.
+
+**Server side built and deployed 2026-07-30:** `POST /webhook/stage-file?key=<secret>&kind=gaia|birdnet[&ext=zip|json]` added to `app.py` (same `WEBHOOK_SECRET` reused, not a second secret), synchronous (no background thread, unlike hike-end — just a file write). `generation.py` gained `latest_file_stem()` per the mtime-based approach above. Rebuilt and recreated the `orchestrator` container on the M8; confirmed healthy.
+
+**Verified live** with synthetic requests against the real running container: valid `kind=gaia` and `kind=birdnet&ext=json` POSTs both correctly landed in `2026-07-30_staging/` (the most recently published hike) with the exact posted content intact; wrong key correctly rejected (401); invalid `kind` correctly rejected (400). Test files removed afterward (via `docker exec`, since the container writes as root) so they don't contaminate today's real staging directory before a real step 2 run.
+
+**Still open — the phone side:** AutoShare install + the two Share Sheet targets + their Tasker tasks, plus the four open questions above (exact intent/MIME each app's Share produces, whether Tasker's HTTP action needs an intermediate file-copy step, BirdNET's actual export extension). Not done by Claude — Joseph's own device.
+
+**Not done by Claude alone:** the Tasker profiles are built and tested on Joseph's own phone — same division of labor as CARD-0086's original GPSLogger Tasker setup.
+
+**Related:** CARD-0112 (designed the `_staging/` mechanism this feeds), CARD-0119 (the SSHFS-Win mount, the manual alternative this replaces), CARD-0104 (Gaia embed, CARD-0080 (BirdNET export), CARD-0086 (the original Tasker-webhook pattern this reuses), `components/hike-izer-orchestrator/app.py`, `components/hike-izer-orchestrator/generation.py` (`_read_staging()`, `_next_file_stem()`), `components/hike-izer-orchestrator/birdnet.py` (`parse_detections()`).

@@ -84,12 +84,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parts = urlsplit(self.path)
-        if parts.path != "/webhook/hike-end":
-            self._respond(404, {"status": "error", "message": "not found"})
+        if parts.path == "/webhook/hike-end":
+            self._handle_hike_end(parts)
             return
+        if parts.path == "/webhook/stage-file":
+            self._handle_stage_file(parts)
+            return
+        self._respond(404, {"status": "error", "message": "not found"})
 
+    def _authorized(self, parts):
         provided_key = parse_qs(parts.query).get("key", [""])[0]
-        if not WEBHOOK_SECRET or not hmac.compare_digest(provided_key, WEBHOOK_SECRET):
+        return bool(WEBHOOK_SECRET) and hmac.compare_digest(provided_key, WEBHOOK_SECRET)
+
+    def _handle_hike_end(self, parts):
+        if not self._authorized(parts):
             log("Rejected webhook POST: missing or incorrect key")
             # Alert, not System -- a rejected auth attempt reaching us at
             # all is the one signal a totally-silent failure (nothing ever
@@ -123,6 +131,64 @@ class Handler(BaseHTTPRequestHandler):
         log("Stop event received -- starting generation in the background")
         threading.Thread(target=generation.run_and_log, args=(payload,), daemon=True).start()
         self._respond(200, {"status": "ok", "message": "stop event received, generating"})
+
+    def _handle_stage_file(self, parts):
+        """CARD-0122: receives a file shared directly from the phone (via
+        AutoShare + Tasker) for the currently-in-progress staging workflow --
+        a Gaia GPS embed snippet or a BirdNET Live export -- and writes it
+        into the most-recently-published hike's own _staging directory (see
+        generation.latest_file_stem for why mtime, not "today"). Unlike
+        hike-end, this responds synchronously -- writing a file is fast,
+        no background thread needed."""
+        if not self._authorized(parts):
+            log("Rejected stage-file POST: missing or incorrect key")
+            _log_mqtt_async("Alert", "Stage-file webhook POST rejected: missing or incorrect key.")
+            self._respond(401, {"status": "error", "message": "unauthorized"})
+            return
+
+        qs = parse_qs(parts.query)
+        kind = qs.get("kind", [""])[0]
+        if kind not in ("gaia", "birdnet"):
+            self._respond(400, {"status": "error", "message": f"invalid or missing kind (got {kind!r})"})
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length) if length else b""
+        if not body:
+            self._respond(400, {"status": "error", "message": "empty body"})
+            return
+
+        file_stem = generation.latest_file_stem()
+        if file_stem is None:
+            log(f"Rejected stage-file POST ({kind}): no published hike found to stage against")
+            _log_mqtt_async("Alert", f"Stage-file webhook POST ({kind}) rejected: no published hike found.")
+            self._respond(409, {"status": "error", "message": "no published hike found"})
+            return
+
+        staging_dir = os.path.join(generation.SRV_DIR, f"{file_stem}_staging")
+        os.makedirs(staging_dir, exist_ok=True)
+
+        if kind == "gaia":
+            dest = os.path.join(staging_dir, "gaia_embed.html")
+        else:
+            ext = qs.get("ext", ["zip"])[0]
+            if ext not in ("zip", "json"):
+                ext = "zip"
+            ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            dest = os.path.join(staging_dir, f"birdnet_{ts}.{ext}")
+
+        try:
+            with open(dest, "wb") as f:
+                f.write(body)
+        except OSError as e:
+            log(f"Failed to write staged file for {file_stem} ({kind}): {e}")
+            _log_mqtt_async("Alert", f"Stage-file webhook failed to write {kind} for {file_stem}: {e}")
+            self._respond(500, {"status": "error", "message": "write failed"})
+            return
+
+        log(f"Staged {kind} file for {file_stem}: {dest}")
+        _log_mqtt_async("System", f"Staged {kind} file for {file_stem}.")
+        self._respond(200, {"status": "ok", "file_stem": file_stem})
 
     def _respond(self, status, body):
         data = json.dumps(body).encode()

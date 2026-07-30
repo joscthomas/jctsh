@@ -25,6 +25,7 @@ Arizona-hardcoded) -- a hike can happen anywhere Joseph is carrying his
 phone.
 """
 
+import glob
 import json
 import os
 import subprocess
@@ -199,6 +200,26 @@ def _next_file_stem(date_str):
 def _date_str_from_stem(file_stem):
     # '2026-07-29' -> '2026-07-29'; '2026-07-29-2' -> '2026-07-29'
     return file_stem[:10]
+
+
+def latest_file_stem():
+    """CARD-0122: resolve which hike a staged file belongs to when the
+    source (a phone Share sheet, via the /webhook/stage-file endpoint) has
+    no notion of file_stem at all -- that's a server-side idea (CARD-0113).
+    Deliberately NOT 'today's date' on the M8's own clock: a hike's real
+    local date comes from GPSLogger's own local_datetime, which can differ
+    from the M8's fixed server TZ (America/Phoenix) whenever Joseph is
+    hiking somewhere else (e.g. Eastern time, as this week) -- there's no
+    single safe definition of "today" to anchor a date-based lookup on.
+    Picking whichever *_hike-summary.html has the most recent mtime instead
+    sidesteps that entirely: a file gets shared within minutes of the hike
+    it belongs to ending, so its page is reliably the most recently
+    published one. Returns None if no hike has ever been published."""
+    candidates = glob.glob(os.path.join(SRV_DIR, "*_hike-summary.html"))
+    if not candidates:
+        return None
+    latest = max(candidates, key=os.path.getmtime)
+    return os.path.basename(latest)[: -len("_hike-summary.html")]
 
 
 def _fetch_photos(hike_data_path, photos_dir):

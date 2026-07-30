@@ -9,7 +9,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0119 -->
+<!-- next-card-id: CARD-0120 -->
 
 ---
 
@@ -2582,3 +2582,21 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 **Deployed and confirmed live 2026-07-29 16:30 MST.** `build_calendar_index.py`/`generation.py` scp'd to the M8, orchestrator image rebuilt and recreated (`docker compose build orchestrator && docker compose up -d orchestrator`). Backfilled today's two already-published hikes (their meta.json predates this card, so had no `start_ts`) by reading each page's own rendered `Time` stat (`7:07 AM` / `12:31 PM`) and writing the corresponding UTC `start_ts` directly via `docker exec` (container runs as root, matching the existing root-owned sidecar files), then re-ran `build_calendar_index.py` inside the container. Verified on both the M8 directly and the real public URL (`https://hikes.jctnet.com/`): today's cell now reads `29` / `7:07a` / `12:31p`, both links correctly pointing at their respective hike pages.
 
 **Related:** CARD-0113 (introduced the multi-hike-per-day file-stem scheme and the tiny-number UI this replaces), `components/hike-izer/build_calendar_index.py`, `components/hike-izer-orchestrator/generation.py`.
+
+---
+
+### CARD-0119 · [enhancement] [hike-izer] Mount the M8 staging directory as a Windows drive (SSHFS-Win), document operational steps for managing staged data
+**Status:** Build
+
+**Raised 2026-07-29 17:24 MST** — CARD-0112 designed the `<file_stem>_staging/` mechanism and specifically the SSHFS-Win mount as the no-friction way to get files into it (drag-and-drop from Explorer), but nothing ever tracked Joseph actually setting it up. Confirmed tonight it's genuinely unused: CARD-0080's real BirdNET exports came in through Downloads and got `scp`'d in manually instead.
+
+**Scope:**
+1. Install WinFsp + SSHFS-Win and mount the M8's staging path as a Windows drive, per CARD-0112's already-decided target: `\\sshfs\jct@100.111.16.14\home\jct\hike-izer-web-app\srv`, addressed by the Tailscale IP (not `photo-server.local`) so it resolves identically at home and remote. Verify it actually works — list real files through it, drop a test file in and confirm it lands on the M8.
+2. **Write a new doc**, `components/hike-izer-orchestrator/staging.md`, covering the operational steps for managing this data day to day: how to find/confirm today's hike's correct `file_stem` (matters once a second same-day hike exists, per CARD-0113), the exact expected filenames/formats per staged resource (`gaia_embed.html` for CARD-0104's iframe snippet; any `.zip`/`.json` for a CARD-0080 BirdNET export — `birdnet.py` scans for either), and the fact that staged files are left in place after consumption (not deleted), so nothing needs re-staging for a later re-render.
+3. Link the new doc from `components/hike-izer-orchestrator/README.md` (or create one if it doesn't exist) so it's discoverable outside this card.
+
+**Done when:** the mount is live and verified with a real file round-trip, `staging.md` exists and covers all three staged-resource types this component currently supports, and it's linked from somewhere discoverable outside kanban-board.md.
+
+**Not done by Claude alone:** installing WinFsp/SSHFS-Win needs an elevated, interactive Windows installer — Joseph runs that step himself; Claude verifies the mount and writes the documentation once it's in.
+
+**Related:** CARD-0112 (designed this mechanism, Done), CARD-0104 (Gaia embed, the first staged-resource type), CARD-0080 (BirdNET export, the second staged-resource type, Done), `components/hike-izer-orchestrator/generation.py` (`_read_staging()`).

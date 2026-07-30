@@ -149,12 +149,16 @@ class Handler(BaseHTTPRequestHandler):
         qs = parse_qs(parts.query)
         kind = qs.get("kind", [""])[0]
         if kind not in ("gaia", "birdnet"):
+            log(f"Rejected stage-file POST: invalid or missing kind (got {kind!r})")
+            _log_mqtt_async("Alert", f"Stage-file webhook POST rejected: invalid or missing kind (got {kind!r}).")
             self._respond(400, {"status": "error", "message": f"invalid or missing kind (got {kind!r})"})
             return
 
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length else b""
         if not body:
+            log(f"Rejected stage-file POST ({kind}): empty body")
+            _log_mqtt_async("Alert", f"Stage-file webhook POST ({kind}) rejected: empty body.")
             self._respond(400, {"status": "error", "message": "empty body"})
             return
 

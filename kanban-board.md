@@ -9,7 +9,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0120 -->
+<!-- next-card-id: CARD-0122 -->
 
 ---
 
@@ -2600,3 +2600,46 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 **Not done by Claude alone:** installing WinFsp/SSHFS-Win needs an elevated, interactive Windows installer — Joseph runs that step himself; Claude verifies the mount and writes the documentation once it's in.
 
 **Related:** CARD-0112 (designed this mechanism, Done), CARD-0104 (Gaia embed, the first staged-resource type), CARD-0080 (BirdNET export, the second staged-resource type, Done), `components/hike-izer-orchestrator/generation.py` (`_read_staging()`).
+
+---
+
+### CARD-0120 · [bug] [hike-izer] Automatic session query window trusts GPSLogger's self-reported start time -- undercounted today's hike by ~85% — RESOLVED 2026-07-30 06:15 MST
+**Status:** Done
+
+**Raised 2026-07-30 05:18 MST** — Joseph asked why today's hike registered only 0.2 mi. Investigation found the published page (`2026-07-30_hike-summary.html`) reported 0.2 mi over 10 minutes, but the real hike was 1.33 mi over 35 minutes (71 GPS trackpoints, one continuous session, no internal gap >10 min).
+
+**Root cause:** `generation.py`'s `_session_query_window()` bounds its Apps Script query to `startedtimestamp` (from the webhook's `stopped` payload) ± `SESSION_QUERY_PADDING` (10 min). GPSLogger sent an unexplained second `started` broadcast for the same file (`filename="20260730"`) at 12:12:09 UTC — 36 minutes after the real 11:36:28 start, and one second before `stopped` fired — which reset the `startedtimestamp` value carried in the `stopped` payload. Generation trusted that reset value and queried only ~12:02–12:22, capturing 21 of the hike's 71 real trackpoints. Confirmed directly from the orchestrator's container logs (`docker logs hike-izer-orchestrator`), which show both raw webhook payloads.
+
+**Two theories investigated and ruled out before landing on the real cause:**
+1. **Race condition / GPS points not yet uploaded to the Sheet.** Disproven — the query window itself was narrow (~20 min), not a correctly-wide window returning stale/incomplete data. The shortfall is fully explained by which time range was queried, independent of any upload timing.
+2. **Option A — persist the earliest `started` timestamp, keyed by GPSLogger's `filename` field.** Rejected: `filename` is not unique per hike (today's own evidence — the same `"20260730"` value was reused across the spurious mid-hike restart), so a second same-day hike reusing the same filename risks its session window getting merged with an unrelated earlier hike's. A refined version (single state file, first-`started`-wins, deleted on `stopped`) avoids the filename-reuse problem, but introduces its own failure mode: if `stopped` never arrives for a hike (crash, force-kill), the state file is never cleared and corrupts the *next* hike's window with the dead hike's stale start time. Spun off as CARD-0121 rather than folded into this fix.
+
+**Decision — Option B:** stop trusting any GPSLogger self-reported timestamp for session bounds. Reuse `fetch_hike_data.py`'s existing gap-based session-splitting (`_gps_sessions`, 10-minute gap threshold, already proven via CARD-0101/CARD-0113) directly in the automatic path: query the whole local day, let session detection run as it already does, then select whichever detected session's end is closest to the webhook's own `local_datetime` (the one genuinely trustworthy signal — "a hike just ended, right now") as "this" hike. Scope every data source (env/observations/GPS) to that session's `[start, end]` using the `_rows_in_hike_sessions` helper that already exists for CARD-0113's altitude scoping, rather than trusting the query window's bounds to already be correctly scoped. This handles today's corrupted-restart case and a genuine multi-hike day with one mechanism, with no new state to persist or expire.
+
+**Scope:**
+1. Modify `generation.py`'s session-window logic per the Option B design above.
+2. Verify against today's real trace (should recover 71 points / 1.33 mi / ~35 min) and against 2026-07-29's real two-hike day (both hikes must stay correctly separated, not merged).
+3. Regenerate `2026-07-30_hike-summary.html` with the corrected data once the fix is verified.
+
+**Fixed 2026-07-30** in `components/hike-izer-orchestrator/generation.py`: added `_detect_session_window()`, which probes the whole local day (reusing `fetch_hike_data.py`'s existing gap-based `_gps_sessions` detection unchanged), picks whichever detected `is_hike` session's own end is within `SESSION_MATCH_TOLERANCE` (15 min) of the webhook's `local_datetime`, and uses *that* session's real start/end ± `SESSION_QUERY_PADDING` as the query window — instead of trusting `startedtimestamp` from the `stopped` payload. The old payload-trusting logic survives as `_session_query_window_from_payload()`, now only a defensive fallback for the case where no matching session is found at all.
+
+**Verified locally before deploy**, using the real Apps Script data (not synthetic):
+- Today's corrupted-restart trace: detected window `11:26:28Z`–`12:22:02Z` (real session `11:36:28`–`12:12:02` ± padding) — recovers the full hike, ignoring the bogus 12:12:09 `started` reset.
+- 2026-07-29's real two-hike day: hike 1 → `10:57:57Z`–`11:47:39Z` (real `11:07:57`–`11:37:39` ± padding); hike 2 → `16:21:21Z`–`18:50:41Z` (real `16:31:21`–`18:40:41` ± padding, correctly excluding the trailing truncated drive segment). Each correctly isolated to its own session, no merging either direction.
+
+**Deployed and confirmed live 2026-07-30 06:15 MST:** rebuilt and recreated the `orchestrator` container on the M8 with the fixed `generation.py` (healthy post-rebuild). Backed up the pre-fix `2026-07-30_hike-summary.html`/`.meta.json`/`hike_data.json` to `_backup_2026-07-30_pre-CARD-0120-fix/` on the M8 (not deleted), then re-fired the real `stopped` webhook payload against the live container to regenerate in place. Confirmed on the regenerated live page: **Distance 1.3 mi, Time 7:36 AM – 8:12 AM (36m)** — matches the real GPS trace, not the old 0.2 mi / 10 min. Bonus: the Immich photo search window widened along with the fix, from 1 matched photo to 7.
+
+**Related:** CARD-0101/CARD-0113 (the session-splitting logic this reuses), CARD-0086 (automatic triggering, the pipeline this modifies), CARD-0121 (the separate "`stopped` never arrives at all" gap spun off from this investigation), `components/hike-izer-orchestrator/generation.py`, `components/hike-izer/fetch_hike_data.py`.
+
+---
+
+### CARD-0121 · [bug] [hike-izer] Automatic generation never runs if GPSLogger's "stopped" broadcast never fires
+**Status:** Backlog
+
+**Raised 2026-07-30 05:18 MST**, spun off from CARD-0120's investigation. `app.py`'s webhook handler only ever calls `generation.run_and_log()` in response to a `gpsloggerevent=stopped` POST — nothing else triggers automatic report generation. If GPSLogger crashes, gets force-killed by Android, or its Tasker exit condition never fires, no webhook arrives and no page is ever generated for that hike — silently, with no error or alert surfaced anywhere.
+
+**Not solved by CARD-0120.** That card only changes how session bounds are computed once a `stopped` event is actually received; it does nothing for the case where one never arrives at all. Both the old (Option A) and new (Option B) designs for CARD-0120 are equally exposed to this — it's a gap in the trigger itself, not in session-bounds calculation.
+
+**Scope not yet defined** — needs interview/design before moving to Planning. Rough shape: some periodic or backstop check that notices "real GPS trace data exists in the Sheet consistent with a hike, but no corresponding page was ever generated for it," and either generates it late or at minimum surfaces a visible alert (dashboard log line) rather than the gap staying invisible.
+
+**Related:** CARD-0086 (automatic triggering, the system this gap is in), CARD-0120 (the investigation that surfaced this), `components/hike-izer-orchestrator/app.py`.

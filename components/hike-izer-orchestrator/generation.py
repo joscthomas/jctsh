@@ -29,6 +29,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
 
 import birdnet
@@ -60,6 +61,16 @@ BUILD_CALENDAR_SCRIPT = "/app/build_calendar_index.py"
 # ordinary clock/logging jitter between independent devices.
 SESSION_QUERY_PADDING = timedelta(minutes=10)
 
+# CARD-0120: how close a gap-detected session's own end time must be to the
+# webhook's local_datetime (the stop event's "right now") to be trusted as
+# *this* hike, not some other same-day hike. Wider than the 10-minute gap
+# threshold _gps_sessions itself splits on (covers a stop broadcast firing a
+# few minutes after the last GPS point, e.g. a brief stationary pause before
+# GPSLogger's own stop-detection trips), but far tighter than the gap between
+# two genuinely separate same-day hikes, which real traces (2026-07-29) show
+# are hours apart, not minutes.
+SESSION_MATCH_TOLERANCE = timedelta(minutes=15)
+
 
 def _env(name):
     value = os.environ.get(name)
@@ -77,15 +88,14 @@ def _local_date_and_offset(local_datetime):
     return date_str, offset_str
 
 
-def _session_query_window(payload, date_str, offset_str):
-    """CARD-0113: bound the query to this specific hike session (its own
-    start/end, from the webhook payload, plus SESSION_QUERY_PADDING) instead
-    of the full calendar day. Narrowing per-trigger is what actually fixes
-    two same-day hikes getting merged into one report -- each webhook fire
-    only ever sees its own session's data. Falls back to the old full-day
-    window if the payload is missing the fields this needs (defensive, not
-    expected in practice -- every real 'stopped' payload observed so far
-    carries both)."""
+def _session_query_window_from_payload(payload, date_str, offset_str):
+    """CARD-0113's original approach, now used only as a defensive fallback
+    (see _detect_session_window): bound the query to GPSLogger's own
+    self-reported session start/end (startedtimestamp + local_datetime, from
+    the webhook payload) plus SESSION_QUERY_PADDING. Falls back further, to
+    the full calendar day, if the payload is missing the fields this needs
+    (defensive, not expected in practice -- every real 'stopped' payload
+    observed so far carries both)."""
     try:
         session_end_utc = datetime.fromisoformat(payload["local_datetime"]).astimezone(timezone.utc)
         session_start_utc = datetime.fromtimestamp(
@@ -93,7 +103,7 @@ def _session_query_window(payload, date_str, offset_str):
         )
     except (KeyError, ValueError, TypeError) as e:
         print(
-            f"_session_query_window: payload missing usable session bounds ({e}) "
+            f"_session_query_window_from_payload: payload missing usable session bounds ({e}) "
             f"-- falling back to full-day query window",
             file=sys.stderr,
         )
@@ -101,6 +111,76 @@ def _session_query_window(payload, date_str, offset_str):
 
     start_utc = session_start_utc - SESSION_QUERY_PADDING
     end_utc = session_end_utc + SESSION_QUERY_PADDING
+    return start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"), end_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _detect_session_window(payload, date_str, offset_str):
+    """CARD-0120: GPSLogger's own startedtimestamp (carried in the 'stopped'
+    payload) isn't reliable -- it can be reset by a spurious extra 'started'
+    broadcast mid-hike. Confirmed live 2026-07-30: GPSLogger sent a second
+    'started' event for the same file, one second before 'stopped', which
+    silently shifted startedtimestamp 36 minutes late and truncated that
+    day's report down to its last 10 minutes (0.2 mi reported vs. a real
+    1.33 mi). Trusting any GPSLogger self-reported timestamp for session
+    bounds is what broke, so this doesn't -- it derives the real bounds from
+    the GPS trace itself, the same gap-based session detection
+    fetch_hike_data.py already does and CARD-0101/CARD-0113 already proved
+    out.
+
+    Probes the whole local day, then picks whichever detected is_hike
+    session's own end is closest to the webhook's local_datetime (the one
+    genuinely trustworthy signal in the payload -- "a hike just ended, right
+    now"). Falls back to _session_query_window_from_payload if no confirmed
+    session is found within SESSION_MATCH_TOLERANCE of the stop time
+    (defensive, not expected in practice)."""
+    day_start_iso = f"{date_str}T00:00:00{offset_str}"
+    day_end_iso = f"{date_str}T23:59:59{offset_str}"
+
+    fd, probe_path = tempfile.mkstemp(suffix="_session_probe.json")
+    os.close(fd)
+    try:
+        subprocess.run(
+            [
+                sys.executable, FETCH_DATA_SCRIPT,
+                "--start", day_start_iso, "--end", day_end_iso,
+                "--url", _env("APPS_SCRIPT_URL"), "--key", _env("APPS_SCRIPT_KEY"),
+                "--out", probe_path,
+            ],
+            check=True, timeout=120,
+        )
+        with open(probe_path, "r", encoding="utf-8") as f:
+            probe_data = json.load(f)
+    finally:
+        os.remove(probe_path)
+
+    try:
+        stop_utc = datetime.fromisoformat(payload["local_datetime"]).astimezone(timezone.utc)
+    except (KeyError, ValueError, TypeError):
+        stop_utc = None
+
+    matched = None
+    if stop_utc is not None:
+        candidates = [s for s in probe_data["coverage"]["gps_track"]["sessions"] if s["is_hike"]]
+
+        def _end_delta_sec(s):
+            end_utc = datetime.fromisoformat(s["end"].replace("Z", "+00:00"))
+            return abs((end_utc - stop_utc).total_seconds())
+
+        if candidates:
+            best = min(candidates, key=_end_delta_sec)
+            if _end_delta_sec(best) <= SESSION_MATCH_TOLERANCE.total_seconds():
+                matched = best
+
+    if matched is None:
+        print(
+            "_detect_session_window: no confirmed GPS session found near the webhook's "
+            "stop time -- falling back to startedtimestamp-based window",
+            file=sys.stderr,
+        )
+        return _session_query_window_from_payload(payload, date_str, offset_str)
+
+    start_utc = datetime.fromisoformat(matched["start"].replace("Z", "+00:00")) - SESSION_QUERY_PADDING
+    end_utc = datetime.fromisoformat(matched["end"].replace("Z", "+00:00")) + SESSION_QUERY_PADDING
     return start_utc.strftime("%Y-%m-%dT%H:%M:%SZ"), end_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
@@ -178,10 +258,10 @@ def run(payload):
     date_str, offset_str = _local_date_and_offset(local_datetime)
 
     # CARD-0113: query window is scoped to this specific session (not the
-    # full calendar day) -- see _session_query_window for why. date_str/
+    # full calendar day) -- see _detect_session_window for why. date_str/
     # offset_str themselves are unaffected; they still name and localize
     # the output the same way regardless of query width.
-    start_iso, end_iso = _session_query_window(payload, date_str, offset_str)
+    start_iso, end_iso = _detect_session_window(payload, date_str, offset_str)
 
     os.makedirs(SRV_DIR, exist_ok=True)
     os.makedirs(PRIVATE_DIR, exist_ok=True)

@@ -255,7 +255,10 @@ def _read_staging(file_stem):
     if that resource hasn't been staged (or doesn't apply to this hike)."""
     staging_dir = os.path.join(SRV_DIR, f"{file_stem}_staging")
     staged = {}
-    gaia_path = os.path.join(staging_dir, "gaia_embed.html")
+    # CARD-0119: .txt, not .html -- plain text is easier to create/paste an
+    # iframe snippet into from Windows than a .html file, which content
+    # here still is regardless of the extension on disk.
+    gaia_path = os.path.join(staging_dir, "gaia_embed.txt")
     if os.path.exists(gaia_path):
         with open(gaia_path, "r", encoding="utf-8") as f:
             staged["gaia_embed_html"] = f.read()
@@ -329,7 +332,17 @@ def run(payload):
     # in it yet) so Joseph's SSHFS-Win-mounted drive shows a real folder to
     # drop files into immediately, rather than needing to create it himself
     # before staging anything for this hike.
-    os.makedirs(os.path.join(SRV_DIR, f"{file_stem}_staging"), exist_ok=True)
+    #
+    # CARD-0119: this process runs as root inside the container, so a plain
+    # os.makedirs() defaults to owner-only write (0755) -- the SSHFS-Win
+    # mount connects as the `jct` Linux user, which isn't root and isn't in
+    # its group, so it could read/traverse but never actually drop a file
+    # in via the mount (confirmed live 2026-07-30). chmod explicitly,
+    # rather than passing mode= to makedirs(), since mode= is masked by the
+    # container's umask and doesn't reliably produce 0o777 either way.
+    _staging_dir = os.path.join(SRV_DIR, f"{file_stem}_staging")
+    os.makedirs(_staging_dir, exist_ok=True)
+    os.chmod(_staging_dir, 0o777)
 
     # hike_confirmed is true past this point (checked above). Photos: best-
     # effort only -- CARD-0111 confirmed Immich's own upload almost never

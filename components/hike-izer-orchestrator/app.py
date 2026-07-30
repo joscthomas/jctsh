@@ -170,10 +170,15 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         staging_dir = os.path.join(generation.SRV_DIR, f"{file_stem}_staging")
+        # CARD-0119: chmod explicitly (not via makedirs' mode=, which the
+        # container's umask would mask down anyway) so the SSHFS-Win mount
+        # -- connected as the non-root `jct` Linux user -- can actually
+        # write into a directory this root-running process creates.
         os.makedirs(staging_dir, exist_ok=True)
+        os.chmod(staging_dir, 0o777)
 
         if kind == "gaia":
-            dest = os.path.join(staging_dir, "gaia_embed.html")
+            dest = os.path.join(staging_dir, "gaia_embed.txt")
         else:
             ext = qs.get("ext", ["zip"])[0]
             if ext not in ("zip", "json"):

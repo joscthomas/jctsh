@@ -42,9 +42,11 @@ laptop-side step:
 1. On the laptop, use Gaia's Embed feature to generate the `<iframe>`
    snippet and copy it.
 2. Through the `Z:` SSHFS-Win mount (see Section 4), save it as exactly
-   **`gaia_embed.html`** inside that hike's `_staging/` directory —
+   **`gaia_embed.txt`** inside that hike's `_staging/` directory —
    `generation.py`'s `_read_staging()` looks for that exact filename, no
-   variations.
+   variations. `.txt`, not `.html` — plain text is easier to create/paste
+   the snippet into from Windows; the content is still the iframe markup
+   either way.
 
 ## 3. BirdNET Live export — automatic, with the mount as fallback
 

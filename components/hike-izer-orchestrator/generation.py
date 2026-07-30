@@ -31,6 +31,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 
+import birdnet
 import cost_tracking
 import mqtt_log
 import narrative
@@ -157,9 +158,10 @@ def _read_staging(file_stem):
     if os.path.exists(gaia_path):
         with open(gaia_path, "r", encoding="utf-8") as f:
             staged["gaia_embed_html"] = f.read()
-    # birdnet_export.csv: CARD-0080 isn't built yet -- no consumption logic
-    # here, just leaving room for the file to land in the same place once
-    # that card designs its own schema/parsing.
+    # BirdNET Live export(s) (CARD-0080): not a fixed filename like the two
+    # keys above -- birdnet.parse_detections() scans this same staging_dir
+    # itself for any .zip/.json export, called directly from run_step2()
+    # rather than threaded through this dict.
     return staged
 
 
@@ -297,6 +299,10 @@ def run_step2(file_stem):
 
     staged = _read_staging(file_stem)
 
+    # CARD-0080: parsing only, no API call -- see birdnet.py for why no
+    # location correlation is attempted (Joseph's call: table only).
+    birdnet_rows = birdnet.parse_detections(os.path.join(SRV_DIR, f"{file_stem}_staging"))
+
     with open(SKILL_MD_PATH, "r", encoding="utf-8") as f:
         skill_md_text = f.read()
 
@@ -318,6 +324,7 @@ def run_step2(file_stem):
     html_text = templating.render_html(
         hike_data, paragraphs, date_str, offset_str, photos_manifest,
         gaia_embed_html=staged.get("gaia_embed_html"), file_stem=file_stem,
+        birdnet_rows=birdnet_rows,
     )
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:

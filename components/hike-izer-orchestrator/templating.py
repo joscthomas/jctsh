@@ -237,6 +237,25 @@ def observations_table_rows(hiking_observations, offset_delta):
     return rows
 
 
+def birdnet_table_rows(birdnet_rows, offset_delta):
+    # CARD-0080: birdnet.py already grouped/sorted these by first-detection
+    # time and returns raw UTC timestamps -- this is the one place that
+    # converts to local, same division of labor as every other time value
+    # on this page. common_name/scientific_name pass through as-is: not
+    # filtered by taxon (birds/amphibians/mammals/insects all included,
+    # Joseph's call) since the model itself doesn't distinguish them either.
+    return [
+        {
+            "species": r["common_name"],
+            "scientific_name": r["scientific_name"],
+            "count": r["count"],
+            "confidence": f"{round(r['best_confidence'] * 100)}%",
+            "time": format_time_local(r["first_timestamp"], offset_delta),
+        }
+        for r in birdnet_rows
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Coverage panel
 # ---------------------------------------------------------------------------
@@ -399,7 +418,7 @@ def _stat_card(label, value, na=False):
 
 
 def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None,
-                 gaia_embed_html=None, file_stem=None):
+                 gaia_embed_html=None, file_stem=None, birdnet_rows=None):
     offset_delta = _parse_offset(offset_str)
     coverage = hike_data["coverage"]
     stats = hike_data["stats"]
@@ -527,6 +546,24 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     <div class="photo-grid">{"".join(items)}</div>
   </section>"""
 
+    # CARD-0080: table only, no narrative integration (Joseph's call) --
+    # omit-when-empty, same convention as every other optional section here.
+    birdnet_section = ""
+    if birdnet_rows:
+        birdnet_html_rows = "".join(
+            f"<tr><td>{_esc(r['species'])} <em>({_esc(r['scientific_name'])})</em></td>"
+            f"<td>{_esc(r['count'])}</td><td>{_esc(r['confidence'])}</td><td>{_esc(r['time'])}</td></tr>"
+            for r in birdnet_table_rows(birdnet_rows, offset_delta)
+        )
+        birdnet_section = f"""
+  <section>
+    <h2>Wildlife Heard (BirdNET)</h2>
+    <table class="obs-table">
+      <thead><tr><th>Species</th><th>Count</th><th>Confidence</th><th>Time ({_esc(offset_label(offset_str))})</th></tr></thead>
+      <tbody>{birdnet_html_rows}</tbody>
+    </table>
+  </section>"""
+
     coverage_rows = "".join(
         f"<tr><td>{_esc(s)}</td><td>{_esc(e)}</td><td>{_esc(a)}</td><td>{_esc(p)}</td></tr>"
         for s, e, a, p in coverage_table_rows(coverage)
@@ -563,6 +600,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   </section>
   {obs_section}
   {photos_section}
+  {birdnet_section}
   <section>
     <h2>Expected vs. Actual Data Coverage</h2>
     <div class="coverage-panel">

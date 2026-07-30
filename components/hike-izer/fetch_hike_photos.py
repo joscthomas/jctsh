@@ -134,7 +134,11 @@ def main():
             json.dump({'assets': []}, f, indent=2)
         sys.exit(1)
 
-    assets = list(assets_by_id.values())
+    # Sorted oldest-to-newest by capture time -- Immich's search API returns
+    # them in its own order (not chronological), which previously left the
+    # photo grid in an arbitrary sequence rather than matching the hike's
+    # actual progression.
+    assets = sorted(assets_by_id.values(), key=lambda a: a.get('fileCreatedAt') or '')
     print(f'  {len(assets)} matching asset(s) across {len(windows)} session(s)', file=sys.stderr)
 
     manifest_assets = []

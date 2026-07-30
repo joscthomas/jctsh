@@ -398,7 +398,8 @@ _HTML_STYLE = """
   .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.6rem; }
   .photo-item { display: flex; flex-direction: column; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); }
   .photo-item img, .photo-item video { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; }
-  .photo-caption { font-size: 0.75rem; line-height: 1.3; color: var(--ink-muted); padding: 0.35rem 0.5rem; min-height: 2.6em; }
+  .photo-time { font-size: 0.65rem; color: var(--ink-faint); padding: 0.35rem 0.5rem 0; }
+  .photo-caption { font-size: 0.75rem; line-height: 1.3; color: var(--ink-muted); padding: 0.15rem 0.5rem 0.35rem; min-height: 2.6em; }
   .coverage-panel { background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 1rem 1.15rem; }
   .coverage-panel table { background: transparent; border: none; }
   .coverage-panel thead th { background: transparent; }
@@ -517,6 +518,8 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     if photos_manifest and photos_manifest.get("assets"):
         items = []
         for a in photos_manifest["assets"]:
+            photo_time = format_time_local(a.get("takenAt"), offset_delta)
+            time_span = f'<span class="photo-time">{_esc(photo_time)}</span>' if photo_time != NA else ""
             if a["type"] == "VIDEO":
                 # Empty photo-caption span here too, even though videos never
                 # get one -- keeps every tile's height equal (image + reserved
@@ -525,7 +528,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
                 items.append(
                     f'<a class="photo-item" href="{photos_dir}/{a["original"]}">'
                     f'<video src="{photos_dir}/{a["original"]}" poster="{photos_dir}/{a["thumb"]}" muted></video>'
-                    f'<span class="photo-caption"></span></a>'
+                    f'{time_span}<span class="photo-caption"></span></a>'
                 )
             else:
                 # CARD-0107: caption doubles as real alt text -- previously
@@ -538,7 +541,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
                 items.append(
                     f'<a class="photo-item" href="{photos_dir}/{a["original"]}">'
                     f'<img src="{photos_dir}/{a["thumb"]}" alt="{_esc(caption)}" loading="lazy">'
-                    f'<span class="photo-caption">{_esc(caption)}</span></a>'
+                    f'{time_span}<span class="photo-caption">{_esc(caption)}</span></a>'
                 )
         photos_section = f"""
   <section>

@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily container-image update check, 6:30 AM (JCTsh maintenance, Pi)
+
+[Timer]
+OnCalendar=*-*-* 06:30:00
+Persistent=true
+Unit=container-update-check-pi.service
+
+[Install]
+WantedBy=timers.target

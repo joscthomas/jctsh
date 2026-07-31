@@ -134,7 +134,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0126 · [enhancement] [infrastructure] Container-image update visibility for floating-tag services (NetAlertX, HA, Caddy, cloudflared)
-**Status:** Backlog
+**Status:** Done
 
 **Notes:** Raised 2026-07-31, surfaced while explaining CARD-0095's monthly maintenance cycle to Joseph. Immich already has real update visibility — `components/photo-server/immich-update-check.py` compares actual version numbers via Immich's own API and notifies on the log dashboard, notify-only, no auto-apply. Everything else running in Docker across the stack has none at all:
 
@@ -155,7 +155,16 @@ None of the floating-tag services have any check for "is a newer image available
 
 Also worth clarifying at Planning time: is the actual goal *detection* (know when something's outdated, still human-decides-when-to-pull, consistent with every other check in this repo), or is repeatedly re-pulling a `:latest` tag already an implicit form of auto-update in spirit — in which case the real gap might be *visibility into what changed and when*, not detection of staleness. Worth deciding before choosing an approach, since it changes which of the three options above actually fits.
 
-**Related:** CARD-0095 (M8 OS/firmware maintenance — the parallel problem this mirrors at the image layer, and the policy precedent: notify-only, never auto-apply), CARD-0125 (Pi's OS-layer sibling, raised alongside this one), `components/photo-server/immich-update-check.py` (the one existing precedent for this exact pattern).
+**Resolved 2026-07-31 ~15:50 MST (Planning) — a fourth option, better than all three above:** none of digest-comparison, Watchtower/diun, or per-service custom APIs. NetAlertX, Home Assistant, Caddy, and cloudflared are all open-source projects hosted on GitHub with real published releases — **`GET /repos/{owner}/{repo}/releases/latest`** is one consistent, generic mechanism (unlike per-service APIs) that still gives a real version number (unlike a bare digest diff). Confirmed live before committing to it: all four containers carry an `org.opencontainers.image.source` label pointing at a real repo, and current version is determinable either from the matching `.image.version` label (NetAlertX, Caddy, HA) or, for cloudflared which sets `source` but not `version`, by exec-ing the binary's own `--version` flag inside the container. Goal is *detection*, not auto-pull — same notify-only policy as every other check in this repo.
+
+**Built and verified live, 2026-07-31 ~16:00 MST:**
+- New `core/maintenance/container_update_check.py` (shared, generic — takes a `SERVICES` list) plus two thin per-host wrappers: `components/photo-server/container-update-check.py` (M8: NetAlertX, Caddy, cloudflared) and `core/homeassistant/container-update-check.py` (Pi: Home Assistant). Same shared-module pattern as `open_kanban_pr.py`.
+- **Real bug caught and fixed during the very first live run**: Caddy's own `org.opencontainers.image.source` label points at `caddyserver/caddy-docker` — confirmed via a direct API call that this repo has **no releases at all** (404), it's just the Dockerfile-packaging repo. The real releases (matching the running version's own label exactly) live at `caddyserver/caddy`. Fixed by hardcoding the correct source for Caddy specifically rather than trusting the label blindly; NetAlertX and cloudflared's labels were confirmed correct as-is.
+- Deployed and enabled on both hosts, daily 6:30 AM (added to `jctsh-network.md`'s maintenance table). Verified: M8 correctly reports all three services up to date (`Nothing pending`) after the Caddy fix; the Pi found a **real, non-synthetic finding** — Home Assistant `2026.7.4` available, running `2026.5.1`.
+- **Wired into CARD-0128's PR pipeline too** (Joseph's call, same session) — both wrappers now call `open_finding_pr()` exactly like the OS-level maintenance checks, using a `_pr` sub-key in their own state file (distinct from the per-service throttle keys) to track the dedup PR. Verified live against the real HA finding: **[PR #3](https://github.com/joscthomas/jctsh/pull/3)** opened correctly with a `CARD-XXX` placeholder stub, same design as CARD-0128's own fix.
+- **Promoted to a repo-wide standard**: `JCTsh-Build-Standards.md` §9.7 (v1.17) — this pattern (verify the source label's repo actually has releases before trusting it, version from label or binary exec, normalize tag formats, notify-only) is now documented for any future Docker-based component, not just these four.
+
+**Related:** CARD-0095 (M8 OS/firmware maintenance — the parallel problem this mirrors at the image layer, and the policy precedent: notify-only, never auto-apply), CARD-0125 (Pi's OS-layer sibling), CARD-0128 (the PR pipeline this now feeds into), `components/photo-server/immich-update-check.py` (the pre-existing precedent for project-specific version APIs — still the right tool when a project has its own, per §9.7's "not this pattern" note), `JCTsh-Build-Standards.md` §9.7 (the promoted standard).
 
 ---
 

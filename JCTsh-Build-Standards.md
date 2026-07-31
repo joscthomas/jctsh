@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.16
-**Version description:** §1.2 now points to `JCTsh-Perfboard-Build-Template.md` (new, repo root) — a reusable section skeleton for a component's `perfboard-layout.md`, generalized from hiking-monitor's and salt-sensor's builds now that there are two real examples to draw from.
+**Version:** 1.17
+**Version description:** Added §9.7 Container-Image Update Visibility via GitHub Releases — harvested from CARD-0126 (NetAlertX, Caddy, cloudflared, Home Assistant). Generic pattern: check the OCI `source` label's repo for GitHub releases (verified, not assumed — Caddy's own label points at the wrong repo), determine current version from the `version` label or a binary `--version` exec, normalize tag formats before comparing, notify-only via the same throttled `System`-category convention as every other maintenance check.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -837,6 +837,19 @@ For any long-running remote job (data imports, backups, verification runs) that 
 **Critical:** verify actual state via `ps aux` / `systemctl status` on the remote host directly. Never assume that stopping a local monitoring tool has any effect on a detached remote process — it does not, and assuming otherwise caused a real duplicate-write race during the original `photo-server` Takeout migration (two `mv` operations racing on the same files after a local poller was stopped but the remote job kept running).
 
 **Reference:** `components/photo-server/migration.md` ("Killed background processes didn't actually die").
+
+### 9.7 Container-Image Update Visibility via GitHub Releases
+
+For any Docker-based component running an open-source image (not project-specific code like Immich's own API — see below), check for updates via the image's **GitHub Releases API**, not a per-service custom integration:
+
+1. Confirm the running container's `org.opencontainers.image.source` label points at a repo that actually publishes releases — `docker inspect <container> --format '{{index .Config.Labels "org.opencontainers.image.source"}}'`, then verify with `curl -s -o /dev/null -w '%{http_code}' https://api.github.com/repos/<owner>/<repo>/releases/latest` before trusting it. **Not guaranteed to be the right repo** — confirmed live 2026-07-31 that Caddy's own image labels point at `caddyserver/caddy-docker` (the Dockerfile-packaging repo, 404 on releases), while the real releases matching the running version live at `caddyserver/caddy`. Docker packaging repos and core-software repos are often split; check, don't assume.
+2. Determine the currently-running version from `org.opencontainers.image.version` if the image sets it; if not (cloudflared doesn't), exec the binary's own version flag inside the container (`docker exec <container> <binary> --version`) and regex out the version string.
+3. Normalize before comparing — different projects format release tags differently (`v2.11.4` vs. bare `26.7.1`); strip a leading `v` before the equality check.
+4. Notify-only, `category: "System"` (not `Alert` — an available update is informational, same tier as Immich's own update-check, not an active problem), same 7-day reminder throttle every other maintenance check in this repo uses. Never pull or apply an update automatically.
+
+**Reference implementation:** `core/maintenance/container_update_check.py` (shared, generic — takes a `SERVICES` list per host) plus a thin per-host wrapper (`components/photo-server/container-update-check.py`, `core/homeassistant/container-update-check.py`) that just declares which containers to check and how each one exposes its current version. Established covering NetAlertX, Caddy, cloudflared, and Home Assistant (CARD-0126) — a fourth confirms the pattern generalizes, not a one-off.
+
+**Not this pattern:** a component with its own real version-check API (Immich exposes `/api/server/version-check` directly) should keep using that — it's more authoritative than a GitHub tag, and `immich-update-check.py` predates this standard. This section is for the common case where a project's only public "what's current" signal is its GitHub Releases page.
 
 ---
 

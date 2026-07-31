@@ -1,0 +1,8 @@
+[Unit]
+Description=Check for container-image updates (Home Assistant) and notify JCTsh dashboard (CARD-0126)
+After=docker.service mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/container-update-check.py

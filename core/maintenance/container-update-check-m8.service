@@ -1,0 +1,8 @@
+[Unit]
+Description=Check for container-image updates (NetAlertX, Caddy, cloudflared) and notify JCTsh dashboard (CARD-0126)
+After=docker.service
+
+[Service]
+Type=oneshot
+User=jct
+ExecStart=/usr/bin/python3 /usr/local/bin/container-update-check.py

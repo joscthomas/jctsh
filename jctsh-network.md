@@ -49,7 +49,9 @@ Consolidated view across all recurring reboot/backup jobs, so a new one can be s
 | M8 backup (rsync) | Weekly, Sun 2:00 AM | M8 (photo-server) | `components/photo-server/backup.md` |
 | M8 heartbeat | Every 30 min | M8 (photo-server) | `components/photo-server/heartbeat.md` |
 | M8 Immich update check | Daily, 6:00 AM | M8 (photo-server) | `components/photo-server/operations.md` |
+| M8 container-image update check | Daily, 6:30 AM | M8 (photo-server) | `kanban-board.md` CARD-0126 |
 | M8 OS/firmware maintenance check | Monthly, 1st at 7:00 AM | M8 (photo-server) | `kanban-board.md` CARD-0095 |
+| Pi container-image update check | Daily, 6:30 AM | Pi | `kanban-board.md` CARD-0126 |
 | Pi OS maintenance check | Monthly, 1st at 8:00 AM | Pi | `kanban-board.md` CARD-0125 |
 | Pi watchdog heartbeat | Hourly | Pi | `CLAUDE.md` |
 

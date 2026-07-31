@@ -9,7 +9,55 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0128 -->
+<!-- next-card-id: CARD-0130 -->
+
+---
+
+### CARD-0129 · [enhancement] [infrastructure] Apply Pi's remaining Docker/kernel packages and reboot — waiting until Joseph is home
+**Status:** Build
+
+**Blocked — deferred until Joseph is physically home (2026-07-31).** Same reasoning as CARD-0096's own block: the Pi is the household coordination hub (MQTT broker, Node-RED, HA, log server), Joseph is remote as of this writing, and this specific action (a Docker daemon restart plus a full reboot) is exactly the class of higher-stakes change that mitigation exists for — if Tailscale hiccups mid-action (already happened once this session), being on the home LAN removes it as a dependency for the recovery path.
+
+**Notes:** Surfaced by CARD-0125's build/verification. The Pi has 275 pending packages total; the 264 low-risk routine ones were applied same session (no Docker/kernel/`libc6` involved, no restart or reboot risk). The remaining **11 review-list packages are deliberately still pending**: `containerd.io`, `docker-buildx-plugin`, `docker-ce`, `docker-ce-cli`, `docker-ce-rootless-extras`, `docker-compose-plugin`, `docker-model-plugin`, `libc6`, `libc6-dev`, `linux-image-rpi-2712`, `linux-image-rpi-v8`. Installing the Docker packages restarts the daemon and touches the one Docker container on the Pi (`homeassistant` — Robin depends on this directly); the kernel/`libc6` pair will set `reboot-required`, and a reboot briefly takes down MQTT, Node-RED, and the log server along with everything downstream of them (ESP32 heartbeats, HA, the dashboard itself).
+
+**Plan, once home (mirrors CARD-0095's own M8 sequence, already proven tonight):**
+1. Pre-check: `docker ps` (confirm `homeassistant` healthy), `systemctl is-active nodered mosquitto`.
+2. Apply the 11 held-back packages via the same explicit `apt-get install --only-upgrade` pattern already used twice tonight (M8 low-risk + M8 Docker batches, Pi low-risk batch) — never a blanket `apt upgrade`.
+3. Verify `homeassistant` recovers cleanly after the Docker daemon restart.
+4. Reboot to clear `reboot-required`.
+5. Verify post-reboot: `homeassistant` healthy, Node-RED/Mosquitto active, MQTT broker accepting ESP32 connections again (watch the dashboard for continued heartbeats — garage-radar/salt-sensor/front-porch-temp-sensor/hiking-monitor), HA reachable both on the LAN and via Nabu Casa, log dashboard itself still up, `pi-maintenance-check.timer` survived the reboot.
+6. Run `pi-maintenance-check.py` manually — should report "Nothing pending," same clean end-state CARD-0095 reached for the M8.
+
+**Done when:** all 11 packages applied, Pi rebooted, every item in step 5's verification list confirmed live — not just "commands ran," the same standard CARD-0095/CARD-0124 held themselves to.
+
+**Related:** CARD-0125 (the check that surfaced this and applied the routine batch), CARD-0095 (the M8 sibling — this is the exact sequence already proven there tonight, just not yet safe to run remotely on the Pi), CARD-0096 (the precedent for the "wait until home" block and its reasoning).
+
+---
+
+### CARD-0128 · [enhancement] [infrastructure] Maintenance findings auto-open a PR against kanban-board.md instead of just logging an Alert
+**Status:** Backlog
+
+**Notes:** Raised 2026-07-31, from a conversation about whether maintenance-check findings (CARD-0095, CARD-0125) should do more than post a log-dashboard Alert — Joseph wants a real finding to land in the actual work queue (`kanban-board.md`), not just a status flag someone has to notice and manually turn into a card.
+
+**The trust boundary this crosses, and why it needs its own card rather than a quick script tweak:** today, *nothing* writes to `kanban-board.md` except Claude, with Joseph's explicit go-ahead on every commit and push — a rule held all session. Making a maintenance-check script open cards automatically means giving an unattended cron job on the M8/Pi real git credentials, with no human in the loop at the moment it acts. Three options discussed, in increasing order of autonomy granted:
+1. **Open a GitHub Issue instead of a kanban card** — separate queue/audit trail from the kanban board itself, but a much narrower credential (issue-create only) and no `main`-write risk at all. Downside: fragments tracking across two systems instead of one.
+2. **Commit directly to `kanban-board.md` on `main`** — closest to "just add a card," but means a fully unattended process editing the same file every other card in this repo treats as human/Claude-reviewed territory, with a git push credential sitting in a file on a production box.
+3. **Commit to a branch, open a PR, human/Claude merges it** — preferred direction discussed. The script's credential is scoped to "push branches and open PRs" only; a GitHub branch-protection rule on `main` (require PR review before merge) makes it *structurally* incapable of touching `main` directly, not just "trusted" not to. A PR sitting open is still a real, visible, queued item — better than a log line — without changing who's actually allowed to modify `main`.
+
+**Scope, if built per option 3:**
+- Maintenance-check scripts (`components/photo-server/maintenance-check.py`, `core/maintenance/pi-maintenance-check.py`) gain a narrowly-scoped GitHub credential (fine-grained PAT: contents write on a branch, pull-request create — explicitly not a broad/classic token) and `git`/`gh` availability on both hosts.
+- On a finding, the script creates a branch (e.g. `maintenance-alert/m8-YYYY-MM-DD`), writes/updates a card in `kanban-board.md` (needs a template — see open question below), commits, pushes, and opens a PR via `gh pr create`.
+- **`main` gets a GitHub branch-protection rule requiring PR review before merge** — the actual enforcement mechanism, not just a credential-scoping promise.
+- Existing Alert/log-dashboard notification stays as-is alongside this — the PR is the queue item, the Alert is still the "something happened right now" signal.
+
+**Open questions for Planning:**
+- What does an auto-generated card actually look like — full prose matching the hand-written style every other card in this file has (hard to template well), or a minimal stub (raw finding + "needs interview") that a human/Claude fleshes out at Build time? Auto-generating CARD-0095/CARD-0124-quality prose from a script seems like a stretch; a deliberately minimal stub is probably the honest target.
+- Does every finding open a *new* PR/card, or does a second finding while one's still open update the same PR/card? Needs the same kind of fingerprint/throttle thinking the maintenance-check scripts already use for their Alert notifications, applied to card creation instead. **CARD-0127 answers this directly, if built first** — see relationship note below.
+- Who actually merges the PR day to day — always a human, or can Claude be asked to review-and-merge during a normal session (same as any other card work), making the PR step mostly about the audit trail rather than a hard human-only gate?
+
+**Relationship to CARD-0127, discussed 2026-07-31:** complementary, not competing — different destinations for the same underlying finding. CARD-0127 is operational visibility (a reliable "pending, right now" indicator on `/status`); this card is work-queue visibility (turning a finding into a trackable backlog item). Neither replaces the other — someone glancing at Device Status while debugging something unrelated wants CARD-0127's answer without it needing to already be a formal backlog item; someone planning what to work on next wants this card's answer. But both are fundamentally solving the same problem — "know the current true state of a finding, not just the most recent event about it" — just aimed at MQTT/the dashboard vs. git/the kanban board respectively. **Build CARD-0127 first if both are ever built:** its retained-MQTT-state mechanism is exactly the primitive this card's own dedup open question (above) needs — comparing a new finding against CARD-0127's already-published "current true state" is a cleaner foundation than re-deriving a fingerprint from scratch in a completely different location (git branches instead of MQTT). Not a hard dependency — either could ship alone — just a strictly better sequencing if both happen.
+
+**Related:** CARD-0095 (M8 maintenance check — the finding source), CARD-0125 (Pi's sibling — the other finding source), CARD-0127 (the dashboard-side sibling of this same underlying idea — see relationship note above), CARD-0057-era kanban-parsing work (`log_server.py`'s `/kanban` page, which already fetches `kanban-board.md` straight from GitHub's `main` — relevant to how quickly a merged card would actually become visible there).
 
 ---
 

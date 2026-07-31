@@ -58,6 +58,76 @@ with open("/proc/uptime") as f:
 uptime = f"{secs // 3600}h {(secs % 3600) // 60}m"
 
 unhealthy = []
+# CARD-0124: self-healed-this-cycle events, tracked separately from unhealthy
+# so a fully-recovered cycle doesn't render identically to a still-broken one
+# (both used to just be "Immich degraded - ..." either way, with no visual
+# distinction on the dashboard between "still wrong, look now" and "this
+# happened and already fixed itself"). See the status/category decision below.
+recovered = []
+
+# CARD-0124: host-side mount-presence check, ahead of everything else below.
+# The 2026-07-30 incident showed a real gap: the primary drive dropped off USB,
+# reconnected 5s later at the bus level, but nothing remounted it at
+# /mnt/photo-library — Docker's health check stayed "healthy" (API-only) and
+# even the existing storage write-test (below) only ever reported a generic
+# I/O error, never "the mount itself is gone". This runs first, synchronously,
+# in the same invocation — no cross-run state needed, since a fresh process
+# starts every 30 min via the systemd timer anyway. That's also the flap
+# guard: worst case this fires once per scheduled tick, each occurrence
+# separately logged, never a tight retry loop.
+_primary_remounted = False
+for _label, _mount in CAPACITY_MOUNTS.items():
+    if os.path.ismount(_mount):
+        continue
+    try:
+        # -n (non-interactive): fail fast with a clean nonzero exit if the
+        # NOPASSWD sudoers entry isn't set up, instead of hanging forever
+        # with no TTY to prompt (confirmed live 2026-07-31).
+        result = subprocess.run(
+            ["sudo", "-n", "/usr/bin/mount", _mount],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode == 0 and os.path.ismount(_mount):
+            recovered.append(f"{_label}-mount:auto-remounted")
+            if _label == "primary":
+                _primary_remounted = True
+        else:
+            err = (result.stderr or result.stdout or "unknown error").strip()[:200]
+            unhealthy.append(f"{_label}-mount:missing, remount-failed({err})")
+    except Exception as e:
+        unhealthy.append(f"{_label}-mount:missing, remount-error({e})")
+
+# Guarded restart, primary only: only the primary is bind-mounted into a
+# container (immich_server) — the backup mounts are touched only by
+# photo-library-backup.sh, never a running container, so a remount alone is
+# enough for them. Docker bind mounts don't pick up a host remount that
+# happens after the container started (same root-cause class as CARD-0046),
+# so immich_server needs an explicit restart to actually see the fresh mount.
+# Triggered only by this specific transition (was missing, just remounted) —
+# never a blind retry-on-every-failed-check loop. No sudo needed for this
+# one: jct is already in the docker group.
+if _primary_remounted:
+    try:
+        result = subprocess.run(
+            ["docker", "restart", "immich_server"],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode == 0:
+            recovered.append("immich_server:auto-restarted-after-remount")
+            time.sleep(5)  # give it a moment before the health/storage checks below run
+        else:
+            err = (result.stderr or result.stdout or "unknown error").strip()[:200]
+            unhealthy.append(f"immich_server:restart-failed({err})")
+    except Exception as e:
+        unhealthy.append(f"immich_server:restart-error({e})")
+
+# CARD-0124: if we just restarted immich_server ourselves above, it's expected
+# to briefly report "starting" rather than "healthy" — that's our own
+# in-progress recovery, not a new/different problem, so it belongs in
+# `recovered` (still visible) rather than `unhealthy` (which would otherwise
+# keep this cycle flagged as still-degraded for a transient state CARD-0032's
+# own live test already showed clears within about a minute).
+_just_restarted_primary = "immich_server:auto-restarted-after-remount" in recovered
 for name in CONTAINERS:
     try:
         result = subprocess.run(
@@ -68,7 +138,10 @@ for name in CONTAINERS:
         if result.returncode != 0:
             unhealthy.append(f"{name}:not found")
         elif status != "healthy":
-            unhealthy.append(f"{name}:{status}")
+            if name == "immich_server" and _just_restarted_primary and status == "starting":
+                recovered.append(f"immich_server:{status}-after-restart")
+            else:
+                unhealthy.append(f"{name}:{status}")
     except Exception as e:
         unhealthy.append(f"{name}:error({e})")
 
@@ -129,9 +202,22 @@ except Exception as e:
     unhealthy.append(f"backup:error({e})")
 
 if unhealthy:
+    # Still genuinely wrong right now, regardless of any partial self-heal —
+    # this is the one status that should actually draw the eye.
     status = "degraded"
     category = "Alert"
     log_message = f"Immich degraded - {', '.join(unhealthy)}"
+    if recovered:
+        log_message += f" (also auto-recovered this cycle: {', '.join(recovered)})"
+elif recovered:
+    # CARD-0124: everything that broke this cycle already fixed itself —
+    # genuinely healthy right now, so System/"online" (not Alert/"degraded"),
+    # but distinct wording from the plain heartbeat below so it doesn't
+    # collapse and stays visible: an automatic recovery is worth seeing, not
+    # silently folding into "nothing happened."
+    status = "online"
+    category = "System"
+    log_message = f"Immich recovered - {', '.join(recovered)}"
 else:
     status = "online"
     category = "System"

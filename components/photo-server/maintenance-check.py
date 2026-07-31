@@ -31,7 +31,15 @@ REMIND_EVERY = timedelta(days=7)
 # routine low-risk count and flagged for deliberate review -- a Docker
 # daemon restart touches every running container, a kernel/libc6 update is
 # why a reboot becomes required, matching the card's own reasoning.
-REVIEW_PATTERNS = ("docker", "containerd", "linux-image", "linux-generic", "libc6")
+#
+# "linux-" (not the narrower "linux-image"/"linux-generic"), fixed 2026-07-31
+# after a real incident on the Pi sibling script: the narrower patterns
+# missed linux-headers-*/linux-libc-dev, which pulled the actual kernel image
+# and libc6 in as automatic apt dependencies while miscategorized as
+# "routine". Never actually triggered here (no linux-headers packages were
+# pending on the M8 tonight), but it's the same latent bug in the same
+# pattern -- fixed for consistency, not because it's bitten this host yet.
+REVIEW_PATTERNS = ("docker", "containerd", "linux-", "libc6")
 
 env = {}
 with open("/etc/jctsh/heartbeat.env") as f:

@@ -51,6 +51,7 @@ _entries     = deque(maxlen=MAX_ENTRIES)   # flushed, displayable entries
 _pending     = None                         # current non-heartbeat repeat group (not yet flushed)
 _hb_groups   = {}                           # component -> active heartbeat collapse group
 _last_seen   = {}                           # component -> most recent entry, regardless of eviction
+_pending_updates = {}                       # CARD-0127: component -> current retained pending-update state
 _mqtt_client = None
 
 # ── File logging ─────────────────────────────────────────────────────────────
@@ -183,12 +184,30 @@ def _flush_aged_hb_groups():
 
 # ── MQTT callbacks ────────────────────────────────────────────────────────────
 _STATUS_TOPIC = "jctsh/components/+/status"
+# CARD-0127: retained "is an update currently pending" state, published by
+# e.g. immich-update-check.py. Kept in _pending_updates, a dedicated dict
+# separate from _entries/_last_seen (which are message-history based) --
+# deliberately not folded together, since mixing "current state" with
+# "history of things that were logged" is the exact bug this exists to fix
+# (a real pending update silently falling out of /status's "Last Reading"
+# column the moment any other message logs for that component).
+#
+# Namespaced by item, not just by component (jctsh/<type>/<component>/
+# pending-update/<item>, e.g. .../pending-update/immich) -- MQTT retains one
+# value per topic, so a bare .../pending-update topic would let two different
+# pending-update facts about the same component (Immich's version state,
+# CARD-0095's OS-level state if that's ever extended to publish retained
+# state too) silently overwrite each other. _pending_updates is therefore
+# {component: {item: state}}, not {component: state} -- one row per host on
+# /status still, but the Pending Update cell can hold more than one
+# concurrent fact without anything clobbering anything else.
+_PENDING_UPDATE_TOPIC = "jctsh/+/+/pending-update/+"
 
 
 def _on_connect(client, userdata, flags, rc):
     if rc == 0:
-        client.subscribe([(MQTT_TOPIC, 0), (_STATUS_TOPIC, 0)])
-        print(f"[MQTT] Connected to {MQTT_BROKER}. Subscribed to {MQTT_TOPIC}, {_STATUS_TOPIC}")
+        client.subscribe([(MQTT_TOPIC, 0), (_STATUS_TOPIC, 0), (_PENDING_UPDATE_TOPIC, 0)])
+        print(f"[MQTT] Connected to {MQTT_BROKER}. Subscribed to {MQTT_TOPIC}, {_STATUS_TOPIC}, {_PENDING_UPDATE_TOPIC}")
         client.publish(HEARTBEAT_TOPIC, json.dumps({
             "component": "jctsh-core",
             "category":  "System",
@@ -241,6 +260,30 @@ def _store_entry(component, category, message, ts):
 
 def _on_message(client, userdata, msg):
     ts = datetime.now(_TZ).strftime("%Y-%m-%d %H:%M:%S %Z")
+
+    # CARD-0127: retained pending-update state —
+    # jctsh/<type>/<component>/pending-update/<item>. Component and item both
+    # come from the topic (matching the /status handler's own pattern below),
+    # not the payload. Not run through _store_entry: this is current state,
+    # not a log message, and must never collapse, throttle, or evict the way
+    # _entries does.
+    if "/pending-update/" in msg.topic:
+        parts = msg.topic.split("/")
+        if len(parts) != 5:
+            return
+        component, item = parts[2], parts[4]
+        try:
+            data = json.loads(msg.payload.decode("utf-8"))
+        except Exception:
+            return
+        with _lock:
+            _pending_updates.setdefault(component, {})[item] = {
+                "pending": bool(data.get("pending")),
+                "current": data.get("current"),
+                "latest": data.get("latest"),
+                "ts": ts,
+            }
+        return
 
     # ESPHome device availability: jctsh/components/<name>/status → "online"/"offline"
     if msg.topic.endswith("/status"):
@@ -461,7 +504,7 @@ _STATUS_TEMPLATE = """\
   <h3>Always-on</h3>
   <table>
     <thead><tr>
-      <th>Component</th><th>Status</th><th>Last Heartbeat</th><th>Last Reading</th>
+      <th>Component</th><th>Status</th><th>Last Heartbeat</th><th>Last Reading</th><th>Pending Update</th>
     </tr></thead>
     <tbody>
 %%HOME_ROWS%%
@@ -550,6 +593,8 @@ def _build_status_html():
     comps  = _compute_status(snap)
     home   = sorted((c, r) for c, r in comps.items() if not r["is_remote"])
     remote = sorted((c, r) for c, r in comps.items() if r["is_remote"])
+    with _lock:
+        pending_updates = dict(_pending_updates)
 
     home_rows = []
     for comp, rec in home:
@@ -568,12 +613,26 @@ def _build_status_html():
             rd_cell = f'{rd_disp} <span class="ts">{escape(_ago(rec["last_reading_ts"]))}</span>'
         else:
             rd_cell = '<span class="dim">—</span>'
+        # CARD-0127: sourced from _pending_updates (retained MQTT state), not
+        # from rec["last_reading_*"] above — immune to being superseded by an
+        # unrelated log message for the same component, unlike Last Reading.
+        # Namespaced by item: a component can have more than one concurrent
+        # pending fact (e.g. Immich's version, CARD-0095's OS state if that's
+        # ever wired up too) — join every currently-pending item rather than
+        # picking just one.
+        items = pending_updates.get(comp, {})
+        pending_items = [
+            f'{escape(item)}: {escape(str(state.get("latest") or "?"))} available'
+            for item, state in sorted(items.items()) if state.get("pending")
+        ]
+        pu_cell = "; ".join(pending_items) if pending_items else '<span class="dim">—</span>'
         home_rows.append(
             f'      <tr>'
             f'<td>{escape(comp)}</td>'
             f'<td class="{scls}">{slabel}</td>'
             f'<td>{hb_cell}</td>'
             f'<td class="msg">{rd_cell}</td>'
+            f'<td class="msg">{pu_cell}</td>'
             f'</tr>'
         )
 
@@ -594,7 +653,7 @@ def _build_status_html():
             f'</tr>'
         )
 
-    no_home   = "      <tr><td colspan='4' class='dim'>No always-on devices in recent log.</td></tr>"
+    no_home   = "      <tr><td colspan='5' class='dim'>No always-on devices in recent log.</td></tr>"
     no_remote = "      <tr><td colspan='3' class='dim'>No mobile devices in recent log.</td></tr>"
     html = _STATUS_TEMPLATE
     html = html.replace("%%HOME_ROWS%%",   "\n".join(home_rows)   or no_home)

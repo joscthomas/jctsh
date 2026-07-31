@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """JCTsh Pi OS/firmware maintenance check (CARD-0125, CARD-0095's Pi sibling).
 
-Checks apt-upgradable packages and the /var/run/reboot-required flag.
+Checks apt-upgradable packages and whether the running kernel is stale.
 Notify-only, never applies anything itself -- same policy as the M8's
 components/photo-server/maintenance-check.py.
 
@@ -16,6 +16,20 @@ Uses mosquitto_pub (not paho-mqtt) and jctsh-core/log-server.env,
 matching this Pi's own established pattern (core/homeassistant/
 pi-heartbeat.py) rather than the M8 scripts' paho-mqtt + dedicated
 per-host account pattern.
+
+Bug found and fixed same day (2026-07-31), from a real incident: the
+review-pattern filter used exact substrings ("linux-image",
+"linux-generic") that missed linux-headers-* and linux-libc-dev --
+installing those (miscategorized as "routine") pulled in the full
+kernel image and libc6 as automatic apt dependencies, exactly the
+packages meant to be held back for deliberate review. Broadened to a
+"linux-" prefix match, which catches headers/image/libc-dev/base/
+kbuild uniformly -- every kernel-adjacent package on this system
+happens to share that prefix, confirmed against the real package list.
+Separately, /var/run/reboot-required turned out to never exist on
+Raspberry Pi OS at all (no update-notifier-common package, unlike
+Ubuntu) -- reboot detection is now a direct comparison of the running
+kernel (`uname -r`) against installed linux-image-* packages instead.
 """
 import json, os, subprocess
 from datetime import datetime, timezone, timedelta
@@ -28,11 +42,14 @@ LOG_TOPIC = "jctsh/core/log-server/log"
 STATE_FILE   = "/root/.jctsh/maintenance-check.state"
 REMIND_EVERY = timedelta(days=7)
 
-# CARD-0095's risk-tiering, unchanged: packages matching these get pulled out
-# of the routine low-risk count and flagged for deliberate review. Confirmed
-# live 2026-07-31 that all these patterns still appear in this Pi's own
-# upgradable list (e.g. linux-image-rpi-2712, linux-image-rpi-v8, libc6).
-REVIEW_PATTERNS = ("docker", "containerd", "linux-image", "linux-generic", "libc6")
+# CARD-0095's risk-tiering, revised 2026-07-31: "linux-" (not the narrower
+# "linux-image"/"linux-generic") catches every kernel-adjacent package on
+# this system -- linux-image-*, linux-headers-*, linux-libc-dev, linux-base-*,
+# linux-kbuild-* all share the prefix, confirmed against the real installed
+# package list. The narrower version is what let linux-headers/linux-libc-dev
+# through as "routine" and pull the kernel + libc6 in as automatic
+# dependencies -- see the module docstring.
+REVIEW_PATTERNS = ("docker", "containerd", "linux-", "libc6")
 
 env = {}
 with open("/etc/jctsh/log-server.env") as f:
@@ -53,7 +70,29 @@ def _apt_upgradable():
 
 
 def _reboot_required():
-    return os.path.exists("/var/run/reboot-required")
+    """No update-notifier-common on Raspberry Pi OS, so /var/run/reboot-required
+    never exists here (confirmed live 2026-07-31) -- compare the running
+    kernel against installed linux-image-* packages instead. True if any
+    installed versioned kernel package (e.g. linux-image-6.18.34+rpt-rpi-v8)
+    is newer than the one actually running."""
+    running = subprocess.run(
+        ["uname", "-r"], capture_output=True, text=True, timeout=10
+    ).stdout.strip()
+    result = subprocess.run(
+        ["dpkg-query", "-W", "-f=${Package}\n"], capture_output=True, text=True, timeout=10,
+    )
+    for pkg in result.stdout.splitlines():
+        if not pkg.startswith("linux-image-"):
+            continue
+        candidate = pkg[len("linux-image-"):]
+        if not candidate[:1].isdigit() or candidate == running:
+            continue  # meta-package (e.g. linux-image-rpi-v8) or already running
+        newer = subprocess.run(
+            ["dpkg", "--compare-versions", candidate, "gt", running], timeout=5,
+        )
+        if newer.returncode == 0:
+            return True
+    return False
 
 
 routine_count, review_pkgs = _apt_upgradable()

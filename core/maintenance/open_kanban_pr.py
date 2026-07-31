@@ -147,13 +147,21 @@ def open_finding_pr(component, message, fingerprint, token, state):
 def resolve_and_merge(pr_number, token, merge_method="squash"):
     """Interactive-use only (Claude, when asked to merge a CARD-0128 PR) --
     not called by the deployed scripts. Reads main's next-card-id marker
-    *now* (not whenever the PR happened to be opened), replaces the PR
-    branch's CARD-XXX placeholder with the real ID, sets the marker
-    correctly for the number actually assigned (not just incrementing
-    whatever stale value the branch's own copy had), pushes that as a
+    *now* (not whenever the PR happened to be opened), replaces the
+    placeholder with the real ID, sets the marker correctly, pushes a
     fixup commit on the PR's own branch, then merges -- so the commit
     that actually lands on main is already fully correct, never a moment
-    where main shows a literal CARD-XXX. Returns the assigned card_id."""
+    where main shows a literal CARD-XXX. Returns the assigned card_id.
+
+    Rebases onto main's *current* content, not the branch's own stale
+    copy -- caught live 2026-07-31 merging two same-session PRs back to
+    back: the first version of this function pushed the branch's entire
+    file content as the fixup, which would have silently reverted the
+    first PR's already-merged card, since the second PR's branch was
+    forked before that merge happened. Now extracts only this PR's own
+    stub block from its branch (stable regardless of main's drift) and
+    re-inserts *that* into a fresh read of main, rather than trusting
+    the branch's full file to still be current."""
     main_current = _api("GET", f"/repos/{REPO}/contents/kanban-board.md?ref={BRANCH_BASE}", token)
     main_text = base64.b64decode(main_current["content"]).decode("utf-8")
     m = re.search(r"<!-- next-card-id: (CARD-\d{4}) -->", main_text)
@@ -166,28 +174,68 @@ def resolve_and_merge(pr_number, token, merge_method="squash"):
     branch_current = _api("GET", f"/repos/{REPO}/contents/kanban-board.md?ref={branch}", token)
     branch_text = base64.b64decode(branch_current["content"]).decode("utf-8")
 
-    # Scoped replace, not a bare "CARD-XXX" substring match -- caught live
-    # during review (2026-07-31): this repo's own documentation *about* this
-    # placeholder mechanism contains the literal words "CARD-XXX" multiple
-    # times in prose (CARD-0128's own card notes), and a blind global
-    # replace would have corrupted that prose along with resolving the
-    # actual stub. _render_stub() only ever places card_id in one exact
-    # spot -- "### {card_id} \xb7 " -- so anchor on that full pattern instead.
-    fixed_text = branch_text.replace("### CARD-XXX \xb7 ", f"### {card_id} \xb7 ", 1)
-    fixed_text = re.sub(
-        r"<!-- next-card-id: CARD-\d{4} -->", f"<!-- next-card-id: {next_marker} -->", fixed_text, count=1,
+    # Extract just this PR's own stub -- the exact block _render_stub()
+    # produced, identified by its unique "### <id> \xb7 ... \n\n---\n\n"
+    # shape, non-greedy so it stops at the stub's own closing separator
+    # rather than swallowing whatever follows it in the branch's copy.
+    # Matches CARD-XXX *or* an already-assigned CARD-\d{4} -- idempotent
+    # against a prior partial/failed resolve_and_merge attempt having
+    # already resolved the placeholder before failing at the merge step
+    # (confirmed live 2026-07-31: a merge-conflict retry hit exactly this).
+    stub_match = re.search(r"### (?:CARD-XXX|CARD-\d{4}) \xb7 .*?\n\n---\n\n", branch_text, re.DOTALL)
+    stub = re.sub(r"^### CARD-(?:XXX|\d{4}) \xb7 ", f"### {card_id} \xb7 ", stub_match.group(0))
+
+    new_main_text = main_text.replace(
+        f"<!-- next-card-id: {card_id} -->", f"<!-- next-card-id: {next_marker} -->", 1,
     )
+    insert_at = new_main_text.index("---\n\n") + len("---\n\n")
+    new_main_text = new_main_text[:insert_at] + stub + new_main_text[insert_at:]
 
     _api("PUT", f"/repos/{REPO}/contents/kanban-board.md", token, {
         "message": f"{card_id}: assign real card number at merge",
-        "content": base64.b64encode(fixed_text.encode("utf-8")).decode("ascii"),
+        "content": base64.b64encode(new_main_text.encode("utf-8")).decode("ascii"),
         "sha": branch_current["sha"],
         "branch": branch,
     })
 
-    _api("PUT", f"/repos/{REPO}/pulls/{pr_number}/merge", token, {
-        "commit_title": f"{card_id}: {pr['title'].split(': ', 1)[-1]}",
-        "merge_method": merge_method,
-    })
+    commit_title = f"{card_id}: {pr['title'].split(': ', 1)[-1]}"
+    try:
+        _api("PUT", f"/repos/{REPO}/pulls/{pr_number}/merge", token, {
+            "commit_title": commit_title, "merge_method": merge_method,
+        })
+    except urllib.error.HTTPError as e:
+        # CARD-0128, hit live 2026-07-31 merging two same-session PRs back
+        # to back: every stub inserts at the *same* fixed anchor point (the
+        # intro's first "---\n\n"), so any two PRs open at once will have
+        # identical surrounding context there -- git's 3-way merge can't
+        # tell "two independent additions" from "a real conflict" and
+        # rejects it, even though the fixup above already produced fully
+        # correct final content. Not a rare edge case: it's the ordinary
+        # case whenever more than one PR is open simultaneously. Recover by
+        # constructing the merge commit directly via the Git Data API
+        # (explicit two-parent commit: main's current tip + this branch's
+        # tip, tree = the already-correct content above) instead of asking
+        # GitHub to reconcile two diffs that touch the same lines.
+        if e.code not in (405, 422):
+            raise
+        main_ref2 = _api("GET", f"/repos/{REPO}/git/refs/heads/{BRANCH_BASE}", token)
+        main_sha2 = main_ref2["object"]["sha"]
+        branch_ref2 = _api("GET", f"/repos/{REPO}/git/refs/heads/{branch}", token)
+        branch_sha2 = branch_ref2["object"]["sha"]
+        branch_current2 = _api("GET", f"/repos/{REPO}/contents/kanban-board.md?ref={branch}", token)
+        main_commit2 = _api("GET", f"/repos/{REPO}/git/commits/{main_sha2}", token)
+        new_tree = _api("POST", f"/repos/{REPO}/git/trees", token, {
+            "base_tree": main_commit2["tree"]["sha"],
+            "tree": [{"path": "kanban-board.md", "mode": "100644", "type": "blob",
+                      "sha": branch_current2["sha"]}],
+        })
+        merge_commit = _api("POST", f"/repos/{REPO}/git/commits", token, {
+            "message": f"Merge {BRANCH_BASE} into {branch} ({card_id} conflict workaround)",
+            "tree": new_tree["sha"], "parents": [main_sha2, branch_sha2],
+        })
+        _api("PATCH", f"/repos/{REPO}/git/refs/heads/{branch}", token, {"sha": merge_commit["sha"]})
+        _api("PUT", f"/repos/{REPO}/pulls/{pr_number}/merge", token, {
+            "commit_title": commit_title, "merge_method": "merge",  # not squash -- would re-diff and re-conflict
+        })
 
     return card_id

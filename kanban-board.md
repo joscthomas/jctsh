@@ -9,7 +9,69 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0125 -->
+<!-- next-card-id: CARD-0128 -->
+
+---
+
+### CARD-0127 · [enhancement] [infrastructure] Reliable "Pending Update" indicator on Device Status page (MQTT retained state, not last-message-wins)
+**Status:** Backlog
+
+**Notes:** Raised 2026-07-31, while explaining how `immich-update-check.py`'s notification actually surfaces. Joseph specifically cares about seeing "an Immich update is available" reliably on the `/status` Device Status page — not just the main log dashboard.
+
+**The gap:** `/status`'s "Last Reading" column (`log_server.py`'s `_compute_status()`) shows whichever non-heartbeat message was *most recently logged* for a component — it's derived from message history, not real current state. An Immich-update-available notice would show up there today, but only until some *other* non-heartbeat event fires for `photo-server` (e.g. a CARD-0095 maintenance Alert) — at which point the update notice silently falls out of view even though the update is still genuinely available. Best-effort, not a reliable indicator. Confirmed by direct code reading (`_build_status_html()`/`_compute_status()`), not yet observed live — no real Immich update has fired during this investigation.
+
+**Proposed design — spans both the M8 and the Pi, not a one-line fix:**
+1. **`components/photo-server/immich-update-check.py`** (M8): publish its result as an **MQTT retained message** on every run — not just when the finding changes, and not just the existing non-retained log-dashboard notification it already sends. Retained messages are MQTT's own mechanism for "give me the current true value regardless of history" — exactly the property needed here. Payload: something like `{"pending_update": true/false, "version": "vX.Y.Z", "current": "vA.B.C"}`.
+2. **`core/logging/log_server.py`** (Pi): subscribe to that retained topic, track it as dedicated per-component state (separate from `_last_seen`/`_entries`, which are message-history-based), and add a genuinely new **"Pending Update" column** to `_build_status_html()`'s Always-on table — sourced from that retained state directly, not from "most recent non-heartbeat message." Should read correctly immediately on log-server restart too, since retained messages redeliver on subscribe (unlike the current history-based approach, which already needed the separate `_load_state()`/`_save_state()` persistence CARD-0057-era work to survive a restart at all).
+3. Worth deciding at Build time whether this same retained-state pattern should extend to the M8 maintenance check (CARD-0095) and its eventual Pi sibling (CARD-0125) too, once built — same underlying problem (a `/status` summary that's really "last thing logged," not "current true state") likely applies there as well, just not yet raised as a complaint the way Immich's was.
+
+**Done when:** the Device Status page shows a dedicated Pending Update indicator for `photo-server` that reflects Immich's actual current update state at all times — verified by triggering a real state change (or a manual test publish) and confirming it updates immediately and correctly, and confirming it survives being superseded by an unrelated log message for the same component (the exact failure mode that doesn't work today) and a log-server restart.
+
+**Related:** `components/photo-server/immich-update-check.py`, `core/logging/log_server.py` (`_compute_status`/`_build_status_html`), CARD-0095 (the M8 maintenance check — same underlying "last-message-wins" limitation, not yet fixed there either), CARD-0125 (Pi's future sibling — same consideration applies once built).
+
+---
+
+### CARD-0126 · [enhancement] [infrastructure] Container-image update visibility for floating-tag services (NetAlertX, HA, Caddy, cloudflared)
+**Status:** Backlog
+
+**Notes:** Raised 2026-07-31, surfaced while explaining CARD-0095's monthly maintenance cycle to Joseph. Immich already has real update visibility — `components/photo-server/immich-update-check.py` compares actual version numbers via Immich's own API and notifies on the log dashboard, notify-only, no auto-apply. Everything else running in Docker across the stack has none at all:
+
+| Component | Image tag | Update visibility |
+|---|---|---|
+| NetAlertX | `:latest` | None |
+| Home Assistant | `:stable` | None |
+| hike-izer-web (Caddy) | `:2-alpine` | None |
+| cloudflared | `:latest` | None |
+| Immich Postgres, Valkey/Redis | pinned by SHA256 digest | Deliberately fixed — no drift, but also no visibility into new upstream digests |
+
+None of the floating-tag services have any check for "is a newer image available." If `docker compose pull` never runs for one of them, it silently stays on whatever was first deployed indefinitely, with no signal either way — the same "invisible until it matters" shape as CARD-0095's original apt backlog, just at the container-image layer instead of the OS layer.
+
+**Not yet scoped — needs a Planning-stage interview before Build**, since there are several genuinely different viable approaches, not one obvious path the way CARD-0125 (its Pi-side OS sibling) is:
+1. Compare the locally-running image's digest against the registry's current digest for that tag (`docker manifest inspect` or the registry API directly) — works regardless of whether a project uses real version tags, and catches "latest moved" even though the tag string itself never changes.
+2. A dedicated purpose-built tool (Watchtower, diun) — more infrastructure to run, but designed exactly for this rather than a custom script per service.
+3. Per-service, where a project publishes real version/release info (the way Immich does) — mirror `immich-update-check.py`'s pattern directly instead of a generic digest diff.
+
+Also worth clarifying at Planning time: is the actual goal *detection* (know when something's outdated, still human-decides-when-to-pull, consistent with every other check in this repo), or is repeatedly re-pulling a `:latest` tag already an implicit form of auto-update in spirit — in which case the real gap might be *visibility into what changed and when*, not detection of staleness. Worth deciding before choosing an approach, since it changes which of the three options above actually fits.
+
+**Related:** CARD-0095 (M8 OS/firmware maintenance — the parallel problem this mirrors at the image layer, and the policy precedent: notify-only, never auto-apply), CARD-0125 (Pi's OS-layer sibling, raised alongside this one), `components/photo-server/immich-update-check.py` (the one existing precedent for this exact pattern).
+
+---
+
+### CARD-0125 · [enhancement] [infrastructure] Pi OS/firmware maintenance check — CARD-0095's Pi-side counterpart
+**Status:** Backlog
+
+**Notes:** Raised 2026-07-31, immediately after CARD-0095 shipped the same thing for the M8. The Pi has the identical gap CARD-0095 just closed for the M8 — no visibility into `apt`-upgradable packages, the `reboot-required` flag, or pending firmware, despite having its own weekly scheduled reboot (Mon 3 AM, vs. the M8's Mon 4 AM, `SOFTWARE-ENVIRONMENT.md`) that this same information would make meaningful rather than blind. Arguably a bigger gap than the M8's was: the Pi is the actual household coordination hub (MQTT broker, Node-RED logic, HA integration, log server) — the highest-stakes host in the whole stack per CARD-0096's own risk ranking — yet currently has zero maintenance visibility, while the lower-stakes M8 now does.
+
+**Scope — mostly a direct port of `components/photo-server/maintenance-check.py`, with one real adaptation needed:**
+- The `apt list --upgradable` and `/var/run/reboot-required` checks port directly — host-agnostic logic, no Pi-specific changes needed.
+- **The firmware check does not port directly.** The M8 is a UEFI x86 box, so `fwupdmgr`/the Secure Boot dbx update made sense there. A Raspberry Pi has no UEFI — its firmware updates go through `rpi-eeprom-update` (bootloader/EEPROM) instead, plus the `raspberrypi-kernel`/`raspberrypi-bootloader` apt packages (which the generic apt-upgradable check already catches, just worth flagging explicitly in the review-list categorization the way M8's script flags `docker`/`linux-image`/`libc6`).
+- The Pi does run at least Home Assistant in Docker (`CLAUDE.md`) — likely fewer containers than the M8's eight, but the same "a Docker package update can restart the daemon and touch every running container" consideration from CARD-0095's policy probably still applies; confirm exactly what's containerized on the Pi vs. natively installed (Node-RED and Mosquitto are plausibly native systemd services, not Docker, unlike HA) before finalizing the review-pattern list.
+- Reuse CARD-0095's policy directly rather than re-deriving it: notify-only, never auto-apply; low-risk bulk applied routinely; Docker/kernel/firmware-class items get a deliberate human pass; security-relevant findings get a bias toward applying rather than indefinite deferral.
+- Cadence: monthly, matching the M8's schedule in spirit — pick a date/time offset from the M8's (1st of month, 7 AM) so the two review passes don't land on the same day, and add the new job to `jctsh-network.md`'s Scheduled Maintenance Windows table like the M8's was.
+
+**Done when:** the check is built, deployed, and enabled on the Pi, verified live the same way CARD-0095's was (a real finding correctly published as a non-collapsing `Alert`, the throttle correctly skipping an unchanged finding on a second run), and the new job is recorded in `jctsh-network.md`.
+
+**Related:** CARD-0095 (the M8 sibling this ports from, including its full policy writeup), CARD-0126 (raised alongside this one, the container-image-layer counterpart), CARD-0096 (unrelated functionally, but touches the same host — worth sequencing awareness if both are ever in Build at once), `components/photo-server/maintenance-check.py`, `SOFTWARE-ENVIRONMENT.md`.
 
 ---
 

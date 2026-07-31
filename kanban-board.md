@@ -9,7 +9,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0123 -->
+<!-- next-card-id: CARD-0124 -->
 
 ---
 
@@ -2684,3 +2684,33 @@ Also hit and fixed along the way (real bugs, not just config): the Tasker task's
 **Not done by Claude alone, done by Joseph:** the AutoShare install, both Share Target/Tasker profile setup, and all live-device troubleshooting (variable inspection, the `If`-condition bug, the file-copy fix) — same division of labor as CARD-0086's original GPSLogger Tasker setup.
 
 **Related:** CARD-0112 (designed the `_staging/` mechanism this feeds), CARD-0119 (the SSHFS-Win mount — now the sole mechanism for staging the Gaia embed; this card no longer replaces it, just narrows to the half it doesn't cover), CARD-0104 (Gaia embed), CARD-0080 (BirdNET export), CARD-0086 (the original Tasker-webhook pattern this reuses), `components/hike-izer-orchestrator/app.py`, `components/hike-izer-orchestrator/generation.py` (`_read_staging()`, `_next_file_stem()`, `latest_file_stem()`), `components/hike-izer-orchestrator/birdnet.py` (`parse_detections()`).
+
+---
+
+### CARD-0123 · [enhancement] [hike-izer] Make narrative generation opt-in; move place-context/sun-position data into tables instead of prose — RESOLVED 2026-07-30 14:50 MST
+**Status:** Done
+
+**Raised 2026-07-30 14:20 MST** — Joseph asked for a cost breakdown of recent generations, which surfaced that `narrative.py`'s Claude call and `place_context.py`'s two research layers (`gather_enrichment()`, `gather_regional()`) are the only real cost beyond photo captioning — today's step 2 for the morning hike was $0.5838 across 9 calls (7 photo captions + 1 place-context research call w/ 4 web searches + 1 narrative call). Decision: make photo captioning the only *default* cost, with narrative fully preserved in code and available as an explicit opt-in per hike, not deleted.
+
+**Scope:**
+1. **`place_context.gather_place_context()`** gains an `include_research` parameter (default `False`). When false, skips `gather_enrichment()`/`gather_regional()` entirely (no calls, no cost) but still runs the deterministic, free layers — Nominatim reverse-geocode (address) and Overpass named-features lookup — since those now feed their own page sections regardless of the narrative flag (see below).
+2. **`generation.run_step2()`** gains a `with_narrative` parameter (default `False`). When false, skips `narrative.generate_narrative()` entirely and passes `[]` for narrative paragraphs to `templating.render_html()` — reusing the *existing* omit-when-empty convention step 1's data-only pages already exercise, not new rendering logic.
+3. **CLI**: `generation.py`'s `--step2 FILE_STEM` gains a sibling `--narrative` flag (opt-in, off by default) threaded through to both of the above. Turning narrative back on for a specific hike later is `--step2 <stem> --narrative`, no redeploy, no config file, nothing to restore — every existing function (`narrative.py`, `gather_enrichment`, `gather_regional`) stays exactly as it is, just not called by default.
+4. **New deterministic page sections** (`templating.py`), replacing what previously only ever appeared woven into narrative prose:
+   - **Location** — one line, from Nominatim's address.
+   - **Nearby Named Features** table — Name / Type / Operator, from Overpass; omitted if none found.
+   - **Observations** table — Time / Category / Text, straight from Hiking Observations (if not already rendered somewhere).
+   - **Rejected-session note** — a GPS session detected but not classified as a hike shows its already-computed `rejection_reasons`, never surfaced on the page before now.
+5. **Sun Position table extended** with the additional derivable-for-free fields discussed: peak-elevation time, a golden-hour flag, precise azimuth range, % of the hike in daylight — all already computable from `sun_position_samples`, no new data collection.
+6. Cost logging needs no code change — `run_step2_and_log()`'s existing `(API cost: ...)` line already reports whatever `CostTracker.record()` calls actually happened; with narrative off, that's naturally just the photo-caption total.
+
+**Done when:** a real step-2 run with no `--narrative` flag costs only what photo captioning costs (verified against a real hike), the new Location/Named Features/Observations sections render correctly from real data, the Sun Position table shows the extended fields, and `--step2 <stem> --narrative` still produces the full old-style enriched page with narrative prose, proving nothing was lost.
+
+**Built and verified live, 2026-07-30 14:50 MST**, against the real second hike from today (`2026-07-30-2`):
+- Found during Build: "Observations" was already its own table (`observations_table_rows`/`obs_section`, pre-existing, always rendered regardless of narrative) — nothing new needed there; scope item 4's Observations bullet turned out to already be done.
+- `place_context.gather_place_context()` restructured to return `{address, named_features, research_facts}` (structured, not pre-flattened) instead of a flat fact-string list; `flatten_for_narrative()` added to reconstruct the old flat shape only when `narrative.py` actually needs it. Verified locally against real fetched hike data before deploying: `include_research=False` produces real `address`/`named_features` with zero Claude calls, and `flatten_for_narrative()` reproduces the exact old fact-string format.
+- **Narrative off (default):** `$0.0664, 3 API calls` for a 3-photo hike — matches the $0.0663 photo-caption-only baseline from before this change, confirming zero added cost. Page correctly has no "The Hike" section, a real Location section (address + named features table, from Overpass despite it hitting rate limits mid-run — per-point retry meant later query points still succeeded), and the extended Sun Position table (elevation/azimuth range, % daylight, peak-elevation time, golden-hour flag — all real, all free).
+- **`--narrative` (opt-in):** same hike, re-run with the flag — `$0.4854, 5 API calls, 4 web searches` (3 photo + 1 place-context research + 1 narrative, same structural pattern as a normal enriched run, just scaled to fewer photos). Confirmed a full, real narrative paragraph set rendered under "The Hike," proving the opt-in restore path genuinely works, not just compiles.
+- Live page for `2026-07-30-2` currently reflects the `--narrative` test run (the richer version) since that ran last — Joseph's call whether to leave it or regenerate without `--narrative` to match the new default.
+
+**Related:** CARD-0108 (place-context gathering, the module this extends), CARD-0086 (stage 2 / narrative generation, CARD-0112's split), CARD-0109 (the non-redundancy rule between tables and narrative this build has to keep respecting for whichever path is active), CARD-0110 (the sun-position/stats card this folds the elevation-range extension into), `components/hike-izer-orchestrator/narrative.py`, `components/hike-izer-orchestrator/place_context.py`, `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/templating.py`, `components/hike-izer-orchestrator/cost_tracking.py`.

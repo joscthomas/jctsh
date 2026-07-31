@@ -385,12 +385,15 @@ def run(payload):
     return file_stem, tracker
 
 
-def run_step2(file_stem):
+def run_step2(file_stem, with_narrative=False):
     """Step 2 (CARD-0112): conversationally triggered, once Joseph has
     staged what he can (opened Immich, dropped a Gaia embed/BirdNET export
     into the staging directory). Re-fetches photos for real, reads staging,
-    runs place_context + the one narrative call, and republishes the full
-    page in place of step 1's data-only version."""
+    runs place_context (always the free deterministic layers; the research
+    layers + the narrative call only if with_narrative, CARD-0123 -- off by
+    default, since those are the only real cost here beyond photo
+    captioning), and republishes the full page in place of step 1's
+    data-only version."""
     tracker = cost_tracking.CostTracker()
     date_str = _date_str_from_stem(file_stem)
 
@@ -417,28 +420,36 @@ def run_step2(file_stem):
     # location correlation is attempted (Joseph's call: table only).
     birdnet_rows = birdnet.parse_detections(os.path.join(SRV_DIR, f"{file_stem}_staging"))
 
-    with open(SKILL_MD_PATH, "r", encoding="utf-8") as f:
-        skill_md_text = f.read()
-
     # CARD-0108/CARD-0112: runs after photo captioning so sign_text (if any)
     # is already on the manifest, and now with real photo locations
     # available to ground named_features() along the actual route (see
     # place_context.py's own CARD-0112 fix) rather than just the hike's
-    # first GPS point.
+    # first GPS point. include_research=with_narrative (CARD-0123): the
+    # deterministic address/named-features layers always run (free, feed
+    # the Location/Nearby Named Features sections below either way) -- only
+    # the Claude+web_search research layers are gated.
     place_context = place_context_module.gather_place_context(
         hike_data, photos_manifest, _env("ANTHROPIC_API_KEY"),
         regional_cache_path=os.path.join(SRV_DIR, "regional_context_cache.json"),
-        cost_tracker=tracker,
+        cost_tracker=tracker, include_research=with_narrative,
     )
 
-    paragraphs = narrative.generate_narrative(
-        hike_data, skill_md_text, _env("ANTHROPIC_API_KEY"), place_context=place_context, cost_tracker=tracker
-    )
+    # CARD-0123: narrative off by default -- SKILL.md is only ever read for
+    # narrative writing, so skip that too when it's not needed.
+    paragraphs = []
+    if with_narrative:
+        with open(SKILL_MD_PATH, "r", encoding="utf-8") as f:
+            skill_md_text = f.read()
+        narrative_facts = place_context_module.flatten_for_narrative(place_context)
+        paragraphs = narrative.generate_narrative(
+            hike_data, skill_md_text, _env("ANTHROPIC_API_KEY"), place_context=narrative_facts, cost_tracker=tracker
+        )
 
     html_text = templating.render_html(
         hike_data, paragraphs, date_str, offset_str, photos_manifest,
         gaia_embed_html=staged.get("gaia_embed_html"), file_stem=file_stem,
         birdnet_rows=birdnet_rows,
+        address=place_context.get("address"), named_features=place_context.get("named_features"),
     )
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
@@ -473,11 +484,11 @@ def run_and_log(payload):
         mqtt_log.publish_log("Alert", f"Hike summary step 1 generation failed: {e}")
 
 
-def run_step2_and_log(file_stem):
+def run_step2_and_log(file_stem, with_narrative=False):
     """Step 2's entry point -- called from the CLI (see main()) when Joseph
     asks, conversationally, for the rich version of a specific hike."""
     try:
-        file_stem, tracker = run_step2(file_stem)
+        file_stem, tracker = run_step2(file_stem, with_narrative=with_narrative)
         mqtt_log.publish_log(
             "System",
             f"Published enriched hike summary for {file_stem}: "
@@ -496,13 +507,20 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--step2", metavar="FILE_STEM",
-        help="Run step 2 (photos + place context + narrative) for an already-published "
-             "file stem, e.g. 2026-07-29 or 2026-07-29-2 for a second same-day hike.",
+        help="Run step 2 (photos + place context +, if --narrative, the researched "
+             "narrative prose) for an already-published file stem, e.g. 2026-07-29 or "
+             "2026-07-29-2 for a second same-day hike.",
+    )
+    ap.add_argument(
+        "--narrative", action="store_true",
+        help="CARD-0123: include full narrative generation -- place-context research "
+             "(Claude + web_search) plus the Claude-written prose paragraphs. Opt-in, "
+             "real added cost; off by default leaves only photo-caption cost.",
     )
     args = ap.parse_args()
     if not args.step2:
         ap.error("nothing to do -- pass --step2 <file_stem> (step 1 runs via the webhook, not this CLI)")
-    run_step2_and_log(args.step2)
+    run_step2_and_log(args.step2, with_narrative=args.narrative)
 
 
 if __name__ == "__main__":

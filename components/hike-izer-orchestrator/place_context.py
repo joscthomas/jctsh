@@ -2,15 +2,17 @@
 """
 Hike-izer place-context gathering (CARD-0108).
 
-Grounds narrative.py's story in real facts about where the hike happened.
-Three layers:
+Grounds the hike page in real facts about where the hike happened. Three
+layers:
 
 1. Base layer -- deterministic, free, no hallucination risk. OpenStreetMap
    Nominatim (street/neighborhood address) + Overpass (named park/school/
    trail features and their operator, containing or near the hike's own
    coordinates). CARD-0108's own experiment found Nominatim reverse-geocoding
    alone never surfaces a park/school name at any zoom level -- Overpass is
-   the piece that actually answers "what is this place called."
+   the piece that actually answers "what is this place called." Always
+   gathered (free, no cost) -- feeds the Location/Nearby Named Features page
+   sections directly (CARD-0123), independent of whether narrative is on.
 
 2. Enrichment layer -- a scoped Claude + web_search call, run ONLY against
    confirmed named things (from Overpass or from a photo's sign_text) and
@@ -28,10 +30,14 @@ Three layers:
    cached, so a transient search failure gets retried on the next hike
    rather than permanently baked in as "nothing found."
 
-Deliberately returns a flat list of short, independent facts, not prose --
-weaving them into the story, and eliminating overlap with the observations
-table or between facts themselves, is narrative.py's job (per SKILL.md),
-not this module's.
+Layers 2 and 3 are the only real cost in this module and only run when
+include_research=True (CARD-0123, default off) -- narrative.py is the only
+consumer that needs them, via flatten_for_narrative()'s reconstructed flat
+list of short, independent facts. gather_place_context() itself returns
+structured data (address string, named_features list), not prose --
+eliminating overlap between facts, or between facts and the observations
+table, is narrative.py's job when it's actually running (per SKILL.md), not
+this module's.
 """
 
 import json
@@ -457,13 +463,24 @@ def gather_regional(region, cache_path, api_key, cost_tracker=None):
     return facts
 
 
-def gather_place_context(hike_data, photos_manifest, api_key, regional_cache_path=None, cost_tracker=None):
-    """Top-level entry point. Returns a flat list of short facts for
-    narrative.py to weave in -- [] if there's nothing to say (no GPS,
-    nothing found, no observations/signs worth searching on)."""
+def gather_place_context(hike_data, photos_manifest, api_key, regional_cache_path=None,
+                          cost_tracker=None, include_research=False):
+    """Top-level entry point. Returns a dict of {'address', 'named_features',
+    'research_facts'} -- structured, not prose, since CARD-0123 made narrative
+    writing (which needs a flat list) optional and separate from rendering
+    Location/Named Features as their own page tables (which need real
+    structure, not pre-flattened strings). Call flatten_for_narrative() on
+    the result when narrative.py actually needs the old flat-list shape.
+
+    include_research (default False, CARD-0123): gates the two Claude+
+    web_search layers (gather_enrichment/gather_regional) -- the only real
+    cost in this module. The deterministic layers (Nominatim address,
+    Overpass named features) always run regardless; they're free and now
+    feed their own template sections either way."""
+    empty = {"address": None, "named_features": [], "research_facts": []}
     point = _first_gps_point(hike_data)
     if not point or point.get("lat") is None or point.get("lon") is None:
-        return []
+        return empty
     lat, lon = point["lat"], point["lon"]
 
     # Address/region are about "where is this hike, broadly" -- the first
@@ -512,25 +529,36 @@ def gather_place_context(hike_data, photos_manifest, api_key, regional_cache_pat
                 seen_names.add(f["name"])
                 named.append(f)
 
+    research_facts = []
+    if include_research:
+        sign_texts = [
+            a["sign_text"] for a in (photos_manifest or {}).get("assets", [])
+            if a.get("sign_text")
+        ]
+        observations_text = "\n".join(
+            o.get("observation", "") for o in hike_data.get("hiking_observations", [])
+        )
+        research_facts.extend(gather_enrichment(named, sign_texts, observations_text, api_key, cost_tracker=cost_tracker))
+        research_facts.extend(gather_regional(region, regional_cache_path, api_key, cost_tracker=cost_tracker))
+
+    return {"address": address, "named_features": named, "research_facts": research_facts}
+
+
+def flatten_for_narrative(context):
+    """CARD-0123: narrative.py still wants the old flat-list-of-independent-
+    facts shape (it's what gets woven into prose) -- reconstructs that from
+    gather_place_context()'s structured dict, only ever called when
+    with_narrative is actually on. Formatting logic moved here verbatim from
+    the pre-CARD-0123 gather_place_context() body."""
     facts = []
-    if address:
-        facts.append(f"Location: {address}")
-    for f in named:
+    if context.get("address"):
+        facts.append(f"Location: {context['address']}")
+    for f in context.get("named_features", []):
         bits = [f["name"]]
         if f.get("type"):
             bits.append(f"a {f['type']}")
         if f.get("operator"):
             bits.append(f"operated by {f['operator']}")
         facts.append(" -- ".join(bits) if len(bits) > 1 else bits[0])
-
-    sign_texts = [
-        a["sign_text"] for a in (photos_manifest or {}).get("assets", [])
-        if a.get("sign_text")
-    ]
-    observations_text = "\n".join(
-        o.get("observation", "") for o in hike_data.get("hiking_observations", [])
-    )
-
-    facts.extend(gather_enrichment(named, sign_texts, observations_text, api_key, cost_tracker=cost_tracker))
-    facts.extend(gather_regional(region, regional_cache_path, api_key, cost_tracker=cost_tracker))
+    facts.extend(context.get("research_facts", []))
     return facts

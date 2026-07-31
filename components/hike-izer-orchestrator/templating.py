@@ -77,6 +77,19 @@ def hike_sessions(coverage):
     return [s for s in coverage["gps_track"]["sessions"] if s["is_hike"]]
 
 
+def rejected_sibling_sessions(coverage):
+    """CARD-0123: sessions detected but NOT classified as the hike -- e.g. a
+    trailing drive truncated off the end (CARD-0101) -- alongside a
+    genuinely confirmed hike that same day. gps_confirmation_explanation()
+    below already covers the case where EVERY session that day was
+    rejected; this covers the previously-unsurfaced case where some were
+    rejected right alongside a real, confirmed hike. Returns [] if there's
+    nothing to report."""
+    if not coverage["gps_track"]["hike_confirmed"]:
+        return []
+    return [s for s in coverage["gps_track"]["sessions"] if not s["is_hike"]]
+
+
 def gps_confirmation_explanation(coverage):
     sessions = coverage["gps_track"]["sessions"]
     if not sessions:
@@ -214,11 +227,46 @@ def data_summary_rows(hike_data):
     return rows
 
 
-def sun_summary_rows(stats):
-    return [
+GOLDEN_HOUR_MAX_ELEVATION_DEG = 10  # common rule-of-thumb upper bound for warm, low-angle "golden" light
+
+
+def sun_summary_rows(stats, sun_position_samples=None, offset_delta=None):
+    rows = [
         ("Sun Elevation Range", _range_display(stats.get("sun_elevation_deg"), "°")),
         ("Sun Direction", _sun_direction_display(stats)),
     ]
+    # CARD-0123: everything below is derived from sun_position_samples, the
+    # same data _sun_direction_display/elevation range already use -- just
+    # not surfaced before now. All deterministic (real solar-position math
+    # off real GPS timestamps), no API/LLM cost either way.
+    samples = sun_position_samples or []
+    if not samples:
+        return rows
+
+    azimuths = [s["sun_azimuth_deg"] for s in samples if s.get("sun_azimuth_deg") is not None]
+    if azimuths:
+        rows.append(("Sun Azimuth Range", f"{min(azimuths):.0f}°–{max(azimuths):.0f}°"))
+
+    daylight_count = sum(1 for s in samples if s.get("daylight"))
+    rows.append(("Daylight", f"{round(100 * daylight_count / len(samples))}% of sampled points"))
+
+    peak = max(samples, key=lambda s: s.get("sun_elevation_deg", float("-inf")))
+    if peak.get("sun_elevation_deg") is not None and offset_delta is not None:
+        rows.append(("Peak Sun Elevation Time", format_time_local(peak.get("timestamp"), offset_delta)))
+
+    golden = [
+        s for s in samples
+        if s.get("sun_elevation_deg") is not None and 0 <= s["sun_elevation_deg"] <= GOLDEN_HOUR_MAX_ELEVATION_DEG
+    ]
+    if golden and offset_delta is not None:
+        golden_sorted = sorted(golden, key=lambda s: s.get("timestamp") or "")
+        start = format_time_local(golden_sorted[0].get("timestamp"), offset_delta)
+        end = format_time_local(golden_sorted[-1].get("timestamp"), offset_delta)
+        rows.append(("Golden Hour", start if start == end else f"{start} – {end}"))
+    else:
+        rows.append(("Golden Hour", "No"))
+
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -419,7 +467,8 @@ def _stat_card(label, value, na=False):
 
 
 def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None,
-                 gaia_embed_html=None, file_stem=None, birdnet_rows=None):
+                 gaia_embed_html=None, file_stem=None, birdnet_rows=None,
+                 address=None, named_features=None):
     offset_delta = _parse_offset(offset_str)
     coverage = hike_data["coverage"]
     stats = hike_data["stats"]
@@ -479,6 +528,31 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     <div class="map-embed">{gaia_embed_html}</div>
   </section>"""
 
+    # CARD-0123: Location/Nearby Named Features -- previously only ever woven
+    # into narrative prose (and so invisible whenever narrative was off).
+    # Both come from place_context.py's deterministic, free layers
+    # (Nominatim address, Overpass named features), gathered regardless of
+    # whether narrative is on. Omit-when-empty, same convention as every
+    # other optional section on this page.
+    location_section = ""
+    if address or named_features:
+        address_html = f"<p>{_esc(address)}</p>" if address else ""
+        features_html = ""
+        if named_features:
+            feature_rows = "".join(
+                f"<tr><td>{_esc(f['name'])}</td><td>{_esc(f.get('type') or NA)}</td>"
+                f"<td>{_esc(f.get('operator') or NA)}</td></tr>"
+                for f in named_features
+            )
+            features_html = f"""
+    <table><thead><tr><th>Name</th><th>Type</th><th>Operator</th></tr></thead>
+    <tbody>{feature_rows}</tbody></table>"""
+        location_section = f"""
+  <section>
+    <h2>Location</h2>
+    {address_html}{features_html}
+  </section>"""
+
     summary_rows = "".join(
         f"<tr><td>{_esc(label)}</td><td>{_esc(value)}</td></tr>"
         for label, value in data_summary_rows(hike_data)
@@ -486,8 +560,28 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
 
     sun_rows = "".join(
         f"<tr><td>{_esc(label)}</td><td>{_esc(value)}</td></tr>"
-        for label, value in sun_summary_rows(stats)
+        for label, value in sun_summary_rows(stats, hike_data.get("sun_position_samples"), offset_delta)
     )
+
+    # CARD-0123: a session detected but not classified as the hike, sitting
+    # right alongside a genuinely confirmed one that same day (e.g. a
+    # trailing drive truncated off the end, CARD-0101) -- rejection_reasons
+    # was already computed for every session, just never shown on the page
+    # unless the ENTIRE day was rejected (see the callout above). Reuses the
+    # same warning-styled .callout treatment for visual consistency.
+    rejected_section = ""
+    rejected = rejected_sibling_sessions(coverage)
+    if rejected:
+        rejected_items = "".join(
+            f"<p>{_esc(format_time_local(s['start'], offset_delta))}"
+            f"–{_esc(format_time_local(s['end'], offset_delta))}: "
+            f"{_esc('; '.join(s['rejection_reasons']))}</p>"
+            for s in rejected
+        )
+        rejected_section = (
+            '<div class="callout"><strong>Other GPS activity that day, not part of this hike:</strong>'
+            f'{rejected_items}</div>'
+        )
 
     obs = hike_data.get("hiking_observations", [])
     obs_section = ""
@@ -587,7 +681,9 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   <p class="subtitle">Generated automatically by hike-izer-orchestrator &middot; data from the JCTsh Environmental Data pipeline</p>
   <div class="stat-row">{stat_row}</div>
   {callout}
+  {rejected_section}
   {gaia_section}
+  {location_section}
   <section>
     <h2>Weather Forecast at Hike Start</h2>
     <div class="forecast-row">{forecast_row}</div>

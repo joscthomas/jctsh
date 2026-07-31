@@ -1142,7 +1142,9 @@ def _snapshot():
             if comp not in shown:
                 entries.append({k: v for k, v in last.items() if not k.startswith("_")})
     entries.sort(key=lambda e: e["ts"])
-    return _collapse_for_display(entries)
+    collapsed = _collapse_for_display(entries)
+    collapsed.reverse()  # dashboard displays newest entries first
+    return collapsed
 
 
 def _entry_color(e):

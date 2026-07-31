@@ -100,8 +100,10 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0096 · [enhancement] [infrastructure] Rename photo-server → jct-server and raspberrypi → jct-hub, adopt a real host-naming convention
-**Status:** Backlog
+### CARD-0096 · [enhancement] [infrastructure] Rename photo-server → m8 and raspberrypi → pi0, adopt a real host-naming convention
+**Status:** Planning
+
+**Blocked — deferred until Joseph is physically home (2026-07-31).** Joseph is remote as of this writing (per this session — see the risk summary above, added the same day: Phase 2's own pre-check already calls for running the Pi rename from the home LAN rather than purely remote, given a real Tailscale reconnection hiccup earlier this same session). Plan is written and reviewed; execution holds until he's back on JCTnet1. Phase 0 (read-only audit) carries none of that risk and could technically run remotely — hasn't been started either, pending confirmation this is wanted before he's home rather than folded into one clean start-to-finish session.
 
 **Sequencing update 2026-07-27: CARD-0094 landed** — hike-izer-web's public URL is now `hikes.jctnet.com` via Cloudflare Tunnel, no longer tied to the Tailscale hostname at all, so the original reason to sequence this rename *after* CARD-0094 (avoiding changing the public URL twice) no longer applies — a rename now wouldn't touch the public URL either way. Still not picked up, just no longer blocked/sequenced by anything. The Tailscale hostname (`photo-server.tailfe828a.ts.net`) touch-point below is accordingly lower-stakes than originally noted (it's admin/SSH access only now, not a live public dependency) — kept for completeness since Tailscale device identity still matters for remote access regardless.
 
@@ -112,9 +114,20 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **New convention decided this session:** general-purpose compute hosts (this pair) get a `jct-` prefix (matches the `jct` Linux username already on both machines, and the `JCT Hotspot` WiFi SSID — ties to personal/household identity, chosen over a `jctsh-` project-branded alternative) plus a stable **role-class** suffix — what *kind* of thing the host is architecturally, not its current specific app list, so the name doesn't go stale again as services are added/removed. Single-purpose edge sensors (`garage-radar`, `salt-sensor`, `front-porch-temp-sensor`, `hiking-monitor`, etc.) are explicitly **not** in scope for this convention change — function-based naming is correct for them since their function is genuinely fixed for the device's life; only the two general-purpose hosts have this problem.
 
-**New names:**
-- `photo-server` → **`jct-server`** (general-purpose Docker application host)
-- `raspberrypi` → **`jct-hub`** (the coordination point — broker/logic/log-server/integration-bridge)
+**New names (original decision, 2026-07-24):**
+- `photo-server` → ~~`jct-server`~~ (general-purpose Docker application host)
+- `raspberrypi` → ~~`jct-hub`~~ (the coordination point — broker/logic/log-server/integration-bridge)
+
+**Naming reconsidered, 2026-07-31 — supersedes the `jct-` prefix + role-suffix convention above:** decided against role-based suffixes (`-server`/`-hub`) in favor of plain hardware nicknames — matches how both hosts are already referred to in every actual conversation, and "what runs on the M8?" is trivially answerable by looking rather than needing to be encoded in the name, so it can't go stale the way `photo-server` already did. Also dropped the `jct-` prefix — decided it doesn't add enough value to justify the extra characters.
+
+- No collision risk against the RV's Pi — confirmed its real hostname/Tailscale name is `coachproxyos` (`jctsh-network.md`), not literally "RV Pi" (that's just the doc-friendly label), so there's already repo precedent for a casual name and the real hostname differing without confusion.
+- `raspberrypi` → **`pi0`**, not bare `pi` — the Pi's Linux login user is already `pi` (`ssh pi@raspberrypi.local` today), so a bare `pi` hostname would read as the redundant `ssh pi@pi`. Changing the login user to `jct` instead (matching the M8's user, `ssh jct@m8`) was considered and rejected as out of scope for this card: unlike a hostname rename, the `pi` user's home directory is the live bind-mount path for HA's Docker config volume (`/home/pi/homeassistant/:/config`, per `CLAUDE.md`) — renaming it risks breaking that mount and touches ownership, systemd `User=` directives, cron, and `authorized_keys` on top of everything already scoped below, roughly doubling this card's already-large blast radius to fix something ultimately cosmetic. `pi0` sidesteps the redundancy for free.
+- `photo-server` → **`m8`**, staying bare/unnumbered — no username collision (the M8's login user is `jct`, not `m8`), and no second M8 anticipated the way a second Pi plausibly could be. Asymmetric on purpose, not an oversight.
+- Future duplicates handled reactively, not pre-numbered: if a second Pi or M8 ever joins the network, it becomes `pi1`/`m81` (or similar) at that time — renaming later costs the same as doing it now, so nothing is gained by numbering preemptively today.
+
+**New names (current):**
+- `photo-server` → **`m8`**
+- `raspberrypi` → **`pi0`**
 
 **Scope: full rename everywhere, both hosts** (explicitly decided over a docs-only/cosmetic option) — the real hostname, not just how it's referred to in conversation/docs. This is a large, genuinely disruptive, high-blast-radius piece of infrastructure work touching two live production machines — **do not execute without a real plan reviewed first**, not a routine edit. Known touch-points to account for when scoping the actual work (not exhaustive — audit before starting):
 
@@ -128,6 +141,72 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **ESP32 `secrets.yaml` files** — check whether any reference `raspberrypi.local` by name (vs. IP or DuckDNS) for MQTT broker address.
 - **DuckDNS** (`jctsh.duckdns.org`) — likely unaffected (points at the router's public IP via port-forward, not tied to the Pi's own hostname), but confirm.
 - **All documentation**: `CLAUDE.md`, `jctsh-network.md`, `credentials.local.md`, every component's own docs, this kanban board (going-forward references — historical/Done card entries should probably keep their as-written host name for accuracy at the time, not be silently rewritten).
+
+**Implementation plan (2026-07-31, Planning — written and reviewed, not yet executed on either live host).**
+
+**Two scoping recommendations to confirm before Build starts** (not yet decided — flag if either is wrong):
+1. **Leave the MQTT/log-dashboard component identity (`photo-server`) unchanged.** The topic segment (`jctsh/server/photo-server/...`), the Mosquitto `photo-server` account, and the log dashboard's component grouping are a separate concern from what the *host machine* is called — renaming that identity touches MQTT ACLs, breaks continuity with every historical log entry for this component, and risks the Node-RED watchdog flow's per-component matching, for no real gain (it's an internal message-routing label, not something anyone reads as "the hostname"). Recommend treating an MQTT-identity rename as its own separate, optional future card if ever wanted — out of scope here.
+2. **`components/photo-server/` → `components/m8/` directory rename IS in scope** — same staleness problem as the hostname itself, and purely mechanical (a `git mv` plus a repo-wide doc-link sweep, zero live-system risk). Isolated to its own last phase below so it never blocks or gets tangled with the two live-host phases.
+
+**Recommended order: M8 first, Pi second, directory/docs last.** M8 is the lower-stakes host (CARD-0094 already downgraded its Tailscale hostname to admin-only, no live public dependency) — doing it first validates the whole method on lower stakes before touching the Pi, which is the actual coordination hub everything else in the household depends on. Confirmed via direct check this session: Node-RED's MQTT broker node already connects via `"localhost"` (`core/node-red/core.flow.json`), not a hostname — one less thing to worry about on the Pi side.
+
+**Risk summary (2026-07-31):**
+
+*Low risk — no live-system impact:* Phase 0 (read-only audit), Phase 3 (repo-only `git mv` + doc sweep, never touches either live host), the router DHCP label (cosmetic, keyed by MAC not name), the transition-window aliases themselves (purely additive — worst case they just don't help, they don't break anything already working), and the rollback steps (low-risk by design).
+
+*Medium risk:* the M8 hostname/Tailscale rename — a real change to a live host, but the lower-stakes one of the two (see ordering rationale above). Mitigated by the existing pre-check, transition window, instant rollback, and verification checkpoint.
+
+*High risk:*
+1. **The Pi hostname/Tailscale rename** — already called out in Phase 2 as the single highest-stakes step in the card. This is the actual household coordination hub (MQTT, Node-RED, the HA/SmartThings/Google Home bridge Robin also relies on), not just a JCTsh concern — a silent breakage here is worse than an obvious one.
+2. **The unconfirmed assumption that all 4 ESP32s use IP, not hostname, for their MQTT broker address.** The single biggest unverified assumption in the whole plan. Mitigated by the transition window (buys time even if wrong) and by Phase 0's audit explicitly checking each of the 4 devices before Phase 2 runs.
+
+**Two additional mitigations, folded into the phase pre-checks below:**
+- **Timing:** avoid running either rename near a scheduled maintenance window — Pi reboots Mon 3 AM, M8 reboots Mon 4 AM, M8 backup Sun 2 AM, M8 Immich update-check daily 6 AM (`jctsh-network.md`'s table). A hostname change racing a reboot or backup job is an easy-to-avoid risk.
+- **Do the Pi rename (Phase 2) while physically on the home LAN, not purely remote.** This session already hit a real Tailscale connectivity hiccup once (the "idle" reconnect earlier). If Tailscale itself hiccups mid-rename, being on JCTnet1 directly removes it as a dependency for the recovery path during the single highest-stakes step in the card.
+
+---
+
+**Phase 0 — audit, read-only, both hosts, before touching anything:**
+- **Confirm MagicDNS is enabled tailnet-wide** (Tailscale admin console → DNS settings) before leaning on it as the primary verification method throughout Phases 1–2 below. Strong indirect evidence it already is — `tailscale ping raspberrypi` (bare name, no `.local`, no FQDN) already worked earlier this session, which only works with MagicDNS active — but not yet directly confirmed in the console itself.
+- Repo-wide: `grep -rn "raspberrypi\|photo-server"` (already run once this session — 48 files hit `raspberrypi`/`192.168.1.117` alone; re-run fresh at Build time since files change). Bucket each hit into: *IP address (unaffected, skip)*, *historical/Done-card entry (leave as-written per this card's own convention)*, *live reference needing update*.
+- On the Pi: check Node-RED's `settings.js` and any flow JSON for hostname (not IP) references; check HA's `configuration.yaml`/Tailscale integration for the same; check crontab and systemd units for embedded hostnames.
+- On the M8: same sweep — `docker-compose.yml` files, `cloudflared-config.yml`, systemd units, crontab.
+- Confirm each of the 4 ESP32 `secrets.yaml` files' MQTT broker address is IP-based, not `raspberrypi.local` — expected (per `jctsh-network.md`, the remote/DuckDNS path is already IP+port-forward-based) but not yet individually confirmed per device.
+
+**Phase 1 — M8: `photo-server` → `m8`:**
+1. Pre-check: `docker ps` on the M8 — confirm all containers currently healthy; confirm CARD-0124's heartbeat last reported clean `online`. Confirm the current time has clearance from M8's scheduled jobs (Mon 4 AM reboot, Sun 2 AM backup, daily 6 AM Immich update-check — `jctsh-network.md`).
+2. `sudo hostnamectl set-hostname m8` — verify via `hostname` and a fresh shell prompt.
+3. Rename Tailscale device: `sudo tailscale set --hostname=m8` — verify `tailscale status` shows `m8`, and confirm the Tailscale IP `100.111.16.14` is unchanged (it is — Tailscale IPs are stable across a hostname rename, so every IP-based reference, including this session's own SSH commands, keeps working through the entire process; only hostname-based references break, and only until updated).
+4. **Transition window — keep the old name resolving alongside the new one, rather than an abrupt cutover.** Publish `photo-server.local` as a static mDNS alias for the M8's real IP (`avahi-publish -a -R photo-server.local 192.168.1.165 &`, or a small systemd one-shot unit for the duration — `avahi-daemon` only auto-advertises whatever the *current* hostname is, so the old `.local` name stops resolving the moment step 2 runs unless this is added). Tailscale's own MagicDNS doesn't support a true dual-name alias the same way — renaming replaces the old name outright — but the equivalent safety net already exists there for free: the Tailscale IP itself never changes, so anything using `100.111.16.14` directly is unaffected regardless of this step. Also add a `photo-server → 192.168.1.165` entry to this Windows laptop's own hosts file for the window's duration, covering any leftover muscle-memory SSH commands run from here specifically.
+5. Router DHCP reservation label (cosmetic — reservation is keyed by MAC, not name) — update via router admin UI.
+6. Update `jctsh-network.md` (Devices + Tailscale tables) and `credentials.local.md`'s SSH section.
+7. **Verify reachability — MagicDNS as the primary check, `.local` mDNS only as secondary.** Primary: `ssh jct@100.111.16.14` (IP, unaffected throughout) and `ssh jct@m8` (MagicDNS — regular unicast DNS over the Tailscale tunnel, reliable on Windows, and the one that actually matters for day-to-day remote access). Secondary, informational only: `ssh jct@m8.local` and `ssh jct@photo-server.local` (should both work, the latter via step 4's alias) — but Windows' own mDNS resolver is known-unreliable on this specific laptop (multiple network adapters including Tailscale's own virtual one can cause the multicast query to go out the wrong interface), so treat a failure on either `.local` check as inconclusive rather than a real problem, and re-run them from the M8 itself (or another Linux box) for a trustworthy result before drawing any conclusion from them.
+8. **Verification checkpoint:** Immich, hike-izer-web, hike-izer-orchestrator, and NetAlertX all still reachable and functioning (hostname change shouldn't touch running containers, but confirm rather than assume) — run the CARD-0124 heartbeat script manually, confirm a clean `status=online`.
+9. **Close the transition window** once the verification checkpoint has stayed clean for a few days and a fresh repo-wide grep turns up nothing still referencing the old name on purpose: remove the avahi alias and the Windows hosts entry, then confirm `photo-server.local` now correctly fails to resolve — proof nothing was silently still depending on it. Run this specific confirmation from a Linux box (e.g. from the Pi, SSH'd in), not this Windows laptop, for the same mDNS-reliability reason as step 7 — a false "still resolves" from Windows here would wrongly block closing the window.
+10. **Rollback, available at any point before the transition window is closed:** `sudo hostnamectl set-hostname photo-server` + `sudo tailscale set --hostname=photo-server` reverts immediately — the Tailscale IP never moves, so this is always a live, low-risk escape hatch, not a point of no return. (Step 4's alias is harmless either way if this happens — it just becomes redundant once the primary name reverts, and can be removed at leisure.)
+
+**Phase 2 — Pi: `raspberrypi` → `pi0`, only after Phase 1 has run stable for a day or two:**
+1. Pre-check: confirm MQTT broker, Node-RED, HA, and the log server are all currently healthy. Confirm clearance from the Pi's own Mon 3 AM scheduled reboot (`jctsh-network.md`). **Do this phase from the home LAN (JCTnet1), not purely remote** — this session already hit a real Tailscale reconnection hiccup once; being on the LAN directly removes Tailscale as a dependency for the recovery path during the single highest-stakes step in this card.
+2. `sudo hostnamectl set-hostname pi0` — verify.
+3. Rename Tailscale device `raspberrypi` → `pi0` — verify `tailscale status`, confirm `100.70.162.24` unchanged.
+4. **Transition window, same technique as Phase 1 — and more important here, since this host has the most dependents of the two.** Publish `raspberrypi.local` as a static mDNS alias for the Pi's real IP (`avahi-publish -a -R raspberrypi.local 192.168.1.117 &`, or a systemd one-shot for the duration). Add `raspberrypi → 192.168.1.117` to this Windows laptop's hosts file for the window. If Phase 0's audit turns up *any* hostname-based reference that can't be fixed immediately (e.g., an ESP32 that turns out to use `raspberrypi.local` rather than the IP, contrary to expectation), this window is what prevents that device from going dark the instant step 2 runs — it keeps working via the alias while that specific reference gets updated on its own schedule, rather than forcing every single dependent to be fixed in lockstep with the rename itself.
+5. Check every *hostname-based* (not IP-based) consumer specifically:
+   - Node-RED MQTT broker node — already confirmed `localhost`, not affected.
+   - HA's Tailscale/Nabu Casa config — confirm neither references the old hostname (expect IP/Nabu-Casa-URL-based already, per `jctsh-access.md`).
+   - All 4 ESP32 `secrets.yaml` files — confirm IP-based per Phase 0's audit; if any aren't, the transition window (step 4) covers them until each is individually reflashed.
+   - `core/logging/log_server.py` — `MQTT_BROKER = "localhost"` already confirmed via direct read this session; unaffected.
+6. Router DHCP label, `jctsh-network.md` update.
+7. **Verify reachability — MagicDNS as the primary check, same reasoning as Phase 1 step 7.** Primary: `ssh pi@100.70.162.24` (IP) and `ssh pi@pi0` (MagicDNS). Secondary/informational only: `ssh pi@pi0.local` and `ssh pi@raspberrypi.local` — treat a failure on either as inconclusive (Windows mDNS unreliability, not necessarily a real problem) and re-check from a Linux box before concluding anything from them.
+8. **Verification checkpoint — the most important one in this card:** watch the log dashboard for continued heartbeats from garage-radar/salt-sensor/front-porch-temp-sensor/hiking-monitor (confirms ESP32→MQTT still works), confirm the Node-RED watchdog flow is still firing, confirm HA reachable both on the LAN and via Nabu Casa, confirm the log dashboard itself is still up.
+9. **Close the transition window** once the verification checkpoint has stayed clean for a few days and a fresh repo-wide grep (plus a check of any ESP32s the step-5 audit flagged) confirms nothing is still depending on the old name: remove the avahi alias and the Windows hosts entry, confirm `raspberrypi.local` now correctly fails to resolve. Run this specific confirmation from a Linux box (e.g. from the M8, SSH'd in), not this Windows laptop, for the same mDNS-reliability reason as step 7.
+10. **Rollback, available at any point before the transition window is closed:** same pattern as Phase 1 — `hostnamectl` + `tailscale set --hostname` both revert instantly, IP never changes. The step-4 alias is harmless either way and can be removed at leisure if this happens.
+
+**Phase 3 — directory rename + final doc sweep, doc-only, zero live-system risk, do last:**
+- `git mv components/photo-server components/m8`.
+- Repo-wide find/replace of `components/photo-server/` path references across every doc that links to it.
+- Final full-repo grep pass for any remaining `raspberrypi`/`photo-server` string, excluding IP addresses and historical Done-card entries (which stay as-written per this card's own convention, below).
+
+---
 
 **Done when:** both hosts respond to their new names for real (SSH, Tailscale, MQTT, HTTP) with no remaining `photo-server`/`raspberrypi` references in active documentation or live config, the hike-izer-web public URL is updated and reachable at its new address, and nothing that depended on the old names (ESP32 devices, HA, Node-RED, the heartbeat script, NetAlertX) broke in the process — verified live, not just "files edited."
 

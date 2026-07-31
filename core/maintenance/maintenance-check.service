@@ -1,0 +1,8 @@
+[Unit]
+Description=Check for pending OS/firmware maintenance and notify JCTsh dashboard (CARD-0095)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=jct
+ExecStart=/usr/bin/python3 /usr/local/bin/maintenance-check.py

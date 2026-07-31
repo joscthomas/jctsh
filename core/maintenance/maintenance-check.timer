@@ -1,0 +1,10 @@
+[Unit]
+Description=Monthly OS/firmware maintenance check, 1st of month 7AM (JCTsh maintenance, M8 photo-server)
+
+[Timer]
+OnCalendar=*-*-01 07:00:00
+Persistent=true
+Unit=maintenance-check.service
+
+[Install]
+WantedBy=timers.target

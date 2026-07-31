@@ -13,6 +13,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-XXX · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1) — auto-opened from jctsh-core
+**Status:** Backlog
+
+**Auto-generated 2026-07-31 22:52 UTC from jctsh-core's maintenance check.** Raw finding: Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Related:** live dashboard entry at time of generation.
+
+---
+
 ### CARD-0129 · [enhancement] [infrastructure] Apply Pi's remaining Docker/kernel packages and reboot — waiting until Joseph is home
 **Status:** Build
 

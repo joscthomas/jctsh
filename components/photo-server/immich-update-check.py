@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-import json, os, urllib.request
+import json, os, sys, urllib.request
 from datetime import datetime, timezone, timedelta
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from open_kanban_pr import open_finding_pr  # CARD-0128
 import paho.mqtt.client as mqtt
 
 BROKER    = "192.168.1.117"
@@ -12,6 +14,7 @@ USERNAME  = "photo-server"
 IMMICH_BASE   = "http://localhost:2283"
 ADMIN_API_KEY = "VibjMm5LXk2LU4xpsJ04F2ggbZsjX3uEim1CjXf0A"
 STATE_FILE    = "/home/jct/.jctsh/immich-update-check.state"
+GITHUB_ENV    = "/etc/jctsh/github.env"  # CARD-0128, same credential every other maintenance check uses
 REMIND_EVERY  = timedelta(days=7)
 
 env = {}
@@ -96,10 +99,37 @@ if send_notification:
 client.loop_stop()
 client.disconnect()
 
+new_state = {"version": latest_str, "notified_at": datetime.now(timezone.utc).isoformat()}
+
 if send_notification:
+    # CARD-0128: queue a kanban PR too, same as every other maintenance
+    # check -- this was the one script that predated CARD-0128 and never
+    # got wired in (found 2026-07-31 while explaining why an Immich update
+    # wasn't showing up in the PR queue the way HA's did). Deliberately
+    # optional, same pattern as the others: a missing/broken PR step must
+    # never take down the notification above, which already succeeded.
+    try:
+        gh_env = {}
+        with open(GITHUB_ENV) as f:
+            for line in f:
+                if "=" in line:
+                    k, v = line.strip().split("=", 1)
+                    gh_env[k] = v
+        prior_pr_state = {k: state[k] for k in ("pr_fingerprint", "pr_number") if k in state}
+        pr_state, pr_url = open_finding_pr(
+            COMPONENT, notify_message, latest_str, gh_env["GITHUB_PAT"], prior_pr_state,
+        )
+        new_state.update(pr_state)
+        if pr_url:
+            print(f"Opened kanban PR: {pr_url}")
+    except FileNotFoundError:
+        pass  # GITHUB_ENV not set up yet
+    except Exception as e:
+        print(f"CARD-0128 PR step failed (notification above still succeeded): {e}")
+
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
     with open(STATE_FILE, "w") as f:
-        json.dump({"version": latest_str, "notified_at": datetime.now(timezone.utc).isoformat()}, f)
+        json.dump(new_state, f)
     print(f"Notified: {notify_message}")
 else:
     print(f"Pending-update state published: pending={pending}")

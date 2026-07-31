@@ -13,6 +13,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-XXX · [enhancement] [infrastructure] Immich update available: v3.1.0 (currently running v3.0.1) — auto-opened from photo-server
+**Status:** Backlog
+
+**Auto-generated 2026-07-31 23:01 UTC from photo-server's maintenance check.** Raw finding: Immich update available: v3.1.0 (currently running v3.0.1). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Related:** live dashboard entry at time of generation.
+
+---
+
 ### CARD-0129 · [enhancement] [infrastructure] Apply Pi's remaining Docker/kernel packages and reboot — waiting until Joseph is home
 **Status:** Build
 

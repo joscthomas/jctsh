@@ -1,0 +1,10 @@
+[Unit]
+Description=Monthly Pi OS maintenance check, 1st of month 8AM (JCTsh maintenance, Pi) -- 1hr after the M8's own check
+
+[Timer]
+OnCalendar=*-*-01 08:00:00
+Persistent=true
+Unit=pi-maintenance-check.service
+
+[Install]
+WantedBy=timers.target

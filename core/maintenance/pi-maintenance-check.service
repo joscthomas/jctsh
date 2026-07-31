@@ -1,0 +1,8 @@
+[Unit]
+Description=Check for pending Pi OS maintenance and notify JCTsh dashboard (CARD-0125)
+After=network-online.target mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/pi-maintenance-check.py

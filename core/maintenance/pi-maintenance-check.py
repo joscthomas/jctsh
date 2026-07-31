@@ -31,15 +31,19 @@ Raspberry Pi OS at all (no update-notifier-common package, unlike
 Ubuntu) -- reboot detection is now a direct comparison of the running
 kernel (`uname -r`) against installed linux-image-* packages instead.
 """
-import json, os, subprocess
+import json, os, subprocess, sys
 from datetime import datetime, timezone, timedelta
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from open_kanban_pr import open_finding_pr  # CARD-0128
 
 BROKER    = "127.0.0.1"
 PORT      = 1883
 COMPONENT = "jctsh-core"
 LOG_TOPIC = "jctsh/core/log-server/log"
 
-STATE_FILE   = "/root/.jctsh/maintenance-check.state"
+STATE_FILE  = "/root/.jctsh/maintenance-check.state"
+GITHUB_ENV  = "/etc/jctsh/github.env"  # CARD-0128: GITHUB_PAT=... -- absent until the token exists, deliberately optional
 REMIND_EVERY = timedelta(days=7)
 
 # CARD-0095's risk-tiering, revised 2026-07-31: "linux-" (not the narrower
@@ -152,8 +156,35 @@ except Exception as e:
     print(f"Failed to publish: {e}")
     raise SystemExit(1)
 
+new_state = {"fingerprint": fingerprint, "notified_at": now.isoformat()}
+
+# CARD-0128: open/refresh a queued kanban PR for real findings (not the
+# routine-only "nothing needing review" case) -- deliberately optional,
+# not a hard failure, since GITHUB_ENV won't exist until the PAT is
+# created; a missing/broken PR step must never take down the Alert
+# notification above, which already succeeded by this point.
+if findings:
+    try:
+        gh_env = {}
+        with open(GITHUB_ENV) as f:
+            for line in f:
+                if "=" in line:
+                    k, v = line.strip().split("=", 1)
+                    gh_env[k] = v
+        prior_pr_state = {k: state[k] for k in ("pr_fingerprint", "pr_number") if k in state}
+        pr_state, pr_url = open_finding_pr(
+            COMPONENT, message, fingerprint, gh_env["GITHUB_PAT"], prior_pr_state,
+        )
+        new_state.update(pr_state)
+        if pr_url:
+            print(f"Opened kanban PR: {pr_url}")
+    except FileNotFoundError:
+        pass  # GITHUB_ENV not set up yet -- CARD-0128 not yet activated
+    except Exception as e:
+        print(f"CARD-0128 PR step failed (Alert notification above still succeeded): {e}")
+
 os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
 with open(STATE_FILE, "w") as f:
-    json.dump({"fingerprint": fingerprint, "notified_at": now.isoformat()}, f)
+    json.dump(new_state, f)
 
 print(f"Notified: {message}")

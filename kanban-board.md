@@ -37,7 +37,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0128 · [enhancement] [infrastructure] Maintenance findings auto-open a PR against kanban-board.md instead of just logging an Alert
-**Status:** Backlog
+**Status:** Build
 
 **Notes:** Raised 2026-07-31, from a conversation about whether maintenance-check findings (CARD-0095, CARD-0125) should do more than post a log-dashboard Alert — Joseph wants a real finding to land in the actual work queue (`kanban-board.md`), not just a status flag someone has to notice and manually turn into a card.
 
@@ -52,12 +52,39 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **`main` gets a GitHub branch-protection rule requiring PR review before merge** — the actual enforcement mechanism, not just a credential-scoping promise.
 - Existing Alert/log-dashboard notification stays as-is alongside this — the PR is the queue item, the Alert is still the "something happened right now" signal.
 
-**Open questions for Planning:**
-- What does an auto-generated card actually look like — full prose matching the hand-written style every other card in this file has (hard to template well), or a minimal stub (raw finding + "needs interview") that a human/Claude fleshes out at Build time? Auto-generating CARD-0095/CARD-0124-quality prose from a script seems like a stretch; a deliberately minimal stub is probably the honest target.
-- Does every finding open a *new* PR/card, or does a second finding while one's still open update the same PR/card? Needs the same kind of fingerprint/throttle thinking the maintenance-check scripts already use for their Alert notifications, applied to card creation instead. **CARD-0127 answers this directly, if built first** — see relationship note below.
-- Who actually merges the PR day to day — always a human, or can Claude be asked to review-and-merge during a normal session (same as any other card work), making the PR step mostly about the audit trail rather than a hard human-only gate?
+**Open questions, resolved 2026-08-01 (Planning):**
 
-**Relationship to CARD-0127, discussed 2026-07-31:** complementary, not competing — different destinations for the same underlying finding. CARD-0127 is operational visibility (a reliable "pending, right now" indicator on `/status`); this card is work-queue visibility (turning a finding into a trackable backlog item). Neither replaces the other — someone glancing at Device Status while debugging something unrelated wants CARD-0127's answer without it needing to already be a formal backlog item; someone planning what to work on next wants this card's answer. But both are fundamentally solving the same problem — "know the current true state of a finding, not just the most recent event about it" — just aimed at MQTT/the dashboard vs. git/the kanban board respectively. **Build CARD-0127 first if both are ever built:** its retained-MQTT-state mechanism is exactly the primitive this card's own dedup open question (above) needs — comparing a new finding against CARD-0127's already-published "current true state" is a cleaner foundation than re-deriving a fingerprint from scratch in a completely different location (git branches instead of MQTT). Not a hard dependency — either could ship alone — just a strictly better sequencing if both happen.
+1. **Card shape: a deliberately minimal stub, not hand-written-quality prose.** Auto-generating CARD-0095/CARD-0124-quality writeups from a script isn't realistic — that quality comes from an actual interview, which is the whole point of the "someone still has to flesh this out" step. Template:
+   ```
+   ### CARD-XXXX · [enhancement] [infrastructure] <first line of finding> — auto-opened from <component>
+   **Status:** Backlog
+
+   **Auto-generated <date> <time> <tz> from <component>'s maintenance check.** Raw finding: <message text verbatim>. Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+   **Related:** `<script path>`, live dashboard entry at time of generation.
+   ```
+   Rendered in the exact same `### CARD-XXXX` / `**Status:**` format every hand-written card uses, so `/kanban` groups and displays it identically — just visibly marked as a stub via its own content, not a different structural format.
+
+2. **Dedup — simpler than originally scoped, and doesn't actually need CARD-0127 as a prerequisite** (correcting the relationship note below, written before working through the mechanics): the maintenance-check scripts already maintain a fingerprint-keyed state file for their Alert throttle (`{fingerprint, notified_at}` — CARD-0095/CARD-0125). Extending that same state file with a `pr_number` field solves this directly: before opening a new PR, check whether the current fingerprint matches the stored one *and* the stored PR is still open (`gh pr view <number> --json state`); if so, do nothing — the existing PR already represents this finding. Only open a new PR when the fingerprint changed or the old PR was closed/merged. This is a same-process, sequential-runs question ("did I already open a PR for this"), not a cross-process "what's the current true state" question — CARD-0127's retained-MQTT mechanism solves the latter, for a different consumer (the dashboard), and isn't actually load-bearing here despite the earlier note below suggesting otherwise.
+
+3. **Who merges — the same pattern as everything else tonight, not a new one.** Not "always a human clicking merge on GitHub," and not "Claude auto-merges unprompted" either — the PR sits open until asked about, same as every commit/push this session waited for an explicit go-ahead. In practice: `gh pr merge` run by Claude, during a normal session, when Joseph asks — the PR's real value is the audit trail and the branch-protection enforcement, not forcing a specific human-only UI action.
+
+**Relationship to CARD-0127, discussed 2026-07-31, refined 2026-08-01:** still complementary, not competing — different destinations for the same underlying finding (CARD-0127: operational visibility, "pending right now" on `/status`; this card: work-queue visibility, a trackable backlog item). That framing holds. The earlier claim that CARD-0127 should be built first as a prerequisite for this card's dedup logic **does not hold up** once actually scoped (see point 2 above) — the existing per-script state file already answers it, no cross-card dependency needed. Both cards can ship independently, in either order.
+
+**Concrete design for Build (option 3 from above):**
+- **PAT scope**: fine-grained, repo-limited to `jctsh`, permissions `Contents: Read and write` + `Pull requests: Read and write` only — explicitly not a classic token, not `admin` or org-wide scope.
+- **Branch naming**: `maintenance-alert/<component>-<date>` (e.g. `maintenance-alert/photo-server-2026-08-01`), one branch per opened PR.
+- **Flow**: `git checkout -b <branch>` → write/append the stub card via the same next-card-id-marker convention every manual card uses → `git commit` → `git push -u origin <branch>` → `gh pr create --title "..." --body "..."`.
+- **Branch protection on `main`**: GitHub Settings → Branches → require PR review before merge — the actual enforcement, not just the PAT's scope being narrow.
+
+**Built and verified live, 2026-08-01 — a real PR opened, not a synthetic test:**
+- New `core/maintenance/open_kanban_pr.py`, a shared module (deployed to `/usr/local/bin/` on both hosts, imported by both `maintenance-check.py` and `pi-maintenance-check.py`) — pure GitHub REST API via stdlib `urllib.request`, no `gh` CLI or local git clone needed on either host (this session's own git access turned out to be plain `git push`, no `gh` installed anywhere, so there was nothing to reuse anyway). Creates a branch ref, updates `kanban-board.md` via the Contents API (which creates a commit on that branch), opens the PR.
+- Dedup implemented exactly as scoped in point 2 above — extends each script's existing throttle-state file with `pr_fingerprint`/`pr_number`, checks the PR's still-open state via the API before deciding whether to open a new one.
+- Wired into both scripts behind a soft dependency: `GITHUB_ENV` (`/etc/jctsh/github.env`) is read inside a `try`/`except FileNotFoundError`, so deploying this code was itself a no-op right up until the PAT existed — the existing Alert-notification path was never at risk of breaking because of an unfinished CARD-0128 dependency.
+- Fine-grained PAT created (repo-limited to `jctsh`, `Contents` + `Pull requests` read/write only, no `Administration`), deployed to `/etc/jctsh/github.env` (mode 600, root-owned) on both hosts.
+- **Live test on the Pi** (a genuine finding — 7 Docker packages + reboot required, not synthetic): first run opened **[PR #1](https://github.com/joscthomas/jctsh/pull/1)**, confirmed via the API to contain a correctly-formatted `CARD-0130` stub (right template, right `next-card-id` bump, matches every hand-written card's structure) in a real diff. Forced a second run past the Alert-throttle (backdated `notified_at` in the state file, same fingerprint) specifically to test the dedup path in isolation — correctly recognized the still-open PR and did **not** open a duplicate, confirmed via the API that only PR #1 exists.
+- **Not yet done: branch protection on `main`.** The PAT deliberately has no `Administration` scope, so this can't be set via the same automated credential — needs Joseph's own GitHub access, one-time, via the web UI (Settings → Branches → require PR before merge). Everything else works without it; this is the step that turns "the PAT is narrowly scoped" into "and `main` structurally can't be touched directly regardless."
+- **Known limitation surfaced, not yet solved**: an auto-opened PR computes its `next-card-id` bump against whatever `main` looked like when it opened. If a card gets added directly to `main` (the normal manual flow) while that PR is still open, merging the PR later could reintroduce a stale `next-card-id` value. Not a data-loss risk (worst case is a duplicate-looking marker, easy to spot and fix at merge time), but worth knowing before this becomes a routine, unattended monthly occurrence rather than a one-off tonight.
 
 **Related:** CARD-0095 (M8 maintenance check — the finding source), CARD-0125 (Pi's sibling — the other finding source), CARD-0127 (the dashboard-side sibling of this same underlying idea — see relationship note above), CARD-0057-era kanban-parsing work (`log_server.py`'s `/kanban` page, which already fetches `kanban-board.md` straight from GitHub's `main` — relevant to how quickly a merged card would actually become visible there).
 

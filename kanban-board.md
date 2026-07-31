@@ -9,7 +9,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0124 -->
+<!-- next-card-id: CARD-0125 -->
+
+---
+
+### CARD-0124 · [enhancement] [photo-server] Detect host-side mount loss and auto-remount photo-library drives (guarded restart for primary)
+**Status:** Backlog
+
+**Raised 2026-07-31**, from a real incident found via the log dashboard: the primary Immich library drive (`/dev/sdd`, Seagate Backup Plus 1TB, bus-powered — `jctsh-parts-inventory.md`) dropped off the USB bus (`journalctl -k`: `usb 5-1: USB disconnect, device number 2` at 18:37:58, re-enumerated 5 seconds later) on 2026-07-30, but nothing remounted it at `/mnt/photo-library` — it sat as an empty, root-owned directory on the boot SSD for **~16.5 hours** until manually fixed. `immich_server`'s Docker health check stayed `healthy` throughout (it only pings the API, not storage); the existing 30-min storage heartbeat check (CARD-0032/CARD-0046) did fire non-collapsing `Alert` rows the whole time, but nobody acted on them until they were noticed by chance, and fixing it required two manual steps a human had to diagnose from scratch: remounting the host-side filesystem, then `docker compose restart` on the Immich stack (bind mounts don't pick up a host remount that happens after the container started — same root-cause class as the 2026-07-10 CARD-0046 incident).
+
+**Root cause of the drop itself:** genuine USB disconnect/reconnect on a bus-powered drive — no I/O or hardware errors found anywhere in `journalctl -k`. Hardware fix (powered dock/enclosure for the primary drive) explicitly **out of scope for this card** — deferred, not rejected, per Joseph's call.
+
+**Plan (extends `components/photo-server/photo-server-heartbeat.py`, no new services):**
+1. **Detect:** add a host-side `mountpoint -q <path>` check for all three fstab-mounted drives (`/mnt/photo-library`, `/mnt/photo-library-backup`, `/mnt/photo-library-backup-joseph`) — distinct from the existing container-level write test, so an alert can say specifically "host mount missing" vs. "container has a stale view of a mount that's actually fine."
+2. **Auto-remount:** if a mount is missing, immediately run `mount <path>` (replays the existing `/etc/fstab` entry — cheap, safe, idempotent).
+3. **Guarded restart (primary only):** only `/mnt/photo-library` is bind-mounted into a container (`immich_server`) — the two backup drives are touched only by `photo-library-backup.sh`, never a running container, so they need no restart step. Immediately following a successful auto-remount of the primary, restart `immich_server` so it picks up the fresh mount. **Trigger only on that specific transition** (mount-was-missing → now-remounted) — never a blind retry-on-every-failed-check loop — so a genuinely flaky/dying drive produces repeated, visible "auto-remounted + restarted" log lines instead of being silently papered over.
+4. **Always log**, success or failure, as a non-collapsing `Alert` — same visibility convention the existing checks already use.
+
+**Explicitly out of scope:** hardware change (powered dock/enclosure for the primary drive) — revisit if this recurs. A udev-triggered fast path (seconds instead of up to 30 min) was also considered and deferred — the existing 30-min heartbeat cadence is judged sufficient unless this proves to recur often.
+
+**Done when:** a real drive-drop is simulated (e.g. `mount -o remount,ro` or a physical unplug/replug of the primary) and the dashboard shows the new distinct "host mount missing" alert, followed by an auto-remount + `immich_server` restart with no manual intervention, confirmed by a successful container-level storage write test on the next cycle — tested for the primary drive at minimum, with the auto-remount-only path (no restart) confirmed for both backup drives.
+
+**Related:** CARD-0032 (original storage-health check), CARD-0046 (extended to backup drives, same "container's cached view goes stale" root-cause class as this card), `components/photo-server/heartbeat.md` (mechanics of the existing checks this extends).
 
 ---
 

@@ -46,21 +46,32 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     state = {}
 
-findings, new_state = check_services(SERVICES, state)
+findings, new_state, pending_updates = check_services(SERVICES, state)
+
+client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+client.username_pw_set(USERNAME, env["MQTT_PASSWORD"])
+client.connect(BROKER, PORT, 10)
+client.loop_start()
+
+# CARD-0132: retained pending-update state per service, same pattern CARD-0127
+# used for Immich -- published every run regardless of whether `findings` is
+# empty, so /status's Pending Update column reflects current true state
+# instead of "last thing logged."
+for name, info in pending_updates.items():
+    pending_topic = f"jctsh/server/{COMPONENT}/pending-update/{name}"
+    pending_payload = json.dumps({
+        "pending": info["pending"], "current": info["current"], "latest": info["latest"],
+    })
+    pub = client.publish(pending_topic, pending_payload, qos=1, retain=True)
+    pub.wait_for_publish(timeout=5)
 
 if not findings:
     print("Nothing pending.")
 else:
     message = f"Container image updates: {'; '.join(findings)}"
     payload = json.dumps({"component": COMPONENT, "category": "System", "message": message})
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    client.username_pw_set(USERNAME, env["MQTT_PASSWORD"])
-    client.connect(BROKER, PORT, 10)
-    client.loop_start()
     info = client.publish(LOG_TOPIC, payload, qos=1)
     info.wait_for_publish(timeout=5)
-    client.loop_stop()
-    client.disconnect()
     print(f"Notified: {message}")
 
     # CARD-0128: queue a kanban PR too, same as the OS-level maintenance
@@ -87,6 +98,9 @@ else:
         pass  # GITHUB_ENV not set up yet
     except Exception as e:
         print(f"CARD-0128 PR step failed (notification above still succeeded): {e}")
+
+client.loop_stop()
+client.disconnect()
 
 os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
 with open(STATE_FILE, "w") as f:

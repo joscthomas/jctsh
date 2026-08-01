@@ -59,13 +59,23 @@ def _normalize(v):
 
 
 def check_services(services, state):
-    """Returns (findings, new_state). findings is a list of human-readable
-    strings, one per service with a genuinely new, not-yet-throttled
-    update available. new_state is the caller's state dict to persist,
-    keyed per service name with {"version", "notified_at"} for the same
-    7-day reminder throttle every other check in this repo uses."""
+    """Returns (findings, new_state, pending_updates). findings is a list of
+    human-readable strings, one per service with a genuinely new,
+    not-yet-throttled update available. new_state is the caller's state dict
+    to persist, keyed per service name with {"version", "notified_at"} for
+    the same 7-day reminder throttle every other check in this repo uses.
+
+    pending_updates (CARD-0132) is {service_name: {"pending", "current",
+    "latest"}}, populated for every service whose current/latest version was
+    actually determined this run -- unconditionally, independent of the
+    notification throttle above. Mirrors immich-update-check.py's CARD-0127
+    pattern: callers publish this as retained MQTT state every run so a
+    dashboard's Pending Update column reflects current true state rather
+    than "last thing logged," instead of only firing when a new, unthrottled
+    finding happens to exist."""
     findings = []
     new_state = dict(state)
+    pending_updates = {}
     now = datetime.now(timezone.utc)
     for svc in services:
         name = svc["name"]
@@ -77,7 +87,9 @@ def check_services(services, state):
             continue
         if not current or not latest:
             continue
-        if _normalize(current) == _normalize(latest):
+        pending = _normalize(current) != _normalize(latest)
+        pending_updates[name] = {"pending": pending, "current": current, "latest": latest}
+        if not pending:
             new_state.pop(name, None)
             continue
         prior = state.get(name, {})
@@ -91,4 +103,4 @@ def check_services(services, state):
             continue
         findings.append(f"{name}: {latest} available (running {current})")
         new_state[name] = {"version": latest, "notified_at": now.isoformat()}
-    return findings, new_state
+    return findings, new_state, pending_updates

@@ -32,7 +32,26 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     state = {}
 
-findings, new_state = check_services(SERVICES, state)
+findings, new_state, pending_updates = check_services(SERVICES, state)
+
+# CARD-0132: retained pending-update state, same pattern CARD-0127 used for
+# Immich -- published every run for every successfully-checked service,
+# independent of the throttled notification below, so /status's Pending
+# Update column reflects current true state instead of "last thing logged."
+for name, info in pending_updates.items():
+    pending_payload = json.dumps({
+        "pending": info["pending"], "current": info["current"], "latest": info["latest"],
+    })
+    try:
+        subprocess.run(
+            ["mosquitto_pub", "-h", "127.0.0.1", "-p", "1883",
+             "-u", env["MQTT_USER"], "-P", env["MQTT_PASS"],
+             "-t", f"jctsh/core/{COMPONENT}/pending-update/{name}",
+             "-r", "-q", "1", "-m", pending_payload],
+            check=True, timeout=10,
+        )
+    except Exception as e:
+        print(f"Failed to publish pending-update state for {name}: {e}")
 
 if not findings:
     print("Nothing pending.")

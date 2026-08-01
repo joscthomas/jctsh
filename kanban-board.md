@@ -9,7 +9,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0132 -->
+<!-- next-card-id: CARD-0133 -->
+
+---
+
+### CARD-0132 · [enhancement] [infrastructure] Extend CARD-0127's retained Pending-Update state to the generic container-image checker (HA, NetAlertX, Caddy, cloudflared)
+**Status:** Done
+
+**Raised 2026-08-01**, from Joseph noticing the `/status` Device Status page looked inconsistent: `jctsh-core` had logged "Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1)" 14h ago, but its Pending Update column showed `—`, while `photo-server` correctly showed `immich: v3.1.0 available` in the same column for its own real pending update.
+
+**Root cause, confirmed by code reading:** CARD-0127 built the retained-MQTT "Pending Update" mechanism (`jctsh/<type>/<component>/pending-update/<item>`, consumed by `log_server.py`'s `_pending_updates` dict) but scoped its Build pass to `immich-update-check.py` only — explicitly noted at the time as "worth deciding at Build time whether this pattern should extend to the M8 maintenance check and its Pi sibling too... not yet raised as a complaint the way Immich's was." CARD-0126 then shipped the generic container-image checker (`core/maintenance/container_update_check.py`, wrapped by `core/homeassistant/container-update-check.py` for Home Assistant and `components/photo-server/container-update-check.py` for NetAlertX/Caddy/cloudflared) the same day, but it only ever publishes the throttled log-dashboard notification — it never got the retained-state publish CARD-0127 added for Immich. So every service checked by the generic checker (home-assistant, netalertx, caddy, cloudflared) permanently shows `—` in Pending Update regardless of actual state, while only Immich (the one bespoke script) reflects reality. Not a dashboard bug — a real, reproducible gap between two otherwise-parallel checkers.
+
+**Design — mirrors CARD-0127's Immich implementation exactly, applied to the shared module instead of a one-off script:**
+1. `core/maintenance/container_update_check.py`'s `check_services()` gains a third return value, `pending_updates`: `{service_name: {"pending": bool, "current": str, "latest": str}}`, populated for every service where a current/latest version was actually determined (skipped for services whose check raised an exception — no real data to publish in that case), computed and returned unconditionally — independent of the existing 7-day notification throttle, same separation of concerns as Immich's own script (retained state always current; the throttled log message is a separate, secondary signal).
+2. Both wrapper scripts publish one retained (`retain=True`, `qos=1`) MQTT message per entry in `pending_updates`, every run, regardless of whether `findings` is empty — topic `jctsh/core/jctsh-core/pending-update/home-assistant` for the HA wrapper (matching `jctsh-core`'s existing component name so it lands on the right dashboard row), `jctsh/server/photo-server/pending-update/{netalertx,caddy,cloudflared}` for the M8 wrapper (parallel to Immich's own `jctsh/server/photo-server/pending-update/immich`). Payload shape identical to Immich's: `{"pending": bool, "current": "...", "latest": "..."}`.
+3. `core/homeassistant/container-update-check.py` uses `mosquitto_pub` (subprocess), not paho — needs `-r -q 1` added per publish call, not a client-object change like the M8 side.
+4. No `log_server.py` changes needed — the `_pending_updates` dict, subscribe wildcard (`jctsh/+/+/pending-update/+`), and dashboard column are already generic per CARD-0127; this card is purely about getting the other four services to actually publish into that existing mechanism.
+
+**Done when:** `/status` shows a correct Pending Update value for `jctsh-core` (currently a real, outstanding home-assistant update) without needing another unrelated log message to appear stale-but-still-shown. Verified live: both wrapper scripts run for real, retained state confirmed via a fresh dashboard load; the "unaffected by later unrelated log messages" check CARD-0127 used for Immich repeated here for at least `jctsh-core`; up-to-date services (netalertx, caddy, cloudflared, if none pending at test time) confirmed explicit `—`/`pending: false` rather than silently absent.
+
+**Built and verified live, 2026-08-01:**
+- `core/maintenance/container_update_check.py`'s `check_services()` now returns a third value, `pending_updates` — `{service_name: {"pending", "current", "latest"}}` for every service whose current/latest was actually determined, unconditionally, separate from the throttled `findings` list.
+- Both wrapper scripts (`core/homeassistant/container-update-check.py` via `mosquitto_pub -r -q 1`, `components/photo-server/container-update-check.py` via paho `publish(..., qos=1, retain=True)`) now publish one retained message per service every run, regardless of whether `findings` is empty. Topics: `jctsh/core/jctsh-core/pending-update/home-assistant` (Pi) and `jctsh/server/photo-server/pending-update/{netalertx,caddy,cloudflared}` (M8), parallel to Immich's own `.../pending-update/immich`.
+- Deployed to both hosts (`/usr/local/bin/container_update_check.py` + `/usr/local/bin/container-update-check.py`, root-owned, matching existing deployment convention) and run live, not just edited-and-assumed:
+  - **Pi**: `mosquitto_sub` confirmed `jctsh/core/jctsh-core/pending-update/home-assistant {"pending": true, "current": "2026.5.1", "latest": "2026.7.4"}` retained and correct. `/status` re-fetched live — `jctsh-core`'s Pending Update column now reads `home-assistant: 2026.7.4 available`, the exact gap Joseph flagged, now closed.
+  - **M8**: all four services confirmed publishing correctly — `immich` (`pending: true`, unchanged from CARD-0127), `netalertx`/`caddy`/`cloudflared` all genuinely up to date (`pending: false`, explicit rather than absent) at test time — so `netalertx`'s `/status` row still shows `—`, but now because the retained state is really `false`, not because nothing was ever published.
+  - M8 deployment needed `jct`'s sudo password (M8's `sudo` isn't passwordless the way the Pi's is) — retrieved from `credentials.local.md` with Joseph's go-ahead, used only for the one deploy command, not stored anywhere new.
+
+**Related:** CARD-0127 (the mechanism this extends, built for Immich only), CARD-0126 (the generic checker this card retrofits), CARD-0130 (the still-open home-assistant finding this fixes visibility for).
 
 ---
 

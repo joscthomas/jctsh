@@ -26,11 +26,14 @@ Usage (as a library, called from the hike-izer generation step):
 import json
 from datetime import datetime, timedelta, timezone
 
-MST_OFFSET = timedelta(hours=-7)  # America/Phoenix, no DST -- project convention
+# See build_hike_chart.py's own DEFAULT_TZ_OFFSET_HOURS comment -- same
+# caveat applies here: right for a hike taken from home, not for one taken
+# elsewhere. build_map_html() takes an explicit override for that case.
+DEFAULT_TZ_OFFSET_HOURS = -7
 
 
-def _mst_time_str(iso_ts):
-    """12-hour MST time, e.g. '9:14:00 AM'. Same logic as
+def _local_time_str(iso_ts, tz_offset_hours):
+    """12-hour local time, e.g. '9:14:00 AM'. Same logic as
     build_hike_chart.py's own helper -- duplicated rather than imported, so
     the two modules stay independently generated/testable per this card's
     Planning notes (they're only meant to be coupled at runtime, through the
@@ -39,7 +42,7 @@ def _mst_time_str(iso_ts):
     dt = datetime.fromisoformat(iso_ts)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    local = dt.astimezone(timezone.utc) + MST_OFFSET
+    local = dt.astimezone(timezone.utc) + timedelta(hours=tz_offset_hours)
     hour_12 = local.hour % 12 or 12
     ampm = 'AM' if local.hour < 12 else 'PM'
     return f'{hour_12}:{local.minute:02d}:{local.second:02d} {ampm}'
@@ -71,7 +74,7 @@ def _segments(chart_series):
     return segments
 
 
-def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap'):
+def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap', tz_offset_hours=DEFAULT_TZ_OFFSET_HOURS):
     """Returns the full Route Map <section>-ready markup (tooltip slot, map
     container, and the map init + hover-sync script) as one HTML string.
     Returns an empty string if chart_series is empty (hike_confirmed is
@@ -91,7 +94,7 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap'):
     for p in chart_series:
         points_js.append({
             'lat': p['lat'], 'lon': p['lon'],
-            'time': _mst_time_str(p['timestamp']),
+            'time': _local_time_str(p['timestamp'], tz_offset_hours),
             'elevFt': round(p['altitude_ft']),
             'speedMph': round(p['speed_mph'], 1) if p['speed_mph'] is not None else None,
         })

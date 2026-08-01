@@ -253,6 +253,29 @@
   .route-line { stroke: var(--accent); stroke-width: 3; }
   .route-highlight { fill: var(--surface); stroke: var(--accent); stroke-width: 2.5; }
 
+  /* Side-by-side Route Map + Elevation & Speed -- shown together so the
+     hover-sync between them (CARD-0082 <-> CARD-0110) is actually visible
+     without scrolling back and forth, matching Gaia GPS's own dual-pane
+     layout this was modeled on (found by testing the two sections stacked,
+     2026-08-01 -- the sync worked but couldn't be seen happening). Falls
+     back to stacked below 52rem, same breakpoint spirit as the .stat-row
+     2-column fallback -- side-by-side gets too cramped to be useful before
+     that. */
+  .hike-visuals {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    margin-bottom: 2.25rem;
+  }
+  .hike-visuals section { margin-bottom: 0; }
+  @media (min-width: 52rem) {
+    .hike-visuals {
+      grid-template-columns: 1fr 1fr;
+      align-items: start;
+    }
+    .hike-visuals .hike-map { height: 15rem; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .chart-tooltip-slot, .hover-dot { transition: none; }
   }
@@ -393,37 +416,33 @@
   </div>
 
   <!--
-    Route Map (CARD-0082) -- only present when chart_series is non-empty,
-    same "no empty scaffolding" convention as Photos and the Elevation &
-    Speed chart below (and the same condition that section already gates
-    on, since both come from the same chart_series). Markup and the
-    Leaflet init + hover-sync <script> are both generated verbatim by
-    build_hike_map.py's build_map_html(chart_series, thunderforest_api_key)
-    -- splice its return value in directly, do not hand-author or edit the
-    map markup per hike. Placed above the Elevation & Speed chart
-    deliberately (CARD-0110 was scoped to go below the map, not the other
-    way around).
+    Route Map (CARD-0082) + Elevation & Speed chart (CARD-0110), wrapped
+    together in .hike-visuals so they render side-by-side (falling back to
+    stacked on narrow screens) -- both are only present when chart_series is
+    non-empty (coverage.gps_track.hike_confirmed is true), so this whole
+    <div class="hike-visuals">...</div> wrapper gets omitted together on a
+    day that isn't confirmed, same "no empty scaffolding" convention Photos
+    follows -- there's nothing meaningful to show either one on an
+    unconfirmed day. Markup and the hover-sync <script>s in each are
+    generated verbatim by build_hike_map.py's
+    build_map_html(chart_series, thunderforest_api_key) and
+    build_hike_chart.py's build_chart_html(chart_series) -- splice both
+    return values in directly, do not hand-author or edit either per hike.
+    Map stays first in markup order (CARD-0110 was scoped to go below/after
+    the map, not the other way around) even though the CSS grid places them
+    side-by-side rather than stacked at wide viewports.
   -->
+  <div class="hike-visuals">
   <section>
     <h2>Route Map</h2>
     {{ROUTE_MAP}}
   </section>
 
-  <!--
-    Elevation & Speed chart (CARD-0110) -- only present when
-    chart_series (fetch_hike_data.py's JSON) is non-empty, i.e.
-    coverage.gps_track.hike_confirmed is true. Omit this whole <section>
-    entirely otherwise, same "no empty scaffolding" convention Photos below
-    already follows -- there's nothing meaningful to chart on an
-    unconfirmed day. Markup and the one small hover <script> are both
-    generated verbatim by build_hike_chart.py's build_chart_html(chart_series)
-    -- splice its return value in directly, do not hand-author or edit the
-    chart markup per hike.
-  -->
   <section>
     <h2>Elevation &amp; Speed</h2>
     {{ELEVATION_SPEED_CHART}}
   </section>
+  </div>
 
   <!--
     Pace &amp; elevation detail (CARD-0110) -- eight cards, same .stat /

@@ -511,13 +511,83 @@ def _gps_sessions(gps_rows, session_gap_min=10):
 # if it's over/under-filtering on a real hike).
 ASCENT_DESCENT_NOISE_FT = 5.0
 
+# CARD-0082/0110 follow-up (2026-08-01): a degraded GPS fix produces a
+# real lat/lon, just an inaccurate one, and _hike_point_series() used to
+# trust every point equally -- one bad fix could look like several meters
+# of phantom movement, inflating that interval's speed (a real hike showed
+# 6+ mph "walking" this way) and, since altitude and position degrade
+# together, likely inflating ascent/descent noise too. Points whose own
+# accuracy_m exceeds this threshold are dropped entirely before computing
+# any interval, so distance/speed spans from the last known-good point to
+# the next one instead of using the bad fix as an endpoint. Threshold
+# grounded in a real session's own accuracy_m distribution, not guessed:
+# 62 of 71 points clustered at <=14.0m, then a clean gap to a cluster of
+# 9 points at 21.3m+ -- 20.0 sits in that gap, so it draws the line where
+# the data itself already splits into "good fix" and "degraded fix",
+# rather than an arbitrary round number.
+GPS_ACCURACY_MAX_M = 20.0
+
+# CARD-0110 follow-up (2026-08-01): even after the accuracy filter above, a
+# real hike's single worst-surviving point-to-point speed (4.1 mph, clearly
+# too fast for this hike's ~2.3 mph pace) traced back to a point with 13.99m
+# accuracy -- well under the 20m cutoff, but still a meaningful fraction of
+# the ~30m a hiker actually covers in one ~30s point-to-point interval (this
+# GPS logger's typical cadence). There's no accuracy cutoff that fixes this
+# cleanly, since accuracy degrades on a continuum, not in two clean buckets
+# the way the 15.3m/21.3m gap did -- a few meters of position noise is just
+# a bigger fraction of a short interval's real distance than of a longer
+# one. Fix: compute each point's speed over a wider time baseline (looking
+# back far enough to span at least this many seconds) instead of only the
+# immediately preceding point -- real walking distance scales with time,
+# GPS position noise doesn't, so widening the baseline dilutes the same few
+# meters of jitter against a bigger real distance. ~30s point-to-point
+# cadence is typical for this pipeline (GPSLogger), so 60s roughly doubles
+# the distance-to-noise ratio versus a raw per-pair speed.
+SPEED_WINDOW_MIN_SEC = 60.0
+
+# CARD-0110 follow-up (2026-08-01): compared a real hike's Ascent/Descent
+# against Gaia GPS's own numbers for the identical session -- 165/156 ft
+# reported here versus Gaia's 52/31 ft, off by more than 3x. GPS vertical
+# error is typically *worse* than horizontal (the same signal-geometry
+# limitation that made SPEED_WINDOW_MIN_SEC necessary applies at least as
+# much to altitude), so a raw per-point alt_ft is at least as noise-prone as
+# a raw per-point position was. Same fix, same reasoning: widen the
+# baseline via a centered moving average (not one-sided like the speed
+# window, since there's no causality constraint here -- the whole session's
+# points are already fetched, so smoothing with "future" points costs
+# nothing and smooths better than a backward-only window of the same width).
+#
+# Started from SPEED_WINDOW_MIN_SEC's own 60s on the assumption vertical and
+# horizontal noise share the same characteristic timescale -- wrong, per a
+# real calibration sweep against this hike's Gaia numbers: 60s only got to
+# 151/142 (barely moved), while 120s/180s/300s/600s gave 65/52, 52/38, 45/28,
+# 24/11 -- 180s is the point closest to Gaia's real 52/31 (ascent matches
+# exactly), both narrower and wider windows undershoot in one direction or
+# overshoot in the other. Calibrated against one real hike, not
+# cross-validated against a second -- a reasonable starting point, not a
+# settled constant; worth re-checking if a future hike's numbers look off
+# again the way this one did.
+ALTITUDE_SMOOTH_WINDOW_SEC = 180.0
+
 
 def _hike_point_series(gps_rows):
     """Sorted per-point series for the confirmed hike's own GPS rows --
-    timestamp, cumulative distance (mi), altitude (ft), and the speed (mph)
-    of the interval ending at this point (None for the first point, which
-    has no prior point to measure an interval against, and for any point
-    with a non-positive dt from a duplicate/out-of-order timestamp)."""
+    timestamp, cumulative distance (mi), altitude (ft), interval_dt_sec
+    (the raw point-to-point time delta, used for accurate total-elapsed-time
+    accounting -- e.g. moving_time_min + stopped_time_min must sum to the
+    real session duration, which a widened speed-averaging window would
+    break if it were also used for time accounting), and speed_mph (the
+    windowed speed ending at this point -- see SPEED_WINDOW_MIN_SEC's own
+    comment -- used for moving-vs-stopped classification and chart display,
+    not interval_dt_sec's raw pairing). Both are None for the first point
+    (interval_dt_sec) or first ~SPEED_WINDOW_MIN_SEC of a session (speed_mph,
+    until there's enough history to build a full window) -- not enough
+    prior data to measure against yet, not a missing-data bug. Points with a
+    degraded GPS fix (accuracy_m above GPS_ACCURACY_MAX_M) are dropped
+    before any interval is computed -- see that constant's own comment. A
+    row with no accuracy_m at all is kept, not dropped: missing accuracy
+    isn't evidence of a bad fix, just an older row predating the field (or
+    a source that never reports it)."""
     sorted_rows = sorted((r for r in gps_rows if r.get('timestamp')), key=lambda r: r['timestamp'])
     series = []
     cum_dist_m = 0.0
@@ -528,19 +598,53 @@ def _hike_point_series(gps_rows):
         alt_m = to_float(r.get('altitude_m'))
         if ts is None or lat is None or lon is None or alt_m is None:
             continue
-        speed_mph, dt_sec = None, None
+        accuracy_m = to_float(r.get('accuracy_m'))
+        if accuracy_m is not None and accuracy_m > GPS_ACCURACY_MAX_M:
+            continue
+        interval_dt_sec, raw_speed_mph = None, None
         if prev is not None:
-            dt_sec = (ts - prev['ts']).total_seconds()
-            if dt_sec > 0:
+            interval_dt_sec = (ts - prev['ts']).total_seconds()
+            if interval_dt_sec > 0:
                 seg_m = _haversine_m(prev['lat'], prev['lon'], lat, lon)
                 cum_dist_m += seg_m
-                speed_mph = (seg_m / dt_sec) * 2.23694
+                raw_speed_mph = (seg_m / interval_dt_sec) * 2.23694
         series.append({
             'ts': ts, 'lat': lat, 'lon': lon, 'alt_ft': m_to_ft(alt_m),
             'distance_mi': cum_dist_m / 1609.34,
-            'speed_mph': speed_mph, 'dt_sec': dt_sec,
+            'interval_dt_sec': interval_dt_sec, 'speed_mph': raw_speed_mph,
         })
         prev = {'ts': ts, 'lat': lat, 'lon': lon}
+
+    # Second pass: widen to a windowed speed wherever there's enough history
+    # to build one (see SPEED_WINDOW_MIN_SEC's own comment). The raw
+    # pairwise speed set above stays as a fallback for the first
+    # ~SPEED_WINDOW_MIN_SEC of a session, where there isn't -- deliberately
+    # not left as None there, since that would silently drop that opening
+    # stretch's interval_dt_sec out of moving_time_min + stopped_time_min
+    # (which must sum to the real session duration).
+    for i in range(1, len(series)):
+        cur = series[i]
+        j = i - 1
+        while j > 0 and (cur['ts'] - series[j]['ts']).total_seconds() < SPEED_WINDOW_MIN_SEC:
+            j -= 1
+        span_sec = (cur['ts'] - series[j]['ts']).total_seconds()
+        if span_sec < SPEED_WINDOW_MIN_SEC:
+            continue  # not enough window history yet -- keep the raw-pair fallback
+        span_m = _haversine_m(series[j]['lat'], series[j]['lon'], cur['lat'], cur['lon'])
+        cur['speed_mph'] = (span_m / span_sec) * 2.23694
+
+    # Third pass: smooth altitude the same way, over ALTITUDE_SMOOTH_WINDOW_SEC
+    # centered on each point -- see that constant's own comment. Replaces
+    # alt_ft in place so every consumer (ascent/descent, the chart's
+    # displayed elevation line, map hover) sees the same smoothed value,
+    # never a mix of raw and smoothed depending which one happened to read
+    # it first.
+    raw_alts = [p['alt_ft'] for p in series]
+    half = ALTITUDE_SMOOTH_WINDOW_SEC / 2
+    for i, p in enumerate(series):
+        nearby = [raw_alts[j] for j, q in enumerate(series) if abs((q['ts'] - p['ts']).total_seconds()) <= half]
+        p['alt_ft'] = sum(nearby) / len(nearby)
+
     return series
 
 
@@ -562,16 +666,19 @@ def _moving_stopped_time_min(series, min_speed_mps):
     """min_speed_mps: the caller's own moving-vs-stationary cutoff (this
     file reuses WALKING_SPEED_MIN_MPS, defined below, rather than a second
     threshold) -- an interval counts as moving if its speed meets or exceeds
-    it, stopped otherwise."""
+    it, stopped otherwise. Time summed is each point's own interval_dt_sec
+    (the raw point-to-point gap, so total time stays exact), classified
+    using speed_mph (the windowed, noise-resistant value) -- deliberately
+    not the same field for both, see _hike_point_series()'s own docstring."""
     min_speed_mph = min_speed_mps * 2.23694
     moving_sec = stopped_sec = 0.0
     for p in series:
-        if p['dt_sec'] is None or p['speed_mph'] is None:
+        if p['interval_dt_sec'] is None or p['speed_mph'] is None:
             continue
         if p['speed_mph'] >= min_speed_mph:
-            moving_sec += p['dt_sec']
+            moving_sec += p['interval_dt_sec']
         else:
-            stopped_sec += p['dt_sec']
+            stopped_sec += p['interval_dt_sec']
     return round(moving_sec / 60, 1), round(stopped_sec / 60, 1)
 
 

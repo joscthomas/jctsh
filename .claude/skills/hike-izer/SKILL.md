@@ -293,31 +293,30 @@ section.
    sightings) are the one piece still **out of scope here** -- tracked
    separately on `kanban-board.md` as CARD-0082's deferred Level 3.
 
-   **Route Map (CARD-0082):**
-   - Above the Elevation & Speed chart, fill the template's `{{ROUTE_MAP}}`
-     placeholder by calling
-     `build_hike_map.build_map_html(hike_data['chart_series'], thunderforest_api_key)`
-     -- `thunderforest_api_key` comes from `credentials.local.md`'s
-     "Thunderforest" entry, read the same way every other component reads
-     its own credential. Returns the complete, ready-to-embed map markup
-     (tooltip slot, Leaflet map container, and the Leaflet init + hover-sync
-     `<script>`). Splice it in verbatim; don't hand-author or edit the map
-     markup per hike. If `chart_series` is empty (`hike_confirmed` is
-     `false`), `build_map_html()` returns `''` -- omit the whole "Route Map"
-     `<section>` in that case, same convention as Photos. Also omit the
-     template's `<link>`/`<script>` tags for vendored Leaflet in `<head>`
-     when there's no map to show.
+   **Route Map (CARD-0082) + Elevation & Speed chart (CARD-0110), shown
+   side-by-side:** the template wraps both in `<div class="hike-visuals">`
+   so they render together (side-by-side at wide viewports, stacked on
+   narrow ones) -- added 2026-08-01 after testing the two sections stacked
+   and finding the hover-sync between them, while working correctly, wasn't
+   visible without scrolling back and forth to see both halves. Fill the
+   `{{ROUTE_MAP}}` placeholder by calling
+   `build_hike_map.build_map_html(hike_data['chart_series'], thunderforest_api_key)`
+   -- `thunderforest_api_key` comes from `credentials.local.md`'s
+   "Thunderforest" entry, read the same way every other component reads its
+   own credential. Fill `{{ELEVATION_SPEED_CHART}}` by calling
+   `build_hike_chart.build_chart_html(hike_data['chart_series'])`. Both
+   return complete, ready-to-embed markup (map: tooltip slot, Leaflet
+   container, Leaflet init + hover-sync `<script>`; chart: legend, tooltip
+   slot, SVG with baked-in geometry, hover `<script>`) -- splice both in
+   verbatim, don't hand-author or edit either per hike. If `chart_series` is
+   empty (`hike_confirmed` is `false`), both functions return `''` -- omit
+   the **whole `<div class="hike-visuals">` wrapper**, both sections inside
+   it together, same "no empty scaffolding" convention as Photos (they
+   share the same empty condition, so there's never a case with one present
+   and not the other). Also omit the template's `<link>`/`<script>` tags for
+   vendored Leaflet in `<head>` when there's no map to show.
 
-   **Elevation & Speed chart and richer pace stats (CARD-0110):**
-   - Below the Route Map, fill the template's `{{ELEVATION_SPEED_CHART}}`
-     placeholder by calling `build_hike_chart.build_chart_html(hike_data['chart_series'])`
-     -- its return value is the complete, ready-to-embed chart markup
-     (legend, hover tooltip slot, SVG with baked-in geometry, and the one
-     small hover `<script>`). Splice it in verbatim; don't hand-author or
-     edit the chart markup per hike. If `chart_series` is empty
-     (`hike_confirmed` is `false`), `build_chart_html()` returns `''` --
-     omit the whole "Elevation & Speed" `<section>` in that case, same "no
-     empty scaffolding" convention as Photos.
+   **Richer pace stats (CARD-0110):**
    - Fill the `.stat-row--rich` "Pace & Elevation Detail" section from
      `stats`: **Moving Time** (`stats.moving_time_min`, format `Xm Ys`),
      **Stopped Time** (`stats.stopped_time_min`, same format), **Total

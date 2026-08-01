@@ -21,21 +21,31 @@ Usage (as a library, called from the hike-izer generation step):
 
 from datetime import datetime, timedelta, timezone
 
-MST_OFFSET = timedelta(hours=-7)  # America/Phoenix, no DST -- project convention
+# America/Phoenix, no DST -- the default because it's right for every hike
+# taken from home. NOT right for a hike taken elsewhere (e.g. traveling) --
+# caught 2026-08-01 generating a real Michigan hike's page, where GPS
+# coordinates put it in Eastern time, not Arizona. build_chart_html() takes
+# an explicit tz_offset_hours override for exactly that case; there's no
+# automatic lat/lon-to-timezone detection yet (would need a real geo-timezone
+# lookup, its own scoped card, not a silent addition here) -- whoever's
+# generating a hike's page has to notice the hike wasn't local and pass the
+# right offset by hand, the same kind of judgment call SKILL.md's
+# cross-midnight caveat already documents.
+DEFAULT_TZ_OFFSET_HOURS = -7
 
 VIEWBOX_W = 640
 VIEWBOX_H = 220
 MARGIN = {'top': 10, 'right': 40, 'bottom': 22, 'left': 42}
 
 
-def _mst_time_str(iso_ts):
-    """12-hour MST time, e.g. '9:14:00 AM' -- avoids strftime's non-portable
+def _local_time_str(iso_ts, tz_offset_hours):
+    """12-hour local time, e.g. '9:14:00 AM' -- avoids strftime's non-portable
     '%-I'/'%#I' no-leading-zero flags (glibc vs. Windows) by formatting the
     hour by hand."""
     dt = datetime.fromisoformat(iso_ts)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    local = dt.astimezone(timezone.utc) + MST_OFFSET
+    local = dt.astimezone(timezone.utc) + timedelta(hours=tz_offset_hours)
     hour_12 = local.hour % 12 or 12
     ampm = 'AM' if local.hour < 12 else 'PM'
     return f'{hour_12}:{local.minute:02d}:{local.second:02d} {ampm}'
@@ -46,7 +56,7 @@ def _esc(s):
             .replace('"', '&quot;'))
 
 
-def build_chart_html(chart_series, chart_id='hikeChart'):
+def build_chart_html(chart_series, chart_id='hikeChart', tz_offset_hours=DEFAULT_TZ_OFFSET_HOURS):
     """Returns the full chart <section>-ready markup (legend, tooltip slot,
     SVG with baked-in geometry + hover hit-targets, and the small hover
     script) as one HTML string. Returns an empty string if chart_series is
@@ -142,7 +152,7 @@ def build_chart_html(chart_series, chart_id='hikeChart'):
     # one thing the Route Map needs to look up the *same* point in its own
     # markup for hover-sync, since both are generated from the same list.
     for i, p in enumerate(chart_series):
-        time_str = _esc(_mst_time_str(p['timestamp']))
+        time_str = _esc(_local_time_str(p['timestamp'], tz_offset_hours))
         ex, ey = x(p['distance_mi']), y_elev(p['altitude_ft'])
         svg_parts.append(
             f'<circle class="hit-target" cx="{ex:.1f}" cy="{ey:.1f}" r="10" data-index="{i}" '

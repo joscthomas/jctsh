@@ -45,7 +45,7 @@ update:
 
 ```
 scp components/hike-izer-orchestrator/*.py components/hike-izer-orchestrator/Dockerfile components/hike-izer-orchestrator/requirements.txt jct@photo-server.local:~/hike-izer-web-app/orchestrator/
-scp components/hike-izer/fetch_hike_data.py components/hike-izer/fetch_hike_photos.py jct@photo-server.local:~/hike-izer-web-app/orchestrator/
+scp components/hike-izer/fetch_hike_data.py components/hike-izer/fetch_hike_photos.py components/hike-izer/build_hike_map.py components/hike-izer/build_hike_chart.py jct@photo-server.local:~/hike-izer-web-app/orchestrator/
 scp .claude/skills/hike-izer/SKILL.md jct@photo-server.local:~/hike-izer-web-app/orchestrator/
 ssh jct@photo-server.local "cd ~/hike-izer-web-app && docker compose up -d --build orchestrator"
 ```
@@ -54,11 +54,15 @@ ssh jct@photo-server.local "cd ~/hike-izer-web-app && docker compose up -d --bui
 see `components/hike-izer-web/.env.example` for the full list and
 `credentials.local.md` for real values: `WEBHOOK_SECRET`,
 `ANTHROPIC_API_KEY`, `APPS_SCRIPT_URL`, `APPS_SCRIPT_KEY`, `IMMICH_URL`,
-`IMMICH_KEY`, `MQTT_USERNAME`, `MQTT_PASSWORD`. The MQTT account needs to
-be created on the Pi once (`sudo mosquitto_passwd ...` — see
-`credentials.local.md`) before publish-visibility logging works; everything
-else works without it (a missing MQTT account just means `mqtt_log.py`
-prints a warning and skips the publish, not a generation failure).
+`IMMICH_KEY`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `THUNDERFOREST_API_KEY`
+(CARD-0134 — the Route Map's basemap tiles; a missing/empty value just
+means `render_html()` omits the map section, same "not available" pattern
+as every other optional section, not a generation failure). The MQTT
+account needs to be created on the Pi once (`sudo mosquitto_passwd ...` —
+see `credentials.local.md`) before publish-visibility logging works;
+everything else works without it (a missing MQTT account just means
+`mqtt_log.py` prints a warning and skips the publish, not a generation
+failure).
 
 ## Webhook contract
 
@@ -190,6 +194,8 @@ directory, and the SSHFS-Win mount that gets them there from Windows.
 - CARD-0088 (hosting — this component rides its Funnel URL/Caddy/compose project)
 - CARD-0007 (Hiking Observations pipeline — the Tasker HTTP-POST pattern this profile copies)
 - CARD-0084 (photo integration — `fetch_hike_photos.py`, same behavior reused here)
+- CARD-0082 / CARD-0110 / CARD-0134 (Route Map + Elevation & Speed chart — `templating.py` imports `build_hike_map.py`/`build_hike_chart.py` directly, same deployed-copy pattern as `fetch_hike_data.py`; CARD-0134 wired them into this pipeline, replacing the Gaia embed as this pipeline's default map)
 - `.claude/skills/hike-izer/SKILL.md` (the narrative-writing rules `narrative.py` calls Claude with, and the mechanical-output rules `templating.py` ports)
-- `components/hike-izer/fetch_hike_data.py` / `fetch_hike_photos.py` (run as subprocesses by `generation.py`)
+- `components/hike-izer/fetch_hike_data.py` / `fetch_hike_photos.py` / `build_hike_map.py` / `build_hike_chart.py` (run as subprocesses or imported directly by `generation.py`/`templating.py`)
+- `components/hike-izer/vendor/leaflet/` (deployed once to `~/hike-izer-web-app/srv/vendor/leaflet/` by CARD-0082 — this pipeline's pages reference it by the same relative path, no separate deployment needed here)
 - `components/hike-izer/html-template.html` (the styling `templating.py`'s `_HTML_STYLE` constant ports verbatim)

@@ -358,7 +358,14 @@ def run(payload):
     # rendering only. templating.render_html omits the whole narrative
     # section when narrative_paragraphs is empty, same convention as the
     # Photos section's own omit-when-empty handling.
-    html_text = templating.render_html(hike_data, [], date_str, offset_str, photos_manifest, file_stem=file_stem)
+    # CARD-0134: thunderforest_api_key passed here too (not just step 2) --
+    # the Route Map + Elevation & Speed chart need no manual staging, unlike
+    # the Gaia embed they replaced, so every automatically-published page
+    # gets a real map/chart from this very first publish.
+    html_text = templating.render_html(
+        hike_data, [], date_str, offset_str, photos_manifest, file_stem=file_stem,
+        thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
+    )
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
         f.write(html_text)
@@ -445,11 +452,18 @@ def run_step2(file_stem, with_narrative=False):
             hike_data, skill_md_text, _env("ANTHROPIC_API_KEY"), place_context=narrative_facts, cost_tracker=tracker
         )
 
+    # CARD-0134: gaia_embed_html deliberately not passed anymore -- the
+    # native Route Map (CARD-0082) replaced it as this pipeline's default,
+    # since it needs no manual staging. _read_staging() above still reads
+    # gaia_embed.txt if present (untouched), but this call no longer uses
+    # it; templating.render_html's gaia_section stays available for a
+    # future caller, just unused by this one now.
     html_text = templating.render_html(
         hike_data, paragraphs, date_str, offset_str, photos_manifest,
-        gaia_embed_html=staged.get("gaia_embed_html"), file_stem=file_stem,
+        file_stem=file_stem,
         birdnet_rows=birdnet_rows,
         address=place_context.get("address"), named_features=place_context.get("named_features"),
+        thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
     )
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:

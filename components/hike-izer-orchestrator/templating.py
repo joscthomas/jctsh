@@ -10,11 +10,23 @@ calendar date being summarized, and the hike's local UTC offset (never
 hardcoded Arizona -- see CARD-0086), produces the same HTML a human following
 the interactive Skill would produce by hand.
 
-Standard library only -- matches fetch_hike_data.py's convention.
+CARD-0134 (2026-08-01): the Route Map (CARD-0082) and Elevation & Speed chart
+(CARD-0110) are ported here the same way -- build_hike_map.py/build_hike_chart.py
+are deployed copies from components/hike-izer/ (same pattern as
+fetch_hike_data.py/fetch_hike_photos.py, see the Dockerfile), imported
+directly rather than subprocessed since both are pure functions over
+hike_data['chart_series'], which fetch_hike_data.py already computes and this
+module already receives -- no new data-fetching step needed.
+
+Standard library only -- matches fetch_hike_data.py's convention (both new
+imports below are themselves stdlib-only).
 """
 
 import json
 from datetime import datetime, timedelta, timezone
+
+import build_hike_chart
+import build_hike_map
 
 NA = "not available"
 
@@ -393,6 +405,7 @@ _HTML_STYLE = """
     --radius: 8px;
     --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
     --sans: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --chart-elevation: #96723f; --chart-elevation-fill: rgba(150, 114, 63, 0.12); --chart-speed: #3f6a8a; --chart-speed-fill: rgba(63, 106, 138, 0.10);
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -411,6 +424,7 @@ _HTML_STYLE = """
       --warning-bg: #332c17;
       --danger: #e0897a;
       --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 20px -10px rgba(0,0,0,0.5);
+      --chart-elevation: #cda978; --chart-elevation-fill: rgba(205, 169, 120, 0.14); --chart-speed: #7bb4d9; --chart-speed-fill: rgba(123, 180, 217, 0.12);
     }
   }
   * { box-sizing: border-box; }
@@ -432,6 +446,40 @@ _HTML_STYLE = """
   .stat__value { font-size: 1.35rem; font-weight: 700; }
   .stat__value--na { font-size: 1rem; font-weight: 400; color: var(--ink-faint); font-style: italic; }
   .forecast-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); gap: 0.75rem; }
+  .stat-row--rich { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.75rem; }
+  .chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.15rem 0.85rem; }
+  .chart-legend { display: flex; gap: 1.25rem; font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); margin-bottom: 0.6rem; }
+  .chart-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .chart-legend i { width: 0.7rem; height: 0.7rem; border-radius: 2px; display: inline-block; }
+  .chart-legend .dot-elevation { background: var(--chart-elevation); }
+  .chart-legend .dot-speed { background: var(--chart-speed); }
+  .chart-tooltip-slot { height: 2.5rem; display: flex; align-items: center; font-family: var(--mono); font-size: 0.82rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line); margin-bottom: 0.5rem; transition: color 0.1s ease; }
+  .chart-tooltip-slot.is-active { color: var(--ink); }
+  .chart-tooltip-slot .tt-time { color: var(--ink-muted); margin-right: 0.9rem; }
+  .chart-tooltip-slot .tt-metric { font-weight: 700; }
+  .chart-tooltip-slot .tt-metric.elevation { color: var(--chart-elevation); }
+  .chart-tooltip-slot .tt-metric.speed { color: var(--chart-speed); }
+  .chart-svg-wrap { width: 100%; overflow-x: auto; }
+  svg.hike-chart { width: 100%; height: auto; display: block; cursor: crosshair; }
+  .axis-label { font-family: var(--mono); font-size: 9px; fill: var(--ink-faint); }
+  .axis-line { stroke: var(--line); stroke-width: 1; }
+  .gridline { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 3; }
+  .line-elevation { fill: none; stroke: var(--chart-elevation); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .line-elevation-fill { fill: var(--chart-elevation-fill); stroke: none; }
+  .line-speed { fill: none; stroke: var(--chart-speed); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .hit-target { fill: transparent; cursor: pointer; }
+  .hover-dot { r: 4; fill: var(--surface); stroke-width: 2.5; transition: opacity 0.08s ease; pointer-events: none; }
+  .hover-dot.elevation { stroke: var(--chart-elevation); }
+  .hover-dot.speed { stroke: var(--chart-speed); }
+  .hover-guide { stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 2 2; pointer-events: none; }
+  .map-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.15rem 0.85rem; }
+  .hike-map { height: 20rem; border-radius: var(--radius); border: 1px solid var(--line); }
+  .route-line { stroke: var(--accent); stroke-width: 3; }
+  .route-highlight { fill: var(--surface); stroke: var(--accent); stroke-width: 2.5; }
+  .hike-visuals { display: grid; grid-template-columns: 1fr; gap: 1.25rem; margin-bottom: 2.25rem; }
+  .hike-visuals section { margin-bottom: 0; }
+  @media (min-width: 52rem) { .hike-visuals { grid-template-columns: 1fr 1fr; align-items: start; } .hike-visuals .hike-map { height: 15rem; } }
+  @media (prefers-reduced-motion: reduce) { .chart-tooltip-slot, .hover-dot { transition: none; } }
   .callout { background: var(--warning-bg); border: 1px solid var(--warning); border-radius: var(--radius); padding: 1rem 1.15rem; margin-bottom: 1.75rem; font-size: 0.95rem; }
   .callout strong { color: var(--warning); }
   section { margin-bottom: 2.25rem; }
@@ -468,7 +516,7 @@ def _stat_card(label, value, na=False):
 
 def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None,
                  gaia_embed_html=None, file_stem=None, birdnet_rows=None,
-                 address=None, named_features=None):
+                 address=None, named_features=None, thunderforest_api_key=None):
     offset_delta = _parse_offset(offset_str)
     coverage = hike_data["coverage"]
     stats = hike_data["stats"]
@@ -519,7 +567,10 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     # step 2 -- right after the hero stat-row, before Weather Forecast, per
     # CARD-0104's decided placement. Gaia's own inline iframe styles are
     # left untouched; just given the same card framing as the rest of the
-    # page via the wrapper below.
+    # page via the wrapper below. CARD-0134: no longer populated by
+    # generation.py's own calls (the native map below replaced it as this
+    # pipeline's default), but left intact -- still renders correctly if a
+    # caller ever passes gaia_embed_html again.
     gaia_section = ""
     if gaia_embed_html:
         gaia_section = f"""
@@ -527,6 +578,31 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     <h2>Route Map</h2>
     <div class="map-embed">{gaia_embed_html}</div>
   </section>"""
+
+    # CARD-0134: Route Map (CARD-0082) + Elevation & Speed chart (CARD-0110),
+    # side-by-side in .hike-visuals -- same wrapper the interactive Skill's
+    # html-template.html uses. Computed from hike_data['chart_series'],
+    # which fetch_hike_data.py already produces (shared with the Skill), so
+    # this needs no new data-fetching step. Needs zero manual staging,
+    # unlike the Gaia embed above, so it's present from step 1 onward --
+    # every automatically-generated page gets a real map/chart immediately,
+    # not just ones Joseph later enriches by hand.
+    offset_hours = offset_delta.total_seconds() / 3600
+    chart_series = hike_data.get("chart_series") or []
+    chart_html = (
+        build_hike_chart.build_chart_html(chart_series, tz_offset_hours=offset_hours) if chart_series else ""
+    )
+    map_html = (
+        build_hike_map.build_map_html(chart_series, thunderforest_api_key, tz_offset_hours=offset_hours)
+        if chart_series and thunderforest_api_key else ""
+    )
+    hike_visuals_section = ""
+    if map_html or chart_html:
+        map_part = f'<section><h2>Route Map</h2>{map_html}</section>' if map_html else ""
+        chart_part = f'<section><h2>Elevation &amp; Speed</h2>{chart_html}</section>' if chart_html else ""
+        hike_visuals_section = f"""
+  <div class="hike-visuals">{map_part}{chart_part}
+  </div>"""
 
     # CARD-0123: Location/Nearby Named Features -- previously only ever woven
     # into narrative prose (and so invisible whenever narrative was off).
@@ -667,12 +743,23 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     )
     coverage_note_html = "".join(f"<p>{_esc(n)}</p>" for n in coverage_notes(coverage, offset_delta, offset_str))
 
+    # CARD-0134: vendored Leaflet, same relative path CARD-0082 already
+    # deployed to ~/hike-izer-web-app/srv/vendor/leaflet/ -- this pipeline
+    # writes its HTML into that same srv/ directory, so no new deployment
+    # was needed for the assets themselves, just this reference to them.
+    # Omitted entirely when there's no map to show, same convention
+    # SKILL.md documents for the interactive Skill's own template.
+    leaflet_head = (
+        '\n<link rel="stylesheet" href="vendor/leaflet/leaflet.css">'
+        '\n<script src="vendor/leaflet/leaflet.js"></script>'
+    ) if map_html else ""
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hike Summary for {_esc(format_date_display(date_str))}</title>
+<title>Hike Summary for {_esc(format_date_display(date_str))}</title>{leaflet_head}
 <style>{_HTML_STYLE}</style>
 </head>
 <body>
@@ -682,6 +769,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   <div class="stat-row">{stat_row}</div>
   {callout}
   {rejected_section}
+  {hike_visuals_section}
   {gaia_section}
   {location_section}
   <section>

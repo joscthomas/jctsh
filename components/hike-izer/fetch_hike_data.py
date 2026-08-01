@@ -650,7 +650,12 @@ def build_chart_series(gps_rows, sessions, max_points=80):
     compute_hike_detail_stats, so the chart never implies movement during the
     gap between two separate sessions. Each session's first point after the
     first carries 'session_break': true so the renderer can start a new line
-    segment there instead of connecting it to the prior session's last point."""
+    segment there instead of connecting it to the prior session's last point.
+
+    CARD-0082: also carries lat/lon per point (already computed by
+    _hike_point_series, just not previously passed through) -- this is the
+    one shared series the Route Map reads too, so the map and the chart can
+    never disagree about what a given point actually is."""
     all_series = _session_point_series(gps_rows, sessions)
     if not all_series:
         return []
@@ -676,6 +681,8 @@ def build_chart_series(gps_rows, sessions, max_points=80):
                 'distance_mi': round(p['distance_mi'] + dist_offset, 3),
                 'altitude_ft': round(p['alt_ft']),
                 'speed_mph': round(p['speed_mph'], 1) if p['speed_mph'] is not None else None,
+                'lat': round(p['lat'], 6),
+                'lon': round(p['lon'], 6),
                 'session_break': gi > 0 and i == 0,
             })
         dist_offset += total_mi

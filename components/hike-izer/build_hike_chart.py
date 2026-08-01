@@ -138,17 +138,20 @@ def build_chart_html(chart_series, chart_id='hikeChart'):
     # Hit-targets: one invisible larger circle per point per line, each
     # carrying its own hover data pre-baked as attributes -- the hover
     # script just reads these, it never computes a value or a coordinate.
-    for p in chart_series:
+    # data-index (CARD-0082) is this point's position in chart_series -- the
+    # one thing the Route Map needs to look up the *same* point in its own
+    # markup for hover-sync, since both are generated from the same list.
+    for i, p in enumerate(chart_series):
         time_str = _esc(_mst_time_str(p['timestamp']))
         ex, ey = x(p['distance_mi']), y_elev(p['altitude_ft'])
         svg_parts.append(
-            f'<circle class="hit-target" cx="{ex:.1f}" cy="{ey:.1f}" r="10" '
+            f'<circle class="hit-target" cx="{ex:.1f}" cy="{ey:.1f}" r="10" data-index="{i}" '
             f'data-metric="elevation" data-time="{time_str}" data-value="{round(p["altitude_ft"])}"/>'
         )
         if p['speed_mph'] is not None:
             sx, sy = x(p['distance_mi']), y_speed(p['speed_mph'])
             svg_parts.append(
-                f'<circle class="hit-target" cx="{sx:.1f}" cy="{sy:.1f}" r="10" '
+                f'<circle class="hit-target" cx="{sx:.1f}" cy="{sy:.1f}" r="10" data-index="{i}" '
                 f'data-metric="speed" data-time="{time_str}" data-value="{p["speed_mph"]:.1f}"/>'
             )
 
@@ -177,7 +180,14 @@ def build_chart_script(chart_id):
     """The one narrow bit of real JS in hike-izer's output -- event wiring
     and tooltip text/visibility only. All geometry and per-point data (time,
     value, coordinates) is already baked into the SVG's own attributes by
-    build_chart_html(), so this never recomputes anything."""
+    build_chart_html(), so this never recomputes anything.
+
+    CARD-0082: also dispatches/listens for hikeizer-chart-hover(unhover) and
+    hikeizer-map-hover(unhover) window CustomEvents (detail: {index}) so the
+    Route Map (built independently by build_hike_map.py from the same
+    chart_series) can stay in sync without either module knowing anything
+    about the other's internals -- the shared point index is the only
+    contract between them."""
     return f'''<script>
 (function () {{
   var svg = document.getElementById("{chart_id}");
@@ -186,7 +196,7 @@ def build_chart_script(chart_id):
   var elevDot = svg.querySelector(".hover-dot.elevation");
   var speedDot = svg.querySelector(".hover-dot.speed");
 
-  function show(circle) {{
+  function showOne(circle) {{
     var metric = circle.getAttribute("data-metric");
     var time = circle.getAttribute("data-time");
     var value = circle.getAttribute("data-value");
@@ -207,6 +217,33 @@ def build_chart_script(chart_id):
     tooltipSlot.classList.add("is-active");
   }}
 
+  // Used when the hover originated on the map, which has no "which line"
+  // concept -- shows both dots at once with a combined tooltip line instead
+  // of picking one metric the way a chart-originated hover does.
+  function showBoth(index) {{
+    var elevCircle = svg.querySelector('.hit-target[data-index="' + index + '"][data-metric="elevation"]');
+    var speedCircle = svg.querySelector('.hit-target[data-index="' + index + '"][data-metric="speed"]');
+    if (!elevCircle) return;
+    guide.setAttribute("x1", elevCircle.getAttribute("cx"));
+    guide.setAttribute("x2", elevCircle.getAttribute("cx"));
+    guide.setAttribute("opacity", 1);
+    elevDot.setAttribute("cx", elevCircle.getAttribute("cx"));
+    elevDot.setAttribute("cy", elevCircle.getAttribute("cy"));
+    elevDot.setAttribute("opacity", 1);
+    var parts = ['<span class="tt-time">' + elevCircle.getAttribute("data-time") + '</span>',
+      '<span class="tt-metric elevation">' + elevCircle.getAttribute("data-value") + ' ft</span>'];
+    if (speedCircle) {{
+      speedDot.setAttribute("cx", speedCircle.getAttribute("cx"));
+      speedDot.setAttribute("cy", speedCircle.getAttribute("cy"));
+      speedDot.setAttribute("opacity", 1);
+      parts.push('<span class="tt-metric speed">' + speedCircle.getAttribute("data-value") + ' mph</span>');
+    }} else {{
+      speedDot.setAttribute("opacity", 0);
+    }}
+    tooltipSlot.innerHTML = parts.join(" ");
+    tooltipSlot.classList.add("is-active");
+  }}
+
   function hide() {{
     guide.setAttribute("opacity", 0);
     elevDot.setAttribute("opacity", 0);
@@ -217,8 +254,23 @@ def build_chart_script(chart_id):
 
   var targets = svg.querySelectorAll(".hit-target");
   for (var i = 0; i < targets.length; i++) {{
-    targets[i].addEventListener("mouseenter", (function (c) {{ return function () {{ show(c); }}; }})(targets[i]));
-    targets[i].addEventListener("mouseleave", hide);
+    targets[i].addEventListener("mouseenter", (function (c) {{
+      return function () {{
+        showOne(c);
+        window.dispatchEvent(new CustomEvent("hikeizer-chart-hover", {{detail: {{index: Number(c.getAttribute("data-index"))}}}}));
+      }};
+    }})(targets[i]));
+    targets[i].addEventListener("mouseleave", function () {{
+      hide();
+      window.dispatchEvent(new CustomEvent("hikeizer-chart-unhover"));
+    }});
   }}
+
+  // Mirror a hover that started on the Route Map (CARD-0082). Calling
+  // showBoth()/hide() directly here never touches the .hit-target elements'
+  // own mouseenter/mouseleave listeners, so this can't loop back into
+  // re-dispatching hikeizer-chart-hover for a hover the map already knows about.
+  window.addEventListener("hikeizer-map-hover", function (e) {{ showBoth(e.detail.index); }});
+  window.addEventListener("hikeizer-map-unhover", hide);
 }})();
 </script>'''

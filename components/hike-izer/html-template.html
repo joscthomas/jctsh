@@ -27,6 +27,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hike Summary — {{DATE}}</title>
+<!--
+  CARD-0082: Leaflet, vendored (not a live CDN reference) under
+  components/hike-izer/vendor/leaflet/, deployed once to the M8's web root
+  at ~/hike-izer-web-app/srv/vendor/leaflet/ and referenced here by the same
+  sibling-relative path every hike page uses (matching how Photos already
+  references its own sibling <date>_photos/ directory). Only present when
+  the Route Map section itself is present -- omit these two tags too on a
+  hike_confirmed: false day where {{ROUTE_MAP}} is empty.
+-->
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<script src="vendor/leaflet/leaflet.js"></script>
 <style>
   :root {
     --bg: #f7f5f0;
@@ -222,6 +233,26 @@
   .hover-dot.speed { stroke: var(--chart-speed); }
   .hover-guide { stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 2 2; pointer-events: none; }
 
+  /* CARD-0082: Route Map (Leaflet). Same .chart-tooltip-slot language as the
+     Elevation & Speed chart above, reused verbatim for visual consistency
+     between hike-izer's two interactive components. */
+  .map-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1rem 1.15rem 0.85rem;
+  }
+  .hike-map {
+    height: 20rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+  }
+  /* Leaflet ships its own base styles via vendor/leaflet/leaflet.css --
+     these only theme the route line/highlight to match the page palette. */
+  .route-line { stroke: var(--accent); stroke-width: 3; }
+  .route-highlight { fill: var(--surface); stroke: var(--accent); stroke-width: 2.5; }
+
   @media (prefers-reduced-motion: reduce) {
     .chart-tooltip-slot, .hover-dot { transition: none; }
   }
@@ -362,12 +393,21 @@
   </div>
 
   <!--
-    CARD-0082's Route Map section (not yet built) goes here, immediately
-    above the chart -- CARD-0110 was explicitly scoped to place the
-    Elevation & Speed chart below the map, not the other way around. Until
-    CARD-0082 ships there is no map section at all; do not insert a
-    placeholder for it here.
+    Route Map (CARD-0082) -- only present when chart_series is non-empty,
+    same "no empty scaffolding" convention as Photos and the Elevation &
+    Speed chart below (and the same condition that section already gates
+    on, since both come from the same chart_series). Markup and the
+    Leaflet init + hover-sync <script> are both generated verbatim by
+    build_hike_map.py's build_map_html(chart_series, thunderforest_api_key)
+    -- splice its return value in directly, do not hand-author or edit the
+    map markup per hike. Placed above the Elevation & Speed chart
+    deliberately (CARD-0110 was scoped to go below the map, not the other
+    way around).
   -->
+  <section>
+    <h2>Route Map</h2>
+    {{ROUTE_MAP}}
+  </section>
 
   <!--
     Elevation & Speed chart (CARD-0110) -- only present when

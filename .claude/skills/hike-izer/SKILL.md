@@ -289,13 +289,27 @@ section.
    (CARD-0083, step 4 above) uses the template's `.forecast-row` -- always
    rendered (unlike Photos), with each card showing **"not available"**
    (`.stat__value--na`) instead of a value when `hike_start_forecast` is
-   empty. Route map/track-view Levels 3-5 (embedded basemap, route line,
-   photo/observation markers) are **out of scope here** -- tracked separately
-   on `kanban-board.md` as CARD-0082.
+   empty. Event markers on the Route Map (photos, observations, bird
+   sightings) are the one piece still **out of scope here** -- tracked
+   separately on `kanban-board.md` as CARD-0082's deferred Level 3.
+
+   **Route Map (CARD-0082):**
+   - Above the Elevation & Speed chart, fill the template's `{{ROUTE_MAP}}`
+     placeholder by calling
+     `build_hike_map.build_map_html(hike_data['chart_series'], thunderforest_api_key)`
+     -- `thunderforest_api_key` comes from `credentials.local.md`'s
+     "Thunderforest" entry, read the same way every other component reads
+     its own credential. Returns the complete, ready-to-embed map markup
+     (tooltip slot, Leaflet map container, and the Leaflet init + hover-sync
+     `<script>`). Splice it in verbatim; don't hand-author or edit the map
+     markup per hike. If `chart_series` is empty (`hike_confirmed` is
+     `false`), `build_map_html()` returns `''` -- omit the whole "Route Map"
+     `<section>` in that case, same convention as Photos. Also omit the
+     template's `<link>`/`<script>` tags for vendored Leaflet in `<head>`
+     when there's no map to show.
 
    **Elevation & Speed chart and richer pace stats (CARD-0110):**
-   - Below the hero stat row (and below where CARD-0082's map will eventually
-     go, once built), fill the template's `{{ELEVATION_SPEED_CHART}}`
+   - Below the Route Map, fill the template's `{{ELEVATION_SPEED_CHART}}`
      placeholder by calling `build_hike_chart.build_chart_html(hike_data['chart_series'])`
      -- its return value is the complete, ready-to-embed chart markup
      (legend, hover tooltip slot, SVG with baked-in geometry, and the one
@@ -403,14 +417,13 @@ section.
   from pure astronomy, not which way the hiker was facing (not tracked by any
   sensor)
 - Automatic triggering -- this only runs when asked (CARD-0086)
-- Embedded route map (basemap + track line + event markers) and its
-  interactive hover-sync with the elevation chart -- CARD-0082, still
-  deferred. The elevation/speed chart itself, with its own hover
-  interactivity, is now in scope and built (CARD-0110, step 5 above) --
-  don't confuse the two; CARD-0110 is not part of what's deferred here.
-  Basic styling and structured layout (Levels 1-2) are in scope per
-  CARD-0081 above. (Hosting/publishing is now in scope -- step 8 above,
-  CARD-0088.)
+- Event markers on the Route Map (photos, hike observations, bird
+  sightings) -- CARD-0082's deferred Level 3, not yet built. The map itself
+  (basemap + route line, hover-synced with the Elevation & Speed chart) and
+  the chart itself are both now in scope and built (CARD-0082 and CARD-0110,
+  steps 5-6 above). Basic styling and structured layout (Levels 1-2) are in
+  scope per CARD-0081 above. (Hosting/publishing is now in scope -- step 8
+  above, CARD-0088.)
 
 ## Notes on the data
 

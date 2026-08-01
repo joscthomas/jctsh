@@ -46,7 +46,7 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     state = {}
 
-findings, new_state, pending_updates = check_services(SERVICES, state)
+findings, new_state, pending_updates, resolved = check_services(SERVICES, state)
 
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.username_pw_set(USERNAME, env["MQTT_PASSWORD"])
@@ -64,6 +64,18 @@ for name, info in pending_updates.items():
     })
     pub = client.publish(pending_topic, pending_payload, qos=1, retain=True)
     pub.wait_for_publish(timeout=5)
+
+# A resolved update leaves a stale "X available" notice as this component's
+# Last Reading otherwise -- nothing else would tell the log dashboard the
+# finding is out of date, since Last Reading shows whichever message was
+# logged last, not current state. Post a one-time "now running" notice so
+# it clears naturally instead of sitting there wrong indefinitely.
+if resolved:
+    resolved_message = f"Container image updated: {'; '.join(resolved)}"
+    resolved_payload = json.dumps({"component": COMPONENT, "category": "System", "message": resolved_message})
+    pub = client.publish(LOG_TOPIC, resolved_payload, qos=1)
+    pub.wait_for_publish(timeout=5)
+    print(f"Notified: {resolved_message}")
 
 if not findings:
     print("Nothing pending.")

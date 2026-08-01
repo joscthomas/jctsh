@@ -59,8 +59,8 @@ def _normalize(v):
 
 
 def check_services(services, state):
-    """Returns (findings, new_state, pending_updates). findings is a list of
-    human-readable strings, one per service with a genuinely new,
+    """Returns (findings, new_state, pending_updates, resolved). findings is
+    a list of human-readable strings, one per service with a genuinely new,
     not-yet-throttled update available. new_state is the caller's state dict
     to persist, keyed per service name with {"version", "notified_at"} for
     the same 7-day reminder throttle every other check in this repo uses.
@@ -72,10 +72,24 @@ def check_services(services, state):
     pattern: callers publish this as retained MQTT state every run so a
     dashboard's Pending Update column reflects current true state rather
     than "last thing logged," instead of only firing when a new, unthrottled
-    finding happens to exist."""
+    finding happens to exist.
+
+    resolved is a list of human-readable strings, one per service whose
+    *running* version actually changed since the last check (persisted under
+    new_state["_last_current"]) -- fires once, right after a real update was
+    applied, regardless of whether the new version still shows pending. Exists
+    so callers can post a one-time "now running X" log message: without it, a
+    component's last-logged message stays frozen on its old "update available"
+    notice indefinitely once the update is actually applied, since nothing
+    else would otherwise tell the log-history-based dashboard column that
+    the finding is stale. Not throttled -- a real version change is rare and
+    always worth a fresh log line, unlike the routine "still pending" case
+    findings/the 7-day throttle already cover."""
     findings = []
     new_state = dict(state)
     pending_updates = {}
+    resolved = []
+    last_current = dict(state.get("_last_current", {}))
     now = datetime.now(timezone.utc)
     for svc in services:
         name = svc["name"]
@@ -89,6 +103,12 @@ def check_services(services, state):
             continue
         pending = _normalize(current) != _normalize(latest)
         pending_updates[name] = {"pending": pending, "current": current, "latest": latest}
+
+        prior_current = last_current.get(name)
+        if prior_current is not None and prior_current != current:
+            resolved.append(f"{name}: now running {current}")
+        last_current[name] = current
+
         if not pending:
             new_state.pop(name, None)
             continue
@@ -103,4 +123,5 @@ def check_services(services, state):
             continue
         findings.append(f"{name}: {latest} available (running {current})")
         new_state[name] = {"version": latest, "notified_at": now.isoformat()}
-    return findings, new_state, pending_updates
+    new_state["_last_current"] = last_current
+    return findings, new_state, pending_updates, resolved

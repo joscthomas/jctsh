@@ -32,7 +32,7 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     state = {}
 
-findings, new_state, pending_updates = check_services(SERVICES, state)
+findings, new_state, pending_updates, resolved = check_services(SERVICES, state)
 
 # CARD-0132: retained pending-update state, same pattern CARD-0127 used for
 # Immich -- published every run for every successfully-checked service,
@@ -52,6 +52,25 @@ for name, info in pending_updates.items():
         )
     except Exception as e:
         print(f"Failed to publish pending-update state for {name}: {e}")
+
+# A resolved update leaves a stale "X available" notice as this component's
+# Last Reading otherwise -- nothing else would tell the log dashboard the
+# finding is out of date, since Last Reading shows whichever message was
+# logged last, not current state. Post a one-time "now running" notice so
+# it clears naturally instead of sitting there wrong indefinitely.
+if resolved:
+    resolved_message = f"Container image updated: {'; '.join(resolved)}"
+    resolved_payload = json.dumps({"component": COMPONENT, "category": "System", "message": resolved_message})
+    try:
+        subprocess.run(
+            ["mosquitto_pub", "-h", "127.0.0.1", "-p", "1883",
+             "-u", env["MQTT_USER"], "-P", env["MQTT_PASS"],
+             "-t", LOG_TOPIC, "-m", resolved_payload],
+            check=True, timeout=10,
+        )
+        print(f"Notified: {resolved_message}")
+    except Exception as e:
+        print(f"Failed to publish resolved notice: {e}")
 
 if not findings:
     print("Nothing pending.")

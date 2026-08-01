@@ -13,6 +13,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-XXX · [enhancement] [infrastructure] M8 maintenance: 2 firmware update(s) available: KEK CA: UEFI Secure Boot Key … — auto-opened from photo-server
+**Status:** Backlog
+
+**Auto-generated 2026-08-01 14:00 UTC from photo-server's maintenance check.** Raw finding: M8 maintenance: 2 firmware update(s) available: KEK CA: UEFI Secure Boot Key Exchange Key; KEK CA: UEFI Secure Boot Key Exchange Key. Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Related:** live dashboard entry at time of generation.
+
+---
+
 ### CARD-0132 · [enhancement] [infrastructure] Extend CARD-0127's retained Pending-Update state to the generic container-image checker (HA, NetAlertX, Caddy, cloudflared)
 **Status:** Done
 

@@ -497,6 +497,191 @@ def _gps_sessions(gps_rows, session_gap_min=10):
     return result
 
 
+# ---------------------------------------------------------------------------
+# CARD-0110: richer per-point hiking stats (ascent/descent, moving vs.
+# stopped time, pace, moving/avg speed) and the elevation+speed chart series.
+# All derived from one shared walk over the GPS points so the aggregate
+# stats and the chart series can't silently drift from each other.
+# ---------------------------------------------------------------------------
+
+# GPS altitude is noisy enough that a naive point-to-point positive/negative
+# sum wildly overcounts both ascent and descent. Only count a delta once it
+# clears this threshold -- same tuned-constant pattern as WALKING_SPEED_MIN_MPS
+# below, not a smoothing pass (simpler, stdlib-only, one knob to retune later
+# if it's over/under-filtering on a real hike).
+ASCENT_DESCENT_NOISE_FT = 5.0
+
+
+def _hike_point_series(gps_rows):
+    """Sorted per-point series for the confirmed hike's own GPS rows --
+    timestamp, cumulative distance (mi), altitude (ft), and the speed (mph)
+    of the interval ending at this point (None for the first point, which
+    has no prior point to measure an interval against, and for any point
+    with a non-positive dt from a duplicate/out-of-order timestamp)."""
+    sorted_rows = sorted((r for r in gps_rows if r.get('timestamp')), key=lambda r: r['timestamp'])
+    series = []
+    cum_dist_m = 0.0
+    prev = None
+    for r in sorted_rows:
+        ts = parse_ts(r.get('timestamp'))
+        lat, lon = to_float(r.get('lat')), to_float(r.get('lon'))
+        alt_m = to_float(r.get('altitude_m'))
+        if ts is None or lat is None or lon is None or alt_m is None:
+            continue
+        speed_mph, dt_sec = None, None
+        if prev is not None:
+            dt_sec = (ts - prev['ts']).total_seconds()
+            if dt_sec > 0:
+                seg_m = _haversine_m(prev['lat'], prev['lon'], lat, lon)
+                cum_dist_m += seg_m
+                speed_mph = (seg_m / dt_sec) * 2.23694
+        series.append({
+            'ts': ts, 'lat': lat, 'lon': lon, 'alt_ft': m_to_ft(alt_m),
+            'distance_mi': cum_dist_m / 1609.34,
+            'speed_mph': speed_mph, 'dt_sec': dt_sec,
+        })
+        prev = {'ts': ts, 'lat': lat, 'lon': lon}
+    return series
+
+
+def _ascent_descent_ft(series, noise_ft=ASCENT_DESCENT_NOISE_FT):
+    ascent = descent = 0.0
+    last_counted_alt = series[0]['alt_ft'] if series else None
+    for p in series[1:]:
+        delta = p['alt_ft'] - last_counted_alt
+        if abs(delta) >= noise_ft:
+            if delta > 0:
+                ascent += delta
+            else:
+                descent += -delta
+            last_counted_alt = p['alt_ft']
+    return round(ascent), round(descent)
+
+
+def _moving_stopped_time_min(series, min_speed_mps):
+    """min_speed_mps: the caller's own moving-vs-stationary cutoff (this
+    file reuses WALKING_SPEED_MIN_MPS, defined below, rather than a second
+    threshold) -- an interval counts as moving if its speed meets or exceeds
+    it, stopped otherwise."""
+    min_speed_mph = min_speed_mps * 2.23694
+    moving_sec = stopped_sec = 0.0
+    for p in series:
+        if p['dt_sec'] is None or p['speed_mph'] is None:
+            continue
+        if p['speed_mph'] >= min_speed_mph:
+            moving_sec += p['dt_sec']
+        else:
+            stopped_sec += p['dt_sec']
+    return round(moving_sec / 60, 1), round(stopped_sec / 60, 1)
+
+
+def _session_point_series(gps_rows, sessions):
+    """Splits gps_rows (already scoped to is_hike sessions via
+    _rows_in_hike_sessions) back into per-session point series, one
+    _hike_point_series() per session, using each session's own [start, end]
+    window. The flat scoped list on its own carries no session-boundary
+    information -- caught on real multi-session data (two separate walks
+    hours apart on the same day): a naive sort-and-walk across the whole
+    flat list treats the multi-hour gap *between* sessions as one giant
+    near-zero-speed "stopped" interval, wildly inflating stopped time and
+    (for the chart) drawing a phantom line connecting the end of one walk to
+    the start of a different one. Returns a list of non-empty series, one
+    per is_hike session that actually had usable points."""
+    windows = [(parse_ts(s['start']), parse_ts(s['end'])) for s in sessions if s['is_hike']]
+    groups = [[] for _ in windows]
+    for r in gps_rows:
+        ts = parse_ts(r.get('timestamp'))
+        if ts is None:
+            continue
+        for i, (start, end) in enumerate(windows):
+            if start <= ts <= end:
+                groups[i].append(r)
+                break
+    return [s for s in (_hike_point_series(g) for g in groups) if s]
+
+
+def compute_hike_detail_stats(gps_rows, sessions, distance_mi, duration_min):
+    """CARD-0110: ascent_ft/descent_ft/moving_time_min/stopped_time_min/
+    pace_min_per_mi/moving_speed_mph/avg_speed_mph -- distance_mi and
+    duration_min are the caller's already-computed, session-scoped figures
+    (stats['distance_mi'], the confirmed sessions' summed duration), reused
+    rather than re-derived here so every figure on the page agrees. Summed
+    across each is_hike session independently (see _session_point_series) so
+    a gap between two separate sessions on the same day is never counted as
+    time spent stopped."""
+    all_series = _session_point_series(gps_rows, sessions)
+    if not all_series or not distance_mi or not duration_min:
+        return {
+            'ascent_ft': None, 'descent_ft': None,
+            'moving_time_min': None, 'stopped_time_min': None,
+            'pace_min_per_mi': None, 'moving_speed_mph': None, 'avg_speed_mph': None,
+        }
+    ascent_ft = descent_ft = 0
+    moving_time_min = stopped_time_min = 0.0
+    for series in all_series:
+        a, d = _ascent_descent_ft(series)
+        m, s = _moving_stopped_time_min(series, WALKING_SPEED_MIN_MPS)
+        ascent_ft += a
+        descent_ft += d
+        moving_time_min += m
+        stopped_time_min += s
+    moving_time_min = round(moving_time_min, 1)
+    stopped_time_min = round(stopped_time_min, 1)
+    avg_speed_mph = distance_mi / (duration_min / 60) if duration_min > 0 else None
+    moving_speed_mph = distance_mi / (moving_time_min / 60) if moving_time_min > 0 else None
+    pace_min_per_mi = duration_min / distance_mi if distance_mi > 0 else None
+    return {
+        'ascent_ft': ascent_ft, 'descent_ft': descent_ft,
+        'moving_time_min': moving_time_min, 'stopped_time_min': stopped_time_min,
+        'pace_min_per_mi': round(pace_min_per_mi, 2) if pace_min_per_mi is not None else None,
+        'moving_speed_mph': round(moving_speed_mph, 1) if moving_speed_mph is not None else None,
+        'avg_speed_mph': round(avg_speed_mph, 1) if avg_speed_mph is not None else None,
+    }
+
+
+def build_chart_series(gps_rows, sessions, max_points=80):
+    """CARD-0110: downsampled elevation+speed-vs-distance series for the
+    Elevation & Speed chart -- resampled by cumulative distance rather than
+    plotting every raw ~30s GPS point, which would make for a cluttered
+    hover-target density on a typical hike (see CARD-0110's Planning notes).
+    Distance accumulates across session breaks (matching stats['distance_mi'],
+    which sums all is_hike sessions), but each session is downsampled and
+    endpoint-preserved independently -- same reasoning as
+    compute_hike_detail_stats, so the chart never implies movement during the
+    gap between two separate sessions. Each session's first point after the
+    first carries 'session_break': true so the renderer can start a new line
+    segment there instead of connecting it to the prior session's last point."""
+    all_series = _session_point_series(gps_rows, sessions)
+    if not all_series:
+        return []
+
+    out = []
+    dist_offset = 0.0
+    for gi, series in enumerate(all_series):
+        total_mi = series[-1]['distance_mi']
+        if total_mi <= 0 or len(series) <= max_points:
+            picked = series
+        else:
+            step_mi = total_mi / (max_points - 1)
+            picked, next_target = [series[0]], step_mi
+            for i in range(1, len(series)):
+                if series[i]['distance_mi'] >= next_target:
+                    picked.append(series[i])
+                    next_target += step_mi
+            if picked[-1] is not series[-1]:
+                picked.append(series[-1])
+        for i, p in enumerate(picked):
+            out.append({
+                'timestamp': p['ts'].isoformat(),
+                'distance_mi': round(p['distance_mi'] + dist_offset, 3),
+                'altitude_ft': round(p['alt_ft']),
+                'speed_mph': round(p['speed_mph'], 1) if p['speed_mph'] is not None else None,
+                'session_break': gi > 0 and i == 0,
+            })
+        dist_offset += total_mi
+    return out
+
+
 def analyze_coverage(env_rows, gps_rows, obs_rows, start_dt, end_dt):
     # If the requested window extends into the future (e.g. "today," still in
     # progress), cap the "expected" calculation at now -- otherwise a normal,
@@ -681,6 +866,20 @@ def main():
         round(sum(s['distance_mi'] for s in coverage['gps_track']['sessions'] if s['is_hike']), 2)
         if coverage['gps_track']['hike_confirmed'] else None
     )
+    # CARD-0110: ascent/descent, moving-vs-stopped time, pace, moving/avg
+    # speed -- same is_hike-session scoping as distance_mi/altitude_ft above,
+    # and reuses stats['distance_mi'] plus the summed session duration so
+    # every figure on the page is derived from the same numbers, not
+    # separately re-measured.
+    hike_duration_min = (
+        sum(s['duration_minutes'] for s in coverage['gps_track']['sessions'] if s['is_hike'])
+        if coverage['gps_track']['hike_confirmed'] else None
+    )
+    hike_sessions = coverage['gps_track']['sessions']
+    stats.update(compute_hike_detail_stats(altitude_gps_rows, hike_sessions, stats['distance_mi'], hike_duration_min))
+    chart_series = (
+        build_chart_series(altitude_gps_rows, hike_sessions) if coverage['gps_track']['hike_confirmed'] else []
+    )
 
     out = {
         'query': {'start': args.start, 'end': args.end, 'source_filter': args.source},
@@ -693,6 +892,7 @@ def main():
         },
         'coverage': coverage,
         'stats': stats,
+        'chart_series': chart_series,
         'sun_position_samples': sun_samples,
         'environmental_data': env_rows,
         'hiking_observations': obs_rows,

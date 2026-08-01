@@ -162,8 +162,9 @@ section.
    similar -- `hike_confirmed: true` is exactly what put the page in this normal
    narrative path rather than the `false` path above, so it's already implied,
    and trackpoint coverage itself belongs to the Coverage section (part c), not
-   the story. Detailed pace/speed commentary is reserved for the richer stats a
-   future card is expected to add (CARD-0110) -- don't anticipate it here.
+   the story. Detailed pace/speed commentary is reserved for the "Pace &
+   Elevation Detail" stat block and the Elevation & Speed chart (CARD-0110,
+   step 5 below) -- don't repeat those figures in prose here.
 
    **Weather forecast at hike start (added 2026-07-24, CARD-0083)** -- shown
    before part (a), since it's context the reader wants before the story
@@ -288,9 +289,32 @@ section.
    (CARD-0083, step 4 above) uses the template's `.forecast-row` -- always
    rendered (unlike Photos), with each card showing **"not available"**
    (`.stat__value--na`) instead of a value when `hike_start_forecast` is
-   empty. Levels 3-5 (embedded maps/charts, interactive hover-sync) are
-   **out of scope here** -- tracked separately on `kanban-board.md` as
-   CARD-0082. Hosting/publishing is step 7 below (CARD-0088). Tell Joseph the
+   empty. Route map/track-view Levels 3-5 (embedded basemap, route line,
+   photo/observation markers) are **out of scope here** -- tracked separately
+   on `kanban-board.md` as CARD-0082.
+
+   **Elevation & Speed chart and richer pace stats (CARD-0110):**
+   - Below the hero stat row (and below where CARD-0082's map will eventually
+     go, once built), fill the template's `{{ELEVATION_SPEED_CHART}}`
+     placeholder by calling `build_hike_chart.build_chart_html(hike_data['chart_series'])`
+     -- its return value is the complete, ready-to-embed chart markup
+     (legend, hover tooltip slot, SVG with baked-in geometry, and the one
+     small hover `<script>`). Splice it in verbatim; don't hand-author or
+     edit the chart markup per hike. If `chart_series` is empty
+     (`hike_confirmed` is `false`), `build_chart_html()` returns `''` --
+     omit the whole "Elevation & Speed" `<section>` in that case, same "no
+     empty scaffolding" convention as Photos.
+   - Fill the `.stat-row--rich` "Pace & Elevation Detail" section from
+     `stats`: **Moving Time** (`stats.moving_time_min`, format `Xm Ys`),
+     **Stopped Time** (`stats.stopped_time_min`, same format), **Total
+     Time** (same source as the hero row's Duration), **Pace**
+     (`stats.pace_min_per_mi`, format `MM:SS /mi`), **Moving Speed**
+     (`stats.moving_speed_mph`), **Avg Speed** (`stats.avg_speed_mph`),
+     **Ascent** (`stats.ascent_ft`), **Descent** (`stats.descent_ft`). All
+     `None` (show "not available") when `hike_confirmed` is `false`, same
+     convention as every other stat on the page.
+
+   Hosting/publishing is step 7 below (CARD-0088). Tell Joseph the
    file path when done.
 
    **Also write the calendar sidecar (CARD-0092)** at
@@ -379,10 +403,14 @@ section.
   from pure astronomy, not which way the hiker was facing (not tracked by any
   sensor)
 - Automatic triggering -- this only runs when asked (CARD-0086)
-- Embedded maps/charts and interactivity for the HTML output -- basic
-  styling and structured layout (Levels 1-2) are in scope per CARD-0081
-  above; the rest is CARD-0082. (Hosting/publishing is now in scope --
-  step 8 above, CARD-0088.)
+- Embedded route map (basemap + track line + event markers) and its
+  interactive hover-sync with the elevation chart -- CARD-0082, still
+  deferred. The elevation/speed chart itself, with its own hover
+  interactivity, is now in scope and built (CARD-0110, step 5 above) --
+  don't confuse the two; CARD-0110 is not part of what's deferred here.
+  Basic styling and structured layout (Levels 1-2) are in scope per
+  CARD-0081 above. (Hosting/publishing is now in scope -- step 8 above,
+  CARD-0088.)
 
 ## Notes on the data
 

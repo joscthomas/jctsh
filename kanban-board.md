@@ -1113,9 +1113,16 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 ---
 
 ### CARD-0020 · [enhancement] [hiking-monitor] Hike data visualization (Looker Studio)
-**Status:** Planning
+**Status:** Backlog
 
-**Notes:** Build a Google Looker Studio dashboard connected to the GPS Track and Environmental Data Google Sheets. GPS route on a map, sensor readings (temp/humidity/pressure/battery) over hike duration. Review-after-the-fact use case — no real-time requirement. No new infrastructure needed.
+**Rescoped 2026-08-02:** original scope (single-hike GPS route on a map + sensor readings over that hike's duration) is now superseded by Hike-izer's own evolution — CARD-0082 (interactive Route Map), CARD-0110 (hover-synced Elevation & Speed chart), and CARD-0133 (event markers) all landed since this card was written, and together already do a per-hike visualization better than a generic Looker Studio chart would (interactive, narrated, markered). Building that same thing again in Looker Studio would be a worse duplicate, not new value.
+
+**What's still genuinely doable and meaningful — a cross-hike/aggregate view, which no single hike-izer page can ever provide (one page per hike, no memory across hikes):**
+- Mileage/elevation-gain trends across the season (distance and gain per hike, plotted over time).
+- A cumulative map of every route hiked, not just one at a time.
+- Sensor/device health over the hiking-monitor's lifetime — battery voltage drift, UV sensor behavior — across many trips, the same "watch a metric over time" instinct this project already applies to container/dependency health elsewhere.
+
+Still technically trivial as originally scoped: Google Sheets is a native Looker Studio data source (GPS Track + Environmental Data sheets), no new infrastructure. Review-after-the-fact use case, no real-time requirement.
 
 ---
 
@@ -2150,7 +2157,7 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 
 **Notes:** Raised 2026-07-18. JCTsh's hiking-monitor pipeline already covers data collection (ESP32 sensors — BME280, LTR-390 UV; GPS track via Pixel GPSLogger) and data storage (GPS Track and Environmental Data Google Sheets, per CARD-0020). Hike-izer adds the missing layers on top: a controller layer (rules/analysis) and a rudimentary presentation layer, turning raw hike data into a narrative story of the hiking event rather than just charts.
 
-**Relationship to CARD-0020:** complementary, not competing (Joseph's call). CARD-0020's Looker Studio dashboard stays scoped to raw charts/maps; Hike-izer's output is the narrative layer, generated from the same underlying Sheets data. Neither supersedes the other.
+**Relationship to CARD-0020:** originally complementary, not competing (Joseph's call, 2026-07-18) — CARD-0020's Looker Studio dashboard scoped to raw charts/maps, Hike-izer's output the narrative layer, both from the same Sheets data. **Update 2026-08-02:** Hike-izer's own visuals (CARD-0082 Route Map, CARD-0110 Elevation & Speed chart, CARD-0133 event markers) grew well past "narrative layer only" and now cover CARD-0020's original single-hike scope better than a generic dashboard chart would — CARD-0020 rescoped to a cross-hike/aggregate view instead (season trends, cumulative route map, sensor health over time), which is still genuinely complementary since Hike-izer has no memory across hikes.
 
 **Data source inventory (2026-07-18):** confirmed against the real pipeline code/docs, not assumption —
 - **Environmental Data sheet** — full column set is A–Z, not A–X as `data-pipeline.md` previously (incorrectly) documented; `illuminance_lx`/`solar_v` were missing from that doc, now fixed.

@@ -297,6 +297,78 @@ def observations_table_rows(hiking_observations, offset_delta):
     return rows
 
 
+def _build_event_markers(hike_data, photos_manifest, photos_dir, offset_delta, chart_series, birdnet_occurrences):
+    """CARD-0133: assembles the generic marker list build_hike_map.build_map_html()
+    renders on the Route Map. Type-specific knowledge (what a photo tooltip
+    looks like, which fields an observation shows) lives here, not in
+    build_hike_map.py -- that module only ever renders whatever generic
+    {type, lat, lon, tooltip_html, click_url} list it's handed, keeping it
+    agnostic to what a "photo" or "bird sighting" even is (CARD-0082's
+    original "generic, not hardcoded types" design intent)."""
+    markers = []
+
+    # Photos -- real per-asset EXIF GPS (fetch_hike_photos.py), can be None
+    # when a given asset's EXIF has no GPS at all; skip those rather than
+    # guess. Reuses the exact same photos_dir/thumb/original relative-path
+    # scheme the Photos gallery section below already uses -- no new file
+    # handling.
+    if photos_manifest and photos_manifest.get("assets"):
+        for a in photos_manifest["assets"]:
+            if a.get("lat") is None or a.get("lon") is None:
+                continue
+            markers.append({
+                "type": "photo", "lat": a["lat"], "lon": a["lon"],
+                "tooltip_html": f'<img src="{_esc(photos_dir)}/{_esc(a["thumb"])}" alt="">',
+                "click_url": f"{photos_dir}/{a['original']}",
+            })
+
+    # Observations -- lat/lon already populated at write time
+    # (environmental-data.gs's _gpsLookup(), nearest GPS-track point within
+    # +-5 min) for anything logged from 2026-07-28 onward (confirmed live
+    # against the real sheet, 2026-08-02). Older rows carry lat: ""/lon: ""
+    # and simply get no marker -- same "not available, omit" convention used
+    # everywhere else on this page, not an error. No interpolation is
+    # attempted for this type; if it's not already on the row, it's skipped.
+    for o in hike_data.get("hiking_observations", []):
+        lat, lon = o.get("lat"), o.get("lon")
+        if lat in (None, "") or lon in (None, ""):
+            continue
+        cats = _parse_categories(o.get("categories"))
+        tooltip = (
+            f'<strong>{_esc(format_time_local(o.get("timestamp"), offset_delta))}</strong> '
+            f'{_esc(o.get("observation", ""))}'
+            f'<br><span class="map-marker-tooltip-meta">'
+            f'{_esc(", ".join(cats) if cats else "—")} &middot; approximate location</span>'
+        )
+        markers.append({
+            "type": "observation", "lat": float(lat), "lon": float(lon),
+            "tooltip_html": tooltip, "click_url": None,
+        })
+
+    # Bird occurrences -- only present once step 2 has run and staged a real
+    # BirdNET export (same as the existing Wildlife Heard table). Unlike
+    # Photos/Observations, BirdNET never carries any GPS of its own -- each
+    # occurrence's own representative_timestamp gets interpolated against the
+    # GPS track; occurrences too far from any session (interpolate_position()
+    # returning None) are skipped rather than guessed.
+    for occ in (birdnet_occurrences or []):
+        pos = build_hike_map.interpolate_position(chart_series, occ["representative_timestamp"])
+        if pos is None:
+            continue
+        lat, lon = pos
+        tooltip = (
+            f'<strong>{_esc(occ["common_name"])}</strong> <em>({_esc(occ["scientific_name"])})</em>'
+            f'<br><span class="map-marker-tooltip-meta">{round(occ["best_confidence"] * 100)}% confidence '
+            f'&middot; heard {occ["count"]}x &middot; approximate location</span>'
+        )
+        markers.append({
+            "type": "bird", "lat": lat, "lon": lon,
+            "tooltip_html": tooltip, "click_url": None,
+        })
+
+    return markers
+
+
 def birdnet_table_rows(birdnet_rows, offset_delta):
     # CARD-0080: birdnet.py already grouped/sorted these by first-detection
     # time and returns raw UTC timestamps -- this is the one place that
@@ -406,6 +478,7 @@ _HTML_STYLE = """
     --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
     --sans: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --chart-elevation: #96723f; --chart-elevation-fill: rgba(150, 114, 63, 0.12); --chart-speed: #3f6a8a; --chart-speed-fill: rgba(63, 106, 138, 0.10);
+    --marker-photo: #7a4f8a; --marker-observation: #3f8a7a; --marker-bird: #c17d2e;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -425,6 +498,7 @@ _HTML_STYLE = """
       --danger: #e0897a;
       --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 20px -10px rgba(0,0,0,0.5);
       --chart-elevation: #cda978; --chart-elevation-fill: rgba(205, 169, 120, 0.14); --chart-speed: #7bb4d9; --chart-speed-fill: rgba(123, 180, 217, 0.12);
+      --marker-photo: #c9a0d9; --marker-observation: #7ad9c4; --marker-bird: #e0a768;
     }
   }
   * { box-sizing: border-box; }
@@ -476,6 +550,15 @@ _HTML_STYLE = """
   .hike-map { height: 20rem; border-radius: var(--radius); border: 1px solid var(--line); }
   .route-line { stroke: var(--accent); stroke-width: 3; }
   .route-highlight { fill: var(--surface); stroke: var(--accent); stroke-width: 2.5; }
+  .map-marker-icon { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--surface); border: 1.5px solid currentColor; box-shadow: var(--shadow); }
+  .map-marker-icon svg { width: 16px; height: 16px; }
+  .map-marker-icon--photo { color: var(--marker-photo); }
+  .map-marker-icon--observation { color: var(--marker-observation); }
+  .map-marker-icon--bird { color: var(--marker-bird); }
+  .leaflet-tooltip { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 0.82rem; max-width: 12rem; }
+  .leaflet-tooltip img { display: block; max-width: 8rem; border-radius: 4px; }
+  .leaflet-tooltip-top:before { border-top-color: var(--surface); }
+  .map-marker-tooltip-meta { color: var(--ink-faint); font-size: 0.75rem; }
   .hike-visuals { display: grid; grid-template-columns: 1fr; gap: 1.25rem; margin-bottom: 2.25rem; }
   .hike-visuals section { margin-bottom: 0; }
   @media (min-width: 52rem) { .hike-visuals { grid-template-columns: 1fr 1fr; align-items: start; } .hike-visuals .hike-map { height: 15rem; } }
@@ -516,11 +599,16 @@ def _stat_card(label, value, na=False):
 
 def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None,
                  gaia_embed_html=None, file_stem=None, birdnet_rows=None,
-                 address=None, named_features=None, thunderforest_api_key=None):
+                 address=None, named_features=None, thunderforest_api_key=None,
+                 birdnet_occurrences=None):
     offset_delta = _parse_offset(offset_str)
     coverage = hike_data["coverage"]
     stats = hike_data["stats"]
     hike_confirmed = coverage["gps_track"]["hike_confirmed"]
+    # CARD-0113/CARD-0115: computed here (not just inside photos_section
+    # below) since CARD-0133's event markers also need it -- see that
+    # section's own comment for why this is keyed on file_stem, not date_str.
+    photos_dir = f"{file_stem or date_str}_photos"
 
     hero_time = hero_time_display(hike_data, offset_delta)
     time_na = hero_time["start"] == NA
@@ -592,8 +680,16 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     chart_html = (
         build_hike_chart.build_chart_html(chart_series, tz_offset_hours=offset_hours) if chart_series else ""
     )
+    # CARD-0133: event markers (photos/observations/bird occurrences) --
+    # computed regardless of whether there's a map to put them on (cheap),
+    # only actually used when map_html ends up non-empty below.
+    event_markers = _build_event_markers(
+        hike_data, photos_manifest, photos_dir, offset_delta, chart_series, birdnet_occurrences
+    )
     map_html = (
-        build_hike_map.build_map_html(chart_series, thunderforest_api_key, tz_offset_hours=offset_hours)
+        build_hike_map.build_map_html(
+            chart_series, thunderforest_api_key, tz_offset_hours=offset_hours, markers=event_markers
+        )
         if chart_series and thunderforest_api_key else ""
     )
     hike_visuals_section = ""
@@ -682,9 +778,8 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     # in '<date>-2_photos/', so referencing '<date>_photos/' here (found live
     # 2026-07-29, broken thumbnails + 404s on click for exactly this case)
     # pointed at the wrong directory whenever more than one hike published on
-    # the same day. Falls back to date_str if file_stem isn't given (should
-    # only happen if a caller is missed -- keeps this from hard-crashing).
-    photos_dir = f"{file_stem or date_str}_photos"
+    # the same day. (photos_dir itself is computed near the top of this
+    # function now, CARD-0133 -- event markers need it too.)
     if photos_manifest and photos_manifest.get("assets"):
         items = []
         for a in photos_manifest["assets"]:

@@ -67,6 +67,13 @@
     --chart-elevation-fill: rgba(150, 114, 63, 0.12);
     --chart-speed: #3f6a8a;
     --chart-speed-fill: rgba(63, 106, 138, 0.10);
+    /* CARD-0133: Route Map event marker colors -- purple/teal/amber, chosen
+       for clear separation from --accent (green), --chart-elevation (tan),
+       --chart-speed (blue), and the semantic --warning/--danger colors,
+       while staying in the same warm-olive/forest family. */
+    --marker-photo: #7a4f8a;
+    --marker-observation: #3f8a7a;
+    --marker-bird: #c17d2e;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -89,6 +96,9 @@
       --chart-elevation-fill: rgba(205, 169, 120, 0.14);
       --chart-speed: #7bb4d9;
       --chart-speed-fill: rgba(123, 180, 217, 0.12);
+      --marker-photo: #c9a0d9;
+      --marker-observation: #7ad9c4;
+      --marker-bird: #e0a768;
     }
   }
   * { box-sizing: border-box; }
@@ -252,6 +262,42 @@
      these only theme the route line/highlight to match the page palette. */
   .route-line { stroke: var(--accent); stroke-width: 3; }
   .route-highlight { fill: var(--surface); stroke: var(--accent); stroke-width: 2.5; }
+
+  /* CARD-0133: Route Map event markers (photos/observations/bird sightings).
+     build_hike_map.py only ever emits <span class="map-marker-icon
+     map-marker-icon--<type>"> wrapping one of its own inline SVGs -- shape
+     lives in that module, color lives here, via --marker-<type>. Unknown/
+     future types fall back to a plain dot (no matching --<type> class),
+     inheriting map-marker-icon's own default currentColor (--ink). */
+  .map-marker-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1.5px solid currentColor;
+    box-shadow: var(--shadow);
+  }
+  .map-marker-icon svg { width: 16px; height: 16px; }
+  .map-marker-icon--photo { color: var(--marker-photo); }
+  .map-marker-icon--observation { color: var(--marker-observation); }
+  .map-marker-icon--bird { color: var(--marker-bird); }
+  /* Leaflet's own default tooltip box/arrow, restyled to match the page's
+     card aesthetic instead of its stock white-box-with-white-arrow look. */
+  .leaflet-tooltip {
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    font-size: 0.82rem;
+    max-width: 12rem;
+  }
+  .leaflet-tooltip img { display: block; max-width: 8rem; border-radius: 4px; }
+  .leaflet-tooltip-top:before { border-top-color: var(--surface); }
+  .map-marker-tooltip-meta { color: var(--ink-faint); font-size: 0.75rem; }
 
   /* Side-by-side Route Map + Elevation & Speed -- shown together so the
      hover-sync between them (CARD-0082 <-> CARD-0110) is actually visible

@@ -425,7 +425,14 @@ def run_step2(file_stem, with_narrative=False):
 
     # CARD-0080: parsing only, no API call -- see birdnet.py for why no
     # location correlation is attempted (Joseph's call: table only).
-    birdnet_rows = birdnet.parse_detections(os.path.join(SRV_DIR, f"{file_stem}_staging"))
+    staging_dir = os.path.join(SRV_DIR, f"{file_stem}_staging")
+    birdnet_rows = birdnet.parse_detections(staging_dir)
+    # CARD-0133: separate, per-occurrence view of the same staged export(s)
+    # -- for the Route Map's bird markers, which do need a real (if
+    # approximate, interpolated) position per sighting, unlike the table
+    # above. Only ever populated here in step 2, same as birdnet_rows itself
+    # -- step 1 never has a staged BirdNET export to read yet.
+    birdnet_occurrences = birdnet.parse_occurrences(staging_dir)
 
     # CARD-0108/CARD-0112: runs after photo captioning so sign_text (if any)
     # is already on the manifest, and now with real photo locations
@@ -464,6 +471,7 @@ def run_step2(file_stem, with_narrative=False):
         birdnet_rows=birdnet_rows,
         address=place_context.get("address"), named_features=place_context.get("named_features"),
         thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
+        birdnet_occurrences=birdnet_occurrences,
     )
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:

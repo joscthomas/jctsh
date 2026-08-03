@@ -13,6 +13,13 @@ At the start of every Claude Code session in this repo, before doing anything el
    file mtime or git blame, since a single edit to `kanban-board.md` often touches many
    cards' surrounding text at once and would make every card look recently modified.
 
+**Every timestamp written into `kanban-board.md` (`Raised`, `RESOLVED`, `verified`, `Built`,
+`Decided`, status-line dates, anywhere else a date gets stamped) MUST include a time of day,
+local Phoenix time (`America/Phoenix`, MST, UTC-7, no DST) — e.g. `2026-08-03 14:32 MST`, never
+just `2026-08-03`. This has had to be corrected multiple times because a bare date is easy to
+default to mid-sentence — treat a date with no time as a formatting error to fix before writing
+it, not a style choice.
+
 ## Repository Layout
 ```
 jctsh/

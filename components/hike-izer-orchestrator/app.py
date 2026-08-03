@@ -139,7 +139,21 @@ class Handler(BaseHTTPRequestHandler):
         into the most-recently-published hike's own _staging directory (see
         generation.latest_file_stem for why mtime, not "today"). Unlike
         hike-end, this responds synchronously -- writing a file is fast,
-        no background thread needed."""
+        no background thread needed.
+
+        CARD-0136: a BirdNET share can reach here *before* the hike-end
+        webhook does (confirmed live 2026-08-03 -- a share landed 27s ahead
+        of the "stopped" event for the same hike), at which point
+        current_or_latest_file_stem() can only resolve to some other,
+        already-published hike -- silently wrong, not just unavailable. For
+        kind=birdnet specifically, an optional local_datetime query param
+        (same Tasker "Parse/Format Date and Time" pattern the hike-end
+        webhook already uses) lets this handler check whether the
+        already-known hike's own date actually matches the file's -- if not,
+        it parks the file in a dated pending directory for run() to claim
+        once that hike's own file_stem actually exists, instead of guessing.
+        Gaia embeds don't get this treatment -- staged well after hike-end
+        during step 2's conversational flow, no comparable race exists."""
         if not self._authorized(parts):
             log("Rejected stage-file POST: missing or incorrect key")
             _log_mqtt_async("Alert", "Stage-file webhook POST rejected: missing or incorrect key.")
@@ -162,14 +176,38 @@ class Handler(BaseHTTPRequestHandler):
             self._respond(400, {"status": "error", "message": "empty body"})
             return
 
-        file_stem = generation.latest_file_stem()
-        if file_stem is None:
+        file_stem = generation.current_or_latest_file_stem()
+
+        pending_date_str = None
+        if kind == "birdnet":
+            local_datetime = qs.get("local_datetime", [None])[0]
+            if local_datetime:
+                try:
+                    date_str, _offset_str = generation._local_date_and_offset(local_datetime)
+                except ValueError as e:
+                    log(f"Stage-file POST (birdnet): unparseable local_datetime ({e}) -- falling back to UTC date")
+                    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            else:
+                # No local_datetime at all (older Tasker config, or some
+                # future non-Tasker sender) -- UTC date is a reasonable
+                # guess rather than rejecting a real file over a missing
+                # param, same "don't lose data over an optional field"
+                # judgment call as the fallback above.
+                date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+            if file_stem is None or generation._date_str_from_stem(file_stem) != date_str:
+                pending_date_str = date_str
+
+        if pending_date_str is not None:
+            staging_dir = generation.pending_birdnet_dir(pending_date_str)
+        elif file_stem is not None:
+            staging_dir = os.path.join(generation.SRV_DIR, f"{file_stem}_staging")
+        else:
             log(f"Rejected stage-file POST ({kind}): no published hike found to stage against")
             _log_mqtt_async("Alert", f"Stage-file webhook POST ({kind}) rejected: no published hike found.")
             self._respond(409, {"status": "error", "message": "no published hike found"})
             return
 
-        staging_dir = os.path.join(generation.SRV_DIR, f"{file_stem}_staging")
         # CARD-0119: chmod explicitly (not via makedirs' mode=, which the
         # container's umask would mask down anyway) so the SSHFS-Win mount
         # -- connected as the non-root `jct` Linux user -- can actually
@@ -195,9 +233,14 @@ class Handler(BaseHTTPRequestHandler):
             self._respond(500, {"status": "error", "message": "write failed"})
             return
 
-        log(f"Staged {kind} file for {file_stem}: {dest}")
-        _log_mqtt_async("System", f"Staged {kind} file for {file_stem}.")
-        self._respond(200, {"status": "ok", "file_stem": file_stem})
+        if pending_date_str is not None:
+            log(f"Staged {kind} file as pending for {pending_date_str} (no matching hike yet): {dest}")
+            _log_mqtt_async("System", f"Staged {kind} file as pending for {pending_date_str} (no matching hike yet).")
+            self._respond(200, {"status": "ok", "file_stem": None, "pending_date": pending_date_str})
+        else:
+            log(f"Staged {kind} file for {file_stem}: {dest}")
+            _log_mqtt_async("System", f"Staged {kind} file for {file_stem}.")
+            self._respond(200, {"status": "ok", "file_stem": file_stem})
 
     def _respond(self, status, body):
         data = json.dumps(body).encode()

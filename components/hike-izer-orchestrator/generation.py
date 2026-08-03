@@ -28,6 +28,7 @@ phone.
 import glob
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -147,7 +148,14 @@ def _detect_session_window(payload, date_str, offset_str):
                 "--url", _env("APPS_SCRIPT_URL"), "--key", _env("APPS_SCRIPT_KEY"),
                 "--out", probe_path,
             ],
-            check=True, timeout=120,
+            # CARD-0135: fetch_hike_data.py's own fetch_sheet() now retries
+            # transient failures internally (up to 3 attempts, 2s/4s
+            # backoff, per sheet), so a run touching all 4 sheets can
+            # legitimately take much longer worst-case than before that
+            # existed -- confirmed live 2026-08-03, a run hit the old 120s
+            # ceiling on a day Apps Script needed a retry on nearly every
+            # sheet. 240s covers that worst case with real headroom.
+            check=True, timeout=240,
         )
         with open(probe_path, "r", encoding="utf-8") as f:
             probe_data = json.load(f)
@@ -220,6 +228,70 @@ def latest_file_stem():
         return None
     latest = max(candidates, key=os.path.getmtime)
     return os.path.basename(latest)[: -len("_hike-summary.html")]
+
+
+# CARD-0135: latest_file_stem()'s mtime lookup can only ever resolve to a
+# hike that's already published -- while step 1 (run(), below) is still
+# running, nothing has been published yet for the hike currently in
+# progress, so a file staged in that window would otherwise silently
+# misattribute to the previous hike. This marker names whichever hike run()
+# is actively generating (empty/absent the rest of the time).
+_IN_PROGRESS_MARKER = os.path.join(PRIVATE_DIR, "in_progress_stem.txt")
+
+
+def _set_in_progress_stem(file_stem):
+    os.makedirs(PRIVATE_DIR, exist_ok=True)
+    with open(_IN_PROGRESS_MARKER, "w", encoding="utf-8") as f:
+        f.write(file_stem)
+
+
+def _clear_in_progress_stem():
+    try:
+        os.remove(_IN_PROGRESS_MARKER)
+    except FileNotFoundError:
+        pass
+
+
+def current_or_latest_file_stem():
+    """CARD-0135: used by app.py's stage-file webhook instead of calling
+    latest_file_stem() directly -- prefers the hike step 1 is actively
+    generating (if any) over the mtime-based "most recently published"
+    lookup, so a file staged mid-step-1 attaches to the right hike."""
+    if os.path.exists(_IN_PROGRESS_MARKER):
+        with open(_IN_PROGRESS_MARKER, "r", encoding="utf-8") as f:
+            stem = f.read().strip()
+        if stem:
+            return stem
+    return latest_file_stem()
+
+
+# CARD-0136: BirdNET Live's own share can reach /webhook/stage-file *before*
+# the hike-end webhook does (confirmed live 2026-08-03 -- a share landed 27s
+# ahead of the "stopped" event for the same hike) -- at that instant nothing
+# yet exists to attribute the file to, not even CARD-0135's in-progress
+# marker, since no file_stem has been assigned yet. app.py stages a birdnet
+# file into one of these (keyed by the file's own local calendar date,
+# parsed from a local_datetime the BirdNET AutoShare Tasker profile now
+# sends alongside it) instead of guessing at an unrelated already-published
+# hike. run() below claims whatever's waiting here once it knows its own
+# real file_stem.
+_PENDING_BIRDNET_PREFIX = "pending_birdnet_"
+
+
+def pending_birdnet_dir(date_str):
+    return os.path.join(SRV_DIR, f"{_PENDING_BIRDNET_PREFIX}{date_str}")
+
+
+def _claim_pending_birdnet(date_str, staging_dir):
+    pending_dir = pending_birdnet_dir(date_str)
+    if not os.path.isdir(pending_dir):
+        return
+    for name in os.listdir(pending_dir):
+        shutil.move(os.path.join(pending_dir, name), os.path.join(staging_dir, name))
+    try:
+        os.rmdir(pending_dir)
+    except OSError:
+        pass  # non-empty (unexpected) or a race with another writer -- leave it, not worth failing generation over
 
 
 def _fetch_photos(hike_data_path, photos_dir):
@@ -295,101 +367,130 @@ def run(payload):
     # path (HTML, meta.json, photos dir) uses it consistently.
     file_stem = _next_file_stem(date_str)
 
-    # CARD-0112: persisted in PRIVATE_DIR (never web-exposed, see that
-    # constant's own comment), not /tmp -- so step 2 can reuse it hours or
-    # days later, even across a container restart, without re-querying the
-    # Apps Script for data that can't have changed since the hike happened.
-    hike_data_path = os.path.join(PRIVATE_DIR, f"{file_stem}_hike_data.json")
-    subprocess.run(
-        [
-            sys.executable, FETCH_DATA_SCRIPT,
-            "--start", start_iso, "--end", end_iso,
-            "--url", _env("APPS_SCRIPT_URL"), "--key", _env("APPS_SCRIPT_KEY"),
-            "--out", hike_data_path,
-        ],
-        check=True, timeout=120,
-    )
-    with open(hike_data_path, "r", encoding="utf-8") as f:
-        hike_data = json.load(f)
-
-    # CARD-0100: don't spend a real Claude API call or publish a live page
-    # for a day with no confirmed hike (e.g. GPSLogger left running during a
-    # car errand) -- fetch_hike_data.py's own classification already knows
-    # this, the automatic path just wasn't checking it before doing real
-    # work. This gate is specific to the automatic webhook path; the
-    # interactive Skill correctly still reports "no hike" when Joseph
-    # explicitly asks, since that's a wanted answer, not a bug.
-    if not hike_data["coverage"]["gps_track"]["hike_confirmed"]:
-        print(f"No hike confirmed for {file_stem} -- skipping generation", file=sys.stderr, flush=True)
-        mqtt_log.publish_log(
-            "System",
-            f"GPSLogger stopped, no hike confirmed for {file_stem} -- skipped generation.",
+    # CARD-0135: set before any slow work starts, cleared in the finally
+    # below regardless of how this run ends -- see current_or_latest_file_stem()
+    # for why this needs to exist at all (a file staged while this run is
+    # still in flight has nothing published yet to attach to otherwise).
+    _set_in_progress_stem(file_stem)
+    try:
+        # CARD-0112: persisted in PRIVATE_DIR (never web-exposed, see that
+        # constant's own comment), not /tmp -- so step 2 can reuse it hours or
+        # days later, even across a container restart, without re-querying the
+        # Apps Script for data that can't have changed since the hike happened.
+        hike_data_path = os.path.join(PRIVATE_DIR, f"{file_stem}_hike_data.json")
+        subprocess.run(
+            [
+                sys.executable, FETCH_DATA_SCRIPT,
+                "--start", start_iso, "--end", end_iso,
+                "--url", _env("APPS_SCRIPT_URL"), "--key", _env("APPS_SCRIPT_KEY"),
+                "--out", hike_data_path,
+            ],
+            # CARD-0135: see _detect_session_window's identical comment --
+            # same retry-latency reasoning applies here.
+            check=True, timeout=240,
         )
-        os.remove(hike_data_path)  # nothing for step 2 to ever reuse for this non-hike
-        return None, tracker
+        with open(hike_data_path, "r", encoding="utf-8") as f:
+            hike_data = json.load(f)
 
-    # CARD-0112: staging directory created up front (even though nothing's
-    # in it yet) so Joseph's SSHFS-Win-mounted drive shows a real folder to
-    # drop files into immediately, rather than needing to create it himself
-    # before staging anything for this hike.
-    #
-    # CARD-0119: this process runs as root inside the container, so a plain
-    # os.makedirs() defaults to owner-only write (0755) -- the SSHFS-Win
-    # mount connects as the `jct` Linux user, which isn't root and isn't in
-    # its group, so it could read/traverse but never actually drop a file
-    # in via the mount (confirmed live 2026-07-30). chmod explicitly,
-    # rather than passing mode= to makedirs(), since mode= is masked by the
-    # container's umask and doesn't reliably produce 0o777 either way.
-    _staging_dir = os.path.join(SRV_DIR, f"{file_stem}_staging")
-    os.makedirs(_staging_dir, exist_ok=True)
-    os.chmod(_staging_dir, 0o777)
+        # CARD-0100: don't spend a real Claude API call or publish a live page
+        # for a day with no confirmed hike (e.g. GPSLogger left running during a
+        # car errand) -- fetch_hike_data.py's own classification already knows
+        # this, the automatic path just wasn't checking it before doing real
+        # work. This gate is specific to the automatic webhook path; the
+        # interactive Skill correctly still reports "no hike" when Joseph
+        # explicitly asks, since that's a wanted answer, not a bug.
+        if not hike_data["coverage"]["gps_track"]["hike_confirmed"]:
+            print(f"No hike confirmed for {file_stem} -- skipping generation", file=sys.stderr, flush=True)
+            mqtt_log.publish_log(
+                "System",
+                f"GPSLogger stopped, no hike confirmed for {file_stem} -- skipped generation.",
+            )
+            os.remove(hike_data_path)  # nothing for step 2 to ever reuse for this non-hike
+            return None, tracker
 
-    # hike_confirmed is true past this point (checked above). Photos: best-
-    # effort only -- CARD-0111 confirmed Immich's own upload almost never
-    # happens this fast, but it costs nothing to check.
-    photos_dir = os.path.join(SRV_DIR, f"{file_stem}_photos")
-    photos_manifest = _fetch_photos(hike_data_path, photos_dir)
-    if photos_manifest:
-        photos_manifest = photo_captions.caption_photos(
-            photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker
+        # CARD-0112: staging directory created up front (even though nothing's
+        # in it yet) so Joseph's SSHFS-Win-mounted drive shows a real folder to
+        # drop files into immediately, rather than needing to create it himself
+        # before staging anything for this hike.
+        #
+        # CARD-0119: this process runs as root inside the container, so a plain
+        # os.makedirs() defaults to owner-only write (0755) -- the SSHFS-Win
+        # mount connects as the `jct` Linux user, which isn't root and isn't in
+        # its group, so it could read/traverse but never actually drop a file
+        # in via the mount (confirmed live 2026-07-30). chmod explicitly,
+        # rather than passing mode= to makedirs(), since mode= is masked by the
+        # container's umask and doesn't reliably produce 0o777 either way.
+        _staging_dir = os.path.join(SRV_DIR, f"{file_stem}_staging")
+        os.makedirs(_staging_dir, exist_ok=True)
+        os.chmod(_staging_dir, 0o777)
+
+        # CARD-0136: claim anything the BirdNET stage-file webhook parked
+        # for this calendar date before this run's own file_stem existed to
+        # attach to (a share arriving ahead of this very webhook -- confirmed
+        # live 2026-08-03). Keyed by date_str, not file_stem, since the
+        # pending side can't know yet whether this'll be the day's first
+        # hike or a later one.
+        _claim_pending_birdnet(date_str, _staging_dir)
+
+        # hike_confirmed is true past this point (checked above). Photos: best-
+        # effort only -- CARD-0111 confirmed Immich's own upload almost never
+        # happens this fast, but it costs nothing to check.
+        photos_dir = os.path.join(SRV_DIR, f"{file_stem}_photos")
+        photos_manifest = _fetch_photos(hike_data_path, photos_dir)
+        if photos_manifest:
+            photos_manifest = photo_captions.caption_photos(
+                photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker
+            )
+
+        # CARD-0135: same best-effort spirit as the photos fetch above --
+        # cheap to check, and now that current_or_latest_file_stem() lets a
+        # file staged mid-run correctly target this hike, worth checking
+        # rather than always leaving bird data to step 2. Rare that anything
+        # is here yet (the common case is still step 2), but no harm either
+        # way -- parse_detections()/parse_occurrences() both just return
+        # empty when the staging dir has no BirdNET export in it.
+        birdnet_rows = birdnet.parse_detections(_staging_dir)
+        birdnet_occurrences = birdnet.parse_occurrences(_staging_dir)
+
+        # CARD-0112: no place_context, no narrative call in step 1 -- mechanical
+        # rendering only. templating.render_html omits the whole narrative
+        # section when narrative_paragraphs is empty, same convention as the
+        # Photos section's own omit-when-empty handling.
+        # CARD-0134: thunderforest_api_key passed here too (not just step 2) --
+        # the Route Map + Elevation & Speed chart need no manual staging, unlike
+        # the Gaia embed they replaced, so every automatically-published page
+        # gets a real map/chart from this very first publish.
+        html_text = templating.render_html(
+            hike_data, [], date_str, offset_str, photos_manifest, file_stem=file_stem,
+            thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
+            birdnet_rows=birdnet_rows, birdnet_occurrences=birdnet_occurrences,
         )
 
-    # CARD-0112: no place_context, no narrative call in step 1 -- mechanical
-    # rendering only. templating.render_html omits the whole narrative
-    # section when narrative_paragraphs is empty, same convention as the
-    # Photos section's own omit-when-empty handling.
-    # CARD-0134: thunderforest_api_key passed here too (not just step 2) --
-    # the Route Map + Elevation & Speed chart need no manual staging, unlike
-    # the Gaia embed they replaced, so every automatically-published page
-    # gets a real map/chart from this very first publish.
-    html_text = templating.render_html(
-        hike_data, [], date_str, offset_str, photos_manifest, file_stem=file_stem,
-        thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
-    )
+        with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
+            f.write(html_text)
 
-    with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
-        f.write(html_text)
+        # CARD-0092: sidecar manifest for the calendar home page. Always
+        # hike_confirmed: true here -- CARD-0100 already returned early above
+        # for any day that isn't a confirmed hike, so this automatic path only
+        # ever reaches this point on a real hike. offset_str is carried along so
+        # step 2 (run hours/days later, from just a file stem) doesn't need to
+        # re-derive it. start_ts (CARD-0118) is the earliest confirmed session's
+        # raw UTC start, so build_calendar_index.py can label this hike's
+        # calendar-cell link with its actual local start time.
+        confirmed_sessions = [s for s in hike_data["coverage"]["gps_track"]["sessions"] if s["is_hike"]]
+        start_ts = min((s["start"] for s in confirmed_sessions), default=None)
+        with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.meta.json"), "w", encoding="utf-8") as f:
+            json.dump({"hike_confirmed": True, "offset_str": offset_str, "start_ts": start_ts}, f)
 
-    # CARD-0092: sidecar manifest for the calendar home page. Always
-    # hike_confirmed: true here -- CARD-0100 already returned early above
-    # for any day that isn't a confirmed hike, so this automatic path only
-    # ever reaches this point on a real hike. offset_str is carried along so
-    # step 2 (run hours/days later, from just a file stem) doesn't need to
-    # re-derive it. start_ts (CARD-0118) is the earliest confirmed session's
-    # raw UTC start, so build_calendar_index.py can label this hike's
-    # calendar-cell link with its actual local start time.
-    confirmed_sessions = [s for s in hike_data["coverage"]["gps_track"]["sessions"] if s["is_hike"]]
-    start_ts = min((s["start"] for s in confirmed_sessions), default=None)
-    with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.meta.json"), "w", encoding="utf-8") as f:
-        json.dump({"hike_confirmed": True, "offset_str": offset_str, "start_ts": start_ts}, f)
+        subprocess.run(
+            [sys.executable, BUILD_CALENDAR_SCRIPT, "--srv-dir", SRV_DIR],
+            check=True, timeout=30,
+        )
 
-    subprocess.run(
-        [sys.executable, BUILD_CALENDAR_SCRIPT, "--srv-dir", SRV_DIR],
-        check=True, timeout=30,
-    )
-
-    print(f"Step 1 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
-    return file_stem, tracker
+        print(f"Step 1 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
+        return file_stem, tracker
+    finally:
+        _clear_in_progress_stem()
 
 
 def run_step2(file_stem, with_narrative=False):

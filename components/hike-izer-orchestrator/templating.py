@@ -695,7 +695,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     hike_visuals_section = ""
     if map_html or chart_html:
         map_part = f'<section><h2>Route Map</h2>{map_html}</section>' if map_html else ""
-        chart_part = f'<section><h2>Elevation &amp; Speed</h2>{chart_html}</section>' if chart_html else ""
+        chart_part = f'<section><h2>Elevation and Speed</h2>{chart_html}</section>' if chart_html else ""
         hike_visuals_section = f"""
   <div class="hike-visuals">{map_part}{chart_part}
   </div>"""

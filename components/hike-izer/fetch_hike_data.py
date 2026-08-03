@@ -20,9 +20,20 @@ import argparse
 import json
 import math
 import sys
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+
+# CARD-0135: Apps Script web apps occasionally blip (e.g. an HTTP 404 after
+# their own internal redirect) even when the deployment itself is healthy --
+# confirmed 2026-08-03 when an identical query re-run by hand seconds after a
+# failure succeeded cleanly. Retrying a couple times costs nothing on the
+# happy path and rides out that class of transient failure instead of
+# killing the whole run over it.
+FETCH_RETRY_ATTEMPTS = 3
+FETCH_RETRY_BACKOFF_SEC = (2, 4)
 
 
 def fetch_sheet(base_url, api_key, sheet, start, end):
@@ -35,8 +46,19 @@ def fetch_sheet(base_url, api_key, sheet, start, end):
     }
     url = base_url + '?' + urllib.parse.urlencode(params)
     req = urllib.request.Request(url)
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        data = json.loads(resp.read().decode('utf-8'))
+    for attempt in range(1, FETCH_RETRY_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+            break
+        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+            if attempt == FETCH_RETRY_ATTEMPTS:
+                raise
+            print(
+                f"fetch_sheet: attempt {attempt}/{FETCH_RETRY_ATTEMPTS} failed for sheet={sheet} ({e}) -- retrying",
+                file=sys.stderr,
+            )
+            time.sleep(FETCH_RETRY_BACKOFF_SEC[attempt - 1])
     if data.get('status') != 'ok':
         raise RuntimeError(f"Export failed for sheet={sheet}: {data.get('message')}")
     return data['rows']

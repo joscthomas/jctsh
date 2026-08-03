@@ -1,4 +1,15 @@
 :80 {
+    # CARD-0136: access logging to stdout was missing entirely -- found
+    # while tracing an unexplained duplicate /webhook/hike-end POST and
+    # discovering there was no way to tell whether it came through this
+    # public path at all. `format console` (not Caddy's default JSON) so
+    # it reads the same way as `docker logs` on every other container in
+    # this stack -- one grep-able line per request, source IP included.
+    log {
+        output stdout
+        format console
+    }
+
     # CARD-0086: webhook receiver, reached at
     # https://photo-server.tailfe828a.ts.net/webhook/hike-end -- proxied to
     # the `orchestrator` service (same compose project, reachable by

@@ -52,6 +52,22 @@ _pending     = None                         # current non-heartbeat repeat group
 _hb_groups   = {}                           # component -> active heartbeat collapse group
 _last_seen   = {}                           # component -> most recent entry, regardless of eviction
 _pending_updates = {}                       # CARD-0127: component -> current retained pending-update state
+# CARD-0137: connection state (online/offline, from the retained /status
+# topic) tracked separately from _last_seen/_entries -- it's a *current fact*
+# the broker guarantees is accurate whenever delivered (whether just
+# published or redelivered on resubscribe), not a timestamped *event*.
+# Displaying it with an age ("X ago") is what caused this card in the first
+# place: a redelivered-but-unchanged retained value looked like something
+# had just happened. No age is shown for this field at all -- just the
+# current value, which is exactly what "retained" already promises is real.
+_connection_state = {}                      # component -> {"online": bool, "raw": str}
+# CARD-0137: components that have ever published a heartbeat, persisted so a
+# component doesn't "lose" its heartbeat-expected classification just
+# because its own last heartbeat aged out of the bounded _entries deque.
+# Drives which components get a Freshness verdict at all on /status --
+# devices that were never expected to heartbeat (e.g. hiking-monitor, only
+# powered during an actual hike) show "n/a" instead of a misleading "?".
+_ever_heartbeated = set()
 _mqtt_client = None
 
 # ── File logging ─────────────────────────────────────────────────────────────
@@ -77,6 +93,8 @@ def _save_state():
                 comp: {k: v for k, v in e.items() if not k.startswith("_")}
                 for comp, e in _last_seen.items()
             },
+            "connection_state": _connection_state,
+            "ever_heartbeated": sorted(_ever_heartbeated),
         }
         tmp = STATE_FILE + ".tmp"
         with open(tmp, "w") as f:
@@ -96,6 +114,8 @@ def _load_state():
         for e in data.get("entries", []):
             _entries.append(e)
         _last_seen.update(data.get("last_seen", {}))
+        _connection_state.update(data.get("connection_state", {}))
+        _ever_heartbeated.update(data.get("ever_heartbeated", []))
     except (OSError, json.JSONDecodeError):
         pass
 
@@ -221,6 +241,7 @@ def _store_entry(component, category, message, ts):
     """Store a log entry — heartbeat vs regular. Caller must hold _lock."""
     global _pending
     if message.startswith("Heartbeat - ") or message.startswith("Watchdog: "):
+        _ever_heartbeated.add(component)
         state_key = _heartbeat_state_key(message)
         existing  = _hb_groups.get(component)
         if existing and existing["_state_key"] == state_key:
@@ -256,6 +277,20 @@ def _store_entry(component, category, message, ts):
             }
         _last_seen[component] = _pending
     _save_state()
+
+
+def _is_unchanged_retained(component, category, message, retain):
+    """CARD-0137: True when `retain` is set and this exact (category,
+    message) is already the most recently recorded value for `component` --
+    i.e. this delivery is a retained-message replay (typically the initial
+    flush right after a resubscribe, e.g. after a service restart) rather
+    than genuine news. Caller must hold _lock."""
+    prior = _last_seen.get(component)
+    return bool(
+        retain and prior is not None
+        and prior.get("category") == category
+        and prior.get("message")  == message
+    )
 
 
 def _on_message(client, userdata, msg):
@@ -301,7 +336,18 @@ def _on_message(client, userdata, msg):
             else:
                 return
             with _lock:
-                _store_entry(component, category, message, ts)
+                # CARD-0137: current connection truth, tracked with no
+                # timestamp/age at all -- see _connection_state's own
+                # comment for why. Always safe to overwrite unconditionally,
+                # redelivered-on-resubscribe or not, since the value itself
+                # is accurate either way; only stamping it as a fresh *event*
+                # was ever misleading.
+                _connection_state[component] = {"online": payload == "online", "raw": payload}
+                # The raw log/Last-Reading history is a separate concern from
+                # _connection_state above -- same redelivery-vs-genuine-event
+                # distinction as the general log path below applies here too.
+                if not _is_unchanged_retained(component, category, message, msg.retain):
+                    _store_entry(component, category, message, ts)
         return
 
     # Standard JSON log message on jctsh/+/+/log
@@ -311,7 +357,14 @@ def _on_message(client, userdata, msg):
         category  = str(data.get("category",  "System"))
         message   = str(data.get("message",   ""))
         with _lock:
-            _store_entry(component, category, message, ts)
+            # CARD-0137: a retained message redelivered on resubscribe (e.g.
+            # after a log-server restart) looks identical to a genuine new
+            # event -- skip re-stamping when it's the same value already on
+            # record, just being replayed to a fresh subscriber, not real
+            # news. A real change (or a non-retained message) is
+            # stored/stamped exactly as before.
+            if not _is_unchanged_retained(component, category, message, msg.retain):
+                _store_entry(component, category, message, ts)
     except (json.JSONDecodeError, UnicodeDecodeError, KeyError):
         pass
 
@@ -504,7 +557,7 @@ _STATUS_TEMPLATE = """\
   <h3>Always-on</h3>
   <table>
     <thead><tr>
-      <th>Component</th><th>Status</th><th>Last Heartbeat</th><th>Last Reading</th><th>Pending Update</th>
+      <th>Component</th><th>Connection</th><th>Freshness</th><th>Last Heartbeat</th><th>Last Reading</th><th>Pending Update</th>
     </tr></thead>
     <tbody>
 %%HOME_ROWS%%
@@ -572,19 +625,30 @@ def _compute_status(entries):
     result = {}
     for comp, rec in info.items():
         is_remote = comp in _REMOTE_COMPONENTS
-        if is_remote:
-            status = "?"
-        elif not rec["has_hb"]:
-            status = "?"
+        # CARD-0137: heartbeat-expected is a persisted, union-with-current-
+        # snapshot classification -- _ever_heartbeated survives a component's
+        # own heartbeat entries aging out of the bounded _entries deque, so a
+        # low-frequency heartbeater doesn't lose its classification just
+        # because noisier components pushed it out of the recent window.
+        heartbeat_expected = comp in _ever_heartbeated or rec["has_hb"]
+        if is_remote or not heartbeat_expected:
+            freshness = "n/a"
         else:
             try:
                 dt  = datetime.strptime(rec["last_hb_ts"][:19], "%Y-%m-%d %H:%M:%S")
                 dt  = dt.replace(tzinfo=_TZ)
                 age = (now - dt).total_seconds() / 60
-                status = "Online" if age < _HOME_HB_THRESHOLD_MIN else "Offline"
+                freshness = "Online" if age < _HOME_HB_THRESHOLD_MIN else "Offline"
             except (ValueError, TypeError):
-                status = "?"
-        result[comp] = {**rec, "status": status, "is_remote": is_remote}
+                freshness = "n/a"
+        # CARD-0137: current connection truth, no age -- see
+        # _connection_state's own module-level comment for why. None means
+        # this component has never published to the /status topic at all
+        # (e.g. a service like hike-izer-orchestrator, not an ESPHome
+        # device), distinct from a real known False.
+        conn = _connection_state.get(comp)
+        connection = None if conn is None else ("Connected" if conn["online"] else "Disconnected")
+        result[comp] = {**rec, "freshness": freshness, "connection": connection, "is_remote": is_remote}
     return result
 
 
@@ -598,13 +662,28 @@ def _build_status_html():
 
     home_rows = []
     for comp, rec in home:
-        s = rec["status"]
-        if s == "Online":
-            scls, slabel = "online",  "Online"
-        elif s == "Offline":
-            scls, slabel = "offline", "Offline"
+        # CARD-0137: two independent verdicts, not one overloaded "Status" --
+        # Connection (is it reachable right now, from the retained /status
+        # topic, no age) and Freshness (is its data recent enough to trust,
+        # heartbeat-age-based, only shown for components ever known to
+        # heartbeat). A component can be Connected with stale data (dead
+        # sensor logic, live MQTT session) or intermittently Disconnected by
+        # design (a portable device between uses) -- collapsing both into one
+        # value hid that distinction.
+        conn = rec["connection"]
+        if conn == "Connected":
+            ccls, clabel = "online",  "Connected"
+        elif conn == "Disconnected":
+            ccls, clabel = "offline", "Disconnected"
         else:
-            scls, slabel = "unknown", "?"
+            ccls, clabel = "dim", "—"
+        fresh = rec["freshness"]
+        if fresh == "Online":
+            fcls, flabel = "online",  "Online"
+        elif fresh == "Offline":
+            fcls, flabel = "offline", "Offline"
+        else:
+            fcls, flabel = "dim", "n/a"
         hb_cell = (f'<span class="ts">{escape(_ago(rec["last_hb_ts"]))}</span>'
                    if rec["last_hb_ts"] else '<span class="dim">—</span>')
         if rec["last_reading_msg"]:
@@ -629,7 +708,8 @@ def _build_status_html():
         home_rows.append(
             f'      <tr>'
             f'<td>{escape(comp)}</td>'
-            f'<td class="{scls}">{slabel}</td>'
+            f'<td class="{ccls}">{clabel}</td>'
+            f'<td class="{fcls}">{flabel}</td>'
             f'<td>{hb_cell}</td>'
             f'<td class="msg">{rd_cell}</td>'
             f'<td class="msg">{pu_cell}</td>'
@@ -653,7 +733,7 @@ def _build_status_html():
             f'</tr>'
         )
 
-    no_home   = "      <tr><td colspan='5' class='dim'>No always-on devices in recent log.</td></tr>"
+    no_home   = "      <tr><td colspan='6' class='dim'>No always-on devices in recent log.</td></tr>"
     no_remote = "      <tr><td colspan='3' class='dim'>No mobile devices in recent log.</td></tr>"
     html = _STATUS_TEMPLATE
     html = html.replace("%%HOME_ROWS%%",   "\n".join(home_rows)   or no_home)

@@ -1378,6 +1378,8 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 **Done when:** OTA, hotspot, and MQTT passwords are rotated on both the test rig and the real field-deployed hiking-monitor (secrets files already updated for all three — reflash is the only remaining step, blocked on physical device access); Mosquitto broker-side password and the Pixel's "JCT Hotspot" setting updated in lockstep with each device's reflash (see `credentials.local.md` for the exact steps). WiFi/AP rotation is explicitly out of scope per the risk-acceptance decision above, not a remaining gap.
 
+**Blocked as of 2026-08-03 19:10 MST — both devices must be online/reachable to be reflashed, and neither currently is.** Test rig is asleep with no wake source wired (needs the GPIO32→3.3V wake trick, OTA, or a USB flash); the real field-deployed hiking-monitor is physically elsewhere. New passwords are already staged in all three `secrets.yaml` copies — reflash is the only remaining step once a device is accessible.
+
 ---
 
 ### CARD-0070 · [enhancement] [hiking-monitor] Replace boost converter with LDO + gate peripheral power for lower standby draw

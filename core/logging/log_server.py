@@ -38,6 +38,12 @@ HB_GROUP_MAX_AGE_SEC = 900   # rotate a pending heartbeat group after this long,
 HB_FLUSH_CHECK_INTERVAL = 60
 HTTP_PORT   = 80
 _REMOTE_COMPONENTS     = {"coachproxyos"}
+# CARD-0139: bench-test/dev rigs, not real deployed assets -- excluded from
+# /status entirely rather than tracked-but-wrong. Explicit hand-maintained
+# list (same shape as _REMOTE_COMPONENTS above), not a naming-convention
+# guess (e.g. a "-test" suffix rule), since that'd be a surprising trap for
+# any future real component that happens to share the pattern.
+_EXCLUDED_COMPONENTS   = {"hiking-monitor-test"}
 _HOME_HB_THRESHOLD_MIN = 70   # hourly beat + 10 min grace
 LOG_DIR     = "/mnt/jctsh-logs"
 LOG_FILE    = os.path.join(LOG_DIR, "jctsh.log")
@@ -654,7 +660,7 @@ def _compute_status(entries):
 
 def _build_status_html():
     snap   = _snapshot()
-    comps  = _compute_status(snap)
+    comps  = {c: r for c, r in _compute_status(snap).items() if c not in _EXCLUDED_COMPONENTS}
     home   = sorted((c, r) for c, r in comps.items() if not r["is_remote"])
     remote = sorted((c, r) for c, r in comps.items() if r["is_remote"])
     with _lock:

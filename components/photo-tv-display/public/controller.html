@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>photo-tv-display controller</title>
+<link rel="stylesheet" href="/public/styles.css">
+</head>
+<body class="controller">
+  <h1 id="whoami"></h1>
+
+  <div class="panel">
+    <h2>Now Showing</h2>
+    <img id="preview" style="width:100%;border-radius:8px;display:block;margin-bottom:10px;">
+    <div id="caption" style="font-size:.85rem;opacity:.7;margin-bottom:10px;"></div>
+    <div class="row-buttons">
+      <button id="btnPrev">◀ Prev</button>
+      <button id="btnNext">Next ▶</button>
+      <button id="btnStart" class="primary">Start Slideshow</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Actions</h2>
+    <div class="row-buttons">
+      <button id="btnFavorite">☆ Favorite</button>
+      <button id="btnDelete" class="danger">Delete</button>
+      <button id="btnAddAlbum">Add to Album</button>
+      <button id="btnNewAlbum">New Album</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Filter</h2>
+    <select id="filterMode">
+      <option value="random">Full library random</option>
+      <option value="owner">By owner</option>
+      <option value="favorites">Favorites only</option>
+      <option value="person">By person</option>
+      <option value="concept">By concept</option>
+      <option value="location">By location</option>
+      <option value="album">By album</option>
+      <option value="dateRange">By date range</option>
+      <option value="onThisDay">On this day</option>
+    </select>
+    <div id="filterExtra" style="margin-top:10px;"></div>
+    <div class="row-buttons" style="margin-top:10px;">
+      <button id="btnApplyFilter" class="primary">Apply Filter</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Settings</h2>
+    <div class="field-row">
+      <label>Display duration (sec)</label>
+      <input type="number" id="setDuration" min="2" max="120" style="width:80px;">
+    </div>
+    <div class="field-row">
+      <label>Transition</label>
+      <select id="setTransition">
+        <option value="crossfade">Crossfade</option>
+        <option value="kenburns">Ken Burns</option>
+        <option value="cut">Cut</option>
+        <option value="fadeblack">Fade to black</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <label>Metadata: date</label><input type="checkbox" id="mfDate">
+    </div>
+    <div class="field-row">
+      <label>Metadata: location</label><input type="checkbox" id="mfLocation">
+    </div>
+    <div class="field-row">
+      <label>Metadata: people</label><input type="checkbox" id="mfPeople">
+    </div>
+    <div class="field-row">
+      <label>Metadata: folder/album</label><input type="checkbox" id="mfFolder">
+    </div>
+    <div class="field-row">
+      <label>Metadata: whose photo</label><input type="checkbox" id="mfOwner">
+    </div>
+    <div class="field-row">
+      <label>Metadata: description</label><input type="checkbox" id="mfDescription">
+    </div>
+    <div class="field-row">
+      <label>Metadata display</label>
+      <select id="setMetaBehavior">
+        <option value="always">Always visible</option>
+        <option value="fadeInOut">Fade in/out</option>
+        <option value="onDemand">On demand</option>
+      </select>
+    </div>
+    <div class="field-row" id="onDemandRow" style="display:none;">
+      <label></label>
+      <button id="btnFlashMetadata">Show info now</button>
+    </div>
+    <div class="field-row">
+      <label>Delete confirmation</label><input type="checkbox" id="setDeleteConfirm">
+    </div>
+    <div class="field-row">
+      <label>Idle auto-start timeout (sec, 0 = off)</label>
+      <input type="number" id="setIdleTimeout" min="0" max="3600" style="width:90px;">
+    </div>
+    <div class="row-buttons" style="margin-top:10px;">
+      <button id="btnApplySettings" class="primary">Apply Settings</button>
+    </div>
+  </div>
+
+  <script src="/public/controller.js"></script>
+</body>
+</html>

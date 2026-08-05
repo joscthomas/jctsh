@@ -9,9 +9,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # app.py/generation.py/narrative.py/templating.py/mqtt_log.py/ha_notify.py/
-# photo_captions.py/place_context.py/cost_tracking.py/birdnet.py are this
-# component's own source. fetch_hike_data.py/fetch_hike_photos.py/
-# build_calendar_index.py/build_hike_map.py/build_hike_chart.py and
+# photo_captions.py/place_context.py/cost_tracking.py/birdnet.py/
+# wildlife_life_list.py are this component's own source.
+# fetch_hike_data.py/fetch_hike_photos.py/build_calendar_index.py/
+# build_hike_map.py/build_hike_chart.py/build_wildlife_index.py and
 # SKILL.md are deployed copies from components/hike-izer/ and
 # .claude/skills/hike-izer/ respectively (scp'd into this directory before
 # `docker compose build`, not duplicated in the repo -- see this
@@ -19,11 +20,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # build_hike_chart.py added CARD-0134 -- same "deployed copy" treatment as
 # fetch_hike_data.py/fetch_hike_photos.py, not this component's own code.
 # ha_notify.py added CARD-0141 (Pixel push notifications, same best-effort
-# convention as mqtt_log.py).
+# convention as mqtt_log.py). wildlife_life_list.py/build_wildlife_index.py
+# added CARD-0142 (cross-hike wildlife life list).
 COPY app.py generation.py narrative.py templating.py mqtt_log.py ha_notify.py \
      photo_captions.py place_context.py cost_tracking.py birdnet.py \
+     wildlife_life_list.py \
      fetch_hike_data.py fetch_hike_photos.py build_calendar_index.py \
-     build_hike_map.py build_hike_chart.py SKILL.md \
+     build_hike_map.py build_hike_chart.py build_wildlife_index.py SKILL.md \
      /app/
 
 CMD ["python3", "/app/app.py"]

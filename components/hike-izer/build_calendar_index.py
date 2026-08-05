@@ -105,6 +105,17 @@ _STYLE = """
   .cal-nav a:hover { background: var(--surface-2); }
   .cal-nav span.disabled { color: var(--ink-faint); border-color: var(--line); }
 
+  .top-links { margin-bottom: 1.25rem; }
+  .top-links a {
+    font-size: 0.9rem;
+    text-decoration: none;
+    color: var(--ink);
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .top-links a:hover { background: var(--surface-2); }
+
   .cal-year-picker { position: relative; }
   .cal-year-picker summary {
     cursor: pointer;
@@ -342,6 +353,7 @@ def _render_page(months_sorted, index, by_month, years_latest_month):
 <main>
   <h1>Hike-izer</h1>
   <p class="subtitle">Days with a published summary are highlighted and link to it.</p>
+  <div class="top-links"><a href="wildlife.html">Wildlife Life List &rarr;</a></div>
   {nav}
   {grid}
   <footer>hike-izer</footer>
@@ -366,6 +378,7 @@ def _empty_page():
 <main>
   <h1>Hike-izer</h1>
   <p class="empty">No hike summaries published yet.</p>
+  <div class="top-links"><a href="wildlife.html">Wildlife Life List &rarr;</a></div>
   <footer>hike-izer</footer>
 </main>
 </body>

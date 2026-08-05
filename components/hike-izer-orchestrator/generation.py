@@ -42,6 +42,7 @@ import narrative
 import photo_captions
 import place_context as place_context_module
 import templating
+import wildlife_life_list
 
 SRV_DIR = "/srv/hike-izer"
 # CARD-0112: hike_data.json (raw GPS trackpoints, full Environmental Data)
@@ -54,6 +55,7 @@ SKILL_MD_PATH = "/app/SKILL.md"
 FETCH_DATA_SCRIPT = "/app/fetch_hike_data.py"
 FETCH_PHOTOS_SCRIPT = "/app/fetch_hike_photos.py"
 BUILD_CALENDAR_SCRIPT = "/app/build_calendar_index.py"
+BUILD_WILDLIFE_SCRIPT = "/app/build_wildlife_index.py"
 
 # CARD-0113: the automatic path's own webhook payload already carries the
 # session's exact start/end (startedtimestamp + duration), unlike the
@@ -488,6 +490,18 @@ def run(payload):
             check=True, timeout=30,
         )
 
+        # CARD-0142: merges this hike's species into the cross-hike life
+        # list and rebuilds wildlife.html -- no-op (both calls) if
+        # birdnet_rows is empty, same "no empty scaffolding" convention as
+        # the Photos section.
+        wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows)
+        if birdnet_rows:
+            subprocess.run(
+                [sys.executable, BUILD_WILDLIFE_SCRIPT,
+                 "--life-list", wildlife_life_list.LIFE_LIST_PATH, "--srv-dir", SRV_DIR],
+                check=True, timeout=30,
+            )
+
         print(f"Step 1 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
         return file_stem, tracker
     finally:
@@ -583,6 +597,17 @@ def run_step2(file_stem, with_narrative=False):
         [sys.executable, BUILD_CALENDAR_SCRIPT, "--srv-dir", SRV_DIR],
         check=True, timeout=30,
     )
+
+    # CARD-0142: same life-list merge as step 1 -- idempotent, so a hike
+    # already recorded by step 1's best-effort pass just re-adds its own
+    # file_stem to each species' hikes list rather than duplicating it.
+    wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows)
+    if birdnet_rows:
+        subprocess.run(
+            [sys.executable, BUILD_WILDLIFE_SCRIPT,
+             "--life-list", wildlife_life_list.LIFE_LIST_PATH, "--srv-dir", SRV_DIR],
+            check=True, timeout=30,
+        )
 
     print(f"Step 2 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
     return file_stem, tracker

@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# app.py/generation.py/narrative.py/templating.py/mqtt_log.py/
+# app.py/generation.py/narrative.py/templating.py/mqtt_log.py/ha_notify.py/
 # photo_captions.py/place_context.py/cost_tracking.py/birdnet.py are this
 # component's own source. fetch_hike_data.py/fetch_hike_photos.py/
 # build_calendar_index.py/build_hike_map.py/build_hike_chart.py and
@@ -18,7 +18,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # component's README for the exact deploy commands). build_hike_map.py/
 # build_hike_chart.py added CARD-0134 -- same "deployed copy" treatment as
 # fetch_hike_data.py/fetch_hike_photos.py, not this component's own code.
-COPY app.py generation.py narrative.py templating.py mqtt_log.py \
+# ha_notify.py added CARD-0141 (Pixel push notifications, same best-effort
+# convention as mqtt_log.py).
+COPY app.py generation.py narrative.py templating.py mqtt_log.py ha_notify.py \
      photo_captions.py place_context.py cost_tracking.py birdnet.py \
      fetch_hike_data.py fetch_hike_photos.py build_calendar_index.py \
      build_hike_map.py build_hike_chart.py SKILL.md \

@@ -36,6 +36,7 @@ from datetime import datetime, timedelta, timezone
 
 import birdnet
 import cost_tracking
+import ha_notify
 import mqtt_log
 import narrative
 import photo_captions
@@ -602,9 +603,14 @@ def run_and_log(payload):
             f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
             f"(API cost: {tracker.summary()}). Ask for the rich version once photos/Gaia/bird data are staged.",
         )
+        ha_notify.send_push(
+            "Hike-izer",
+            f"Hike summary published: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
+        )
     except Exception as e:
         print(f"Step 1 generation failed: {e}", file=sys.stderr)
         mqtt_log.publish_log("Alert", f"Hike summary step 1 generation failed: {e}")
+        ha_notify.send_push("Hike-izer", f"Hike summary generation failed: {e}")
 
 
 def run_step2_and_log(file_stem, with_narrative=False):
@@ -618,9 +624,14 @@ def run_step2_and_log(file_stem, with_narrative=False):
             f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
             f"(API cost: {tracker.summary()}).",
         )
+        ha_notify.send_push(
+            "Hike-izer",
+            f"Enriched hike summary published: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
+        )
     except Exception as e:
         print(f"Step 2 generation failed: {e}", file=sys.stderr)
         mqtt_log.publish_log("Alert", f"Hike summary step 2 generation failed for {file_stem}: {e}")
+        ha_notify.send_push("Hike-izer", f"Hike summary generation failed for {file_stem}: {e}")
         raise
 
 

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo Quality Review</title>
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --surface-2: #eef0e8;
+    --ink: #2b2f27;
+    --ink-muted: #5b6156;
+    --ink-faint: #8b9186;
+    --line: #ddded4;
+    --accent: #4b7a3f;
+    --accent-ink: #fbfff8;
+    --danger: #a3403a;
+    --shadow: 0 1px 2px rgba(30,30,20,0.06), 0 6px 16px -8px rgba(30,30,20,0.18);
+    --radius: 8px;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #171d16; --surface: #212a1f; --surface-2: #28331f;
+      --ink: #eef1ea; --ink-muted: #b7c2ae; --ink-faint: #7f8b76;
+      --line: #35402f; --accent: #8fc47a; --accent-ink: #16210f;
+      --danger: #e08a84;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 20px -10px rgba(0,0,0,0.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+  main { max-width: 60rem; margin: 0 auto; padding: 1.5rem 1.25rem 5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+  h2 { font-size: 1.1rem; margin: 2rem 0 0.75rem; }
+  .subtitle { color: var(--ink-muted); font-size: 0.85rem; margin: 0 0 1.5rem; }
+
+  .year-list { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .year-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 0.9rem 1.2rem; cursor: pointer; text-align: center;
+  }
+  .year-card:hover { background: var(--surface-2); }
+  .year-card .year { font-size: 1.3rem; font-weight: 700; }
+  .year-card .count { font-size: 0.75rem; color: var(--ink-muted); }
+
+  .back-link { display: inline-block; margin-bottom: 1rem; color: var(--ink-muted); text-decoration: none; font-size: 0.9rem; }
+  .back-link:hover { text-decoration: underline; }
+
+  .group {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 0.9rem; margin-bottom: 0.9rem;
+  }
+  .group-row { display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: flex-start; }
+  .item { text-align: center; width: 140px; }
+  .item img {
+    width: 140px; height: 140px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line);
+    display: block; margin-bottom: 0.35rem;
+  }
+  .item .fname { font-size: 0.7rem; color: var(--ink-faint); word-break: break-all; margin-bottom: 0.3rem; }
+  .item a.view-link { font-size: 0.7rem; color: var(--accent); text-decoration: none; }
+  .item a.view-link:hover { text-decoration: underline; }
+  .item label { display: block; font-size: 0.8rem; margin-top: 0.3rem; cursor: pointer; }
+
+  .skip-btn {
+    align-self: center; font-size: 0.8rem; color: var(--ink-muted); background: none;
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 0.3rem 0.6rem; cursor: pointer;
+  }
+  .skip-btn.active { background: var(--surface-2); color: var(--ink); }
+
+  .toggle-btn {
+    font-size: 0.75rem; border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 0.25rem 0.55rem; cursor: pointer; background: var(--surface); color: var(--ink-muted); width: 100%;
+  }
+  .toggle-btn.marked-delete { background: var(--danger); color: white; border-color: var(--danger); }
+  .toggle-btn.marked-keep { background: var(--surface-2); color: var(--ink); }
+
+  .grid { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+
+  .tally-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface);
+    border-top: 1px solid var(--line); box-shadow: 0 -4px 16px -8px rgba(0,0,0,0.2);
+    padding: 0.8rem 1.25rem; display: flex; align-items: center; justify-content: center; gap: 1rem;
+  }
+  .tally-bar button {
+    font-size: 0.9rem; padding: 0.5rem 1rem; border-radius: var(--radius); border: 1px solid var(--line);
+    cursor: pointer; background: var(--surface);
+  }
+  .tally-bar button.primary { background: var(--danger); color: white; border-color: var(--danger); }
+  .tally-count { font-size: 0.9rem; color: var(--ink-muted); }
+
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    align-items: center; justify-content: center; z-index: 10;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+    max-width: 40rem; width: 90%; max-height: 80vh; overflow-y: auto; padding: 1.25rem;
+  }
+  .modal ul { padding-left: 1.2rem; font-size: 0.85rem; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1rem; }
+  .empty { color: var(--ink-faint); font-style: italic; }
+</style>
+</head>
+<body>
+<main id="app">
+  <h1>Photo Quality Review</h1>
+  <p class="subtitle" id="subtitle">Loading...</p>
+  <div id="content"></div>
+</main>
+
+<div class="tally-bar" id="tallyBar" style="display:none">
+  <span class="tally-count" id="tallyCount">0 marked for deletion</span>
+  <button id="previewBtn">Preview Deletions</button>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h2 style="margin-top:0">Confirm Deletions</h2>
+    <p id="modalSummary"></p>
+    <ul id="modalList"></ul>
+    <div class="modal-actions">
+      <button id="cancelBtn">Cancel</button>
+      <button class="toggle-btn marked-delete" id="confirmBtn" style="width:auto">Confirm &amp; Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="/public/review.js"></script>
+</body>
+</html>

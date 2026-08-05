@@ -34,3 +34,11 @@ hike-izer/summaries/*_photos/
 # (CARD-0088 shipped on Tailscale Funnel instead, see CARD-0094 for the
 # deferred switch back to this) - left in place for when that happens.
 components/hike-izer-web/cloudflared/
+
+# Node dependencies - installed via npm on whichever host runs the component
+node_modules/
+
+# photo-quality-review (CARD-0028): scan report, blur-detection cache, and
+# review decisions are all runtime-generated on the M8, not source
+components/photo-quality-review/data/
+components/photo-quality-review/bin/

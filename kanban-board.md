@@ -355,7 +355,9 @@ Instinct going in: don't try to unify these into one "status" value — keep the
 
 **Auto-generated 2026-07-31 22:52 UTC from jctsh-core's maintenance check.** Raw finding: Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
 
-**Related:** live dashboard entry at time of generation.
+**Blocked — deferred until Joseph is physically home (2026-08-05 10:28 MST).** Same reasoning as CARD-0129/CARD-0096: HA is the household coordination hub Robin depends on directly, and an image update plus container restart is exactly the class of higher-stakes change that mitigation exists for — being on the home LAN removes Tailscale/remote-access as a dependency for the recovery path if anything goes wrong mid-update.
+
+**Related:** live dashboard entry at time of generation, CARD-0129 (the Pi-update sibling with the same "wait until home" block), CARD-0096 (original precedent for this reasoning).
 
 ---
 
@@ -973,7 +975,7 @@ All four original items now resolved: apt backlog applied, Ubuntu Pro decided an
 ---
 
 ### CARD-0028 · [idea] [photo-server] Automated post-import quality scan (blur/duplicate detection)
-**Status:** Backlog
+**Status:** Build
 
 **Notes:** Decided during photo-server migration (2026-07-04) to skip a manual pre-import quality pass entirely — importing everything as-is and relying on Immich's built-in duplicate detection (CLIP-embedding-based visual similarity, not just byte-hash) plus an ongoing "favorites" curation habit over time. This card captures the option to add an *automated* (no manual photo review) quality pass later, run after the Immich import so you can see real results first before deciding if it's worth doing.
 
@@ -989,6 +991,28 @@ All four original items now resolved: apt backlog applied, Ubuntu Pro decided an
 **Important constraint:** any of these tools can run and *report* findings anytime, including post-import, directly against files on disk. But once Immich owns the library, actually *deleting/archiving* anything found must go through Immich itself (its UI/API) — not direct filesystem deletion — since Immich tracks every asset in its Postgres DB and a raw file delete would desync the DB (broken thumbnails, orphaned references). Ties into the planned deletion-logging system (photo-server Step 14).
 
 **Sequencing:** wait until after Joseph's (and later Robin's) Immich import completes and ML processing (duplicate detection, facial recognition) has run. See what Immich's own built-in detection surfaces first, then decide whether an additional automated tool is worth adding.
+
+**Interviewed and moved to Planning, 2026-08-05 10:51 MST.** Joseph wants to dedupe across both his and Robin's libraries together, and wants the ability to also groom his separate Google Photos backup using the same findings.
+
+**Scope, decided 2026-08-05:**
+- **Tool: czkawka**, confirmed over the alternatives — the only one that covers both near-duplicate and blur/broken-image detection in a single scriptable pass.
+- **Cross-library dedup:** scan the raw filesystem (`/mnt/photo-library/upload/`, the parent of both accounts' `<ownerId>` subfolders per `backup.md`) rather than going through Immich's API, which scopes duplicate detection per-account. Scanning the parent directory naturally spans both libraries in one pass.
+- **Report shape:** two separate sections (Duplicates, grouped; Blurry/broken, individual) rather than one merged list, since the decision shape differs — a duplicate group needs "which one do I keep," a blurry image needs a simple keep/discard.
+- **Path -> Immich asset ID mapping** happens before any deletion is possible, resolving each flagged file to its asset ID via Immich's API/DB — required since a raw file delete would desync Immich's Postgres DB (ties into the deletion-logging system, photo-server Step 14).
+- **Review UI:** a small interactive local web app on the M8 (same pattern as `photo-tv-display`'s controller -- real backend, not a static zero-JS page like the rest of hike-izer, since instant per-click persistence needs live interactivity). Screens:
+  1. **Year picker (landing page)** -- same visual pattern as hike-izer's calendar page: each year shows a progress readout (e.g. "2026: 340 flagged, 12 reviewed"). Purely a browsing/navigation aid to keep any one screen's item count manageable -- **not** a commit boundary (see session-oriented note below).
+  2. **Duplicates section** -- one row per duplicate group, every image in the group shown as a thumbnail; a radio button under each marks which one to *keep* (implicitly marking the rest of that group for deletion), plus a "skip for now" option to leave a group undecided.
+  3. **Blurry/Broken section** -- a plain grid, one thumbnail per flagged image, each with a "Delete" toggle (default unmarked = keep).
+  4. Every thumbnail in both sections deep-links to that asset's own page in Immich's existing web UI (by asset ID) for the full-resolution original, rather than building a custom viewer.
+  5. Every click saves immediately in the background -- closing the browser mid-review never loses a decision.
+  6. A running tally of marked-for-deletion items, with a **"Preview Deletions"** button (exact list of what's about to be deleted -- filenames + thumbnails, last sanity check) and a **"Confirm & Delete"** button that actually calls Immich's delete API and appends to the Google Photos manual-groom list.
+- **Session-oriented commits, not year-locked (Joseph's correction, 2026-08-05):** "Confirm & Delete" commits whatever's currently marked at the moment you choose to stop, regardless of whether that spans a whole year, part of a year, or crosses into a second year -- the year picker organizes browsing only, it never gates when you're allowed to commit.
+- **Incremental scanning** -- necessary given ~589GB combined (403GB Joseph + 186GB Robin, per `backup.md`), not a nice-to-have: cache each file's hash keyed by path+mtime so re-scans only hash newly-added files, not the whole library every time.
+- **Google Photos:** no scripted deletion bridge exists (Google's API doesn't support arbitrary third-party library deletion) -- out of scope for automation. Instead, every confirmed deletion (across every session, permanently accumulating -- not per-session/ephemeral) is appended to a standing **Google Photos manual-groom list** (filename, date taken, which library/account it came from) at the moment it's confirmed via "Confirm & Delete" -- captured then because the source file (and its metadata) won't be re-derivable from Immich once actually deleted. This list is the deliverable Joseph works from to manually find and remove the same shots in Google Photos by date search; it isn't a one-off export, it's a running record that grows across every review session over time.
+
+**Done when (Joseph's call, 2026-08-05):** the scan/review/delete pipeline is built, deployed on the M8, and proven end-to-end -- a real review session (any span, not necessarily a full year) actually reviewed and deleted live through it, with that session's deletions correctly appended to the standing Google Photos manual-groom list. Working through the full multi-year backlog after that is ongoing use, not part of this card's own completion.
+
+**Related:** `components/photo-server/backup.md` (the `/mnt/photo-library/upload/<ownerId>/` structure this scans), `components/photo-tv-display` (the small-local-web-app pattern this reuses), photo-server Step 14 (the planned deletion-logging system this ties into).
 
 ---
 

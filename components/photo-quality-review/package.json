@@ -1,0 +1,18 @@
+{
+  "name": "photo-quality-review",
+  "version": "1.0.0",
+  "description": "JCTsh photo library quality review -- czkawka/sharp-based duplicate and blur/broken detection across both Immich accounts, with a small review UI that submits confirmed deletions to Immich and the shared Google Photos manual-groom log",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "scan": "node scan.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "sharp": "^0.35.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

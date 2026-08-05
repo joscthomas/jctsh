@@ -269,6 +269,20 @@ REGIME_MIN_DURATION_MIN = 3.0     # the fast points found must span at least thi
 REGIME_MIN_POINTS = 3             # ...and there must be at least this many of them
 
 
+def _accuracy_ok(r):
+    """CARD-0140: a degraded GPS fix (see GPS_ACCURACY_MAX_M below) reports a
+    real but displaced lat/lon -- over the ~30s logging cadence, that phantom
+    movement can read as vehicle speed even while genuinely walking. CARD-0110
+    already guards the pace-stats path (_hike_point_series()) against exactly
+    this; this same check must gate any speed computation used for hike
+    classification too (_classify_hike, _truncate_trailing_fast_activity), or
+    a stretch of noisy fixes can falsely trigger a "sustained non-walking
+    pace" rejection. A row with no accuracy_m at all is kept, not dropped --
+    missing accuracy isn't evidence of a bad fix."""
+    accuracy_m = to_float(r.get('accuracy_m'))
+    return accuracy_m is None or accuracy_m <= GPS_ACCURACY_MAX_M
+
+
 def _classify_hike(points):
     """Given one candidate GPS cluster, decide whether it plausibly represents a
     hike (per Joseph's rule: hikes happen in daylight, at walking pace -- not at
@@ -288,8 +302,12 @@ def _classify_hike(points):
         if elevations else 0.0
     )
 
+    # CARD-0140: drop degraded-accuracy points as speed-interval endpoints
+    # first -- a raw pair straddling a bad fix can look like vehicle speed
+    # even during genuine walking (see _accuracy_ok's docstring).
+    speed_points = [r for r in points if _accuracy_ok(r)]
     speeds_mps = []
-    for a, b in zip(points, points[1:]):
+    for a, b in zip(speed_points, speed_points[1:]):
         ts_a, ts_b = parse_ts(a.get('timestamp')), parse_ts(b.get('timestamp'))
         lat_a, lon_a = to_float(a.get('lat')), to_float(a.get('lon'))
         lat_b, lon_b = to_float(b.get('lat')), to_float(b.get('lon'))
@@ -416,49 +434,66 @@ def _truncate_trailing_fast_activity(points):
     if len(points) < REGIME_MIN_POINTS:
         return [points]
 
-    ts_list = [parse_ts(p.get('timestamp')) for p in points]
+    # CARD-0140: compute speed only between consecutive good-accuracy points
+    # -- a degraded fix straddling an interval can inflate its apparent speed
+    # into "fast" even during genuine walking (see _accuracy_ok's docstring),
+    # which was inflating false transitions here the same way it was already
+    # known to for _classify_hike's median-speed check and the pace-stats
+    # path. `good_idx` maps each surviving point back to its raw index in
+    # `points`, so a confirmed transition still splits the *raw* list at the
+    # right place -- degraded points aren't otherwise dropped from the
+    # session, only excluded as speed-interval endpoints.
+    good_idx = [i for i, p in enumerate(points) if _accuracy_ok(p)]
+    if len(good_idx) < REGIME_MIN_POINTS:
+        return [points]
+
+    ts_list = [parse_ts(points[i].get('timestamp')) for i in good_idx]
     if any(t is None for t in ts_list):
         return [points]
 
-    # speeds[i] = speed of the interval ending at points[i]; speeds[0] unused
-    speeds = [None] * len(points)
-    for i in range(1, len(points)):
-        lat_a, lon_a = to_float(points[i - 1].get('lat')), to_float(points[i - 1].get('lon'))
-        lat_b, lon_b = to_float(points[i].get('lat')), to_float(points[i].get('lon'))
-        dt = (ts_list[i] - ts_list[i - 1]).total_seconds()
+    # speeds[k] = speed of the interval ending at good_idx[k]; speeds[0] unused
+    speeds = [None] * len(good_idx)
+    for k in range(1, len(good_idx)):
+        p_a, p_b = points[good_idx[k - 1]], points[good_idx[k]]
+        lat_a, lon_a = to_float(p_a.get('lat')), to_float(p_a.get('lon'))
+        lat_b, lon_b = to_float(p_b.get('lat')), to_float(p_b.get('lon'))
+        dt = (ts_list[k] - ts_list[k - 1]).total_seconds()
         if None in (lat_a, lon_a, lat_b, lon_b) or dt <= 0:
             continue
-        speeds[i] = _haversine_m(lat_a, lon_a, lat_b, lon_b) / dt
+        speeds[k] = _haversine_m(lat_a, lon_a, lat_b, lon_b) / dt
 
     fast = [s is not None and s > WALKING_SPEED_MAX_MPS for s in speeds]
 
-    n = len(points)
-    i = 0
-    while i < n:
-        if not fast[i]:
-            i += 1
+    n = len(good_idx)
+    k = 0
+    while k < n:
+        if not fast[k]:
+            k += 1
             continue
-        window_end_epoch = ts_list[i].timestamp() + TRAILING_ACTIVITY_CONFIRM_WINDOW_MIN * 60
+        window_end_epoch = ts_list[k].timestamp() + TRAILING_ACTIVITY_CONFIRM_WINDOW_MIN * 60
         fast_in_window = [
-            j for j in range(i, n)
+            j for j in range(k, n)
             if ts_list[j].timestamp() <= window_end_epoch and fast[j]
         ]
         if len(fast_in_window) >= REGIME_MIN_POINTS:
             span_min = (ts_list[fast_in_window[-1]].timestamp() - ts_list[fast_in_window[0]].timestamp()) / 60
             if span_min >= REGIME_MIN_DURATION_MIN:
                 # speeds[0] (and so fast[0]) is always undefined -- there's no
-                # prior point to compute it from -- so the earliest a real
-                # transition can be detected is i=1, not i=0. A prefix that
-                # short isn't a walking segment worth rescuing either; require
-                # at least REGIME_MIN_POINTS points before treating this as a
-                # real split, otherwise the whole thing opens already fast
-                # (e.g. a genuine all-drive session, CARD-0100) and should
-                # stay one single session for _classify_hike to reject as a
-                # whole, not a degenerate near-empty "prefix" plus the rest.
-                if i < REGIME_MIN_POINTS:
+                # prior good-accuracy point to compute it from -- so the
+                # earliest a real transition can be detected is k=1, not k=0.
+                # Guard on the *raw* split index (not k, an index into the
+                # accuracy-filtered subsequence): a prefix that short isn't a
+                # walking segment worth rescuing either; require at least
+                # REGIME_MIN_POINTS raw points before treating this as a real
+                # split, otherwise the whole thing opens already fast (e.g. a
+                # genuine all-drive session, CARD-0100) and should stay one
+                # single session for _classify_hike to reject as a whole, not
+                # a degenerate near-empty "prefix" plus the rest.
+                split_idx = good_idx[k]
+                if split_idx < REGIME_MIN_POINTS:
                     return [points]
-                return [points[:i], points[i:]]
-        i += 1
+                return [points[:split_idx], points[split_idx:]]
+        k += 1
 
     return [points]
 
@@ -620,8 +655,7 @@ def _hike_point_series(gps_rows):
         alt_m = to_float(r.get('altitude_m'))
         if ts is None or lat is None or lon is None or alt_m is None:
             continue
-        accuracy_m = to_float(r.get('accuracy_m'))
-        if accuracy_m is not None and accuracy_m > GPS_ACCURACY_MAX_M:
+        if not _accuracy_ok(r):
             continue
         interval_dt_sec, raw_speed_mph = None, None
         if prev is not None:

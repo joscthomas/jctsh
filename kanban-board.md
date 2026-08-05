@@ -9,7 +9,31 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0140 -->
+<!-- next-card-id: CARD-0141 -->
+
+---
+
+### CARD-0140 · [bug] [hike-izer] GPS accuracy noise falsely triggers "sustained non-walking pace" truncation, excluding real hike time from stats
+**Status:** Done
+
+**Raised 2026-08-05 07:12 MST:** Joseph flagged that this morning's hike-izer page (2026-08-05) reported "9:02 AM–9:28 AM: sustained non-walking pace detected partway through this GPS session (e.g. driving after the hike ended) -- excluded from the hike's own stats," but there was no driving or non-walking pace at all during that window.
+
+**Root cause confirmed** by pulling today's raw GPS Track via `fetch_hike_data.py` and computing point-to-point speed against each point's own `accuracy_m`: every point that read as exceeding `WALKING_SPEED_MAX_MPS` (3.0 m/s) in that window carries a degraded GPS fix (`accuracy_m` in the 20-40m range) versus ~3-10m for the surrounding genuinely-walking points. A poor fix reports a real but displaced lat/lon, which inflates the apparent point-to-point distance over the ~30s logging cadence enough to look like vehicle speed. This is exactly the failure mode CARD-0110 already fixed for the pace-stats path (`GPS_ACCURACY_MAX_M = 20.0` point-drop + `SPEED_WINDOW_MIN_SEC = 60.0` baseline-widening, both in `_hike_point_series()`) but that fix was never carried into the earlier classification stage: `_classify_hike`'s median-speed check and `_truncate_trailing_fast_activity`'s fast-point detection (both `fetch_hike_data.py`) still compute raw, unfiltered point-to-point haversine speed.
+
+**Scope:** apply the same accuracy-based filtering/dilution `_hike_point_series()` already uses to the speed computation inside `_truncate_trailing_fast_activity` (and `_classify_hike`'s median-speed classification) -- degraded fixes must not be able to masquerade as a sustained fast-pace transition. Must not regress CARD-0100 (a genuine all-drive session, correctly rejected as a whole) or CARD-0101 (a real trailing drive after a hike, correctly truncated) -- both scenarios need to still classify correctly after the change.
+
+**Done when:** re-running `fetch_hike_data.py` against today's (2026-08-05) real data no longer reports the false rejection for the 13:02:33-13:28:38Z session -- the hike's full distance/elevation are reported, not the truncated 0.7 mi/33 ft; CARD-0100's and CARD-0101's original test scenarios (or equivalent synthetic data) still correctly reject/truncate genuine drive segments; and the fix is deployed to `hike-izer-orchestrator` on the M8 (this runs in the automatic pipeline, not just the interactive Skill) and verified against a live re-render of today's hike.
+
+**Fixed, deployed, and verified live, 2026-08-05 07:23 MST.** Added a shared `_accuracy_ok()` helper in `fetch_hike_data.py` (used by `_hike_point_series`, replacing its old inline check) and wired it into the two places that were missing it: `_classify_hike`'s median-speed calculation now computes speed only between consecutive good-accuracy points, and `_truncate_trailing_fast_activity` now detects fast/corroborated points over an accuracy-filtered subsequence, mapping any confirmed transition back to the correct raw split index (so the CARD-0100/CARD-0101 "keep the whole session if the split point is too close to the start" guard still works on real point positions).
+
+Verified three ways before deploying:
+1. Re-ran `fetch_hike_data.py` against today's (2026-08-05) real data: the false split disappeared -- one confirmed 39.4-min, 2.09 mi session instead of a 12.8-min hike + a wrongly-rejected 26-min "drive."
+2. Synthetic regression check against the two true-positive cases this must not break: a genuine all-drive session still stays one correctly-rejected entry (CARD-0100), and a real hike followed by a real trailing drive still splits and truncates the tail (CARD-0101) -- confirmed identical split behavior to the pre-fix code when every point has good accuracy, since `good_idx` degenerates to a plain range in that case.
+3. A synthetic "real walking pace with a stretch of degraded-accuracy GPS noise" case (the actual bug's shape) no longer splits and classifies correctly as a hike.
+
+Deployed to the M8: `scp`'d the fixed `fetch_hike_data.py` to `~/hike-izer-web-app/orchestrator/` via the Tailscale IP (`.local` mDNS doesn't resolve from this Windows machine, and the LAN IP wasn't reachable from here either), then `docker compose up -d --build orchestrator`. Regenerated the already-published `2026-08-05_hike-summary.html` in place (same file_stem -- deliberately not via the `/webhook/hike-end` path, which would have called `_next_file_stem()` and treated this as a second same-day hike, producing a spurious `-2` file) by re-running the fixed `fetch_hike_data.py` against the exact original query window (read from the persisted `hike_data.json`'s own `query` field) and re-rendering with `templating.render_html()`, reusing the already-fetched/captioned photos manifest and staged BirdNET export rather than re-hitting Immich/Claude. Confirmed live at `https://hikes.jctnet.com/2026-08-05_hike-summary.html`: hero row now reads "8:49 AM – 9:28 AM (39m)" / "2.1 mi" / "33 ft", no rejection callout.
+
+**Related:** CARD-0110 (introduced `GPS_ACCURACY_MAX_M`/`SPEED_WINDOW_MIN_SEC` for the stats path, the fix this extends to classification), CARD-0101/CARD-0100 (the true-positive drive-detection cases this doesn't regress, confirmed via synthetic data), `components/hike-izer/fetch_hike_data.py` (`_classify_hike`, `_truncate_trailing_fast_activity`, `_hike_point_series`, new `_accuracy_ok`), `components/hike-izer-orchestrator` (deployed copy of the same script, rebuilt and redeployed).
 
 ---
 

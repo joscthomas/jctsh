@@ -25,6 +25,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 _STYLE = """
   :root {
@@ -123,6 +124,15 @@ def _hike_url(file_stem):
     return f"{file_stem}_hike-summary.html"
 
 
+def _wikipedia_url(scientific_name):
+    """CARD-0143: built directly from scientific_name, no HTTP call/
+    verification at build time -- constructed optimistically, same
+    best-effort philosophy used elsewhere in this pipeline. Wikipedia
+    article titles use underscores for spaces; its own redirect/search
+    handling covers the rare scientific-name mismatch."""
+    return f"https://en.wikipedia.org/wiki/{quote(scientific_name.replace(' ', '_'))}"
+
+
 def _render_page(life_list):
     species = sorted(life_list.values(), key=lambda e: e["common_name"].lower())
 
@@ -131,7 +141,7 @@ def _render_page(life_list):
     else:
         rows = "".join(
             f"<tr>"
-            f"<td>{e['common_name']}</td>"
+            f"<td><a href=\"{_wikipedia_url(e['scientific_name'])}\" target=\"_blank\" rel=\"noopener\">{e['common_name']}</a></td>"
             f"<td class=\"scientific\">{e['scientific_name']}</td>"
             f"<td><a href=\"{_hike_url(e['first_heard_file_stem'])}\">{e['first_heard_date']}</a></td>"
             f"<td>{len(e['hikes'])}</td>"

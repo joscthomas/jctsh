@@ -13,6 +13,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-XXX · [enhancement] [infrastructure] Container image updates: netalertx: v26.8.5 available (running 26.7.1) — auto-opened from photo-server
+**Status:** Backlog
+
+**Auto-generated 2026-08-05 13:30 UTC from photo-server's maintenance check.** Raw finding: Container image updates: netalertx: v26.8.5 available (running 26.7.1). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Related:** live dashboard entry at time of generation.
+
+---
+
 ### CARD-0139 · [enhancement] [log-server] Exclude bench-test/dev components from the /status dashboard
 **Status:** Done
 

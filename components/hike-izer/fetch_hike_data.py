@@ -155,8 +155,18 @@ def solar_position(dt_utc, lat, lon):
     if abs(az_denom) < 1e-6:
         azimuth = 180.0 if lat > 0 else 0.0
     else:
+        # CARD-0144: was `sin(lat)*cos(zenith) - sin(decl)` -- the two terms
+        # were in the wrong order/sign, which (propagated through the
+        # otherwise-correct hour-angle branch below) reflected every azimuth
+        # across the East-West axis: reported = (180 - true) mod 360 --
+        # North/South swapped, NE<->SE, NW<->SW, while East/West happened to
+        # stay correct. Confirmed via the standard spherical-astronomy
+        # formula, cos(A) = (sin(decl) - sin(lat)*sin(elevation)) /
+        # (cos(lat)*cos(elevation)) -- cos(zenith_rad) here equals
+        # sin(elevation), so this is that formula's numerator, not the old
+        # reversed one.
         az_cos = (
-            math.sin(lat_rad) * math.cos(zenith_rad) - math.sin(decl_rad)
+            math.sin(decl_rad) - math.sin(lat_rad) * math.cos(zenith_rad)
         ) / az_denom
         az_cos = max(-1.0, min(1.0, az_cos))
         azimuth = math.degrees(math.acos(az_cos))

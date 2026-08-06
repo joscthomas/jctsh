@@ -9,7 +9,35 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0144 -->
+<!-- next-card-id: CARD-0145 -->
+
+---
+
+### CARD-0144 · [bug] [hike-izer] Sun azimuth/direction systematically wrong (North/South swapped) since the feature was built
+**Status:** Done
+
+**Raised 2026-08-05 17:54 MST**, found while discussing CARD-0085 (a proposed "sun relative to direction of travel" table): validating `solar_position()`'s azimuth output against basic astronomy before trusting it as a foundation for new work. Confirmed via 3 independent real-world checks against Phoenix, AZ (33.45N) on the summer solstice:
+- True solar noon (verified via peak elevation, 80.0°): should be due **south** (180°) for any location north of the tropics -- code gives ~0° (north).
+- Pre-dawn: summer solstice sunrise should be well **north** of due east -- code gives 121.8° (SE, i.e. *south* of east).
+- Post-sunset: summer solstice sunset should be well **north** of due west -- code gives 238.2° (SW, i.e. *south* of west).
+
+**Root cause:** the azimuth formula's numerator in `solar_position()` (`components/hike-izer/fetch_hike_data.py`) has its two terms in the wrong order -- `sin(lat)·cos(zenith) − sin(decl)` instead of the correct `sin(decl) − sin(lat)·cos(zenith)` (derived from the standard spherical-astronomy formula, `cos(A) = (sin(δ) − sin(φ)·sin(elevation)) / (cos(φ)·cos(elevation))`, and confirmed to match all 3 checks above once corrected). The existing morning/afternoon hour-angle branch logic is otherwise correct on its own -- this is a pure sign error in the raw azimuth term, not a branching bug. Working through how the sign error propagates through that otherwise-correct branch logic: the net effect isn't a uniform offset, it's a **reflection across the East-West axis** (`reported = (180 − true) mod 360`) -- North/South swap, NE↔SE, NW↔SW, while East/West happen to stay correct, which is very likely why this went unnoticed until now.
+
+**Impact:** every hike ever processed by Hike-izer has a wrong `sun_azimuth_deg`/`sun_direction` per GPS-track sample, which feeds the "Sun Direction" and "Sun Azimuth Range" Data Summary rows and any narrative sentence describing the sun's compass position -- since this underlies the whole feature (CARD-0109/CARD-0123), not a new addition, this has been wrong since Hike-izer v1.
+
+**Scope (Joseph's call, 2026-08-05):**
+- Fix the one-line sign error in `solar_position()`.
+- Regenerate every already-published hike page's sun-position data once fixed (not just new hikes going forward) -- re-run data-only regeneration per hike (same in-place pattern as CARD-0140's fix), so Sun Direction/Sun Azimuth Range values on already-published pages are corrected too, not left wrong.
+
+**Done when:** `solar_position()`'s fix is verified against the 3 checks above (or equivalent), deployed to `hike-izer-orchestrator` on the M8, and every already-published hike page's sun-position-derived Data Summary rows are regenerated and confirmed showing corrected values live.
+
+**Fixed, deployed, and verified live, 2026-08-05 18:05 MST.** One-line fix in `solar_position()` (swapped numerator sign), re-verified against the same 3 real-world checks directly against the modified function -- solar noon now 179.8° (was 0.2°), pre-dawn 58.2° NE (was 121.8° SE), post-sunset 301.8° WNW (was 238.2° SW). Deployed to the M8 (`scp` + `docker compose up -d --build orchestrator`).
+
+**Regeneration, all 9 published hikes checked:** 6 hikes (`2026-07-29`, `2026-07-29-2`, `2026-07-30`, `2026-07-30-2`, `2026-08-03`, `2026-08-05`) had a persisted `hike_data.json` with an exact preserved query window (Joseph's reminder: all 6 are Michigan hikes, offset `-04:00` -- confirmed each one's own real query window/offset was read and reused, never assumed Arizona). For each: re-ran `fetch_hike_data.py` (fixed) against that exact window, then surgically replaced only the "Sun Direction"/"Sun Azimuth Range" table row values in the live HTML (not a full re-render) -- every other row (Sun Elevation Range, Daylight, Peak Sun Elevation Time, Golden Hour) is elevation-derived, not azimuth-derived, so genuinely untouched by this bug and deliberately left alone; narrative/photos/gaia embed/place-context also untouched, since this was a targeted value fix, not a content regeneration. Persisted `hike_data.json` overwritten with corrected data for future consistency. Confirmed live against `https://hikes.jctnet.com/`: e.g. `2026-07-29` "ESE" -> "ENE → SSW", `2026-07-29-2` "NE → NNW" -> "SE → SSW", `2026-07-30-2` azimuth "290°–292°" -> "248°–250°".
+
+The remaining 3 published hikes (`2026-06-18`, `2026-07-23`, `2026-07-28`) predate the Sun table feature entirely (no `offset_str`/`start_ts` in their `meta.json` either, consistent with predating CARD-0118) -- confirmed via direct grep that none of them render a Sun section at all (not even an NA row), so there was nothing on those pages for this bug to have affected.
+
+**Related:** CARD-0109 (introduced the Sun Direction/Azimuth Range Data Summary rows this fix corrects), CARD-0123 (added the deterministic sun_position_samples rows this reuses), CARD-0085 (the direction-of-travel card whose design discussion surfaced this while validating the underlying sun-position math it would have built on), CARD-0140 (the precedent in-place regeneration pattern this reuses), `components/hike-izer/fetch_hike_data.py` (`solar_position`).
 
 ---
 

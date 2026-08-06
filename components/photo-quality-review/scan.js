@@ -128,7 +128,14 @@ async function scanDuplicates() {
   const raw = await fs.readFile(outPath, 'utf-8');
   const groups = JSON.parse(raw); // [[{path, size, width, height, modified_date, difference}, ...], ...]
   log(`  found ${groups.length} duplicate group(s)`);
-  return groups.map((group) => group.map((entry) => entry.path));
+  // Keep every field czkawka gives us, not just path -- these files are
+  // frequently the *same original filename* re-saved/re-exported (burst
+  // shots, edits), so size/dimensions/difference are what actually let a
+  // reviewer tell two identically-named thumbnails apart (Joseph found this
+  // gap live: "the filenames shown for duplicates are the same, what's the
+  // difference?" -- there was no answer in the UI because this function was
+  // discarding everything but the path before it ever reached the report).
+  return groups;
 }
 
 async function scanBroken() {
@@ -297,11 +304,18 @@ async function main() {
   log(`  indexed ${Object.keys(pathIndex).length} asset(s)`);
 
   const resolvedDuplicateGroups = duplicateGroups
-    .map((paths) =>
-      paths
-        .map((p) => {
-          const asset = resolveAsset(pathIndex, p);
-          return asset && { ...asset, path: p };
+    .map((group) =>
+      group
+        .map((entry) => {
+          const asset = resolveAsset(pathIndex, entry.path);
+          return asset && {
+            ...asset,
+            path: entry.path,
+            size: entry.size,
+            width: entry.width,
+            height: entry.height,
+            difference: entry.difference,
+          };
         })
         .filter(Boolean)
     )

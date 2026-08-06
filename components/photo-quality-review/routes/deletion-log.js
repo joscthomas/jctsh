@@ -27,6 +27,57 @@ function csvField(value) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+// Minimal quoted-field-aware CSV line parser -- `album_folder`/reason values
+// can contain commas (e.g. "duplicate, kept X.jpg"), which csvField() above
+// already quotes on write; this is the matching read-side parse, not a
+// general CSV library.
+function parseCsvLine(line) {
+  const row = [];
+  let cur = '';
+  let inQuotes = false;
+  for (const ch of line) {
+    if (ch === '"') inQuotes = !inQuotes;
+    else if (ch === ',' && !inQuotes) {
+      row.push(cur);
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  row.push(cur);
+  return row;
+}
+
+// Every asset ID that's already been deleted and logged (CARD-0028) --
+// lets the review UI filter out groups/items that reference an already-gone
+// asset, rather than presenting them for review again. Found the need for
+// this live: after the decisions.json race-condition fix + cleanup, Joseph
+// didn't want to see groups whose members are already logged as deleted
+// re-appear as if undecided. report.json is a static scan snapshot that has
+// no idea an asset was later deleted, so this check has to happen at
+// request time against the one source of truth for "is this actually
+// gone" -- the deletion log itself, not decisions.json (which only tracks
+// pending choices, and gets an entry *removed*, not added, once deleted).
+async function getDeletedAssetIds() {
+  let raw;
+  try {
+    raw = await fs.readFile(CSV_PATH, 'utf-8');
+  } catch {
+    return new Set(); // no log yet -- nothing has been deleted
+  }
+  const lines = raw.trim().split('\n');
+  if (lines.length < 2) return new Set();
+  const header = parseCsvLine(lines[0]);
+  const idCol = header.indexOf('immich_asset_id');
+  if (idCol === -1) return new Set();
+  const ids = new Set();
+  for (let i = 1; i < lines.length; i++) {
+    const row = parseCsvLine(lines[i]);
+    if (row[idCol]) ids.add(row[idCol]);
+  }
+  return ids;
+}
+
 async function appendLocalCsv(record) {
   try {
     await fs.access(CSV_PATH);
@@ -80,4 +131,4 @@ async function logDeletion({ originalFileName, fileCreatedAt, assetId, ownerLabe
   }
 }
 
-module.exports = { logDeletion };
+module.exports = { logDeletion, getDeletedAssetIds };

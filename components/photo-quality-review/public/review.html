@@ -44,9 +44,26 @@
   .year-card:hover { background: var(--surface-2); }
   .year-card .year { font-size: 1.3rem; font-weight: 700; }
   .year-card .count { font-size: 0.75rem; color: var(--ink-muted); }
+  /* Nothing actionable left this year (CARD-0028, Joseph's call) -- no
+     click handler is attached at all, this is purely the visual signal to
+     match. Re-enables itself (a plain .year-card again) the moment a
+     re-scan finds something new. */
+  .year-card.is-done { cursor: default; opacity: 0.55; }
+  .year-card.is-done:hover { background: var(--surface); }
+
+  .dismiss-singles-btn {
+    display: block; margin: 0 0 0.9rem; font-size: 0.8rem; color: var(--accent);
+    background: none; border: 1px solid var(--accent); border-radius: var(--radius);
+    padding: 0.4rem 0.7rem; cursor: pointer;
+  }
+  .dismiss-singles-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .back-link { display: inline-block; margin-bottom: 1rem; color: var(--ink-muted); text-decoration: none; font-size: 0.9rem; }
   .back-link:hover { text-decoration: underline; }
+  .hide-decided-toggle {
+    display: block; font-size: 0.85rem; color: var(--ink-muted); margin-bottom: 0.5rem; cursor: pointer;
+  }
+  .hide-decided-toggle input { margin-right: 0.4rem; vertical-align: middle; }
 
   .group {
     background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
@@ -59,6 +76,15 @@
     display: block; margin-bottom: 0.35rem;
   }
   .item .fname { font-size: 0.7rem; color: var(--ink-faint); word-break: break-all; margin-bottom: 0.3rem; }
+  .item .fmeta { font-size: 0.68rem; color: var(--ink-muted); margin-bottom: 0.3rem; }
+  .item .album-badge { font-size: 0.68rem; margin-bottom: 0.3rem; }
+  .item .album-badge.has-album { color: var(--accent); font-weight: 600; }
+  .item .album-badge.no-album { color: var(--ink-faint); font-style: italic; }
+  .item .motion-badge:not(:empty) { font-size: 0.68rem; margin-bottom: 0.3rem; }
+  .item .motion-badge.motion-ok { color: var(--accent); }
+  .item .motion-badge.motion-broken { color: var(--danger); font-weight: 700; }
+  .item .auto-tag { color: var(--accent); font-style: italic; font-weight: 400; }
+  .item a.thumb-link { display: block; }
   .item a.view-link { font-size: 0.7rem; color: var(--accent); text-decoration: none; }
   .item a.view-link:hover { text-decoration: underline; }
   .item label { display: block; font-size: 0.8rem; margin-top: 0.3rem; cursor: pointer; }
@@ -69,12 +95,29 @@
   }
   .skip-btn.active { background: var(--surface-2); color: var(--ink); }
 
+  .delete-all-btn {
+    align-self: center; font-size: 0.8rem; color: var(--danger); background: none;
+    border: 1px solid var(--danger); border-radius: var(--radius); padding: 0.3rem 0.6rem; cursor: pointer;
+  }
+  .delete-all-btn.active { background: var(--danger); color: white; }
+
+  .keep-all-btn {
+    align-self: center; font-size: 0.8rem; color: var(--accent); background: none;
+    border: 1px solid var(--accent); border-radius: var(--radius); padding: 0.3rem 0.6rem; cursor: pointer;
+  }
+  .keep-all-btn.active { background: var(--accent); color: var(--accent-ink); }
+
   .toggle-btn {
     font-size: 0.75rem; border: 1px solid var(--line); border-radius: var(--radius);
     padding: 0.25rem 0.55rem; cursor: pointer; background: var(--surface); color: var(--ink-muted); width: 100%;
   }
-  .toggle-btn.marked-delete { background: var(--danger); color: white; border-color: var(--danger); }
-  .toggle-btn.marked-keep { background: var(--surface-2); color: var(--ink); }
+  .toggle-btn.marked-delete { background: var(--danger); color: white; border-color: var(--danger); font-weight: 600; }
+  /* Singles only ever have two states now -- unmarked (implicitly kept) or
+     marked for deletion (Joseph's call, 2026-08-06: no separate "keep"
+     click). Decided (marked-delete) items dim slightly so the eye is drawn
+     to what's still unmarked, full opacity on hover. */
+  .item.is-decided { opacity: 0.55; }
+  .item.is-decided:hover { opacity: 1; }
 
   .grid { display: flex; flex-wrap: wrap; gap: 0.8rem; }
 
@@ -100,7 +143,14 @@
     max-width: 40rem; width: 90%; max-height: 80vh; overflow-y: auto; padding: 1.25rem;
   }
   .modal ul { padding-left: 1.2rem; font-size: 0.85rem; }
+  .spinner {
+    display: inline-block; width: 0.9em; height: 0.9em; border-radius: 50%;
+    border: 2px solid var(--line); border-top-color: var(--accent);
+    vertical-align: -0.15em; margin-right: 0.4em; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1rem; }
+  .modal-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
   .empty { color: var(--ink-faint); font-style: italic; }
 </style>
 </head>

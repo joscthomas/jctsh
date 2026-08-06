@@ -19,6 +19,10 @@
 //   - Delete uses Immich's own trash (force: false), same free safety net
 //     photo-tv-display's deleteAsset() already established.
 
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const execFileAsync = promisify(execFile);
+
 const UPLOAD_CONTAINER_PREFIX = '/data';
 const UPLOAD_HOST_PREFIX = '/mnt/photo-library';
 const PAGE_SIZE = 1000;
@@ -95,6 +99,57 @@ async function buildPathIndex() {
   return { ...josephIndex, ...robinIndex };
 }
 
+// Which album(s), if any, an asset belongs to (CARD-0028). Fetched lazily
+// per-asset when a duplicate group is actually viewed, not baked into
+// report.json at scan time -- doing this for all ~95k duplicate-group
+// members up front would mean that many extra Immich API calls on every
+// report rebuild, for data most groups will never be reviewed. This turned
+// out to be a real, independent signal for which copy to keep, not just a
+// nice-to-have: a real 4-copy duplicate had 2 members in an album and 2
+// with no album at all, and the "cleanest" filename was one of the
+// album-less ones -- picking by filename/size alone would have kept the
+// wrong copy and silently dropped the photo from its trip album once
+// Immich's trash retention (30 days, confirmed via /api/system-config)
+// expired.
+async function getAlbumsForAsset(assetId, ownerLabel) {
+  const key = ACCOUNTS[ownerLabel];
+  const albums = await immichFetch(key, `/albums?assetId=${assetId}`);
+  return albums.map((a) => a.albumName);
+}
+
+// Motion Photo video-integrity check (CARD-0028). czkawka's duplicate
+// detection only ever compares the still frame's visual hash -- it has no
+// idea a Motion Photo (.MP.jpg) even has an embedded video clip, let alone
+// whether that clip still plays. Found live: two duplicate copies of the
+// same still had identical-looking frames, but one's linked video was
+// corrupted (`moov atom not found`, unplayable) -- picking "keep the
+// smaller one" or eyeballing the still alone would have kept the broken
+// copy and lost the working motion clip.
+//
+// No ffprobe/ffmpeg installed on the bare M8 host -- reuses the copy
+// already inside the immich_server container via `docker exec` rather than
+// adding a new host dependency for one narrow check. Safe against injection
+// even though `video.originalPath` flows into a shelled-out command:
+// execFile (not exec) never invokes a shell, and the path itself comes from
+// Immich's own API response, not from user input.
+async function checkMotionPhotoValidity(assetId, ownerLabel) {
+  const key = ACCOUNTS[ownerLabel];
+  const asset = await immichFetch(key, `/assets/${assetId}`);
+  if (!asset.livePhotoVideoId) return { isMotionPhoto: false };
+
+  const video = await immichFetch(key, `/assets/${asset.livePhotoVideoId}`);
+  try {
+    await execFileAsync('docker', [
+      'exec', 'immich_server', 'ffprobe', '-v', 'error',
+      '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1',
+      video.originalPath,
+    ]);
+    return { isMotionPhoto: true, valid: true };
+  } catch {
+    return { isMotionPhoto: true, valid: false };
+  }
+}
+
 // force: false -> moves to Immich's own trash (recoverable within its
 // retention window), same convention as photo-tv-display's deleteAsset().
 async function deleteAsset(assetId, ownerLabel) {
@@ -124,4 +179,6 @@ module.exports = {
   buildPathIndex,
   deleteAsset,
   getThumbnailResponse,
+  getAlbumsForAsset,
+  checkMotionPhotoValidity,
 };

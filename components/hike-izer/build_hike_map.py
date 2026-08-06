@@ -88,6 +88,18 @@ _MARKER_ICONS = {
 }
 _DEFAULT_MARKER_ICON = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>'
 
+# CARD-0085: sun-position gadget -- hollow (stroke-only) line-art arrow,
+# same convention as _MARKER_ICONS above. Points "up" (north, 0deg) at rest;
+# base sits at the bottom edge of the viewBox so a CSS transform-origin of
+# "50% 100%" hinges it there, matching a real gnomon tilting up from its
+# base rather than spinning around its own center.
+_SUN_GADGET_ARROW_SVG = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<line x1="12" y1="23" x2="12" y2="7"/>'
+    '<path d="M6 12 L12 3 L18 12"/></svg>'
+)
+
 
 def _segments(chart_series):
     """Same session_break split build_hike_chart.py uses -- kept as its own
@@ -208,6 +220,8 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
             'time': _local_time_str(p['timestamp'], tz_offset_hours),
             'elevFt': round(p['altitude_ft']),
             'speedMph': round(p['speed_mph'], 1) if p['speed_mph'] is not None else None,
+            'sunAzimuth': p.get('sun_azimuth_deg'),
+            'sunElevation': p.get('sun_elevation_deg'),
         })
 
     segments_js = [[[p['lat'], p['lon']] for p in seg] for seg in segments]
@@ -245,6 +259,60 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
     className: "route-highlight", radius: 7, opacity: 0, fillOpacity: 0, interactive: false
   }}).addTo(map);
 
+  // CARD-0085: sun-position gadget, a proper Leaflet control (not a raw
+  // absolutely-positioned div) so it's placed in a map corner the same safe,
+  // collision-free way Leaflet's own zoom control is -- no manual z-index
+  // guessing.
+  //
+  // Transform order matters here, confirmed live (Joseph found a real
+  // hike whose arrow pointed correctly east but showed zero 3D tilt):
+  // "rotateX(tilt) rotateZ(azimuth)" -- tilt applied *outermost*, in the
+  // world/screen frame -- foreshortens correctly for a N/S-pointing arrow,
+  // but for an azimuth near 90/270 (E/W) the rotateZ has already spun the
+  // arrow's shaft to align almost exactly with the very axis rotateX pivots
+  // around, so rotateX can't shorten it at all (rotating a stick around its
+  // own long axis doesn't make it look shorter). Verified by hand via the
+  // actual rotation matrices, not just guessed. Fix: "rotateZ(azimuth)
+  // rotateX(tilt)" -- rotateX applies *innermost* now, tilting the arrow
+  // while it's still in its own rest orientation (shaft along the axis
+  // rotateX actually foreshortens), and rotateZ then spins that already-
+  // foreshortened shape to point at the compass bearing -- a pure in-plane
+  // spin preserves whatever length the tilt already produced, regardless of
+  // azimuth.
+  //
+  // TILT_EXAGGERATION: a literal elevation_deg tilt is real physics but
+  // visually subtle for most of a hike's actual elevation range (e.g. 24
+  // degrees only foreshortens to ~91% of full length -- barely perceptible
+  // at icon size) -- exaggerated so the gadget reads clearly at a glance,
+  // which is the point of it, over strict physical accuracy. Capped short
+  // of 90 so the arrow never quite vanishes edge-on.
+  var TILT_EXAGGERATION = 2.2;
+
+  var SunGadgetControl = L.Control.extend({{
+    options: {{position: "topright"}},
+    onAdd: function () {{
+      var container = L.DomUtil.create("div", "sun-gadget");
+      container.innerHTML = '<div class="sun-gadget-arrow">' + {json.dumps(_SUN_GADGET_ARROW_SVG)} + '</div>';
+      L.DomEvent.disableClickPropagation(container);
+      return container;
+    }}
+  }});
+  var sunGadget = new SunGadgetControl().addTo(map);
+  var sunArrowEl = sunGadget.getContainer().querySelector(".sun-gadget-arrow");
+
+  function updateSunGadget(p) {{
+    if (p.sunAzimuth == null || p.sunElevation == null) return;
+    var tilt = Math.max(0, Math.min(85, p.sunElevation * TILT_EXAGGERATION));
+    // CARD-0085: the arrow represents the direction of the sun's *rays* --
+    // which way the light is shining, i.e. away from the sun -- not the
+    // direction to look to find the sun in the sky. Those are opposite:
+    // a sun sitting in the east shines its light toward the west. Confirmed
+    // wrong by Joseph on a real hike (sun_azimuth_deg 89.4, arrow pointed
+    // east -- should point west, the direction the light actually travels).
+    var rayDirection = (p.sunAzimuth + 180) % 360;
+    sunArrowEl.style.transform = "rotateZ(" + rayDirection + "deg) rotateX(" + tilt + "deg)";
+  }}
+
   function showIndex(i) {{
     var p = points[i];
     highlight.setLatLng([p.lat, p.lon]);
@@ -256,12 +324,14 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
     }}
     tooltipSlot.innerHTML = parts.join(" ");
     tooltipSlot.classList.add("is-active");
+    updateSunGadget(p);
   }}
 
   function hide() {{
     highlight.setStyle({{opacity: 0, fillOpacity: 0}});
     tooltipSlot.innerHTML = '<span class="tt-time">Hover the route</span><span class="tt-metric">&mdash;</span>';
     tooltipSlot.classList.remove("is-active");
+    updateSunGadget(points[0]); // default/rest state: the hike's own start
   }}
   hide();
 

@@ -849,6 +849,14 @@ def build_chart_series(gps_rows, sessions, max_points=80):
             if picked[-1] is not series[-1]:
                 picked.append(series[-1])
         for i, p in enumerate(picked):
+            # CARD-0085: sun position computed per-point here (cheap, pure
+            # math, no API cost) rather than reused from the separately
+            # decimated sun_position_samples array -- this is the one shared
+            # series the Route Map and the Elevation & Speed chart both read
+            # (see this function's own docstring), so the Route Map's
+            # sun-gadget stays correctly index-matched to whatever points
+            # are actually hoverable.
+            sun_elev, sun_az = solar_position(p['ts'], p['lat'], p['lon'])
             out.append({
                 'timestamp': p['ts'].isoformat(),
                 'distance_mi': round(p['distance_mi'] + dist_offset, 3),
@@ -857,6 +865,8 @@ def build_chart_series(gps_rows, sessions, max_points=80):
                 'lat': round(p['lat'], 6),
                 'lon': round(p['lon'], 6),
                 'session_break': gi > 0 and i == 0,
+                'sun_azimuth_deg': round(sun_az, 1),
+                'sun_elevation_deg': round(sun_elev, 1),
             })
         dist_offset += total_mi
     return out

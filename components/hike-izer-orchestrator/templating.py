@@ -559,6 +559,20 @@ _HTML_STYLE = """
   .leaflet-tooltip img { display: block; max-width: 8rem; border-radius: 4px; }
   .leaflet-tooltip-top:before { border-top-color: var(--surface); }
   .map-marker-tooltip-meta { color: var(--ink-faint); font-size: 0.75rem; }
+  /* CARD-0085: sun-position gadget -- a Leaflet control (topright), so
+     Leaflet's own positioning keeps it clear of the zoom control, no manual
+     offsets needed. perspective on the container + preserve-3d/transform-
+     origin on the arrow are what let build_hike_map.py's JS-set
+     rotateZ(rayDirection) rotateX(tilt) read as a real 3D tilt rather than
+     a flat 2D spin. transform-origin is dead center, not the arrow's base --
+     found live (Joseph's screenshot) that a bottom-anchored origin was fine
+     for the elevation tilt alone, but the *same* anchor also governs the
+     compass rotation, so the whole arrow swept around that off-center point
+     like a clock hand as azimuth changed, instead of spinning in place like
+     a normal compass needle -- a real bug, not a one-off tuning choice. */
+  .sun-gadget { background: var(--surface); border: 1px solid var(--line); border-radius: 50%; box-shadow: var(--shadow); width: 2.75rem; height: 2.75rem; margin: 10px; display: flex; align-items: center; justify-content: center; perspective: 60px; }
+  .sun-gadget-arrow { width: 20px; height: 20px; color: var(--accent); transform-style: preserve-3d; transform-origin: center; transition: transform 0.15s ease; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.25)); }
+  .sun-gadget-arrow svg { width: 100%; height: 100%; overflow: visible; }
   .hike-visuals { display: grid; grid-template-columns: 1fr; gap: 1.25rem; margin-bottom: 2.25rem; }
   .hike-visuals section { margin-bottom: 0; }
   @media (min-width: 52rem) { .hike-visuals { grid-template-columns: 1fr 1fr; align-items: start; } .hike-visuals .hike-map { height: 15rem; } }

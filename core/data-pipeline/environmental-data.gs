@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-07-29.1-hike-start-forecast-session-scoped';
+var SCRIPT_VERSION = '2026-08-05.1-gps-direction';
 
 // ---------------------------------------------------------------------------
 // doPost — environmental sensor data (Node-RED → Sheets)
@@ -513,6 +513,12 @@ function doGet(e) {
       var lon     = parseFloat(e.parameter.lon);
       var acc     = parseFloat(e.parameter.acc);
       var alt     = parseFloat(e.parameter.alt);
+      // CARD-0085: %DIRECTION (GPS bearing, degrees) -- not sent by every
+      // GPSLogger config (older phone-side setups, or before Joseph's own
+      // custom-URL change), so this stays '' rather than parseFloat(undefined)
+      // (NaN) when absent -- same "missing isn't evidence of a bad fix, keep
+      // the row" philosophy fetch_hike_data.py already applies to accuracy_m.
+      var direction = e.parameter.direction !== undefined ? parseFloat(e.parameter.direction) : '';
       // %TIME from GPSLogger may be a Unix epoch integer (seconds or ms) or an
       // ISO date string depending on app version. Parse robustly:
       var tsRaw = e.parameter.ts;
@@ -527,7 +533,7 @@ function doGet(e) {
 
       var ss = SpreadsheetApp.getActiveSpreadsheet();
       var gpsSheet = ss.getSheetByName('GPS Track');
-      gpsSheet.appendRow([tsISO, lat, lon, acc, alt]);
+      gpsSheet.appendRow([tsISO, lat, lon, acc, alt, direction]);
 
       // CARD-0106: capture the weather forecast on the first GPS point of a
       // new local calendar day -- a live snapshot of what was forecast right

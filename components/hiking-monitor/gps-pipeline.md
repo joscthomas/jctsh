@@ -57,7 +57,7 @@ In GPSLogger → Logging Details → Log to custom URL:
 
 | Setting | Value |
 |---|---|
-| URL | `https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat=%LAT&lon=%LON&ts=%TIME&acc=%ACC&alt=%ALT` |
+| URL | `https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat=%LAT&lon=%LON&ts=%TIME&acc=%ACC&alt=%ALT&direction=%DIRECTION` |
 | Method | GET |
 | Body | (leave empty — all params are in the URL) |
 | Headers | (leave empty) |
@@ -68,7 +68,7 @@ Replace `<SCRIPT_ID>` and `<API_KEY>` with values from `credentials.local.md`.
 
 **Constructed URL example:**
 ```
-https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat=32.2226&lon=-110.9747&ts=1749340800&acc=4.2&alt=728.3
+https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat=32.2226&lon=-110.9747&ts=1749340800&acc=4.2&alt=728.3&direction=274.5
 ```
 
 **GPSLogger placeholders:**
@@ -80,6 +80,7 @@ https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat
 | `%TIME` | Unix epoch timestamp in **seconds** (integer) |
 | `%ACC` | GPS accuracy in meters |
 | `%ALT` | Altitude in meters above sea level |
+| `%DIRECTION` | GPS bearing/direction of travel, degrees clockwise from North (CARD-0085, added 2026-08-05) — optional; older requests without it still work, `doGet` writes an empty value rather than failing |
 
 > `%TIME` is a Unix epoch integer (e.g. `1749340800`). The Apps Script converts it to ISO8601
 > UTC before writing to the sheet.
@@ -140,7 +141,7 @@ Confirm a new row appeared in the "GPS Track" sheet before configuring GPSLogger
 
 ### Column Headers
 
-Add these headers in row 1 (A1 through E1):
+Add these headers in row 1 (A1 through F1):
 
 | Col | Header | Content |
 |---|---|---|
@@ -149,6 +150,7 @@ Add these headers in row 1 (A1 through E1):
 | C | `lon` | Decimal degrees (e.g. `-110.9747`) |
 | D | `accuracy_m` | GPS accuracy in meters (e.g. `4.2`) |
 | E | `altitude_m` | Altitude in meters above sea level (e.g. `728.3`) |
+| F | `direction` | GPS bearing in degrees, clockwise from North (CARD-0085, added 2026-08-05) — blank for rows logged before this column existed |
 
 No formulas, no auto-formatting — plain data only. The Apps Script appends rows starting at row 2.
 

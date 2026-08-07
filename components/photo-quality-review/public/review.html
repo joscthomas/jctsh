@@ -77,6 +77,16 @@
   }
   .item .fname { font-size: 0.7rem; color: var(--ink-faint); word-break: break-all; margin-bottom: 0.3rem; }
   .item .fmeta { font-size: 0.68rem; color: var(--ink-muted); margin-bottom: 0.3rem; }
+  .item .owner-badge {
+    display: inline-block; font-size: 0.65rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.03em; padding: 0.1rem 0.4rem; border-radius: 999px; margin-bottom: 0.3rem;
+  }
+  .item .owner-badge.owner-joseph { background: #dce8f5; color: #2c5a86; }
+  .item .owner-badge.owner-robin { background: #f5dcec; color: #8a2c62; }
+  @media (prefers-color-scheme: dark) {
+    .item .owner-badge.owner-joseph { background: #223447; color: #a9c9e8; }
+    .item .owner-badge.owner-robin { background: #452232; color: #e8a9cc; }
+  }
   .item .album-badge { font-size: 0.68rem; margin-bottom: 0.3rem; }
   .item .album-badge.has-album { color: var(--accent); font-weight: 600; }
   .item .album-badge.no-album { color: var(--ink-faint); font-style: italic; }
@@ -149,6 +159,22 @@
     vertical-align: -0.15em; margin-right: 0.4em; animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  /* Deleting-in-progress feedback (CARD-0028) -- the old text-only spinner
+     line inside an already-open modal turned out to be easy to miss (Joseph:
+     no visible countdown noticed on a real 10+ item batch), especially since
+     it's immediately followed by a native alert() that grabs full attention.
+     A real progress bar is a much harder-to-miss signal than a single line
+     of text changing in place. Hidden by default, shown only while a
+     confirm is actually running. */
+  .progress-bar {
+    display: none; height: 0.6rem; border-radius: 999px; background: var(--surface-2);
+    overflow: hidden; margin: 0.6rem 0;
+  }
+  .progress-bar.active { display: block; }
+  .progress-bar-fill {
+    height: 100%; width: 0%; background: var(--accent); transition: width 0.2s ease-out;
+  }
+  .modal-summary-text { font-size: 1rem; font-weight: 600; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1rem; }
   .modal-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
   .empty { color: var(--ink-faint); font-style: italic; }
@@ -169,12 +195,26 @@
 <div class="modal-backdrop" id="modalBackdrop">
   <div class="modal">
     <h2 style="margin-top:0">Confirm Deletions</h2>
-    <p id="modalSummary"></p>
+    <p id="modalSummary" class="modal-summary-text"></p>
     <ul id="modalList"></ul>
+    <p id="confirmProgressText" class="modal-summary-text"></p>
+    <div class="progress-bar" id="progressBar"><div class="progress-bar-fill" id="progressBarFill"></div></div>
     <div class="modal-actions">
       <button id="cancelBtn">Cancel</button>
       <button class="toggle-btn marked-delete" id="confirmBtn" style="width:auto">Confirm &amp; Delete</button>
     </div>
+  </div>
+</div>
+
+<!-- Mark-remaining-as-reviewed progress (CARD-0028) -- a plain informational
+     modal, no Cancel/Confirm choice, since there's nothing to confirm: the
+     click already committed to the action, this just shows it's genuinely
+     working on a large batch rather than appearing to hang. -->
+<div class="modal-backdrop" id="dismissModalBackdrop">
+  <div class="modal">
+    <h2 style="margin-top:0">Marking as Reviewed</h2>
+    <p id="dismissProgressText" class="modal-summary-text"></p>
+    <div class="progress-bar" id="dismissProgressBar"><div class="progress-bar-fill" id="dismissProgressBarFill"></div></div>
   </div>
 </div>
 

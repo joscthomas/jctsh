@@ -197,11 +197,32 @@ function renderYear(year) {
       const assetIds = undecidedSingles.map((i) => i.assetId);
       dismissBtn.disabled = true;
       dismissBtn.textContent = 'Marking as reviewed...';
-      await api('/api/dismiss-singles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetIds }),
-      });
+
+      // Progress dialog (CARD-0028, Joseph's call) -- this bulk-dismisses
+      // whatever's currently undecided in the section, which on a year with
+      // a large backlog can be hundreds/thousands of items; same reasoning
+      // as Confirm & Delete's own countdown, so it gets the same treatment
+      // rather than a single button-text change that reads like a hang.
+      const backdrop = document.getElementById('dismissModalBackdrop');
+      const textEl = document.getElementById('dismissProgressText');
+      const barEl = document.getElementById('dismissProgressBar');
+      const barFillEl = document.getElementById('dismissProgressBarFill');
+      barFillEl.style.width = '0%';
+      textEl.innerHTML = '<span class="spinner"></span> Starting&hellip;';
+      backdrop.classList.add('open');
+      const pollHandle = pollProgress('/api/dismiss-singles/progress', 'Marking', textEl, barEl, barFillEl);
+
+      try {
+        await api('/api/dismiss-singles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assetIds }),
+        });
+      } finally {
+        clearInterval(pollHandle);
+        barEl.classList.remove('active');
+        backdrop.classList.remove('open');
+      }
       await loadReport();
       renderYear(year);
     });
@@ -378,6 +399,15 @@ function duplicateMeta(m) {
   return parts.join(' · ');
 }
 
+// Which Immich account (Joseph's or Robin's) an item actually lives under
+// (CARD-0028) -- both accounts' files get scanned and shown together (see
+// routes/immich.js's buildPathIndex), so without this a reviewer has no way
+// to tell whose library a given duplicate/blurry/broken photo is even in.
+function ownerLabelText(ownerLabel) {
+  if (!ownerLabel) return '';
+  return ownerLabel.charAt(0).toUpperCase() + ownerLabel.slice(1);
+}
+
 function renderDuplicateGroup(group) {
   const decision = group.decision;
   const items = group.members.map((m) => {
@@ -388,6 +418,7 @@ function renderDuplicateGroup(group) {
         <img src="${thumbUrl(m)}" alt="${m.originalFileName}" loading="lazy">
       </a>
       <div class="fname">${m.originalFileName}</div>
+      <div class="owner-badge owner-${m.ownerLabel}">${ownerLabelText(m.ownerLabel)}</div>
       ${meta ? `<div class="fmeta">${meta}</div>` : ''}
       <div class="album-badge" data-asset-id="${m.assetId}" data-owner="${m.ownerLabel}">Checking albums&hellip;</div>
       <div class="motion-badge" data-asset-id="${m.assetId}" data-owner="${m.ownerLabel}"></div>
@@ -439,6 +470,7 @@ function renderSingle(item) {
       <img src="${thumbUrl(item)}" alt="${item.originalFileName}" loading="lazy">
     </a>
     <div class="fname">${item.originalFileName}</div>
+    <div class="owner-badge owner-${item.ownerLabel}">${ownerLabelText(item.ownerLabel)}</div>
     <div class="fname">${label}</div>
     <a class="view-link" href="${viewUrl(item)}" target="_blank" rel="noopener">View original</a>
     <button class="toggle-btn ${marked}" data-asset-id="${item.assetId}">${buttonLabel}</button>
@@ -569,6 +601,11 @@ document.getElementById('previewBtn').addEventListener('click', async () => {
   document.getElementById('modalList').innerHTML = items
     .map((i) => `<li>${i.originalFileName} &mdash; ${i.reason}</li>`)
     .join('');
+  // Clear any leftover progress state from a previous confirm attempt (e.g.
+  // a failed one) -- this modal can be reopened without a page reload.
+  document.getElementById('confirmProgressText').innerHTML = '';
+  document.getElementById('progressBar').classList.remove('active');
+  document.getElementById('progressBarFill').style.width = '0%';
   backdrop.classList.add('open');
 });
 
@@ -595,40 +632,67 @@ document.getElementById('cancelBtn').addEventListener('click', () => {
 // with a live "Deleting X of Y..." counter, polled from the server every
 // second, plus a spinner -- something visibly moving is the only real proof
 // a long-running background process hasn't died.
-function pollConfirmProgress(summaryEl) {
-  return setInterval(async () => {
+// Found live (Joseph, third time): even with the text-based spinner in
+// place, a real 10+ item batch still read as "nothing happened" -- a single
+// line of text updating in place inside a dialog that was already open (via
+// Preview) is easy to not consciously register, especially right before a
+// native alert() steals focus the moment it's done. A progress *bar* is a
+// much harder-to-miss visual signal than text alone, and polling every
+// 300ms (down from 1000ms) means the first update lands well before a
+// several-second batch could finish, rather than possibly never getting a
+// tick in edge cases.
+// Found live (Joseph, fourth time): the progress text/bar still wasn't
+// visible -- it sat at the *top* of the modal, right above modalList, which
+// on a long pending-deletions list pushes it off the top of the visible
+// scroll area (the modal itself scrolls, doesn't grow past 80vh). Moved to
+// its own element below the list, right above the action buttons, which
+// stays in view regardless of list length.
+// Shared by Confirm & Delete and Mark-remaining-as-reviewed (CARD-0028) --
+// both are single requests that can process a large batch server-side with
+// no other feedback, so both get the same spinner+bar treatment via the same
+// polled-progress endpoint shape ({ total, completed }).
+function pollProgress(progressUrl, verb, textEl, barEl, barFillEl) {
+  barEl.classList.add('active');
+  const tick = async () => {
     try {
-      const p = await api('/api/confirm/progress');
+      const p = await api(progressUrl);
       if (p.total > 0) {
-        summaryEl.innerHTML = `<span class="spinner"></span> Deleting ${p.completed} of ${p.total}&hellip;`;
+        textEl.innerHTML = `<span class="spinner"></span> ${verb} ${p.completed} of ${p.total}&hellip;`;
+        barFillEl.style.width = `${Math.round((p.completed / p.total) * 100)}%`;
       }
     } catch {
       // transient poll failure -- leave the last-known text showing, the
       // main await below is still the source of truth for completion.
     }
-  }, 1000);
+  };
+  tick();
+  return setInterval(tick, 300);
 }
 
 document.getElementById('confirmBtn').addEventListener('click', async (e) => {
   const confirmBtn = e.currentTarget;
   const cancelBtn = document.getElementById('cancelBtn');
   if (confirmBtn.disabled) return; // a delete is already running -- ignore repeat clicks
-  const summaryEl = document.getElementById('modalSummary');
-  const originalSummary = summaryEl.textContent;
+  const progressTextEl = document.getElementById('confirmProgressText');
+  const barEl = document.getElementById('progressBar');
+  const barFillEl = document.getElementById('progressBarFill');
   confirmBtn.disabled = true;
   cancelBtn.disabled = true;
-  summaryEl.innerHTML = '<span class="spinner"></span> Starting delete&hellip;';
-  const pollHandle = pollConfirmProgress(summaryEl);
+  barFillEl.style.width = '0%';
+  progressTextEl.innerHTML = '<span class="spinner"></span> Starting delete&hellip;';
+  const pollHandle = pollProgress('/api/confirm/progress', 'Deleting', progressTextEl, barEl, barFillEl);
   try {
     const result = await api('/api/confirm', { method: 'POST' });
     clearInterval(pollHandle);
+    barEl.classList.remove('active');
     document.getElementById('modalBackdrop').classList.remove('open');
     alert(`Deleted ${result.deletedCount} file(s).` + (result.failed.length ? ` ${result.failed.length} failed.` : ''));
     await loadReport();
     if (currentYear) renderYear(currentYear); else renderYearPicker();
   } catch (err) {
     clearInterval(pollHandle);
-    summaryEl.textContent = originalSummary;
+    barEl.classList.remove('active');
+    progressTextEl.textContent = '';
     alert(`Delete failed: ${err.message}`);
   } finally {
     confirmBtn.disabled = false;

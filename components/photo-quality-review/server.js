@@ -399,19 +399,52 @@ app.post('/api/decide/single', async (req, res) => {
 // /api/report from here on (see filterResolvedFromReport) -- permanently,
 // including across a future re-scan, since the whole point is not
 // re-reviewing the same photo just because report.json regenerated.
+//
+// Progress-tracked the same way /api/confirm is (Joseph's call): a "mark all
+// remaining as reviewed" click on a year with a large backlog can cover
+// hundreds/thousands of assetIds at once, and with no feedback that reads
+// exactly like the pre-fix Confirm & Delete hang. The actual decisions.json
+// write still happens once, atomically, at the end (same lock discipline as
+// every other decisions.json writer) -- only the in-memory Set-building loop
+// yields periodically so a client polling /api/dismiss-singles/progress can
+// observe real intermediate counts on a large batch.
+let dismissInProgress = false;
+let dismissProgress = { total: 0, completed: 0 };
+const DISMISS_YIELD_EVERY = 200;
+
+app.get('/api/dismiss-singles/progress', (req, res) => {
+  res.json({ inProgress: dismissInProgress, total: dismissProgress.total, completed: dismissProgress.completed });
+});
+
 app.post('/api/dismiss-singles', async (req, res) => {
   const { assetIds } = req.body;
   if (!Array.isArray(assetIds) || assetIds.length === 0) {
     return res.status(400).json({ status: 'error', message: 'assetIds (non-empty array) required' });
   }
-  await withDecisionsLock(async () => {
-    const decisions = await loadDecisions();
-    const existing = new Set(decisions.dismissedSingles);
-    for (const id of assetIds) existing.add(id);
-    decisions.dismissedSingles = [...existing];
-    await saveDecisions(decisions);
-  });
-  res.json({ status: 'ok', dismissedCount: assetIds.length });
+  if (dismissInProgress) {
+    return res.status(409).json({
+      status: 'error',
+      message: 'A dismiss operation is already in progress -- please wait for it to finish.',
+    });
+  }
+  dismissInProgress = true;
+  dismissProgress = { total: assetIds.length, completed: 0 };
+  try {
+    await withDecisionsLock(async () => {
+      const decisions = await loadDecisions();
+      const existing = new Set(decisions.dismissedSingles);
+      for (let i = 0; i < assetIds.length; i++) {
+        existing.add(assetIds[i]);
+        dismissProgress.completed = i + 1;
+        if (i % DISMISS_YIELD_EVERY === 0) await new Promise((resolve) => setImmediate(resolve));
+      }
+      decisions.dismissedSingles = [...existing];
+      await saveDecisions(decisions);
+    });
+    res.json({ status: 'ok', dismissedCount: assetIds.length });
+  } finally {
+    dismissInProgress = false;
+  }
 });
 
 // Album membership for one asset (CARD-0028) -- fetched on demand as

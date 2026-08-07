@@ -176,16 +176,31 @@ function filterResolvedFromReport(report, decisions, dismissedSingleIds) {
 // Build the list of everything currently marked for deletion, shared by both
 // /api/preview (read-only) and /api/confirm (actually deletes) so the two
 // can never drift apart.
+//
+// scope (CARD-0028, Joseph's call) narrows this to a specific set of
+// groupKeys/assetIds -- the client's current pagination window -- instead
+// of every pending decision across the whole library. Found live: paging
+// only ever controlled what got *rendered*, not what auto-select could act
+// on, so a year with a large backlog could accumulate hundreds of
+// auto-selected duplicate picks on pages the reviewer had scrolled past and
+// never actually looked at again -- Confirm & Delete would still process
+// all of them. Duplicate groups are never split across pages (a group
+// renders as one atomic unit client-side), so filtering by groupKey here
+// can never produce a partial-group result.
 // ---------------------------------------------------------------------------
-async function pendingDeletions() {
+async function pendingDeletions(scope = null) {
   const rawReport = await loadJson(REPORT_PATH, { duplicateGroups: [], broken: [], blurry: [] });
   const deletedIds = await deletionLog.getDeletedAssetIds();
   const { report } = filterDeletedFromReport(rawReport, deletedIds);
   const decisions = await loadDecisions();
   const pending = [];
 
+  const scopeGroupKeys = scope && Array.isArray(scope.groupKeys) ? new Set(scope.groupKeys) : null;
+  const scopeSingleIds = scope && Array.isArray(scope.singleAssetIds) ? new Set(scope.singleAssetIds) : null;
+
   for (const group of report.duplicateGroups) {
     const key = groupKey(group);
+    if (scopeGroupKeys && !scopeGroupKeys.has(key)) continue;
     const decision = decisions.duplicates[key];
     if (!decision || decision.skip) continue;
 
@@ -215,6 +230,7 @@ async function pendingDeletions() {
   }
 
   for (const item of [...report.broken, ...report.blurry]) {
+    if (scopeSingleIds && !scopeSingleIds.has(item.assetId)) continue;
     if (decisions.singles[item.assetId] !== 'delete') continue;
     const reason = item.errors
       ? `broken (${Object.keys(item.errors).join(', ')})`
@@ -480,14 +496,18 @@ app.get('/api/motion-check/:assetId', async (req, res) => {
 
 // Dry-run: exact list of what /api/confirm would delete right now, without
 // deleting anything -- the "last sanity check" step from CARD-0028's plan.
-app.get('/api/preview', async (req, res) => {
-  res.json({ items: await pendingDeletions() });
+// POST (not GET) so the client can carry a scope in the body -- see
+// pendingDeletions()'s own comment for why this is scoped at all.
+app.post('/api/preview', async (req, res) => {
+  res.json({ items: await pendingDeletions(req.body && req.body.scope) });
 });
 
-// Session-oriented commit (CARD-0028, Joseph's correction): deletes and logs
-// whatever is currently marked, regardless of which year(s) it spans or
-// whether a full year was finished -- the year picker is a browsing aid
-// only, never a gate on this step.
+// Page-scoped commit (CARD-0028, revised from the original session-wide
+// design after Joseph found that design let Confirm & Delete act on
+// auto-selected decisions from pages he hadn't actually looked at during
+// this visit -- see pendingDeletions()'s own comment). Still not gated by
+// the year picker itself; the *pagination window* is the boundary now, not
+// the year.
 // In-flight guard (CARD-0028) -- found live: with no feedback while a real
 // delete pass was running, Joseph clicked Confirm & Delete repeatedly, and
 // each click ran its own full pendingDeletions()-then-delete-then-log pass.
@@ -523,7 +543,7 @@ app.post('/api/confirm', async (req, res) => {
   confirmInProgress = true;
   confirmProgress = { total: 0, completed: 0 };
   try {
-    const items = await pendingDeletions();
+    const items = await pendingDeletions(req.body && req.body.scope);
     confirmProgress.total = items.length;
     const deletedItems = [];
     const failed = [];

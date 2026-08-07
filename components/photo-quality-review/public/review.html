@@ -58,6 +58,16 @@
   }
   .dismiss-singles-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
+  /* Paging within a year (CARD-0028) -- a plain, low-emphasis button since
+     it's a browsing aid, not a decision; distinct from dismiss-singles-btn's
+     accent color so the two aren't confused at a glance. */
+  .load-more-btn {
+    display: block; margin: 0.6rem 0 1.2rem; font-size: 0.8rem; color: var(--ink-muted);
+    background: none; border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 0.4rem 0.7rem; cursor: pointer;
+  }
+  .load-more-btn:hover { background: var(--surface-2); color: var(--ink); }
+
   .back-link { display: inline-block; margin-bottom: 1rem; color: var(--ink-muted); text-decoration: none; font-size: 0.9rem; }
   .back-link:hover { text-decoration: underline; }
   .hide-decided-toggle {

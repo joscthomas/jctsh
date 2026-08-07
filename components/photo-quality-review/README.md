@@ -66,9 +66,8 @@ Immich REST API (path idx)─┘         │
 ## Review UI, screen by screen
 
 1. **Year picker** (landing page) -- browsing aid only, **not** a commit
-   boundary (Joseph's correction, CARD-0028 interview): Preview/Confirm act
-   on whatever is currently marked across however much has been reviewed in
-   a session, regardless of year boundaries.
+   boundary: opening a year doesn't scope what Confirm & Delete can act on
+   by itself (see the paging note below for what actually does).
 2. **Duplicates** -- one row per group, radio button marks which to *keep*
    (the rest become delete candidates), or "Skip for now."
 3. **Blurry & Broken** -- a grid, one toggle per item (unset -> delete ->
@@ -80,6 +79,26 @@ Immich REST API (path idx)─┘         │
 6. A running tally at the bottom, with **Preview Deletions** (exact list,
    last sanity check) and **Confirm & Delete** (calls Immich's delete API +
    deletion-log for everything currently marked).
+
+### Paging and delete scope (revised from the original session-wide design)
+
+A large year (e.g. 2015's 5,128 duplicate groups) is paged client-side --
+100 duplicate groups and 200 blurry/broken items at a time, each with a
+"Show more" button, both to keep the DOM/render size sane and to cap how
+many `/api/albums`/`/api/motion-check` badge requests fire at once (limited
+to 6 concurrent each, see `public/review.js`'s `forEachWithConcurrency`).
+
+The tally bar, **Preview Deletions**, and **Confirm & Delete** are all
+scoped to the *current pagination window* -- only groups/items actually
+loaded on the page you're viewing count toward them. This was a deliberate
+reversal of the original "Preview/Confirm act on whatever's marked across
+the whole session" design (Joseph's original CARD-0028 interview call):
+found live that auto-select (see below) fires for any group that's ever
+been rendered, so decisions could silently accumulate on pages scrolled
+past and forgotten, and Confirm & Delete had no way to distinguish those
+from ones just reviewed. The "Mark remaining as reviewed" bulk-dismiss
+button is the one exception -- it intentionally still covers the *whole*
+section (every page), since it's a "keep, not delete" action.
 
 ## Environment (`.env`, gitignored)
 

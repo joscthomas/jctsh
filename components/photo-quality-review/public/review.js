@@ -7,6 +7,13 @@
 let reportData = null;
 let currentYear = null;
 
+// Delete scope (CARD-0028, Joseph's call) -- the pagination window
+// currently loaded for the year being viewed, in groupKey/assetId terms.
+// Empty on the year picker (nothing in view). Drives the tally bar, Preview
+// Deletions, and Confirm & Delete, so none of them can act on a decision
+// from a page you haven't scrolled to. See renderYear() for how it's built.
+let currentScope = { groupKeys: [], singleAssetIds: [] };
+
 async function api(path, options) {
   const res = await fetch(path, options);
   if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
@@ -39,6 +46,7 @@ function renderYearPicker() {
   const subtitle = document.getElementById('subtitle');
   const content = document.getElementById('content');
   currentYear = null;
+  currentScope = { groupKeys: [], singleAssetIds: [] }; // nothing in view here
 
   if (!reportData.generatedAt) {
     subtitle.textContent = 'No scan has been run yet.';
@@ -114,8 +122,28 @@ function countForYear(year) {
 // won't visibly disappear until the next render).
 let hideDecided = false;
 
-function renderYear(year) {
+// Paging within a year (CARD-0028, Joseph's call): a year like 2015 has
+// 5,128 duplicate groups (11,043 photos) and 629 blurry items -- rendering
+// all of it at once was the real cause of the review page going
+// unresponsive, both from raw DOM size and from loadAlbumBadges()/
+// loadMotionBadges() firing one fetch per visible thumbnail with no cap
+// (see the concurrency limiter below). GROUPS_PAGE_SIZE is counted in
+// *groups*, not photos -- at ~2 members/group average that's roughly the
+// same ~200-photo budget as SINGLES_PAGE_SIZE, which counts photos
+// directly. Reset to the first page whenever a year is entered fresh
+// (from the picker, a hide-decided toggle, or after a decision reload) --
+// only the "Show more" buttons themselves pass resetPaging: false.
+const GROUPS_PAGE_SIZE = 100;
+const SINGLES_PAGE_SIZE = 200;
+let visibleGroupLimit = GROUPS_PAGE_SIZE;
+let visibleSingleLimit = SINGLES_PAGE_SIZE;
+
+function renderYear(year, { resetPaging = true } = {}) {
   currentYear = year;
+  if (resetPaging) {
+    visibleGroupLimit = GROUPS_PAGE_SIZE;
+    visibleSingleLimit = SINGLES_PAGE_SIZE;
+  }
   const content = document.getElementById('content');
   document.getElementById('subtitle').textContent = `Reviewing ${year}`;
 
@@ -126,6 +154,20 @@ function renderYear(year) {
   const groups = hideDecided ? allGroups.filter((g) => !g.decision) : allGroups;
   const broken = hideDecided ? allBroken.filter((i) => !i.decision) : allBroken;
   const blurry = hideDecided ? allBlurry.filter((i) => !i.decision) : allBlurry;
+
+  // Delete scope (CARD-0028, Joseph's call): the tally/Preview/Confirm used
+  // to total every pending decision across the *entire* library session,
+  // which meant Confirm & Delete could act on auto-selected duplicate
+  // groups from pages you'd never actually scrolled to (paging only
+  // controls what's *rendered*, decisions persist regardless). Now the
+  // pagination window itself IS the scope: only groups/items within the
+  // currently-loaded page count toward the tally and get processed by
+  // Confirm & Delete. Deliberately computed from allGroups/allBroken+
+  // allBlurry (unfiltered by hideDecided), not from `groups`/`broken`/
+  // `blurry` above -- hideDecided is a display-only declutter toggle, and a
+  // decided-but-hidden row is still meaningfully "on this page." Duplicate
+  // groups are never split across pages (a group is one atomic render
+  // unit), so there's no partial-group edge case to handle here.
 
   let html = `<a class="back-link" href="#" id="backLink">&larr; All years</a>`;
   html += `<label class="hide-decided-toggle">
@@ -151,11 +193,19 @@ function renderYear(year) {
   if (yearResolved.deletedGroups) dupNotes.push(`${yearResolved.deletedGroups} already deleted`);
   if (yearResolved.keepAllGroups) dupNotes.push(`${yearResolved.keepAllGroups} kept via "Keep all"`);
   html += `<h2>Duplicates (${groups.length}${dupNotes.length ? ` &mdash; ${dupNotes.join(', ')}` : ''})</h2>`;
-  html += groups.length
-    ? groups.map(renderDuplicateGroup).join('')
+  const groupsPage = allGroups.slice(0, visibleGroupLimit);
+  const groupsRemaining = allGroups.length - groupsPage.length;
+  const groupsToShow = hideDecided ? groupsPage.filter((g) => !g.decision) : groupsPage;
+  html += groupsToShow.length
+    ? groupsToShow.map(renderDuplicateGroup).join('')
     : allGroups.length
     ? '<p class="empty">All duplicates here are already decided.</p>'
     : '<p class="empty">None this year.</p>';
+  if (groupsRemaining > 0) {
+    html += `<button class="load-more-btn" id="loadMoreGroupsBtn">
+      Show ${Math.min(GROUPS_PAGE_SIZE, groupsRemaining)} more duplicate group(s) (${groupsRemaining} not yet shown)
+    </button>`;
+  }
 
   const singlesAllCount = allBroken.length + allBlurry.length;
   const singles = [...broken, ...blurry];
@@ -175,11 +225,32 @@ function renderYear(year) {
       Mark remaining ${undecidedSingles.length} as reviewed (keep them, hide from this list)
     </button>`;
   }
-  html += singles.length
-    ? `<div class="grid">${singles.map(renderSingle).join('')}</div>`
+  // Paged for rendering only -- the dismiss button above intentionally
+  // still operates on the *full* undecidedSingles (every page), since "mark
+  // everything remaining as reviewed" should cover the whole section, not
+  // just whatever page happens to be currently visible. Delete scope (see
+  // groupsPage above) is different: it's meant to track "what I'm actually
+  // looking at," so it's built from the unfiltered year-wide singles list,
+  // same as groupsPage.
+  const allSingles = [...allBroken, ...allBlurry];
+  const singlesPage = allSingles.slice(0, visibleSingleLimit);
+  const singlesRemaining = allSingles.length - singlesPage.length;
+  const singlesToShow = hideDecided ? singlesPage.filter((i) => !i.decision) : singlesPage;
+  html += singlesToShow.length
+    ? `<div class="grid">${singlesToShow.map(renderSingle).join('')}</div>`
     : singlesAllCount
     ? '<p class="empty">All blurry/broken items here are already decided.</p>'
     : '<p class="empty">None this year.</p>';
+  if (singlesRemaining > 0) {
+    html += `<button class="load-more-btn" id="loadMoreSinglesBtn">
+      Show ${Math.min(SINGLES_PAGE_SIZE, singlesRemaining)} more (${singlesRemaining} not yet shown)
+    </button>`;
+  }
+
+  currentScope = {
+    groupKeys: groupsPage.map((g) => g.groupKey),
+    singleAssetIds: singlesPage.map((i) => i.assetId),
+  };
 
   content.innerHTML = html;
 
@@ -191,6 +262,20 @@ function renderYear(year) {
     hideDecided = e.target.checked;
     renderYear(year);
   });
+  const loadMoreGroupsBtn = document.getElementById('loadMoreGroupsBtn');
+  if (loadMoreGroupsBtn) {
+    loadMoreGroupsBtn.addEventListener('click', () => {
+      visibleGroupLimit += GROUPS_PAGE_SIZE;
+      renderYear(year, { resetPaging: false });
+    });
+  }
+  const loadMoreSinglesBtn = document.getElementById('loadMoreSinglesBtn');
+  if (loadMoreSinglesBtn) {
+    loadMoreSinglesBtn.addEventListener('click', () => {
+      visibleSingleLimit += SINGLES_PAGE_SIZE;
+      renderYear(year, { resetPaging: false });
+    });
+  }
   const dismissBtn = document.getElementById('dismissSinglesBtn');
   if (dismissBtn) {
     dismissBtn.addEventListener('click', async () => {
@@ -212,19 +297,33 @@ function renderYear(year) {
       backdrop.classList.add('open');
       const pollHandle = pollProgress('/api/dismiss-singles/progress', 'Marking', textEl, barEl, barFillEl);
 
+      // Found live (Joseph): the dialog closed the instant the /api/dismiss-
+      // singles POST itself resolved (correct -- that write really is
+      // fast), but the dismiss handler used to close it *before*
+      // loadReport()+renderYear() below, which re-fetches and re-parses
+      // report.json (confirmed ~0.9s server-side alone on this library's
+      // size, on top of the client's own re-parse and DOM re-render) --
+      // several more seconds of real, visible work with the dialog already
+      // gone. Keeping it open (with a distinct "Refreshing..." state, since
+      // the /api/dismiss-singles/progress counter itself has already
+      // reached 100% by this point) through the full round trip means it
+      // only closes once the list has actually finished updating.
       try {
         await api('/api/dismiss-singles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ assetIds }),
         });
+        clearInterval(pollHandle);
+        barFillEl.style.width = '100%';
+        textEl.innerHTML = '<span class="spinner"></span> Refreshing the list&hellip;';
+        await loadReport();
+        renderYear(year);
       } finally {
         clearInterval(pollHandle);
         barEl.classList.remove('active');
         backdrop.classList.remove('open');
       }
-      await loadReport();
-      renderYear(year);
     });
   }
   wireDuplicateHandlers();
@@ -233,15 +332,38 @@ function renderYear(year) {
   loadMotionBadges();
 }
 
+// Concurrency-limited iteration -- mirrors scan.js's own mapWithConcurrency.
+// loadAlbumBadges/loadMotionBadges below used to fire one fetch per visible
+// thumbnail via a bare forEach(async ...), with no cap at all. Fine for a
+// handful of duplicate groups, genuinely pathological for a heavy year --
+// even with per-year paging now capping what's in the DOM to ~100 groups,
+// that's still ~200 photos x 2 badge types = ~400 simultaneous requests
+// hitting this single-threaded Node server (each of which itself calls out
+// to Immich) at once. Capped concurrency spreads that load out instead of
+// firing it all in one burst.
+async function forEachWithConcurrency(items, limit, fn) {
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const item = items[next++];
+      await fn(item);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+const BADGE_FETCH_CONCURRENCY = 6;
+
 // Album membership per duplicate-group member (CARD-0028) -- fetched lazily,
-// one request per visible thumbnail, only for the year currently being
-// reviewed (not the whole library up front -- see server.js's own comment
-// on /api/albums/:assetId for why). This turned out to matter: which copy
-// is actually linked to an album is a real, independent signal for which
-// one to keep, separate from filename/size/dimensions -- a duplicate can
-// have the "cleanest" name and still be the one with no album at all.
+// only for the year currently being reviewed (not the whole library up
+// front -- see server.js's own comment on /api/albums/:assetId for why).
+// This turned out to matter: which copy is actually linked to an album is a
+// real, independent signal for which one to keep, separate from filename/
+// size/dimensions -- a duplicate can have the "cleanest" name and still be
+// the one with no album at all.
 function loadAlbumBadges() {
-  document.querySelectorAll('.album-badge[data-asset-id]').forEach(async (el) => {
+  const els = [...document.querySelectorAll('.album-badge[data-asset-id]')];
+  forEachWithConcurrency(els, BADGE_FETCH_CONCURRENCY, async (el) => {
     const { assetId, owner } = el.dataset;
     const groupKey = el.closest('.group')?.dataset.groupKey;
     let albums = [];
@@ -267,7 +389,8 @@ function loadAlbumBadges() {
 // (non-Motion-Photo) items -- no point flagging "not a motion photo" on
 // every single thumbnail that isn't one.
 function loadMotionBadges() {
-  document.querySelectorAll('.motion-badge[data-asset-id]').forEach(async (el) => {
+  const els = [...document.querySelectorAll('.motion-badge[data-asset-id]')];
+  forEachWithConcurrency(els, BADGE_FETCH_CONCURRENCY, async (el) => {
     const { assetId, owner } = el.dataset;
     const groupKey = el.closest('.group')?.dataset.groupKey;
     let info = { isMotionPhoto: false };
@@ -581,7 +704,11 @@ function wireSingleHandlers() {
 }
 
 async function refreshTally() {
-  const preview = await api('/api/preview');
+  const preview = await api('/api/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scope: currentScope }),
+  });
   const bar = document.getElementById('tallyBar');
   const count = document.getElementById('tallyCount');
   if (preview.items.length === 0) {
@@ -682,7 +809,11 @@ document.getElementById('confirmBtn').addEventListener('click', async (e) => {
   progressTextEl.innerHTML = '<span class="spinner"></span> Starting delete&hellip;';
   const pollHandle = pollProgress('/api/confirm/progress', 'Deleting', progressTextEl, barEl, barFillEl);
   try {
-    const result = await api('/api/confirm', { method: 'POST' });
+    const result = await api('/api/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope: currentScope }),
+    });
     clearInterval(pollHandle);
     barEl.classList.remove('active');
     document.getElementById('modalBackdrop').classList.remove('open');

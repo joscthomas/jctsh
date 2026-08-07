@@ -9,7 +9,41 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0145 -->
+<!-- next-card-id: CARD-0147 -->
+
+---
+
+### CARD-0145 · [idea] [ring] Audible Ring motion notification on Google Home
+**Status:** Backlog
+
+**Raised 2026-08-07 14:18 MST.** Play a spoken announcement on Google Home whenever motion is detected on any of the 7 Ring cameras (garage, side yard, side gate, back porch, front porch, front door, gathering room) — not just the doorbell. Announcement plays on all Google Home speakers/displays in the house (garage, gathering room, back porch speakers, master bath Nest Display, gathering room Pixel Tablet), not just a subset.
+
+**Interview notes (2026-08-07):**
+- Trigger: any motion event on any of the 7 cameras (broader than doorbell-only) — Ring/SmartThings/HA already carries these as entities per `ENVIRONMENT.md`, no new sensor hardware needed.
+- Form: spoken TTS announcement (not just a chime) — needs HA's Google Cast/TTS path to Google Home wired up if not already.
+- Scope: all speakers/displays, no subset excluded (including master bath and garage).
+- **Open design question, not yet resolved:** "any motion on any of 7 cameras" firing to every speaker in the house has real noise/nuisance potential (wind, cars, mail carrier, pets) — worth deciding during Planning whether the announcement identifies which camera triggered (e.g. "Motion at back porch") and whether any throttling/cooldown is needed to avoid repeated announcements for the same ongoing event.
+
+**Done when:** motion on any of the 7 Ring cameras reliably triggers a spoken announcement on every listed Google Home speaker/display, without flooding announcements for a single continuous motion event.
+
+**Related:** CARD-0146 (companion card — Ring doorbell live video on the Gathering room TV, same Ring/HA/Google Home integration surface), `ENVIRONMENT.md` (existing Ring camera + Google Home device inventory).
+
+---
+
+### CARD-0146 · [idea] [ring] Show Ring doorbell live video on Gathering room TV
+**Status:** Backlog
+
+**Raised 2026-08-07 14:18 MST.** When the Ring doorbell detects activity, automatically show its live video feed on the Gathering room TV (the Chromecast/Google TV, per `ENVIRONMENT.md`), interrupting whatever is currently playing. Feed stays up for as long as there's motion/activity at the door, then automatically returns to whatever was playing before.
+
+**Interview notes (2026-08-07):**
+- Scope: doorbell only (not the other 6 Ring cameras) — live video, not a static snapshot.
+- Trigger: automatic interrupt, not on-demand/voice-command-only.
+- Return-to-previous-content condition: tied to the doorbell's own motion/person-detected state clearing, not a fixed timer.
+- **Open technical question, not yet resolved:** exact mechanism for pushing a live Ring feed to the existing Chromecast/Google TV — e.g. whether Google Home's native camera-to-Chromecast casting (if Ring is linked in the Google Home app) covers this directly, versus needing a Home Assistant-driven cast of the camera stream. Worth investigating both during Planning before committing to an approach.
+
+**Done when:** doorbell motion/person-detected reliably interrupts the Gathering room TV with live doorbell video, and playback automatically reverts to the prior content once the doorbell's activity state clears.
+
+**Related:** CARD-0145 (companion card — audible Ring motion notification on Google Home), `ENVIRONMENT.md` (existing Ring camera + Chromecast/Google TV inventory).
 
 ---
 

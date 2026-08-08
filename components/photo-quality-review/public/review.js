@@ -162,7 +162,18 @@ function renderYear(year, { resetPaging = true } = {}) {
   const content = document.getElementById('content');
   document.getElementById('subtitle').textContent = `Reviewing ${year}`;
 
-  const allGroups = reportData.duplicateGroups.filter((g) => g.year === year);
+  // Sorted newest-first by date taken (Joseph's call) -- czkawka/report.json
+  // have no inherent chronological order (whatever order the scan happened
+  // to find things in), which made browsing feel random. ISO 8601 strings
+  // sort correctly with a plain string compare, no Date parsing needed. A
+  // group's own date is its first member's fileCreatedAt -- same convention
+  // server.js's /api/report already uses for the group's `year` bucketing
+  // (yearOf(group[0]?.fileCreatedAt)), so a group's sort position and its
+  // year assignment are never based on different members.
+  const byDateDesc = (aDate, bDate) => (bDate || '').localeCompare(aDate || '');
+  const allGroups = reportData.duplicateGroups
+    .filter((g) => g.year === year)
+    .sort((a, b) => byDateDesc(a.members[0]?.fileCreatedAt, b.members[0]?.fileCreatedAt));
   const allBroken = reportData.broken.filter((i) => i.year === year);
   const allBlurry = reportData.blurry.filter((i) => i.year === year);
 
@@ -247,7 +258,7 @@ function renderYear(year, { resetPaging = true } = {}) {
   // groupsPage above) is different: it's meant to track "what I'm actually
   // looking at," so it's built from the unfiltered year-wide singles list,
   // same as groupsPage.
-  const allSingles = [...allBroken, ...allBlurry];
+  const allSingles = [...allBroken, ...allBlurry].sort((a, b) => byDateDesc(a.fileCreatedAt, b.fileCreatedAt));
   const singlesPage = allSingles.slice(0, visibleSingleLimit);
   const singlesRemaining = allSingles.length - singlesPage.length;
   const singlesToShow = hideDecided ? singlesPage.filter((i) => !i.decision) : singlesPage;
@@ -500,7 +511,28 @@ async function maybeAutoSelectGroup(groupKey) {
     keepAssetId = albumWinner;
     autoReason = 'this copy is in an album, the other is not';
   } else {
-    return; // neither signal is decisive
+    // Cross-account, identical-size tie-breaker (Joseph's call, 2026-08-08):
+    // deliberately only checked once motion AND album have both come back
+    // inconclusive -- this never overrides either real quality signal
+    // above, it only applies to the genuinely undecidable case where the
+    // sole distinguishing fact between two otherwise-identical copies is
+    // which account owns them. Requires both identical file size AND
+    // czkawka's own difference: 0 (exact perceptual-hash match, not just
+    // "similar enough to group") -- size alone could theoretically
+    // coincide for two different photos; difference: 0 confirms they're
+    // visually indistinguishable too, so there's no quality difference to
+    // weigh, just an ownership convention.
+    const isCrossAccount = a.ownerLabel !== b.ownerLabel;
+    const sameSize = a.size != null && a.size === b.size;
+    const exactMatch = a.difference === 0 && b.difference === 0;
+    if (isCrossAccount && sameSize && exactMatch) {
+      const josephMember = a.ownerLabel === 'joseph' ? a : b.ownerLabel === 'joseph' ? b : null;
+      if (josephMember) {
+        keepAssetId = josephMember.assetId;
+        autoReason = "identical file size across accounts, kept Joseph's copy";
+      }
+    }
+    if (!keepAssetId) return; // still nothing decisive
   }
 
   const decision = { keepAssetId, auto: true };

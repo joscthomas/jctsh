@@ -188,6 +188,20 @@
   .modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1rem; }
   .modal-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
   .empty { color: var(--ink-faint); font-style: italic; }
+
+  /* In-page toast (replaces native alert()) -- alert()/confirm() dialogs are
+     rendered by the browser chrome itself, which always prefixes them with
+     the page's own origin ("100.111.16.14 says") for security reasons; no
+     amount of JS can suppress that. This is a plain styled notification
+     instead, message-only, auto-dismissing. */
+  .toast {
+    display: none; position: fixed; top: 1.25rem; left: 50%; transform: translateX(-50%);
+    z-index: 20; max-width: 32rem; width: calc(100% - 2.5rem);
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 0.8rem 1.1rem; font-size: 0.9rem; text-align: center;
+  }
+  .toast.open { display: block; }
+  .toast.error { border-color: var(--danger); color: var(--danger); }
 </style>
 </head>
 <body>
@@ -196,6 +210,8 @@
   <p class="subtitle" id="subtitle">Loading...</p>
   <div id="content"></div>
 </main>
+
+<div class="toast" id="toast"></div>
 
 <div class="tally-bar" id="tallyBar" style="display:none">
   <span class="tally-count" id="tallyCount">0 marked for deletion</span>

@@ -14,6 +14,21 @@ let currentYear = null;
 // from a page you haven't scrolled to. See renderYear() for how it's built.
 let currentScope = { groupKeys: [], singleAssetIds: [] };
 
+// In-page toast, replacing native alert() (CARD-0028, Joseph's call) --
+// browser alert()/confirm() dialogs are chrome-rendered and always prefixed
+// with the page's own origin ("100.111.16.14 says"), which no page-level JS
+// can suppress. This shows just the message, auto-dismissing after a few
+// seconds (errors stay up longer -- more worth reading closely).
+let toastTimeout = null;
+function showToast(message, { isError = false } = {}) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.classList.toggle('error', isError);
+  toast.classList.add('open');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => toast.classList.remove('open'), isError ? 6000 : 3500);
+}
+
 async function api(path, options) {
   const res = await fetch(path, options);
   if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
@@ -808,6 +823,14 @@ document.getElementById('confirmBtn').addEventListener('click', async (e) => {
   barFillEl.style.width = '0%';
   progressTextEl.innerHTML = '<span class="spinner"></span> Starting delete&hellip;';
   const pollHandle = pollProgress('/api/confirm/progress', 'Deleting', progressTextEl, barEl, barFillEl);
+  // Found live (Joseph) -- same gap as the dismiss-singles dialog had: the
+  // modal used to close the instant /api/confirm itself resolved (correct,
+  // that part really is done), but loadReport()+renderYear() below re-fetch
+  // and re-parse the (large) report.json and rebuild the DOM, which is real,
+  // visible work with the dialog already gone. Keeping it open through the
+  // full round trip (with a distinct "Refreshing..." state, since the
+  // /api/confirm/progress counter has already reached 100% by this point)
+  // means it only closes once the list has actually finished updating.
   try {
     const result = await api('/api/confirm', {
       method: 'POST',
@@ -815,16 +838,18 @@ document.getElementById('confirmBtn').addEventListener('click', async (e) => {
       body: JSON.stringify({ scope: currentScope }),
     });
     clearInterval(pollHandle);
-    barEl.classList.remove('active');
-    document.getElementById('modalBackdrop').classList.remove('open');
-    alert(`Deleted ${result.deletedCount} file(s).` + (result.failed.length ? ` ${result.failed.length} failed.` : ''));
+    barFillEl.style.width = '100%';
+    progressTextEl.innerHTML = '<span class="spinner"></span> Refreshing the list&hellip;';
+    showToast(`Deleted ${result.deletedCount} file(s).` + (result.failed.length ? ` ${result.failed.length} failed.` : ''), { isError: result.failed.length > 0 });
     await loadReport();
     if (currentYear) renderYear(currentYear); else renderYearPicker();
+    barEl.classList.remove('active');
+    document.getElementById('modalBackdrop').classList.remove('open');
   } catch (err) {
     clearInterval(pollHandle);
     barEl.classList.remove('active');
     progressTextEl.textContent = '';
-    alert(`Delete failed: ${err.message}`);
+    showToast(`Delete failed: ${err.message}`, { isError: true });
   } finally {
     confirmBtn.disabled = false;
     cancelBtn.disabled = false;

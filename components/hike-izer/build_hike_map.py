@@ -88,17 +88,65 @@ _MARKER_ICONS = {
 }
 _DEFAULT_MARKER_ICON = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>'
 
-# CARD-0085: sun-position gadget -- hollow (stroke-only) line-art arrow,
-# same convention as _MARKER_ICONS above. Points "up" (north, 0deg) at rest;
-# base sits at the bottom edge of the viewBox so a CSS transform-origin of
-# "50% 100%" hinges it there, matching a real gnomon tilting up from its
-# base rather than spinning around its own center.
+# CARD-0085: sun-position gadget -- solid/filled bold arrow (Joseph's call,
+# 2026-08-08: wanted a chunkier, more visible glyph than the thin hollow
+# line-art originally used here). Points "up" (north, 0deg) at rest. Hand-
+# drawn (not traced from any stock asset) as one filled path: a wide
+# triangular head (wings at x=4/x=20, apex at y=2) over a thick rectangular
+# shaft (x=9-15, down to y=22) -- deliberately kept vertically balanced
+# around the viewBox's y=12 center (spans y=2 to y=22, same ~20px extent the
+# old line-art arrow had), NOT anchored to the bottom edge: templating.py's
+# `.sun-gadget-arrow` CSS pivots this on `transform-origin: center`, not the
+# arrow's base (see that file's own comment for why -- a bottom anchor
+# looked fine for the elevation tilt alone, but the same anchor also governs
+# the compass rotation, causing the whole arrow to sweep like a clock hand
+# instead of spinning in place). A shape anchored at its own base instead of
+# balanced around center would look off-pivot under that rotation.
 _SUN_GADGET_ARROW_SVG = (
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-    'stroke-linecap="round" stroke-linejoin="round">'
-    '<line x1="12" y1="23" x2="12" y2="7"/>'
-    '<path d="M6 12 L12 3 L18 12"/></svg>'
+    '<svg viewBox="0 0 24 24" fill="currentColor">'
+    '<path d="M9 22 L9 13 L4 13 L12 2 L20 13 L15 13 L15 22 Z"/></svg>'
 )
+
+# CARD-0085 Part B: travel-direction arrows placed along the route line
+# itself (Joseph: "It's not a row but a tiny arrow on the map" -- a table
+# row was tried first and explicitly rejected in favor of this). Same
+# hollow-arrow visual vocabulary as _SUN_GADGET_ARROW_SVG (this map's one
+# other rotating-arrow indicator) but plain 2D -- no perspective/tilt, since
+# travel direction has no elevation-angle analog. Points "up" (0deg) at rest,
+# rotated in-plane via a plain CSS rotate() to each point's own
+# travel_bearing_deg.
+_TRAVEL_ARROW_SVG = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<line x1="12" y1="19" x2="12" y2="7"/>'
+    '<path d="M7 12 L12 5 L17 12"/></svg>'
+)
+
+# How many arrows to place along the whole route, regardless of hike length
+# or point density -- Joseph confirmed "arrows, more than 1" (i.e. several
+# spaced along the trail, not a single indicator). Small enough to stay
+# readable on a phone-width map, large enough to actually convey the route's
+# direction changes.
+TRAVEL_ARROW_COUNT = 10
+
+
+def _select_travel_arrow_points(chart_series):
+    """Evenly-spaced subset of chart_series points that carry a real
+    GPS-reported bearing (older data, or a GPSLogger config not sending
+    %DIRECTION, leaves travel_bearing_deg None -- those points are skipped
+    entirely rather than guessing a bearing from neighboring lat/lon, since
+    a straight-line-between-points bearing would silently misrepresent an
+    actual GPS-reported heading as something derived). Returns [] if no
+    point in the whole hike has one, same "no empty scaffolding" convention
+    as the rest of this module -- caller just renders zero arrows."""
+    candidates = [p for p in chart_series if p.get('travel_bearing_deg') is not None]
+    if not candidates:
+        return []
+    if len(candidates) <= TRAVEL_ARROW_COUNT:
+        return candidates
+    step = (len(candidates) - 1) / (TRAVEL_ARROW_COUNT - 1)
+    indices = sorted(set(round(i * step) for i in range(TRAVEL_ARROW_COUNT)))
+    return [candidates[i] for i in indices]
 
 
 def _segments(chart_series):
@@ -234,6 +282,11 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
             'tooltipHtml': m['tooltip_html'], 'clickUrl': m.get('click_url'),
         }
         for m in (markers or [])
+    ]
+
+    travel_arrows_js = [
+        {'lat': p['lat'], 'lon': p['lon'], 'bearing': p['travel_bearing_deg']}
+        for p in _select_travel_arrow_points(chart_series)
     ]
 
     script = f'''<script>
@@ -373,6 +426,22 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
     if (m.clickUrl) {{
       mk.on("click", function () {{ window.open(m.clickUrl, "_blank"); }});
     }}
+  }});
+
+  // CARD-0085 Part B: travel-direction arrows along the route -- plain 2D
+  // rotate() per marker (no hover/tilt behavior, unlike the sun gadget
+  // above), non-interactive so they never intercept the route's own
+  // mouseover hit-targets.
+  var travelArrows = {json.dumps(travel_arrows_js)};
+  travelArrows.forEach(function (t) {{
+    var icon = L.divIcon({{
+      html: '<div class="travel-arrow-icon" style="transform: rotate(' + t.bearing + 'deg)">'
+        + {json.dumps(_TRAVEL_ARROW_SVG)} + '</div>',
+      className: 'travel-arrow-marker',
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    }});
+    L.marker([t.lat, t.lon], {{icon: icon, interactive: false}}).addTo(map);
   }});
 }})();
 </script>'''

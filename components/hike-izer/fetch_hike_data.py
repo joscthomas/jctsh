@@ -678,6 +678,12 @@ def _hike_point_series(gps_rows):
             'ts': ts, 'lat': lat, 'lon': lon, 'alt_ft': m_to_ft(alt_m),
             'distance_mi': cum_dist_m / 1609.34,
             'interval_dt_sec': interval_dt_sec, 'speed_mph': raw_speed_mph,
+            # CARD-0085: raw GPS bearing (%DIRECTION), passed straight
+            # through -- unlike altitude this is already a real per-point
+            # instantaneous value the phone reports directly, nothing to
+            # smooth or derive. None on rows predating this field or from a
+            # GPSLogger config that isn't sending it (to_float('') is None).
+            'bearing_deg': to_float(r.get('direction')),
         })
         prev = {'ts': ts, 'lat': lat, 'lon': lon}
 
@@ -867,6 +873,7 @@ def build_chart_series(gps_rows, sessions, max_points=80):
                 'session_break': gi > 0 and i == 0,
                 'sun_azimuth_deg': round(sun_az, 1),
                 'sun_elevation_deg': round(sun_elev, 1),
+                'travel_bearing_deg': round(p['bearing_deg'], 1) if p.get('bearing_deg') is not None else None,
             })
         dist_offset += total_mi
     return out

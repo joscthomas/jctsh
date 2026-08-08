@@ -573,6 +573,16 @@ _HTML_STYLE = """
   .sun-gadget { background: var(--surface); border: 1px solid var(--line); border-radius: 50%; box-shadow: var(--shadow); width: 2.75rem; height: 2.75rem; margin: 10px; display: flex; align-items: center; justify-content: center; perspective: 60px; }
   .sun-gadget-arrow { width: 20px; height: 20px; color: var(--accent); transform-style: preserve-3d; transform-origin: center; transition: transform 0.15s ease; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.25)); }
   .sun-gadget-arrow svg { width: 100%; height: 100%; overflow: visible; }
+  /* CARD-0085 Part B: travel-direction arrows along the route -- plain 2D
+     rotate(), each set inline per-marker by build_hike_map.py's JS since the
+     bearing differs per arrow (unlike the single sun gadget above, these
+     can't share one class-level transform). transparent marker background/
+     border keeps only the arrow glyph visible, no circular badge like the
+     photo/observation/bird markers -- these are a route-line annotation, not
+     a discrete clickable event. */
+  .travel-arrow-marker { background: transparent; border: none; }
+  .travel-arrow-icon { width: 18px; height: 18px; color: var(--accent); filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); }
+  .travel-arrow-icon svg { width: 100%; height: 100%; overflow: visible; }
   .hike-visuals { display: grid; grid-template-columns: 1fr; gap: 1.25rem; margin-bottom: 2.25rem; }
   .hike-visuals section { margin-bottom: 0; }
   @media (min-width: 52rem) { .hike-visuals { grid-template-columns: 1fr 1fr; align-items: start; } .hike-visuals .hike-map { height: 15rem; } }

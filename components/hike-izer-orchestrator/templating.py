@@ -298,74 +298,6 @@ def observations_table_rows(hiking_observations, offset_delta):
     return rows
 
 
-# CARD-0147: multiple markers landing at (near-)identical map positions --
-# e.g. several BirdNET detections logged seconds apart while stationary --
-# render as an indistinguishable stack regardless of icon size (Joseph found
-# this live via a real photo of the page: shrinking the icons helped but
-# didn't separate a real 3-marker cluster, since the underlying positions
-# were themselves nearly identical). MARKER_CLUSTER_RADIUS_M is how close two
-# markers have to be (real-world meters, not degrees -- longitude degrees
-# shrink toward the poles, so a fixed lat/lon epsilon would be wrong at
-# different latitudes) before they're considered "the same spot" and spread
-# apart; MARKER_SPREAD_RADIUS_M is how far apart to spread them. Deliberately
-# a real-world-distance threshold, not a zoom/pixel-based one -- this runs
-# server-side, before any zoom level is chosen (fitBounds picks that
-# client-side against the whole route), so there's no pixel scale to work
-# from yet. A heuristic, not a perfect fit for every possible zoom level.
-MARKER_CLUSTER_RADIUS_M = 8.0
-MARKER_SPREAD_RADIUS_M = 5.0
-METERS_PER_DEGREE_LAT = 111320.0
-
-
-def _haversine_m(lat1, lon1, lat2, lon2):
-    r = 6371000.0
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlambda / 2) ** 2
-    return 2 * r * math.asin(math.sqrt(a))
-
-
-def _declutter_markers(markers):
-    """Groups markers within MARKER_CLUSTER_RADIUS_M of each other (simple
-    single-linkage grouping -- fine at this small scale, no need for a
-    proper clustering algorithm over what's usually a handful of markers per
-    hike) and spreads each group's members evenly around their own centroid
-    at MARKER_SPREAD_RADIUS_M -- a simple deterministic version of the
-    "spiderfy" technique clustering map libraries use, computed here in
-    plain Python rather than pulling in a new JS dependency, since every
-    marker's real lat/lon is already known at this point. Singletons (no
-    near neighbor) are left untouched. Mutates and returns the same list."""
-    n = len(markers)
-    visited = [False] * n
-    clusters = []
-    for i in range(n):
-        if visited[i]:
-            continue
-        cluster = [i]
-        visited[i] = True
-        for j in range(i + 1, n):
-            if visited[j]:
-                continue
-            if _haversine_m(markers[i]["lat"], markers[i]["lon"], markers[j]["lat"], markers[j]["lon"]) <= MARKER_CLUSTER_RADIUS_M:
-                cluster.append(j)
-                visited[j] = True
-        clusters.append(cluster)
-
-    for cluster in clusters:
-        if len(cluster) < 2:
-            continue
-        centroid_lat = sum(markers[i]["lat"] for i in cluster) / len(cluster)
-        centroid_lon = sum(markers[i]["lon"] for i in cluster) / len(cluster)
-        meters_per_degree_lon = METERS_PER_DEGREE_LAT * math.cos(math.radians(centroid_lat)) or 1e-9
-        for k, idx in enumerate(cluster):
-            angle = 2 * math.pi * k / len(cluster)
-            markers[idx]["lat"] = centroid_lat + (MARKER_SPREAD_RADIUS_M * math.sin(angle)) / METERS_PER_DEGREE_LAT
-            markers[idx]["lon"] = centroid_lon + (MARKER_SPREAD_RADIUS_M * math.cos(angle)) / meters_per_degree_lon
-
-    return markers
-
-
 def _build_event_markers(hike_data, photos_manifest, photos_dir, offset_delta, chart_series, birdnet_occurrences):
     """CARD-0133: assembles the generic marker list build_hike_map.build_map_html()
     renders on the Route Map. Type-specific knowledge (what a photo tooltip
@@ -435,7 +367,7 @@ def _build_event_markers(hike_data, photos_manifest, photos_dir, offset_delta, c
             "tooltip_html": tooltip, "click_url": None,
         })
 
-    return _declutter_markers(markers)
+    return markers
 
 
 def birdnet_table_rows(birdnet_rows, offset_delta, life_list=None, file_stem=None):
@@ -712,6 +644,13 @@ _HTML_STYLE = """
   .map-modal-close:hover { background: var(--surface-2); }
   .route-line { stroke: var(--accent); stroke-width: 3; }
   .route-highlight { fill: var(--surface); stroke: var(--accent); stroke-width: 2.5; }
+  /* CARD-0147: shown only on hover of an off-route callout marker (see
+     build_hike_map.py's layoutEventMarkers()) -- deliberately not visible
+     by default, so the map stays clean; the connection to the marker's
+     real point is only made explicit on demand. Same stroke-only visual
+     language as .route-highlight above, not a new color/style. */
+  .marker-leader-line { stroke: var(--ink-muted); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  .marker-real-point { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
   /* CARD-0147: shrunk (was 26px/16px) -- Joseph's call, event markers
      (photo/observation/bird) read as too large and overlap heavily when
      several land close together on the route (e.g. a cluster of bird
@@ -722,12 +661,13 @@ _HTML_STYLE = """
      against the map itself would likely suffer. Border/shadow lightened
      slightly to match, same "smaller and lighter" direction as the travel
      arrows above. */
-  /* CARD-0147: shrunk again (was 20px/12px) plus server-side declutter
-     (see templating._declutter_markers) -- a real photo showed the smaller
-     size alone wasn't enough for markers whose underlying GPS positions
-     were themselves nearly identical (several detections logged seconds
-     apart while stationary); size reduction and position-spreading are
-     complementary fixes, not alternatives. */
+  /* CARD-0147: shrunk again (was 20px/12px). Real position-overlap (several
+     detections logged seconds apart while stationary, or just zoomed-out
+     enough that any real-world offset reads as no separation at all) is no
+     longer handled here or server-side -- see build_hike_map.py's own
+     comment on layoutEventMarkers() for the client-side, pixel-space
+     callout system that replaced an earlier server-side meters-based
+     attempt at this same problem. */
   .map-marker-icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); border: 1px solid currentColor; box-shadow: 0 1px 1px rgba(30,30,20,0.15); }
   .map-marker-icon svg { width: 9px; height: 9px; }
   .map-marker-icon--photo { color: var(--marker-photo); }
@@ -748,8 +688,39 @@ _HTML_STYLE = """
      compass rotation, so the whole arrow swept around that off-center point
      like a clock hand as azimuth changed, instead of spinning in place like
      a normal compass needle -- a real bug, not a one-off tuning choice. */
-  .sun-gadget { background: var(--surface); border: 1px solid var(--line); border-radius: 50%; box-shadow: var(--shadow); width: 2.75rem; height: 2.75rem; margin: 10px; display: flex; align-items: center; justify-content: center; perspective: 60px; }
-  .sun-gadget-arrow { width: 20px; height: 20px; color: var(--accent); transform-style: preserve-3d; transform-origin: center; transition: transform 0.15s ease; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.25)); }
+  /* CARD-0147: shrunk (was 2.75rem) and restyled to actually read as a sun
+     -- Joseph's call -- rather than a neutral white circle that just
+     happens to contain a direction arrow. Warm gold radial gradient + soft
+     glow, fixed colors rather than the theme's --surface/--line tokens:
+     the sun itself doesn't invert for dark mode, it's a warm object
+     regardless of the page's own light/dark theme.
+     CARD-0147 (second pass): added an 8-point sunburst behind the circle,
+     per Joseph's reference image. `.sun-gadget` is now just a transparent
+     positioning wrapper -- the Leaflet control's own hit box, unchanged at
+     2.1rem so the control's on-map position doesn't shift -- holding two
+     siblings: `.sun-gadget-rays` (bigger than the wrapper, allowed to
+     overflow it) painted first, then the opaque `.sun-gadget-core` (the
+     actual gold circle, ex-`.sun-gadget` styling) painted second/on top.
+     Sibling order is what makes the layering work, not z-index: a child
+     can never paint behind its own parent's background, so the gold circle
+     had to move from being `.sun-gadget`'s own background to being a later
+     sibling instead, for the rays' spike tips to show past its edge while
+     its center hides the rest of the burst. */
+  .sun-gadget { position: relative; width: 2.1rem; height: 2.1rem; margin: 10px; }
+  .sun-gadget-rays {
+    position: absolute; top: 50%; left: 50%; width: 3.6rem; height: 3.6rem;
+    transform: translate(-50%, -50%); pointer-events: none;
+  }
+  .sun-gadget-rays svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2)); }
+  .sun-gadget-core {
+    position: relative;
+    background: radial-gradient(circle at 35% 35%, #fff3c4, #f5b942 65%, #dd961f);
+    border: 1px solid #c9800f; border-radius: 50%;
+    box-shadow: var(--shadow), 0 0 8px rgba(245, 185, 66, 0.55);
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center; perspective: 60px;
+  }
+  .sun-gadget-arrow { width: 15px; height: 15px; color: #6b4416; transform-style: preserve-3d; transform-origin: center; transition: transform 0.15s ease; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25)); }
   .sun-gadget-arrow svg { width: 100%; height: 100%; overflow: visible; }
   /* CARD-0085 Part B: travel-direction arrows along the route -- plain 2D
      rotate(), each set inline per-marker by build_hike_map.py's JS since the

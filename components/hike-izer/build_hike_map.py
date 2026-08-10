@@ -107,6 +107,26 @@ _SUN_GADGET_ARROW_SVG = (
     '<path d="M9 22 L9 13 L4 13 L12 2 L20 13 L15 13 L15 22 Z"/></svg>'
 )
 
+# CARD-0147: 8-point sunburst behind the gadget's gold circle, per Joseph's
+# reference image (a classic sun icon: circle plus radiating pointed rays) --
+# the plain gold circle alone read as "a warm badge", not specifically a sun.
+# Points computed offline (r_outer=47, r_inner=25 in a 0-100 viewBox,
+# 8 spikes) rather than hand-typed, then pasted here as a static constant --
+# no runtime math needed, this shape never changes. r_inner is deliberately
+# smaller than the circle's own radius (~29 viewBox units once the two
+# elements' real pixel sizes are compared) so the valleys between spikes sit
+# fully underneath the circle and only the tips poke out -- see the DOM
+# structure in the sun-gadget control below for how that layering is done
+# (paint order, not z-index: a child element's own background can never
+# paint behind its parent's, so the rays and the circle are siblings under a
+# plain wrapper, rays first, opaque circle second).
+_SUN_GADGET_RAYS_SVG = (
+    '<svg viewBox="0 0 100 100">'
+    '<polygon points="50.0,3.0 59.6,26.9 83.2,16.8 73.1,40.4 97.0,50.0 73.1,59.6 '
+    '83.2,83.2 59.6,73.1 50.0,97.0 40.4,73.1 16.8,83.2 26.9,59.6 3.0,50.0 26.9,40.4 '
+    '16.8,16.8 40.4,26.9" fill="#f7941e"/></svg>'
+)
+
 # CARD-0085 Part B: travel-direction arrows placed along the route line
 # itself (Joseph: "It's not a row but a tiny arrow on the map" -- a table
 # row was tried first and explicitly rejected in favor of this). Same
@@ -127,10 +147,21 @@ _TRAVEL_ARROW_SVG = (
 # CARD-0147: perpendicular offset (px, in the marker's own rotated local
 # frame) so arrows read as running parallel to the track instead of sitting
 # directly on top of it, obscuring the route line itself. Applied via CSS
-# transform order, not real lat/lon geo-math (see the JS below) -- Joseph's
-# call: a consistent *rule* (always offset to the same side, relative to
-# each arrow's own direction of travel) is what matters, not a single fixed
-# absolute compass side, which would look arbitrary as the route curves.
+# transform order (see the JS below) -- Joseph's call: a consistent *rule*
+# (always offset to the same side, relative to each arrow's own direction of
+# travel) is what matters, not a single fixed absolute compass side, which
+# would look arbitrary as the route curves.
+# CARD-0147 (second pass): the rotation angle itself moved from the stored
+# travel_bearing_deg (a real GPS-reported heading) to the drawn route line's
+# own local on-screen tangent, computed client-side from points[] the same
+# way the event-marker callouts find their offset direction. A real compass
+# heading can visibly diverge from the straight segment between two plotted
+# points -- device orientation noise, a pause, a tight switchback between
+# samples -- and Joseph's requirement ("always parallel to the track, never
+# touching it") is a promise about what's drawn, not about the device's
+# instantaneous heading. Deriving the angle from the same points[] the
+# polyline itself is drawn from is the only way to guarantee that promise
+# unconditionally rather than relying on the two happening to agree.
 TRAVEL_ARROW_OFFSET_PX = 9
 
 # How many arrows to place along the whole route, regardless of hike length
@@ -145,12 +176,19 @@ def _select_travel_arrow_points(chart_series):
     """Evenly-spaced subset of chart_series points that carry a real
     GPS-reported bearing (older data, or a GPSLogger config not sending
     %DIRECTION, leaves travel_bearing_deg None -- those points are skipped
-    entirely rather than guessing a bearing from neighboring lat/lon, since
-    a straight-line-between-points bearing would silently misrepresent an
-    actual GPS-reported heading as something derived). Returns [] if no
-    point in the whole hike has one, same "no empty scaffolding" convention
-    as the rest of this module -- caller just renders zero arrows."""
-    candidates = [p for p in chart_series if p.get('travel_bearing_deg') is not None]
+    entirely), used only to decide *where* an arrow gets placed -- a point
+    with no reported heading is treated as not confirmed as a real waypoint
+    for this feature, even though its lat/lon is perfectly usable. The
+    bearing value itself is no longer used for the arrow's rotation (see
+    CARD-0147, below) -- kept only as this presence/absence gate. Returns
+    each match as `(index, point)`, `index` being its position in the full
+    chart_series/points[] array (the two are 1:1, same order), needed so the
+    JS side can look up the point's real on-screen neighbors and compute a
+    rotation that's guaranteed to match the drawn route line, rather than
+    re-deriving lat/lon from the point alone. Returns [] if no point in the
+    whole hike has one, same "no empty scaffolding" convention as the rest
+    of this module -- caller just renders zero arrows."""
+    candidates = [(i, p) for i, p in enumerate(chart_series) if p.get('travel_bearing_deg') is not None]
     if not candidates:
         return []
     if len(candidates) <= TRAVEL_ARROW_COUNT:
@@ -295,9 +333,14 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
         for m in (markers or [])
     ]
 
+    # 'idx' is the point's own position in points[] (chart_series and
+    # points[] are 1:1) -- the JS side uses it to look up the point's real
+    # on-screen neighbors and derive a rotation angle straight from the
+    # drawn route line, not from 'bearing' (kept only to select *which*
+    # points get an arrow at all -- see _select_travel_arrow_points).
     travel_arrows_js = [
-        {'lat': p['lat'], 'lon': p['lon'], 'bearing': p['travel_bearing_deg']}
-        for p in _select_travel_arrow_points(chart_series)
+        {'idx': i, 'lat': p['lat'], 'lon': p['lon']}
+        for i, p in _select_travel_arrow_points(chart_series)
     ]
 
     script = f'''<script>
@@ -306,7 +349,17 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
   var segments = {json.dumps(segments_js)};
   var tooltipSlot = document.getElementById("{map_id}-tooltip");
 
-  var map = L.map("{map_id}", {{scrollWheelZoom: false}});
+  // CARD-0147: zoomSnap (Leaflet default: 1, whole-number-only zoom levels)
+  // lowered so fitBounds() can pick the exact best-fit zoom instead of
+  // rounding down to the nearest whole step (which leaves unused padding
+  // any time the ideal fit falls between two integer levels), and so
+  // scroll/pinch zoom feels continuous rather than snapping in visible
+  // jumps. 0.25 rather than 0 (fully continuous) -- map tiles are only
+  // ever rendered at specific zoom levels, so fully continuous zoom means
+  // more of the view is CSS-upscaled/blurry between native tile levels;
+  // 0.25 is a reasonable middle ground, smooth in practice without giving
+  // up much tile sharpness.
+  var map = L.map("{map_id}", {{scrollWheelZoom: false, zoomSnap: 0.25}});
   L.tileLayer({json.dumps(tile_url)}, {{
     maxZoom: 18,
     attribution: {json.dumps(THUNDERFOREST_ATTRIBUTION)}
@@ -356,7 +409,9 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
     options: {{position: "topright"}},
     onAdd: function () {{
       var container = L.DomUtil.create("div", "sun-gadget");
-      container.innerHTML = '<div class="sun-gadget-arrow">' + {json.dumps(_SUN_GADGET_ARROW_SVG)} + '</div>';
+      container.innerHTML =
+        '<div class="sun-gadget-rays">' + {json.dumps(_SUN_GADGET_RAYS_SVG)} + '</div>' +
+        '<div class="sun-gadget-core"><div class="sun-gadget-arrow">' + {json.dumps(_SUN_GADGET_ARROW_SVG)} + '</div></div>';
       L.DomEvent.disableClickPropagation(container);
       return container;
     }}
@@ -421,25 +476,148 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
   // with the chart-hover CustomEvents. Icon per type, falling back to a
   // plain dot for anything not in markerIcons (CARD-0082's "generic, not
   // hardcoded types" intent).
+  //
+  // CARD-0147: markers are no longer plotted at their real lat/lon directly
+  // -- found live (Joseph, both a real photo and a real screenshot) that
+  // several markers can legitimately share nearly the same real position
+  // (e.g. multiple BirdNET detections logged seconds apart while
+  // stationary), and any real-world-distance-based separation is
+  // fundamentally zoom-dependent: the same few meters of offset reads as
+  // plenty of separation zoomed in, and as total overlap zoomed out. Fixed
+  // by decoupling display position from geography entirely: each marker
+  // renders as a "callout" nudged into the open space beside the route (a
+  // fixed *pixel* offset, perpendicular to the route's own local direction
+  // at the nearest point -- reusing the same rotate-90-degrees idea the
+  // travel arrows already use, just computed in JS against projected pixel
+  // coordinates instead of CSS transforms), with further pixel-space
+  // spreading for any callouts that would still land close together.
+  // Recomputed on every zoomend/moveend, since a fixed pixel offset only
+  // stays "off the route" if it's re-derived against the *current*
+  // projection -- it would drift arbitrarily relative to the route
+  // otherwise. The real point itself is never shown by default; hovering a
+  // callout draws a thin leader line back to it and highlights it (reusing
+  // the same circleMarker visual language as the chart-hover `highlight`
+  // dot above), so the association is only made explicit on demand rather
+  // than cluttering the map permanently.
   var eventMarkers = {json.dumps(markers_js)};
   var markerIcons = {json.dumps(_MARKER_ICONS)};
   var defaultMarkerIcon = {json.dumps(_DEFAULT_MARKER_ICON)};
-  eventMarkers.forEach(function (m) {{
-    var iconHtml = markerIcons[m.type] || defaultMarkerIcon;
-    // CARD-0147: shrunk (was 26/13) to match .map-marker-icon's own smaller
-    // CSS size -- see templating.py's comment on why.
-    var icon = L.divIcon({{
-      html: '<span class="map-marker-icon map-marker-icon--' + m.type + '">' + iconHtml + '</span>',
-      className: 'map-marker',
-      iconSize: [16, 16],
-      iconAnchor: [8, 8]
-    }});
-    var mk = L.marker([m.lat, m.lon], {{icon: icon}}).addTo(map);
-    mk.bindTooltip(m.tooltipHtml, {{direction: "top", offset: [0, -14]}});
-    if (m.clickUrl) {{
-      mk.on("click", function () {{ window.open(m.clickUrl, "_blank"); }});
+  var MARKER_OFFSET_PX = 22;
+  var MARKER_CLUSTER_PX = 18;
+  var MARKER_SPREAD_STEP_PX = 16;
+  var markerRealLatLngs = eventMarkers.map(function (m) {{ return L.latLng(m.lat, m.lon); }});
+  var markerLayers = []; // {{leafletMarker, leaderLine, highlightCircle}}
+
+  function nearestPointIndex(latlng) {{
+    var best = 0, bestDist = Infinity;
+    for (var i = 0; i < points.length; i++) {{
+      var dLat = points[i].lat - latlng.lat, dLon = points[i].lon - latlng.lng;
+      var d = dLat * dLat + dLon * dLon;
+      if (d < bestDist) {{ bestDist = d; best = i; }}
     }}
-  }});
+    return best;
+  }}
+
+  // Perpendicular unit vector (in screen pixels) to the route's own local
+  // direction at a given points[] index -- used to push event-marker
+  // callouts off to the side of the route. Shares its a/b neighbor lookup
+  // with tangentAngleDeg() below (the travel arrows' own equivalent), both
+  // reading the route's actual on-screen direction straight from points[]
+  // rather than any separately-stored bearing value.
+  function perpendicularPx(idx) {{
+    var a = points[Math.max(0, idx - 1)];
+    var b = points[Math.min(points.length - 1, idx + 1)];
+    var p1 = map.latLngToContainerPoint([a.lat, a.lon]);
+    var p2 = map.latLngToContainerPoint([b.lat, b.lon]);
+    var dx = p2.x - p1.x, dy = p2.y - p1.y;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return {{x: -dy / len, y: dx / len}};
+  }}
+
+  // CSS-rotate degrees (0 = up, clockwise -- matching how the travel-arrow
+  // glyph is drawn pointing "up" at rest) for the route's own local
+  // on-screen direction at a given points[] index. atan2(dx, -dy): screen
+  // y grows downward, so "up" is (0,-1) -- swapping/negating the usual
+  // atan2(y, x) arguments like this measures the angle clockwise from that
+  // "up" vector directly, matching what CSS rotate() expects with no
+  // separate conversion step.
+  function tangentAngleDeg(idx) {{
+    var a = points[Math.max(0, idx - 1)];
+    var b = points[Math.min(points.length - 1, idx + 1)];
+    var p1 = map.latLngToContainerPoint([a.lat, a.lon]);
+    var p2 = map.latLngToContainerPoint([b.lat, b.lon]);
+    var dx = p2.x - p1.x, dy = p2.y - p1.y;
+    return Math.atan2(dx, -dy) * 180 / Math.PI;
+  }}
+
+  function layoutEventMarkers() {{
+    markerLayers.forEach(function (layer) {{
+      map.removeLayer(layer.leafletMarker);
+      if (layer.leaderLine) map.removeLayer(layer.leaderLine);
+      if (layer.highlightCircle) map.removeLayer(layer.highlightCircle);
+    }});
+    markerLayers = [];
+
+    var placedPx = [];
+    eventMarkers.forEach(function (m, i) {{
+      var realLatLng = markerRealLatLngs[i];
+      var realPx = map.latLngToContainerPoint(realLatLng);
+      var dir = perpendicularPx(nearestPointIndex(realLatLng));
+      var offset = MARKER_OFFSET_PX;
+      var calloutPx = L.point(realPx.x + dir.x * offset, realPx.y + dir.y * offset);
+      var tries = 0;
+      while (tries < 8 && placedPx.some(function (p) {{ return calloutPx.distanceTo(p) < MARKER_CLUSTER_PX; }})) {{
+        offset += MARKER_SPREAD_STEP_PX;
+        calloutPx = L.point(realPx.x + dir.x * offset, realPx.y + dir.y * offset);
+        tries++;
+      }}
+      placedPx.push(calloutPx);
+      var calloutLatLng = map.containerPointToLatLng(calloutPx);
+
+      var iconHtml = markerIcons[m.type] || defaultMarkerIcon;
+      var icon = L.divIcon({{
+        html: '<span class="map-marker-icon map-marker-icon--' + m.type + '">' + iconHtml + '</span>',
+        className: 'map-marker',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      }});
+      // The leader line drawn on hover runs from the callout back toward
+      // realLatLng -- i.e. in the *opposite* direction from `dir` (the
+      // callout was pushed out along +dir). A fixed "top" tooltip direction
+      // sat on top of that line in almost every case, since the line just
+      // as often ran upward as any other way. Pointing the tooltip along
+      // +dir instead -- the same side the callout was already pushed toward,
+      // away from the route -- keeps it clear of its own leader line
+      // regardless of which way the route happens to curve here.
+      var tooltipDir = Math.abs(dir.x) >= Math.abs(dir.y)
+        ? (dir.x >= 0 ? "right" : "left")
+        : (dir.y >= 0 ? "bottom" : "top");
+      var TOOLTIP_OFFSET_PX = 10;
+      var tooltipOffset = {{
+        top: [0, -TOOLTIP_OFFSET_PX], bottom: [0, TOOLTIP_OFFSET_PX],
+        left: [-TOOLTIP_OFFSET_PX, 0], right: [TOOLTIP_OFFSET_PX, 0]
+      }}[tooltipDir];
+      var mk = L.marker(calloutLatLng, {{icon: icon}}).addTo(map);
+      mk.bindTooltip(m.tooltipHtml, {{direction: tooltipDir, offset: tooltipOffset}});
+      if (m.clickUrl) {{
+        mk.on("click", function () {{ window.open(m.clickUrl, "_blank"); }});
+      }}
+
+      var layer = {{leafletMarker: mk, leaderLine: null, highlightCircle: null}};
+      mk.on("mouseover", function () {{
+        layer.leaderLine = L.polyline([calloutLatLng, realLatLng], {{className: "marker-leader-line", interactive: false}}).addTo(map);
+        layer.highlightCircle = L.circleMarker(realLatLng, {{className: "marker-real-point", radius: 5, interactive: false}}).addTo(map);
+      }});
+      mk.on("mouseout", function () {{
+        if (layer.leaderLine) {{ map.removeLayer(layer.leaderLine); layer.leaderLine = null; }}
+        if (layer.highlightCircle) {{ map.removeLayer(layer.highlightCircle); layer.highlightCircle = null; }}
+      }});
+      markerLayers.push(layer);
+    }});
+  }}
+
+  layoutEventMarkers();
+  map.on("zoomend moveend", layoutEventMarkers);
 
   // CARD-0085 Part B: travel-direction arrows along the route -- plain 2D
   // rotate() per marker (no hover/tilt behavior, unlike the sun gadget
@@ -448,15 +626,20 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
   // CARD-0147: transform order matters here -- rotate() outermost,
   // translateX() innermost. translateX applies first, shifting the marker
   // along its own (still-unrotated) local x-axis; rotate() then carries
-  // that offset along with the glyph itself, landing the *visual* shift at
-  // bearing+90deg in real/screen space -- i.e. perpendicular to whichever
-  // way the arrow is pointing, "beside the track" rather than on it,
-  // regardless of the route's own absolute compass direction at that point.
+  // that offset along with the glyph itself, landing the *visual* shift 90
+  // degrees off whichever way the arrow is pointing -- "beside the track"
+  // rather than on it, regardless of the route's own absolute compass
+  // direction at that point. The rotation angle itself now comes from
+  // tangentAngleDeg(t.idx) -- the drawn route line's own local on-screen
+  // direction at that point -- not a stored bearing, so the arrow is
+  // guaranteed to read as parallel to what's actually drawn (Joseph:
+  // "should always be parallel to the track, but not touch the track").
   var travelArrows = {json.dumps(travel_arrows_js)};
   var travelArrowOffsetPx = {json.dumps(TRAVEL_ARROW_OFFSET_PX)};
   travelArrows.forEach(function (t) {{
+    var angleDeg = tangentAngleDeg(t.idx);
     var icon = L.divIcon({{
-      html: '<div class="travel-arrow-icon" style="transform: rotate(' + t.bearing + 'deg) translateX(' + travelArrowOffsetPx + 'px)">'
+      html: '<div class="travel-arrow-icon" style="transform: rotate(' + angleDeg + 'deg) translateX(' + travelArrowOffsetPx + 'px)">'
         + {json.dumps(_TRAVEL_ARROW_SVG)} + '</div>',
       className: 'travel-arrow-marker',
       iconSize: [14, 14],

@@ -600,12 +600,22 @@ _HTML_STYLE = """
     align-items: center; justify-content: center; z-index: 20; padding: 1.5rem;
   }
   .map-modal-backdrop.open { display: flex; }
+  /* CARD-0147 fix (Joseph found live: a blank gap in the bottom half of
+     the modal) -- height:100% percentage chains through several nested
+     divs are fragile, easy to get subtly wrong, and hard to debug from
+     source alone. Switched .map-modal/.map-modal-container to an explicit
+     flex column with flex:1 1 auto -- a more robust "fill the remaining
+     space" pattern. min-height:0 on the flex child matters: flex items
+     default to min-height:auto, which can stop a child (especially one
+     like a Leaflet map with its own internal sizing) from actually
+     shrinking/growing to fill the flex parent -- a well-known flexbox
+     gotcha, not a redundant reset. */
   .map-modal {
     position: relative; background: var(--surface); border-radius: var(--radius);
     box-shadow: var(--shadow); width: 100%; height: 100%; max-width: 75rem;
-    padding: 0.75rem;
+    padding: 0.75rem; display: flex; flex-direction: column;
   }
-  .map-modal-container { width: 100%; height: 100%; }
+  .map-modal-container { flex: 1 1 auto; min-height: 0; }
   .map-modal-container .hike-map { height: 100%; }
   .map-modal-close {
     position: absolute; top: -0.9rem; right: -0.9rem; z-index: 21;

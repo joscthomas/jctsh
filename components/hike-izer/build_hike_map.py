@@ -483,20 +483,34 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
   var modalContainer = document.getElementById("{map_id}-modal-container");
   var modalCloseBtn = document.getElementById("{map_id}-modal-close");
 
+  // Found live (Joseph): the modal box itself grew, but the map/route
+  // rendering inside it stayed the same size, just floating in a bigger
+  // empty container -- exactly the signature of invalidateSize()/
+  // fitBounds() running before the browser had actually finished laying
+  // out the just-shown, just-resized container. A bare setTimeout(fn, 0)
+  // doesn't reliably guarantee that layout has settled by the time it
+  // fires. Fixed with a forced synchronous reflow instead (reading
+  // offsetHeight forces the browser to compute layout immediately, a
+  // standard technique for exactly this) -- by the time refit() runs, the
+  // container's *actual* final size is guaranteed available, so
+  // invalidateSize() picks up the real new dimensions and fitBounds()
+  // computes zoom against them, not stale ones.
   function refit() {{
     map.invalidateSize();
     if (allLatLngs.length) map.fitBounds(allLatLngs, {{padding: [24, 24]}});
   }}
 
   function openMapModal() {{
-    modalContainer.appendChild(mapContainer);
     modalBackdrop.classList.add("open");
-    setTimeout(refit, 0);
+    modalContainer.appendChild(mapContainer);
+    void modalContainer.offsetHeight; // force layout before refit() reads the new size
+    refit();
   }}
   function closeMapModal() {{
-    mapOriginalParent.appendChild(mapContainer);
     modalBackdrop.classList.remove("open");
-    setTimeout(refit, 0);
+    mapOriginalParent.appendChild(mapContainer);
+    void mapOriginalParent.offsetHeight; // force layout before refit() reads the new size
+    refit();
   }}
 
   var ExpandControl = L.Control.extend({{

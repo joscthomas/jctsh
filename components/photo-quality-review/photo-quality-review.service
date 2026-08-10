@@ -1,0 +1,21 @@
+# CARD-0028: systemd unit so the review app survives an M8 reboot without a
+# manual restart -- found live 2026-08-10: the M8 rebooted (~2 hours prior),
+# and since this had only ever been started by hand (nohup node server.js &,
+# per this component's own README), it silently stayed down until noticed as
+# a "connection refused" from the browser. Mirrors photo-tv-display.service's
+# same shape (the one other Node app in this repo with a working systemd
+# unit) for consistency.
+[Unit]
+Description=JCTsh Photo Quality Review
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=jct
+WorkingDirectory=/home/jct/photo-quality-review
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+EnvironmentFile=/home/jct/photo-quality-review/.env
+
+[Install]
+WantedBy=multi-user.target

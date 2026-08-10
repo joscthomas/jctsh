@@ -1149,7 +1149,11 @@ Deployed to the M8 (`scp` + `docker compose up -d --build orchestrator`) and reg
 
 **Next:** a real timed re-scan to confirm the cache-based speedup in practice, then continue working through the remaining years using the now-simplified review flow.
 
-**Related:** `components/photo-server/backup.md` (the `/mnt/photo-library/upload/<ownerId>/` structure this scans), `components/photo-tv-display` (the small-local-web-app pattern this reuses), photo-server Step 14 (the planned deletion-logging system this ties into).
+**Systemd service added, 2026-08-10 06:11 MST.** Found live: the M8 rebooted (~2 hours prior, cause not investigated -- not this card's concern), and since the app had only ever been started by hand (`nohup node server.js &`, per this component's own README), it silently stayed down until noticed as a browser "refused to connect." New `components/photo-quality-review/photo-quality-review.service` (mirrors `photo-tv-display.service`'s existing shape -- the one other Node app in this repo with a working systemd unit), installed at `/etc/systemd/system/`, `enabled --now`.
+
+Real install hiccup, not a clean first pass: the manual process wasn't actually stopped before installing the new service -- the kill command's `$PID` variable held two newline-separated PIDs (a `ps | grep | awk` match against both the wrapping `nohup` shell and the `node` process itself), which broke `kill`'s argument parsing silently. The old process kept holding port 3001, so the new systemd-managed process hit `EADDRINUSE` and crashed every restart attempt until systemd's rate limiter gave up (`Start request repeated too quickly`, restart counter at 5) -- confirmed directly via `ss -tlnp` showing the *old* PID still bound to :3001, not the new one, despite `systemctl status` initially claiming "active (running)" (true of the process, not of it actually serving anything). Fixed by killing the correct single PID, `systemctl reset-failed`, then a clean `start` -- verified genuinely healthy 25s after start (not just immediately, to rule out another startup-timing race): log line `photo-quality-review listening on :3001`, `HTTP 200`, same PID stable with no further restarts.
+
+**Related:** `components/photo-server/backup.md` (the `/mnt/photo-library/upload/<ownerId>/` structure this scans), `components/photo-tv-display` (the small-local-web-app pattern this reuses, including this card's own systemd unit shape), photo-server Step 14 (the planned deletion-logging system this ties into).
 
 ---
 

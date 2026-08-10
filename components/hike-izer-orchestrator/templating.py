@@ -369,13 +369,31 @@ def _build_event_markers(hike_data, photos_manifest, photos_dir, offset_delta, c
     return markers
 
 
-def birdnet_table_rows(birdnet_rows, offset_delta):
+def birdnet_table_rows(birdnet_rows, offset_delta, life_list=None, file_stem=None):
     # CARD-0080: birdnet.py already grouped/sorted these by first-detection
     # time and returns raw UTC timestamps -- this is the one place that
     # converts to local, same division of labor as every other time value
     # on this page. common_name/scientific_name pass through as-is: not
     # filtered by taxon (birds/amphibians/mammals/insects all included,
     # Joseph's call) since the model itself doesn't distinguish them either.
+    #
+    # CARD-0147: is_new -- a species this hike is the first-ever sighting
+    # of. Checked via first_heard_file_stem == this hike's own file_stem,
+    # NOT "absent from life_list entirely" -- tried that first, reasoning
+    # that render_html() always runs before wildlife_life_list.
+    # update_from_hike() in generation.py's own pipeline, so a genuinely new
+    # species would have no entry yet. True on a hike's very first render,
+    # but breaks on any *regeneration* of an already-processed hike (this
+    # project regenerates pages in place routinely -- CARD-0140/144/0085 all
+    # did it) -- by then update_from_hike() has already run once for this
+    # hike, merging its species in, so every one of them would wrongly read
+    # "already known" forever after. first_heard_file_stem is a stable fact
+    # recorded once per species (update_from_hike() only ever moves it
+    # earlier, for genuine backfill, never on a same-hike reprocess) --
+    # correct regardless of how many times this page gets rebuilt. life_list
+    # is the caller's already-loaded wildlife_life_list.json content,
+    # scientific_name -> entry -- keyed the same way that file itself is.
+    life_list = life_list or {}
     return [
         {
             "species": r["common_name"],
@@ -383,6 +401,7 @@ def birdnet_table_rows(birdnet_rows, offset_delta):
             "count": r["count"],
             "confidence": f"{round(r['best_confidence'] * 100)}%",
             "time": format_time_local(r["first_timestamp"], offset_delta),
+            "is_new": life_list.get(r["scientific_name"], {}).get("first_heard_file_stem") == file_stem,
         }
         for r in birdnet_rows
     ]
@@ -514,6 +533,20 @@ _HTML_STYLE = """
   h1 { font-size: 1.7rem; margin: 0 0 0.15rem; }
   .subtitle { color: var(--ink-muted); font-size: 0.85rem; margin: 0 0 1.75rem; }
   .subtitle code { font-family: var(--mono); font-size: 0.92em; }
+
+  /* CARD-0147: back-to-home link -- same .top-nav convention already used
+     by build_wildlife_index.py's own "&larr; Calendar" link, copied
+     verbatim for visual consistency rather than inventing a second style. */
+  .top-nav { margin-bottom: 1.25rem; }
+  .top-nav a {
+    font-size: 0.9rem;
+    text-decoration: none;
+    color: var(--ink);
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .top-nav a:hover { background: var(--surface-2); }
   .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; margin-bottom: 2rem; }
   .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 0.85rem 1rem; }
   .stat__label { font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); margin-bottom: 0.3rem; }
@@ -548,6 +581,39 @@ _HTML_STYLE = """
   .hover-guide { stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 2 2; pointer-events: none; }
   .map-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.15rem 0.85rem; }
   .hike-map { height: 20rem; border-radius: var(--radius); border: 1px solid var(--line); }
+  /* CARD-0147: click-to-expand. .map-expand-btn matches Leaflet's own
+     control-button look (white square, border, shadow) rather than
+     inventing a new visual language for it. The modal itself holds no map
+     markup of its own -- build_hike_map.py's script physically moves the
+     *same* Leaflet container into .map-modal-container on open (and back
+     out again on close, see that file's own comment for why), so this CSS
+     is only ever about the overlay chrome, not map internals. */
+  .map-expand-btn {
+    background: var(--surface); width: 30px; height: 30px; display: flex;
+    align-items: center; justify-content: center; border: none; cursor: pointer;
+    color: var(--ink-muted);
+  }
+  .map-expand-btn:hover { background: var(--surface-2); color: var(--ink); }
+  .map-expand-btn svg { width: 16px; height: 16px; }
+  .map-modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    align-items: center; justify-content: center; z-index: 20; padding: 1.5rem;
+  }
+  .map-modal-backdrop.open { display: flex; }
+  .map-modal {
+    position: relative; background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow); width: 100%; height: 100%; max-width: 75rem;
+    padding: 0.75rem;
+  }
+  .map-modal-container { width: 100%; height: 100%; }
+  .map-modal-container .hike-map { height: 100%; }
+  .map-modal-close {
+    position: absolute; top: -0.9rem; right: -0.9rem; z-index: 21;
+    width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); font-size: 1.3rem; line-height: 1;
+    cursor: pointer; box-shadow: var(--shadow);
+  }
+  .map-modal-close:hover { background: var(--surface-2); }
   .route-line { stroke: var(--accent); stroke-width: 3; }
   .route-highlight { fill: var(--surface); stroke: var(--accent); stroke-width: 2.5; }
   .map-marker-icon { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--surface); border: 1.5px solid currentColor; box-shadow: var(--shadow); }
@@ -581,7 +647,12 @@ _HTML_STYLE = """
      photo/observation/bird markers -- these are a route-line annotation, not
      a discrete clickable event. */
   .travel-arrow-marker { background: transparent; border: none; }
-  .travel-arrow-icon { width: 18px; height: 18px; color: var(--accent); filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); }
+  /* CARD-0147: smaller + lighter (was 18px/heavier shadow) -- Joseph's
+     call, the original read as too visually heavy directly on the route
+     line. Now also offset to run parallel with the track rather than on
+     it -- see build_hike_map.py's own JS comment for the transform-order
+     mechanics (perpendicular offset via translateX() before rotate()). */
+  .travel-arrow-icon { width: 14px; height: 14px; color: var(--accent); opacity: 0.85; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25)); }
   .travel-arrow-icon svg { width: 100%; height: 100%; overflow: visible; }
   .hike-visuals { display: grid; grid-template-columns: 1fr; gap: 1.25rem; margin-bottom: 2.25rem; }
   .hike-visuals section { margin-bottom: 0; }
@@ -598,6 +669,13 @@ _HTML_STYLE = """
   tbody tr:last-child td { border-bottom: none; }
   tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 40%, transparent); }
   .obs-table thead th { position: sticky; top: 0; }
+  /* CARD-0147: species heard for the first time ever, on this hike (see
+     templating.birdnet_table_rows() for the is_new determination). */
+  .new-species-badge {
+    display: inline-block; font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.04em; background: var(--accent); color: var(--accent-ink);
+    padding: 0.1rem 0.4rem; border-radius: 999px; vertical-align: middle;
+  }
   .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.6rem; }
   .photo-item { display: flex; flex-direction: column; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); }
   .photo-item img, .photo-item video { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; }
@@ -624,7 +702,7 @@ def _stat_card(label, value, na=False):
 def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None,
                  gaia_embed_html=None, file_stem=None, birdnet_rows=None,
                  address=None, named_features=None, thunderforest_api_key=None,
-                 birdnet_occurrences=None):
+                 birdnet_occurrences=None, life_list=None):
     offset_delta = _parse_offset(offset_str)
     coverage = hike_data["coverage"]
     stats = hike_data["stats"]
@@ -840,12 +918,20 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
 
     # CARD-0080: table only, no narrative integration (Joseph's call) --
     # omit-when-empty, same convention as every other optional section here.
+    # CARD-0147: new_badge built as its own variable, not inlined into the
+    # f-string below -- nesting a differently-quoted literal directly inside
+    # an f-string's {} expression is fragile across Python versions (only
+    # reliably allowed from 3.12's PEP 701 onward), not worth risking for a
+    # one-line badge span.
     birdnet_section = ""
     if birdnet_rows:
+        new_species_badge = ' <span class="new-species-badge">NEW</span>'
         birdnet_html_rows = "".join(
-            f"<tr><td>{_esc(r['species'])} <em>({_esc(r['scientific_name'])})</em></td>"
+            f"<tr><td>{_esc(r['species'])}"
+            f"{new_species_badge if r['is_new'] else ''}"
+            f" <em>({_esc(r['scientific_name'])})</em></td>"
             f"<td>{_esc(r['count'])}</td><td>{_esc(r['confidence'])}</td><td>{_esc(r['time'])}</td></tr>"
-            for r in birdnet_table_rows(birdnet_rows, offset_delta)
+            for r in birdnet_table_rows(birdnet_rows, offset_delta, life_list, file_stem)
         )
         birdnet_section = f"""
   <section>
@@ -885,6 +971,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
 <main>
   <h1>Hike Summary for {_esc(format_date_display(date_str))}</h1>
   <p class="subtitle">Generated automatically by hike-izer-orchestrator &middot; data from the JCTsh Environmental Data pipeline</p>
+  <div class="top-nav"><a href="index.html">&larr; All Hikes</a></div>
   <div class="stat-row">{stat_row}</div>
   {callout}
   {rejected_section}

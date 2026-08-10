@@ -115,12 +115,23 @@ _SUN_GADGET_ARROW_SVG = (
 # travel direction has no elevation-angle analog. Points "up" (0deg) at rest,
 # rotated in-plane via a plain CSS rotate() to each point's own
 # travel_bearing_deg.
+# CARD-0147: lighter stroke (was 2.5) -- Joseph's call, the original read as
+# too visually heavy sitting directly on the route line.
 _TRAVEL_ARROW_SVG = (
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" '
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" '
     'stroke-linecap="round" stroke-linejoin="round">'
     '<line x1="12" y1="19" x2="12" y2="7"/>'
     '<path d="M7 12 L12 5 L17 12"/></svg>'
 )
+
+# CARD-0147: perpendicular offset (px, in the marker's own rotated local
+# frame) so arrows read as running parallel to the track instead of sitting
+# directly on top of it, obscuring the route line itself. Applied via CSS
+# transform order, not real lat/lon geo-math (see the JS below) -- Joseph's
+# call: a consistent *rule* (always offset to the same side, relative to
+# each arrow's own direction of travel) is what matters, not a single fixed
+# absolute compass side, which would look arbitrary as the route curves.
+TRAVEL_ARROW_OFFSET_PX = 9
 
 # How many arrows to place along the whole route, regardless of hike length
 # or point density -- Joseph confirmed "arrows, more than 1" (i.e. several
@@ -432,16 +443,86 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
   // rotate() per marker (no hover/tilt behavior, unlike the sun gadget
   // above), non-interactive so they never intercept the route's own
   // mouseover hit-targets.
+  // CARD-0147: transform order matters here -- rotate() outermost,
+  // translateX() innermost. translateX applies first, shifting the marker
+  // along its own (still-unrotated) local x-axis; rotate() then carries
+  // that offset along with the glyph itself, landing the *visual* shift at
+  // bearing+90deg in real/screen space -- i.e. perpendicular to whichever
+  // way the arrow is pointing, "beside the track" rather than on it,
+  // regardless of the route's own absolute compass direction at that point.
   var travelArrows = {json.dumps(travel_arrows_js)};
+  var travelArrowOffsetPx = {json.dumps(TRAVEL_ARROW_OFFSET_PX)};
   travelArrows.forEach(function (t) {{
     var icon = L.divIcon({{
-      html: '<div class="travel-arrow-icon" style="transform: rotate(' + t.bearing + 'deg)">'
+      html: '<div class="travel-arrow-icon" style="transform: rotate(' + t.bearing + 'deg) translateX(' + travelArrowOffsetPx + 'px)">'
         + {json.dumps(_TRAVEL_ARROW_SVG)} + '</div>',
       className: 'travel-arrow-marker',
-      iconSize: [18, 18],
-      iconAnchor: [9, 9]
+      iconSize: [14, 14],
+      iconAnchor: [7, 7]
     }});
     L.marker([t.lat, t.lon], {{icon: icon, interactive: false}}).addTo(map);
+  }});
+
+  // CARD-0147: click-to-expand -- physically relocates this *same* Leaflet
+  // instance's container into the modal on open rather than building a
+  // second map to keep in sync (route/sun-gadget/travel-arrows all stay
+  // correct automatically, since nothing was duplicated). A Leaflet
+  // control (bottomright -- topright is the sun gadget, topleft is
+  // Leaflet's own zoom control, so this is the one open corner) rather
+  // than a raw button over the map, same collision-free reasoning as the
+  // sun gadget's own control. invalidateSize() + re-fitBounds() on both
+  // open and close: Leaflet caches its container size internally and
+  // won't notice the DOM move/resize on its own, and the aspect ratio
+  // genuinely changes between the small inline card and the large modal,
+  // so simply preserving the current center (invalidateSize()'s own
+  // default) would leave the route off-center or partly cropped at the
+  // new size instead of nicely reframed.
+  var mapContainer = document.getElementById("{map_id}");
+  var mapOriginalParent = mapContainer.parentNode;
+  var modalBackdrop = document.getElementById("{map_id}-modal-backdrop");
+  var modalContainer = document.getElementById("{map_id}-modal-container");
+  var modalCloseBtn = document.getElementById("{map_id}-modal-close");
+
+  function refit() {{
+    map.invalidateSize();
+    if (allLatLngs.length) map.fitBounds(allLatLngs, {{padding: [24, 24]}});
+  }}
+
+  function openMapModal() {{
+    modalContainer.appendChild(mapContainer);
+    modalBackdrop.classList.add("open");
+    setTimeout(refit, 0);
+  }}
+  function closeMapModal() {{
+    mapOriginalParent.appendChild(mapContainer);
+    modalBackdrop.classList.remove("open");
+    setTimeout(refit, 0);
+  }}
+
+  var ExpandControl = L.Control.extend({{
+    options: {{position: "bottomright"}},
+    onAdd: function () {{
+      var btn = L.DomUtil.create("button", "map-expand-btn");
+      btn.type = "button";
+      btn.setAttribute("aria-label", "Expand map to full size");
+      btn.title = "Expand map";
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+        + 'stroke-linecap="round" stroke-linejoin="round">'
+        + '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>'
+        + '<path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+      L.DomEvent.disableClickPropagation(btn);
+      L.DomEvent.on(btn, "click", openMapModal);
+      return btn;
+    }}
+  }});
+  new ExpandControl().addTo(map);
+
+  modalCloseBtn.addEventListener("click", closeMapModal);
+  modalBackdrop.addEventListener("click", function (e) {{
+    if (e.target === modalBackdrop) closeMapModal();
+  }});
+  document.addEventListener("keydown", function (e) {{
+    if (e.key === "Escape" && modalBackdrop.classList.contains("open")) closeMapModal();
   }});
 }})();
 </script>'''
@@ -452,5 +533,20 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
     <span class="tt-metric">&mdash;</span>
   </div>
   <div id="{map_id}" class="hike-map"></div>
+</div>
+<!-- CARD-0147: click-to-expand modal. Holds no map of its own -- the *same*
+     Leaflet instance's container gets physically relocated in here on open
+     (see the script below) rather than building/keeping a second, duplicate
+     map in sync. Deliberately map-only (no Elevation & Speed chart pairing
+     in here, Joseph's call): the chart would either need its own carved-out
+     space in the modal (working against maximizing map size, the whole
+     point of expanding) or hover-sync events would target an on-page chart
+     hidden behind the modal's own backdrop -- invisible, so pointless
+     either way. -->
+<div class="map-modal-backdrop" id="{map_id}-modal-backdrop">
+  <div class="map-modal">
+    <button class="map-modal-close" id="{map_id}-modal-close" aria-label="Close">&times;</button>
+    <div id="{map_id}-modal-container" class="map-modal-container"></div>
+  </div>
 </div>
 {script}'''

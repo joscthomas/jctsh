@@ -463,10 +463,16 @@ def run(payload):
         # the Route Map + Elevation & Speed chart need no manual staging, unlike
         # the Gaia embed they replaced, so every automatically-published page
         # gets a real map/chart from this very first publish.
+        # CARD-0147: fresh-loaded life list for the "NEW species" badge --
+        # ordering relative to update_from_hike() below doesn't matter for
+        # correctness (see templating.birdnet_table_rows()'s own comment:
+        # the check compares first_heard_file_stem to this hike's file_stem,
+        # a stable fact, not "does this species exist in the list yet").
         html_text = templating.render_html(
             hike_data, [], date_str, offset_str, photos_manifest, file_stem=file_stem,
             thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
             birdnet_rows=birdnet_rows, birdnet_occurrences=birdnet_occurrences,
+            life_list=wildlife_life_list.load(),
         )
 
         with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
@@ -581,6 +587,8 @@ def run_step2(file_stem, with_narrative=False):
     # gaia_embed.txt if present (untouched), but this call no longer uses
     # it; templating.render_html's gaia_section stays available for a
     # future caller, just unused by this one now.
+    # CARD-0147: fresh-loaded life list for the "NEW species" badge, same as
+    # step 1's own call -- see templating.birdnet_table_rows()'s comment.
     html_text = templating.render_html(
         hike_data, paragraphs, date_str, offset_str, photos_manifest,
         file_stem=file_stem,
@@ -588,6 +596,7 @@ def run_step2(file_stem, with_narrative=False):
         address=place_context.get("address"), named_features=place_context.get("named_features"),
         thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
         birdnet_occurrences=birdnet_occurrences,
+        life_list=wildlife_life_list.load(),
     )
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:

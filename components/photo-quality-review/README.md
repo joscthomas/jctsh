@@ -150,12 +150,21 @@ scp public/* jct@<M8 Tailscale IP>:~/photo-quality-review/public/
 ssh jct@<M8 Tailscale IP> "cd ~/photo-quality-review && npm install"
 ```
 
-No systemd service yet -- CARD-0028's "done" bar is proving the pipeline
-end-to-end with a real review session, not a set up recurring/on-boot
-service. Run with `node server.js` (foreground) or `nohup node server.js &`
-for now; a systemd unit (same shape as `photo-tv-display`'s) is a natural
-follow-up once this has seen real use, and needs Joseph's own interactive
-`sudo` step to install regardless.
+Runs as a systemd service (`photo-quality-review.service`, same shape as
+`photo-tv-display`'s) -- added 2026-08-10 after an M8 reboot silently took
+the manually-started process down with nothing to bring it back. After
+deploying code changes to `server.js`, restart it:
+
+```bash
+scp components/photo-quality-review/photo-quality-review.service jct@<M8 Tailscale IP>:/tmp/
+ssh jct@<M8 Tailscale IP> "sudo mv /tmp/photo-quality-review.service /etc/systemd/system/ && sudo systemctl daemon-reload"
+ssh jct@<M8 Tailscale IP> "sudo systemctl restart photo-quality-review"
+```
+
+The unit install/reload steps only need re-running if `photo-quality-review.service`
+itself changes -- a plain code deploy just needs the `restart`. Needs
+Joseph's own interactive `sudo` step each time (no passwordless sudo on the
+M8, unlike the Pi).
 
 ## Related
 

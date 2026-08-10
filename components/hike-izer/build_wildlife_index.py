@@ -9,9 +9,12 @@ wildlife.html, listing every species ever heard while hiking -- one row per
 species, sorted alphabetically by common name, each linking back to the
 hike it was first heard on.
 
-Deliberately zero-JS, same philosophy as build_calendar_index.py, which
-this is modeled on directly (same inline _STYLE, copied verbatim for visual
-consistency across Hike-izer's own generated pages).
+Modeled on build_calendar_index.py (same inline _STYLE, copied verbatim for
+visual consistency across Hike-izer's own generated pages), which is
+deliberately zero-JS. This page carries one small, self-contained exception
+(CARD-0147): click-to-sort table columns, which genuinely needs client-side
+interactivity -- there's no static-HTML way to let a viewer pick their own
+sort order after the page is already rendered.
 
 Meant to be re-run after every publish that has BirdNET data, alongside
 build_calendar_index.py; see components/hike-izer-orchestrator/generation.py
@@ -24,6 +27,7 @@ convention.
 import argparse
 import json
 import sys
+from html import escape as _esc_attr
 from pathlib import Path
 from urllib.parse import quote
 
@@ -104,11 +108,14 @@ _STYLE = """
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    cursor: pointer;
+    user-select: none;
   }
+  th:hover { background: var(--line); }
+  th.sort-asc::after { content: " ▲"; }
+  th.sort-desc::after { content: " ▼"; }
   tr:last-child td { border-bottom: none; }
   td.scientific { font-style: italic; color: var(--ink-muted); }
-  td a { color: var(--accent); text-decoration: none; }
-  td a:hover { text-decoration: underline; }
 
   footer {
     color: var(--ink-faint);
@@ -124,12 +131,16 @@ def _hike_url(file_stem):
     return f"{file_stem}_hike-summary.html"
 
 
-def _wikipedia_url(scientific_name):
+def wikipedia_url(scientific_name):
     """CARD-0143: built directly from scientific_name, no HTTP call/
     verification at build time -- constructed optimistically, same
     best-effort philosophy used elsewhere in this pipeline. Wikipedia
     article titles use underscores for spaces; its own redirect/search
-    handling covers the rare scientific-name mismatch."""
+    handling covers the rare scientific-name mismatch.
+
+    CARD-0147: public (no leading underscore) -- templating.py imports this
+    directly to link species names the same way on the per-hike Wildlife
+    Heard (BirdNET) table, not just this page's own life-list table."""
     return f"https://en.wikipedia.org/wiki/{quote(scientific_name.replace(' ', '_'))}"
 
 
@@ -141,16 +152,23 @@ def _render_page(life_list):
     else:
         rows = "".join(
             f"<tr>"
-            f"<td><a href=\"{_wikipedia_url(e['scientific_name'])}\" target=\"_blank\" rel=\"noopener\">{e['common_name']}</a></td>"
-            f"<td class=\"scientific\">{e['scientific_name']}</td>"
-            f"<td><a href=\"{_hike_url(e['first_heard_file_stem'])}\">{e['first_heard_date']}</a></td>"
-            f"<td>{len(e['hikes'])}</td>"
+            f"<td data-sort-value=\"{_esc_attr(e['common_name'].lower())}\">"
+            f"<a href=\"{wikipedia_url(e['scientific_name'])}\" target=\"_blank\" rel=\"noopener\">{e['common_name']}</a></td>"
+            f"<td class=\"scientific\" data-sort-value=\"{_esc_attr(e['scientific_name'].lower())}\">{e['scientific_name']}</td>"
+            # first_heard_file_stem is already YYYY-MM-DD -- sorts correctly
+            # as plain text, no separate date-parsing needed.
+            f"<td data-sort-value=\"{e['first_heard_file_stem']}\">"
+            f"<a href=\"{_hike_url(e['first_heard_file_stem'])}\">{e['first_heard_date']}</a></td>"
+            f"<td data-sort-value=\"{len(e['hikes'])}\">{len(e['hikes'])}</td>"
             f"</tr>"
             for e in species
         )
         body = (
             "<table><thead><tr>"
-            "<th>Common Name</th><th>Scientific Name</th><th>First Heard</th><th>Hikes</th>"
+            "<th data-sort-type=\"text\">Common Name</th>"
+            "<th data-sort-type=\"text\">Scientific Name</th>"
+            "<th data-sort-type=\"text\">First Heard</th>"
+            "<th data-sort-type=\"number\">Hikes</th>"
             "</tr></thead><tbody>"
             f"{rows}"
             "</tbody></table>"
@@ -180,6 +198,43 @@ def _render_page(life_list):
   {body}
   <footer>hike-izer</footer>
 </main>
+<script>
+(function () {{
+  var table = document.querySelector("table");
+  if (!table) return;
+  var tbody = table.querySelector("tbody");
+  var ths = Array.prototype.slice.call(table.querySelectorAll("th"));
+  // Rows already arrive sorted by common name ascending (Python's own
+  // sort above) -- state starts matching that so the header's arrow
+  // reflects reality on first load, not just after the first click.
+  var state = {{col: 0, dir: 1}};
+
+  function sortBy(colIndex) {{
+    var type = ths[colIndex].dataset.sortType;
+    var dir = (state.col === colIndex) ? -state.dir : 1;
+    state = {{col: colIndex, dir: dir}};
+
+    var rows = Array.prototype.slice.call(tbody.querySelectorAll("tr"));
+    rows.sort(function (a, b) {{
+      var av = a.children[colIndex].dataset.sortValue;
+      var bv = b.children[colIndex].dataset.sortValue;
+      var cmp = type === "number" ? (parseFloat(av) - parseFloat(bv)) : av.localeCompare(bv);
+      return cmp * dir;
+    }});
+    rows.forEach(function (r) {{ tbody.appendChild(r); }});
+
+    ths.forEach(function (th, i) {{
+      th.classList.remove("sort-asc", "sort-desc");
+      if (i === colIndex) th.classList.add(dir === 1 ? "sort-asc" : "sort-desc");
+    }});
+  }}
+
+  ths.forEach(function (th, i) {{
+    th.addEventListener("click", function () {{ sortBy(i); }});
+  }});
+  ths[0].classList.add("sort-asc");
+}})();
+</script>
 </body>
 </html>
 """

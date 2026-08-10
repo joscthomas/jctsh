@@ -28,6 +28,7 @@ from datetime import datetime, timedelta, timezone
 
 import build_hike_chart
 import build_hike_map
+import build_wildlife_index
 
 NA = "not available"
 
@@ -394,14 +395,25 @@ def birdnet_table_rows(birdnet_rows, offset_delta, life_list=None, file_stem=Non
     # correct regardless of how many times this page gets rebuilt. life_list
     # is the caller's already-loaded wildlife_life_list.json content,
     # scientific_name -> entry -- keyed the same way that file itself is.
+    # CARD-0147: wikipedia_url/confidence_pct/time_iso added alongside the
+    # already-formatted display fields, not in place of them -- the table
+    # needs both a human string to show (e.g. "83%", "8:01 AM") and a
+    # plain-sortable value for the click-to-sort columns (see render_html's
+    # birdnet_section below), and confidence/time don't format into
+    # something sortable as text (percent sign, AM/PM). wikipedia_url reuses
+    # build_wildlife_index's own helper -- same link construction as the
+    # life-list page, not a second copy of the same one-liner.
     life_list = life_list or {}
     return [
         {
             "species": r["common_name"],
             "scientific_name": r["scientific_name"],
+            "wikipedia_url": build_wildlife_index.wikipedia_url(r["scientific_name"]),
             "count": r["count"],
             "confidence": f"{round(r['best_confidence'] * 100)}%",
+            "confidence_pct": round(r["best_confidence"] * 100),
             "time": format_time_local(r["first_timestamp"], offset_delta),
+            "time_iso": r["first_timestamp"],
             "is_new": life_list.get(r["scientific_name"], {}).get("first_heard_file_stem") == file_stem,
         }
         for r in birdnet_rows
@@ -752,6 +764,28 @@ _HTML_STYLE = """
   tbody tr:last-child td { border-bottom: none; }
   tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 40%, transparent); }
   .obs-table thead th { position: sticky; top: 0; }
+  /* CARD-0147: click-to-sort, scoped to #birdnet-table specifically -- the
+     hiking-observations table also uses .obs-table but isn't sortable, so
+     this can't just target th generally without implying every table here
+     is clickable. */
+  #birdnet-table th { cursor: pointer; user-select: none; }
+  #birdnet-table th:hover { background: var(--line); }
+  #birdnet-table th.sort-asc::after { content: " ▲"; }
+  #birdnet-table th.sort-desc::after { content: " ▼"; }
+  /* CARD-0147: section-level header + link (e.g. Wildlife Heard -> Life
+     List), lighter-weight pill than .top-nav since it sits inline with a
+     section heading rather than at the very top of the page. */
+  .section-header {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line); padding-bottom: 0.4rem; margin-bottom: 1rem;
+  }
+  .section-header h2 { margin: 0; border-bottom: none; padding-bottom: 0; }
+  .section-header .nav-link {
+    font-size: 0.78rem; text-decoration: none; color: var(--ink-muted);
+    padding: 0.25rem 0.55rem; border: 1px solid var(--line); border-radius: var(--radius);
+    white-space: nowrap;
+  }
+  .section-header .nav-link:hover { background: var(--surface-2); color: var(--ink); }
   /* CARD-0147: species heard for the first time ever, on this hike (see
      templating.birdnet_table_rows() for the is_new determination). */
   .new-species-badge {
@@ -1006,24 +1040,72 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     # an f-string's {} expression is fragile across Python versions (only
     # reliably allowed from 3.12's PEP 701 onward), not worth risking for a
     # one-line badge span.
+    # CARD-0147: species name links to Wikipedia and each cell carries a
+    # data-sort-value, same "wildlife life list" treatment as wildlife.html
+    # (build_wildlife_index.py) -- Joseph's call to bring both features to
+    # this per-hike table too, not just the cross-hike one. species/
+    # scientific sort on the lowercased common name (matches what's
+    # actually shown, badge/link markup aside); confidence sorts on the raw
+    # percent int, not the formatted "83%" string; time sorts on the raw
+    # ISO timestamp, not the "8:01 AM" display string, which wouldn't order
+    # correctly as text.
     birdnet_section = ""
     if birdnet_rows:
         new_species_badge = ' <span class="new-species-badge">NEW</span>'
         birdnet_html_rows = "".join(
-            f"<tr><td>{_esc(r['species'])}"
+            f"<tr><td data-sort-value=\"{_esc(r['species'].lower())}\">"
+            f"<a href=\"{r['wikipedia_url']}\" target=\"_blank\" rel=\"noopener\">{_esc(r['species'])}</a>"
             f"{new_species_badge if r['is_new'] else ''}"
             f" <em>({_esc(r['scientific_name'])})</em></td>"
-            f"<td>{_esc(r['count'])}</td><td>{_esc(r['confidence'])}</td><td>{_esc(r['time'])}</td></tr>"
+            f"<td data-sort-value=\"{r['count']}\">{_esc(r['count'])}</td>"
+            f"<td data-sort-value=\"{r['confidence_pct']}\">{_esc(r['confidence'])}</td>"
+            f"<td data-sort-value=\"{_esc(r['time_iso'])}\">{_esc(r['time'])}</td></tr>"
             for r in birdnet_table_rows(birdnet_rows, offset_delta, life_list, file_stem)
         )
         birdnet_section = f"""
   <section>
-    <h2>Wildlife Heard (BirdNET)</h2>
-    <table class="obs-table">
-      <thead><tr><th>Species</th><th>Count</th><th>Confidence</th><th>Time ({_esc(offset_label(offset_str))})</th></tr></thead>
+    <div class="section-header">
+      <h2>Wildlife Heard (BirdNET)</h2>
+      <a class="nav-link" href="wildlife.html">Life List &rarr;</a>
+    </div>
+    <table class="obs-table" id="birdnet-table">
+      <thead><tr>
+        <th data-sort-type="text">Species</th>
+        <th data-sort-type="number">Count</th>
+        <th data-sort-type="number">Confidence</th>
+        <th data-sort-type="text">Time ({_esc(offset_label(offset_str))})</th>
+      </tr></thead>
       <tbody>{birdnet_html_rows}</tbody>
     </table>
-  </section>"""
+  </section>
+  <script>
+  (function () {{
+    var table = document.getElementById("birdnet-table");
+    if (!table) return;
+    var tbody = table.querySelector("tbody");
+    var ths = Array.prototype.slice.call(table.querySelectorAll("th"));
+    var state = {{col: -1, dir: 1}};
+    ths.forEach(function (th, i) {{
+      th.addEventListener("click", function () {{
+        var type = th.dataset.sortType;
+        var dir = (state.col === i) ? -state.dir : 1;
+        state = {{col: i, dir: dir}};
+        var rows = Array.prototype.slice.call(tbody.querySelectorAll("tr"));
+        rows.sort(function (a, b) {{
+          var av = a.children[i].dataset.sortValue;
+          var bv = b.children[i].dataset.sortValue;
+          var cmp = type === "number" ? (parseFloat(av) - parseFloat(bv)) : av.localeCompare(bv);
+          return cmp * dir;
+        }});
+        rows.forEach(function (r) {{ tbody.appendChild(r); }});
+        ths.forEach(function (h, j) {{
+          h.classList.remove("sort-asc", "sort-desc");
+          if (j === i) h.classList.add(dir === 1 ? "sort-asc" : "sort-desc");
+        }});
+      }});
+    }});
+  }})();
+  </script>"""
 
     coverage_rows = "".join(
         f"<tr><td>{_esc(s)}</td><td>{_esc(e)}</td><td>{_esc(a)}</td><td>{_esc(p)}</td></tr>"

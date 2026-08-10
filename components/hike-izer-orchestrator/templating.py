@@ -23,6 +23,7 @@ imports below are themselves stdlib-only).
 """
 
 import json
+import math
 from datetime import datetime, timedelta, timezone
 
 import build_hike_chart
@@ -297,6 +298,74 @@ def observations_table_rows(hiking_observations, offset_delta):
     return rows
 
 
+# CARD-0147: multiple markers landing at (near-)identical map positions --
+# e.g. several BirdNET detections logged seconds apart while stationary --
+# render as an indistinguishable stack regardless of icon size (Joseph found
+# this live via a real photo of the page: shrinking the icons helped but
+# didn't separate a real 3-marker cluster, since the underlying positions
+# were themselves nearly identical). MARKER_CLUSTER_RADIUS_M is how close two
+# markers have to be (real-world meters, not degrees -- longitude degrees
+# shrink toward the poles, so a fixed lat/lon epsilon would be wrong at
+# different latitudes) before they're considered "the same spot" and spread
+# apart; MARKER_SPREAD_RADIUS_M is how far apart to spread them. Deliberately
+# a real-world-distance threshold, not a zoom/pixel-based one -- this runs
+# server-side, before any zoom level is chosen (fitBounds picks that
+# client-side against the whole route), so there's no pixel scale to work
+# from yet. A heuristic, not a perfect fit for every possible zoom level.
+MARKER_CLUSTER_RADIUS_M = 8.0
+MARKER_SPREAD_RADIUS_M = 5.0
+METERS_PER_DEGREE_LAT = 111320.0
+
+
+def _haversine_m(lat1, lon1, lat2, lon2):
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlambda / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _declutter_markers(markers):
+    """Groups markers within MARKER_CLUSTER_RADIUS_M of each other (simple
+    single-linkage grouping -- fine at this small scale, no need for a
+    proper clustering algorithm over what's usually a handful of markers per
+    hike) and spreads each group's members evenly around their own centroid
+    at MARKER_SPREAD_RADIUS_M -- a simple deterministic version of the
+    "spiderfy" technique clustering map libraries use, computed here in
+    plain Python rather than pulling in a new JS dependency, since every
+    marker's real lat/lon is already known at this point. Singletons (no
+    near neighbor) are left untouched. Mutates and returns the same list."""
+    n = len(markers)
+    visited = [False] * n
+    clusters = []
+    for i in range(n):
+        if visited[i]:
+            continue
+        cluster = [i]
+        visited[i] = True
+        for j in range(i + 1, n):
+            if visited[j]:
+                continue
+            if _haversine_m(markers[i]["lat"], markers[i]["lon"], markers[j]["lat"], markers[j]["lon"]) <= MARKER_CLUSTER_RADIUS_M:
+                cluster.append(j)
+                visited[j] = True
+        clusters.append(cluster)
+
+    for cluster in clusters:
+        if len(cluster) < 2:
+            continue
+        centroid_lat = sum(markers[i]["lat"] for i in cluster) / len(cluster)
+        centroid_lon = sum(markers[i]["lon"] for i in cluster) / len(cluster)
+        meters_per_degree_lon = METERS_PER_DEGREE_LAT * math.cos(math.radians(centroid_lat)) or 1e-9
+        for k, idx in enumerate(cluster):
+            angle = 2 * math.pi * k / len(cluster)
+            markers[idx]["lat"] = centroid_lat + (MARKER_SPREAD_RADIUS_M * math.sin(angle)) / METERS_PER_DEGREE_LAT
+            markers[idx]["lon"] = centroid_lon + (MARKER_SPREAD_RADIUS_M * math.cos(angle)) / meters_per_degree_lon
+
+    return markers
+
+
 def _build_event_markers(hike_data, photos_manifest, photos_dir, offset_delta, chart_series, birdnet_occurrences):
     """CARD-0133: assembles the generic marker list build_hike_map.build_map_html()
     renders on the Route Map. Type-specific knowledge (what a photo tooltip
@@ -366,7 +435,7 @@ def _build_event_markers(hike_data, photos_manifest, photos_dir, offset_delta, c
             "tooltip_html": tooltip, "click_url": None,
         })
 
-    return markers
+    return _declutter_markers(markers)
 
 
 def birdnet_table_rows(birdnet_rows, offset_delta, life_list=None, file_stem=None):
@@ -616,7 +685,24 @@ _HTML_STYLE = """
     padding: 0.75rem; display: flex; flex-direction: column;
   }
   .map-modal-container { flex: 1 1 auto; min-height: 0; }
-  .map-modal-container .hike-map { height: 100%; }
+  /* Found live (Joseph, real photo of the page): still a visible blank gap
+     below the map even after the flex fix above. Real root cause, confirmed
+     by reading the actual selectors rather than guessing again: this modal
+     markup is nested *inside* the Route Map's own <section>, which is
+     inside .hike-visuals (build_map_html()'s return value -- inline card +
+     modal -- gets embedded as one block by render_html()) -- so even once
+     JS relocates the map div into the modal, it's still a genuine DOM
+     descendant of .hike-visuals, position:fixed notwithstanding (CSS
+     descendant selectors match by DOM ancestry, not visual/layout escape).
+     .hike-visuals .hike-map's own responsive rule (height: 15rem, active at
+     typical laptop widths) has the *same* specificity as the plain 2-class
+     selector this rule used to be, and is declared later in the
+     stylesheet -- so it silently won the specificity tie and clamped the
+     map to 15rem regardless of the modal's own real size. Fixed with a
+     3-class selector, unambiguously higher specificity, so this rule always
+     wins regardless of source order or which other responsive rule happens
+     to also match. */
+  .map-modal-backdrop .map-modal-container .hike-map { height: 100%; }
   .map-modal-close {
     position: absolute; top: -0.9rem; right: -0.9rem; z-index: 21;
     width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--line);
@@ -636,8 +722,14 @@ _HTML_STYLE = """
      against the map itself would likely suffer. Border/shadow lightened
      slightly to match, same "smaller and lighter" direction as the travel
      arrows above. */
-  .map-marker-icon { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); border: 1.25px solid currentColor; box-shadow: 0 1px 2px rgba(30,30,20,0.15); }
-  .map-marker-icon svg { width: 12px; height: 12px; }
+  /* CARD-0147: shrunk again (was 20px/12px) plus server-side declutter
+     (see templating._declutter_markers) -- a real photo showed the smaller
+     size alone wasn't enough for markers whose underlying GPS positions
+     were themselves nearly identical (several detections logged seconds
+     apart while stationary); size reduction and position-spreading are
+     complementary fixes, not alternatives. */
+  .map-marker-icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); border: 1px solid currentColor; box-shadow: 0 1px 1px rgba(30,30,20,0.15); }
+  .map-marker-icon svg { width: 9px; height: 9px; }
   .map-marker-icon--photo { color: var(--marker-photo); }
   .map-marker-icon--observation { color: var(--marker-observation); }
   .map-marker-icon--bird { color: var(--marker-bird); }

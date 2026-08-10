@@ -431,8 +431,8 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
     var icon = L.divIcon({{
       html: '<span class="map-marker-icon map-marker-icon--' + m.type + '">' + iconHtml + '</span>',
       className: 'map-marker',
-      iconSize: [20, 20],
-      iconAnchor: [10, 10]
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
     }});
     var mk = L.marker([m.lat, m.lon], {{icon: icon}}).addTo(map);
     mk.bindTooltip(m.tooltipHtml, {{direction: "top", offset: [0, -14]}});

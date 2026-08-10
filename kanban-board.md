@@ -9,7 +9,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0147 -->
+<!-- next-card-id: CARD-0148 -->
+
+---
+
+### CARD-0147 · [idea] [hike-izer] Hike-izer iterative improvement for hike of Aug 10, 2026
+**Status:** Backlog
+
+**Raised 2026-08-10 06:47 MST**, from real observations reviewing today's hike page. Five distinct asks, interviewed same session:
+
+**A. Home link on hike summary pages.** Add a link/button on the hike summary page back to the hikes home/calendar page — currently no way to navigate back without editing the URL by hand.
+
+**B. Map click-to-expand.** Clicking the Route Map opens a full-size modal/lightbox overlay of the same map, for better observability of route/sun-gadget/travel-arrow detail than the normal inline size allows. **Deliberately map-only, no Elevation & Speed chart hover-sync in the expanded view** (Joseph's call, interviewed) — keeping that pairing functional in the modal would either require also carving out modal space for the chart (working against the whole point of maximizing map size) or firing sync events at an on-page chart hidden behind the modal backdrop (invisible, pointless). The modal is a bigger look at the map alone.
+
+**C. "NEW" marker on the Wildlife Heard table.** Mark any species in a hike's own Wildlife Heard table with a small "NEW" badge/pill (Joseph's call on style, interviewed) when that hike is the species' first-ever appearance — i.e. `wildlife_life_list.json`'s `first_heard_file_stem` for that species equals the current hike's own `file_stem`. Distinguishes "first time we've ever heard this bird on any hike" from an established species just showing up again.
+
+**D. Life-list hikes-observed-on count — already exists, no work needed.** Checked directly (Claude, same session) before writing this card rather than assume: `wildlife_life_list.py`'s `update_from_hike()` already maintains a deduplicated `hikes` list per species (idempotent — re-processing the same hike via step 1 then step 2 never double-counts), and `build_wildlife_index.py` already renders `len(e['hikes'])` as a "Hikes" column on `wildlife.html` — distinct from the Wildlife Heard table's own per-hike detection count. This was built as part of CARD-0142 and is already live. Kept as a line item here only for traceability against the original ask, not because anything needs building.
+
+**E. Direction-of-travel arrows (CARD-0085 Part B) — visual rework.** Currently plain rotated markers directly on the route line. Rework to: smaller, lighter stroke weight, and offset to run parallel with the track rather than sitting on top of it (Joseph's call, interviewed: pick a consistent offset rule — e.g. perpendicular to each arrow's own local travel bearing — rather than a single fixed screen-space side; it's fine if the *visual* side varies naturally as the route curves, as long as the rule itself is consistent). This is a refinement of already-built code (`_TRAVEL_ARROW_SVG`/`_select_travel_arrow_points()` in `build_hike_map.py`), not new scope — CARD-0085 itself stays focused on the underlying data pipeline and is unaffected.
+
+**Done when:** all four real work items (A, B, C, E — D needs no action) are built, deployed to the M8, and verified against the live Aug 10, 2026 hike page (or the most recently published hike if that one's already been superseded by further edits).
+
+**Related:** CARD-0082 (Route Map this extends), CARD-0110 (Elevation & Speed chart, the hover-sync pairing B deliberately excludes from the expanded view), CARD-0085 (travel-direction arrows E reworks the visuals of, not the underlying data), CARD-0142/CARD-0143 (wildlife life list D found already-built), `components/hike-izer/build_hike_map.py`, `components/hike-izer/build_wildlife_index.py`, `components/hike-izer-orchestrator/wildlife_life_list.py`, `components/hike-izer-orchestrator/templating.py`.
 
 ---
 
@@ -1067,7 +1088,7 @@ Deployed to the M8 (`scp` + `docker compose up -d --build orchestrator`) and reg
 ---
 
 ### CARD-0028 · [idea] [photo-server] Automated post-import quality scan (blur/duplicate detection)
-**Status:** Build
+**Status:** Done
 
 **Notes:** Decided during photo-server migration (2026-07-04) to skip a manual pre-import quality pass entirely — importing everything as-is and relying on Immich's built-in duplicate detection (CLIP-embedding-based visual similarity, not just byte-hash) plus an ongoing "favorites" curation habit over time. This card captures the option to add an *automated* (no manual photo review) quality pass later, run after the Immich import so you can see real results first before deciding if it's worth doing.
 

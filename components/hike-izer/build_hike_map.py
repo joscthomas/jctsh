@@ -426,11 +426,13 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
   var defaultMarkerIcon = {json.dumps(_DEFAULT_MARKER_ICON)};
   eventMarkers.forEach(function (m) {{
     var iconHtml = markerIcons[m.type] || defaultMarkerIcon;
+    // CARD-0147: shrunk (was 26/13) to match .map-marker-icon's own smaller
+    // CSS size -- see templating.py's comment on why.
     var icon = L.divIcon({{
       html: '<span class="map-marker-icon map-marker-icon--' + m.type + '">' + iconHtml + '</span>',
       className: 'map-marker',
-      iconSize: [26, 26],
-      iconAnchor: [13, 13]
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
     }});
     var mk = L.marker([m.lat, m.lon], {{icon: icon}}).addTo(map);
     mk.bindTooltip(m.tooltipHtml, {{direction: "top", offset: [0, -14]}});

@@ -626,8 +626,18 @@ _HTML_STYLE = """
   .map-modal-close:hover { background: var(--surface-2); }
   .route-line { stroke: var(--accent); stroke-width: 3; }
   .route-highlight { fill: var(--surface); stroke: var(--accent); stroke-width: 2.5; }
-  .map-marker-icon { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--surface); border: 1.5px solid currentColor; box-shadow: var(--shadow); }
-  .map-marker-icon svg { width: 16px; height: 16px; }
+  /* CARD-0147: shrunk (was 26px/16px) -- Joseph's call, event markers
+     (photo/observation/bird) read as too large and overlap heavily when
+     several land close together on the route (e.g. a cluster of bird
+     sightings). Kept the white circle background rather than dropping it:
+     these are thin stroke-only line-art icons (not filled shapes), and
+     Thunderforest's "Outdoors" basemap is visually busy (roads, labels,
+     green space) -- without a clean background behind them, contrast
+     against the map itself would likely suffer. Border/shadow lightened
+     slightly to match, same "smaller and lighter" direction as the travel
+     arrows above. */
+  .map-marker-icon { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); border: 1.25px solid currentColor; box-shadow: 0 1px 2px rgba(30,30,20,0.15); }
+  .map-marker-icon svg { width: 12px; height: 12px; }
   .map-marker-icon--photo { color: var(--marker-photo); }
   .map-marker-icon--observation { color: var(--marker-observation); }
   .map-marker-icon--bird { color: var(--marker-bird); }

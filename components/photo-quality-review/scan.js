@@ -35,7 +35,39 @@ const CZKAWKA_CLI_PATH = process.env.CZKAWKA_CLI_PATH;
 const DATA_DIR = process.env.PHOTO_QUALITY_REVIEW_DATA_DIR || path.join(__dirname, 'data');
 
 const REPORT_PATH = path.join(DATA_DIR, 'report.json');
+const REPORT_HISTORY_DIR = path.join(DATA_DIR, 'report-history');
 const BLUR_CACHE_PATH = path.join(DATA_DIR, 'blur-cache.json');
+
+// CARD-0149: report.json used to just get overwritten on every rescan --
+// no way to tell "did this scan find more than last time" without keeping
+// something to compare against (Joseph asked exactly that after a real
+// rescan notification). Archives the *previous* report before the new one
+// lands, named from that report's own generatedAt (when it was actually
+// produced, not "now" -- "now" is just when it's being retired). A plain
+// fs.rename, not a copy: report.json and report-history/ are both under
+// DATA_DIR, so this is a same-filesystem move, no need to duplicate a
+// ~36MB file on disk just to relocate it. Deliberately no pruning here --
+// see this card's own kanban entry for why that's left for later rather
+// than guessed at now. Comparison/diffing what changed between snapshots
+// is also explicitly out of scope for this card -- this only makes sure
+// the data to compare exists.
+async function archivePreviousReport() {
+  let raw;
+  try {
+    raw = await fs.readFile(REPORT_PATH, 'utf-8');
+  } catch {
+    return; // first-ever scan -- nothing to archive yet
+  }
+  let generatedAt;
+  try {
+    generatedAt = JSON.parse(raw).generatedAt;
+  } catch {
+    generatedAt = null; // malformed/older report -- still worth keeping a copy
+  }
+  const stamp = (generatedAt || new Date().toISOString()).replace(/:/g, '-');
+  await fs.mkdir(REPORT_HISTORY_DIR, { recursive: true });
+  await fs.rename(REPORT_PATH, path.join(REPORT_HISTORY_DIR, `report-${stamp}.json`));
+}
 
 // CARD-0028: initial estimate from one synthetic test (a real in-focus
 // photo scored ~720, the same photo with a heavy 15px gaussian blur applied
@@ -344,6 +376,7 @@ async function main() {
     blurry: resolvedBlurry,
   };
 
+  await archivePreviousReport();
   await fs.writeFile(REPORT_PATH, JSON.stringify(report, null, 2));
 
   const elapsedMin = ((Date.now() - startedAt) / 60000).toFixed(1);

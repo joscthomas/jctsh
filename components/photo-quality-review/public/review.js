@@ -461,6 +461,23 @@ function loadMotionBadges() {
 const motionStatusByGroup = new Map(); // groupKey -> Map(assetId -> {isMotionPhoto, valid})
 const albumStatusByGroup = new Map(); // groupKey -> Map(assetId -> string[] albums)
 
+// CARD-0148: refreshTally() is expensive server-side -- /api/preview's
+// pendingDeletions() re-reads and re-parses report.json, the whole
+// deletion-log CSV, and decisions.json from disk on every call, then loops
+// every duplicate group and single in the library, with no caching. Fine
+// once per manual click (human-paced), genuinely bad during auto-select:
+// dozens of groups can auto-decide in a tight burst as badge fetches
+// resolve, and calling refreshTally() after each one means dozens of
+// redundant full-library reloads stacked on top of the badge fetches still
+// in flight. Debounced here so a burst collapses into one refresh shortly
+// after the last auto-select in it, rather than one per group.
+let tallyRefreshTimer = null;
+const AUTO_SELECT_TALLY_DEBOUNCE_MS = 200;
+function scheduleTallyRefreshDebounced() {
+  clearTimeout(tallyRefreshTimer);
+  tallyRefreshTimer = setTimeout(refreshTally, AUTO_SELECT_TALLY_DEBOUNCE_MS);
+}
+
 function recordMotionStatus(groupKey, assetId, info) {
   if (!motionStatusByGroup.has(groupKey)) motionStatusByGroup.set(groupKey, new Map());
   motionStatusByGroup.get(groupKey).set(assetId, info);
@@ -545,7 +562,7 @@ async function maybeAutoSelectGroup(groupKey) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ groupKey, keepAssetId, auto: true, autoReason }),
   });
-  await refreshTally();
+  scheduleTallyRefreshDebounced();
 }
 
 // Duplicate-group members frequently share the exact same originalFileName
@@ -560,8 +577,24 @@ function formatBytes(n) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// fileCreatedAt comes straight through from Immich's own asset record (see
+// routes/immich.js's buildPathIndex) -- every duplicate/broken/blurry item
+// already carries it, this just wasn't being shown anywhere. Rendered in
+// the viewer's own local timezone (plain toLocaleDateString on the ISO
+// string) -- no server-side offset handling needed for a personal-use page
+// like hike-izer's public pages have, since whoever's looking at it is the
+// one whose local time it should read in.
+function formatPhotoDate(fileCreatedAt) {
+  if (!fileCreatedAt) return null;
+  const d = new Date(fileCreatedAt);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 function duplicateMeta(m) {
   const parts = [];
+  const date = formatPhotoDate(m.fileCreatedAt);
+  if (date) parts.push(date);
   if (m.width && m.height) parts.push(`${m.width}×${m.height}`);
   const bytes = formatBytes(m.size);
   if (bytes) parts.push(bytes);
@@ -634,6 +667,7 @@ function renderSingle(item) {
   const marked = item.decision === 'delete' ? 'marked-delete' : '';
   const buttonLabel = item.decision === 'delete' ? '✖ Marked: Delete' : 'Delete';
   const itemClass = item.decision === 'delete' ? 'item is-decided' : 'item';
+  const date = formatPhotoDate(item.fileCreatedAt);
 
   return `<div class="${itemClass}" data-asset-id="${item.assetId}">
     <a class="thumb-link" href="${viewUrl(item)}" target="_blank" rel="noopener">
@@ -641,6 +675,7 @@ function renderSingle(item) {
     </a>
     <div class="fname">${item.originalFileName}</div>
     <div class="owner-badge owner-${item.ownerLabel}">${ownerLabelText(item.ownerLabel)}</div>
+    ${date ? `<div class="fmeta">${date}</div>` : ''}
     <div class="fname">${label}</div>
     <a class="view-link" href="${viewUrl(item)}" target="_blank" rel="noopener">View original</a>
     <button class="toggle-btn ${marked}" data-asset-id="${item.assetId}">${buttonLabel}</button>

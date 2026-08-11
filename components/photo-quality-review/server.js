@@ -518,6 +518,25 @@ app.post('/api/preview', async (req, res) => {
 // the CSV. The client now disables the button while a request is in
 // flight, but this guard is the real backstop -- it also covers a second
 // browser tab or any other path that could fire a concurrent request.
+// CARD-0148: simple concurrency-limited map, same small self-contained
+// pattern scan.js's own mapWithConcurrency already uses (no shared module,
+// no build step) -- a safety margin for the delete loop below now that
+// deletionLog.logDeletion() no longer blocks on the slow leg per item (see
+// that module's own comment), not because Immich itself is slow.
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+const CONFIRM_CONCURRENCY = 5;
+
 let confirmInProgress = false;
 
 // Live progress (CARD-0028) -- a static "please wait" message wasn't
@@ -560,7 +579,12 @@ app.post('/api/confirm', async (req, res) => {
     // only track which items actually got deleted here, then do one
     // fresh-load-and-targeted-removal at the very end, fully inside the
     // lock.
-    for (const item of items) {
+    // CARD-0148: bounded concurrency (was a plain sequential for-loop) --
+    // deletedItems.push/failed.push/confirmProgress.completed++ are all
+    // safe here despite running from multiple concurrent workers: Node has
+    // no true parallelism, only interleaving at await points, so each of
+    // these synchronous operations completes atomically between them.
+    await mapWithConcurrency(items, CONFIRM_CONCURRENCY, async (item) => {
       try {
         await immich.deleteAsset(item.assetId, item.ownerLabel);
         await deletionLog.logDeletion({
@@ -576,7 +600,7 @@ app.post('/api/confirm', async (req, res) => {
       } finally {
         confirmProgress.completed++;
       }
-    }
+    });
 
     await withDecisionsLock(async () => {
       const decisions = await loadDecisions();

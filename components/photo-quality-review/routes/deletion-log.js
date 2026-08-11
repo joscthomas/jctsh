@@ -124,11 +124,17 @@ async function logDeletion({ originalFileName, fileCreatedAt, assetId, ownerLabe
 
   await appendLocalCsv(record);
 
-  try {
-    await postToSheet(record);
-  } catch (err) {
+  // CARD-0148: not awaited -- this is a real internet round-trip to Google
+  // Apps Script (often 500ms-2s+), and its failure was already handled as
+  // best-effort (see this file's header comment: "A Sheet POST failure must
+  // never block or roll back an already-confirmed Immich delete"). Awaiting
+  // it here bought nothing but latency: a Confirm & Delete batch of N items
+  // was paying N sequential Google round-trips before this fix, the actual
+  // dominant cost of the whole operation. Firing it and moving on keeps the
+  // exact same catch-and-warn behavior, just off the caller's critical path.
+  postToSheet(record).catch((err) => {
     console.warn('Deletion log: Google Sheet POST failed (local CSV row already written):', err.message);
-  }
+  });
 }
 
 module.exports = { logDeletion, getDeletedAssetIds };

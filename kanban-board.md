@@ -9,7 +9,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0153 -->
+<!-- next-card-id: CARD-0154 -->
+
+---
+
+### CARD-0153 · [idea] [homeassistant] Move HA recorder off SQLite to MariaDB (or Postgres) if it ever becomes a real problem
+**Status:** Backlog
+
+**Raised 2026-08-12**, from Joseph reading an article about SQLite concurrency/write-lock issues under Home Assistant and asking whether JCTsh's HA instance should move off it.
+
+**Why SQLite can be a problem, for context:** SQLite locks at the whole-database-file level — even in WAL mode (which HA enables by default), only one write transaction can be in flight at a time, so every other writer queues behind it. Under a heavy install (many entities, frequent automations), the recorder's write queue can back up behind that single-writer lock, worse on slow storage like a Pi's SD card. MariaDB (InnoDB) and PostgreSQL instead lock at the row level and use MVCC, so a write and a concurrent read (e.g. the frontend loading a history graph) don't block each other — real client-server databases built for concurrent multi-client load, unlike SQLite's embedded single-writer model.
+
+**Explicitly not being pursued now.** Checked whether this JCTsh instance actually has the problem: the "could not validate shutdown cleanly" / "ended unfinished session" recorder warnings seen in `docker logs` during CARD-0150/0152's testing this session were almost certainly artifacts of repeated fast `docker restart` cycles (SQLite doesn't get time to flush before SIGTERM) rather than evidence of a real concurrency problem during normal operation. At JCTsh's current scale (modest entity count, not a heavy-automation install), SQLite's single-writer limitation isn't expected to bite. Joseph's call: leave it as SQLite, watch for real symptoms.
+
+**Trigger conditions for actually pursuing this** (either one): recorder errors appearing during *normal* operation (not around a deliberate restart), or the History/Logbook UI becoming noticeably slow. Neither has been observed.
+
+**If pursued, one option discussed:** run the database as its own container on the M8 (`photo-server`, `192.168.1.165`) rather than on the Pi, since HA's `recorder:` config accepts any reachable `db_url` — the M8 is already running Docker and is more capable than the Pi. Two real snags flagged, not yet resolved:
+1. HA's official Docker image doesn't bundle a PostgreSQL/MariaDB Python driver by default — would need a custom image or an init step to install one.
+2. Creates a new cross-device dependency that doesn't exist today — HA's recorder would go dark any time the M8 is unreachable, including the M8's own weekly scheduled reboot (Mon 4am) — worth checking that window against the Pi's own Monday 3am reboot stagger (see `jctsh-network.md`'s Scheduled Maintenance Windows table) if this is ever built, since the whole point of that stagger was avoiding a different false-down reading and a DB dependency adds a second reason to care about the timing.
+
+**Done when (if ever picked up):** not yet defined — this card is parked as an idea, not scoped for Planning. Needs a real interview (which engine, where hosted, migration approach for existing history data, backup coverage) before any implementation starts.
+
+**Related:** `jctsh-network.md` (M8 host details, maintenance-window table).
 
 ---
 
@@ -50,17 +71,31 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0151 · [idea] [core] Remote creation of kanban cards from phone
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-08-12 05:48 MST**, from Joseph wanting to open a new kanban card while away from this machine (from his phone), rather than needing to be sitting at a Claude Code session.
 
-**Interviewed so far:**
-- **Trigger surface:** from his phone — exact mechanism not yet decided. Not sure whether he already has viable remote access to Claude Code (mobile/web app) or wants something purpose-built into the JCTsh stack (HA companion app button, shortcut, webhook). Needs a follow-up look at what's actually available (e.g. Claude Code's own mobile/web app, HA companion app automations/scripts, iOS/Android Shortcuts) before committing to an approach.
-- **Card-writing flow:** must go through a real interview, matching this project's own card-creation convention (interview first, don't write a one-line card from assumption) — not just a raw stub appended to the file. So whatever the trigger is, it needs to actually kick off a Claude session capable of asking questions and writing a properly-scoped card, not just append text.
+**First approach tried: Claude Code cloud routines (interview-driven, matching the original ask).** Created a routine via the `RemoteTrigger` API — a saved, on-demand cloud Claude Code session with a self-contained prompt (read `CLAUDE.md`/`kanban-board.md` for conventions, interview Joseph including fetching any URL he shares via `WebFetch`, write the card, open a PR via `gh`). Hit and resolved a real blocker along the way: creation failed with "Connect your GitHub account" until Joseph installed the Claude GitHub App (`claude.ai/code/onboarding?magic=github-app-setup`) — the account-level "connect" he'd done first wasn't the same as actually installing the App against the repo.
 
-**Open questions for Planning:** what remote entry point Claude Code itself already supports (mobile app? web app? some other remote-trigger mechanism) vs. what would need to be built; whether `kanban-board.md`'s concurrent-editing convention (re-read fresh before editing, since another session could be live at the same time) is sufficient as-is for a remote-triggered session or needs anything extra.
+**Abandoned after real use — too clunky for the actual use case.** Once working, reaching the routine from a phone required: open browser → sign in to claude.ai → navigate to Claude Code → Routines → find the routine → tap Run. A bookmarked direct link was offered to cut most of those steps, but Joseph's real ask, once he'd felt the friction, turned out to be different from what was interviewed originally: **most of the time he just wants to drop a placeholder — often triggered by reading an article he wants attached as reference — and do the real interview later, here, not conduct a full remote interview on his phone at all.**
 
-**Done when:** Joseph can, from his phone, trigger a real interview-driven Claude session that ends with a properly-written card landing in `kanban-board.md`, exercised at least once for real (not just built and assumed to work).
+**Redesigned around existing infrastructure instead of building new.** CARD-0128's `open_finding_pr()` (`core/maintenance/open_kanban_pr.py`) already does exactly the "placeholder stub + PR" half — used today by the Pi/M8 update-check scripts, pure GitHub REST API, no `gh` CLI needed, reuses the already-provisioned GitHub PAT (`/etc/jctsh/github.env`). Only needed a new trigger: an email instead of a maintenance-check finding. Interviewed: Gmail plus-addressing (`joscthomas+kbc@gmail.com`) as the recognition mechanism, subject as the card's title/one-liner and body as additional detail (both just flow into `open_finding_pr()`'s single `message` argument), polled from the Pi every 30 minutes.
+
+**Credential detour, real and not small.** Gmail App Passwords turned out to be unavailable on this account even with 2FA on (Google's been phasing them out) — ruled out plain IMAP. Pivoted to Gmail API OAuth2: Joseph created a Google Cloud project + OAuth client (Desktop app type); a one-time local authorization bootstrap script was written to capture the redirect and exchange it for a refresh token. Hit a real snag mid-flow — the redirect landed on `localhost:8765`, but that port was already occupied by an unrelated local dev server on Joseph's machine, so the listener never caught it; recovered by manually extracting the `code` from the page Joseph saw and exchanging it directly via a one-off script instead. Then a second real finding: the first refresh token minted (while the OAuth app was still in "Testing" publish status) carried a `refresh_token_expires_in` of ~7 days — a known Google restriction for sensitive scopes on unverified apps, confirmed by comparing it against an identical token minted immediately after Joseph published the app, which had no expiry field at all. Publishing was the right call, at the cost of Google's standard "unverified app" warning on the one-time consent screen (bypassed via the developer-only "Advanced → Go to... (unsafe)" link, expected/normal for a personal app that hasn't gone through formal verification).
+
+**Built and deployed 2026-08-12:** `core/maintenance/email-idea-check.py` (+ matching `.service`/`.timer`, mirroring `pi-maintenance-check`'s existing systemd pattern exactly) — pure `urllib`, no new dependencies, mints a fresh Gmail API access token from the stored refresh token each run, searches `to:kbc is:unread`, and for each match calls `open_finding_pr()` with a fresh empty state dict per email (dedup is the Gmail `UNREAD` label itself, removed only after a successful PR open, not `open_finding_pr()`'s own single-fingerprint memory — that mechanism is built for "same finding repeated across polls," not "many distinct one-off emails"). Credentials in `/etc/jctsh/email-idea-check.env`, root-owned/600, matching `github.env`'s existing pattern. Timer enabled (every 30 min).
+
+**Verified against real behavior, not just "deployed with no errors":** first run (before any test email existed) correctly found nothing and exited clean, confirming the OAuth/API path itself worked. Joseph then forwarded a real article (a Hackster.io lithium-battery-charger circuit page) to the plus-address — triggered manually rather than waiting for the timer, opened a real PR: **[#9](https://github.com/joscthomas/jctsh/pull/9)**, confirmed via the GitHub API to be open, based on `main`, containing the forwarded email's subject and full body in the stub.
+
+**Real bug found during that same verification, fixed at the source.** PR #9's title came out garbled: `"CARD-XXX: Fwd: ...Hackster.io\n\n-"` — `open_finding_pr()`'s title construction blindly sliced `message[:72]`/`message[:80]` with no awareness of line breaks, so it cut straight through the `subject\n\nbody` boundary into the start of the forwarded email's own header block. Fixed in the shared module (`core/maintenance/open_kanban_pr.py`) with a `_title_line()` helper that derives the title from the message's first line only, then truncates — a no-op for the three existing callers (all already pass single-line messages), only changing behavior for multi-line messages like this new caller's. Deployed to the Pi and confirmed syntax-valid there. **Not yet deployed to the M8** (`photo-server`) — this session has no SSH access to that host (only the Pi has passwordless key auth set up), so `immich-update-check.py`/`container-update-check.py`/`maintenance-check.py` there are still running the old blind-truncation version. Low urgency (cosmetic, only bites when a finding message happens to be long and multi-line, which the M8 scripts' own findings haven't been so far) but worth fixing next time that host is reachable.
+
+**Loose end from the first approach:** the abandoned Claude Code routine did fire once for real (`last_fired_at` shows activity) — almost certainly Joseph tapping "Run" while exploring the clunky web UI before the pivot. Routine is now disabled (routines can't be deleted via the API) so it won't fire again; if that one run started an interview session somewhere, it was never followed up on and is assumed harmless/abandoned.
+
+**Still needed:** add the new 30-minute email-check timer to `jctsh-network.md`'s Scheduled Maintenance Windows table for visibility, matching how every other recurring job on the Pi/M8 is tracked there.
+
+**Done when:** revised from the original (interview-driven remote session) to match what Joseph actually wanted once he'd tried the alternative — from his phone, emailing an idea (subject + optional body, optionally forwarding an article as reference) reliably produces a real, correctly-formatted placeholder-stub PR against `kanban-board.md` within the poll interval, with the real interview/scoping pass happening later in a normal session. **Met**, verified against a real forwarded email producing real PR #9.
+
+**Related:** CARD-0128 (`open_finding_pr()`/`resolve_and_merge()`, the infrastructure this reuses), `core/maintenance/open_kanban_pr.py`, `core/maintenance/email-idea-check.py`, `jctsh-network.md` (pending maintenance-window entry).
 
 ---
 

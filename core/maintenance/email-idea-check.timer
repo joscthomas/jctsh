@@ -1,0 +1,10 @@
+[Unit]
+Description=Every 30 minutes: check for new "jctsh-idea" emails (JCTsh, Pi, CARD-0151)
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+Unit=email-idea-check.service
+
+[Install]
+WantedBy=timers.target

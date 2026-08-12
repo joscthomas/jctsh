@@ -1,0 +1,8 @@
+[Unit]
+Description=Check for new "jctsh-idea" emails and open a placeholder kanban PR (CARD-0151)
+After=network-online.target mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/email-idea-check.py

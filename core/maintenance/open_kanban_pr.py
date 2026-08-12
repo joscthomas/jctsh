@@ -75,9 +75,22 @@ def _pr_still_open(pr_number, token):
         return False
 
 
+def _title_line(message, limit):
+    """First line of `message` only, truncated to `limit` chars -- CARD-0151
+    found live that a blind message[:limit] slice (the original behavior)
+    can cut straight through a message's own "\\n\\n" into unrelated
+    content that happens to follow it (e.g. a forwarded email's header
+    block), producing a garbled multi-line title. Every existing caller
+    passes single-line messages, so splitting on the first line first is
+    a no-op for them -- this only changes behavior for messages that
+    actually contain a newline."""
+    first_line = message.split("\n", 1)[0]
+    return first_line if len(first_line) <= limit else first_line[:limit - 3] + "…"
+
+
 def _render_stub(card_id, component, message, now):
     ts = now.strftime("%Y-%m-%d %H:%M %Z") or now.strftime("%Y-%m-%d %H:%M UTC")
-    title = message if len(message) <= 80 else message[:77] + "…"
+    title = _title_line(message, 80)
     return (
         f"### {card_id} · [enhancement] [infrastructure] {title} — auto-opened from {component}\n"
         f"**Status:** Backlog\n\n"
@@ -128,7 +141,7 @@ def open_finding_pr(component, message, fingerprint, token, state):
     })
 
     pr = _api("POST", f"/repos/{REPO}/pulls", token, {
-        "title": f"CARD-XXX: {message[:72]}",
+        "title": f"CARD-XXX: {_title_line(message, 72)}",
         "head": branch,
         "base": BRANCH_BASE,
         "body": f"Auto-opened by {component}'s maintenance check (CARD-0128).\n\n"

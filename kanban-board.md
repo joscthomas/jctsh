@@ -13,6 +13,27 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-XXX · [enhancement] [infrastructure] Fwd: DIY 3.7V Lithium Battery Automatic Charger Circuit - Hackster.io
+
+------… — auto-opened from jctsh-core
+**Status:** Backlog
+
+**Auto-generated 2026-08-12 21:55 UTC from jctsh-core's maintenance check.** Raw finding: Fwd: DIY 3.7V Lithium Battery Automatic Charger Circuit - Hackster.io
+
+---------- Forwarded message ---------
+From: Joseph Thomas <joscthomas@gmail.com>
+Date: Tue, Aug 11, 2026 at 7:05 PM
+Subject: DIY 3.7V Lithium Battery Automatic Charger Circuit - Hackster.io
+To: Joseph Thomas <joscthomas@gmail.com>
+
+
+DIY 3.7V Lithium Battery Automatic Charger Circuit - Hackster.io
+https://share.google/mCTqvflNfRKgJ8LrI. Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Related:** live dashboard entry at time of generation.
+
+---
+
 ### CARD-0152 · [enhancement] [homeassistant] Expose Samsung Groom TV as its own HA device
 **Status:** Done
 

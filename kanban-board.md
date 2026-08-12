@@ -13,9 +13,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0154 · [enhancement] [infrastructure] Fwd: DIY 3.7V Lithium Battery Automatic Charger Circuit - Hackster.io
-
-------… — auto-opened from jctsh-core
+### CARD-0154 · [enhancement] [infrastructure] Fwd: DIY 3.7V Lithium Battery Automatic Charger Circuit - Hackster.io — auto-opened from jctsh-core
 **Status:** Backlog
 
 **Auto-generated 2026-08-12 21:55 UTC from jctsh-core's maintenance check.** Raw finding: Fwd: DIY 3.7V Lithium Battery Automatic Charger Circuit - Hackster.io

@@ -26,6 +26,8 @@ All device IPs are DHCP-reserved on the router. Update this file when adding a n
 | SmartThings Hub | 192.168.1.112 | — | 24-FD-5B-01-72-23 | Samsung hub — stable IP required for HA integration |
 | photo-server (GMKtec M8) | 192.168.1.165 | photo-server.local | 70-70-FC-09-AD-A5 | Immich photo server + hike-izer-web (Hike-izer HTML hosting, `hikes.jctnet.com` via Cloudflare Tunnel — CARD-0094, switched from Tailscale Funnel 2026-07-27) + photo-tv-display (planned); wired gigabit direct to router; DHCP-reserved |
 | KeepConnect-27F8 (router rebooter) | 192.168.1.108 | esp32-5227F8 | 34-98-7A-52-27-F8 | Not a JCTsh component — see `keepconnect.md`; DHCP-reserved |
+| Samsung Groom TV | 192.168.1.152 | — | 84-C0-EF-D8-5F-FB | Samsung QN75Q75FM; HA integrations: `dlna_dmr` (playback only) + `samsungtv` (WebSocket, power control) — CARD-0152; DHCP-reserved |
+| Denon AVR-X6400H | 192.168.1.204 | — | 00-05-CD-E4-58-3E | HA integration: `denonavr` (SSDP-discovered, telnet); controlled via the Groom TV Chromecast per CARD-0150 — CARD-0152; DHCP-reserved |
 
 ## Tailscale
 

@@ -209,11 +209,11 @@
               entity_id: "{{ repeat.item }}"
       - data:
           title: Traveling Lights
-          message: "{{ now().strftime('%I:%M %p') }} — Turned on: {{ lights_names }}."
+          message: "{{ now().strftime('%I:%M %p') }} — Turned on: {{ lights_names }}. TV: {{ states('media_player.groom_tv') }}."
         action: notify.mobile_app_pixel_10_pro_xl
       - data:
           title: Traveling Lights
-          message: "{{ now().strftime('%I:%M %p') }} — Turned on: {{ lights_names }}."
+          message: "{{ now().strftime('%I:%M %p') }} — Turned on: {{ lights_names }}. TV: {{ states('media_player.groom_tv') }}."
         action: notify.mobile_app_pixel_7_pro
     - conditions:
       - condition: trigger
@@ -228,10 +228,126 @@
               entity_id: "{{ repeat.item }}"
       - data:
           title: Traveling Lights
-          message: "{{ now().strftime('%I:%M %p') }} — Turned off: {{ lights_names }}."
+          message: "{{ now().strftime('%I:%M %p') }} — Turned off: {{ lights_names }}. TV: {{ states('media_player.groom_tv') }}."
         action: notify.mobile_app_pixel_10_pro_xl
       - data:
           title: Traveling Lights
-          message: "{{ now().strftime('%I:%M %p') }} — Turned off: {{ lights_names }}."
+          message: "{{ now().strftime('%I:%M %p') }} — Turned off: {{ lights_names }}. TV: {{ states('media_player.groom_tv') }}."
         action: notify.mobile_app_pixel_7_pro
   mode: single
+- id: '1786600000001'
+  alias: Traveling Mode - Unexpected TV Activity
+  description: >-
+    CARD-0150. Real-time alert both ways if the Groom TV's power state
+    changes while the Traveling Lights toggle is on (Settings > Automations
+    > Traveling Lights -- the same CARD-0098 toggle that gates the
+    presence-simulation lights), since nobody should be home to be using it.
+    Two triggers tagged 'on'/'off', mirroring the Traveling Lights
+    automation's own on/off choose-block pattern. Keys off
+    media_player.groom_tv's Cast-integration state transitioning between
+    off/unavailable/unknown and an in-use state (playing/idle/paused/
+    buffering) -- not a fixed list of states alone -- so each direction
+    fires once per real transition, not on every intra-session state churn
+    (this entity can cycle through playing/idle/paused several times a
+    second during actual use). The 'off' direction exists so that turning
+    the TV off remotely via Google Home after an 'on' alert (the expected
+    response) gets its own confirmation, instead of leaving Joseph to
+    guess whether the remote power-off actually took. Root-cause
+    investigation (CARD-0150) could not pin down what turned the TV on
+    during the July 25-Aug 11 2026 trip -- every source checkable (HA
+    automations, JCTsh/ESP32 logs, Google Home cast activity, TV timers,
+    SmartThings routines) came back clean, and HA's own history for this
+    entity had an unexplained 24h gap over the incident window besides.
+    This automation exists so a repeat is caught live instead of
+    reconstructed after the fact.
+    Each branch waits 2 minutes after the transition, then re-checks the
+    entity is still in the new category before notifying -- a real live
+    test caught this entity dropping to 'unavailable' for ~67s during
+    confirmed active use (a Cast-protocol connectivity blip, not a real
+    power change), which would otherwise fire a false 'off' alert (and
+    likely a follow-up false 'on' alert on recovery). A plain trigger-level
+    `for:` was considered and rejected -- HA's `for` requires the exact
+    same state value to hold the whole time, but this entity legitimately
+    churns between playing/idle/paused/buffering during real use, so a
+    same-value `for` would rarely if ever satisfy during genuine use.
+    The delay-then-recheck-category pattern tolerates that churn while
+    still filtering the observed blip.
+    mode: restart, not single -- a second real live test (off, then back on
+    14s later) caught `single` silently dropping both notifications: the
+    'off' branch's in-progress delay meant the 'on' transition was ignored
+    entirely (not queued), and by the time the 'off' branch's own recheck
+    ran the TV was on again, so it failed its own condition too. `restart`
+    means a newer trigger cancels the in-flight delay and starts over from
+    the latest transition, so rapid back-and-forth collapses into one
+    notification for the final settled state instead of losing both.
+  triggers:
+  - trigger: state
+    entity_id: media_player.groom_tv
+    from:
+    - 'off'
+    - unavailable
+    - unknown
+    to:
+    - playing
+    - idle
+    - paused
+    - buffering
+    id: 'on'
+  - trigger: state
+    entity_id: media_player.groom_tv
+    from:
+    - playing
+    - idle
+    - paused
+    - buffering
+    to:
+    - 'off'
+    - unavailable
+    - unknown
+    id: 'off'
+  conditions:
+  - condition: state
+    entity_id: automation.traveling_lights_evening_on
+    state: 'on'
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: 'on'
+      sequence:
+      - delay: 00:02:00
+      - condition: state
+        entity_id: media_player.groom_tv
+        state:
+        - playing
+        - idle
+        - paused
+        - buffering
+      - data:
+          title: Traveling Mode - TV Alert
+          message: "{{ now().strftime('%I:%M %p') }} — Groom TV turned on (Chromecast status: {{ states('media_player.groom_tv') }}) while traveling."
+        action: notify.mobile_app_pixel_10_pro_xl
+      - data:
+          title: Traveling Mode - TV Alert
+          message: "{{ now().strftime('%I:%M %p') }} — Groom TV turned on (Chromecast status: {{ states('media_player.groom_tv') }}) while traveling."
+        action: notify.mobile_app_pixel_7_pro
+    - conditions:
+      - condition: trigger
+        id: 'off'
+      sequence:
+      - delay: 00:02:00
+      - condition: state
+        entity_id: media_player.groom_tv
+        state:
+        - 'off'
+        - unavailable
+        - unknown
+      - data:
+          title: Traveling Mode - TV Alert
+          message: "{{ now().strftime('%I:%M %p') }} — Groom TV turned off (Chromecast status: {{ states('media_player.groom_tv') }})."
+        action: notify.mobile_app_pixel_10_pro_xl
+      - data:
+          title: Traveling Mode - TV Alert
+          message: "{{ now().strftime('%I:%M %p') }} — Groom TV turned off (Chromecast status: {{ states('media_player.groom_tv') }})."
+        action: notify.mobile_app_pixel_7_pro
+  mode: restart

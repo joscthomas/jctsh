@@ -127,6 +127,23 @@
   }
   .keep-all-btn.active { background: var(--accent); color: var(--accent-ink); }
 
+  /* CARD-0155 "super rule" box -- deliberately not styled like .group (no
+     thumbnails ever live in here), a plain callout instead so it reads as
+     "a rule fired," not "here's a photo to look at." */
+  .super-rule-box {
+    background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 0.9rem 1.1rem; margin-bottom: 0.9rem; font-size: 0.85rem;
+  }
+  .super-rule-box p { margin: 0 0 0.6rem; }
+  .super-rule-box p:last-child { margin-bottom: 0; }
+  .super-rule-pending { border-color: var(--line); color: var(--ink-muted); }
+  .super-rule-note { color: var(--ink-muted); font-size: 0.8rem; font-style: italic; }
+  .super-rule-delete-btn {
+    font-size: 0.85rem; padding: 0.4rem 0.8rem; border-radius: var(--radius);
+    border: 1px solid var(--danger); background: var(--danger); color: white;
+    font-weight: 600; cursor: pointer;
+  }
+
   .toggle-btn {
     font-size: 0.75rem; border: 1px solid var(--line); border-radius: var(--radius);
     padding: 0.25rem 0.55rem; cursor: pointer; background: var(--surface); color: var(--ink-muted); width: 100%;
@@ -241,6 +258,23 @@
     <h2 style="margin-top:0">Marking as Reviewed</h2>
     <p id="dismissProgressText" class="modal-summary-text"></p>
     <div class="progress-bar" id="dismissProgressBar"><div class="progress-bar-fill" id="dismissProgressBarFill"></div></div>
+  </div>
+</div>
+
+<!-- CARD-0155 "super rule" delete-all confirmation -- no itemized list by
+     design (see the box's own comment in review.js): this rule's entire
+     point is not showing these photos, so the confirmation is a count only,
+     same shape/progress treatment as the main Confirm Deletions modal. -->
+<div class="modal-backdrop" id="superRuleModalBackdrop">
+  <div class="modal">
+    <h2 style="margin-top:0">Delete Exact Duplicates from Robin's Library</h2>
+    <p id="superRuleModalSummary" class="modal-summary-text"></p>
+    <p id="superRuleProgressText" class="modal-summary-text"></p>
+    <div class="progress-bar" id="superRuleProgressBar"><div class="progress-bar-fill" id="superRuleProgressBarFill"></div></div>
+    <div class="modal-actions">
+      <button id="superRuleCancelBtn">Cancel</button>
+      <button class="toggle-btn marked-delete" id="superRuleConfirmBtn" style="width:auto">Confirm &amp; Delete</button>
+    </div>
   </div>
 </div>
 

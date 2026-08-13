@@ -245,7 +245,18 @@ async function pendingDeletions(scope = null) {
 // Express app
 // ---------------------------------------------------------------------------
 const app = express();
-app.use(express.json());
+// CARD-0155: express.json()'s default 100kb limit is fine for every existing
+// route (decide/preview/confirm bodies were always bounded by the client's
+// own per-page pagination, ~100 groups/~200 singles at a time -- see
+// review.js's own paging comments). The "super rule" bulk delete-all button
+// broke that assumption: a year can have thousands of qualifying groups, and
+// scoping /api/confirm to all of them in one request is exactly the design
+// (CARD-0028's own pendingDeletions() scope contract) -- found live
+// (Joseph): a 2,529-group year 413'd with "request entity too large" before
+// the request even reached the route handler, so nothing was deleted, but
+// the confirm never ran either. 5mb comfortably covers even a full year's
+// worth of groupKeys (a two-UUID string each) with headroom.
+app.use(express.json({ limit: '5mb' }));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 app.get('/review', (req, res) => res.sendFile(path.join(__dirname, 'public', 'review.html')));
@@ -492,6 +503,87 @@ app.get('/api/motion-check/:assetId', async (req, res) => {
   } catch (err) {
     res.status(502).json({ status: 'error', message: err.message });
   }
+});
+
+// CARD-0155 "super rule": a stricter, UI-different variant of
+// review.js's own maybeAutoSelectGroup() cross-account tie-breaker.
+// Identical filename, fileCreatedAt, and size, plus an exact czkawka
+// perceptual-hash match (difference: 0) on both members of a 2-member
+// cross-account pair, is treated as certain enough that the pair never
+// needs individual review at all -- these never render as photos, they
+// only ever show up as a per-year count. Structural check only (no album
+// call yet) -- the caller below adds the album gate.
+function isSuperRuleCandidate(group, decisions) {
+  if (group.length !== 2) return null;
+  const key = groupKey(group);
+  if (decisions.duplicates[key]) return null; // already decided -- never override
+  const [a, b] = group;
+  if (a.ownerLabel === b.ownerLabel) return null; // must be cross-account
+  const joseph = a.ownerLabel === 'joseph' ? a : b.ownerLabel === 'joseph' ? b : null;
+  const robin = a.ownerLabel === 'robin' ? a : b.ownerLabel === 'robin' ? b : null;
+  if (!joseph || !robin) return null;
+  if (a.originalFileName !== b.originalFileName) return null;
+  if (a.fileCreatedAt !== b.fileCreatedAt) return null;
+  if (a.size == null || a.size !== b.size) return null;
+  if (a.difference !== 0 || b.difference !== 0) return null;
+  return { groupKey: key, joseph, robin };
+}
+
+// Per year: structural candidates (above), then an album-membership gate
+// (Joseph's call, interviewed live CARD-0155) -- if Robin's copy is the one
+// actually linked to an album and Joseph's isn't, that pair is excluded
+// here and falls back to normal per-group manual review instead, same
+// safety reasoning as maybeAutoSelectGroup()'s own album check: losing an
+// album link once Immich's 30-day trash retention expires is a real cost.
+// Motion Photo integrity is deliberately NOT checked here (Joseph's call)
+// -- unlike the client-side tie-breaker, a byte-identical filename/date/
+// size/diff:0 pair is treated as certain enough that a differing motion
+// clip isn't worth gating on.
+const SUPER_RULE_ALBUM_CONCURRENCY = 6;
+
+app.get('/api/super-rule/:year', async (req, res) => {
+  const year = Number(req.params.year);
+  const rawReport = await loadJson(REPORT_PATH, { duplicateGroups: [], broken: [], blurry: [] });
+  const deletedIds = await deletionLog.getDeletedAssetIds();
+  const decisions = await loadDecisions();
+  const dismissedSingleIds = new Set(decisions.dismissedSingles);
+  const stage1 = filterDeletedFromReport(rawReport, deletedIds);
+  const stage2 = filterResolvedFromReport(stage1.report, decisions, dismissedSingleIds);
+
+  const candidates = [];
+  for (const group of stage2.report.duplicateGroups) {
+    if (yearOf(group[0]?.fileCreatedAt) !== year) continue;
+    const candidate = isSuperRuleCandidate(group, decisions);
+    if (candidate) candidates.push(candidate);
+  }
+
+  const qualifiedGroupKeys = [];
+  const excludedByAlbumGroupKeys = [];
+  try {
+    await mapWithConcurrency(candidates, SUPER_RULE_ALBUM_CONCURRENCY, async (candidate) => {
+      const [josephAlbums, robinAlbums] = await Promise.all([
+        immich.getAlbumsForAsset(candidate.joseph.assetId, 'joseph'),
+        immich.getAlbumsForAsset(candidate.robin.assetId, 'robin'),
+      ]);
+      const robinHasAlbum = robinAlbums.length > 0;
+      const josephHasAlbum = josephAlbums.length > 0;
+      if (robinHasAlbum && !josephHasAlbum) {
+        excludedByAlbumGroupKeys.push(candidate.groupKey);
+      } else {
+        qualifiedGroupKeys.push(candidate.groupKey);
+      }
+    });
+  } catch (err) {
+    return res.status(502).json({ status: 'error', message: err.message });
+  }
+
+  res.json({
+    year,
+    candidateCount: candidates.length,
+    qualifiedGroupKeys,
+    qualifiedCount: qualifiedGroupKeys.length,
+    excludedByAlbumGroupKeys,
+  });
 });
 
 // Dry-run: exact list of what /api/confirm would delete right now, without

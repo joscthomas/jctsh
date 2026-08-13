@@ -153,6 +153,67 @@ const SINGLES_PAGE_SIZE = 200;
 let visibleGroupLimit = GROUPS_PAGE_SIZE;
 let visibleSingleLimit = SINGLES_PAGE_SIZE;
 
+// CARD-0155 "super rule" -- static half of the qualifying check (must stay
+// in sync with server.js's own isSuperRuleCandidate): identical filename,
+// date, and size, plus an exact czkawka match (difference: 0), on a
+// 2-member cross-account pair. Checked client-side, from data already in
+// reportData, so a candidate group can be pulled out of the normal
+// Duplicates list (never rendered as photos) the instant a year opens --
+// no round trip needed just to know it must not be shown, only to know
+// whether it *qualifies* for bulk deletion (the album-membership gate,
+// resolved separately below via /api/super-rule/:year).
+function isSuperRuleStaticCandidate(group) {
+  if (group.decision) return false; // already decided -- never override
+  if (group.members.length !== 2) return false;
+  const [a, b] = group.members;
+  if (a.ownerLabel === b.ownerLabel) return false;
+  const hasJoseph = a.ownerLabel === 'joseph' || b.ownerLabel === 'joseph';
+  const hasRobin = a.ownerLabel === 'robin' || b.ownerLabel === 'robin';
+  if (!hasJoseph || !hasRobin) return false;
+  if (a.originalFileName !== b.originalFileName) return false;
+  if (a.fileCreatedAt !== b.fileCreatedAt) return false;
+  if (a.size == null || a.size !== b.size) return false;
+  if (a.difference !== 0 || b.difference !== 0) return false;
+  return true;
+}
+
+// year -> { status: 'pending' } | { status: 'ready', qualifiedKeys: Set,
+// excludedByAlbumKeys: Set, candidateCount }. Cached so re-rendering the
+// same year (paging, hide-decided toggle) doesn't re-fetch the album gate
+// every time -- only a real change (a delete-all run, or a fresh
+// loadReport()) invalidates it.
+const superRuleCacheByYear = new Map();
+
+function invalidateSuperRuleCache(year) {
+  superRuleCacheByYear.delete(year);
+}
+
+// Kicks off (once) the album-gate check for whatever super-rule candidates
+// exist in this year, then re-renders once it resolves. No-op if there are
+// no candidates at all (the common case -- most years have none, so most
+// years never make this call) or a fetch for this year is already in
+// flight/done.
+async function ensureSuperRuleData(year, candidateKeys) {
+  if (candidateKeys.size === 0 || superRuleCacheByYear.has(year)) return;
+  superRuleCacheByYear.set(year, { status: 'pending' });
+  try {
+    const result = await api(`/api/super-rule/${year}`);
+    superRuleCacheByYear.set(year, {
+      status: 'ready',
+      qualifiedKeys: new Set(result.qualifiedGroupKeys),
+      excludedByAlbumKeys: new Set(result.excludedByAlbumGroupKeys),
+      candidateCount: result.candidateCount,
+    });
+  } catch (err) {
+    // Fetch failed -- don't leave these candidates permanently hidden with
+    // no way to review them; drop the cache entry so they fall back into
+    // the normal per-group list on the next render.
+    superRuleCacheByYear.delete(year);
+    showToast(`Could not check the exact-duplicate cleanup rule: ${err.message}`, { isError: true });
+  }
+  if (currentYear === year) renderYear(year, { resetPaging: false });
+}
+
 function renderYear(year, { resetPaging = true } = {}) {
   currentYear = year;
   if (resetPaging) {
@@ -171,9 +232,32 @@ function renderYear(year, { resetPaging = true } = {}) {
   // (yearOf(group[0]?.fileCreatedAt)), so a group's sort position and its
   // year assignment are never based on different members.
   const byDateDesc = (aDate, bDate) => (bDate || '').localeCompare(aDate || '');
-  const allGroups = reportData.duplicateGroups
+  const yearGroups = reportData.duplicateGroups
     .filter((g) => g.year === year)
     .sort((a, b) => byDateDesc(a.members[0]?.fileCreatedAt, b.members[0]?.fileCreatedAt));
+
+  // CARD-0155 "super rule" -- pull structural candidates out of the normal
+  // list before it's ever built, so they're never rendered as photos even
+  // while the album-gate check is still pending (see ensureSuperRuleData).
+  // superRuleHiddenKeys starts as *every* candidate (safe default while
+  // status is 'pending' or not yet requested) and narrows to just the
+  // album-qualified ones once the check resolves -- anything the album gate
+  // excludes falls back into allGroups below instead of disappearing.
+  const superRuleCandidateGroups = yearGroups.filter(isSuperRuleStaticCandidate);
+  const superRuleCandidateKeys = new Set(superRuleCandidateGroups.map((g) => g.groupKey));
+  const superRuleCache = superRuleCandidateKeys.size ? superRuleCacheByYear.get(year) : null;
+  const superRuleHiddenKeys = new Set();
+  if (superRuleCandidateKeys.size) {
+    if (superRuleCache && superRuleCache.status === 'ready') {
+      for (const key of superRuleCandidateKeys) {
+        if (!superRuleCache.excludedByAlbumKeys.has(key)) superRuleHiddenKeys.add(key);
+      }
+    } else {
+      for (const key of superRuleCandidateKeys) superRuleHiddenKeys.add(key);
+    }
+    ensureSuperRuleData(year, superRuleCandidateKeys);
+  }
+  const allGroups = yearGroups.filter((g) => !superRuleHiddenKeys.has(g.groupKey));
   const allBroken = reportData.broken.filter((i) => i.year === year);
   const allBlurry = reportData.blurry.filter((i) => i.year === year);
 
@@ -200,6 +284,38 @@ function renderYear(year, { resetPaging = true } = {}) {
     <input type="checkbox" id="hideDecidedToggle" ${hideDecided ? 'checked' : ''}>
     Hide already-decided items
   </label>`;
+
+  // CARD-0155 "super rule" box -- deliberately no thumbnails here, ever:
+  // this is a count + one bulk action, not a review screen. Three states:
+  // no candidates this year (render nothing), album-gate check still
+  // pending (a lightweight status line), or resolved (the real count +
+  // Delete-all button, plus a note about anything the album gate excluded
+  // so that work doesn't just silently vanish -- same "don't let resolved
+  // work disappear with no trace" convention resolvedCounts/dupHidden
+  // already follow elsewhere on this page).
+  if (superRuleCandidateKeys.size) {
+    if (superRuleCache && superRuleCache.status === 'ready') {
+      const qualifiedCount = superRuleCache.qualifiedKeys.size;
+      const excludedCount = superRuleCache.excludedByAlbumKeys.size;
+      if (qualifiedCount > 0) {
+        html += `<div class="super-rule-box">
+          <p>${qualifiedCount} exact duplicate(s) this year -- identical filename, date, and size across
+          Joseph's and Robin's libraries, exact match. Robin's copy would be moved to Immich's trash and
+          logged; Joseph's copy is kept.</p>
+          <button class="super-rule-delete-btn" id="superRuleDeleteBtn">Delete all ${qualifiedCount} in Robin's library</button>
+          ${excludedCount ? `<p class="super-rule-note">${excludedCount} more matched by filename/date/size but Robin's copy is in an album Joseph's isn't -- reviewed individually below instead.</p>` : ''}
+        </div>`;
+      } else if (excludedCount) {
+        html += `<div class="super-rule-box">
+          <p class="super-rule-note">${excludedCount} exact duplicate(s) matched by filename/date/size, but Robin's copy is in an album Joseph's isn't in every case -- reviewed individually below instead.</p>
+        </div>`;
+      }
+    } else {
+      html += `<div class="super-rule-box super-rule-pending">
+        <p><span class="spinner"></span> Checking ${superRuleCandidateKeys.size} exact-duplicate candidate(s) against the album-safety rule&hellip;</p>
+      </div>`;
+    }
+  }
 
   // Already-resolved items (real Confirm & Delete already ran, a "Keep all"
   // decision, or a bulk-dismissed single) don't appear in
@@ -350,6 +466,14 @@ function renderYear(year, { resetPaging = true } = {}) {
         barEl.classList.remove('active');
         backdrop.classList.remove('open');
       }
+    });
+  }
+  const superRuleDeleteBtn = document.getElementById('superRuleDeleteBtn');
+  if (superRuleDeleteBtn) {
+    superRuleDeleteBtn.addEventListener('click', () => {
+      const cache = superRuleCacheByYear.get(year);
+      if (!cache || cache.status !== 'ready') return;
+      openSuperRuleModal(year, [...cache.qualifiedKeys]);
     });
   }
   wireDuplicateHandlers();
@@ -920,6 +1044,104 @@ document.getElementById('confirmBtn').addEventListener('click', async (e) => {
   } finally {
     confirmBtn.disabled = false;
     cancelBtn.disabled = false;
+  }
+});
+
+// CARD-0155 "super rule" delete-all modal. Deliberately no itemized list
+// (unlike the main Preview/Confirm modal) -- the whole point of this rule is
+// not showing these photos individually, so the confirmation step is a
+// count only, same summary text the box itself already showed. State held
+// in a module-level var and the buttons wired once at load (matching every
+// other modal on this page), rather than adding/removing listeners on each
+// open -- openSuperRuleModal() just repopulates it before showing.
+let superRuleModalState = null; // { year, qualifiedKeys }
+
+function openSuperRuleModal(year, qualifiedKeys) {
+  superRuleModalState = { year, qualifiedKeys };
+  const backdrop = document.getElementById('superRuleModalBackdrop');
+  document.getElementById('superRuleModalSummary').textContent =
+    `${qualifiedKeys.length} exact duplicate(s) (identical filename, date, and size; kept Joseph's copy) ` +
+    `will be moved to Immich's trash from Robin's library and logged.`;
+  document.getElementById('superRuleProgressText').innerHTML = '';
+  document.getElementById('superRuleProgressBar').classList.remove('active');
+  document.getElementById('superRuleProgressBarFill').style.width = '0%';
+  backdrop.classList.add('open');
+}
+
+document.getElementById('superRuleCancelBtn').addEventListener('click', () => {
+  document.getElementById('superRuleModalBackdrop').classList.remove('open');
+  superRuleModalState = null;
+});
+
+document.getElementById('superRuleConfirmBtn').addEventListener('click', async (e) => {
+  const confirmBtn = e.currentTarget;
+  const cancelBtn = document.getElementById('superRuleCancelBtn');
+  if (confirmBtn.disabled || !superRuleModalState) return; // already running -- ignore repeat clicks
+  const { year, qualifiedKeys } = superRuleModalState;
+  const textEl = document.getElementById('superRuleProgressText');
+  const barEl = document.getElementById('superRuleProgressBar');
+  const barFillEl = document.getElementById('superRuleProgressBarFill');
+  confirmBtn.disabled = true;
+  cancelBtn.disabled = true;
+  barEl.classList.add('active');
+  barFillEl.style.width = '0%';
+
+  try {
+    // Phase 1: turn each qualifying group into a real decision the same way
+    // a manual radio click or normal auto-select would (auto:true, its own
+    // autoReason) -- this app has no "decide + delete" combined call, every
+    // other path here goes through /api/decide/duplicate first too.
+    let marked = 0;
+    textEl.innerHTML = `<span class="spinner"></span> Marking decisions: ${marked} of ${qualifiedKeys.length}&hellip;`;
+    await forEachWithConcurrency(qualifiedKeys, BADGE_FETCH_CONCURRENCY, async (key) => {
+      const group = findDuplicateGroup(key);
+      const joseph = group && group.members.find((m) => m.ownerLabel === 'joseph');
+      if (!group || !joseph) return; // stale (already resolved by another tab/session) -- skip, not fatal
+      group.decision = { keepAssetId: joseph.assetId, auto: true };
+      await api('/api/decide/duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          groupKey: key,
+          keepAssetId: joseph.assetId,
+          auto: true,
+          autoReason: "super rule: identical filename, date, and size, exact match -- kept Joseph's copy",
+        }),
+      });
+      marked++;
+      textEl.innerHTML = `<span class="spinner"></span> Marking decisions: ${marked} of ${qualifiedKeys.length}&hellip;`;
+    });
+
+    // Phase 2: the real delete, scoped to exactly these groups -- same
+    // /api/confirm the main Preview/Confirm flow uses, same trash + log.
+    const pollHandle = pollProgress('/api/confirm/progress', 'Deleting', textEl, barEl, barFillEl);
+    let result;
+    try {
+      result = await api('/api/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: { groupKeys: qualifiedKeys, singleAssetIds: [] } }),
+      });
+    } finally {
+      clearInterval(pollHandle);
+    }
+    barFillEl.style.width = '100%';
+    showToast(
+      `Deleted ${result.deletedCount} file(s) from Robin's library.` +
+      (result.failed.length ? ` ${result.failed.length} failed.` : ''),
+      { isError: result.failed.length > 0 }
+    );
+    invalidateSuperRuleCache(year);
+    document.getElementById('superRuleModalBackdrop').classList.remove('open');
+    superRuleModalState = null;
+    await loadReport();
+    if (currentYear) renderYear(currentYear); else renderYearPicker();
+  } catch (err) {
+    showToast(`Delete failed: ${err.message}`, { isError: true });
+  } finally {
+    confirmBtn.disabled = false;
+    cancelBtn.disabled = false;
+    barEl.classList.remove('active');
   }
 });
 

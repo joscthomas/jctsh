@@ -80,6 +80,36 @@ Immich REST API (path idx)─┘         │
    last sanity check) and **Confirm & Delete** (calls Immich's delete API +
    deletion-log for everything currently marked).
 
+### "Super rule" bulk cleanup (CARD-0155)
+
+Per year, above the normal Duplicates list, a duplicate group qualifies for
+the "super rule" if it's a 2-member, cross-account (one Joseph, one Robin)
+pair with **identical filename, identical `fileCreatedAt`, identical file
+size, and czkawka `difference: 0` for both members** -- a stricter,
+UI-different variant of `maybeAutoSelectGroup()`'s own cross-account
+tie-breaker (see "Auto-select" below), treated as certain enough that the
+pair never needs individual review: these photos are **never rendered**,
+not even as thumbnails. Instead they're rolled into a single per-year count
++ "Delete all in Robin's library" button.
+
+Still gated on album membership before a candidate actually qualifies
+(`GET /api/super-rule/:year`, live per-candidate `/albums?assetId=` calls,
+same as the normal auto-select flow) -- if Robin's copy is the one linked to
+an album and Joseph's isn't, that pair is excluded from the bulk bucket and
+falls back to the normal per-group list instead, so an album link isn't
+silently lost. Motion Photo integrity is deliberately **not** checked here
+(Joseph's call) -- unlike normal auto-select, a byte-identical filename/
+date/size/diff:0 pair is treated as certain enough that a differing motion
+clip isn't worth gating on.
+
+"Delete all" reuses the existing pipeline rather than adding a new delete
+path: the client calls `/api/decide/duplicate` (auto:true, its own
+autoReason) for every qualifying group, then `/api/confirm` scoped to just
+those groupKeys -- same Immich trash (`force: false`) and deletion-log
+write every other deletion in this app goes through. The confirmation
+step before that is a count only, no itemized list (per "never shown"
+above) -- a different modal shape than the main Preview/Confirm flow's.
+
 ### Paging and delete scope (revised from the original session-wide design)
 
 A large year (e.g. 2015's 5,128 duplicate groups) is paged client-side --

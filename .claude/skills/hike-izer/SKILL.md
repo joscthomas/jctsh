@@ -16,6 +16,47 @@ specifically (step 4 below). **HTML is the sole output format** (CARD-0091,
 once CARD-0088 gave the HTML output a real public URL and made it unambiguously
 the deliverable Joseph actually reads/shares.
 
+## Most hikes: use the orchestrator's step 1/step 2, not the manual flow below
+
+**CARD-0086/CARD-0112 already automated most of this.** For any hike where
+GPSLogger's `stopped` webhook fired (the normal case whenever the hiking-monitor
+phone workflow was used), **step 1 has already run automatically** and published
+a data-only page at `https://hikes.jctnet.com/<date>_hike-summary.html`
+(`<date>-2`, `-3`, ... for additional same-day sessions, CARD-0113's naming) --
+check there first before falling back to this skill's own manual
+`fetch_hike_data.py` flow below, which duplicates work step 1 already did and
+risks producing a second, inconsistent copy.
+
+**"Run step 2" / "finish the hike page" / "do the enrichment step" for an
+already-published hike means, on the M8:**
+
+```
+ssh jct@100.111.16.14 "docker exec hike-izer-orchestrator python3 generation.py --step2 <date-stem>"
+```
+
+This re-fetches photos (now that Immich has presumably synced), captions them,
+runs the free deterministic enrichment (Nominatim/Overpass Location + Named
+Features tables, extended Sun Position table), and republishes -- reusing the
+`hike_data.json` step 1 already persisted, no need to re-fetch from the
+Environmental Data sheets.
+
+**Never add `--narrative` unless Joseph explicitly asks for it, for that
+specific hike, every single time (CARD-0123, and Joseph's direct correction
+2026-08-13).** Narrative generation is a real, opt-in-only added cost
+(~$0.5-0.8+/hike vs. ~$0.06 for the no-narrative default) -- deliberately made
+opt-in specifically because Joseph doesn't want to pay for it by default, and
+he has removed narrative from published pages before for exactly that reason.
+A generic "run step 2," a past hike having had narrative, or CARD-0112's own
+title/description (which predates and was superseded by CARD-0123's opt-in
+change) are **not** permission -- if it's not clearly and explicitly requested
+for this hike, run `--step2 <date-stem>` alone. If Joseph does ask for the
+rich/narrative version: `--step2 <date-stem> --narrative`.
+
+The fully manual flow below (steps 1-7, calling `fetch_hike_data.py` directly)
+is for hikes with **no automatic trigger at all** -- historical/backfill hikes,
+or ones where the webhook didn't fire -- not the normal path for a recent,
+already-triggered hike.
+
 ## Core model: a hiking event is a detected hike session, not a calendar day
 
 **A hiking event is a single detected hike session** (`is_hike: true` in

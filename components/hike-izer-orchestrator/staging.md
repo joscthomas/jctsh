@@ -108,3 +108,7 @@ anything re-staged — it's already there from last time.
 - `components/hike-izer-orchestrator/generation.py` (`_read_staging()`, `run_step2()`)
 - `components/hike-izer-orchestrator/birdnet.py` (`parse_detections()`)
 - `components/hike-izer-orchestrator/app.py` (`_handle_stage_file`)
+- `components/hike-izer-orchestrator/birdnet-pipeline.md` — what happens to a
+  BirdNET export once it's staged (parsing, rendering, the cross-hike
+  Wildlife Life List); this doc only covers getting it staged in the first
+  place

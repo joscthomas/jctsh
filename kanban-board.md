@@ -9,7 +9,54 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0156 -->
+<!-- next-card-id: CARD-0158 -->
+
+---
+
+### CARD-0157 · [enhancement] [hike-izer] Document the BirdNET Live pipeline — RESOLVED 2026-08-13 20:38 MST
+**Status:** Done
+
+**Raised 2026-08-13 20:38 MST**, Joseph asked how many BirdNET files came in for the 2026-08-13 hike (answer: 1, `birdnet_20260813T170639Z.zip`), then asked whether BirdNET is its own pipeline and where it's documented. Investigation found: fully integrated into hike-izer's own generation pass (not a standalone service — `birdnet.py` is imported directly into `generation.py`, called inline alongside narrative/place-context/photo-captions), and never had a single consolidated architecture doc — the real design was scattered across `birdnet.py`'s own module docstring, `staging.md`'s operational-runbook mentions, and eight separate kanban cards (CARD-0080, 0112, 0119, 0122, 0133, 0136, 0142, 0147), never brought together in one place.
+
+**Done when:** a standing reference doc exists covering the real, current data flow end to end — phone share → webhook → staging (including the CARD-0136 race-condition handling) → parsing (`parse_detections()` for the table, `parse_occurrences()` for Route Map markers) → rendering → the cross-hike Wildlife Life List — verified against the actual source files, not just the kanban cards' own summaries.
+
+**Built:** new file `components/hike-izer-orchestrator/birdnet-pipeline.md`, same shape as the Hiking Observations pipeline's own reference doc from earlier tonight (CARD-0156) — architecture diagram, numbered sections, function-level citations. Cross-referenced from `staging.md`'s own Related section.
+
+**Related:** CARD-0080 (original BirdNET integration), CARD-0112 (staging mechanism), CARD-0119 (staging.md + SSHFS-Win mount), CARD-0122 (automatic phone→server path), CARD-0133 (Route Map occurrence markers), CARD-0136 (hike-end race condition), CARD-0147 (life-list "NEW species" badge), CARD-0156 (same-night companion doc for the Hiking Observations pipeline, same format).
+
+---
+
+### CARD-0156 · [bug] [hiking-monitor] "Log Observation" silently loses voice notes when offline — no retry/queue, unlike GPSLogger — RESOLVED 2026-08-13 19:34 MST
+**Status:** Done
+
+**Raised 2026-08-13 14:34 MST**, found live: Joseph transcribed several voice observations during the 2026-08-13 hike, but the Hiking Observations sheet has zero rows for that day (confirmed directly against the sheet — last real entry 2026-08-05). Root cause traced during the same investigation: the phone likely lost connectivity for part of the hike (same session Immich's background sync also failed, Tailscale offline on the Pixel) — GPSLogger's trackpoints still came through at 96.8% coverage because `gps-pipeline.md`'s own setup has `Discard offline locations: off`, which explicitly "queues failed GETs and retries when connectivity returns." The "Log Observation" Tasker task (`hiking-monitor-claude-code-instructions.md` Step 24) has no equivalent — a plain synchronous `HTTP Request` POST with no queue, and its final `Flash: "Observation logged"` fires unconditionally regardless of whether the POST actually succeeded. So a failed send looked identical to a successful one, and the spoken text itself is unrecoverable — nothing was cached anywhere.
+
+**Interviewed 2026-08-13.** Joseph's call on retry UX (asked via options: auto-queue-and-silently-retry-with-a-queued-notice vs. auto-queue-with-no-notice-until-actually-sent): **no flash on failure/queue at all — accumulate silently, flash only once actually confirmed sent** (immediately if online, or later when the queue flushes on reconnect). Simpler than either original option offered — one unified code path (always queue first, then always attempt a flush), not a "try direct send, fall back to queue on failure" branch.
+
+**Decided design:**
+1. **Log Observation task** (modified): Get Voice → Stop-if-no-input (unchanged) → append `{ts, observation}` to a local queue file (append-only) → call the new **Flush Observation Queue** task inline (covers the immediate-send case: queue of 1, sent right away, so this is not "queue-then-wait" when already online).
+2. **New "Flush Observation Queue" task**: exit silently (no flash) if offline or the queue is empty. Otherwise POST each queued observation to the Apps Script, oldest first, stopping at the first failure (leaves the remainder queued, preserves order — don't skip ahead). Remove only the successfully-sent entries from the queue file. Flash **only** if at least one observation was actually sent this run: `"N observation(s) logged"`.
+3. **New Tasker Profile**: State "Net Connected" (connectivity regained) → triggers Flush Observation Queue. This is what replaces GPSLogger's built-in offline-queue behavior for this pipeline — the actual resilience mechanism, not just the confirmation-message fix.
+4. Build steps to be written as a new numbered continuation of `hiking-monitor-claude-code-instructions.md` (Step 27+), same "Joseph does: / Joseph confirms:" interview-driven format Steps 24–26 already used for CARD-0007 — Tasker configuration has to be done by hand on the Pixel, Claude can't remote into it.
+
+**Done when:** the new steps are built and confirmed on the real device via a real offline test (airplane mode → speak an observation → confirm no flash, confirm nothing in the sheet yet → disable airplane mode → confirm the queued observation posts automatically and the "N observation(s) logged" flash appears), same "Joseph confirms" pattern as every prior step in that doc — not just written instructions.
+
+**Explicitly not in scope here:** CARD-0090 (the recognizer cutting off mid-sentence on pauses) — a separate, already-Deferred issue with the *transcription* itself, not the *delivery* pipeline this card fixes.
+
+**Built and verified live on the real device, 2026-08-13 evening — a much bumpier build than the design above suggested.** Real Tasker behavior on this Pixel diverged from reasonable assumptions in three separate ways, each found only by reading the actual Tasker run log after a failed test, not by inspection:
+1. The For loop's variable had to be renamed from `%qf` to `%qfc` — Tasker flatly rejected `qf` as a variable name (`must be a variable or array name`) regardless of formatting; root cause unconfirmed, but the fix is simple.
+2. List Files on this Tasker version has no bare-filename mode at all — `%queuefiles` items are always full paths. Read File/Delete File were built around that directly; an extra `Variable Search Replace` step was added to strip the path down to a bare epoch timestamp specifically for the outgoing `ts` field (a real test row's timestamp showed `/storage/e...` before this was caught).
+3. Two different attempts at manually detecting HTTP failure (checking `%HTTPR`, then `%err`) both failed on real hardware — `%HTTPR` never resets on a genuine connection failure (stays stuck on the last real response received, even one from far earlier), and `%err` gets reset by *any* subsequent action (a leftover diagnostic Flash silently wiped it before the check could read it). Final design abandoned manual detection entirely: `Continue Task After Error` is off on the HTTP Request action, and Tasker's own native stop-on-error *is* the failure handling — simpler and, unlike the first two attempts, actually confirmed working. Accepted tradeoff: a mid-run failure means earlier successes in that same run don't get their own confirmation flash (data still correctly sent and cleaned up, just no flash that run).
+
+Also found and fixed along the way: the deleted `HTTP Request` action had been pointing at a stale, pre-2026-07-18 Apps Script deployment URL (per `credentials.local.md`'s own redeploy note) — repointed at the current one while rebuilding the action anyway. The Step 27c auto-flush trigger became **two** Tasker Profiles, not one — this version has no unified "Net Connected" state, only per-type options (Wifi Connected, Mobile Network), and a real hiking use case needs both.
+
+All three real-device paths confirmed via actual Tasker run logs: empty-queue silent no-op, successful online send (correct sheet row, correct originally-spoken timestamp), and a genuine offline failure (file remains queued, auto-retried on reconnect, no false-positive flash). Auto-flush-on-reconnect confirmed live via the Wifi Connected profile.
+
+Full build history (including the dead ends) written up in `hiking-monitor-claude-code-instructions.md` Step 27; the resulting current-state architecture is now documented separately in new file `components/hiking-monitor/observations-pipeline.md`, cross-referenced from `data-pipeline.md`'s Hiking Observations Sheet section.
+
+**One real remaining gap, not blocking:** the home-screen `Log Observation` widget got deleted mid-build and re-placing it was intermittently flaky (drag-to-home-screen not always prompting for a task) — testing was done via Tasker's own task list instead, which works identically. Re-placing the widget is a small follow-up, not a new card.
+
+**Related:** CARD-0007 (original "Log Observation" build, Steps 19–26 in `hiking-monitor-claude-code-instructions.md`), CARD-0090 (the deferred, unrelated cutoff issue), `components/hiking-monitor/gps-pipeline.md` (the offline-queue precedent this generalizes), `components/hiking-monitor/phone-workflow.md`, `components/hiking-monitor/observations-pipeline.md` (new standing architecture reference this card produced).
 
 ---
 

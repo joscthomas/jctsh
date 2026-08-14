@@ -104,8 +104,12 @@ Do not add per-device columns — all sources share the same schema.
 | C | `categories` |
 | D | `source` |
 
-Leave it empty for now — this sheet is populated by the hiking observations pipeline
-(future enhancement, see `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`).
+Populated by the phone-side "Log Observation" Tasker pipeline (Steps 24–27,
+CARD-0007/CARD-0156) — voice-transcribed observations, queued locally on the
+phone and retried automatically if offline when spoken. See
+`components/hiking-monitor/observations-pipeline.md` for the current
+architecture, or `hiking-monitor-claude-code-instructions.md` Steps 24–27 for
+the full build history.
 
 ---
 

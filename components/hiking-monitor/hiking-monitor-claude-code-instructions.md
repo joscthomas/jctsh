@@ -883,3 +883,198 @@ The widget is now a single tap to record an observation from anywhere on the hom
 6. Confirm row with categories: `["wildlife","trail"]`
 
 **Joseph confirms:** Both rows correct. CARD-0007 is done — move to Done in backlog.
+
+---
+
+## Step 27 — Hiking Observations: Offline Resilience (CARD-0156)
+
+**Why:** the 2026-08-13 hike lost every spoken observation — the phone had a
+connectivity gap, the `Log Observation` task's plain `HTTP Request` (Step 24,
+Action 3) had no retry, and its `Flash: "Observation logged"` (Action 4) fired
+regardless of whether the POST actually succeeded, so the failure was
+invisible at the time. GPSLogger already solves this for GPS trackpoints via
+`Discard offline locations: off` (`gps-pipeline.md`) — this step gives voice
+observations the same resilience, adapted to Tasker's own action set (Tasker
+has no built-in "queue on failure" the way GPSLogger's custom logger does, so
+it's built by hand here).
+
+**Design (Joseph's call, interviewed 2026-08-13):** no flash at all when
+offline or queued — accumulate silently, flash only once an observation is
+*actually* confirmed sent (immediately if already online, or later when
+connectivity returns). One file per queued observation (filename = the epoch
+timestamp it was spoken at) rather than one shared queue file.
+
+**This section is a record of what was actually built and confirmed working
+live on the Pixel, not the original prospective plan** — several things about
+real Tasker behavior on this device didn't match reasonable assumptions going
+in, each found only by testing and reading the real Tasker run log (Tasker's
+own action-by-action execution log, not guesswork). See
+`components/hiking-monitor/observations-pipeline.md` for the resulting
+architecture as a standing reference; what follows here is the build history.
+
+### Step 27a — "Log Observation" task, final state
+
+Actions 1–2 (Get Voice, Stop-if-no-input) unchanged from Step 24. Actions 3–4
+replace the old direct `HTTP Request`/`Flash`:
+
+3. **Write File** — File: `Tasker/obs_queue/%TIMES` (no `.txt` extension —
+   dropped partway through the build once it became clear List Files/Read
+   File/Delete File don't care about extensions, and skipping it avoids an
+   extra string-strip step downstream to isolate the bare epoch timestamp),
+   Text: `%VOICE`, Append: off, Continue Task After Error: on (a rare write
+   failure shouldn't block attempting a flush of whatever's already queued).
+4. **Perform Task**: `Flush Observation Queue`.
+
+No Flash action anywhere in this task — confirmed silent by design. (A stray
+leftover `Flash: "Observation logged"` briefly survived the Step 3/4
+replacement and had to be deleted separately — if rebuilding this from
+scratch, don't leave it in.)
+
+**Deployment URL correction, found mid-build:** the original `HTTP Request`
+(now deleted) was pointing at an old Apps Script deployment ID
+(`AKfycbx75Gu307...`), not the current one in `credentials.local.md`
+(`AKfycbx9FIywSCFunoBKO7Q2...`, redeployed 2026-07-18 after the old
+deployment's "New version" updates stopped taking effect). Since this whole
+action was being rebuilt anyway, it was repointed at the current deployment.
+GPSLogger's own custom-URL config may have the same stale-URL issue —
+flagged, not yet checked separately.
+
+---
+
+### Step 27b — "Flush Observation Queue" task, final state (12 actions)
+
+1. **List Files** — Directory: `Tasker/obs_queue/`, Variable Array:
+   `%queuefiles`, sorted by name ascending (epoch-timestamp filenames sort
+   chronologically for free), Continue Task After Error: on (so a missing
+   folder on the very first-ever run falls through to the next action's own
+   empty check rather than dying unpredictably).
+   **Real-device finding:** this Tasker version's List Files has no "Full
+   Path" toggle at all — the field simply doesn't exist here. `%queuefiles`
+   items are *always* full absolute paths (e.g.
+   `/storage/emulated/0/Tasker/obs_queue/1786668853`), never bare filenames.
+   Every downstream step had to be built around that, not around the
+   originally-planned bare-filename assumption.
+2. **Stop** — inline `If %queuefiles(#) Eq 0` (this Tasker version supports a
+   condition directly on Stop, no separate If/End If block needed). Nothing
+   queued → silent exit.
+3. **Variable Set** — `%sent_count` To `0`.
+4. **For** — Variable: `%qfc`, Items: `%queuefiles()`.
+   **Real-device finding:** the loop variable was originally named `%qf` —
+   Tasker rejected it every time with `Variable %qf must be a variable or
+   array name`, regardless of formatting (with/without `%`, via the field's
+   picker icon, nothing worked). Renamed to `%qfc` and the error vanished
+   immediately. Root cause unconfirmed (a reserved/shadowed name in this
+   Tasker version, most likely) but the fix is simple: **don't use `qf` as a
+   Tasker variable name on this device.**
+5. **Read File** — File: `%qfc` (no folder prefix — `%qfc` is already the
+   full path, per the List Files finding above), Output: `%obs_text`,
+   Continue Task After Error: **off** (deliberately different from Write
+   File — if reading fails, stopping the whole task immediately is safer
+   than risking a POST with stale/empty `%obs_text` that then gets marked
+   sent).
+6. **Variable Set** — `%obs_ts` To `%qfc`.
+7. **Variable Search Replace** — Variable: `%obs_ts`, Search: `^.*/`
+   (regex — everything up to and including the last `/`), Replace Matches:
+   checked, replacement value left empty. Strips the full path down to just
+   the bare epoch timestamp (e.g. `1786668853`). Needed because `%qfc` being
+   a full path (see List Files finding) meant the original plan's `"ts":"%qf"`
+   would have sent the entire file path as the observation timestamp instead
+   of a clean epoch value — caught live when a real test row's timestamp
+   field showed `/storage/e...` in the sheet.
+8. **HTTP Request** — Method: POST, URL: current Apps Script deployment +
+   `?key=<KEY>`, Headers: `Content-Type: application/json`, Body:
+   `{"component":"hiking-observations","ts":"%obs_ts","lat":null,"lon":null,"observation":"%obs_text","categories":[],"source":"voice"}`,
+   **Continue Task After Error: off.**
+   **Real-device finding, the big one:** the original plan was Continue Task
+   After Error **on**, with an explicit follow-up check to detect failure and
+   `Stop`/`Break` only when needed (preserving the final "N logged" Flash for
+   any earlier successes in the same run). Two different detection attempts
+   both failed on real hardware: (a) checking `%HTTPR` for a non-2xx code —
+   `%HTTPR` turned out to never get reset on a genuine connection failure, it
+   just silently retains whatever value it had from the *last real response
+   received*, even one from far earlier in testing, so a fresh failure looked
+   identical to an old success; explicitly clearing it beforehand
+   (`Variable Clear`/`Variable Set` to blank) had no effect either. (b)
+   switching to Tasker's generic `%err` (set when the immediately-preceding
+   action errors) worked *in principle*, but a leftover diagnostic `Flash`
+   action sitting between HTTP Request and the check silently reset `%err`
+   back to clear before the check ever ran — `%err` reflects only the *most
+   recently completed* action, updating after literally every action, not
+   just HTTP-flavored ones, so anything at all between the request and the
+   check destroys the signal. Given neither approach proved reliable, the
+   final design abandoned manual failure-detection entirely: Continue Task
+   After Error is now **off**, and Tasker's own native behavior (the whole
+   task stops immediately the moment this action errors) *is* the failure
+   handling — Delete File, Variable Add, End For, and the final Flash below
+   are structurally unreachable on a real failure, no separate check needed.
+   Confirmed live: a failed send correctly leaves the file queued and
+   untouched, retried automatically on the next flush attempt, with nothing
+   in the sheet and no flash. **Accepted tradeoff:** if item 2 of 3 fails in
+   one run, item 1's successful send/cleanup is real and permanent, but you
+   won't see a "logged" flash for it that run (the task stops before
+   reaching the Flash step) — cosmetic only, no data impact.
+9. **Delete File** — File: `%qfc`, Continue Task After Error: on (a rare
+   delete failure shouldn't block counting/flashing what was actually sent —
+   small accepted risk of a resend on the next flush if this specific action
+   fails right after a successful POST).
+10. **Variable Add** — `%sent_count` `+1`.
+11. **End For** — Tasker auto-inserted this the moment the For action was
+    created; never had to be added by hand.
+12. **Flash** — inline `If %sent_count > 0`, Text:
+    `%sent_count observation(s) logged`.
+
+**Confirmed live, real device, 2026-08-13:** empty-queue run (silent, no
+error); successful online send (file cleaned up, correct sheet row, correct
+original-spoken timestamp, not flush time); and a genuine offline failure
+(file remains queued, correctly retried on next attempt, no false-positive
+flash) — all three paths verified against real Tasker run logs, not just
+assumed from the action list.
+
+---
+
+### Step 27c — Auto-flush on reconnect: two Profiles, not one
+
+**Real-device finding:** the plan called for a single State → Net → "Net
+Connected" Profile — that literal option doesn't exist in this Tasker
+version's Net-state picker. The real options are separate per connection
+type. Built as **two** Profiles, both pointing at `Flush Observation Queue`:
+
+1. State → Net → **Wifi Connected** → Flush Observation Queue
+2. State → Net → **Mobile Network** → Flush Observation Queue
+
+Both needed — cellular reconnection (the realistic case mid-hike, coming back
+into signal range) doesn't trigger a Wifi-only profile, and home-WiFi
+reconnection doesn't trigger a Mobile-Network-only one.
+
+**Confirmed live:** toggling WiFi back on with a file still queued triggered
+an automatic flush (flash + sheet row) with no manual action needed.
+
+---
+
+### Step 27d — Home screen widget
+
+A `Log Observation` Task Shortcut widget existed from Step 25 but got deleted
+during this build's troubleshooting. Recreating it via long-press home screen
+→ Widgets → Tasker → Task Shortcut → drag to home screen intermittently
+failed to prompt for a task and just vanished (a placement quirk, cause not
+fully diagnosed — possibly needs a genuine long-press-and-drag rather than a
+tap, or more free space on the target home screen page). Testing for the
+rest of this build was done by running `Log Observation` directly from
+Tasker's own Tasks tab (play button) instead, which is functionally
+identical to tapping a widget. Re-placing the widget is a real remaining
+to-do, not blocking — see CARD-0156's own kanban entry.
+
+**CARD-0156 is done** — see `kanban-board.md` for the full resolution
+summary, and `components/hiking-monitor/observations-pipeline.md` for the
+standing architecture reference this build produced.
+
+### Related
+- CARD-0007 / Steps 19–26 above — the original build this hardens.
+- CARD-0090 — separate, deferred issue (the speech recognizer itself cutting
+  off on pauses), not addressed by this step.
+- `components/hiking-monitor/gps-pipeline.md` — the `Discard offline
+  locations: off` precedent this generalizes, and the same
+  possibly-stale-deployment-URL question flagged above.
+- `components/hiking-monitor/observations-pipeline.md` — the current-state
+  architecture reference for this pipeline (this section is the build
+  history, that file is the living reference).

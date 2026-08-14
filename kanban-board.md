@@ -2388,8 +2388,12 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 ---
 
-### CARD-0070 · [enhancement] [hiking-monitor] Replace boost converter with LDO + gate peripheral power for lower standby draw
-**Status:** Build
+### CARD-0070 · [enhancement] [hiking-monitor] Replace boost converter with LDO + gate peripheral power for lower standby draw — DEFERRED 2026-08-14
+**Status:** Defer
+
+**Deferred 2026-08-14, Joseph's call.** Not pursuing the rewiring on the real field device's perfboard. **Neither fix was ever ported to the real hiking-monitor** — per this card's own Sequencing plan, both the LDO and the peripheral gate were only ever built and tested on the CARD-0026 rig prototype (spare ESP32 + spare TP4056), with porting to the real device explicitly planned as the step *after* the rig proved out. The rig confirmed the LDO half works (fixes CARD-0026's ~22.6mA boost-converter quiescent draw); the gate half turned into a real parts-quality debugging saga on the rig (a persistent ~2.78-2.9V leak traced to likely-counterfeit BS250 stock, replacement genuine units ordered but never re-tested) and was never fully proven even there. Given that, opening up the real field device's hand-soldered perfboard for a fix that's only partially validated on a separate rig isn't worth it — **the real hiking-monitor keeps running its original, unmodified boost converter**, exactly as it always has. Living with it as-is.
+
+**Not lost, though — lessons carry forward to future builds:** the MCP1700/BS250 TO-92 pinout identifications, the LDO wiring pattern (`VOUT` → ESP32's `3V3` pin directly, never power from USB and the LDO simultaneously), the gate pull-up requirement (a floating BS250 gate can stay conductive through deep sleep without one), and the counterfeit-parts gotcha (empirically diode-test incoming MOSFET stock, don't trust the datasheet pinout alone against unverified suppliers) are all real, validated findings worth applying the next time this project does a battery-powered sensor build, even though they're not being retrofitted here.
 
 **Notes:** Raised 2026-07-16, directly motivated by CARD-0026's measurement — the test rig's TP4056+boost module draws 22.6mA steady in deep sleep, dominated by the boost stage's always-on quiescent current (est. ~48.7hr / ~2 day runtime on a 1100mAh cell). This matches the existing recommendation in `JCTsh-Build-Standards.md` §2.14 point 7 (prefer direct LiPo→LDO over boost-then-buck) — this card is the concrete follow-through on that recommendation.
 

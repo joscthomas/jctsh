@@ -1,0 +1,11 @@
+[Unit]
+Description=Post-reboot health check -- HA/Node-RED/Mosquitto, published to JCTsh dashboard (CARD-0158)
+After=network-online.target mosquitto.service docker.service
+Wants=mosquitto.service docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/reboot-health-check.py
+
+[Install]
+WantedBy=multi-user.target

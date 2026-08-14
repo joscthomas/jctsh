@@ -9,7 +9,64 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0158 -->
+<!-- next-card-id: CARD-0159 -->
+
+---
+
+### CARD-0158 · [enhancement] [infrastructure] Automated post-reboot health check on the Device Status dashboard
+**Status:** Build
+
+**Raised 2026-08-13 20:53 MST**, during CARD-0129's close-out. That card's pre-check found the Pi had already been rebooted 3 days earlier by its own `scheduled-reboot.timer` (2026-08-10) with nobody noticing — the reboot happened to go fine, but nothing would have surfaced it if it hadn't. Current coverage: the watchdog/heartbeat system (`core/logging/log_server.py` + Node-RED watchdog flow) catches MQTT/Node-RED/log-server going silent, but nothing watches Docker/container health specifically after a reboot — a bad `homeassistant` container recovery, for instance, would go unnoticed until someone happened to check by hand.
+
+**Decided design — mirrors CARD-0127's retained-MQTT-state pattern exactly** (that card fixed the same underlying problem — a dashboard column reflecting "last message logged" instead of "current true state" — for pending updates; this applies the identical fix to reboot health):
+
+1. A small systemd oneshot, triggered shortly after boot (`After=multi-user.target`, or timed a few minutes past the known reboot window), runs the same checklist CARD-0129's resolution used by hand: `docker ps` for `homeassistant` reaching Docker's own `healthy` state (not just "container exists"), `systemctl is-active nodered mosquitto`, HA reachable on the LAN.
+2. Publishes the result as an **MQTT retained message** every run (not just on change), same convention as `immich-update-check.py`: topic `jctsh/core/raspberrypi/reboot-health`, payload along the lines of `{"last_reboot": "<iso ts>", "healthy": true/false, "checks": {...}}`.
+3. `log_server.py` subscribes and tracks it in a dedicated state dict (extending the `_pending_updates`-style pattern CARD-0127 introduced — deliberately not folded into the history-based `_entries`), rendering a new "Last Reboot" column on `/status` that reflects current truth regardless of what else gets logged for that host afterward. Free correctness on log-server restart too, via MQTT's own retained-redelivery — no `_save_state()` work needed, per CARD-0127's own confirmed finding.
+4. Goes one step further than CARD-0127 did: on `healthy: false`, also fire a push notification through the existing watchdog/Alert path — a failed reboot is worth proactively paging for, not just something to notice on the next dashboard visit.
+
+**Open question for Build time:** should this be Pi-only (today's actual gap), or built generically enough to cover the M8's own weekly reboot too (same `scheduled-reboot.timer` pattern there, per `jctsh-network.md`'s Scheduled Maintenance Windows table) — not yet decided, lean toward designing the mechanism generically (component-parameterized, like CARD-0127's own topic ended up) even if only the Pi side is wired up first.
+
+**Done when:** a real Pi reboot (the next scheduled one, 2026-08-17, or a manual test) produces a correct "Last Reboot" entry on `/status` reflecting genuine current health, survives being superseded by an unrelated log message for the same host (the exact CARD-0127 failure mode, re-verified here), survives a log-server restart with no gap, and a simulated `healthy: false` correctly triggers a push notification.
+
+**Built same night, 2026-08-13 evening — everything short of a real reboot
+verified live.** New `core/maintenance/reboot-health-check.py` +
+`reboot-health-check.service` (oneshot, deployed and enabled on the Pi,
+`WantedBy=multi-user.target` so it fires on every future boot). `log_server.py`
+extended with the mirrored `_reboot_health` dict, `/reboot-health` topic
+subscription, and a new "Last Reboot" column on `/status` — same pattern as
+`_pending_updates`, deployed and confirmed live.
+
+**Deviations from the sketch above, decided during Build:** topic ended up
+`jctsh/core/jctsh-core/reboot-health` (component `jctsh-core`, not
+`raspberrypi`) — put on the same dashboard row the existing watchdog
+heartbeat already uses for this host, rather than inventing a second
+pseudo-component row for the same physical Pi. No item-namespacing needed
+(unlike Pending Update) — only ever one reboot-health fact per host. The
+"push notification" piece is the same Alert-category MQTT log message every
+other maintenance script here already uses to get Joseph's attention (not a
+new, separately-verified push path) — consistent with the rest of this
+codebase's notification convention, not a weaker version of what was asked.
+The open question about M8 coverage was left alone — Pi-only for now, but
+the mechanism (component read from the topic, not hardcoded) already
+supports adding an M8 publisher later with zero `log_server.py` changes.
+
+**Verified live on the real device:** a manual run of the script correctly
+reported genuine current state (`homeassistant` reaching Docker's own
+`healthy`, not just "container exists"; Node-RED/Mosquitto active) and the
+*real* 2026-08-10 03:00 boot time, not "now." Dashboard renders both the
+healthy state (green ✓) and a synthetic failure (red ✗, per-check
+breakdown) correctly. Restarted `jctsh-logging` mid-test — the column
+repopulated with zero gap, purely from MQTT's retained redelivery, same
+property CARD-0127 already established for Pending Update.
+
+**Deliberately left unverified tonight, Joseph's call:** an actual full
+system reboot. `reboot-health-check.service` is enabled and will fire
+automatically at the next real boot regardless — **check in 2026-08-17**
+(the next `scheduled-reboot.timer` firing) to confirm it survives a genuine
+cold boot, not just a manual script invocation, before moving this to Done.
+
+**Related:** CARD-0129 (the check that surfaced this gap), CARD-0127 (the retained-MQTT-state pattern this generalizes, full implementation detail there), CARD-0126 (sibling dashboard-visibility work, container-image updates), `core/logging/log_server.py` (`_pending_updates`, `_build_status_html`), `jctsh-network.md` (Scheduled Maintenance Windows table, for the possible M8 extension).
 
 ---
 

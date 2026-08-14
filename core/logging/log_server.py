@@ -58,6 +58,7 @@ _pending     = None                         # current non-heartbeat repeat group
 _hb_groups   = {}                           # component -> active heartbeat collapse group
 _last_seen   = {}                           # component -> most recent entry, regardless of eviction
 _pending_updates = {}                       # CARD-0127: component -> current retained pending-update state
+_reboot_health = {}                         # CARD-0158: component -> current retained post-reboot health state
 # CARD-0137: connection state (online/offline, from the retained /status
 # topic) tracked separately from _last_seen/_entries -- it's a *current fact*
 # the broker guarantees is accurate whenever delivered (whether just
@@ -229,11 +230,21 @@ _STATUS_TOPIC = "jctsh/components/+/status"
 # concurrent fact without anything clobbering anything else.
 _PENDING_UPDATE_TOPIC = "jctsh/+/+/pending-update/+"
 
+# CARD-0158: retained "did this host's core services actually come back
+# healthy after its last reboot" state, published once per boot by e.g.
+# reboot-health-check.py. Same retained-state reasoning as _pending_updates
+# above (CARD-0127) -- this is current truth, not a history entry, so it's
+# kept in its own dedicated dict rather than folded into _entries/_last_seen.
+# No item-namespacing needed the way pending-update has (component/item) --
+# there's only ever one "did the last reboot go okay" fact per host, not
+# multiple concurrent ones.
+_REBOOT_HEALTH_TOPIC = "jctsh/+/+/reboot-health"
+
 
 def _on_connect(client, userdata, flags, rc):
     if rc == 0:
-        client.subscribe([(MQTT_TOPIC, 0), (_STATUS_TOPIC, 0), (_PENDING_UPDATE_TOPIC, 0)])
-        print(f"[MQTT] Connected to {MQTT_BROKER}. Subscribed to {MQTT_TOPIC}, {_STATUS_TOPIC}, {_PENDING_UPDATE_TOPIC}")
+        client.subscribe([(MQTT_TOPIC, 0), (_STATUS_TOPIC, 0), (_PENDING_UPDATE_TOPIC, 0), (_REBOOT_HEALTH_TOPIC, 0)])
+        print(f"[MQTT] Connected to {MQTT_BROKER}. Subscribed to {MQTT_TOPIC}, {_STATUS_TOPIC}, {_PENDING_UPDATE_TOPIC}, {_REBOOT_HEALTH_TOPIC}")
         client.publish(HEARTBEAT_TOPIC, json.dumps({
             "component": "jctsh-core",
             "category":  "System",
@@ -322,6 +333,28 @@ def _on_message(client, userdata, msg):
                 "pending": bool(data.get("pending")),
                 "current": data.get("current"),
                 "latest": data.get("latest"),
+                "ts": ts,
+            }
+        return
+
+    # CARD-0158: retained post-reboot health state —
+    # jctsh/<type>/<component>/reboot-health. Component comes from the topic
+    # (same pattern as /pending-update above), not the payload. Not run
+    # through _store_entry — current state, not a log message.
+    if msg.topic.endswith("/reboot-health"):
+        parts = msg.topic.split("/")
+        if len(parts) != 4:
+            return
+        component = parts[2]
+        try:
+            data = json.loads(msg.payload.decode("utf-8"))
+        except Exception:
+            return
+        with _lock:
+            _reboot_health[component] = {
+                "healthy": bool(data.get("healthy")),
+                "last_reboot": data.get("last_reboot"),
+                "checks": data.get("checks") or {},
                 "ts": ts,
             }
         return
@@ -563,7 +596,7 @@ _STATUS_TEMPLATE = """\
   <h3>Always-on</h3>
   <table>
     <thead><tr>
-      <th>Component</th><th>Connection</th><th>Freshness</th><th>Last Heartbeat</th><th>Last Reading</th><th>Pending Update</th>
+      <th>Component</th><th>Connection</th><th>Freshness</th><th>Last Heartbeat</th><th>Last Reading</th><th>Pending Update</th><th>Last Reboot</th>
     </tr></thead>
     <tbody>
 %%HOME_ROWS%%
@@ -665,6 +698,7 @@ def _build_status_html():
     remote = sorted((c, r) for c, r in comps.items() if r["is_remote"])
     with _lock:
         pending_updates = dict(_pending_updates)
+        reboot_health = dict(_reboot_health)
 
     home_rows = []
     for comp, rec in home:
@@ -711,6 +745,18 @@ def _build_status_html():
             for item, state in sorted(items.items()) if state.get("pending")
         ]
         pu_cell = "; ".join(pending_items) if pending_items else '<span class="dim">—</span>'
+        # CARD-0158: sourced from _reboot_health (retained MQTT state), same
+        # immune-to-being-superseded reasoning as the Pending Update cell
+        # above — a bad reboot must stay visible regardless of whatever else
+        # gets logged for this component afterward.
+        rh = reboot_health.get(comp)
+        if rh is None:
+            rh_cell = '<span class="dim">—</span>'
+        elif rh["healthy"]:
+            rh_cell = f'<span class="online">✓ {escape(str(rh["last_reboot"]))}</span>'
+        else:
+            failed = ", ".join(f"{k}: {v}" for k, v in rh["checks"].items())
+            rh_cell = f'<span class="offline">✗ {escape(str(rh["last_reboot"]))} — {escape(failed)}</span>'
         home_rows.append(
             f'      <tr>'
             f'<td>{escape(comp)}</td>'
@@ -719,6 +765,7 @@ def _build_status_html():
             f'<td>{hb_cell}</td>'
             f'<td class="msg">{rd_cell}</td>'
             f'<td class="msg">{pu_cell}</td>'
+            f'<td class="msg">{rh_cell}</td>'
             f'</tr>'
         )
 
@@ -739,7 +786,7 @@ def _build_status_html():
             f'</tr>'
         )
 
-    no_home   = "      <tr><td colspan='6' class='dim'>No always-on devices in recent log.</td></tr>"
+    no_home   = "      <tr><td colspan='7' class='dim'>No always-on devices in recent log.</td></tr>"
     no_remote = "      <tr><td colspan='3' class='dim'>No mobile devices in recent log.</td></tr>"
     html = _STATUS_TEMPLATE
     html = html.replace("%%HOME_ROWS%%",   "\n".join(home_rows)   or no_home)

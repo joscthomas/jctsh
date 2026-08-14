@@ -9,7 +9,16 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0160 -->
+<!-- next-card-id: CARD-0161 -->
+
+---
+
+### CARD-0160 · [enhancement] [infrastructure] Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3) — auto-opened from photo-server
+**Status:** Backlog
+
+**Auto-generated 2026-08-14 13:30 UTC from photo-server's maintenance check.** Raw finding: Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Related:** live dashboard entry at time of generation.
 
 ---
 

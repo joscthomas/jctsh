@@ -814,8 +814,8 @@ Instinct going in: don't try to unify these into one "status" value — keep the
 
 ---
 
-### CARD-0129 · [enhancement] [infrastructure] Apply Pi's remaining Docker/kernel packages and reboot — waiting until Joseph is home
-**Status:** Build
+### CARD-0129 · [enhancement] [infrastructure] Apply Pi's remaining Docker/kernel packages and reboot — RESOLVED 2026-08-13 20:51 MST
+**Status:** Done
 
 **Blocked — deferred until Joseph is physically home (2026-07-31).** Same reasoning as CARD-0096's own block: the Pi is the household coordination hub (MQTT broker, Node-RED, HA, log server), Joseph is remote as of this writing, and this specific action (a Docker daemon restart plus a full reboot) is exactly the class of higher-stakes change that mitigation exists for — if Tailscale hiccups mid-action (already happened once this session), being on the home LAN removes it as a dependency for the recovery path.
 
@@ -832,6 +832,44 @@ Instinct going in: don't try to unify these into one "status" value — keep the
 6. Run `pi-maintenance-check.py` manually — should report "Nothing pending," same clean end-state CARD-0095 reached for the M8. (Its reboot-detection was itself buggy until fixed same session — see CARD-0125 — so this check is now actually trustworthy, not just optimistic.)
 
 **Done when:** the 7 remaining packages applied, Pi rebooted, `uname -r` confirmed matching the newest installed kernel, every item in step 5's verification list confirmed live — not just "commands ran," the same standard CARD-0095/CARD-0124 held themselves to.
+
+**Resolved 2026-08-13 evening, Joseph home on the LAN as planned — but the scope
+turned out smaller than the plan above.** Pre-check found the card's own
+documented state was stale: `uname -r` showed the Pi already running kernel
+6.18.34 (the one this card said still needed a manual reboot to activate),
+with `uptime` at only 3d17h. Traced to `scheduled-reboot.timer` — last fired
+**2026-08-10 03:00 MST** (next due 2026-08-17) — the routine weekly reboot had
+already picked up the pending kernel/`libc6` on its own, with nothing
+special done for it. Only the 7 Docker packages were genuinely still
+pending (confirmed fresh via `apt list --upgradable`).
+
+**Joseph's call, given the kernel was already live:** apply just the 7
+Docker packages, skip the full reboot — smaller blast radius (no MQTT/
+Node-RED/log-server outage), and the weekly timer will cycle the Pi again in
+4 days regardless. Applied via the same explicit
+`apt-get install --only-upgrade` pattern as the earlier 264-package batch
+(never a blanket `apt upgrade`) — `containerd.io`, `docker-buildx-plugin`,
+`docker-ce`, `docker-ce-cli`, `docker-ce-rootless-extras`,
+`docker-compose-plugin`, `docker-model-plugin`, all installed cleanly, no
+errors.
+
+**Verified live:** `homeassistant` container reached Docker's own `healthy`
+health-check state after the daemon restart (polled, not just "container
+exists"); Node-RED and Mosquitto both active; HA reachable on the LAN
+(`200`); `pi-maintenance-check.timer` survived the Docker daemon restart
+and re-armed correctly for its next monthly run (2026-09-01); a fresh
+manual run of `pi-maintenance-check.py` reports **"Nothing pending."**
+
+**Real gap surfaced, not yet closed:** there's no automated check that
+confirms a *scheduled* reboot (like the one that already quietly fixed the
+kernel on 2026-08-10, or the next one on 2026-08-17) actually came back
+healthy — the existing watchdog/heartbeat system covers MQTT/Node-RED/
+log-server silence, but nothing watches Docker/container health
+specifically post-reboot. Discussed live; no card opened yet for a real
+automated version — next scheduled reboot (2026-08-17) should at least get
+a manual spot-check (`docker ps`, `systemctl is-active nodered mosquitto`,
+dashboard heartbeats, HA reachability, `pi-maintenance-check.py`) using the
+same commands this resolution used.
 
 **Related:** CARD-0125 (the check that surfaced this and applied the routine batch), CARD-0095 (the M8 sibling — this is the exact sequence already proven there tonight, just not yet safe to run remotely on the Pi), CARD-0096 (the precedent for the "wait until home" block and its reasoning).
 

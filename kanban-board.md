@@ -9,7 +9,48 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0163 -->
+<!-- next-card-id: CARD-0165 -->
+
+---
+
+### CARD-0164 · [enhancement] [infrastructure] Samsung ending free SmartThings API access October 2026 — decide pay vs. migrate before then
+**Status:** Backlog
+
+**Raised 2026-08-14 08:35 MST**, found while researching CARD-0146's Ring-live-view question (checking whether SmartThings could expose Ring camera entities to HA — it can't, but that research surfaced this instead). Confirmed directly against HA's own official integration docs (`home-assistant.io/integrations/smartthings/`), not a secondhand summary:
+
+> "Samsung has announced that free access to the SmartThings API will be phased out starting in October 2026. After this date, the SmartThings API access will require a paid Personal Plan subscription ($4.99/month)."
+>
+> "If you use this integration, you will need to either subscribe to Samsung's Personal Plan or migrate your devices (like local Zigbee/Z-Wave devices) before October 2026 to avoid a service disruption."
+
+**Blast radius, confirmed live against this HA instance (not estimated):** queried `integration_entities("smartthings")` directly — well over 100 entities, spanning nearly every category JCTsh depends on SmartThings for: all door/motion/moisture/acceleration sensors, most lights, the garage door open/close switches (`components/automatic-garage-door-opener-closer/`), the front door lock, all Ring presence/motion/doorbell entities, every scene (`good_morning`, `not_home_lights_off`, etc.), the salt-sensor's SmartThings-facing switches, smoke/CO detectors, and more. If the integration breaks, this isn't a narrow feature loss — it's most of the household's automation surface.
+
+**Not yet decided — captured for a deliberate decision before the deadline, not decided here (Joseph's call, 2026-08-14):**
+- **Pay** ($4.99/mo, ~$60/year) — simplest, keeps everything working exactly as-is, no migration effort. Ongoing subscription cost and dependency on Samsung's cloud API either way.
+- **Migrate** — move devices to local protocols (Zigbee/Z-Wave/Matter) where the hardware supports it, removing the SmartThings dependency and its ongoing cost, but real per-device effort: not everything in the entity list above necessarily has a non-SmartThings path (e.g. Ring devices are cloud-only regardless — see CARD-0146's research — so "migrating" doesn't remove Ring's cloud dependency either way, just SmartThings' specific API cutoff for the *other* devices).
+- **Hybrid** — pay short-term while migrating the highest-value/easiest devices opportunistically, not an all-or-nothing choice.
+
+**Timeline:** deadline is October 2026 — roughly 2 months out from when this card was raised. Worth revisiting well before then, not at the last minute, given the entity count involved if migration ends up being the direction.
+
+**Done when:** a direction is chosen (pay, migrate, or hybrid) and, if migrating any devices, each migrated device is confirmed still working via its new integration path before its SmartThings entity is retired — never cut over blind.
+
+**Related:** CARD-0146 (the investigation that surfaced this), `ENVIRONMENT.md` (SmartThings device inventory), CLAUDE.md's SmartThings Integration section.
+
+---
+
+### CARD-0163 · [bug] [logging] Non-heartbeat log entries can get stuck unflushed indefinitely in log_server.py's `_pending` buffer — RESOLVED 2026-08-14 08:30 MST
+**Status:** Done
+
+**Found 2026-08-14 08:17 MST**, while verifying CARD-0161's webhook fix in production. A real, correctly-signed NetAlertX "New device detected" webhook was captured live: HMAC verification confirmed correct three independent ways (Node-RED's own JS re-verification, an independent Python recomputation, and a direct MQTT capture on `jctsh/components/netalertx/log` showing the exact right message with correct event-time). The message never appeared on the log dashboard or in `jctsh.log` despite all of that working correctly — the webhook/Node-RED pipeline was not the problem.
+
+**Root cause, found by reading `log_server.py` directly:** `_store_entry()` buffers every *non-heartbeat* message (any component, any category) in a single-slot module-level `_pending` variable. It only gets written to `_entries`/disk when a **different** `(component, category, message)` arrives afterward and triggers `_flush_pending()`. Heartbeat-prefixed messages go through a completely separate mechanism (`_hb_groups`) and never touch or flush `_pending`. Confirmed live: `state.json`'s `_last_seen.netalertx` held the exact right entry (`count: 3`, correctly deduping two manual replays against the original) — sitting correctly in memory, genuinely never flushed, because nothing else non-heartbeat happened anywhere in the system afterward to bump it out.
+
+**Same class of bug as CARD-0068/CARD-0079, but not covered by that fix.** Those cards added a 15-minute forced-rotation timeout specifically for `_hb_groups` (stuck heartbeat-collapse groups). The general `_pending` singleton has no equivalent timeout safeguard — any single non-heartbeat message, from any component, can sit invisible on the dashboard indefinitely if no other differing message happens to arrive after it. Not netalertx-specific and not webhook-specific; it's a gap in the core buffering logic any component's Alert/System/Sensor message could hit.
+
+**Built and verified live, 2026-08-14:** added `PENDING_MAX_AGE_SEC = 60` and `_flush_aged_pending()` (mirrors `_flush_aged_hb_groups()`'s pattern exactly) to `core/logging/log_server.py`. Deliberately much shorter than `HB_GROUP_MAX_AGE_SEC`'s 15 minutes — these are discrete one-off events meant to be promptly visible, not a collapsing counter tuned for a steady heartbeat stream. The periodic flush thread (renamed `_hb_flush_thread` → `_flush_thread` since it now covers both) checks every `HB_FLUSH_CHECK_INTERVAL` (60s), so worst-case latency is ~60-120s, not indefinite. `_flush_pending()` also fixed to strip the new internal `_started_at` field before writing to `_entries`/disk, matching `_flush_hb_group()`'s existing pattern.
+
+Deployed (`scp` + `sudo systemctl restart jctsh-logging`), confirmed clean restart (`Restored 1000 entries, 10 known components` — state survived). **Live test**: published a one-off Alert message with nothing else to bump it out — confirmed absent from `jctsh.log` immediately after (correctly still pending), then confirmed present after the periodic thread caught it, landing within the expected ~60-120s window. Exactly the failure mode this fixes, reproduced and verified closed.
+
+**Related:** CARD-0161 (webhook fix verification that surfaced this), CARD-0068/CARD-0079 (the analogous `_hb_groups` timeout fix this generalizes), CARD-0078 (original webhook HMAC workaround, confirmed unaffected by this bug), `core/logging/log_server.py`.
 
 ---
 
@@ -33,9 +74,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0161 · [enhancement] [netalertx] Container image updates: netalertx: v26.8.5 available (running 26.7.1) — auto-opened from photo-server
+### CARD-0161 · [enhancement] [netalertx] Container image updates: netalertx: v26.8.5 available (running 26.7.1) — auto-opened from photo-server — RESOLVED 2026-08-14 08:27 MST
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-08-13 06:30 MST**, auto-generated from photo-server's maintenance check (PR #10). The raw finding bundled two updates in one run — `cloudflared: 2026.8.0 available` and `netalertx: v26.8.5 available (running 26.7.1)`. The cloudflared half is stale: CARD-0160 already landed cloudflared 2026.8.2 (newer) from PR #11. This card covers the still-live half: the NetAlertX update.
 
@@ -45,24 +86,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Not a host-reboot update — doesn't need CARD-0129/CARD-0130's home-LAN gating.** That mitigation existed because HA is the household coordination hub and kernel/Docker-engine updates require a host reboot. This is a container-only update with a trivial rollback (redeploy the previous image tag); no reboot involved.
 
-**Done when:**
-1. Container updated to 26.8.5, confirmed via NetAlertX's own version display.
-2. Device database intact post-update (existing named devices still present, not reset).
-3. MQTT publishing still flows to the log dashboard (heartbeat + device state messages).
-4a. Webhook signature verification independently confirmed correct **in production** — trigger a real or test new-device event, capture the actual transmitted payload and `X-Webhook-Signature` header, independently recompute the HMAC, confirm it matches. Same direct method CARD-0089 used against the dev-unsafe build, now against the real running container.
-4b. **Only once 4a passes:** remove the now-unneeded re-serialization workaround from `netalertx.flow.json`. A separate, deliberate follow-up step — not done just because the container came up healthy, and not bundled into the update itself.
-5. CARD-0132's pending-update dashboard state clears (`netalertx`'s topic flips to `pending: false` on the next scheduled maintenance check).
+**Done when (all verified live, 2026-08-14):**
+1. ✅ Container updated to 26.8.5, confirmed via `[Version check] Running the latest version` log line.
+2. ✅ Device database intact — 49 devices before and after, DB migration ran clean.
+3. ✅ MQTT publishing confirmed working (live `mosquitto_sub` capture matched device counts).
+4a. ✅ **Webhook signature verification confirmed correct in production, three independent ways**: Node-RED's own re-verification passing (200 OK, only returned post-verification), an independent Python HMAC recompute against the real captured payload, and a direct MQTT capture of the correctly-composed resulting log message. Found and fixed a real, separate bug along the way (CARD-0163 — the message was correctly verified/composed but got stuck unflushed in the log server's own buffering, not a webhook problem).
+4b. ✅ **Workaround simplified in the repo's `netalertx.flow.json`** now that 4a passed: the `pyJsonDumps()` compact-reserialization reconstruction is removed — HMAC now verifies directly against the raw received bytes, since NetAlertX no longer has the serialization mismatch. **Not yet imported into the running Node-RED instance** — per this repo's convention (edit JSON in repo, Joseph pastes into Node-RED's editor), still needs that manual import step before it's live.
+5. ✅ CARD-0132's pending-update dashboard state cleared (confirmed via retained MQTT topic: `pending: false, current: "26.8.5"`).
 
-**Related:** CARD-0078 (the webhook HMAC workaround this update's fix may let us remove), CARD-0089 (pre-release confirmation of the same fix against `netalertx-dev-unsafe`, including reporting that confirmation back to upstream issue `netalertx/NetAlertX#1720`), CARD-0132 (the pending-update dashboard mechanism this closes out), CARD-0160 (the cloudflared sibling finding from the same maintenance-check run, already landed), `components/netalertx/docker-compose.yml`, `components/netalertx/netalertx.flow.json`, [PR #10](https://github.com/joscthomas/jctsh/pull/10).
+**Related:** CARD-0078 (the webhook HMAC workaround this update's fix let us simplify), CARD-0089 (pre-release confirmation of the same fix against `netalertx-dev-unsafe`, including reporting that confirmation back to upstream issue `netalertx/NetAlertX#1720`), CARD-0132 (the pending-update dashboard mechanism this closes out), CARD-0160 (the cloudflared sibling finding from the same maintenance-check run, already landed), CARD-0163 (the log-server flush bug this verification surfaced and fixed), `components/netalertx/docker-compose.yml`, `components/netalertx/netalertx.flow.json`, [PR #10](https://github.com/joscthomas/jctsh/pull/10).
 
 ---
 
-### CARD-0160 · [enhancement] [infrastructure] Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3) — auto-opened from photo-server
-**Status:** Backlog
+### CARD-0160 · [enhancement] [infrastructure] Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3) — auto-opened from photo-server — RESOLVED 2026-08-14 07:39 MST
+**Status:** Done
 
-**Auto-generated 2026-08-14 13:30 UTC from photo-server's maintenance check.** Raw finding: Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+**Auto-generated 2026-08-14 06:30 MST from photo-server's maintenance check (PR #11).** Raw finding: Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3). Landed as a real kanban card via the old `resolve_and_merge()` path before the interviewed `land_pr_card.py` process (CARD-0162) existed — this note backfills the research and verification that process would normally require up front.
 
-**Related:** live dashboard entry at time of generation.
+**Risk research (checked against cloudflared's actual GitHub releases, not just the raw finding):** `2026.7.3` → `2026.8.0` → `2026.8.1` → `2026.8.2`. Both `2026.8.0` and `2026.8.1` shipped with explicit "Do not use this version" warnings from Cloudflare — `2026.8.0` strips trailing slashes from HTTP-origin requests, causing redirect loops for anything needing canonical trailing-slash URLs (`cloudflare/cloudflared#1717`); `2026.8.1` normalizes request paths, breaking apps that need the raw encoded URL (`cloudflare/cloudflared#1719`). `2026.8.2` is the fix for both, with no further warnings. So this update lands past two known-bad releases straight onto the one that fixes them, not just a routine bump.
+
+**Built and verified live, 2026-08-14 07:39 MST:** baseline confirmed (`hikes.jctnet.com` → HTTP 200 on `cloudflared:latest` pulled 2026-07-23, i.e. `2026.7.3`) before touching anything. `docker compose pull cloudflared && docker compose up -d cloudflared` on the M8 (`~/hike-izer-web-app`). Post-update: `cloudflared version 2026.8.2` confirmed via `docker exec`, tunnel reconnected clean (4/4 edge connections registered, connectivity pre-checks all PASS, `quic` protocol), and — specifically checking for the exact regression class `2026.8.2` fixes — `hikes.jctnet.com` returns `HTTP 200` both with and without a trailing slash, no redirect loop.
+
+**Related:** CARD-0094 (original Cloudflare Tunnel setup), CARD-0162 (the interviewed PR-landing process this update predates), `components/hike-izer-web/docker-compose.yml`.
 
 ---
 
@@ -557,7 +602,7 @@ Both fixes deployed and verified against a fresh regeneration of both real pages
 ---
 
 ### CARD-0146 · [idea] [ring] Show Ring doorbell live video on Gathering room TV
-**Status:** Backlog
+**Status:** Planning
 
 **Raised 2026-08-07 14:18 MST.** When the Ring doorbell detects activity, automatically show its live video feed on the Gathering room TV (the Chromecast/Google TV, per `ENVIRONMENT.md`), interrupting whatever is currently playing. Feed stays up for as long as there's motion/activity at the door, then automatically returns to whatever was playing before.
 
@@ -565,11 +610,43 @@ Both fixes deployed and verified against a fresh regeneration of both real pages
 - Scope: doorbell only (not the other 6 Ring cameras) — live video, not a static snapshot.
 - Trigger: automatic interrupt, not on-demand/voice-command-only.
 - Return-to-previous-content condition: tied to the doorbell's own motion/person-detected state clearing, not a fixed timer.
-- **Open technical question, not yet resolved:** exact mechanism for pushing a live Ring feed to the existing Chromecast/Google TV — e.g. whether Google Home's native camera-to-Chromecast casting (if Ring is linked in the Google Home app) covers this directly, versus needing a Home Assistant-driven cast of the camera stream. Worth investigating both during Planning before committing to an approach.
+
+**Open technical question resolved, 2026-08-14 (researched, then checked live against this HA instance):**
+- **Google Home's native camera-to-Chromecast casting does not support Ring** — confirmed dead end. Longstanding Amazon/Google rivalry limitation: Ring integrates well with Alexa/Echo Show, but Google Home has never supported viewing Ring video, including current 2026 behavior. Not worth further investigation.
+- **Home Assistant is the viable path.** HA ships an official `ring` integration providing `camera.live_view`/`camera.last_recording` entities and a `camera.play_stream` action built for exactly this pattern — HA's own docs use "doorbell event → play stream on a media player" as the canonical example.
+- **Real gap found by checking this HA instance directly (`/api/states`): zero `camera.*` entities exist right now.** JCTsh's Ring devices are integrated via SmartThings only (per `ENVIRONMENT.md`), and that bridge exposes motion/presence/battery for Ring (`binary_sensor.front_doorbell_motion`, `event.front_doorbell_doorbell`, `binary_sensor.gathering_room_cam_motion`, all confirmed live) but never video. **This card requires adding HA's native `ring` integration (direct Ring cloud account auth) alongside the existing SmartThings bridge** — new infrastructure, not a toggle in an existing integration. Known real-world friction to expect: Ring's cloud API needs periodic re-auth/2FA handling, and some users report Cast-protocol/stream-format mismatches — worth an early Build-phase smoke test before wiring the full automation.
+- **Target entity confirmed, already exists, already automated:** `media_player.groom_tv` ("GRoom TV Chromecast") — confirmed via HA's area registry to be in the "GRoom" (Gathering Room) area, the same entity the Traveling Mode TV automation already manipulates. No new discovery needed for the cast target.
+
+**Plan, written 2026-08-14 (not yet built):**
+1. **Add HA's native `ring` integration** (Settings → Devices & Services → Add Integration → Ring), authenticating with the same Ring account already tied to the physical devices (not a new account) — expect a 2FA prompt during setup. Credential handling: no separate password needed beyond the Ring account login itself; note in `credentials.local.md` that HA now holds a direct Ring session alongside the existing SmartThings bridge, since a future SmartThings credential rotation won't affect this new integration and vice versa.
+2. **Confirm the real camera entity ID** once the integration is live — don't assume a name (e.g. `camera.front_door_live_view`); read it from `/api/states` the same way the target `media_player.groom_tv` was confirmed above. Also check whether the integration adds its own motion/person `binary_sensor`/`event` entities for the doorbell, duplicating `binary_sensor.front_doorbell_motion`/`event.front_doorbell_doorbell` from the SmartThings bridge — decide which source drives the automation (likely the native Ring entities, to stay in one integration's event timing rather than mixing two).
+3. **Manual smoke test before building the automation**: call `camera.play_stream` by hand (Developer Tools → Actions) targeting `media_player.groom_tv` with the new camera entity, confirm live video actually renders on the physical TV — the research above flagged real-world reports of Cast-protocol/stream-format mismatches with Ring's feed, so this needs to be proven working in isolation before it's wired into an automation that also has to handle interrupt/restore logic.
+4. **Build the automation**, informed by the real bugs already found building `media_player.groom_tv`'s other automation (Traveling Mode TV alert, CARD-0117-ish — see `automations.yaml`):
+   - Trigger: the doorbell motion/person-detected entity chosen in step 2.
+   - Action: capture `media_player.groom_tv`'s current state/source (template variable, same pattern as needed for accurate restore) → `camera.play_stream` with the Ring camera entity as target.
+   - Reversion: second trigger on the same entity's activity clearing → restore the captured prior state. Use `mode: restart` from the start (not `mode: single`) — CARD-117-ish's own history found `single` silently drops a rapid re-trigger (e.g. a second doorbell ring while the feed is already showing), exactly the failure mode to avoid here.
+   - Open judgment call for Build time, not decided here: whether to add a max-timeout safety net in case the motion/person entity gets stuck "on" (Cast-integration connectivity blips have caused stuck/false states elsewhere in this repo) — interview notes say tied to state-clearing not a fixed timer, but a safety-net upper bound may still be worth it. Confirm with Joseph before adding one, since it changes the stated acceptance criteria.
+5. **Real live test, not just config validation** — actually trigger the doorbell for real, confirm the TV interrupts with live video and reverts correctly, and specifically test the rapid-re-ring case given the `mode: restart` lesson above.
+
+**Steps 1-2 done, 2026-08-14:** native `ring` integration connected (Joseph, via HA UI with his existing Ring account + 2FA). Confirmed via `/api/states`: camera entity is `camera.doorbell_live_view` ("Doorbell Live view") — distinct from `camera.front_door_live_view`, a separate physical camera. The integration also created its own `event.doorbell_ding` (press) and `event.doorbell_motion` (motion), separate from the old SmartThings-sourced `binary_sensor.front_doorbell_motion`/`event.front_doorbell_doorbell` — using the native Ring entities for the automation trigger per the plan's stated preference (stay within one integration's event timing).
+
+**Step 3 (smoke test) found a hard blocker, 2026-08-14 — both paths through HA's official `ring` integration are dead ends, not just risky:**
+1. `camera.play_stream` targeting `media_player.groom_tv` with `camera.doorbell_live_view` **failed outright**: `camera.doorbell_live_view does not support play stream service`. Read the actual installed source (`homeassistant/components/ring/camera.py`) directly — it has no `stream_source()` method at all. Live view is implemented via **WebRTC** signaling (`async_handle_async_webrtc_offer`), not the RTSP/HLS pathway `camera.play_stream` requires. This is architectural, not a config problem — confirmed by reading HA core's own `_async_stream_endpoint_url`, which raises exactly this error whenever `camera.async_create_stream()` returns nothing.
+2. Tried the community-known fallback instead: `media_player.play_media` pointed at the camera's `camera_proxy_stream` endpoint. The call succeeded (HTTP 200) and did put something on the physical TV — but Joseph confirmed live: **it showed a recording from the previous day, not a live feed.** Matches the entity's own attributes (`video_url` pointing at a downloaded MP4 of the *last recorded event*, `last_video_id`) — this proxy endpoint surfaces cached/recorded content, not real-time video, for this entity. Stopped the playback immediately once confirmed (`media_player.media_stop`) rather than leaving a random old clip on the TV.
+
+**Net finding: HA's official `ring` integration cannot deliver genuine live view to a Chromecast/TV via any standard HA mechanism.** Ring's real live view is a WebRTC point-to-point session (what the Ring app and HA's own dashboard camera card use) — not something exposable through `stream_source()` or a static proxy URL.
+
+**Third path identified, not yet pursued:** `tsightler/ring-mqtt` — a well-established third-party project providing an RTSP gateway for Ring cameras specifically so `camera.play_stream` can work. Real tradeoffs to weigh before committing: it's a separate service to deploy and maintain (its own Docker container/HA add-on, own MQTT account — comparable scope to onboarding NetAlertX or Immich, not a quick add-on), Ring itself caps continuous live-view sessions at roughly 10 minutes before force-terminating (likely fine for a doorbell visit, but a real constraint worth naming), and community reports (GitHub discussions, HA community forum) describe real reliability challenges getting RTSP casting to Chromecast specifically working, not just live view within HA's own dashboard.
+
+**Fourth path checked and also ruled out, 2026-08-14:** Joseph noted SmartThings' own app shows live video for Ring cameras — checked whether HA's SmartThings bridge could expose that as a `camera.*` entity instead of the direct Ring integration. Confirmed live: queried `integration_entities("smartthings")` against this HA instance directly — zero camera/video-domain entities anywhere in it, only the same motion/battery/lock/switch set `ENVIRONMENT.md` already documented. Confirmed why, not just that: HA's SmartThings integration's new camera support (2026.2+) is tied to SmartThings' Matter 1.5 camera rollout, currently limited to a small set of new Matter-partner cameras (Aqara, Eve, Xthings) — Ring isn't Matter and isn't among them. SmartThings' own live view is a SmartThings-app-native capability, not something its HA bridge exposes.
+
+**Decision needed before continuing — not made here:** pursue `ring-mqtt` as new infrastructure, or park this card (Backlog/Defer) given the added scope/uncertainty this discovery introduced.
+
+**Unrelated but significant finding surfaced during this research:** Samsung is ending free SmartThings API access in October 2026 — affects the entire SmartThings bridge (100+ entities), not just Ring. Spun out to its own card: CARD-0164.
 
 **Done when:** doorbell motion/person-detected reliably interrupts the Gathering room TV with live doorbell video, and playback automatically reverts to the prior content once the doorbell's activity state clears.
 
-**Related:** CARD-0145 (companion card — audible Ring motion notification on Google Home), `ENVIRONMENT.md` (existing Ring camera + Chromecast/Google TV inventory).
+**Related:** CARD-0145 (companion card — audible Ring motion notification on Google Home), CARD-0164 (SmartThings API deadline, surfaced while researching this card), `ENVIRONMENT.md` (existing Ring camera + Chromecast/Google TV inventory).
 
 ---
 

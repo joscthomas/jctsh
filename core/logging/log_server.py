@@ -35,6 +35,7 @@ _TZ                = ZoneInfo("America/Phoenix")
 HEARTBEAT_TOPIC    = "jctsh/core/log-server/log"
 HEARTBEAT_INTERVAL = 3600
 HB_GROUP_MAX_AGE_SEC = 900   # rotate a pending heartbeat group after this long, even if still receiving fresh heartbeats
+PENDING_MAX_AGE_SEC = 60     # CARD-0163: force-flush the single-slot non-heartbeat _pending entry after this long, even with no other message to bump it out — these are discrete events, not collapsing counters, so the bound is much tighter than HB_GROUP_MAX_AGE_SEC
 HB_FLUSH_CHECK_INTERVAL = 60
 HTTP_PORT   = 80
 _REMOTE_COMPONENTS     = {"coachproxyos"}
@@ -167,8 +168,9 @@ def _flush_pending():
     """Move pending entry into the display deque and write to file. Caller must hold _lock."""
     global _pending
     if _pending:
-        _entries.append(dict(_pending))
-        _file_logger.info(_format_line(_pending))
+        entry = {k: v for k, v in _pending.items() if not k.startswith("_")}
+        _entries.append(entry)
+        _file_logger.info(_format_line(entry))
         _pending = None
 
 
@@ -206,6 +208,26 @@ def _flush_aged_hb_groups():
     for component in aged:
         _flush_hb_group(component)
     if aged:
+        _save_state()
+
+
+def _flush_aged_pending():
+    """CARD-0163: force-flush the single-slot non-heartbeat _pending entry if
+    it's been open too long, regardless of whether anything else has arrived
+    to bump it out.
+
+    _pending holds at most one entry system-wide (any component/category) and
+    only flushes when a *different* (component, category, message) arrives
+    afterward -- found live when a real NetAlertX webhook Alert sat correctly
+    computed in _pending, confirmed via state.json, but never reached the
+    dashboard because nothing else non-heartbeat happened anywhere in the
+    system to displace it. Unlike HB_GROUP_MAX_AGE_SEC (15 min, tuned for
+    collapsing a steady stream of same-shape heartbeats), these are meant to
+    be discrete, promptly-visible events, so the bound is much tighter.
+    Caller must hold _lock."""
+    global _pending
+    if _pending and time.time() - _pending.get("_started_at", time.time()) >= PENDING_MAX_AGE_SEC:
+        _flush_pending()
         _save_state()
 
 
@@ -291,6 +313,7 @@ def _store_entry(component, category, message, ts):
             _pending = {
                 "ts": ts, "component": component,
                 "category": category, "message": message, "count": 1,
+                "_started_at": time.time(),
             }
         _last_seen[component] = _pending
     _save_state()
@@ -1502,12 +1525,13 @@ def _heartbeat_thread():
         time.sleep(HEARTBEAT_INTERVAL)
 
 
-# ── Heartbeat-group flush thread ─────────────────────────────────────────────
-def _hb_flush_thread():
+# ── Aged-entry flush thread (heartbeat groups + CARD-0163's pending slot) ────
+def _flush_thread():
     while True:
         time.sleep(HB_FLUSH_CHECK_INTERVAL)
         with _lock:
             _flush_aged_hb_groups()
+            _flush_aged_pending()
 
 
 # ── MQTT thread ───────────────────────────────────────────────────────────────
@@ -1540,7 +1564,7 @@ if __name__ == "__main__":
     t = threading.Thread(target=_mqtt_thread, daemon=True)
     t.start()
     threading.Thread(target=_heartbeat_thread, daemon=True).start()
-    threading.Thread(target=_hb_flush_thread, daemon=True).start()
+    threading.Thread(target=_flush_thread, daemon=True).start()
     httpd = ThreadingHTTPServer(("", HTTP_PORT), _Handler)
     print("[JCTsh] Dashboard at http://JCTsh.local/")
     signal.signal(signal.SIGTERM,

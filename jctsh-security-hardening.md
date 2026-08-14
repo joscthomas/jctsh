@@ -98,7 +98,7 @@ Port inventory (post-remediation):
 |------|---------|-------------|
 | 22 | sshd | LAN + Tailscale — key auth only (fixed in Step 2) |
 | 80 | log server (python3) | LAN + Tailscale — not internet-forwarded |
-| 443 | nginx (Tailscale HTTPS proxy for HA) | Tailscale-only in practice — cert is for `raspberrypi.tailfe828a.ts.net`, LAN access yields cert error; not internet-forwarded |
+| 443 | nginx (Tailscale HTTPS proxy for HA) | Tailscale-only in practice — cert is for `pi1.tailfe828a.ts.net`, LAN access yields cert error; not internet-forwarded |
 | 1880 | Node-RED | LAN + Tailscale — not internet-forwarded |
 | 1883 | Mosquitto | LAN + internet via DuckDNS/port-forward at time of this audit (2026-06-20) — INTENTIONAL; required for ESP32 hotspot connectivity (hiking-monitor, CARD-0008); mitigated by fail2ban + strong credentials; TLS pending (CARD-0003). **Superseded 2026-07-13:** CARD-0003 completed — 1883 is no longer forwarded to the internet (LAN-only now); the roaming-device path moved to TLS on 8883, see that card. |
 | 8123 | Home Assistant | LAN + Tailscale — not internet-forwarded; external access via Nabu Casa |
@@ -152,7 +152,7 @@ Router port forwarding confirmation (1880, 8123) requires home WiFi access to `1
 **Done when:** MFA status is confirmed and tailnet device list is reviewed and clean.
 
 **Findings (2026-06-20):** PARTIAL. Device list via `tailscale status` — 4 devices, all under `joscthomas@`, all recognized:
-- `100.70.162.24` raspberrypi (linux) — home Pi
+- `100.70.162.24` pi1 (linux) — home Pi
 - `100.90.246.43` coachproxyos (linux) — RV Pi, offline
 - `100.112.116.79` desktop-fqbdl5b (windows) — Joseph's Windows machine
 - `100.126.154.88` jct-pixel-10-pro-xl (android) — Pixel phone

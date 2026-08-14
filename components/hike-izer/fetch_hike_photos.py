@@ -29,7 +29,7 @@ exclude manifest entries that belong to a different day's hike.
 
 Usage:
     python fetch_hike_photos.py --data hike_data.json \
-        --immich-url http://photo-server.local:2283 --immich-key <API_KEY> \
+        --immich-url http://m8.local:2283 --immich-key <API_KEY> \
         --out-dir hike-izer/summaries/2026-06-18_photos
 
 Standard library only -- no pip install required.
@@ -104,7 +104,7 @@ def _ext_for_mime(mime_type):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--data', required=True, help='Path to hike_data.json from fetch_hike_data.py')
-    ap.add_argument('--immich-url', required=True, help='Immich base URL, e.g. http://photo-server.local:2283')
+    ap.add_argument('--immich-url', required=True, help='Immich base URL, e.g. http://m8.local:2283')
     ap.add_argument('--immich-key', required=True, help='Immich API key')
     ap.add_argument('--out-dir', required=True, help='Directory to write downloaded media + manifest.json into')
     args = ap.parse_args()

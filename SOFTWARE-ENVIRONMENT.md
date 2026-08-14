@@ -6,7 +6,7 @@ Reference for what is installed and running on the home Pi. Useful for rebuildin
 
 | Property | Value |
 |---|---|
-| Hostname | `raspberrypi.local` / `192.168.1.117` (DHCP reserved) |
+| Hostname | `pi1.local` / `192.168.1.117` (DHCP reserved) |
 | Tailscale IP | `100.70.162.24` |
 | OS | Debian GNU/Linux 13 (Trixie) |
 | Architecture | `aarch64` (ARM64) |
@@ -26,7 +26,7 @@ All services start automatically at boot. None require manual intervention under
 | Managed by | Docker (`unless-stopped` restart policy) |
 | Compose file | `core/homeassistant/docker-compose.yml` (repo) → `/home/pi/docker-compose.yml` (Pi) |
 | Config volume | `/mnt/jctsh-logs/homeassistant` → `/config` inside container (moved off the SD card by CARD-0159) |
-| Web UI | `http://raspberrypi.local:8123` |
+| Web UI | `http://pi1.local:8123` |
 | External access | Nabu Casa (HA Cloud) — account `joscthomas@gmail.com` |
 
 DNS is explicitly pinned to `8.8.8.8` / `8.8.4.4` in both the compose file and `/etc/docker/daemon.json`. This prevents a recurrence of the June 2026 outage where a stale DHCP-assigned DNS server in the container caused total cloud connectivity loss.
@@ -68,7 +68,7 @@ sudo chown root:mosquitto /etc/mosquitto/passwd   # required after any passwd ch
 | Node.js | v22.22.2 |
 | Managed by | systemd (`nodered.service`) |
 | Run as | `pi` user, working dir `/home/pi` |
-| Web UI | `http://raspberrypi.local:1880` |
+| Web UI | `http://pi1.local:1880` |
 | Settings | `/home/pi/.node-red/settings.js` |
 
 Version-controlled settings snapshot: `core/node-red/settings.js`.
@@ -89,13 +89,13 @@ sudo systemctl status nodered
 | Managed by | systemd (`jctsh-logging.service`) |
 | Script | `/home/pi/jctsh/core/logging/log_server.py` |
 | Credentials | `/etc/jctsh/log-server.env` (injected via systemd `EnvironmentFile`) |
-| Web UI | `http://raspberrypi.local/` (port 80, HTTP Basic Auth — user: `jctsh`) |
+| Web UI | `http://pi1.local/` (port 80, HTTP Basic Auth — user: `jctsh`) |
 | MQTT topic | Subscribes to `jctsh/#` |
 
 To deploy an updated script:
 ```bash
-scp core/logging/log_server.py pi@raspberrypi.local:/home/pi/jctsh/core/logging/
-ssh pi@raspberrypi.local "sudo systemctl restart jctsh-logging"
+scp core/logging/log_server.py pi@pi1.local:/home/pi/jctsh/core/logging/
+ssh pi@pi1.local "sudo systemctl restart jctsh-logging"
 ```
 
 ### Tailscale
@@ -143,7 +143,7 @@ Version-controlled unit files: `core/maintenance/scheduled-reboot-pi.service` (d
 `scheduled-reboot.timer`). `Persistent=true` — if the Pi is powered off at the scheduled
 time, it reboots on next boot instead of skipping the week.
 
-Staggered one hour ahead of the M8 photo-server's own weekly reboot (Monday 4:00 AM) so the M8's heartbeat script isn't trying to publish to Mosquitto while the Pi is mid-reboot. See `components/photo-server/operations.md`.
+Staggered one hour ahead of the M8's own weekly reboot (Monday 4:00 AM) so the M8's heartbeat script isn't trying to publish to Mosquitto while the Pi is mid-reboot. See `components/m8/operations.md`.
 
 To check: `systemctl list-timers scheduled-reboot.timer`
 

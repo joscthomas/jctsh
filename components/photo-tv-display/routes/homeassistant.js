@@ -35,7 +35,7 @@ async function startSlideshow(port) {
     method: 'POST',
     body: {
       entity_id: TV_ENTITY_ID,
-      media_content_id: `http://photo-server.local:${port}/tv`,
+      media_content_id: `http://m8.local:${port}/tv`,
       media_content_type: 'url',
     },
   });

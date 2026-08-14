@@ -111,7 +111,7 @@ After flashing, confirm all of the following before proceeding to Step 6:
 - [ ] **Pressure** — plausible reading. Tucson is ~750m elevation; expect ~925 hPa (not sea-level ~1013 hPa)
 - [ ] **Illuminance** — changes when a light source is moved near/away from the BH1750
 - [ ] **All four entities** visible in HA under the front-porch-temp-sensor device
-- [ ] **Log messages** appearing in dashboard at `http://raspberrypi.local/` (Basic Auth, user: `jctsh`)
+- [ ] **Log messages** appearing in dashboard at `http://pi1.local/` (Basic Auth, user: `jctsh`)
 - [ ] **Heartbeat** appearing in log dashboard every 5 minutes
 
 ---
@@ -128,7 +128,7 @@ After flashing, confirm all of the following before proceeding to Step 6:
 | Humidity reads NaN | Counterfeit BMP280 (not BME280) | Replace sensor module |
 | Pressure ~1013 hPa | Sea-level pressure reported | Not an error — sensor is working; Tucson reading is correct at ~925 hPa |
 | HA device not discovered | MQTT discovery off | Verify `discovery: true` in YAML |
-| Log messages not in dashboard | MQTT account issue or log server down | Check `http://raspberrypi.local/` — confirm log server running |
+| Log messages not in dashboard | MQTT account issue or log server down | Check `http://pi1.local/` — confirm log server running |
 
 ---
 
@@ -148,4 +148,4 @@ Heartbeat visible in dashboard: yes — firing every 5 minutes
 **Deviations from expected:**
 - Podazz BME280 3-pack (all 3 units) are counterfeit BMP280 — "Wrong chip ID" error on BME280 driver. Temporarily running `bmp280_i2c` platform. Genuine BME280 modules ordered; swap back documented in YAML comments.
 - First 1–2 heartbeats after boot report `temp: unavailable` — expected. BMP280 `update_interval: 60s` means the first reading hasn't completed before the 5-minute heartbeat fires immediately at boot. Third heartbeat correctly shows temperature.
-- `raspberrypi.local` occasionally fails DNS resolution on first attempt (IPv6/mDNS issue). MQTT reconnects automatically via IP on retry — not a blocker.
+- `pi1.local` occasionally fails DNS resolution on first attempt (IPv6/mDNS issue). MQTT reconnects automatically via IP on retry — not a blocker.

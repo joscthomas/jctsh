@@ -64,7 +64,7 @@ SEN55 (I2C 0x69, via Adafruit #5964 adapter) ── ESP32 DevKitC-32 (ESPHome)
                                     Home mode: WiFi replay to MQTT
                                                       │ MQTT
                                                       ▼
-                                    Mosquitto broker (raspberrypi.local:1883)
+                                    Mosquitto broker (pi1.local:1883)
                                          │
                                          └──► Node-RED
                                                 │ routes /log → Python log server

@@ -3,7 +3,7 @@
 
 Checks apt-upgradable packages and whether the running kernel is stale.
 Notify-only, never applies anything itself -- same policy as the M8's
-components/photo-server/maintenance-check.py.
+components/m8/maintenance-check.py.
 
 No firmware-check step here, unlike the M8 version: confirmed live
 2026-07-31 that this Pi (a 3B+) has no EEPROM bootloader

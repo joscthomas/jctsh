@@ -17,10 +17,10 @@ Source of truth is this repo — edit here, then copy to the M8 (do not edit
 directly on the M8):
 
 ```bash
-scp package.json server.js .env jct@photo-server.local:~/photo-tv-display/
-scp routes/*.js jct@photo-server.local:~/photo-tv-display/routes/
-scp public/* jct@photo-server.local:~/photo-tv-display/public/
-ssh jct@photo-server.local "cd ~/photo-tv-display && npm install"
+scp package.json server.js .env jct@m8.local:~/photo-tv-display/
+scp routes/*.js jct@m8.local:~/photo-tv-display/routes/
+scp public/* jct@m8.local:~/photo-tv-display/public/
+ssh jct@m8.local "cd ~/photo-tv-display && npm install"
 ```
 
 ## systemd service

@@ -43,7 +43,7 @@ via manual `systemctl start reboot-complete.service`.
 | Schedule | Daily, 6:00 AM (`America/Phoenix`) |
 | Action | Compare `/api/server/version` against `/api/server/version-check`; publish an MQTT notice if a newer release is available |
 
-Version-controlled files: `components/photo-server/immich-update-check.py` (deployed to
+Version-controlled files: `components/m8/immich-update-check.py` (deployed to
 `/usr/local/bin/`), `core/maintenance/immich-update-check.service`,
 `core/maintenance/immich-update-check.timer`.
 

@@ -167,7 +167,7 @@ component setup.
 
 ## Test 8 — Log messages
 
-Open the log dashboard at `http://raspberrypi.local/` and filter by component `garage-radar`.
+Open the log dashboard at `http://pi1.local/` and filter by component `garage-radar`.
 
 Trigger each condition and confirm the corresponding log entry appears:
 

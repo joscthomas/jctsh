@@ -426,8 +426,8 @@ section.
    real public URL, not just a local file:
 
    ```
-   scp hike-izer/summaries/<start-date>_hike-summary.html hike-izer/summaries/<start-date>_hike-summary.meta.json jct@photo-server.local:~/hike-izer-web-app/srv/
-   scp -r hike-izer/summaries/<start-date>_photos jct@photo-server.local:~/hike-izer-web-app/srv/   # only if it exists
+   scp hike-izer/summaries/<start-date>_hike-summary.html hike-izer/summaries/<start-date>_hike-summary.meta.json jct@m8.local:~/hike-izer-web-app/srv/
+   scp -r hike-izer/summaries/<start-date>_photos jct@m8.local:~/hike-izer-web-app/srv/   # only if it exists
    ```
 
    Then rebuild the calendar home page (CARD-0092) so it picks up the new
@@ -436,7 +436,7 @@ section.
    it's triggered this way or by the automatic pipeline:
 
    ```
-   ssh jct@photo-server.local "docker exec hike-izer-orchestrator python3 /app/build_calendar_index.py --srv-dir /srv/hike-izer"
+   ssh jct@m8.local "docker exec hike-izer-orchestrator python3 /app/build_calendar_index.py --srv-dir /srv/hike-izer"
    ```
 
    Uses the SSH key-based access to the M8 already set up from this

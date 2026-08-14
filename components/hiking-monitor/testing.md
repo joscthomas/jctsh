@@ -6,7 +6,7 @@ All of the following must be confirmed before running this test:
 - Steps 5–11 complete (sensors, display, onboard flash, power system, data pipeline)
 - Device running from LiPo, connected to JCTnet1 WiFi
 - Google Sheets "JCTsh Environmental Data" receiving rows
-- Log dashboard at `http://raspberrypi.local/` showing `hiking-monitor` entries
+- Log dashboard at `http://pi1.local/` showing `hiking-monitor` entries
 
 ---
 
@@ -17,7 +17,7 @@ All of the following must be confirmed before running this test:
 **Check:** All four sensor values updating every 2 minutes in the MQTT data topic.
 
 ```
-mosquitto_sub -h raspberrypi.local -u hiking-monitor -P <password> -t "jctsh/components/hiking-monitor/data"
+mosquitto_sub -h pi1.local -u hiking-monitor -P <password> -t "jctsh/components/hiking-monitor/data"
 ```
 
 | Sensor | Expected (Tucson indoors) |
@@ -55,7 +55,7 @@ P [=>|^|v]       UVI [value]
 
 ### 4 — Log Dashboard
 
-**Check:** Log messages visible at `http://raspberrypi.local/` under `hiking-monitor`.
+**Check:** Log messages visible at `http://pi1.local/` under `hiking-monitor`.
 
 Expected entries (most recent first):
 - `Heartbeat - uptime: Xh Xm, RSSI: -XXdBm, temp: XX.X°F` — every 5 minutes
@@ -71,7 +71,7 @@ Expected entries (most recent first):
 **Check:** Heartbeat appearing every 5 minutes in log dashboard and on heartbeat topic.
 
 ```
-mosquitto_sub -h raspberrypi.local -u hiking-monitor -P <password> -t "jctsh/components/hiking-monitor/heartbeat"
+mosquitto_sub -h pi1.local -u hiking-monitor -P <password> -t "jctsh/components/hiking-monitor/heartbeat"
 ```
 
 **Pass criteria:** Heartbeat JSON appears within 5 minutes. Contains `uptime`, `rssi`, `temp` fields.

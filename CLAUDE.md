@@ -51,7 +51,7 @@ jctsh/
 | **ESP32 / ESPHome** | Edge sensor. Reads physical hardware (distance, temperature, contact, etc.) and publishes readings to MQTT. No logic beyond "take a reading and report it." |
 | **Mosquitto MQTT broker** | Message bus. Decouples every component from every other. Nothing talks directly to anything else — everything publishes to a topic and subscribes to topics. |
 | **Node-RED** | The brain. Subscribes to MQTT topics, applies logic (thresholds, timing, transformations), triggers actions, and publishes results. Also routes sensor log messages to the Python log server. |
-| **Python log server** | The record keeper. Receives log messages and makes them browsable at `http://raspberrypi.local/`. Provides persistent history of what every component has reported. |
+| **Python log server** | The record keeper. Receives log messages and makes them browsable at `http://pi1.local/`. Provides persistent history of what every component has reported. |
 | **Home Assistant** | Integration layer only — not logic. Bridges the local JCTsh ecosystem to SmartThings → Google Home, Pixels, and voice control. |
 
 ### Message Flow
@@ -70,7 +70,7 @@ Physical world
   Logic/actions    Log topic
                       ↓
                Python log server
-               (http://raspberrypi.local/)
+               (http://pi1.local/)
       ↓
   Home Assistant
       ↓
@@ -99,12 +99,12 @@ before Phase 3 planning is considered complete.
 ## Infrastructure
 | Service | Host | Access |
 |---|---|---|
-| MQTT broker (Mosquitto) | `raspberrypi.local` / `100.70.162.24` | port 1883 |
-| Node-RED | `raspberrypi.local` / `100.70.162.24` | port 1880 |
-| Log dashboard | `raspberrypi.local` / `100.70.162.24` | port 80 — requires Basic Auth (user: `jctsh`) |
-| Home Assistant | `raspberrypi.local` / `100.70.162.24` | port 8123 |
+| MQTT broker (Mosquitto) | `pi1.local` / `100.70.162.24` | port 1883 |
+| Node-RED | `pi1.local` / `100.70.162.24` | port 1880 |
+| Log dashboard | `pi1.local` / `100.70.162.24` | port 80 — requires Basic Auth (user: `jctsh`) |
+| Home Assistant | `pi1.local` / `100.70.162.24` | port 8123 |
 
-Pi primary hostname: `raspberrypi.local` — do not change. Fixed IP: `192.168.1.117` (DHCP reservation set on router). Use the IP directly if `.local` resolution fails. Timezone: `America/Phoenix` (MST, UTC-7, no DST). Tailscale IP: `100.70.162.24` — use this for remote access from outside the home network.
+Pi primary hostname: `pi1.local` (renamed from `raspberrypi.local` by CARD-0096, 2026-08-14 — `raspberrypi.local` still resolves for now via a transition-window mDNS alias, not yet closed). Fixed IP: `192.168.1.117` (DHCP reservation set on router). Use the IP directly if `.local` resolution fails. Timezone: `America/Phoenix` (MST, UTC-7, no DST). Tailscale IP: `100.70.162.24` — use this for remote access from outside the home network.
 
 **Convention: avoid SD-card I/O on the Pi; new apps go on the M8.** The Pi boots from a microSD card, which degrades under frequent writes in a way USB flash/SSD and the M8's own storage tolerate far better — CARD-0006 (log directory), CARD-0159 (Docker/containerd data-roots, HA's recorder DB, Mosquitto's persistence) all exist because of this. When adding a new component or service: prefer the M8 (already the home for NetAlertX, Immich, hike-izer-web, and other Docker-based apps) over the Pi. If something must run on the Pi (tightly coupled to existing Pi-native services like Mosquitto/Node-RED/HA), route its write-heavy state onto the existing USB drive (`/mnt/jctsh-logs`, labeled `jctsh-logs`) rather than the SD card's root filesystem, following the same pattern those cards used: stop the service, move the data, repoint its config at the USB path, add a systemd `RequiresMountsFor=/mnt/jctsh-logs` dependency so a reboot can't race the mount and silently recreate the data back on the SD card, then verify with a real reboot test before removing the old SD-card copy.
 
@@ -199,8 +199,8 @@ The repo is the source of truth. Edit files here, then deploy to the Pi — do n
 - `core/homeassistant/configuration.yaml` — HA config (do not modify)
 - `core/homeassistant/automations.yaml` — HA automations. Deploy and reload:
   ```bash
-  scp core/homeassistant/automations.yaml pi@raspberrypi.local:/mnt/jctsh-logs/homeassistant/automations.yaml
-  curl -s -X POST http://raspberrypi.local:8123/api/services/automation/reload \
+  scp core/homeassistant/automations.yaml pi@pi1.local:/mnt/jctsh-logs/homeassistant/automations.yaml
+  curl -s -X POST http://pi1.local:8123/api/services/automation/reload \
     -H "Authorization: Bearer $HA_TOKEN" -H "Content-Type: application/json"
   ```
 - `core/logging/log_server.py` — deployed to `/home/pi/jctsh/core/logging/`
@@ -208,8 +208,8 @@ The repo is the source of truth. Edit files here, then deploy to the Pi — do n
 ## Log Server Deployment
 After editing `core/logging/log_server.py`:
 ```bash
-scp core/logging/log_server.py pi@raspberrypi.local:/home/pi/jctsh/core/logging/
-ssh pi@raspberrypi.local "sudo systemctl restart jctsh-logging"
+scp core/logging/log_server.py pi@pi1.local:/home/pi/jctsh/core/logging/
+ssh pi@pi1.local "sudo systemctl restart jctsh-logging"
 ```
 
 ## SmartThings Integration
@@ -274,7 +274,7 @@ Mosquitto requires auth (`allow_anonymous false`). Each component has its own ac
 | `front-porch-temp-sensor` | front-porch-temp-sensor ESPHome device |
 | `hiking-monitor` | hiking-monitor ESPHome device |
 | `photo-server` | photo-server heartbeat script (Docker/Immich health check) |
-| `hike-izer-orchestrator` | hike-izer-orchestrator container on photo-server (CARD-0086), publishes generation success/failure to `jctsh/hike-izer/publish/log` |
+| `hike-izer-orchestrator` | hike-izer-orchestrator container on `m8` (CARD-0086), publishes generation success/failure to `jctsh/hike-izer/publish/log` |
 
 Passwords are stored in:
 - **Log server** — `/etc/jctsh/log-server.env` on the Pi (injected via systemd `EnvironmentFile`)

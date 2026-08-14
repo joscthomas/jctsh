@@ -198,7 +198,7 @@ largest despite her original import being the "clean" one with no crashes, meani
 missing-asset problem (like CARD-0037's ML-processing gap) wasn't caused solely by Joseph's
 restart history — something shared between both imports is the more likely cause, not
 pinned down further since re-running was sufficient to fix it regardless. Full writeup in
-`components/photo-server/migration.md` and `backlog.md` CARD-0039.
+`components/m8/migration.md` and `backlog.md` CARD-0039.
 
 ## 2026-07-09
 Closed CARD-0037: Immich ML processing (face detection/recognition, CLIP smart search, OCR,
@@ -234,7 +234,7 @@ reproducing the original incident's failure mode. First attempt to simulate the 
 failure (`chmod 555` on the host-side upload directory) silently failed to trigger anything,
 because the Immich container runs as root and root ignores POSIX permission bits — a
 read-only remount enforces at the VFS level instead and actually worked. Both cards moved
-to Done; full writeup in `components/photo-server/heartbeat.md`.
+to Done; full writeup in `components/m8/heartbeat.md`.
 
 ## 2026-07-08 (continued, part 2)
 Added dashboard visibility for the CARD-0035 scheduled reboots (CARD-0036). Previously the
@@ -286,7 +286,7 @@ cycling.
 ## 2026-05-16
 Restructured Salt Sensor project into JCTsh smart home monorepo. Salt Sensor
 becomes first component under jctsh/components/. Centralized Python log server
-added to jctsh/core/logging/, served at http://raspberrypi.local/. ESP web server
+added to jctsh/core/logging/, served at http://pi1.local/. ESP web server
 removed; log messages now published via MQTT to jctsh/sensors/salt-sensor/log.
 MQTT topics renamed from saltlevel/* to jctsh/sensors/salt-sensor/*. Node-RED
 flow split into core.flow.json (broker) and salt-sensor.flow.json (sensor logic).
@@ -299,7 +299,7 @@ matching subfolder (Arduino IDE requirement). Confirmed: ESP publishes to new to
 Node-RED responds with status, log dashboard displays messages, Pi reboot survival
 verified. JCTsh.local mDNS alias closed out — Avahi CNAME not supported on this Pi;
 address record causes local name collision; cosmetic value not worth the complexity.
-Use http://raspberrypi.local/ for the dashboard.
+Use http://pi1.local/ for the dashboard.
 
 Added hourly watchdog heartbeat to log_server.py. Publishes
 {"component":"jctsh-core","category":"System","message":"Watchdog: alive."} to
@@ -339,7 +339,7 @@ regulator handles the step-down; UART logic is 3.3V, no level shifter needed.
 Garage Radar Steps 3–10 completed with breadboard prototype. ESPHome flashed via USB
 (Step 3) — fixed ESPHome 2026.x breaking change: ld2412 timeout option removed, replaced
 with delayed_off: 30s filter on has_target binary sensor. Fixed whitespace-in-path issue
-by copying files to C:\esphome\garage-radar\ for flash. Fixed raspberrypi.local resolving
+by copying files to C:\esphome\garage-radar\ for flash. Fixed pi1.local resolving
 to IPv6 link-local — used 192.168.1.117 (IPv4) for MQTT and HA MQTT integration setup.
 All 8 HA entities confirmed (Presence, Moving Target, Still Target, 5 distance/energy sensors).
 
@@ -364,7 +364,7 @@ Node-RED = brain/logic; Python log server = record keeper; HA = integration laye
 only), full end-to-end message flow diagram, and the two parallel flows concept
 (data flow vs. log flow) that every component produces.
 
-Fixed raspberrypi.local resolution on Windows — hostname was always intermittent
+Fixed pi1.local resolution on Windows — hostname was always intermittent
 due to Windows mDNS unreliability. Set DHCP reservation on router for
 192.168.1.117, added hosts file entry on Windows to bypass mDNS entirely.
 IP documented in CLAUDE.md as fallback reference.

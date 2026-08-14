@@ -201,8 +201,8 @@ Configurable fields: date taken, location (city/state/country), people, folder/a
 | Service | Port | Notes |
 |---|---|---|
 | `photo-tv-display` Node.js server | 3000 | Reserved in `photo-server` Phase 2 |
-| Access (TV view) | `http://photo-server.local:3000/tv` | Cast target URL |
-| Access (controller view) | `http://photo-server.local:3000/controller` | Opened directly in phone browser, bookmarked |
+| Access (TV view) | `http://m8.local:3000/tv` | Cast target URL |
+| Access (controller view) | `http://m8.local:3000/controller` | Opened directly in phone browser, bookmarked |
 
 Home WiFi only — no remote access for initial build, consistent with `photo-server` Phase 1/2 decisions.
 

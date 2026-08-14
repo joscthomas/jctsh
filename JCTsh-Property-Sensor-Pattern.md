@@ -76,7 +76,7 @@ Work through each dimension for every new sensor. Each decision produces a concr
 
 | Profile | WiFi config | MQTT broker |
 |---|---|---|
-| Home only | Single SSID (`wifi_ssid` secret) | `raspberrypi.local` / `192.168.1.117` |
+| Home only | Single SSID (`wifi_ssid` secret) | `pi1.local` / `192.168.1.117` |
 | Home + hotspot | `networks:` list — home WiFi priority 1, hotspot priority 2 | `jctsh.duckdns.org` (internet-routable; required for cellular) |
 
 See `JCTsh-Build-Standards.md` §2.8 for the multi-network WiFi boilerplate and hotspot SSID naming convention.
@@ -242,7 +242,7 @@ Work through this before writing any firmware. Every item produces a concrete an
 - Battery/solar: include `battery_v` in payload: `[ ] Yes`
 
 ### 4. Connectivity
-- [ ] Home WiFi only → broker: `raspberrypi.local`
+- [ ] Home WiFi only → broker: `pi1.local`
 - [ ] Home WiFi + hotspot → broker: `jctsh.duckdns.org`; hotspot SSID: `JCT Hotspot`
 
 ### 5. Offline handling

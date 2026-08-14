@@ -16,7 +16,7 @@
 ## Commands — Run on Pi
 
 ```bash
-ssh pi@raspberrypi.local "sudo mosquitto_passwd -b /etc/mosquitto/passwd hiking-monitor 41eTiwh0XzMlmoDnPOYc && sudo chown root:mosquitto /etc/mosquitto/passwd && sudo systemctl restart mosquitto && sudo systemctl status mosquitto --no-pager | grep Active"
+ssh pi@pi1.local "sudo mosquitto_passwd -b /etc/mosquitto/passwd hiking-monitor 41eTiwh0XzMlmoDnPOYc && sudo chown root:mosquitto /etc/mosquitto/passwd && sudo systemctl restart mosquitto && sudo systemctl status mosquitto --no-pager | grep Active"
 ```
 
 Expected output: `Active: active (running)`

@@ -30,7 +30,7 @@ See `jctsh-network.md` for the full device IP/MAC table.
 ## Physical Setup
 
 Confirmed 2026-07-08: in the equipment closet, KeepConnect's switched outlet controls the
-router only. Every other device in the closet — Raspberry Pi, GMKtec M8 (photo-server /
+router only. Every other device in the closet — Raspberry Pi (`pi1`), GMKtec M8 (`m8` /
 Immich), SmartThings hub, and other closet gear — is on a separate surge-protected power
 strip, never power-cycled by this device.
 
@@ -93,6 +93,6 @@ applicable under TCP/HTTPS mode.
 ## Related: Pi/M8 Scheduled Reboot
 
 Resolved 2026-07-08 (CARD-0035) — see `SOFTWARE-ENVIRONMENT.md` (Pi) and
-`components/photo-server/operations.md` (M8) for the weekly systemd-timer reboot
+`components/m8/operations.md` (M8) for the weekly systemd-timer reboot
 schedule, independent of KeepConnect's own reset schedule. First scheduled run:
 Mon 2026-07-13.

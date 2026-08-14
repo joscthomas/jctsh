@@ -16,15 +16,15 @@ All device IPs are DHCP-reserved on the router. Update this file when adding a n
 | Device | IP | Hostname | MAC | Notes |
 |---|---|---|---|---|
 | TP-Link Archer AXE75 (router) | 192.168.1.1 | — | F0-09-0D-AB-E1-40 | TP-Link AXE5400 Tri-Band Wi-Fi 6E; gateway/DHCP server for every device below. IPv6 LAN: `FE80::F209:DFF:FEAB:E140/64`. Power controlled by KeepConnect — see `keepconnect.md` |
-| Raspberry Pi (eth0) | 192.168.1.117 | raspberrypi.local | B8-27-EB-A2-5C-E5 | Pi host — MQTT, Node-RED, HA, log server; wired, DHCP-reserved |
-| Raspberry Pi (wlan0) | 192.168.1.217 | raspberrypi.local | B8-27-EB-F7-09-B0 | WiFi — dynamic IP, not reserved; not used for service access |
+| pi1 (Raspberry Pi eth0, was `raspberrypi` until CARD-0096, 2026-08-14) | 192.168.1.117 | pi1.local (`raspberrypi.local` still resolves via a transition-window mDNS alias, CARD-0096) | B8-27-EB-A2-5C-E5 | Pi host — MQTT, Node-RED, HA, log server; wired, DHCP-reserved |
+| pi1 (Raspberry Pi wlan0) | 192.168.1.217 | pi1.local | B8-27-EB-F7-09-B0 | WiFi — dynamic IP, not reserved; not used for service access |
 | coachproxyos (RV Pi) | 192.168.1.219 | coachproxyos.local | B8-27-EB-BD-C6-63 | eRVin — at home only when coach is home |
 | garage-radar ESP32 | 192.168.1.119 | garage-radar.local | 04-B2-47-82-74-64 | ESPHome |
-| salt-sensor ESP32 | 192.168.1.181 | salt-sensor.local | F4-65-0B-AB-6B-BC | Arduino; hostname pending reflash |
+| salt-sensor ESP32 | 192.168.1.181 | salt-sensor.local | F4-65-0B-AB-6B-BC | ESPHome (confirmed live via a real OTA reflash, CARD-0096, 2026-08-14 — the "Arduino; hostname pending reflash" note here was stale) |
 | front-porch-temp-sensor ESP32 | 192.168.1.202 | front-porch-temp-sensor.local | B4-BF-E9-C9-EF-68 | ESPHome |
 | hiking-monitor ESP32 | 192.168.1.161 | hiking-monitor.local | 04-B2-47-97-DF-2C | ESPHome |
 | SmartThings Hub | 192.168.1.112 | — | 24-FD-5B-01-72-23 | Samsung hub — stable IP required for HA integration |
-| photo-server (GMKtec M8) | 192.168.1.165 | photo-server.local | 70-70-FC-09-AD-A5 | Immich photo server + hike-izer-web (Hike-izer HTML hosting, `hikes.jctnet.com` via Cloudflare Tunnel — CARD-0094, switched from Tailscale Funnel 2026-07-27) + photo-tv-display (planned); wired gigabit direct to router; DHCP-reserved |
+| m8 (GMKtec, was `photo-server` until CARD-0096, 2026-08-14) | 192.168.1.165 | m8.local (`photo-server.local` still resolves via a transition-window mDNS alias, CARD-0096) | 70-70-FC-09-AD-A5 | Immich photo server + hike-izer-web (Hike-izer HTML hosting, `hikes.jctnet.com` via Cloudflare Tunnel — CARD-0094, switched from Tailscale Funnel 2026-07-27) + photo-tv-display (planned); wired gigabit direct to router; DHCP-reserved |
 | KeepConnect-27F8 (router rebooter) | 192.168.1.108 | esp32-5227F8 | 34-98-7A-52-27-F8 | Not a JCTsh component — see `keepconnect.md`; DHCP-reserved |
 | Samsung Groom TV | 192.168.1.152 | — | 84-C0-EF-D8-5F-FB | Samsung QN75Q75FM; HA integrations: `dlna_dmr` (playback only) + `samsungtv` (WebSocket, power control) — CARD-0152; DHCP-reserved |
 | Denon AVR-X6400H | 192.168.1.204 | — | 00-05-CD-E4-58-3E | HA integration: `denonavr` (SSDP-discovered, telnet); controlled via the Groom TV Chromecast per CARD-0150 — CARD-0152; DHCP-reserved |
@@ -35,9 +35,9 @@ Tailscale creates a private encrypted mesh network so enrolled devices can reach
 
 | Device | Tailscale IP | Notes |
 |---|---|---|
-| Home Pi | 100.70.162.24 | MQTT broker, Node-RED, HA, log server — always reachable when Tailscale is running |
+| Home Pi (`pi1`, was `raspberrypi` until CARD-0096, 2026-08-14) | 100.70.162.24 | MQTT broker, Node-RED, HA, log server — always reachable when Tailscale is running |
 | RV Pi (coachproxyos) | 100.90.246.43 | eRVin dashboard at `http://100.90.246.43`; comes up when Pi has internet via Pixel hotspot |
-| photo-server (GMKtec M8) | 100.111.16.14 | Immich + photo-tv-display (planned) — reachable remotely for admin. hike-izer-web's public exposure moved off Tailscale Funnel to Cloudflare Tunnel (`hikes.jctnet.com`, CARD-0094, 2026-07-27) — this Tailscale IP is now admin/SSH access only for that component, not its public path. |
+| m8 (GMKtec, was `photo-server` until CARD-0096, 2026-08-14) | 100.111.16.14 | Immich + photo-tv-display (planned) — reachable remotely for admin. hike-izer-web's public exposure moved off Tailscale Funnel to Cloudflare Tunnel (`hikes.jctnet.com`, CARD-0094, 2026-07-27) — this Tailscale IP is now admin/SSH access only for that component, not its public path. |
 
 ## Scheduled Maintenance Windows
 
@@ -47,12 +47,12 @@ Consolidated view across all recurring reboot/backup jobs, so a new one can be s
 |---|---|---|---|
 | KeepConnect router reboot | Weekly, Wed 3:00 AM (drifts — see note) | Router | `keepconnect.md` |
 | Pi scheduled reboot | Weekly, Mon 3:00 AM | Pi | `SOFTWARE-ENVIRONMENT.md` |
-| M8 scheduled reboot | Weekly, Mon 4:00 AM | M8 (photo-server) | `components/photo-server/operations.md` |
-| M8 backup (rsync) | Weekly, Sun 2:00 AM | M8 (photo-server) | `components/photo-server/backup.md` |
-| M8 heartbeat | Every 30 min | M8 (photo-server) | `components/photo-server/heartbeat.md` |
-| M8 Immich update check | Daily, 6:00 AM | M8 (photo-server) | `components/photo-server/operations.md` |
-| M8 container-image update check | Daily, 6:30 AM | M8 (photo-server) | `kanban-board.md` CARD-0126 |
-| M8 OS/firmware maintenance check | Monthly, 1st at 7:00 AM | M8 (photo-server) | `kanban-board.md` CARD-0095 |
+| M8 scheduled reboot | Weekly, Mon 4:00 AM | M8 | `components/m8/operations.md` |
+| M8 backup (rsync) | Weekly, Sun 2:00 AM | M8 | `components/m8/backup.md` |
+| M8 heartbeat | Every 30 min | M8 | `components/m8/heartbeat.md` |
+| M8 Immich update check | Daily, 6:00 AM | M8 | `components/m8/operations.md` |
+| M8 container-image update check | Daily, 6:30 AM | M8 | `kanban-board.md` CARD-0126 |
+| M8 OS/firmware maintenance check | Monthly, 1st at 7:00 AM | M8 | `kanban-board.md` CARD-0095 |
 | Pi container-image update check | Daily, 6:30 AM | Pi | `kanban-board.md` CARD-0126 |
 | Pi OS maintenance check | Monthly, 1st at 8:00 AM | Pi | `kanban-board.md` CARD-0125 |
 | Pi watchdog heartbeat | Hourly | Pi | `CLAUDE.md` |

@@ -371,7 +371,7 @@
   actions:
   - data:
       title: CARD-0158 Check
-      message: Pi's scheduled reboot fired at 3am today -- check http://raspberrypi.local/status
+      message: Pi's scheduled reboot fired at 3am today -- check http://pi1.local/status
         for the "Last Reboot" column on jctsh-core (should show a green checkmark
         with today's date), then close out CARD-0158 in kanban-board.md.
     action: notify.mobile_app_pixel_10_pro_xl

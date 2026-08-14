@@ -38,7 +38,7 @@ HA → Developer Tools → Actions → search "notify.mobile_app"
 
 Both phones must appear. If a phone is missing:
 1. Install HA Companion app (Google Play: "Home Assistant" by Nabu Casa)
-2. Connect to `http://raspberrypi.local:8123`
+2. Connect to `http://pi1.local:8123`
 3. Grant notification permissions
 4. Restart HA
 

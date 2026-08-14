@@ -43,7 +43,7 @@ IPs. The broker address must be internet-routable.
 
 | Address | Reachable from hotspot? |
 |---|---|
-| `raspberrypi.local` | No — mDNS is link-local only |
+| `pi1.local` | No — mDNS is link-local only |
 | `192.168.1.117` | No — private LAN, not internet-routable |
 | `100.70.162.24` (Tailscale) | No — only accessible from other Tailscale clients |
 | `jctsh.duckdns.org` | **Yes** — DuckDNS hostname + port 8883 (TLS) forwarded to Pi |

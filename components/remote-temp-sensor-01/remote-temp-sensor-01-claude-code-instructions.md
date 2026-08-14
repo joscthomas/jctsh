@@ -76,7 +76,7 @@ BH1750 (I2C 0x23)  ──┼── ESP32 DevKitC-32 (ESPHome, deep sleep 5min cy
 LTR-390 (I2C 0x53) ──┘        │
                                │ MQTT (on wake only)
                                ▼
-                    Mosquitto broker (raspberrypi.local:1883)
+                    Mosquitto broker (pi1.local:1883)
                          │         │
                          │         └──► Node-RED
                          │                │ routes /log → Python log server

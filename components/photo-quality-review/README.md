@@ -202,5 +202,5 @@ M8, unlike the Pi).
   and "done when" criteria.
 - `components/photo-tv-display` -- the Node/Express stack, Immich
   multi-account pattern, and deletion-log this reuses/extends.
-- `components/photo-server/backup.md` -- the
+- `components/m8/backup.md` -- the
   `/mnt/photo-library/upload/<ownerId>/` structure this scans.

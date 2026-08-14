@@ -2,7 +2,7 @@
 
 Central log aggregator for all JCTsh components — subscribes to all component log
 topics via MQTT wildcard, applies duplicate suppression, and serves a live dashboard
-at `http://raspberrypi.local/`.
+at `http://pi1.local/`.
 
 **Status:** Production — deployed as a systemd service on the Pi
 
@@ -29,7 +29,7 @@ log_server.py  (Raspberry Pi)
       │   component so infrequent reporters always show — see below)
       ├── Appends all entries to /home/pi/jctsh/logs/jctsh.log
       │   (rotates at 1 MB, 5 files kept)
-      └── Serves dashboard at http://raspberrypi.local/  (Basic Auth)
+      └── Serves dashboard at http://pi1.local/  (Basic Auth)
 ```
 
 ### Per-Component Minimum Retention
@@ -105,7 +105,7 @@ pip install -r requirements.txt --break-system-packages
 sudo python3 log_server.py
 ```
 
-Open `http://raspberrypi.local/` — Basic Auth, user: `jctsh`, password in
+Open `http://pi1.local/` — Basic Auth, user: `jctsh`, password in
 `/etc/jctsh/log-server.env`.
 
 ### Install as a systemd service
@@ -143,8 +143,8 @@ sudo systemctl start jctsh-logging
 ### Deploy updated script
 
 ```bash
-scp core/logging/log_server.py pi@raspberrypi.local:/home/pi/jctsh/core/logging/
-ssh pi@raspberrypi.local "sudo systemctl restart jctsh-logging"
+scp core/logging/log_server.py pi@pi1.local:/home/pi/jctsh/core/logging/
+ssh pi@pi1.local "sudo systemctl restart jctsh-logging"
 ```
 
 ### Check status

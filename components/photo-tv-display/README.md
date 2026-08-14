@@ -9,8 +9,8 @@ both the Immich API (photo library) and the Home Assistant REST API (casting).
 
 | View | URL |
 |---|---|
-| TV (cast target, no visible UI) | `http://photo-server.local:3000/tv` |
-| Phone controller | `http://photo-server.local:3000/controller` |
+| TV (cast target, no visible UI) | `http://m8.local:3000/tv` |
+| Phone controller | `http://m8.local:3000/controller` |
 
 ## Dependencies
 

@@ -44,10 +44,10 @@ On the M8, the deploy directory is `~/hike-izer-web-app/orchestrator/`
 update:
 
 ```
-scp components/hike-izer-orchestrator/*.py components/hike-izer-orchestrator/Dockerfile components/hike-izer-orchestrator/requirements.txt jct@photo-server.local:~/hike-izer-web-app/orchestrator/
-scp components/hike-izer/fetch_hike_data.py components/hike-izer/fetch_hike_photos.py components/hike-izer/build_hike_map.py components/hike-izer/build_hike_chart.py jct@photo-server.local:~/hike-izer-web-app/orchestrator/
-scp .claude/skills/hike-izer/SKILL.md jct@photo-server.local:~/hike-izer-web-app/orchestrator/
-ssh jct@photo-server.local "cd ~/hike-izer-web-app && docker compose up -d --build orchestrator"
+scp components/hike-izer-orchestrator/*.py components/hike-izer-orchestrator/Dockerfile components/hike-izer-orchestrator/requirements.txt jct@m8.local:~/hike-izer-web-app/orchestrator/
+scp components/hike-izer/fetch_hike_data.py components/hike-izer/fetch_hike_photos.py components/hike-izer/build_hike_map.py components/hike-izer/build_hike_chart.py jct@m8.local:~/hike-izer-web-app/orchestrator/
+scp .claude/skills/hike-izer/SKILL.md jct@m8.local:~/hike-izer-web-app/orchestrator/
+ssh jct@m8.local "cd ~/hike-izer-web-app && docker compose up -d --build orchestrator"
 ```
 
 **Required `.env` keys** (`~/hike-izer-web-app/.env`, shared with `web`) —

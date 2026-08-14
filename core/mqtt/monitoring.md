@@ -20,7 +20,7 @@ If MQTT never connects, `[I][mqtt:348]: Connected` never appears and the tool wi
 
 ## Layer 2: Log dashboard
 
-`http://raspberrypi.local` (or `http://192.168.1.117`)
+`http://pi1.local` (or `http://192.168.1.117`)
 
 Every time the hiking-monitor boots and connects, two messages appear under the `hiking-monitor` component:
 
@@ -34,19 +34,19 @@ If these appear, the full chain worked.
 ## Layer 3: Mosquitto log
 
 ```
-ssh pi@raspberrypi.local "sudo tail -50 /var/log/mosquitto/mosquitto.log"
+ssh pi@pi1.local "sudo tail -50 /var/log/mosquitto/mosquitto.log"
 ```
 
 Or follow live:
 ```
-ssh pi@raspberrypi.local "sudo tail -f /var/log/mosquitto/mosquitto.log"
+ssh pi@pi1.local "sudo tail -f /var/log/mosquitto/mosquitto.log"
 ```
 
 **What the source IP tells you:**
 
 | Source IP | Meaning |
 |---|---|
-| `192.168.1.161` | Direct LAN connection — old `raspberrypi.local` broker address |
+| `192.168.1.161` | Direct LAN connection — old `pi1.local` broker address |
 | `174.18.46.157` | Through DuckDNS + port forward — NAT hairpinning from home network |
 | Any cellular IP | Hotspot connection — device is on Pixel cellular, routing through port forward |
 
@@ -67,12 +67,12 @@ A failed auth attempt looks like:
 ## Layer 4: fail2ban log
 
 ```
-ssh pi@raspberrypi.local "sudo tail -50 /var/log/fail2ban.log"
+ssh pi@pi1.local "sudo tail -50 /var/log/fail2ban.log"
 ```
 
 Or follow live:
 ```
-ssh pi@raspberrypi.local "sudo tail -f /var/log/fail2ban.log"
+ssh pi@pi1.local "sudo tail -f /var/log/fail2ban.log"
 ```
 
 A ban event looks like:
@@ -82,12 +82,12 @@ A ban event looks like:
 
 Check current jail status (active bans, total failed attempts):
 ```
-ssh pi@raspberrypi.local "sudo fail2ban-client status mosquitto"
+ssh pi@pi1.local "sudo fail2ban-client status mosquitto"
 ```
 
 Manually unban an IP if needed:
 ```
-ssh pi@raspberrypi.local "sudo fail2ban-client set mosquitto unbanip 203.0.113.5"
+ssh pi@pi1.local "sudo fail2ban-client set mosquitto unbanip 203.0.113.5"
 ```
 
 ---
@@ -96,17 +96,17 @@ ssh pi@raspberrypi.local "sudo fail2ban-client set mosquitto unbanip 203.0.113.5
 
 Verify DuckDNS has the current public IP:
 ```
-ssh pi@raspberrypi.local "cat /home/pi/duckdns/duck.log"
+ssh pi@pi1.local "cat /home/pi/duckdns/duck.log"
 ```
 
 Output should be `OK`. Run the update manually if needed:
 ```
-ssh pi@raspberrypi.local "/home/pi/duckdns/duck.sh && cat /home/pi/duckdns/duck.log"
+ssh pi@pi1.local "/home/pi/duckdns/duck.sh && cat /home/pi/duckdns/duck.log"
 ```
 
 Verify the hostname resolves to your current public IP:
 ```
-ssh pi@raspberrypi.local "curl -s https://api.duckdns.org/update?domains=jctsh&token=&verbose=true"
+ssh pi@pi1.local "curl -s https://api.duckdns.org/update?domains=jctsh&token=&verbose=true"
 ```
 
 ---

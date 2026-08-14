@@ -83,7 +83,7 @@ Then in File Explorer, connect to:
 \\sshfs\jct@100.111.16.14\home\jct
 ```
 
-using the Tailscale IP (not `photo-server.local`) so it resolves
+using the Tailscale IP (not `m8.local`) so it resolves
 identically at home and remote — same convention as everywhere else in
 this repo. Credentials (`jct` account) are in `credentials.local.md`. It
 should reconnect as `Z:`; if a *raw* UNC path attempt fails once the share

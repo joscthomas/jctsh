@@ -96,7 +96,7 @@ Battery ADC (GPIO35)─┘
                 Every 5 min: publish heartbeat
                 Every 2 min: publish live readings directly to MQTT
 
-MQTT broker (Mosquitto, raspberrypi.local:1883)
+MQTT broker (Mosquitto, pi1.local:1883)
         │
         ├── jctsh/components/hiking-monitor/data    ← sensor readings + replayed hike logs
         ├── jctsh/components/hiking-monitor/log     ← diagnostic messages
@@ -396,7 +396,7 @@ Where T = temp_f, H = humidity_pct. Use simple formula (T + H/5 - 10.3) when tem
 1. **Sensor validation** — all four sensor values (temp, humidity, pressure, UV) updating every 2 minutes in MQTT Explorer
 2. **Display validation** — all four fields rendering correctly on e-ink display; pressure arrow showing "→" (steady)
 3. **Button validation** — button press triggers immediate display refresh
-4. **Log dashboard** — log messages visible at `http://raspberrypi.local/` under `hiking-monitor`
+4. **Log dashboard** — log messages visible at `http://pi1.local/` under `hiking-monitor`
 5. **Heartbeat** — heartbeat appearing every 5 minutes in log dashboard
 6. **Field mode simulation:**
    - Change WiFi password in secrets.yaml to wrong value, OTA flash

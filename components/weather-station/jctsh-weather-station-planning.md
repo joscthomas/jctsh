@@ -270,7 +270,7 @@ jctsh/components/weather-station/log
 jctsh/components/weather-station/heartbeat
 jctsh/components/weather-station/lightning
       ↓
-Mosquitto broker (raspberrypi.local)
+Mosquitto broker (pi1.local)
       ↓
 Node-RED (always-on)
    ├── → Weather Underground PWS API (HTTP POST)

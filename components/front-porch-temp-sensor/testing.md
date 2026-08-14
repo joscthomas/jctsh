@@ -21,7 +21,7 @@ Confirm all sensor values updating every ~60 seconds in HA Overview page.
 
 ## 2. Log Dashboard Check
 
-Open `http://raspberrypi.local/` (Basic Auth, user: `jctsh`).
+Open `http://pi1.local/` (Basic Auth, user: `jctsh`).
 
 - [x] Log messages visible under `front-porch-temp-sensor`
 - [x] MQTT connected message present from most recent boot

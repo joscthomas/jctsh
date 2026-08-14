@@ -59,7 +59,7 @@ LD2412 radar sensor
     ↓ UART (115200 baud, hardware UART2: GPIO16/GPIO17)
 ESP32 DevKitC-32 running ESPHome
     ↓ 30-second smoothing timeout (ESPHome native LD2412 timeout parameter)
-    ↓ WiFi → Mosquitto MQTT broker (raspberrypi.local, port 1883)
+    ↓ WiFi → Mosquitto MQTT broker (pi1.local, port 1883)
 MQTT topics published:
     jctsh/components/garage-radar/state        (has_target: ON/OFF)
     jctsh/components/garage-radar/still        (has_still_target: ON/OFF)
@@ -70,7 +70,7 @@ MQTT topic subscribed:
     jctsh/components/garage-presence-vswitch/state  (drives yellow LED)
     ↓
 Node-RED
-    ↓ /log → Python log server (http://raspberrypi.local/)
+    ↓ /log → Python log server (http://pi1.local/)
     ↓ /heartbeat → Node-RED watchdog flow → HA REST API → Pixel 10 Pro (if silent)
     ↓ /state → garage presence automation (additive input)
     ↓ HA REST API (port 8123) → SmartThings motion sensor
@@ -91,9 +91,9 @@ Garage lights + garage door automation (existing, unchanged)
 - The 20-minute timeout is the actual presence decision (Node-RED or HA — investigate in Step 8).
 - The yellow LED subscribes to the garage presence virtual switch MQTT topic via ESPHome mqtt_subscribe.
 - SmartThings integration path: Node-RED → HA REST API → HA entity → SmartThings. No other path.
-- Log dashboard: http://raspberrypi.local/ (Basic Auth, user: jctsh)
-- Node-RED: http://raspberrypi.local:1880/
-- Home Assistant: http://raspberrypi.local:8123/
+- Log dashboard: http://pi1.local/ (Basic Auth, user: jctsh)
+- Node-RED: http://pi1.local:1880/
+- Home Assistant: http://pi1.local:8123/
 - Pi fixed IP: 192.168.1.117 (use if .local resolution fails)
 - Pi Tailscale IP: 100.70.162.24 (use for remote access — same ports apply)
 
@@ -170,7 +170,7 @@ The watchdog flow:
 - Subscribes to `jctsh/+/+/heartbeat` (MQTT wildcard — catches all component heartbeats automatically)
 - On receipt of any heartbeat message, extracts the component name from the topic and resets a per-component timer node (10-minute timeout — 2× the 5-minute heartbeat interval)
 - If a timer expires without receiving a new heartbeat, publishes an alert
-- Alert path: Node-RED function node → HA REST API POST to `http://raspberrypi.local:8123/api/services/notify/mobile_app_pixel_10_pro` → HA companion app → Joseph's Pixel 10 Pro
+- Alert path: Node-RED function node → HA REST API POST to `http://pi1.local:8123/api/services/notify/mobile_app_pixel_10_pro` → HA companion app → Joseph's Pixel 10 Pro
 - Alert message: `JCTsh alert: <component-name> has not reported in 10 minutes`
 - Also logs the alert: publish to `jctsh/core/watchdog/log` as `{ "component": "watchdog", "category": "Alert", "message": "Component <name> silent for 10 minutes" }`
 
@@ -210,7 +210,7 @@ Updated breadboard assembly complete. Watchdog flow active. SmartThings motion s
 Update `components/garage-radar/testing.md` to add enhancement validation:
 - Green LED: confirm it lights when presence detected, extinguishes after 30-second timeout
 - Yellow LED: confirm it reflects the garage presence virtual switch state
-- Log messages: confirm each message appears at `http://raspberrypi.local/` under component `garage-radar`
+- Log messages: confirm each message appears at `http://pi1.local/` under component `garage-radar`
 - Heartbeat: confirm heartbeat appears in log dashboard every 5 minutes
 - Watchdog: confirm heartbeat topic is being received by the Node-RED watchdog flow — monitor in Node-RED debug panel. Simulate a missed heartbeat by temporarily disabling the ESP32 and confirm a phone notification arrives within 10 minutes.
 - SmartThings: confirm "Garage Radar" motion sensor appears in SmartThings and state changes correctly when presence is detected and cleared
@@ -379,7 +379,7 @@ The salt sensor (Arduino C++) does not currently publish a heartbeat. Add a hear
 - **Log format:** JSON to `jctsh/components/garage-radar/log` — `{ "component": "garage-radar", "category": "<cat>", "message": "<text>" }`. Do NOT include timestamps. Valid categories: MQTT, System, Sensor, Alert, Test. Node-RED wildcard handles routing automatically — no per-component Node-RED changes needed for logging.
 - **Heartbeat:** Publish every 5 minutes to both `/log` (as System log entry) and `/heartbeat` (as JSON for watchdog). Node-RED watchdog wildcard `jctsh/+/+/heartbeat` catches it automatically.
 - **Watchdog flow:** New infrastructure — does not yet exist. Build it as part of Step 4.5. Lives at `core/node-red/watchdog.flow.json`. Uses wildcard heartbeat subscription. Alerts via HA REST API → HA companion app → Pixel 10 Pro. Examine existing Node-RED flows before building to match established style.
-- **HA REST API notification endpoint:** `POST http://raspberrypi.local:8123/api/services/notify/mobile_app_pixel_10_pro`. HA long-lived access token stored in Node-RED credentials — do not hardcode.
+- **HA REST API notification endpoint:** `POST http://pi1.local:8123/api/services/notify/mobile_app_pixel_10_pro`. HA long-lived access token stored in Node-RED credentials — do not hardcode.
 - **SmartThings path:** Node-RED → HA REST API (port 8123) → HA entity → SmartThings. No other path. Examine salt sensor implementation as reference before writing.
 - **MQTT account:** `garage-radar` account listed in CLAUDE.md credentials table — confirmed created during Steps 1–4. If recreation needed: `sudo mosquitto_passwd -b /etc/mosquitto/passwd garage-radar <password>` then `sudo chown root:mosquitto /etc/mosquitto/passwd` then `sudo systemctl restart mosquitto`.
 - **MQTT topics:** Primary `jctsh/components/garage-radar/state`. Sub-topics: `/still`, `/moving`, `/log`, `/heartbeat`.

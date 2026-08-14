@@ -18,8 +18,8 @@ environmental monitoring into a single integrated ecosystem.
 | [automatic-garage-door-opener-closer](components/automatic-garage-door-opener-closer/) | Voice and auto-close control for LiftMaster opener | Production |
 | [front-porch-temp-sensor](components/front-porch-temp-sensor/) | Front porch temperature, pressure, and light with push notifications | Production |
 | [p-w-firefly](components/p-w-firefly/) | Firefly Integrations RV-C coach interface for Pleasure-Way Lexor FL | Production |
-| [photo-server](components/photo-server/) | Self-hosted Immich photo/video library on dedicated mini PC | Production |
-| [photo-tv-display](components/photo-tv-display/) | Ambient photo slideshow + phone controller for Google TV, backed by photo-server | In Progress |
+| [m8](components/m8/) | Self-hosted Immich photo/video library on dedicated mini PC | Production |
+| [photo-tv-display](components/photo-tv-display/) | Ambient photo slideshow + phone controller for Google TV, backed by m8 | In Progress |
 | [hiking-monitor](components/hiking-monitor/) | Portable environmental sensor — logs to flash during hikes, syncs on return | In Progress |
 | [weather-station](components/weather-station/) | Outdoor DIY weather station posting to Weather Underground and Google Sheets | Planned |
 | [air-quality-monitor](components/air-quality-monitor/) | Portable PM/VOC/NOx sensor carried on hikes alongside the hiking monitor | Planned |
@@ -47,12 +47,12 @@ All services run on the home Raspberry Pi. On the home network:
 
 | Service | URL | Notes |
 |---|---|---|
-| Log dashboard | http://raspberrypi.local/ | Basic Auth — user: `jctsh` |
-| Node-RED | http://raspberrypi.local:1880 | Flow editor |
-| Home Assistant | http://raspberrypi.local:8123 | |
-| MQTT broker | raspberrypi.local:1883 | Requires auth — credentials in `credentials.local.md` |
+| Log dashboard | http://pi1.local/ | Basic Auth — user: `jctsh` |
+| Node-RED | http://pi1.local:1880 | Flow editor |
+| Home Assistant | http://pi1.local:8123 | |
+| MQTT broker | pi1.local:1883 | Requires auth — credentials in `credentials.local.md` |
 
-Remote access via Tailscale: replace `raspberrypi.local` with `100.70.162.24`.
+Remote access via Tailscale: replace `pi1.local` with `100.70.162.24`.
 
 See [jctsh-access.md](jctsh-access.md) for the full access reference including RV and Tailscale setup.
 
@@ -75,7 +75,7 @@ Mosquitto broker  (Raspberry Pi)
     │                  │
     │                  └──► SmartThings ──► Google Home / Pixel notifications
     │
-    └──► Python log server  — http://raspberrypi.local/
+    └──► Python log server  — http://pi1.local/
 ```
 
 Each component produces two parallel message streams: a **data stream**
@@ -132,7 +132,7 @@ Shared infrastructure not specific to any one component.
 | `core/mqtt/` | Mosquitto configuration (version-controlled copy) |
 | `core/node-red/` | Shared Node-RED flows and settings (version-controlled copies) |
 | `core/offline-logger/` | Reusable offline flash logging template (`sensor_logger.h`) — copy and rename for each intermittently-connected sensor |
-| `core/maintenance/` | Scheduled-reboot systemd units, deployed to the Pi and M8 photo-server |
+| `core/maintenance/` | Scheduled-reboot systemd units, deployed to the Pi and M8 |
 
 ---
 

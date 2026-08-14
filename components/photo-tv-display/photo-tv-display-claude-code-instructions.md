@@ -14,7 +14,7 @@
 Before any work begins, read:
 - `JCTsh-Build-Standards.md` (repo root)
 - `photo-tv-display-phase1-planning.md` and `photo-tv-display-phase2-planning.md` (this component's planning history)
-- `photo-server-claude-code-instructions.md` and the resulting `components/photo-server/` documentation — confirm `photo-server` is fully built and operational before proceeding
+- `photo-server-claude-code-instructions.md` and the resulting `components/m8/` documentation — confirm `photo-server` is fully built and operational before proceeding
 - `CLAUDE.md` (repo root) — existing HA REST API integration pattern (Node-RED → HA REST API → SmartThings is the precedent; here it's Node.js → HA REST API directly)
 
 **Hard dependency check:** Do not begin this build until `photo-server` is confirmed operational — Immich running, both user accounts created, and at minimum a test subset of photos imported (full migration does not need to be complete, but Immich must be reachable and have queryable data for development and testing).
@@ -23,7 +23,7 @@ Before any work begins, read:
 
 ## Pre-Build Checklist (Confirm Before Proceeding)
 
-- [ ] `photo-server` Immich instance is running and reachable at `http://photo-server.local:2283`
+- [ ] `photo-server` Immich instance is running and reachable at `http://m8.local:2283`
 - [ ] Node.js LTS is installed on the M8 (completed in `photo-server` Step 14)
 - [ ] Home Assistant has a working `media_player` entity for the Google TV via its Cast integration — **verify this in the HA UI before writing any casting code.** If it does not exist or does not work, stop and report back; this is a prerequisite that may require HA-side configuration outside this component's scope.
 - [ ] HA long-lived access token generated and available (Joseph generates this manually in HA profile settings — do not attempt to generate it programmatically)
@@ -75,7 +75,7 @@ Create `.env` (gitignored) with:
 IMMICH_SERVER_URL=http://localhost:2283
 IMMICH_API_KEY_JOSEPH=<api key from photo-server Step 11>
 IMMICH_API_KEY_ROBIN=<api key from photo-server Step 11>
-HA_SERVER_URL=http://raspberrypi.local:8123
+HA_SERVER_URL=http://pi1.local:8123
 HA_LONG_LIVED_TOKEN=<token Joseph generated in HA>
 DELETION_LOG_SHEET_APPS_SCRIPT_URL=<Apps Script doPost deployment URL>
 DELETION_LOG_LOCAL_PATH=/mnt/photo-library/deletion-log.csv
@@ -133,7 +133,7 @@ function formatLocation(city, state, country) {
        },
        body: JSON.stringify({
          entity_id: entityId,
-         media_content_id: `http://photo-server.local:${process.env.PORT}/tv`,
+         media_content_id: `http://m8.local:${process.env.PORT}/tv`,
          media_content_type: 'url',
        }),
      });
@@ -195,7 +195,7 @@ function formatLocation(city, state, country) {
    - Settings panel (display duration, transition style, metadata fields, metadata behavior, delete confirmation toggle, idle timeout)
    - "Start Slideshow" button (manual trigger)
 2. Connect to the same WebSocket server — sends action/setting-change messages, receives state updates so the controller UI reflects the current photo and settings accurately even if changed from another connected phone
-3. No app install required — this is accessed directly via browser at `http://photo-server.local:3000/controller`, bookmarked by both Joseph and Robin
+3. No app install required — this is accessed directly via browser at `http://m8.local:3000/controller`, bookmarked by both Joseph and Robin
 
 ---
 

@@ -48,11 +48,11 @@ path.
 
 `.claude/skills/hike-izer/SKILL.md`'s generation flow `scp`s each summary
 (and its `_photos/` directory, if present) to
-`jct@photo-server.local:~/hike-izer-web-app/srv/` as its last step —
+`jct@m8.local:~/hike-izer-web-app/srv/` as its last step —
 publishing isn't a separate manual action. To copy something by hand:
 
 ```
-scp -r <local file/dir> jct@photo-server.local:~/hike-izer-web-app/srv/
+scp -r <local file/dir> jct@m8.local:~/hike-izer-web-app/srv/
 ```
 
 ## Setup (one-time)
@@ -90,7 +90,7 @@ curl -s https://hikes.jctnet.com/           # should return the directory listin
 ```
 
 Docker health for the containers rides the M8's existing 30-minute
-heartbeat (`components/photo-server/photo-server-heartbeat.py`) — no
+heartbeat (`components/m8/photo-server-heartbeat.py`) — no
 separate monitoring for this component. The tunnel's own connectivity
 (distinct from the container just being "Up") isn't covered by that
 heartbeat — a gap worth knowing about, not yet addressed.

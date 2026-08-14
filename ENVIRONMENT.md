@@ -13,9 +13,9 @@ Tucson, AZ | Joseph C Thomas
 ## Servers & Mini PCs
 | Device | Role | Location |
 |---|---|---|
-| GMKtec NucBox M8 | photo-server — Immich self-hosted photo library | Home network, wired to TP-Link AXE5400 |
+| GMKtec NucBox M8 | m8 (was `photo-server` until CARD-0096) — Immich self-hosted photo library | Home network, wired to TP-Link AXE5400 |
 
-### GMKtec NucBox M8 — photo-server
+### GMKtec NucBox M8 — m8
 | Attribute | Value |
 |---|---|
 | Model | M8-5-33S |
@@ -23,7 +23,7 @@ Tucson, AZ | Joseph C Thomas
 | CPU | AMD Ryzen 5 PRO 6650H, 6C/12T, up to 4.5GHz, Zen 3+ |
 | RAM | 16GB LPDDR5 6400MHz |
 | Storage (internal) | Netac G932EQN3 512GB NVMe SSD (OS, database, thumbnails) |
-| Storage (photo library) | External USB drive(s) — see photo-server component docs |
+| Storage (photo library) | External USB drive(s) — see `components/m8/` docs |
 | GPU | AMD Radeon 660M (AV1/HEVC/VP9 hardware decode) |
 | NIC 1 | Realtek Gaming 2.5GbE Family Controller |
 | NIC 2 | Realtek Gaming 2.5GbE Family Controller #2 |

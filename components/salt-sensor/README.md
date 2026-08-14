@@ -88,7 +88,7 @@ wifi_ssid: "JCTnet1"
 wifi_password: "..."
 ap_password: "..."
 
-mqtt_broker: "raspberrypi.local"
+mqtt_broker: "pi1.local"
 mqtt_username: "salt-sensor"
 mqtt_password: "..."
 

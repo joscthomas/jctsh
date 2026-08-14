@@ -668,7 +668,7 @@ README accurate and complete. All four housekeeping files updated correctly.
 ## Notes for Claude Code
 
 - **This is not an ESP32/ESPHome component.** Do not apply ESP32, ESPHome, MQTT account creation, heartbeat, watchdog, or Node-RED flow standards from JCTsh-Build-Standards.md to this component. Those standards apply only to the future smart home integration phase.
-- **Read CLAUDE.md and ENVIRONMENT.md first** to understand existing infrastructure before creating any files. The home Pi runs at `raspberrypi.local` / `192.168.1.117` / Tailscale `100.70.162.24`. Do not confuse home Pi and RV Pi.
+- **Read CLAUDE.md and ENVIRONMENT.md first** to understand existing infrastructure before creating any files. The home Pi runs at `pi1.local` / `192.168.1.117` / Tailscale `100.70.162.24`. Do not confuse home Pi and RV Pi.
 - **Follow existing component conventions** for file naming, directory structure, and documentation style. Garage-radar README is the closest structural model for the component README.
 - **RV-C bitrate is 250kbps — not 500kbps.** Document this prominently in pican2-config.md and rvc-verification.md. Wrong bitrate produces no CAN traffic and is the most common setup error.
 - **JP3 termination jumper must NOT be installed.** Connecting as a Drop, not a Trunk endpoint. Document this warning in hardware-assembly.md and physical-installation.md. Installing it disrupts the entire Firefly RV-C bus.

@@ -63,7 +63,7 @@ BME280 (I2C 0x76) ──┐
 BH1750 (I2C 0x23) ──┘        │
                               │ MQTT
                               ▼
-                    Mosquitto broker (raspberrypi.local:1883)
+                    Mosquitto broker (pi1.local:1883)
                          │         │
                          │         └──► Node-RED
                          │                │ routes /log → Python log server
@@ -71,7 +71,7 @@ BH1750 (I2C 0x23) ──┘        │
                          │                └──► (no flow logic required for v1)
                          │
                          ▼
-                    Home Assistant (raspberrypi.local:8123)
+                    Home Assistant (pi1.local:8123)
                     ├── Dashboard card (temp, humidity, pressure, lux)
                     ├── input_number.front_porch_temp_threshold (default 80°F)
                     ├── input_number.front_porch_lux_threshold (default 50 lux)
@@ -255,7 +255,7 @@ Include a note to place `ESP32pins.png` (pinout reference) in the component dire
   - Pressure reading is plausible — Tucson is ~750m elevation, expect ~925 hPa (not sea-level ~1013 hPa)
   - Illuminance reading changes when light source is moved near/away
   - All four sensor entities appear in HA
-  - Log messages appearing at `http://raspberrypi.local/` (Basic Auth, user: `jctsh`)
+  - Log messages appearing at `http://pi1.local/` (Basic Auth, user: `jctsh`)
   - Heartbeat appearing in log dashboard every 5 minutes
 
 **Joseph does:** Follow flashing.md — flash via USB, confirm all entities in HA, confirm log messages and heartbeat in dashboard.
@@ -298,7 +298,7 @@ Creation path: HA Settings → Devices & Services → Helpers → Add Helper →
 
 **Claude Code does:** Add to `integration.md` — section explaining how to find the `notify.mobile_app_*` entity IDs for both phones:
 - HA Developer Tools → Actions → search "notify.mobile_app"
-- Both phones must appear — if not, install HA Companion app (Google Play: "Home Assistant" by Nabu Casa), connect to `http://raspberrypi.local:8123`, grant notification permissions, then restart HA
+- Both phones must appear — if not, install HA Companion app (Google Play: "Home Assistant" by Nabu Casa), connect to `http://pi1.local:8123`, grant notification permissions, then restart HA
 
 **Joseph does:** Confirm both entity IDs and report back.
 
@@ -351,7 +351,7 @@ Creation path: HA Settings → Devices & Services → Helpers → Add Helper →
 **Claude Code does:** Create `components/front-porch-temp-sensor/testing.md` with the full validation procedure:
 
 1. **Sensor validation** — all four values updating every ~60 seconds in HA
-2. **Log dashboard check** — log messages visible at `http://raspberrypi.local/` under `front-porch-temp-sensor`
+2. **Log dashboard check** — log messages visible at `http://pi1.local/` under `front-porch-temp-sensor`
 3. **Heartbeat check** — heartbeat message appearing every 5 minutes in log dashboard
 4. **Watchdog check** — confirm `jctsh/components/front-porch-temp-sensor/heartbeat` topic is publishing; the Node-RED watchdog wildcard subscription catches it automatically — no configuration needed
 5. **Lux sensor test** — cover BH1750, confirm lux drops; uncover, confirm lux rises

@@ -1,7 +1,7 @@
 # photo-tv-display — Phone Controller View
 
 `public/controller.html` + `public/controller.js`. Accessed directly at
-`http://photo-server.local:3000/controller`, bookmarked by both Joseph and
+`http://m8.local:3000/controller`, bookmarked by both Joseph and
 Robin — no app install, no login. Both have full, equal access to every
 action and setting (Phase 1 spec — no role restrictions).
 

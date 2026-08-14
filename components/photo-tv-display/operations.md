@@ -3,7 +3,7 @@
 ## Service status / restart / logs
 
 ```bash
-ssh jct@photo-server.local
+ssh jct@m8.local
 sudo systemctl status photo-tv-display
 sudo systemctl restart photo-tv-display
 journalctl -u photo-tv-display -f
@@ -12,7 +12,7 @@ journalctl -u photo-tv-display -f
 ## Updating dependencies
 
 ```bash
-ssh jct@photo-server.local
+ssh jct@m8.local
 cd ~/photo-tv-display
 npm outdated
 npm update
@@ -24,14 +24,14 @@ sudo systemctl restart photo-tv-display
 Always edit in the repo first (source of truth), then:
 
 ```bash
-scp <changed files> jct@photo-server.local:~/photo-tv-display/<path>
-ssh jct@photo-server.local "sudo systemctl restart photo-tv-display"
+scp <changed files> jct@m8.local:~/photo-tv-display/<path>
+ssh jct@m8.local "sudo systemctl restart photo-tv-display"
 ```
 
 ## Manually starting the slideshow without the phone controller
 
 ```bash
-curl -X POST http://photo-server.local:3000/api/start-slideshow
+curl -X POST http://m8.local:3000/api/start-slideshow
 ```
 
 ## Rotating credentials

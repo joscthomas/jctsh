@@ -6,11 +6,11 @@ See `jctsh/CLAUDE.md` for monorepo-wide conventions.
 ## Architecture
 - **ESP32 (ESPHome)** reads JSN-SR04T ultrasonic sensor, publishes sensor data and log
   messages to MQTT every 12 hours, plus a heartbeat every 30 minutes
-- **Mosquitto** broker runs on Raspberry Pi (`raspberrypi.local`)
+- **Mosquitto** broker runs on Raspberry Pi (`pi1.local`)
 - **Node-RED** applies threshold logic, controls HA switches via REST API
 - **Home Assistant** bridges to SmartThings for alerts and switch control
 - **SmartThings** — primary control surface for alert switches
-- **Log dashboard** — `http://raspberrypi.local/` (Python log server on Pi)
+- **Log dashboard** — `http://pi1.local/` (Python log server on Pi)
 
 ## ESPHome Migration (CARD-0004)
 Migrated from Arduino C++ to ESPHome. The old sketch is preserved for reference at
@@ -47,7 +47,7 @@ or PAT-based authentication anywhere in this component.
 ## Web Server Removed — Do Not Re-Add
 The ESP32 web monitor (`salt-sensor.local` web UI) was removed in the JCTsh restructure.
 Log messages are published via MQTT to `jctsh/sensors/salt-sensor/log` and displayed in
-the centralized log dashboard at `http://raspberrypi.local/`. Do not re-add a web server
+the centralized log dashboard at `http://pi1.local/`. Do not re-add a web server
 or in-memory log buffer to the firmware.
 
 ## Hardware

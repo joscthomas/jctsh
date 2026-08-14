@@ -6,7 +6,7 @@
 
 ## Access
 
-URL: `http://photo-server.local:20211` (or `http://192.168.1.165:20211`)
+URL: `http://m8.local:20211` (or `http://192.168.1.165:20211`)
 Password: see `credentials.local.md` → NetAlertX (CARD-0059)
 
 ---

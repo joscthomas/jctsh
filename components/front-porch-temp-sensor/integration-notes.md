@@ -107,7 +107,7 @@ wifi_ssid: "your_wifi_ssid"
 wifi_password: "your_wifi_password"
 ap_password: "your_fallback_ap_password"
 
-mqtt_broker: "raspberrypi.local"
+mqtt_broker: "pi1.local"
 mqtt_username: "your_mqtt_username"
 mqtt_password: "your_mqtt_password"
 

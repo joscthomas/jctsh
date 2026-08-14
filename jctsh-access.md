@@ -1,7 +1,7 @@
 # JCTsh Access Reference
 
 How to reach each service from different locations and devices.
-IP addresses always work. MagicDNS names (e.g. `raspberrypi`) work when Tailscale is connected.
+IP addresses always work. MagicDNS names (e.g. `pi1`) work when Tailscale is connected.
 
 ---
 
@@ -37,10 +37,10 @@ Tailscale runs automatically as a Windows service — no manual connect needed.
 
 | Service | URL |
 |---|---|
-| Home Assistant | http://raspberrypi:8123 |
-| Log dashboard | http://raspberrypi |
-| Node-RED editor | http://raspberrypi:1880 |
-| SSH to Pi | `ssh pi@raspberrypi` |
+| Home Assistant | http://pi1:8123 |
+| Log dashboard | http://pi1 |
+| Node-RED editor | http://pi1:1880 |
+| SSH to Pi | `ssh pi@pi1` |
 | eRVin dashboard | http://coachproxyos |
 | eRVin Node-RED | http://coachproxyos:1880 |
 | SSH to RV Pi | `ssh pi@coachproxyos` |
@@ -69,8 +69,8 @@ Tailscale is manual: open the Tailscale app and tap Connect before using remote 
 | Service | URL |
 |---|---|
 | Home Assistant | HA app (no Tailscale needed) |
-| Log dashboard | http://raspberrypi |
-| Node-RED editor | http://raspberrypi:1880 |
+| Log dashboard | http://pi1 |
+| Node-RED editor | http://pi1:1880 |
 | eRVin dashboard | http://coachproxyos |
 
 ---
@@ -101,6 +101,6 @@ Account: joscthomas@gmail.com
 
 ## Notes
 
-- **`.local` hostnames** (raspberrypi.local, salt-sensor.local, etc.) are unreliable — use IPs or MagicDNS names instead.
+- **`.local` hostnames** (pi1.local, salt-sensor.local, etc.) are unreliable — use IPs or MagicDNS names instead.
 - **ESP32 devices** (garage-radar, salt-sensor, front-porch-temp-sensor, hiking-monitor) are managed through HA and Node-RED — you don't access them directly during normal use.
 - Full IP/MAC table: `jctsh-network.md`

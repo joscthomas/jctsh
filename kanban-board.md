@@ -9,7 +9,32 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0159 -->
+<!-- next-card-id: CARD-0160 -->
+
+---
+
+### CARD-0159 · [enhancement] [infrastructure] Move Docker's data-root from the Pi's SD card to the existing USB drive
+**Status:** Backlog
+
+**Raised 2026-08-13 21:30 MST**, during CARD-0130's HA image update — a pull failed mid-download (`short read: ... unexpected EOF`, a transient registry hiccup, unrelated to this card) and Joseph asked what a USB drive on the Pi would actually buy, prompted by seeing Docker's data-root (`/var/lib/docker`) sitting on the SD card mid-pull.
+
+**Same motivation as CARD-0006 (Done), same underlying fix, different directory.** That card moved the log directory to a USB stick — its own investigation found capacity was never the real constraint (log volume was under 1MB after 1.5 months); the actual problem was **SD card write endurance**, which degrades under frequent writes in a way USB flash/SSD tolerates far better. Docker's data-root sees exactly that write pattern (image layer pulls, container filesystem churn) and currently sits on the same SD card (`/dev/mmcblk0p2`, root filesystem) as the OS itself.
+
+**Target drive decided (interviewed live):** share the existing USB drive from CARD-0006 (`/dev/sda1`, mounted `/mnt/jctsh-logs`, labeled `jctsh-logs`) rather than sourcing a second drive — checked live, it has 30GB total with only 4.7MB used (log volume is negligible), plenty of room for Docker's data too without competing for space or meaningfully changing its own wear profile.
+
+**Design, mirroring CARD-0006's own careful approach (not yet built):**
+1. Stop Docker (`sudo systemctl stop docker`) before moving anything — never rsync a live, in-use data directory.
+2. Move `/var/lib/docker`'s actual contents onto the USB drive (e.g. a `docker` subdirectory alongside the existing log directory, or reconsider whether this warrants a second partition on the same physical drive — decide at Build time).
+3. Set Docker's `data-root` explicitly in `/etc/docker/daemon.json` (already tracked in this repo, currently only pins DNS — `{"dns": [...]}`) to the new USB path, alongside the existing DNS config, not replacing it.
+4. **The exact gap CARD-0006 found and fixed for `jctsh-logging.service` almost certainly applies here too** — Docker's own systemd unit needs a mount-ordering dependency (`RequiresMountsFor=/mnt/jctsh-logs` or equivalent) so a reboot can't race Docker's startup ahead of the USB mount and silently recreate `/var/lib/docker` back on the SD card underneath it. Check whether `docker.service` already has this (likely not, same blind spot CARD-0032/0048/0006 each independently hit) and add it if missing.
+5. Verify via a real reboot test, same as CARD-0006 did — mount comes back automatically, Docker waits for it correctly, all containers (`homeassistant`, and anything else running) come back up using data from the USB path, not fresh/empty. `reboot-health-check.py` (CARD-0158) conveniently already checks `homeassistant`'s health post-reboot — real, incidental extra coverage for this card's own verification once both are live.
+6. Clean up the stale SD-card copy of the old data-root only once the USB path is confirmed live and correct — same sequencing CARD-0006 used.
+
+**Real, higher blast radius than CARD-0006, worth stating plainly:** the log directory was an appendable file with a trivial rollback (stale SD copy sitting untouched until deletion). Docker's data-root holds every container's actual data (`homeassistant` included, which Robin depends on directly) — a mistake here risks breaking Docker/HA entirely, not just losing some log history. Do this deliberately, with a real backup of the SD-card copy kept until the USB path is fully verified, not as a quick add-on to some other night's session.
+
+**Done when:** Docker's data-root genuinely lives on the USB drive (confirmed via `docker info`'s `DockerRootDir`), a real reboot correctly brings every container back up from the USB-resident data with no gap, the systemd mount-ordering dependency is in place and verified (not just assumed), and the old SD-card copy is removed only after all of that's confirmed.
+
+**Related:** CARD-0006 (the log-directory precedent this generalizes, same drive), CARD-0032/CARD-0048 (the mount-ordering-race incident class this is careful to avoid repeating a third time), CARD-0158 (the post-reboot health check that incidentally helps verify this card too), CARD-0130 (the HA update session this idea came up during).
 
 ---
 
@@ -860,14 +885,51 @@ Instinct going in: don't try to unify these into one "status" value — keep the
 
 ---
 
-### CARD-0130 · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1) — auto-opened from jctsh-core
-**Status:** Backlog
+### CARD-0130 · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1) — auto-opened from jctsh-core — RESOLVED 2026-08-13 21:50 MST
+**Status:** Done
 
 **Auto-generated 2026-07-31 22:52 UTC from jctsh-core's maintenance check.** Raw finding: Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
 
 **Blocked — deferred until Joseph is physically home (2026-08-05 10:28 MST).** Same reasoning as CARD-0129/CARD-0096: HA is the household coordination hub Robin depends on directly, and an image update plus container restart is exactly the class of higher-stakes change that mitigation exists for — being on the home LAN removes Tailscale/remote-access as a dependency for the recovery path if anything goes wrong mid-update.
 
-**Related:** live dashboard entry at time of generation, CARD-0129 (the Pi-update sibling with the same "wait until home" block), CARD-0096 (original precedent for this reasoning).
+**Resolved 2026-08-13 evening, Joseph home on the LAN as planned.** By the
+time this was actually picked up, the live dashboard's pending-update state
+showed `2026.8.1` available, not the stale `2026.7.4` this card's auto-
+generated title still named — HA had released another version since this
+card was opened. **Checked release notes for all three intervening months
+(2026.6, 2026.7, 2026.8) before touching anything**, specifically looking
+for anything relevant to MQTT, automations.yaml schema, SmartThings, Docker,
+or reverse proxies: renamed purpose-specific automation triggers/conditions
+(none used in this repo's `automations.yaml`), ~20 removed integrations
+(none used here), a device-merging behavior change (automatic, non-
+destructive, and this repo's automations all use `entity_id` not `device_id`
+so the one manual-review caveat didn't apply), and a default-port-8123
+change (explicitly new-installs-only, confirmed via the official release
+post — zero effect on this already-running instance). Nothing found that
+blocked proceeding.
+
+**Update applied:** `docker compose pull homeassistant` (one transient
+registry hiccup mid-pull — `short read ... unexpected EOF` on one layer,
+resolved by simply retrying; already-downloaded layers were cached, not
+re-fetched) + `docker compose up -d homeassistant`.
+
+**Verified live, real device:** `reboot-health-check.py` (CARD-0158, run
+manually rather than duplicating its own polling-for-healthy logic) reported
+`homeassistant: healthy` via Docker's real health check; confirmed running
+version actually changed (`2026.8.1` via `/api/config`, not just "the
+container restarted"); all 11 automation entities present and loaded
+(including tonight's new Traveling Lights dashboard addition and the
+CARD-0158 reminder); SmartThings integration correctly went through its own
+normal post-restart reconnection (`not_loaded` → `loaded`, confirmed by
+polling, not a failure — cloud integrations take a beat longer to
+reconnect than the core API does). One pre-existing, unrelated log item
+noticed and deliberately not chased: Bluetooth permission errors from HA's
+bundled `habluetooth` integration, caused by the container never being
+granted `NET_ADMIN`/`NET_RAW` capabilities — this JCTsh setup doesn't use
+Bluetooth for anything, longstanding non-issue, not a regression from this
+update.
+
+**Related:** live dashboard entry at time of generation, CARD-0129 (the Pi-update sibling with the same "wait until home" block), CARD-0096 (original precedent for this reasoning), CARD-0158 (`reboot-health-check.py`, reused here to verify this update instead of writing a one-off check), CARD-0159 (the SD-card-wear idea this same session surfaced, opened but not built).
 
 ---
 

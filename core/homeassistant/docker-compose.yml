@@ -4,7 +4,7 @@ services:
     image: ghcr.io/home-assistant/home-assistant:stable
     network_mode: host
     volumes:
-      - /home/pi/homeassistant:/config
+      - /mnt/jctsh-logs/homeassistant:/config
     restart: unless-stopped
     privileged: true
     security_opt:

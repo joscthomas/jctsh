@@ -106,10 +106,12 @@ before Phase 3 planning is considered complete.
 
 Pi primary hostname: `raspberrypi.local` — do not change. Fixed IP: `192.168.1.117` (DHCP reservation set on router). Use the IP directly if `.local` resolution fails. Timezone: `America/Phoenix` (MST, UTC-7, no DST). Tailscale IP: `100.70.162.24` — use this for remote access from outside the home network.
 
+**Convention: avoid SD-card I/O on the Pi; new apps go on the M8.** The Pi boots from a microSD card, which degrades under frequent writes in a way USB flash/SSD and the M8's own storage tolerate far better — CARD-0006 (log directory), CARD-0159 (Docker/containerd data-roots, HA's recorder DB, Mosquitto's persistence) all exist because of this. When adding a new component or service: prefer the M8 (already the home for NetAlertX, Immich, hike-izer-web, and other Docker-based apps) over the Pi. If something must run on the Pi (tightly coupled to existing Pi-native services like Mosquitto/Node-RED/HA), route its write-heavy state onto the existing USB drive (`/mnt/jctsh-logs`, labeled `jctsh-logs`) rather than the SD card's root filesystem, following the same pattern those cards used: stop the service, move the data, repoint its config at the USB path, add a systemd `RequiresMountsFor=/mnt/jctsh-logs` dependency so a reboot can't race the mount and silently recreate the data back on the SD card, then verify with a real reboot test before removing the old SD-card copy.
+
 ### Home Assistant Docker Setup
 HA runs in a Docker container (`ghcr.io/home-assistant/home-assistant:stable`) managed by Docker's `unless-stopped` restart policy. The authoritative configuration is in `core/homeassistant/docker-compose.yml`.
 
-Config volume: `/home/pi/homeassistant:/config` (this is what the repo's `core/homeassistant/` snapshots).
+Config volume: `/mnt/jctsh-logs/homeassistant:/config` (moved off the SD card by CARD-0159; this is what the repo's `core/homeassistant/` snapshots).
 
 To manage the container:
 ```bash
@@ -123,7 +125,7 @@ cd /home/pi && docker compose up -d
 docker logs -f homeassistant
 ```
 
-DNS is explicitly pinned to `8.8.8.8` / `8.8.4.4` in both `docker-compose.yml` and `/etc/docker/daemon.json`. This prevents a recurrence of the June 2026 outage where HA lost all cloud connectivity because the container had a stale DHCP-assigned DNS server (`192.168.1.222`) baked in at creation time.
+DNS is explicitly pinned to `8.8.8.8` / `8.8.4.4` in both `docker-compose.yml` and `/etc/docker/daemon.json` (tracked at `core/docker/daemon.json`). This prevents a recurrence of the June 2026 outage where HA lost all cloud connectivity because the container had a stale DHCP-assigned DNS server (`192.168.1.222`) baked in at creation time. `daemon.json` also pins Docker's `data-root` to the USB drive (`/mnt/jctsh-logs/docker`, CARD-0159) — containerd's own `root` setting does the same for its separate snapshot store (`/etc/containerd/config.toml`, tracked at `core/docker/containerd-config.toml`), which is where the actual bulk of image/container-layer data lives on this Docker install, not under `/var/lib/docker` itself.
 
 ## Remote Access
 Tailscale is installed on the Pi. Connect any device to the same Tailscale account
@@ -183,8 +185,10 @@ This confirms the log server and MQTT broker are alive. It appears in the dashbo
 component `jctsh-core`. No Node-RED involvement — core infrastructure only.
 
 ## Core Files (Pi runtime)
-The repo is the source of truth. Edit files here, then deploy to the Pi — do not edit on the Pi directly or the repo will fall out of sync. The HA config directory (`/home/pi/homeassistant/`) is owned by `pi` so plain `scp` works in both directions.
+The repo is the source of truth. Edit files here, then deploy to the Pi — do not edit on the Pi directly or the repo will fall out of sync. The HA config directory (`/mnt/jctsh-logs/homeassistant/` — moved off the SD card by CARD-0159, was `/home/pi/homeassistant/`) is owned by `pi` so plain `scp` works in both directions.
 
+- `core/docker/daemon.json` — Docker engine config (DNS pinning + `data-root` on the USB drive, CARD-0159). Deploy: `scp` to `/etc/docker/daemon.json`, `sudo systemctl restart docker`.
+- `core/docker/containerd-config.toml` — containerd config (`root` on the USB drive, CARD-0159 — this is where the actual bulk of image/container-layer data lives, not `/var/lib/docker`). Deploy: `scp` to `/etc/containerd/config.toml`, `sudo systemctl restart containerd docker`.
 - `core/node-red/core.flow.json` — MQTT broker node (import first when re-importing flows)
 - `core/node-red/watchdog.flow.json` — component heartbeat watchdog; wildcard `jctsh/+/+/heartbeat`; push notification via HA companion app if silent for 10 min. See `core/node-red/watchdog-README.md`.
 - `core/data-pipeline/environmental-data.flow.json` — Node-RED wildcard data handler (`jctsh/components/+/data`) → GPS lookup → Google Sheets
@@ -195,7 +199,7 @@ The repo is the source of truth. Edit files here, then deploy to the Pi — do n
 - `core/homeassistant/configuration.yaml` — HA config (do not modify)
 - `core/homeassistant/automations.yaml` — HA automations. Deploy and reload:
   ```bash
-  scp core/homeassistant/automations.yaml pi@raspberrypi.local:/home/pi/homeassistant/automations.yaml
+  scp core/homeassistant/automations.yaml pi@raspberrypi.local:/mnt/jctsh-logs/homeassistant/automations.yaml
   curl -s -X POST http://raspberrypi.local:8123/api/services/automation/reload \
     -H "Authorization: Bearer $HA_TOKEN" -H "Content-Type: application/json"
   ```

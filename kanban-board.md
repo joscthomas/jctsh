@@ -9,7 +9,24 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0165 -->
+<!-- next-card-id: CARD-0166 -->
+
+---
+
+### CARD-0165 · [enhancement] [voice] Ask Google Home for the front porch temperature
+**Status:** Backlog
+
+**Raised 2026-08-14, mid-CARD-0159 session.** Voice query — "Hey Google, what's the front porch temperature?" — should answer from the existing sensor, no new hardware.
+
+**Confirmed low-effort, entity already exists and already in production use:** `sensor.front_porch_temp_sensor_temperature`, published via the `front-porch-temp-sensor` ESPHome component's MQTT discovery (`discovery_prefix: homeassistant` in `components/front-porch-temp-sensor/front-porch-temp-sensor.yaml`). Already consumed by two real HA automations (`automation-front-porch-cool-open-door.yaml`, `automation-front-porch-warm-close-door.yaml`), so the entity is known-reliable, not something to newly trust.
+
+**Approach:** expose this one entity to Google Assistant via the Nabu Casa integration already active on this HA instance (Settings → Home Assistant Cloud → Google Assistant → expose entity) — no new integration, no SmartThings involvement, same mechanism CARD-0146/CARD-0164's research identified as available for voice-bridging without SmartThings as a middleman.
+
+**Interview note (2026-08-14):** set a clean voice alias (e.g. "Front Porch Temperature") rather than exposing under the entity's auto-generated friendly name — Joseph's preference, for natural voice matching and a sensible spoken response.
+
+**Done when:** "Hey Google, what's the front porch temperature?" (or a natural phrasing close to it) reliably returns the current reading, tested live, not just configured.
+
+**Related:** `components/front-porch-temp-sensor/` (the existing sensor this exposes), CARD-0146/CARD-0164 (where Nabu Casa's Google Assistant bridge was identified as an alternative to SmartThings for reaching Google Home).
 
 ---
 
@@ -123,8 +140,8 @@ Deployed (`scp` + `sudo systemctl restart jctsh-logging`), confirmed clean resta
 
 ---
 
-### CARD-0159 · [enhancement] [infrastructure] Move Docker's data-root from the Pi's SD card to the existing USB drive
-**Status:** Backlog
+### CARD-0159 · [enhancement] [infrastructure] Move Docker's data-root from the Pi's SD card to the existing USB drive — RESOLVED 2026-08-14 14:36 MST
+**Status:** Done
 
 **Raised 2026-08-13 21:30 MST**, during CARD-0130's HA image update — a pull failed mid-download (`short read: ... unexpected EOF`, a transient registry hiccup, unrelated to this card) and Joseph asked what a USB drive on the Pi would actually buy, prompted by seeing Docker's data-root (`/var/lib/docker`) sitting on the SD card mid-pull.
 
@@ -143,6 +160,19 @@ Deployed (`scp` + `sudo systemctl restart jctsh-logging`), confirmed clean resta
 **Real, higher blast radius than CARD-0006, worth stating plainly:** the log directory was an appendable file with a trivial rollback (stale SD copy sitting untouched until deletion). Docker's data-root holds every container's actual data (`homeassistant` included, which Robin depends on directly) — a mistake here risks breaking Docker/HA entirely, not just losing some log history. Do this deliberately, with a real backup of the SD-card copy kept until the USB path is fully verified, not as a quick add-on to some other night's session.
 
 **Done when:** Docker's data-root genuinely lives on the USB drive (confirmed via `docker info`'s `DockerRootDir`), a real reboot correctly brings every container back up from the USB-resident data with no gap, the systemd mount-ordering dependency is in place and verified (not just assumed), and the old SD-card copy is removed only after all of that's confirmed.
+
+**Built and verified live, 2026-08-14 — scope expanded well beyond the original design, each expansion found live rather than planned upfront:**
+
+1. **Real finding that changed the plan: `/var/lib/docker` alone was nearly empty (524KB).** This Docker install uses containerd's separate content-addressable snapshot store — the actual 6.3GB of image/container-layer data lives under `/var/lib/containerd`, configured via `/etc/containerd/config.toml`'s `root` setting (was commented out, defaulting to `/var/lib/containerd`). Moving only `/var/lib/docker` would have accomplished almost nothing for this card's actual goal. Moved both: `/var/lib/docker` → `/mnt/jctsh-logs/docker` (via `daemon.json`'s `data-root`), `/var/lib/containerd` → `/mnt/jctsh-logs/containerd` (via `config.toml`'s `root`). Both verified byte-for-byte (`du` + file count matched source exactly) before cutover.
+2. **HA's config directory** (`/home/pi/homeassistant`, 61M) — includes `home-assistant_v2.db`, the recorder database that writes on nearly every entity state change across the whole house, arguably a bigger ongoing SD-wear contributor than Docker itself. Moved to `/mnt/jctsh-logs/homeassistant`, `docker-compose.yml`'s bind mount updated and deployed. Verified via full entity-count comparison (771 before/after the container recreate, zero regression) rather than just "container started."
+3. **Mosquitto's persistence** (`/var/lib/mosquitto`, 308K) — moved to `/mnt/jctsh-logs/mosquitto`, `persistence_location` updated in both the live config and the repo's tracked `core/mqtt/mosquitto.conf`. Verified with a real retained-message pub/sub round trip.
+4. **`/var/log` entirely** (2.5M, but the meaningful part is write *rate* not size) — found live that mosquitto's connection log (which `fail2ban` actively watches per the Internet Exposure section above) and nginx's HTTPS-proxy access/error logs were the two real ongoing writers here, `rsyslog` itself turned out to be inactive. Rather than special-case mosquitto's log path (would've needed `fail2ban`'s jail config, logrotate, and mosquitto.conf all kept in lockstep), bind-mounted the whole directory: moved to `/mnt/jctsh-logs/var-log`, old `/var/log` renamed aside (`/var/log.old-sd-backup`, not yet deleted — Joseph's call on final cleanup), `/etc/fstab` gets a `bind,nofail` mount entry (matching the existing USB mount's own `nofail`, so a missing/failed drive can't hang boot). No app-level config changes needed — `fail2ban`'s watched path (`/var/log/mosquitto/mosquitto.log`) stays textually identical, just transparently backed by the USB drive now. Verified via `fail2ban-client status` confirming it's still watching the right (now bind-mounted) path, and a real MQTT publish producing a fresh, correctly-attributed log line.
+
+**All four pieces survived two independent real reboot tests** (once after the Docker/containerd/HA/mosquitto moves, once again after the `/var/log` bind mount) — not just live-state checks. Both times: USB mount reattached automatically, nothing silently fell back to the SD card, all services came back active, HA reached healthy with its full entity registry intact, and CARD-0158's own independent post-reboot health check confirmed `{'homeassistant': 'healthy', 'nodered': 'active', 'mosquitto': 'active'}` both times.
+
+**SD card usage: 14G → 7.7G (53% → 29%)** after deleting the verified-safe old copies of Docker/containerd/HA-config/mosquitto-persistence. `/var/log.old-sd-backup` intentionally left in place pending Joseph's go-ahead to delete.
+
+**New standing convention captured, not just a one-off fix**: added to `CLAUDE.md`'s Infrastructure section — avoid SD-card I/O on the Pi generally, prefer the M8 for new apps, and when something must stay Pi-native, route its write-heavy state onto this same USB drive using the pattern established here.
 
 **Related:** CARD-0006 (the log-directory precedent this generalizes, same drive), CARD-0032/CARD-0048 (the mount-ordering-race incident class this is careful to avoid repeating a third time), CARD-0158 (the post-reboot health check that incidentally helps verify this card too), CARD-0130 (the HA update session this idea came up during).
 
@@ -606,6 +636,11 @@ Both fixes deployed and verified against a fresh regeneration of both real pages
 - Form: spoken TTS announcement (not just a chime) — needs HA's Google Cast/TTS path to Google Home wired up if not already.
 - Scope: all speakers/displays, no subset excluded (including master bath and garage).
 - **Open design question, not yet resolved:** "any motion on any of 7 cameras" firing to every speaker in the house has real noise/nuisance potential (wind, cars, mail carrier, pets) — worth deciding during Planning whether the announcement identifies which camera triggered (e.g. "Motion at back porch") and whether any throttling/cooldown is needed to avoid repeated announcements for the same ongoing event.
+
+**Two viable approaches researched 2026-08-14, decided: go with HA.**
+- **HA approach (chosen)**: one automation triggering on any of the 7 motion `binary_sensor` entities (already live via the existing SmartThings bridge, no new integration needed — unlike CARD-0146, this needs zero new infrastructure), calling `tts.cloud_say` (Nabu Casa's already active, no separate TTS setup) against all 5 target `media_player` entities, with a templated message naming the triggering camera. Single automation, maintainable, and keeps the logic portable if the underlying sensor source ever changes later (e.g. if CARD-0164's SmartThings decision eventually moves these sensors off SmartThings, only the trigger entity_ids need updating, not the whole automation).
+- **No-HA alternative (documented, not chosen)**: SmartThings virtual switch per camera (7) → SmartThings routine (motion → switch on) → Google Home Automation (switch on → broadcast message), all UI-configured in the SmartThings/Google Home apps, zero HA involvement. Real tradeoff against this: 21 separately-maintained pieces (7 switches + 7 routines + 7 automations) with hardcoded per-camera messages, and it *increases* reliance on SmartThings' own routine engine specifically — relevant to CARD-0164, since these routines would need rebuilding too if SmartThings is ever migrated away from, unlike HA-side logic.
+- Exact entity IDs for both the 7 motion sensors and 5 speakers/displays still need live confirmation against real HA state before Build (some cameras appear to have both a standalone motion sensor and a separate camera-motion entity — needs disambiguating, not assumed) — see CARD-0146's research for the same discipline applied there.
 
 **Done when:** motion on any of the 7 Ring cameras reliably triggers a spoken announcement on every listed Google Home speaker/display, without flooding announcements for a single continuous motion event.
 

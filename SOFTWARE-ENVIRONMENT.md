@@ -25,7 +25,7 @@ All services start automatically at boot. None require manual intervention under
 | Image | `ghcr.io/home-assistant/home-assistant:stable` |
 | Managed by | Docker (`unless-stopped` restart policy) |
 | Compose file | `core/homeassistant/docker-compose.yml` (repo) → `/home/pi/docker-compose.yml` (Pi) |
-| Config volume | `/home/pi/homeassistant` → `/config` inside container |
+| Config volume | `/mnt/jctsh-logs/homeassistant` → `/config` inside container (moved off the SD card by CARD-0159) |
 | Web UI | `http://raspberrypi.local:8123` |
 | External access | Nabu Casa (HA Cloud) — account `joscthomas@gmail.com` |
 
@@ -47,8 +47,8 @@ docker logs -f homeassistant                  # live logs
 | Config | `/etc/mosquitto/mosquitto.conf` + `/etc/mosquitto/conf.d/local.conf` |
 | Port | 1883 |
 | Auth | Required — `allow_anonymous false`, passwords in `/etc/mosquitto/passwd` |
-| Persistence | `/var/lib/mosquitto/` |
-| Log | `/var/log/mosquitto/mosquitto.log` |
+| Persistence | `/mnt/jctsh-logs/mosquitto/` (moved off the SD card by CARD-0159, was `/var/lib/mosquitto/`) |
+| Log | `/var/log/mosquitto/mosquitto.log` (path unchanged, but `/var/log` itself is now bind-mounted to the USB drive — CARD-0159) |
 | Protocol | MQTT v5 (Node-RED broker node); MQTT v3.1.1 (ESP32/ESPHome/HA — Mosquitto 2.x accepts both simultaneously) |
 
 Version-controlled config snapshot: `core/mqtt/mosquitto.conf`.

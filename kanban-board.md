@@ -13,6 +13,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-XXX · [enhancement] [infrastructure] Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3) — auto-opened from photo-server
+**Status:** Backlog
+
+**Auto-generated 2026-08-14 13:30 UTC from photo-server's maintenance check.** Raw finding: Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Related:** live dashboard entry at time of generation.
+
+---
+
 ### CARD-0159 · [enhancement] [infrastructure] Move Docker's data-root from the Pi's SD card to the existing USB drive
 **Status:** Backlog
 

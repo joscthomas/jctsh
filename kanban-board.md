@@ -9,7 +9,31 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0161 -->
+<!-- next-card-id: CARD-0162 -->
+
+---
+
+### CARD-0161 · [enhancement] [netalertx] Container image updates: netalertx: v26.8.5 available (running 26.7.1) — auto-opened from photo-server
+
+**Status:** Backlog
+
+**Raised 2026-08-13 06:30 MST**, auto-generated from photo-server's maintenance check (PR #10). The raw finding bundled two updates in one run — `cloudflared: 2026.8.0 available` and `netalertx: v26.8.5 available (running 26.7.1)`. The cloudflared half is stale: CARD-0160 already landed cloudflared 2026.8.2 (newer) from PR #11. This card covers the still-live half: the NetAlertX update.
+
+**Risk assessment (researched against NetAlertX's actual GitHub release notes, not just the raw finding text):** Single-version jump, `v26.7.1` → `v26.8.5` — no intermediate releases. Upstream's own "Breaking changes" section lists a bridge-mode container-capability requirement (`NET_RAW`/`NET_ADMIN`/`NET_BIND_SERVICE`); not a risk here — `components/netalertx/docker-compose.yml` already grants all three (plus `CHOWN`/`SETUID`/`SETGID`), and this deployment runs `network_mode: host`, the mode the warning says isn't even affected. No MQTT-related changes in either release, so `components/netalertx/netalertx.flow.json`'s MQTT integration is low risk. A plugins-directory move is flagged "next release," not this one, and doesn't apply anyway since no custom plugins are mounted.
+
+**One change directly relevant to this repo's history:** upstream fixed `netalertx/NetAlertX#1720` — the webhook payload serialization bug CARD-0078 found and worked around (Node-RED currently re-serializes NetAlertX's payload to match its *buggy* signature before verifying HMAC). CARD-0089 already tested this exact fix against `netalertx-dev-unsafe` on 2026-07-24 and confirmed it three independent ways, including a live HMAC recompute that matched byte-for-byte. v26.8.5's changelog wording ("payloads are serialized once for consistent logging and signature generation") matches that confirmed fix exactly, so this is a known-good fix landing in a real release, not an unknown.
+
+**Not a host-reboot update — doesn't need CARD-0129/CARD-0130's home-LAN gating.** That mitigation existed because HA is the household coordination hub and kernel/Docker-engine updates require a host reboot. This is a container-only update with a trivial rollback (redeploy the previous image tag); no reboot involved.
+
+**Done when:**
+1. Container updated to 26.8.5, confirmed via NetAlertX's own version display.
+2. Device database intact post-update (existing named devices still present, not reset).
+3. MQTT publishing still flows to the log dashboard (heartbeat + device state messages).
+4a. Webhook signature verification independently confirmed correct **in production** — trigger a real or test new-device event, capture the actual transmitted payload and `X-Webhook-Signature` header, independently recompute the HMAC, confirm it matches. Same direct method CARD-0089 used against the dev-unsafe build, now against the real running container.
+4b. **Only once 4a passes:** remove the now-unneeded re-serialization workaround from `netalertx.flow.json`. A separate, deliberate follow-up step — not done just because the container came up healthy, and not bundled into the update itself.
+5. CARD-0132's pending-update dashboard state clears (`netalertx`'s topic flips to `pending: false` on the next scheduled maintenance check).
+
+**Related:** CARD-0078 (the webhook HMAC workaround this update's fix may let us remove), CARD-0089 (pre-release confirmation of the same fix against `netalertx-dev-unsafe`, including its own still-open "report back to GitHub issue #1720" follow-up), CARD-0132 (the pending-update dashboard mechanism this closes out), CARD-0160 (the cloudflared sibling finding from the same maintenance-check run, already landed), `components/netalertx/docker-compose.yml`, `components/netalertx/netalertx.flow.json`, [PR #10](https://github.com/joscthomas/jctsh/pull/10).
 
 ---
 

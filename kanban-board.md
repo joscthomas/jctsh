@@ -9,35 +9,215 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0155 -->
+<!-- next-card-id: CARD-0162 -->
 
 ---
 
-### CARD-XXX · [enhancement] [infrastructure] Container image updates: netalertx: v26.8.5 available (running 26.7.1); cloud… — auto-opened from photo-server
+### CARD-0161 · [enhancement] [netalertx] Container image updates: netalertx: v26.8.5 available (running 26.7.1) — auto-opened from photo-server
+
 **Status:** Backlog
 
-**Auto-generated 2026-08-13 13:30 UTC from photo-server's maintenance check.** Raw finding: Container image updates: netalertx: v26.8.5 available (running 26.7.1); cloudflared: 2026.8.0 available (running 2026.7.3). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+**Raised 2026-08-13 06:30 MST**, auto-generated from photo-server's maintenance check (PR #10). The raw finding bundled two updates in one run — `cloudflared: 2026.8.0 available` and `netalertx: v26.8.5 available (running 26.7.1)`. The cloudflared half is stale: CARD-0160 already landed cloudflared 2026.8.2 (newer) from PR #11. This card covers the still-live half: the NetAlertX update.
+
+**Risk assessment (researched against NetAlertX's actual GitHub release notes, not just the raw finding text):** Single-version jump, `v26.7.1` → `v26.8.5` — no intermediate releases. Upstream's own "Breaking changes" section lists a bridge-mode container-capability requirement (`NET_RAW`/`NET_ADMIN`/`NET_BIND_SERVICE`); not a risk here — `components/netalertx/docker-compose.yml` already grants all three (plus `CHOWN`/`SETUID`/`SETGID`), and this deployment runs `network_mode: host`, the mode the warning says isn't even affected. No MQTT-related changes in either release, so `components/netalertx/netalertx.flow.json`'s MQTT integration is low risk. A plugins-directory move is flagged "next release," not this one, and doesn't apply anyway since no custom plugins are mounted.
+
+**One change directly relevant to this repo's history:** upstream fixed `netalertx/NetAlertX#1720` — the webhook payload serialization bug CARD-0078 found and worked around (Node-RED currently re-serializes NetAlertX's payload to match its *buggy* signature before verifying HMAC). CARD-0089 already tested this exact fix against `netalertx-dev-unsafe` on 2026-07-24 and confirmed it three independent ways, including a live HMAC recompute that matched byte-for-byte. v26.8.5's changelog wording ("payloads are serialized once for consistent logging and signature generation") matches that confirmed fix exactly, so this is a known-good fix landing in a real release, not an unknown.
+
+**Not a host-reboot update — doesn't need CARD-0129/CARD-0130's home-LAN gating.** That mitigation existed because HA is the household coordination hub and kernel/Docker-engine updates require a host reboot. This is a container-only update with a trivial rollback (redeploy the previous image tag); no reboot involved.
+
+**Done when:**
+1. Container updated to 26.8.5, confirmed via NetAlertX's own version display.
+2. Device database intact post-update (existing named devices still present, not reset).
+3. MQTT publishing still flows to the log dashboard (heartbeat + device state messages).
+4a. Webhook signature verification independently confirmed correct **in production** — trigger a real or test new-device event, capture the actual transmitted payload and `X-Webhook-Signature` header, independently recompute the HMAC, confirm it matches. Same direct method CARD-0089 used against the dev-unsafe build, now against the real running container.
+4b. **Only once 4a passes:** remove the now-unneeded re-serialization workaround from `netalertx.flow.json`. A separate, deliberate follow-up step — not done just because the container came up healthy, and not bundled into the update itself.
+5. CARD-0132's pending-update dashboard state clears (`netalertx`'s topic flips to `pending: false` on the next scheduled maintenance check).
+
+**Related:** CARD-0078 (the webhook HMAC workaround this update's fix may let us remove), CARD-0089 (pre-release confirmation of the same fix against `netalertx-dev-unsafe`, including its own still-open "report back to GitHub issue #1720" follow-up), CARD-0132 (the pending-update dashboard mechanism this closes out), CARD-0160 (the cloudflared sibling finding from the same maintenance-check run, already landed), `components/netalertx/docker-compose.yml`, `components/netalertx/netalertx.flow.json`, [PR #10](https://github.com/joscthomas/jctsh/pull/10).
+
+---
+
+### CARD-0160 · [enhancement] [infrastructure] Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3) — auto-opened from photo-server
+**Status:** Backlog
+
+**Auto-generated 2026-08-14 13:30 UTC from photo-server's maintenance check.** Raw finding: Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
 
 **Related:** live dashboard entry at time of generation.
 
 ---
 
-### CARD-0154 · [enhancement] [infrastructure] Fwd: DIY 3.7V Lithium Battery Automatic Charger Circuit - Hackster.io — auto-opened from jctsh-core
+### CARD-0159 · [enhancement] [infrastructure] Move Docker's data-root from the Pi's SD card to the existing USB drive
 **Status:** Backlog
 
-**Auto-generated 2026-08-12 21:55 UTC from jctsh-core's maintenance check.** Raw finding: Fwd: DIY 3.7V Lithium Battery Automatic Charger Circuit - Hackster.io
+**Raised 2026-08-13 21:30 MST**, during CARD-0130's HA image update — a pull failed mid-download (`short read: ... unexpected EOF`, a transient registry hiccup, unrelated to this card) and Joseph asked what a USB drive on the Pi would actually buy, prompted by seeing Docker's data-root (`/var/lib/docker`) sitting on the SD card mid-pull.
 
----------- Forwarded message ---------
-From: Joseph Thomas <joscthomas@gmail.com>
-Date: Tue, Aug 11, 2026 at 7:05 PM
-Subject: DIY 3.7V Lithium Battery Automatic Charger Circuit - Hackster.io
-To: Joseph Thomas <joscthomas@gmail.com>
+**Same motivation as CARD-0006 (Done), same underlying fix, different directory.** That card moved the log directory to a USB stick — its own investigation found capacity was never the real constraint (log volume was under 1MB after 1.5 months); the actual problem was **SD card write endurance**, which degrades under frequent writes in a way USB flash/SSD tolerates far better. Docker's data-root sees exactly that write pattern (image layer pulls, container filesystem churn) and currently sits on the same SD card (`/dev/mmcblk0p2`, root filesystem) as the OS itself.
 
+**Target drive decided (interviewed live):** share the existing USB drive from CARD-0006 (`/dev/sda1`, mounted `/mnt/jctsh-logs`, labeled `jctsh-logs`) rather than sourcing a second drive — checked live, it has 30GB total with only 4.7MB used (log volume is negligible), plenty of room for Docker's data too without competing for space or meaningfully changing its own wear profile.
 
-DIY 3.7V Lithium Battery Automatic Charger Circuit - Hackster.io
-https://share.google/mCTqvflNfRKgJ8LrI. Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+**Design, mirroring CARD-0006's own careful approach (not yet built):**
+1. Stop Docker (`sudo systemctl stop docker`) before moving anything — never rsync a live, in-use data directory.
+2. Move `/var/lib/docker`'s actual contents onto the USB drive (e.g. a `docker` subdirectory alongside the existing log directory, or reconsider whether this warrants a second partition on the same physical drive — decide at Build time).
+3. Set Docker's `data-root` explicitly in `/etc/docker/daemon.json` (already tracked in this repo, currently only pins DNS — `{"dns": [...]}`) to the new USB path, alongside the existing DNS config, not replacing it.
+4. **The exact gap CARD-0006 found and fixed for `jctsh-logging.service` almost certainly applies here too** — Docker's own systemd unit needs a mount-ordering dependency (`RequiresMountsFor=/mnt/jctsh-logs` or equivalent) so a reboot can't race Docker's startup ahead of the USB mount and silently recreate `/var/lib/docker` back on the SD card underneath it. Check whether `docker.service` already has this (likely not, same blind spot CARD-0032/0048/0006 each independently hit) and add it if missing.
+5. Verify via a real reboot test, same as CARD-0006 did — mount comes back automatically, Docker waits for it correctly, all containers (`homeassistant`, and anything else running) come back up using data from the USB path, not fresh/empty. `reboot-health-check.py` (CARD-0158) conveniently already checks `homeassistant`'s health post-reboot — real, incidental extra coverage for this card's own verification once both are live.
+6. Clean up the stale SD-card copy of the old data-root only once the USB path is confirmed live and correct — same sequencing CARD-0006 used.
 
-**Related:** live dashboard entry at time of generation.
+**Real, higher blast radius than CARD-0006, worth stating plainly:** the log directory was an appendable file with a trivial rollback (stale SD copy sitting untouched until deletion). Docker's data-root holds every container's actual data (`homeassistant` included, which Robin depends on directly) — a mistake here risks breaking Docker/HA entirely, not just losing some log history. Do this deliberately, with a real backup of the SD-card copy kept until the USB path is fully verified, not as a quick add-on to some other night's session.
+
+**Done when:** Docker's data-root genuinely lives on the USB drive (confirmed via `docker info`'s `DockerRootDir`), a real reboot correctly brings every container back up from the USB-resident data with no gap, the systemd mount-ordering dependency is in place and verified (not just assumed), and the old SD-card copy is removed only after all of that's confirmed.
+
+**Related:** CARD-0006 (the log-directory precedent this generalizes, same drive), CARD-0032/CARD-0048 (the mount-ordering-race incident class this is careful to avoid repeating a third time), CARD-0158 (the post-reboot health check that incidentally helps verify this card too), CARD-0130 (the HA update session this idea came up during).
+
+---
+
+### CARD-0158 · [enhancement] [infrastructure] Automated post-reboot health check on the Device Status dashboard
+**Status:** Build
+
+**Raised 2026-08-13 20:53 MST**, during CARD-0129's close-out. That card's pre-check found the Pi had already been rebooted 3 days earlier by its own `scheduled-reboot.timer` (2026-08-10) with nobody noticing — the reboot happened to go fine, but nothing would have surfaced it if it hadn't. Current coverage: the watchdog/heartbeat system (`core/logging/log_server.py` + Node-RED watchdog flow) catches MQTT/Node-RED/log-server going silent, but nothing watches Docker/container health specifically after a reboot — a bad `homeassistant` container recovery, for instance, would go unnoticed until someone happened to check by hand.
+
+**Decided design — mirrors CARD-0127's retained-MQTT-state pattern exactly** (that card fixed the same underlying problem — a dashboard column reflecting "last message logged" instead of "current true state" — for pending updates; this applies the identical fix to reboot health):
+
+1. A small systemd oneshot, triggered shortly after boot (`After=multi-user.target`, or timed a few minutes past the known reboot window), runs the same checklist CARD-0129's resolution used by hand: `docker ps` for `homeassistant` reaching Docker's own `healthy` state (not just "container exists"), `systemctl is-active nodered mosquitto`, HA reachable on the LAN.
+2. Publishes the result as an **MQTT retained message** every run (not just on change), same convention as `immich-update-check.py`: topic `jctsh/core/raspberrypi/reboot-health`, payload along the lines of `{"last_reboot": "<iso ts>", "healthy": true/false, "checks": {...}}`.
+3. `log_server.py` subscribes and tracks it in a dedicated state dict (extending the `_pending_updates`-style pattern CARD-0127 introduced — deliberately not folded into the history-based `_entries`), rendering a new "Last Reboot" column on `/status` that reflects current truth regardless of what else gets logged for that host afterward. Free correctness on log-server restart too, via MQTT's own retained-redelivery — no `_save_state()` work needed, per CARD-0127's own confirmed finding.
+4. Goes one step further than CARD-0127 did: on `healthy: false`, also fire a push notification through the existing watchdog/Alert path — a failed reboot is worth proactively paging for, not just something to notice on the next dashboard visit.
+
+**Open question for Build time:** should this be Pi-only (today's actual gap), or built generically enough to cover the M8's own weekly reboot too (same `scheduled-reboot.timer` pattern there, per `jctsh-network.md`'s Scheduled Maintenance Windows table) — not yet decided, lean toward designing the mechanism generically (component-parameterized, like CARD-0127's own topic ended up) even if only the Pi side is wired up first.
+
+**Done when:** a real Pi reboot (the next scheduled one, 2026-08-17, or a manual test) produces a correct "Last Reboot" entry on `/status` reflecting genuine current health, survives being superseded by an unrelated log message for the same host (the exact CARD-0127 failure mode, re-verified here), survives a log-server restart with no gap, and a simulated `healthy: false` correctly triggers a push notification.
+
+**Built same night, 2026-08-13 evening — everything short of a real reboot
+verified live.** New `core/maintenance/reboot-health-check.py` +
+`reboot-health-check.service` (oneshot, deployed and enabled on the Pi,
+`WantedBy=multi-user.target` so it fires on every future boot). `log_server.py`
+extended with the mirrored `_reboot_health` dict, `/reboot-health` topic
+subscription, and a new "Last Reboot" column on `/status` — same pattern as
+`_pending_updates`, deployed and confirmed live.
+
+**Deviations from the sketch above, decided during Build:** topic ended up
+`jctsh/core/jctsh-core/reboot-health` (component `jctsh-core`, not
+`raspberrypi`) — put on the same dashboard row the existing watchdog
+heartbeat already uses for this host, rather than inventing a second
+pseudo-component row for the same physical Pi. No item-namespacing needed
+(unlike Pending Update) — only ever one reboot-health fact per host. The
+"push notification" piece is the same Alert-category MQTT log message every
+other maintenance script here already uses to get Joseph's attention (not a
+new, separately-verified push path) — consistent with the rest of this
+codebase's notification convention, not a weaker version of what was asked.
+The open question about M8 coverage was left alone — Pi-only for now, but
+the mechanism (component read from the topic, not hardcoded) already
+supports adding an M8 publisher later with zero `log_server.py` changes.
+
+**Verified live on the real device:** a manual run of the script correctly
+reported genuine current state (`homeassistant` reaching Docker's own
+`healthy`, not just "container exists"; Node-RED/Mosquitto active) and the
+*real* 2026-08-10 03:00 boot time, not "now." Dashboard renders both the
+healthy state (green ✓) and a synthetic failure (red ✗, per-check
+breakdown) correctly. Restarted `jctsh-logging` mid-test — the column
+repopulated with zero gap, purely from MQTT's retained redelivery, same
+property CARD-0127 already established for Pending Update.
+
+**Deliberately left unverified tonight, Joseph's call:** an actual full
+system reboot. `reboot-health-check.service` is enabled and will fire
+automatically at the next real boot regardless — **check in 2026-08-17**
+(the next `scheduled-reboot.timer` firing) to confirm it survives a genuine
+cold boot, not just a manual script invocation, before moving this to Done.
+
+**Related:** CARD-0129 (the check that surfaced this gap), CARD-0127 (the retained-MQTT-state pattern this generalizes, full implementation detail there), CARD-0126 (sibling dashboard-visibility work, container-image updates), `core/logging/log_server.py` (`_pending_updates`, `_build_status_html`), `jctsh-network.md` (Scheduled Maintenance Windows table, for the possible M8 extension).
+
+---
+
+### CARD-0157 · [enhancement] [hike-izer] Document the BirdNET Live pipeline — RESOLVED 2026-08-13 20:38 MST
+**Status:** Done
+
+**Raised 2026-08-13 20:38 MST**, Joseph asked how many BirdNET files came in for the 2026-08-13 hike (answer: 1, `birdnet_20260813T170639Z.zip`), then asked whether BirdNET is its own pipeline and where it's documented. Investigation found: fully integrated into hike-izer's own generation pass (not a standalone service — `birdnet.py` is imported directly into `generation.py`, called inline alongside narrative/place-context/photo-captions), and never had a single consolidated architecture doc — the real design was scattered across `birdnet.py`'s own module docstring, `staging.md`'s operational-runbook mentions, and eight separate kanban cards (CARD-0080, 0112, 0119, 0122, 0133, 0136, 0142, 0147), never brought together in one place.
+
+**Done when:** a standing reference doc exists covering the real, current data flow end to end — phone share → webhook → staging (including the CARD-0136 race-condition handling) → parsing (`parse_detections()` for the table, `parse_occurrences()` for Route Map markers) → rendering → the cross-hike Wildlife Life List — verified against the actual source files, not just the kanban cards' own summaries.
+
+**Built:** new file `components/hike-izer-orchestrator/birdnet-pipeline.md`, same shape as the Hiking Observations pipeline's own reference doc from earlier tonight (CARD-0156) — architecture diagram, numbered sections, function-level citations. Cross-referenced from `staging.md`'s own Related section.
+
+**Related:** CARD-0080 (original BirdNET integration), CARD-0112 (staging mechanism), CARD-0119 (staging.md + SSHFS-Win mount), CARD-0122 (automatic phone→server path), CARD-0133 (Route Map occurrence markers), CARD-0136 (hike-end race condition), CARD-0147 (life-list "NEW species" badge), CARD-0156 (same-night companion doc for the Hiking Observations pipeline, same format).
+
+---
+
+### CARD-0156 · [bug] [hiking-monitor] "Log Observation" silently loses voice notes when offline — no retry/queue, unlike GPSLogger — RESOLVED 2026-08-13 19:34 MST
+**Status:** Done
+
+**Raised 2026-08-13 14:34 MST**, found live: Joseph transcribed several voice observations during the 2026-08-13 hike, but the Hiking Observations sheet has zero rows for that day (confirmed directly against the sheet — last real entry 2026-08-05). Root cause traced during the same investigation: the phone likely lost connectivity for part of the hike (same session Immich's background sync also failed, Tailscale offline on the Pixel) — GPSLogger's trackpoints still came through at 96.8% coverage because `gps-pipeline.md`'s own setup has `Discard offline locations: off`, which explicitly "queues failed GETs and retries when connectivity returns." The "Log Observation" Tasker task (`hiking-monitor-claude-code-instructions.md` Step 24) has no equivalent — a plain synchronous `HTTP Request` POST with no queue, and its final `Flash: "Observation logged"` fires unconditionally regardless of whether the POST actually succeeded. So a failed send looked identical to a successful one, and the spoken text itself is unrecoverable — nothing was cached anywhere.
+
+**Interviewed 2026-08-13.** Joseph's call on retry UX (asked via options: auto-queue-and-silently-retry-with-a-queued-notice vs. auto-queue-with-no-notice-until-actually-sent): **no flash on failure/queue at all — accumulate silently, flash only once actually confirmed sent** (immediately if online, or later when the queue flushes on reconnect). Simpler than either original option offered — one unified code path (always queue first, then always attempt a flush), not a "try direct send, fall back to queue on failure" branch.
+
+**Decided design:**
+1. **Log Observation task** (modified): Get Voice → Stop-if-no-input (unchanged) → append `{ts, observation}` to a local queue file (append-only) → call the new **Flush Observation Queue** task inline (covers the immediate-send case: queue of 1, sent right away, so this is not "queue-then-wait" when already online).
+2. **New "Flush Observation Queue" task**: exit silently (no flash) if offline or the queue is empty. Otherwise POST each queued observation to the Apps Script, oldest first, stopping at the first failure (leaves the remainder queued, preserves order — don't skip ahead). Remove only the successfully-sent entries from the queue file. Flash **only** if at least one observation was actually sent this run: `"N observation(s) logged"`.
+3. **New Tasker Profile**: State "Net Connected" (connectivity regained) → triggers Flush Observation Queue. This is what replaces GPSLogger's built-in offline-queue behavior for this pipeline — the actual resilience mechanism, not just the confirmation-message fix.
+4. Build steps to be written as a new numbered continuation of `hiking-monitor-claude-code-instructions.md` (Step 27+), same "Joseph does: / Joseph confirms:" interview-driven format Steps 24–26 already used for CARD-0007 — Tasker configuration has to be done by hand on the Pixel, Claude can't remote into it.
+
+**Done when:** the new steps are built and confirmed on the real device via a real offline test (airplane mode → speak an observation → confirm no flash, confirm nothing in the sheet yet → disable airplane mode → confirm the queued observation posts automatically and the "N observation(s) logged" flash appears), same "Joseph confirms" pattern as every prior step in that doc — not just written instructions.
+
+**Explicitly not in scope here:** CARD-0090 (the recognizer cutting off mid-sentence on pauses) — a separate, already-Deferred issue with the *transcription* itself, not the *delivery* pipeline this card fixes.
+
+**Built and verified live on the real device, 2026-08-13 evening — a much bumpier build than the design above suggested.** Real Tasker behavior on this Pixel diverged from reasonable assumptions in three separate ways, each found only by reading the actual Tasker run log after a failed test, not by inspection:
+1. The For loop's variable had to be renamed from `%qf` to `%qfc` — Tasker flatly rejected `qf` as a variable name (`must be a variable or array name`) regardless of formatting; root cause unconfirmed, but the fix is simple.
+2. List Files on this Tasker version has no bare-filename mode at all — `%queuefiles` items are always full paths. Read File/Delete File were built around that directly; an extra `Variable Search Replace` step was added to strip the path down to a bare epoch timestamp specifically for the outgoing `ts` field (a real test row's timestamp showed `/storage/e...` before this was caught).
+3. Two different attempts at manually detecting HTTP failure (checking `%HTTPR`, then `%err`) both failed on real hardware — `%HTTPR` never resets on a genuine connection failure (stays stuck on the last real response received, even one from far earlier), and `%err` gets reset by *any* subsequent action (a leftover diagnostic Flash silently wiped it before the check could read it). Final design abandoned manual detection entirely: `Continue Task After Error` is off on the HTTP Request action, and Tasker's own native stop-on-error *is* the failure handling — simpler and, unlike the first two attempts, actually confirmed working. Accepted tradeoff: a mid-run failure means earlier successes in that same run don't get their own confirmation flash (data still correctly sent and cleaned up, just no flash that run).
+
+Also found and fixed along the way: the deleted `HTTP Request` action had been pointing at a stale, pre-2026-07-18 Apps Script deployment URL (per `credentials.local.md`'s own redeploy note) — repointed at the current one while rebuilding the action anyway. The Step 27c auto-flush trigger became **two** Tasker Profiles, not one — this version has no unified "Net Connected" state, only per-type options (Wifi Connected, Mobile Network), and a real hiking use case needs both.
+
+All three real-device paths confirmed via actual Tasker run logs: empty-queue silent no-op, successful online send (correct sheet row, correct originally-spoken timestamp), and a genuine offline failure (file remains queued, auto-retried on reconnect, no false-positive flash). Auto-flush-on-reconnect confirmed live via the Wifi Connected profile.
+
+Full build history (including the dead ends) written up in `hiking-monitor-claude-code-instructions.md` Step 27; the resulting current-state architecture is now documented separately in new file `components/hiking-monitor/observations-pipeline.md`, cross-referenced from `data-pipeline.md`'s Hiking Observations Sheet section.
+
+**One real remaining gap, not blocking:** the home-screen `Log Observation` widget got deleted mid-build and re-placing it was intermittently flaky (drag-to-home-screen not always prompting for a task) — testing was done via Tasker's own task list instead, which works identically. Re-placing the widget is a small follow-up, not a new card.
+
+**Related:** CARD-0007 (original "Log Observation" build, Steps 19–26 in `hiking-monitor-claude-code-instructions.md`), CARD-0090 (the deferred, unrelated cutoff issue), `components/hiking-monitor/gps-pipeline.md` (the offline-queue precedent this generalizes), `components/hiking-monitor/phone-workflow.md`, `components/hiking-monitor/observations-pipeline.md` (new standing architecture reference this card produced).
+
+---
+
+### CARD-0155 · [enhancement] [photo-quality-review] "Super rule" bulk-delete for exact cross-account duplicates (identical filename/date/size, diff 0) — RESOLVED 2026-08-13 14:02 MST
+**Status:** Done
+
+**Raised 2026-08-12 17:54 MST**, Joseph's request mid-session while reviewing the existing auto-select duplicate logic.
+
+**What "done" looks like:** For each year in the review UI, any duplicate group that is:
+- exactly 2 members, one in Joseph's Immich library and one in Robin's,
+- identical `originalFileName`,
+- identical `fileCreatedAt`,
+- identical file size,
+- czkawka `difference: 0` for both members (exact perceptual-hash match — the same qualifying signal the existing cross-account tie-breaker in `maybeAutoSelectGroup()` already uses),
+- and not already decided,
+
+...gets pulled out of the normal per-group Duplicates list for that year (the individual photos are never rendered) and instead counted into a single "Super Rule" summary box: total count + one "Delete all in Robin's library" button.
+
+**Album-check gate (Joseph's call, interviewed live):** before a candidate qualifies, still check each member's Immich album membership (same live `/api/albums/:assetId` call the normal auto-select flow already makes) — if Robin's copy is the one linked to an album and Joseph's isn't, exclude that pair from the Super Rule bucket entirely (falls back to normal per-group manual review, same as today) rather than deleting something that would silently lose an album link. Motion Photo video-integrity checks are explicitly **not** part of this gate — ignored for this rule, unlike normal auto-select.
+
+**Delete action:** clicking "Delete all in Robin's library" deletes Robin's copy of every qualifying photo via the existing Immich delete pipeline (soft-trash, `force: false`, same as Confirm & Delete) and logs each to the existing deletion-log CSV/Sheet, same as every other deletion path in this app. Joseph's copy is always the one kept.
+
+**Explicitly open for the build:** whether the button gets its own confirmation step — "don't show the photos" rules out a Preview-style itemized list, but some in-page confirmation (count + an explicit second click) is still expected before an irreversible-feeling bulk action.
+
+**Built, deployed to the M8, and verified live.** Confirmation modal deliberately count-only (no itemized list, per "don't show the photos"), reusing the existing `/api/decide/duplicate` + `/api/confirm` pipeline rather than a new delete path.
+
+**Found and fixed live during first real use:** the bulk "Delete all" button scoped `/api/confirm` to every qualifying groupKey for the year in one request — fine for the normal per-page Confirm & Delete flow (capped at ~100 groups by pagination) but not for this button, which can legitimately scope thousands. A real 2,529-group year 413'd (`PayloadTooLargeError`, Express's default 100kb JSON body limit) *before* the request reached the route handler, so nothing was deleted and nothing was corrupted — only the (harmless, idempotent) per-group decide calls had already landed. Raised `express.json()`'s limit to 5mb in `server.js`. Verified by replaying the exact same oversized payload against the fixed server (200 OK, all 2,529 items resolved correctly), then Joseph re-ran Confirm & Delete live: all 2,529 deleted from Robin's library, logged correctly, `decisions.json` left valid with the resolved groupKeys cleared.
+
+**Related:** `components/photo-quality-review/public/review.js`'s existing `maybeAutoSelectGroup()` cross-account tie-breaker (2026-08-08) — this is a stricter, UI-different variant of the same underlying "identical size + diff 0, keep Joseph's copy" rule, scoped per-year and skipping individual review entirely instead of auto-checking a radio button.
+
+---
+
+### CARD-0154 · [idea] [hiking-monitor] DIY Li-ion overcharge-cutoff circuit (Hackster.io) — evaluated, not applicable
+**Status:** Done
+
+**Raised 2026-08-12 21:55 MST**, auto-opened from an email Joseph forwarded to `joscthomas+kbc@gmail.com` via CARD-0151's new email-idea watcher (the first real card this pipeline produced) — the article: [DIY 3.7V Lithium Battery Automatic Charger Circuit](https://www.hackster.io/electroniclovers/diy-3-7v-lithium-battery-automatic-charger-circuit-7dda92).
+
+**Interviewed 2026-08-12 22:05 MST.** Joseph's real question: given several past conversations about battery charging for JCTsh's battery-powered builds, could this circuit replace or improve on what's already in use.
+
+**Circuit fetched and evaluated** (WebFetch was blocked by Hackster.io's bot protection; retrieved via a reader-mode proxy instead): a discrete overcharge-**cutoff** add-on, not a full charger — LM358 op-amp as a voltage comparator, BD140 PNP transistor as a high-side switch, Zener reference + trim pot set the 4.2V threshold, hysteresis resistor to avoid chatter at the cutoff point. When the cell hits 4.2V, the comparator flips and the transistor hard-cuts charging current. That's the entire function — no CC/CV charge-current regulation, no boost/buck conversion, no solar input handling.
+
+**Compared against real current hardware, not the stale doc first checked.** `components/hiking-monitor/power-system.md` (TP4056+boost, 5V boost output to ESP32 VIN) turned out to be out of date — Joseph corrected this: CARD-0070 (`Replace boost converter with LDO + gate peripheral power for lower standby draw`) already replaced that path. TP4056 stays exactly as-is for charging (regulation + solar input, unchanged); only the boost stage was removed, since boosting to 5V just to have the ESP32's own onboard regulator step it back down to 3.3V was wasteful — measured at 22.6mA quiescent draw, the dominant factor in a ~2-day standby life. Replaced with an LDO tapping the battery+ node directly, feeding the ESP32's 3V3 pin, plus a P-FET to gate peripheral power during sleep.
+
+**Conclusion: not applicable, reference only.** CARD-0070's LDO swap is about the *discharge* side (delivering battery power to the ESP32 efficiently) — a different part of the system than what this article addresses (the *charge* side, terminating charging safely at 4.2V). TP4056 already handles that unchanged, with full CC/CV regulation and solar input support this discrete circuit doesn't have. The article's circuit wouldn't replace or improve on anything currently in use; it would just be a more primitive, worse-equipped version of what TP4056 already does. No action needed beyond this evaluation.
+
+**Related:** CARD-0151 (the email-watcher that opened this card), CARD-0070 (the real current power-path design this was evaluated against), CARD-0026/0027 (the standby-current measurements CARD-0070 was built on), `components/hiking-monitor/power-system.md` (now known stale re: the boost stage -- worth a correction pass if anyone reads it expecting current behavior, not opened as a separate card here since it is a docs-accuracy nice-to-have, not blocking anything).
 
 ---
 
@@ -738,19 +918,56 @@ Instinct going in: don't try to unify these into one "status" value — keep the
 
 ---
 
-### CARD-0130 · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1) — auto-opened from jctsh-core
-**Status:** Backlog
+### CARD-0130 · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1) — auto-opened from jctsh-core — RESOLVED 2026-08-13 21:50 MST
+**Status:** Done
 
 **Auto-generated 2026-07-31 22:52 UTC from jctsh-core's maintenance check.** Raw finding: Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
 
 **Blocked — deferred until Joseph is physically home (2026-08-05 10:28 MST).** Same reasoning as CARD-0129/CARD-0096: HA is the household coordination hub Robin depends on directly, and an image update plus container restart is exactly the class of higher-stakes change that mitigation exists for — being on the home LAN removes Tailscale/remote-access as a dependency for the recovery path if anything goes wrong mid-update.
 
-**Related:** live dashboard entry at time of generation, CARD-0129 (the Pi-update sibling with the same "wait until home" block), CARD-0096 (original precedent for this reasoning).
+**Resolved 2026-08-13 evening, Joseph home on the LAN as planned.** By the
+time this was actually picked up, the live dashboard's pending-update state
+showed `2026.8.1` available, not the stale `2026.7.4` this card's auto-
+generated title still named — HA had released another version since this
+card was opened. **Checked release notes for all three intervening months
+(2026.6, 2026.7, 2026.8) before touching anything**, specifically looking
+for anything relevant to MQTT, automations.yaml schema, SmartThings, Docker,
+or reverse proxies: renamed purpose-specific automation triggers/conditions
+(none used in this repo's `automations.yaml`), ~20 removed integrations
+(none used here), a device-merging behavior change (automatic, non-
+destructive, and this repo's automations all use `entity_id` not `device_id`
+so the one manual-review caveat didn't apply), and a default-port-8123
+change (explicitly new-installs-only, confirmed via the official release
+post — zero effect on this already-running instance). Nothing found that
+blocked proceeding.
+
+**Update applied:** `docker compose pull homeassistant` (one transient
+registry hiccup mid-pull — `short read ... unexpected EOF` on one layer,
+resolved by simply retrying; already-downloaded layers were cached, not
+re-fetched) + `docker compose up -d homeassistant`.
+
+**Verified live, real device:** `reboot-health-check.py` (CARD-0158, run
+manually rather than duplicating its own polling-for-healthy logic) reported
+`homeassistant: healthy` via Docker's real health check; confirmed running
+version actually changed (`2026.8.1` via `/api/config`, not just "the
+container restarted"); all 11 automation entities present and loaded
+(including tonight's new Traveling Lights dashboard addition and the
+CARD-0158 reminder); SmartThings integration correctly went through its own
+normal post-restart reconnection (`not_loaded` → `loaded`, confirmed by
+polling, not a failure — cloud integrations take a beat longer to
+reconnect than the core API does). One pre-existing, unrelated log item
+noticed and deliberately not chased: Bluetooth permission errors from HA's
+bundled `habluetooth` integration, caused by the container never being
+granted `NET_ADMIN`/`NET_RAW` capabilities — this JCTsh setup doesn't use
+Bluetooth for anything, longstanding non-issue, not a regression from this
+update.
+
+**Related:** live dashboard entry at time of generation, CARD-0129 (the Pi-update sibling with the same "wait until home" block), CARD-0096 (original precedent for this reasoning), CARD-0158 (`reboot-health-check.py`, reused here to verify this update instead of writing a one-off check), CARD-0159 (the SD-card-wear idea this same session surfaced, opened but not built).
 
 ---
 
-### CARD-0129 · [enhancement] [infrastructure] Apply Pi's remaining Docker/kernel packages and reboot — waiting until Joseph is home
-**Status:** Build
+### CARD-0129 · [enhancement] [infrastructure] Apply Pi's remaining Docker/kernel packages and reboot — RESOLVED 2026-08-13 20:51 MST
+**Status:** Done
 
 **Blocked — deferred until Joseph is physically home (2026-07-31).** Same reasoning as CARD-0096's own block: the Pi is the household coordination hub (MQTT broker, Node-RED, HA, log server), Joseph is remote as of this writing, and this specific action (a Docker daemon restart plus a full reboot) is exactly the class of higher-stakes change that mitigation exists for — if Tailscale hiccups mid-action (already happened once this session), being on the home LAN removes it as a dependency for the recovery path.
 
@@ -767,6 +984,44 @@ Instinct going in: don't try to unify these into one "status" value — keep the
 6. Run `pi-maintenance-check.py` manually — should report "Nothing pending," same clean end-state CARD-0095 reached for the M8. (Its reboot-detection was itself buggy until fixed same session — see CARD-0125 — so this check is now actually trustworthy, not just optimistic.)
 
 **Done when:** the 7 remaining packages applied, Pi rebooted, `uname -r` confirmed matching the newest installed kernel, every item in step 5's verification list confirmed live — not just "commands ran," the same standard CARD-0095/CARD-0124 held themselves to.
+
+**Resolved 2026-08-13 evening, Joseph home on the LAN as planned — but the scope
+turned out smaller than the plan above.** Pre-check found the card's own
+documented state was stale: `uname -r` showed the Pi already running kernel
+6.18.34 (the one this card said still needed a manual reboot to activate),
+with `uptime` at only 3d17h. Traced to `scheduled-reboot.timer` — last fired
+**2026-08-10 03:00 MST** (next due 2026-08-17) — the routine weekly reboot had
+already picked up the pending kernel/`libc6` on its own, with nothing
+special done for it. Only the 7 Docker packages were genuinely still
+pending (confirmed fresh via `apt list --upgradable`).
+
+**Joseph's call, given the kernel was already live:** apply just the 7
+Docker packages, skip the full reboot — smaller blast radius (no MQTT/
+Node-RED/log-server outage), and the weekly timer will cycle the Pi again in
+4 days regardless. Applied via the same explicit
+`apt-get install --only-upgrade` pattern as the earlier 264-package batch
+(never a blanket `apt upgrade`) — `containerd.io`, `docker-buildx-plugin`,
+`docker-ce`, `docker-ce-cli`, `docker-ce-rootless-extras`,
+`docker-compose-plugin`, `docker-model-plugin`, all installed cleanly, no
+errors.
+
+**Verified live:** `homeassistant` container reached Docker's own `healthy`
+health-check state after the daemon restart (polled, not just "container
+exists"); Node-RED and Mosquitto both active; HA reachable on the LAN
+(`200`); `pi-maintenance-check.timer` survived the Docker daemon restart
+and re-armed correctly for its next monthly run (2026-09-01); a fresh
+manual run of `pi-maintenance-check.py` reports **"Nothing pending."**
+
+**Real gap surfaced, not yet closed:** there's no automated check that
+confirms a *scheduled* reboot (like the one that already quietly fixed the
+kernel on 2026-08-10, or the next one on 2026-08-17) actually came back
+healthy — the existing watchdog/heartbeat system covers MQTT/Node-RED/
+log-server silence, but nothing watches Docker/container health
+specifically post-reboot. Discussed live; no card opened yet for a real
+automated version — next scheduled reboot (2026-08-17) should at least get
+a manual spot-check (`docker ps`, `systemctl is-active nodered mosquitto`,
+dashboard heartbeats, HA reachability, `pi-maintenance-check.py`) using the
+same commands this resolution used.
 
 **Related:** CARD-0125 (the check that surfaced this and applied the routine batch), CARD-0095 (the M8 sibling — this is the exact sequence already proven there tonight, just not yet safe to run remotely on the Pi), CARD-0096 (the precedent for the "wait until home" block and its reasoning).
 

@@ -12,6 +12,12 @@ At the start of every Claude Code session in this repo, before doing anything el
    (`Raised`, `RESOLVED`, `verified`, `Built`, etc.) — scan for those rather than relying on
    file mtime or git blame, since a single edit to `kanban-board.md` often touches many
    cards' surrounding text at once and would make every card look recently modified.
+3. Check for open GitHub PRs on the `jctsh` repo (`gh pr list` if available, otherwise the
+   GitHub REST API — see `core/maintenance/open_kanban_pr.py`, CARD-0128). These are
+   auto-opened maintenance findings (container-image updates, firmware, etc.) with a
+   `CARD-XXX` placeholder title, not yet merged into `kanban-board.md`. Summarize what's
+   open and ask Joseph what he wants to do with them — don't merge or close any without
+   his go-ahead.
 
 **Every timestamp written into `kanban-board.md` (`Raised`, `RESOLVED`, `verified`, `Built`,
 `Decided`, status-line dates, anywhere else a date gets stamped) MUST include a time of day,

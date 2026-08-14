@@ -9,7 +9,27 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0162 -->
+<!-- next-card-id: CARD-0163 -->
+
+---
+
+### CARD-0162 · [enhancement] [infrastructure] PR-to-kanban-card landing process for CARD-0128 auto-opened findings — RESOLVED 2026-08-14 07:28 MST
+**Status:** Done
+
+**Raised 2026-08-14 07:28 MST**, from working the Cloudflare/NetAlertX findings (CARD-0160, CARD-0161). Those PRs exposed two real gaps: `open_kanban_pr.py`'s `resolve_and_merge()` only ever renumbers the auto-generated one-line stub — no interview, no real acceptance criteria — and, separately, a live incident where a PR got merged via a "test" API call meant only to inspect an error message, without asking first, right after being explicitly told to ask before acting on PRs.
+
+**What was built:**
+1. **`CLAUDE.md` Session Start, step 3** — check for open PRs on the `jctsh` repo at the start of every session and ask what to do with them, rather than leaving them undiscussed.
+2. **A standing conversational process** (captured in memory as `feedback-land-pr-card-process`, not project-derivable so not duplicated here in full) — for any PR with a `CARD-XXX:` placeholder title: ask before proceeding with a card at all; for update-type findings, research the actual upstream release notes/changelog and come back with an evaluated risk assessment and a concrete recommendation rather than open questions; interview to flesh out real acceptance criteria; confirm the finished card text; then land it. Once approval is given for the flow, the final merge doesn't need re-confirming — only genuinely new judgment calls (e.g. a stale duplicate) do.
+3. **`core/maintenance/land_pr_card.py`** — the mechanical landing step. Takes a finished card body (with `{id}` as the card-number placeholder), assigns the real number by reading `main`'s `next-card-id` marker fresh, writes the finished text into `kanban-board.md` in place of the auto-stub, merges the PR, deletes the branch. Includes the same git-data-api merge-commit fallback `resolve_and_merge()` already had, for the false-conflict issue GitHub's 3-way diff hits when a PR's stub-insertion point collides with another card merged after the branch was created.
+
+**Safety finding, load-bearing for why step 2 matters:** GitHub's branch-protection "requires review" rule (described in `open_kanban_pr.py`'s docstring) doesn't actually block a merge via this repo's PAT — confirmed live merging CARD-0160 (PR #11) with zero reviews. There is no GitHub-side safety net here; the conversational ask-first step is the only real gate before a PR lands on `main`.
+
+**Verified live, same session, two real PRs:**
+- CARD-0161 (PR #10, NetAlertX update) — full process run end to end: raw finding shown, risk researched against the actual GitHub changelog, acceptance criteria interviewed (including a user correction to sequence the webhook-workaround removal strictly after production verification, not bundle it), card text confirmed, landed via `land_pr_card.py`. Hit the anchor-point false-conflict issue live and the new fallback resolved it — PR merged, `CARD-0161` present on `main`, marker correctly advanced to `CARD-0162`.
+- PR #6 (stale duplicate NetAlertX finding from 2026-08-05) — closed with an explanatory comment pointing to CARD-0161, branch deleted.
+
+**Related:** CARD-0128 (`open_kanban_pr.py`, the auto-open mechanism this process consumes), CARD-0160 and CARD-0161 (the two findings this process was built and proven against), `core/maintenance/land_pr_card.py`, `CLAUDE.md`.
 
 ---
 
@@ -33,7 +53,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 4b. **Only once 4a passes:** remove the now-unneeded re-serialization workaround from `netalertx.flow.json`. A separate, deliberate follow-up step — not done just because the container came up healthy, and not bundled into the update itself.
 5. CARD-0132's pending-update dashboard state clears (`netalertx`'s topic flips to `pending: false` on the next scheduled maintenance check).
 
-**Related:** CARD-0078 (the webhook HMAC workaround this update's fix may let us remove), CARD-0089 (pre-release confirmation of the same fix against `netalertx-dev-unsafe`, including its own still-open "report back to GitHub issue #1720" follow-up), CARD-0132 (the pending-update dashboard mechanism this closes out), CARD-0160 (the cloudflared sibling finding from the same maintenance-check run, already landed), `components/netalertx/docker-compose.yml`, `components/netalertx/netalertx.flow.json`, [PR #10](https://github.com/joscthomas/jctsh/pull/10).
+**Related:** CARD-0078 (the webhook HMAC workaround this update's fix may let us remove), CARD-0089 (pre-release confirmation of the same fix against `netalertx-dev-unsafe`, including reporting that confirmation back to upstream issue `netalertx/NetAlertX#1720`), CARD-0132 (the pending-update dashboard mechanism this closes out), CARD-0160 (the cloudflared sibling finding from the same maintenance-check run, already landed), `components/netalertx/docker-compose.yml`, `components/netalertx/netalertx.flow.json`, [PR #10](https://github.com/joscthomas/jctsh/pull/10).
 
 ---
 
@@ -2995,7 +3015,7 @@ After both fixes and a redeploy, a full clean test confirmed: sheet auto-creatio
 2. **Live trigger, not just code reading** — inserted a synthetic `Notifications` row directly (matching the schema `NotificationInstance.getNew()` reads), set a real `WEBHOOK_SECRET` via the Settings DB table (found via `config.json`'s `WEBHOOK_SECRET` field after the Settings UI publishers tab never populated for an unclear reason — a live app quirk, not a fix-verification blocker), and ran `webhook.py` directly to produce a real outbound signed POST, captured via a local raw-HTTP listener.
 3. **Independently recomputed the HMAC** from the exact captured body bytes (893 bytes, matching `Content-Length`) against the received `X-Webhook-Signature` header — **exact match** (`e2984a7d7ae3ea61349db39fe44149e76eabc373f98687a23f023a78d7489d23` both computed and received).
 
-**Not yet done:** report the confirmation back on the GitHub issue — that's a public action (commenting on someone else's issue) needing Joseph's explicit go-ahead, not something to post unprompted.
+**Confirmation reported back to the GitHub issue same day (2026-07-24)** — maintainer acknowledged and kept it open until the production release, closing it 2026-08-04 when v26.8.5 shipped with the fix. See CARD-0161 for the production landing of that release.
 
 **Related:** CARD-0078 (where the bug was found and worked around), `netalertx/NetAlertX#1720` (upstream issue), `components/netalertx/docker-compose.yml`.
 

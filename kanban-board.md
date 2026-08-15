@@ -14,7 +14,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0169 · [idea] [homeassistant] Scheduled volume levels by Google Home speaker, by time window
-**Status:** Backlog
+**Status:** Defer
 
 **Raised 2026-08-15**, surfaced while testing CARD-0145's Ring motion announcements — Joseph asked whether HA can fix each speaker's volume by time window (e.g. quieter overnight), separate from that card's own announcement logic.
 

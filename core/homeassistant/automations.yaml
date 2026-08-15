@@ -351,33 +351,3 @@
           message: "{{ now().strftime('%I:%M %p') }} — Groom TV turned off (Chromecast status: {{ states('media_player.groom_tv') }})."
         action: notify.mobile_app_pixel_7_pro
   mode: restart
-- id: '1786700000001'
-  alias: CARD-0158 - Reboot Health Check Reminder
-  description: >-
-    One-time reminder for 2026-08-17, the Pi's next scheduled reboot
-    (scheduled-reboot.timer, 03:00 MST) since CARD-0129/CARD-0158's own
-    session couldn't stay open that long to check automatically. Fires once
-    at 8am that specific date only (template-gated, since HA's time trigger
-    is otherwise daily), pushes a reminder to check /status's new "Last
-    Reboot" column for jctsh-core, then disables itself so it doesn't linger
-    as dead weight in the automations list afterward. Safe to delete this
-    automation entirely once CARD-0158 is confirmed and closed out.
-  triggers:
-  - trigger: time
-    at: '08:00:00'
-  conditions:
-  - condition: template
-    value_template: "{{ now().strftime('%Y-%m-%d') == '2026-08-17' }}"
-  actions:
-  - data:
-      title: CARD-0158 Check
-      message: Pi's scheduled reboot fired at 3am today -- check http://pi1.local/status
-        for the "Last Reboot" column on jctsh-core (should show a green checkmark
-        with today's date), then close out CARD-0158 in kanban-board.md.
-    action: notify.mobile_app_pixel_10_pro_xl
-  - action: automation.turn_off
-    target:
-      entity_id: automation.card_0158_reboot_health_check_reminder
-    data:
-      stop_actions: false
-  mode: single

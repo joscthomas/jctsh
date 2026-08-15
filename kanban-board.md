@@ -231,7 +231,7 @@ Deployed (`scp` + `sudo systemctl restart jctsh-logging`), confirmed clean resta
 
 ---
 
-### CARD-0158 · [enhancement] [infrastructure] Automated post-reboot health check on the Device Status dashboard
+### CARD-0158 · [enhancement] [infrastructure] Automated post-reboot health check on the Device Status dashboard — due 2026-08-17
 **Status:** Build
 
 **Raised 2026-08-13 20:53 MST**, during CARD-0129's close-out. That card's pre-check found the Pi had already been rebooted 3 days earlier by its own `scheduled-reboot.timer` (2026-08-10) with nobody noticing — the reboot happened to go fine, but nothing would have surfaced it if it hadn't. Current coverage: the watchdog/heartbeat system (`core/logging/log_server.py` + Node-RED watchdog flow) catches MQTT/Node-RED/log-server going silent, but nothing watches Docker/container health specifically after a reboot — a bad `homeassistant` container recovery, for instance, would go unnoticed until someone happened to check by hand.

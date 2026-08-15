@@ -351,3 +351,129 @@
           message: "{{ now().strftime('%I:%M %p') }} — Groom TV turned off (Chromecast status: {{ states('media_player.groom_tv') }})."
         action: notify.mobile_app_pixel_7_pro
   mode: restart
+- id: '1786800000001'
+  alias: CARD-0145 - Ring Motion Announcement
+  description: >-
+    Spoken TTS announcement on Google Home speakers when motion fires on
+    any of 9 Ring cameras/doorbell (garage camera excluded per Joseph's
+    request), via the native `ring` integration's `event.*_motion`
+    entities (push-based, low-latency when working).
+
+    2026-08-15 history: briefly switched to `sensor.*_last_activity`
+    after `event.*_motion` appeared to stop delivering live events
+    entirely (frozen since setup despite genuine Ring push
+    notifications/video reaching Joseph's phone). That switch introduced
+    two new problems: `sensor.*_last_activity` reflects ANY camera
+    activity, not just motion (fixed with a `category == 'motion'`
+    condition after a false "Motion at Gathering Room" announcement),
+    and it's polled rather than pushed -- a real motion event didn't
+    reach the automation for 60-90+ seconds (confirmed: multiple
+    cameras' `last_activity` entities updated within 11ms of each other,
+    consistent with a shared poll cycle, not live per-event delivery).
+    That delay was worse than the outage it was working around, so
+    **reverted back to `event.*_motion` 2026-08-15** (Joseph's call --
+    working theory is a transient Ring/HA cloud-side relay issue that
+    may clear on its own; revisit if `event.*_motion` is still frozen
+    after 2026-08-16). The `category` filter condition was removed on
+    revert -- `event.*_motion` entities are motion-only by construction
+    (`event_types: ['motion']`), no non-motion contamination possible
+    the way `sensor.*_last_activity` had.
+
+    All debounce/queue/entry-cluster logic below is unchanged throughout
+    both switches. Prior revision history, 2026-08-15: the original
+    `for: 10s` trigger debounce delayed every
+    single announcement by a full 10s, and separately `mode: parallel`
+    let near-simultaneous triggers overlap their tts.cloud_say calls on
+    the same speakers -- both unacceptable. Now: no `for:` on the trigger
+    (first announcement plays immediately), `mode: queued` (max 20) so
+    only one announcement plays at a time system-wide across all 9
+    cameras, and a trailing `delay: 3s` at the end of the action
+    sequence so the next queued announcement can't start until 3s after
+    the previous one began (tuned down from 10s -> 5s -> 3s across live
+    tests; 3s chosen after confirming even the longest phrase, "Motion
+    at Gathering Room", finishes with margin to spare -- not
+    mathematically airtight against a worst-case slow-dispatch + long-
+    phrase combination, but every real test has been clean; a
+    wait-for-actual-playback-to-finish design was considered and not
+    chosen in favor of this simpler fixed delay). This also means two
+    real re-fires for one visit on the SAME camera (e.g. the original
+    doorbell double-fire, 4.9s apart) will play as two separate
+    announcements rather than being collapsed into one -- a tradeoff
+    against the immediate-first-play requirement.
+
+    Entry-cluster suppression, added 2026-08-15: Front Porch, Front
+    Door, and Doorbell are physically clustered at the same entry point,
+    so a single visitor walking up commonly trips two or three of them
+    in sequence for what should be one announcement. `entry_cluster` +
+    `entry_cluster_suppressed` (variables) implement first-one-wins: if
+    a trigger is one of these 3 entities and another member of the same
+    cluster changed state within the last 30s, this run is suppressed
+    via a template condition evaluated at trigger time (before queuing,
+    using state as of the moment each event fires, not as of whenever
+    the run would eventually be dequeued). Applies only to this 3-camera
+    cluster -- the other 6 cameras are unaffected and each still gets
+    its own independent announcement.
+
+    camera_messages and camera_quiet_hours are empty by
+    design (standard message, no quiet hours for all 9 to start) but
+    structured as per-entity-id lookups so either can be set for an
+    individual camera later without restructuring the automation.
+  triggers:
+  - trigger: state
+    entity_id:
+    - event.gate_motion
+    - event.path_motion
+    - event.front_door_motion
+    - event.front_porch_motion
+    - event.doorbell_motion
+  variables:
+    camera_names:
+      event.gate_motion: Gate
+      event.path_motion: Path
+      event.front_door_motion: Front Door
+      event.front_porch_motion: Front Porch
+      event.doorbell_motion: Doorbell
+    camera_messages: {}
+    camera_quiet_hours: {}
+    quiet_hours: "{{ camera_quiet_hours.get(trigger.entity_id) }}"
+    in_quiet_hours: >-
+      {{ quiet_hours is not none and (
+           (quiet_hours.start < quiet_hours.end and quiet_hours.start <= now().strftime('%H:%M') < quiet_hours.end)
+           or
+           (quiet_hours.start >= quiet_hours.end and (now().strftime('%H:%M') >= quiet_hours.start or now().strftime('%H:%M') < quiet_hours.end))
+         ) }}
+    entry_cluster:
+    - event.front_porch_motion
+    - event.front_door_motion
+    - event.doorbell_motion
+    entry_cluster_suppressed: >-
+      {% set ns = namespace(suppress=false) %}
+      {% if trigger.entity_id in entry_cluster %}
+        {% for eid in entry_cluster if eid != trigger.entity_id %}
+          {% set lc = states[eid].last_changed if states[eid] else none %}
+          {% if lc is not none and (now() - lc).total_seconds() < 30 %}
+            {% set ns.suppress = true %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+      {{ ns.suppress }}
+  conditions:
+  - condition: template
+    value_template: "{{ not in_quiet_hours }}"
+  - condition: template
+    value_template: "{{ not entry_cluster_suppressed }}"
+  actions:
+  - action: tts.cloud_say
+    target:
+      entity_id:
+      - media_player.garage_speaker
+      - media_player.groom_speaker
+      - media_player.master_bedroom_speaker
+    data:
+      message: >-
+        {{ camera_messages.get(trigger.entity_id, 'Motion at ' ~
+        camera_names.get(trigger.entity_id, trigger.entity_id)) }}
+  - delay:
+      seconds: 3
+  mode: queued
+  max: 20

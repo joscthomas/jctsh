@@ -13,6 +13,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-XXX · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1) — auto-opened from jctsh-core
+**Status:** Backlog
+
+**Auto-generated 2026-08-15 13:30 UTC from jctsh-core's maintenance check.** Raw finding: Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Related:** live dashboard entry at time of generation.
+
+---
+
 ### CARD-0169 · [idea] [homeassistant] Scheduled volume levels by Google Home speaker, by time window
 **Status:** Defer
 

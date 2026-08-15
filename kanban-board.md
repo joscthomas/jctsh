@@ -9,7 +9,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0169 -->
+<!-- next-card-id: CARD-0170 -->
+
+---
+
+### CARD-0169 · [idea] [homeassistant] Scheduled volume levels by Google Home speaker, by time window
+**Status:** Backlog
+
+**Raised 2026-08-15**, surfaced while testing CARD-0145's Ring motion announcements — Joseph asked whether HA can fix each speaker's volume by time window (e.g. quieter overnight), separate from that card's own announcement logic.
+
+**Interview so far, 2026-08-15 (partial — specific windows/levels not yet gathered):**
+- **Scope: audio speakers only**, not displays or TVs — `media_player.garage_speaker`, `media_player.groom_speaker`, `media_player.master_bedroom_speaker`, `media_player.master_bedroom_speaker_2`, `media_player.patio_speaker`. (Two of these, `master_bedroom_speaker_2` and `patio_speaker`, were confirmed `unavailable`/offline during CARD-0145's testing — not blocking for this card, same as there.)
+- **Outside any defined window, enforce a default/baseline level** — not left unmanaged. Every device gets both a scheduled level per window and a default for all other times.
+- **Confirmed technical feasibility**: Cast/Google Home volume is a persistent device-level setting, not a per-message one — `media_player.volume_set` (also `volume_up`/`volume_down`/`volume_mute`) confirmed available on this HA instance. Once set, a level holds for all subsequent playback (TTS, music, anything) until changed again — observed indirectly during CARD-0145 testing, where each speaker's `volume_level` stayed consistent across multiple TTS calls without being re-set each time. This means implementation is straightforward: one automation (or per-window automations) calling `volume_set` at each window's start time, holding until the next transition.
+
+**Still needed before Planning:** the actual per-device volume levels and time windows — not yet gathered.
+
+**Done when:** each of the 5 speakers holds its scheduled volume level during its defined time windows and its default level otherwise, verified live (not just configured) against real device state.
+
+**Related:** CARD-0145 (the Ring announcement automation this surfaced during; shares 3 of the 5 target speakers).
 
 ---
 

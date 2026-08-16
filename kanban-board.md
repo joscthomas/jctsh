@@ -9,7 +9,21 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0173 -->
+<!-- next-card-id: CARD-0174 -->
+
+---
+
+### CARD-0173 · [idea] [core] Voice input for a new kanban card from my phone — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Raised 2026-08-15 14:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #14). Raw idea: voice input for creating a new kanban card from a phone.
+
+**Not a duplicate of CARD-0151** (Done) — that card built the *text* half of remote card creation (email an idea, subject/body flow into a placeholder-stub PR). This idea asks for a *voice* input path specifically, on top of that same pipeline, not the same feature restated.
+
+**Not yet interviewed/scoped.** Needs a real pass before Planning: what triggers it (a phone Shortcut/Siri, Google Assistant, a dedicated app), whether it transcribes to the same email-based pipeline CARD-0151 already built (cheapest path — just needs speech-to-text feeding the same `to:kbc` address) or something else entirely.
+
+**Related:** CARD-0151 (the existing email-idea pipeline this would most naturally extend), `core/maintenance/email-idea-check.py`.
 
 ---
 

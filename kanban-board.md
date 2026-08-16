@@ -9,7 +9,19 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0174 -->
+<!-- next-card-id: CARD-0175 -->
+
+---
+
+### CARD-0174 · [idea] [hike-izer] Add a microphone icon to the web page for hearing the birds — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Raised 2026-08-15 14:30 MST**, via CARD-0151's email-idea pipeline (GitHub PR #15). Raw idea: add a microphone icon to the web page for hearing the birds.
+
+**Not yet interviewed/scoped.** Likely relates to the BirdNET Live pipeline (CARD-0157, documented) surfaced on hike-izer-web pages — needs confirming which page/section, what "hearing the birds" means concretely (play a recorded clip? live audio stream? link out to BirdNET Live itself?), before Planning.
+
+**Related:** CARD-0157 (BirdNET Live pipeline documentation), CARD-0151 (the email-idea capture pipeline this came in through).
 
 ---
 

@@ -83,48 +83,66 @@ def _api(method, path, token, body=None):
         return json.loads(raw) if raw else {}
 
 
-def _merge_with_retry(pr_number, branch, commit_title, token, attempts=6, delay=3.0):
-    """GitHub computes PR mergeability asynchronously. Confirmed live
-    landing CARD-0160 (PR #11): an identical merge call 405'd twice,
-    then succeeded seconds later with zero reviews once GitHub's
-    mergeable_state flipped from "unknown" to "clean" -- not a branch-
-    protection rejection. Poll first instead of assuming a real conflict.
+def _put_merge(pr_number, token, commit_title, merge_method, attempts, delay):
+    """One merge attempt, retried -- GitHub computes PR mergeability
+    asynchronously. Confirmed live landing CARD-0160 (PR #11): an
+    identical merge call 405'd twice, then succeeded seconds later with
+    zero reviews once GitHub's mergeable_state flipped from "unknown" to
+    "clean" -- not a branch-protection rejection.
 
-    But a real conflict does happen too -- confirmed live landing
-    CARD-0161 (PR #10): GitHub's 3-way merge compares against the PR's
-    *original* branch point, not current main, so it can't tell "two
-    independent additions near the same fixed anchor line" (every card
-    inserts at the same spot) from a genuine conflict, even though this
-    function already rebuilt the branch's content from a fresh read of
-    main. Exact same failure mode open_kanban_pr.py's resolve_and_merge()
-    already hit and worked around -- same fix here: construct the merge
-    commit directly via the Git Data API (two parents: main's current
-    tip + this branch's tip, tree = the branch's already-correct
-    content) instead of asking GitHub to reconcile two diffs that touch
-    the same lines."""
+    Returns the merge commit sha, or None specifically when a squash
+    attempt hits a real conflict signal (caller should fall back to the
+    git-data-api approach in _merge_with_retry). Any other transient
+    error (405 or 409, "unknown" state not yet resolved) is retried up to
+    `attempts` times before giving up for real.
+
+    Confirmed live 2026-08-16 landing 6 PRs in one session: this needs to
+    wrap *every* call to the merge endpoint, not just the first one. The
+    previous version only retried the initial squash attempt -- the
+    git-data-api fallback below ends with its own call to this same
+    endpoint (patching the branch ref onto a fresh merge commit resets
+    GitHub's mergeable_state cache right back to "unknown"), and that
+    second call had no retry or error handling at all. A transient error
+    there crashed the whole script uncaught, which is what actually
+    happened on most of that session's failures -- not a real conflict."""
     last_err = None
     for _ in range(attempts):
         try:
             result = _api("PUT", f"/repos/{REPO}/pulls/{pr_number}/merge", token, {
-                "commit_title": commit_title, "merge_method": "squash",
+                "commit_title": commit_title, "merge_method": merge_method,
             })
             return result["sha"]
         except urllib.error.HTTPError as e:
             last_err = e
-            if e.code == 405:
+            if e.code == 405 and merge_method == "squash":
                 try:
                     body = json.loads(e.read())
                 except Exception:
                     body = {}
                 if body.get("message") == "Pull Request has merge conflicts":
-                    break  # not transient -- go straight to the git-data-api fallback
+                    return None  # real conflict signal -- caller falls back
             time.sleep(delay)
-    else:
-        raise SystemExit(
-            f"PR #{pr_number} still not mergeable after {attempts} attempts "
-            f"(~{attempts * delay:.0f}s). Last error: {last_err}. Check the "
-            f"PR on GitHub directly."
-        )
+    raise SystemExit(
+        f"PR #{pr_number} still not mergeable after {attempts} attempts "
+        f"(~{attempts * delay:.0f}s), merge_method={merge_method!r}. "
+        f"Last error: {last_err}. Check the PR on GitHub directly."
+    )
+
+
+def _merge_with_retry(pr_number, branch, commit_title, token, attempts=8, delay=4.0):
+    """Squash-merge if GitHub can compute it cleanly. If not -- confirmed
+    live landing CARD-0161 (PR #10): GitHub's 3-way merge compares against
+    the PR's *original* branch point, not current main, so it can't tell
+    "two independent additions near the same fixed anchor line" (every
+    card inserts at the same spot) from a genuine conflict, even though
+    this function already rebuilt the branch's content from a fresh read
+    of main -- construct the merge commit directly via the Git Data API
+    instead (two parents: main's current tip + this branch's tip, tree =
+    the branch's already-correct content), same fix open_kanban_pr.py's
+    resolve_and_merge() already uses for the identical failure mode."""
+    sha = _put_merge(pr_number, token, commit_title, "squash", attempts, delay)
+    if sha is not None:
+        return sha
 
     main_ref = _api("GET", f"/repos/{REPO}/git/refs/heads/{BRANCH_BASE}", token)
     main_sha = main_ref["object"]["sha"]
@@ -142,10 +160,7 @@ def _merge_with_retry(pr_number, branch, commit_title, token, attempts=6, delay=
         "tree": new_tree["sha"], "parents": [main_sha, branch_sha],
     })
     _api("PATCH", f"/repos/{REPO}/git/refs/heads/{branch}", token, {"sha": merge_commit["sha"]})
-    result = _api("PUT", f"/repos/{REPO}/pulls/{pr_number}/merge", token, {
-        "commit_title": commit_title, "merge_method": "merge",  # not squash -- would re-diff and re-conflict
-    })
-    return result["sha"]
+    return _put_merge(pr_number, token, commit_title, "merge", attempts, delay)  # not squash -- would re-diff and re-conflict
 
 
 def land_pr_card(pr_number, card_body_template, token):

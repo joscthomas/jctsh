@@ -19,7 +19,19 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Raised 2026-08-15 16:30 MST**, via CARD-0151's email-idea pipeline (GitHub PR #17). Raw idea: "Website tweaks. Clean up verbiage. Make sections not show when there's no data."
 
-**Not yet interviewed/scoped.** Assumed to be hike-izer-web (`hikes.jctnet.com`) given the "sections" language matches per-hike page sections (weather, wildlife, stats, etc.), but not confirmed — needs a pass to identify which specific pages/sections read poorly and which empty-data cases currently render instead of hiding, before Planning.
+**Interviewed 2026-08-16.** Confirmed: hike-izer-web (`hikes.jctnet.com`) per-hike pages. Joseph had specific changes in mind, captured verbatim below rather than left general.
+
+**Acceptance criteria:**
+1. Footer text: change "Generated automatically by hike-izer-orchestrator · data from the JCTsh Environmental Data pipeline" to "Generated automatically by JCTsh hike-izer-orchestrator."
+2. Rename the "Data Summary" section to "Environmental Data Tracking" — and hide it entirely when there's no data (matches the general "hide empty sections" ask from the raw idea).
+3. Move "Observations by Category" to the end of the "Full Observations Log" section (out of wherever it currently sits).
+4. Break up "Expected vs Actual Data Coverage" — it has (at least) two sub-parts:
+   - "Environmental data" moves to the end of the (renamed) "Environmental Data Tracking" section.
+   - "GPS Trackpoints" moves to immediately after the Route Map section, and its wording needs to actually explain what "expected vs. actual" GPS trackpoints means — currently unclear as written.
+   - Drop this text outright, don't relocate it: "Expected-reading counts reflect data through 9:26 AM UTC-07:00 (when this summary was generated) -- the rest of that calendar day hadn't happened yet." and "0 of 0 Environmental Data readings correlated to a GPS position; 0 did not."
+   - Once the two sub-parts are relocated and that text is dropped, "Expected vs Actual Data Coverage" has nothing left in it as its own section — remove the section itself.
+
+**Done when:** all four changes above are live on a real published hike page, verified by viewing it (not just diffing template code).
 
 **Related:** CARD-0151 (the email-idea capture pipeline this came in through).
 
@@ -31,7 +43,14 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Raised 2026-08-15 15:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #16). Raw idea: a geofence album for Immich.
 
-**Not yet interviewed/scoped.** Immich has native geo-tagging/map features; needs confirming what "geofence album" means concretely here — an auto-populating album keyed to a location radius (e.g. home, a specific trailhead), and whether that's a built-in Immich capability to just enable/configure versus something requiring custom tooling against Immich's API — before Planning.
+**Interviewed 2026-08-16.** Concretely: identify a place by name or lat/lon, define a radius around it, and have an album auto-collect every photo (existing and future) whose GPS EXIF falls within that radius — not a one-time manual curation. Multiple such geofenced places over time, not just home.
+
+**Acceptance criteria:**
+1. Check Immich's own map/search/smart-album features first — confirm whether a built-in capability (geo search, saved search as album, etc.) already covers "define a point+radius, auto-populate an album from it" before assuming custom tooling against Immich's API is needed.
+2. If native support is insufficient, scope the custom-tooling approach (API-driven: query photos by GPS radius, maintain album membership as new photos land).
+3. Prove it live: define at least one real place (e.g. home) with a radius, confirm existing matching photos populate the album, then confirm a newly imported photo within that radius gets added automatically without manual intervention.
+
+**Done when:** at least one geofenced album is live on the real Immich instance, verified to both backfill existing matches and auto-add new ones.
 
 **Related:** CARD-0151 (the email-idea capture pipeline this came in through), Immich (runs on the M8).
 
@@ -43,9 +62,18 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Raised 2026-08-15 14:30 MST**, via CARD-0151's email-idea pipeline (GitHub PR #15). Raw idea: add a microphone icon to the web page for hearing the birds.
 
-**Not yet interviewed/scoped.** Likely relates to the BirdNET Live pipeline (CARD-0157, documented) surfaced on hike-izer-web pages — needs confirming which page/section, what "hearing the birds" means concretely (play a recorded clip? live audio stream? link out to BirdNET Live itself?), before Planning.
+**Interviewed 2026-08-16.** Applies to both the per-hike page's Wildlife section and the cross-hike Wildlife Life List (CARD-0142) — a microphone icon next to each detected species in both places. Clicking it plays a **reference call for that species** (a stock/known recording), not the actual BirdNET-captured audio from that specific detection.
 
-**Related:** CARD-0157 (BirdNET Live pipeline documentation), CARD-0151 (the email-idea capture pipeline this came in through).
+**Open question for Planning, not yet decided:** which reference-audio source to use (e.g. Xeno-canto, Macaulay Library/eBird, Wikipedia species pages) — needs checking licensing/embeddability and whether a species-name-keyed lookup/API exists that's simple to wire into hike-izer's existing per-species rendering.
+
+**Acceptance criteria:**
+1. Reference-audio source selected and confirmed usable (license permits embedding, has reasonable species coverage for what this repo's hikes actually detect).
+2. Microphone icon added next to each species on both the per-hike Wildlife section and the cross-hike Wildlife Life List (CARD-0142), wired to play that species' reference call.
+3. Verified live on a real published hike page and the life-list page — icon present, playback works for a species actually detected in this repo's data.
+
+**Done when:** both surfaces show a working microphone icon per species, verified against real detections, not just a mockup.
+
+**Related:** CARD-0157 (BirdNET Live pipeline documentation), CARD-0142 (Cross-hike Wildlife Life List, the second surface this applies to), CARD-0151 (the email-idea capture pipeline this came in through).
 
 ---
 
@@ -55,11 +83,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Raised 2026-08-15 14:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #14). Raw idea: voice input for creating a new kanban card from a phone.
 
-**Not a duplicate of CARD-0151** (Done) — that card built the *text* half of remote card creation (email an idea, subject/body flow into a placeholder-stub PR). This idea asks for a *voice* input path specifically, on top of that same pipeline, not the same feature restated.
+**Not a duplicate of CARD-0151** (Done) — that card built the *text* half of remote card creation (email an idea, subject/body flow into a placeholder-stub PR). This idea asks for a *voice* input path on top of that same pipeline, not the same feature restated.
 
-**Not yet interviewed/scoped.** Needs a real pass before Planning: what triggers it (a phone Shortcut/Siri, Google Assistant, a dedicated app), whether it transcribes to the same email-based pipeline CARD-0151 already built (cheapest path — just needs speech-to-text feeding the same `to:kbc` address) or something else entirely.
+**Clarified 2026-08-16 (Joseph):** the intended mechanism is Tasker voice capture on the Pixel — the same pattern already built and verified live for hiking-monitor's "Log Observation" widget (CARD-0135/CARD-0156: Tasker speech-to-text → queued/sent to a backend, with offline retry). Here, the captured text would feed the same `to:kbc` email pipeline CARD-0151 already built, rather than a new backend.
 
-**Related:** CARD-0151 (the existing email-idea pipeline this would most naturally extend), `core/maintenance/email-idea-check.py`.
+**Not yet interviewed/scoped in full.** Needs a Planning pass to work out the concrete build: a new Tasker profile/task mirroring "Log Observation"'s structure but targeting the email-idea address instead of the hiking Apps Script endpoint, and whether the existing offline-queue/retry logic should be reused as-is or simplified (idea capture is lower-stakes than hiking data, may not need the same resilience).
+
+**Related:** CARD-0151 (the existing email-idea pipeline this would extend), CARD-0135/CARD-0156 ("Log Observation" — the existing Tasker voice-capture pattern this reuses), `core/maintenance/email-idea-check.py`.
 
 ---
 
@@ -69,9 +99,16 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Raised 2026-08-15 04:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #12). Raw idea: "Suppose we lose a disk drive on the M8 or the USB drive on Pi1. What can be recovered? Do we have the appropriate backups? How would we rebuild the M8 or Pi1? What can we do to manage this risk?"
 
-**Not yet interviewed/scoped.** Needs a real pass before Planning: inventory what's actually backed up today (M8 has a weekly rsync per `components/m8/backup.md`; Pi1's USB drive backup posture is unclear), what a full rebuild of each host would actually require (OS, Docker, this repo's own deploy steps), and what gap (if any) is worth closing versus accepted risk — same realistic-threat/consequence framing this repo already applies elsewhere (MQTT exposure, `CLAUDE.md`).
+**Interviewed 2026-08-16.** Scope is both storage loss (a drive dying under a still-working host) and full host loss (the Pi or M8 itself dying) — not just the narrower "lost a disk" framing in the raw idea. Deliverable is an audit/documentation pass, not a rebuild-from-scratch drill — matches how CARD-0095 handled the M8 maintenance backlog: inventory real posture, identify real gaps, write findings and any accepted-risk decisions into this card. A live restore test is explicitly out of scope for this card; could be a follow-up card if the audit surfaces something worth proving live.
 
-**Related:** CARD-0151 (the email-idea capture pipeline this came in through), `components/m8/backup.md`, CARD-0159/CARD-0006 (USB-drive-based state on the Pi that would be part of any Pi1 rebuild story).
+**Acceptance criteria:**
+1. Inventory what's actually backed up today for both hosts: M8 has a weekly rsync (`components/m8/backup.md`) — confirm what it covers and where it lands; Pi1's USB drive (`/mnt/jctsh-logs` — HA config/recorder DB, Mosquitto persistence, Docker/containerd data-root per CARD-0159) backup posture is currently unknown and needs establishing.
+2. For each host, document what a full rebuild would actually require: OS install, Docker/containerd setup, this repo's own deploy steps (`scp`/systemd units per `CLAUDE.md`'s Core Files section), and which pieces of state are recoverable from the backups in (1) versus lost entirely.
+3. Identify real gaps and make an explicit accept/close decision on each, using the same realistic-threat/consequence framing this repo already applies elsewhere (MQTT exposure risk acceptance, `CLAUDE.md`) — not a blanket "back up everything" reflex.
+
+**Done when:** both hosts have a documented backup inventory, a documented rebuild path, and every identified gap has an explicit decision (close it or accept the risk) written into this card.
+
+**Related:** CARD-0151 (the email-idea capture pipeline this came in through), `components/m8/backup.md`, CARD-0159/CARD-0006 (USB-drive-based state on the Pi that would be part of any Pi1 rebuild story), CARD-0095 (the audit-and-document pattern this follows).
 
 ---
 
@@ -303,7 +340,13 @@ Deployed (`scp` + `sudo systemctl restart jctsh-logging`), confirmed clean resta
 - CARD-0161 (PR #10, NetAlertX update) — full process run end to end: raw finding shown, risk researched against the actual GitHub changelog, acceptance criteria interviewed (including a user correction to sequence the webhook-workaround removal strictly after production verification, not bundle it), card text confirmed, landed via `land_pr_card.py`. Hit the anchor-point false-conflict issue live and the new fallback resolved it — PR merged, `CARD-0161` present on `main`, marker correctly advanced to `CARD-0162`.
 - PR #6 (stale duplicate NetAlertX finding from 2026-08-05) — closed with an explanatory comment pointing to CARD-0161, branch deleted.
 
-**Related:** CARD-0128 (`open_kanban_pr.py`, the auto-open mechanism this process consumes), CARD-0160 and CARD-0161 (the two findings this process was built and proven against), `core/maintenance/land_pr_card.py`, `CLAUDE.md`.
+**Real gap found and fixed, 2026-08-16 — landing 9 PRs in one session (CARD-0170 through CARD-0176) exposed a mistake the original process description above didn't guard against.** Step 2's "once approval is given for the flow, the final merge doesn't need re-confirming" line was written to describe skipping the *merge confirmation* re-ask, once Joseph has already said "land it" for the established pattern. Mid-session, Joseph gave that exact feedback again ("you keep asking me the same thing... do it without asking"), but it got over-applied — the *interview* step (the actual substantive one, required by `CLAUDE.md`'s global "interview first" rule) got skipped too for CARD-0172/0174/0175/0176, which landed as bare "not yet interviewed/scoped" stubs based on guessed intent rather than asked intent. Confirmed wrong at least once: CARD-0173's real mechanism (Tasker voice capture, same pattern as hiking-monitor's "Log Observation") only came out because Joseph volunteered it unprompted, not because it was asked. **Correction: "don't re-ask" applies only to the merge-confirmation gate, never to the interview step — those are two different gates and skipping the second one is exactly the "one-line card from assumption" `CLAUDE.md` already warns against.** The four affected cards were left `Backlog`/unscoped rather than silently treated as done, pending a real interview pass.
+
+**Second real gap found and fixed, same session: `land_pr_card.py`'s merge-retry logic had an actual bug, not just bad luck.** The git-data-api fallback path (added by this card, above) ends with its own call to the merge endpoint — but that call had zero retry or error handling. Since patching the branch ref onto a fresh merge commit resets GitHub's `mergeable_state` cache back to "unknown" just like the primary attempt does, a transient 405/409 there crashed the whole script uncaught. This was the actual cause of most of that session's repeated failures, not a real conflict each time. Fixed by factoring the retried-PUT logic into one `_put_merge()` helper used by both the primary squash attempt and the fallback's final call, and widening the retry budget from 6×3s (18s) to 8×4s (32s) per phase — today's failures sometimes needed more than 18s cumulative before GitHub's async computation settled.
+
+**Third addition, same session: GitHub CLI (`gh`) installed and authenticated locally** (`joscthomas` account, `repo`/`workflow`/`read:org`/`gist` scopes) as a supplement to the existing Pi-PAT (`credentials.local.md`) path — used for ad hoc PR inspection and closing stale PRs with a comment (`gh pr view`/`gh pr close`), not for the mechanical `land_pr_card.py` merge step itself (that still authenticates via `credentials.local.md`, unrelated to `gh`). Gotcha for this environment specifically: call `gh` by its full install path (`"/c/Program Files/GitHub CLI/gh.exe"`) rather than mutating `PATH` inline in each command — a local hook flags `export PATH=...` and other dynamic shell constructs (`$(...)`, shell loops) as unable to be statically analyzed, and repeated inline `PATH` exports triggered it repeatedly this session.
+
+**Related:** CARD-0128 (`open_kanban_pr.py`, the auto-open mechanism this process consumes), CARD-0160 and CARD-0161 (the two findings this process was built and proven against), CARD-0170 through CARD-0176 (the 2026-08-16 session that found the two process gaps above), `core/maintenance/land_pr_card.py`, `CLAUDE.md`.
 
 ---
 

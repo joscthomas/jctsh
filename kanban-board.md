@@ -9,18 +9,107 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0170 -->
+<!-- next-card-id: CARD-0177 -->
 
 ---
 
-### CARD-XXX · [enhancement] [infrastructure] Website tweaks — auto-opened from jctsh-core
+### CARD-0176 · [idea] [hike-izer] Website tweaks: clean up verbiage, hide sections with no data — auto-opened from jctsh-core
+
 **Status:** Backlog
 
-**Auto-generated 2026-08-15 16:30 UTC from jctsh-core's maintenance check.** Raw finding: Website tweaks
+**Raised 2026-08-15 16:30 MST**, via CARD-0151's email-idea pipeline (GitHub PR #17). Raw idea: "Website tweaks. Clean up verbiage. Make sections not show when there's no data."
 
-Clean up verbiage. Make sections not show when there's no data. Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+**Not yet interviewed/scoped.** Assumed to be hike-izer-web (`hikes.jctnet.com`) given the "sections" language matches per-hike page sections (weather, wildlife, stats, etc.), but not confirmed — needs a pass to identify which specific pages/sections read poorly and which empty-data cases currently render instead of hiding, before Planning.
 
-**Related:** live dashboard entry at time of generation.
+**Related:** CARD-0151 (the email-idea capture pipeline this came in through).
+
+---
+
+### CARD-0175 · [idea] [photo-server] Geofence album for Immich — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Raised 2026-08-15 15:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #16). Raw idea: a geofence album for Immich.
+
+**Not yet interviewed/scoped.** Immich has native geo-tagging/map features; needs confirming what "geofence album" means concretely here — an auto-populating album keyed to a location radius (e.g. home, a specific trailhead), and whether that's a built-in Immich capability to just enable/configure versus something requiring custom tooling against Immich's API — before Planning.
+
+**Related:** CARD-0151 (the email-idea capture pipeline this came in through), Immich (runs on the M8).
+
+---
+
+### CARD-0174 · [idea] [hike-izer] Add a microphone icon to the web page for hearing the birds — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Raised 2026-08-15 14:30 MST**, via CARD-0151's email-idea pipeline (GitHub PR #15). Raw idea: add a microphone icon to the web page for hearing the birds.
+
+**Not yet interviewed/scoped.** Likely relates to the BirdNET Live pipeline (CARD-0157, documented) surfaced on hike-izer-web pages — needs confirming which page/section, what "hearing the birds" means concretely (play a recorded clip? live audio stream? link out to BirdNET Live itself?), before Planning.
+
+**Related:** CARD-0157 (BirdNET Live pipeline documentation), CARD-0151 (the email-idea capture pipeline this came in through).
+
+---
+
+### CARD-0173 · [idea] [core] Voice input for a new kanban card from my phone — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Raised 2026-08-15 14:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #14). Raw idea: voice input for creating a new kanban card from a phone.
+
+**Not a duplicate of CARD-0151** (Done) — that card built the *text* half of remote card creation (email an idea, subject/body flow into a placeholder-stub PR). This idea asks for a *voice* input path specifically, on top of that same pipeline, not the same feature restated.
+
+**Not yet interviewed/scoped.** Needs a real pass before Planning: what triggers it (a phone Shortcut/Siri, Google Assistant, a dedicated app), whether it transcribes to the same email-based pipeline CARD-0151 already built (cheapest path — just needs speech-to-text feeding the same `to:kbc` address) or something else entirely.
+
+**Related:** CARD-0151 (the existing email-idea pipeline this would most naturally extend), `core/maintenance/email-idea-check.py`.
+
+---
+
+### CARD-0172 · [idea] [infrastructure] Disaster Recovery — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Raised 2026-08-15 04:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #12). Raw idea: "Suppose we lose a disk drive on the M8 or the USB drive on Pi1. What can be recovered? Do we have the appropriate backups? How would we rebuild the M8 or Pi1? What can we do to manage this risk?"
+
+**Not yet interviewed/scoped.** Needs a real pass before Planning: inventory what's actually backed up today (M8 has a weekly rsync per `components/m8/backup.md`; Pi1's USB drive backup posture is unclear), what a full rebuild of each host would actually require (OS, Docker, this repo's own deploy steps), and what gap (if any) is worth closing versus accepted risk — same realistic-threat/consequence framing this repo already applies elsewhere (MQTT exposure, `CLAUDE.md`).
+
+**Related:** CARD-0151 (the email-idea capture pipeline this came in through), `components/m8/backup.md`, CARD-0159/CARD-0006 (USB-drive-based state on the Pi that would be part of any Pi1 rebuild story).
+
+---
+
+### CARD-0171 · [enhancement] [infrastructure] M8 UEFI Secure Boot KEK CA firmware update available — auto-opened from photo-server
+
+**Status:** Backlog
+
+**Auto-generated 2026-08-01 14:00 MST from photo-server's maintenance check** (GitHub PR #5). Raw finding: "M8 maintenance: 2 firmware update(s) available: KEK CA: UEFI Secure Boot Key Exchange Key; KEK CA: UEFI Secure Boot Key Exchange Key."
+
+**Scoped 2026-08-16, not yet built.** Re-checked live via `fwupdmgr get-upgrades` on the M8 — still genuinely pending (not stale like PRs #7/#8 were for the HA finding). This is a single KEK CA device with two candidate release variants (AMI, ASUS) — the auto-generated "2 firmware updates" title is fwupdmgr listing both candidates for the same device, not two separate items. **Urgency: High** — a Secure Boot Key Exchange Key update, same class of finding as the dbx update CARD-0095 already applied, but not covered by that pass (which handled UEFI CA + dbx only).
+
+**Acceptance criteria:**
+1. Stage the update: `fwupdmgr update -y --no-reboot-check` (finalizes on next boot, same as CARD-0095's dbx update — UEFI-level fwupd updates apply via a staged capsule).
+2. Reboot the M8 to finalize.
+3. Verify live: `fwupdmgr get-upgrades` no longer lists the KEK CA update, all 8 containers back to Docker `healthy`, Tailscale reconnected, `hikes.jctnet.com` (Cloudflare Tunnel → hike-izer-web) reachable — same verification checklist CARD-0095 used for its own reboot.
+
+**Done when:** KEK CA firmware confirmed updated and M8 confirmed fully healthy post-reboot per the checklist above.
+
+**Related:** CARD-0095 (M8 OS/firmware maintenance backlog — established the update policy and verification pattern this follows; that pass covered UEFI CA/dbx but not this KEK CA item).
+
+---
+
+### CARD-0170 · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1) — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Auto-generated 2026-08-15 13:30 MST from jctsh-core's maintenance check** (GitHub PR #13). Raw finding: Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1).
+
+**Scoped 2026-08-16, not yet built.** Landed as a proper Backlog card rather than left as a raw auto-opened stub. Superseded two earlier stale findings for the same underlying update chain (PR #7: 2026.8.0 available when HA was still on 2026.5.1; PR #8: 2026.8.1 available, same baseline — both closed 2026-08-16 once HA was confirmed already running 2026.8.1, past both).
+
+**Acceptance criteria:**
+1. Check HA's 2026.8.2 release notes / breaking changes for anything relevant to MQTT, `automations.yaml` schema, SmartThings, Docker, or reverse proxies — same discipline CARD-0130 used, don't skip straight to the image bump.
+2. Apply the update (`docker compose pull homeassistant` + `docker compose up -d homeassistant`).
+3. Verify live on the real device: confirmed running version via `/api/config` (not just "the container restarted"), Docker health check reports `healthy`, all existing automation entities present and loaded, SmartThings integration reconnects normally.
+
+**Done when:** HA is confirmed running 2026.8.2 with the above verification complete, no regressions found.
+
+**Related:** CARD-0130 (the same recurring HA-image-update pattern, template for acceptance criteria and verification steps here), CARD-0158 (`reboot-health-check.py`, reusable for the post-update health verification instead of a one-off check).
 
 ---
 

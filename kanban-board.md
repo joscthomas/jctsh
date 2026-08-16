@@ -9,7 +9,19 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0176 -->
+<!-- next-card-id: CARD-0177 -->
+
+---
+
+### CARD-0176 · [idea] [hike-izer] Website tweaks: clean up verbiage, hide sections with no data — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Raised 2026-08-15 16:30 MST**, via CARD-0151's email-idea pipeline (GitHub PR #17). Raw idea: "Website tweaks. Clean up verbiage. Make sections not show when there's no data."
+
+**Not yet interviewed/scoped.** Assumed to be hike-izer-web (`hikes.jctnet.com`) given the "sections" language matches per-hike page sections (weather, wildlife, stats, etc.), but not confirmed — needs a pass to identify which specific pages/sections read poorly and which empty-data cases currently render instead of hiding, before Planning.
+
+**Related:** CARD-0151 (the email-idea capture pipeline this came in through).
 
 ---
 

@@ -9,7 +9,19 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0175 -->
+<!-- next-card-id: CARD-0176 -->
+
+---
+
+### CARD-0175 · [idea] [photo-server] Geofence album for Immich — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Raised 2026-08-15 15:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #16). Raw idea: a geofence album for Immich.
+
+**Not yet interviewed/scoped.** Immich has native geo-tagging/map features; needs confirming what "geofence album" means concretely here — an auto-populating album keyed to a location radius (e.g. home, a specific trailhead), and whether that's a built-in Immich capability to just enable/configure versus something requiring custom tooling against Immich's API — before Planning.
+
+**Related:** CARD-0151 (the email-idea capture pipeline this came in through), Immich (runs on the M8).
 
 ---
 

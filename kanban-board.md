@@ -9,7 +9,26 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0170 -->
+<!-- next-card-id: CARD-0171 -->
+
+---
+
+### CARD-0170 · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1) — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Auto-generated 2026-08-15 13:30 MST from jctsh-core's maintenance check** (GitHub PR #13). Raw finding: Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1).
+
+**Scoped 2026-08-16, not yet built.** Landed as a proper Backlog card rather than left as a raw auto-opened stub. Superseded two earlier stale findings for the same underlying update chain (PR #7: 2026.8.0 available when HA was still on 2026.5.1; PR #8: 2026.8.1 available, same baseline — both closed 2026-08-16 once HA was confirmed already running 2026.8.1, past both).
+
+**Acceptance criteria:**
+1. Check HA's 2026.8.2 release notes / breaking changes for anything relevant to MQTT, `automations.yaml` schema, SmartThings, Docker, or reverse proxies — same discipline CARD-0130 used, don't skip straight to the image bump.
+2. Apply the update (`docker compose pull homeassistant` + `docker compose up -d homeassistant`).
+3. Verify live on the real device: confirmed running version via `/api/config` (not just "the container restarted"), Docker health check reports `healthy`, all existing automation entities present and loaded, SmartThings integration reconnects normally.
+
+**Done when:** HA is confirmed running 2026.8.2 with the above verification complete, no regressions found.
+
+**Related:** CARD-0130 (the same recurring HA-image-update pattern, template for acceptance criteria and verification steps here), CARD-0158 (`reboot-health-check.py`, reusable for the post-update health verification instead of a one-off check).
 
 ---
 

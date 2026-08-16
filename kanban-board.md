@@ -9,7 +9,19 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0172 -->
+<!-- next-card-id: CARD-0173 -->
+
+---
+
+### CARD-0172 · [idea] [infrastructure] Disaster Recovery — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Raised 2026-08-15 04:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #12). Raw idea: "Suppose we lose a disk drive on the M8 or the USB drive on Pi1. What can be recovered? Do we have the appropriate backups? How would we rebuild the M8 or Pi1? What can we do to manage this risk?"
+
+**Not yet interviewed/scoped.** Needs a real pass before Planning: inventory what's actually backed up today (M8 has a weekly rsync per `components/m8/backup.md`; Pi1's USB drive backup posture is unclear), what a full rebuild of each host would actually require (OS, Docker, this repo's own deploy steps), and what gap (if any) is worth closing versus accepted risk — same realistic-threat/consequence framing this repo already applies elsewhere (MQTT exposure, `CLAUDE.md`).
+
+**Related:** CARD-0151 (the email-idea capture pipeline this came in through), `components/m8/backup.md`, CARD-0159/CARD-0006 (USB-drive-based state on the Pi that would be part of any Pi1 rebuild story).
 
 ---
 

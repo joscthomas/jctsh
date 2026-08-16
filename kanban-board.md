@@ -15,7 +15,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ### CARD-0176 · [idea] [hike-izer] Website tweaks: clean up verbiage, hide sections with no data — auto-opened from jctsh-core
 
-**Status:** Backlog
+**Status:** Build
 
 **Raised 2026-08-15 16:30 MST**, via CARD-0151's email-idea pipeline (GitHub PR #17). Raw idea: "Website tweaks. Clean up verbiage. Make sections not show when there's no data."
 
@@ -30,6 +30,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
    - "GPS Trackpoints" moves to immediately after the Route Map section, and its wording needs to actually explain what "expected vs. actual" GPS trackpoints means — currently unclear as written.
    - Drop this text outright, don't relocate it: "Expected-reading counts reflect data through 9:26 AM UTC-07:00 (when this summary was generated) -- the rest of that calendar day hadn't happened yet." and "0 of 0 Environmental Data readings correlated to a GPS position; 0 did not."
    - Once the two sub-parts are relocated and that text is dropped, "Expected vs Actual Data Coverage" has nothing left in it as its own section — remove the section itself.
+
+**Built 2026-08-16, code-complete in both live templates:**
+- `components/hike-izer-orchestrator/templating.py` — the automated pipeline that actually generates published pages. All four acceptance criteria implemented: footer text changed; `data_summary_rows()` stripped of the category breakdown and renamed at the render site to "Environmental Data Tracking," now omitted when `stats`' four sensor fields are all null; `environmental_data_coverage_row()`/`environmental_data_gap_notes()` (replacing `coverage_table_rows()`/`coverage_notes()`) fold the Environmental Data coverage row and any >6min gap notes into the end of that same table; `gps_trackpoints_summary()` produces the explanatory GPS Trackpoints prose, rendered right after the `.hike-visuals` (Route Map + Elevation/Speed) block; both dropped note lines are gone outright, not relocated. Dead `.coverage-panel` CSS removed.
+- `components/hike-izer/html-template.html` + `.claude/skills/hike-izer/SKILL.md` — the parallel interactive-Skill template and its instructions, kept in sync with the same restructuring (Joseph's explicit call, since `templating.py`'s own docstring says it ports this mapping and letting the two drift would regress the next manually-generated page). Same section rename/reorg, same two dropped notes, same dead-CSS cleanup, plus a stale forward-reference in SKILL.md's "today, still in progress" guidance fixed since it pointed at prose that no longer exists.
+
+**Verified so far: code-level only, via a synthetic smoke test** against `templating.py` covering both a full-data hike and an empty/edge-case hike (no environmental data, no GPS sessions, no observations) — confirmed the old section names/text are gone, the new section appears and is correctly omitted when empty, GPS Trackpoints text and placement are correct and correctly absent with no GPS sessions, and Observations by Category renders after Full Observations Log with correct content. **Not yet verified against a real published hike page** — these changes only affect newly generated pages (no existing page was re-rendered, per Joseph's explicit instruction), so the literal "Done when" bar below isn't met yet; staying in Build until the next real hike gets generated and the live page is actually viewed.
 
 **Done when:** all four changes above are live on a real published hike page, verified by viewing it (not just diffing template code).
 

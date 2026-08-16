@@ -87,7 +87,14 @@ contain more than one real session.
   belongs to the day it *started* on -- don't split one real hike into two
   day-summaries at the UTC boundary.
 - If Joseph asks about "today" and the day is still in progress, that's a fine,
-  normal single-day event -- see the `window_truncated_to_now` handling below.
+  normal single-day event -- `coverage.window_truncated_to_now` will be `true`
+  in the fetched JSON, which just means the coverage numbers were computed
+  through the current time rather than the full calendar day. Expected on
+  essentially every same-day-generated page; CARD-0176 dropped the prose
+  caveat that used to call this out explicitly (Joseph's call, cluttered the
+  page without being genuinely informative) -- no narrative or table
+  treatment needed, just don't be surprised by a lower-than-usual expected
+  count on a same-day page.
 
 ## What counts as a hike (not just "GPS was active")
 
@@ -189,21 +196,23 @@ section.
    enabled or prevented -- or does it just describe the number in prose? If it's
    the latter, cut it. **This applies to empty-data reporting too, more strictly
    than before (tightened 2026-07-29):** if a data source came back empty, the
-   Data Summary table and Coverage section already show that plainly (a blank
-   "not available" cell, an actual/expected count of zero) -- don't add a prose
-   sentence that just restates the absence ("the sensor logged nothing this
-   session, so there's no temperature story to tell" tells the reader nothing
-   the table doesn't already show). Only mention an empty data source in prose
-   if there's something genuinely narrative to say *about why*, not just *that*
-   it's empty. Never point ahead to
-   "detailed in the coverage section below" -- that section already exists and
-   speaks for itself; a forward-reference like that is a tell that the sentence
-   shouldn't be in the narrative at all. Same principle for GPS confirmation:
-   don't editorialize that the GPS track "confirmed a steady walking pace" or
-   similar -- `hike_confirmed: true` is exactly what put the page in this normal
-   narrative path rather than the `false` path above, so it's already implied,
-   and trackpoint coverage itself belongs to the Coverage section (part c), not
-   the story. Detailed pace/speed commentary is reserved for the "Pace &
+   Environmental Data Tracking table (CARD-0176, formerly "Data Summary") and
+   the GPS Trackpoints note near the Route Map already show that plainly (a
+   blank "not available" cell, an actual/expected count of zero) -- don't add
+   a prose sentence that just restates the absence ("the sensor logged
+   nothing this session, so there's no temperature story to tell" tells the
+   reader nothing the table doesn't already show). Only mention an empty data
+   source in prose if there's something genuinely narrative to say *about
+   why*, not just *that* it's empty. Never point ahead to "detailed further
+   down the page" -- that data already exists and speaks for itself; a
+   forward-reference like that is a tell that the sentence shouldn't be in
+   the narrative at all. Same principle for GPS confirmation: don't
+   editorialize that the GPS track "confirmed a steady walking pace" or
+   similar -- `hike_confirmed: true` is exactly what put the page in this
+   normal narrative path rather than the `false` path above, so it's already
+   implied, and trackpoint coverage itself belongs in the GPS Trackpoints
+   note near the Route Map (step 5), not the story. Detailed pace/speed
+   commentary is reserved for the "Pace &
    Elevation Detail" stat block and the Elevation & Speed chart (CARD-0110,
    step 5 below) -- don't repeat those figures in prose here.
 
@@ -276,37 +285,56 @@ section.
    unlike the weather forecast, there's no standing reader expectation that
    this exists for every hike, so there's nothing to report the absence of.
 
-   **b. Data tables/summary** -- the actual numbers: temperature range, humidity
-   range, UV index range, elevation range/gain **in feet** (`stats.altitude_ft`),
-   battery voltage range, duration, observation count by category. This is where
-   precise figures belong -- the narrative shouldn't need to repeat them.
+   **b. Environmental Data Tracking (CARD-0176, renamed from "Data
+   Summary")** -- the actual sensor numbers: temperature range, humidity
+   range, UV index range, battery voltage range. Elevation range/gain **in
+   feet** (`stats.altitude_ft`) and duration belong in the hero stat row
+   (step 5), not repeated here. Observation count by category no longer
+   belongs in this table -- see the Full observations table below. Append
+   one more row at the end of this same table: Environmental Data readings
+   recorded vs. expected (and coverage %), from `coverage.environmental_data`
+   -- this is the old "Expected vs. actual data coverage" section's
+   Environmental Data half, now folded into this table instead of living in
+   its own separate section. If `coverage.environmental_data.gaps_over_6min`
+   is non-empty, report those gaps (with timestamps) directly under this
+   table too. **Omit this whole section when there's no environmental sensor
+   data at all for the day** (temperature/humidity/UV/battery all null) --
+   same "no empty scaffolding" convention Photos follows, checked against
+   the underlying stats, not against a formatted "not available" string.
+   This is where precise figures belong -- the narrative shouldn't need to
+   repeat them.
 
-   **Full observations table (added 2026-07-23):** in addition to the observation
-   *count* by category above, include the complete list of that day's Hiking
-   Observations as its own table -- columns Time (local, MST, not the sheet's raw
-   UTC), Observation (the raw text as logged, don't paraphrase or clean it up),
-   and Categories (comma-joined, or an em dash if the categories array is empty).
-   One row per observation, in chronological order. This is the raw record the
-   narrative draws its color from -- the narrative interprets and weaves a
-   selection of these into a story (per the non-redundant rule above), but the
-   table is where the complete, unabridged list lives. Include this table whenever
-   `hiking_observations` is non-empty, including on the `hike_confirmed: false`
-   path -- it's exactly the kind of "other data that does exist" that path already
-   calls for reporting.
+   **Full observations table (added 2026-07-23):** the complete list of that
+   day's Hiking Observations as its own table -- columns Time (local, MST,
+   not the sheet's raw UTC), Observation (the raw text as logged, don't
+   paraphrase or clean it up), and Categories (comma-joined, or an em dash if
+   the categories array is empty). One row per observation, in chronological
+   order. This is the raw record the narrative draws its color from -- the
+   narrative interprets and weaves a selection of these into a story (per the
+   non-redundant rule above), but the table is where the complete, unabridged
+   list lives. Include this table whenever `hiking_observations` is
+   non-empty, including on the `hike_confirmed: false` path -- it's exactly
+   the kind of "other data that does exist" that path already calls for
+   reporting. **Observation count by category (CARD-0176, moved here from
+   part b above)** goes directly beneath this table, as its own line, not a
+   second table -- it's a breakdown of the table immediately above it, not an
+   environmental sensor reading. Always present whenever this section is
+   (every observation without categories buckets into "uncategorized"), so no
+   "not available" fallback is needed.
 
-   **c. Expected vs. actual data coverage** -- an explicit, clearly labeled
-   section (not buried in a footnote) reporting the `coverage` block from the
-   fetched JSON: Environmental Data readings expected vs. actual (and coverage
-   %), GPS trackpoints expected vs. actual, any gaps over 6 minutes with their
-   timestamps, and how many Environmental Data readings had GPS coordinates
-   successfully correlated vs. not. Frame this as a pipeline health check, not
-   just a stat -- call out explicitly if coverage looks poor or GPS correlation
-   looks broken, since surfacing exactly that is the point of this section.
-   If `coverage.window_truncated_to_now` is `true` (requesting a window that
-   extends into the future, e.g. "today" while it's still in progress), say so
-   plainly -- the coverage numbers were computed through the current time, not
-   the full requested window, so a lower-than-usual figure isn't necessarily a
-   problem.
+   **GPS Trackpoints, placed near the Route Map, not here (CARD-0176) --
+   see step 5 below.** The old combined "Expected vs. actual data coverage"
+   section is gone; its Environmental Data half moved into part b above, its
+   GPS Trackpoints half moved next to the Route Map instead (a bare table row
+   there had no room to explain what "expected" was even counting, which was
+   the actual complaint -- now spelled out in prose: one GPS point roughly
+   every 30 seconds, GPSLogger's configured interval, across that day's
+   tracked GPS session(s)). Two of the old section's note lines were dropped
+   outright, not relocated, per Joseph's explicit call: the generation-cutoff
+   caveat (obvious/expected on every same-day-generated page, not worth
+   stating) and the GPS-correlation line (how many Environmental Data
+   readings had GPS coordinates successfully correlated vs. not -- rarely
+   informative, cluttered the page).
 
 5. **Generate the styled HTML output (CARD-0081, Levels 1-2)** at
    `hike-izer/summaries/<start-date>_hike-summary.html` (create the directory
@@ -356,6 +384,16 @@ section.
    share the same empty condition, so there's never a case with one present
    and not the other). Also omit the template's `<link>`/`<script>` tags for
    vendored Leaflet in `<head>` when there's no map to show.
+
+   **GPS Trackpoints note (CARD-0176), right after this `.hike-visuals`
+   wrapper:** fill the template's `{{GPS_TRACKPOINTS_ACTUAL}}`/
+   `{{GPS_TRACKPOINTS_EXPECTED}}`/`{{GPS_TRACKPOINTS_COVERAGE_PCT}}` from
+   `coverage.gps_track` -- expected is the sum of `expected_points` across
+   every session that day (`coverage.gps_track.sessions`, hike and rejected
+   alike, one point roughly every 30 seconds), actual is
+   `coverage.gps_track.total_trackpoints`. Omit this `<p>` entirely when
+   `coverage.gps_track.sessions` is empty (no GPS session detected that day
+   at all) -- same omit-when-empty convention as everything else here.
 
    **Richer pace stats (CARD-0110):**
    - Fill the `.stat-row--rich` "Pace & Elevation Detail" section from

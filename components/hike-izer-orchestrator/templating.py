@@ -221,24 +221,19 @@ def _parse_categories(raw):
 def data_summary_rows(hike_data):
     # Duration and Elevation Gain deliberately excluded -- both already appear
     # verbatim in the hero stat row at the top of the page (CARD-0109); this
-    # table is the hiking-sensor readings (temp/humidity/UV/battery) plus the
-    # elevation range and observation breakdown, not a second copy of the
-    # hero stats. Sun position has its own table (sun_summary_rows) for the
-    # same reason -- it's not a sensor reading, and doesn't belong mixed in.
+    # table is the hiking-sensor readings (temp/humidity/UV/battery), not a
+    # second copy of the hero stats. Sun position has its own table
+    # (sun_summary_rows) for the same reason -- it's not a sensor reading,
+    # and doesn't belong mixed in. CARD-0176: Observations by Category moved
+    # to the end of the Full Observations Log section -- it's a breakdown of
+    # that table, not an environmental sensor reading.
     stats = hike_data["stats"]
-    coverage = hike_data["coverage"]
-    rows = [
+    return [
         ("Temperature", _range_display(stats.get("temp_f"), "°F")),
         ("Humidity", _range_display(stats.get("humidity_pct"), "%")),
         ("UV Index", _range_display(stats.get("uv_index"))),
         ("Battery Voltage", _range_display(stats.get("battery_v"), "V", decimals=2)),
     ]
-    counts = category_counts(hike_data.get("hiking_observations", []))
-    if counts:
-        rows.append(("Observations by Category", ", ".join(f"{k} ({v})" for k, v in counts.items())))
-    else:
-        rows.append(("Observations by Category", NA))
-    return rows
 
 
 GOLDEN_HOUR_MAX_ELEVATION_DEG = 10  # common rule-of-thumb upper bound for warm, low-angle "golden" light
@@ -421,59 +416,33 @@ def birdnet_table_rows(birdnet_rows, offset_delta, life_list=None, file_stem=Non
 
 
 # ---------------------------------------------------------------------------
-# Coverage panel
+# Coverage -- CARD-0176: the old combined "Expected vs. Actual Data
+# Coverage" table/section is gone. Its two rows moved to where they're
+# actually relevant instead of sitting in their own diagnostic-aside
+# section: the Environmental Data half joins the Environmental Data
+# Tracking table (environmental_data_coverage_row), and GPS Trackpoints
+# moves to right after the Route Map (gps_trackpoints_summary), spelled
+# out in prose since a bare Source/Expected/Actual/Coverage table row
+# had no room to explain what "expected" was even counting. Two of the
+# old section's note lines were dropped outright, not relocated -- the
+# generation-cutoff caveat (obvious/expected on every same-day-generated
+# page, not worth stating) and the GPS-correlation line (rarely
+# informative, cluttered the page) -- per Joseph's explicit call.
 # ---------------------------------------------------------------------------
 
-def coverage_table_rows(coverage):
-    # CARD-0111: GPS Trackpoints previously hardcoded Expected/Coverage to
-    # "not available" -- a leftover placeholder, never actually finished.
-    # _build_session_entry already computes expected_points/coverage per
-    # session (same 30s-cadence assumption as the note below); sum across
-    # every detected session that day (hike or rejected) to match
-    # total_trackpoints, which itself counts all of that day's raw GPS rows.
+def environmental_data_coverage_row(coverage):
     env = coverage["environmental_data"]
-    gps = coverage["gps_track"]
-    gps_sessions = gps["sessions"]
-    gps_expected = sum(s["expected_points"] for s in gps_sessions)
-    gps_actual = gps["total_trackpoints"]
-    gps_coverage_pct = round(100 * gps_actual / gps_expected, 1) if gps_expected else None
-    rows = [
-        ("Environmental Data", str(env["expected_readings"]), str(env["actual_readings"]),
-         f"{env['coverage_pct']}%" if env["coverage_pct"] is not None else NA),
-        ("GPS Trackpoints (sessions)",
-         str(gps_expected) if gps_sessions else NA,
-         str(gps_actual),
-         f"{gps_coverage_pct}%" if gps_coverage_pct is not None else NA),
-    ]
-    return rows
+    pct = f" ({env['coverage_pct']}% coverage)" if env["coverage_pct"] is not None else ""
+    return ("Readings Recorded", f"{env['actual_readings']} of {env['expected_readings']} expected{pct}")
 
 
 def _format_gap_bound(ts_iso, offset_delta, offset_str):
     return f"{format_time_local(ts_iso, offset_delta)} {offset_label(offset_str)}"
 
 
-def coverage_notes(coverage, offset_delta, offset_str):
-    notes = []
+def environmental_data_gap_notes(coverage, offset_delta, offset_str):
     env = coverage["environmental_data"]
-    if coverage.get("window_truncated_to_now"):
-        # CARD-0111: reworded from a vague "window extends into the future"
-        # (technically true but reads like an anomaly) to name the actual
-        # generation-time cutoff -- this fires on essentially every
-        # automatically-generated page, since generation always runs the same
-        # day, well before midnight, so it's worth stating plainly rather than
-        # as an alarming-sounding edge case.
-        effective_end_local = _format_gap_bound(
-            coverage["effective_end_used_for_expected_calc"], offset_delta, offset_str
-        )
-        notes.append(
-            f"Expected-reading counts reflect data through {effective_end_local} "
-            f"(when this summary was generated) -- the rest of that calendar day "
-            f"hadn't happened yet."
-        )
-    notes.append(
-        f"{env['readings_with_gps_coords']} of {env['actual_readings']} Environmental Data "
-        f"readings correlated to a GPS position; {env['readings_missing_gps_coords']} did not."
-    )
+    notes = []
     if env["gaps_over_6min"]:
         gap_strs = "; ".join(
             f"{_format_gap_bound(g['from'], offset_delta, offset_str)} → "
@@ -482,6 +451,31 @@ def coverage_notes(coverage, offset_delta, offset_str):
         )
         notes.append(f"Gaps over 6 minutes in Environmental Data: {gap_strs}.")
     return notes
+
+
+def gps_trackpoints_summary(coverage):
+    # CARD-0111: GPS Trackpoints previously hardcoded Expected/Coverage to
+    # "not available" -- a leftover placeholder, never actually finished.
+    # _build_session_entry already computes expected_points/coverage per
+    # session (one point roughly every 30 seconds, GPSLogger's configured
+    # interval); sum across every detected session that day (hike or
+    # rejected) to match total_trackpoints, which itself counts all of
+    # that day's raw GPS rows. CARD-0176: spelled out in prose, with the
+    # 30-second basis explicit -- previously a bare table row labeled only
+    # "Expected"/"Actual"/"Coverage" with no explanation of what "expected"
+    # meant, which was the actual complaint.
+    gps = coverage["gps_track"]
+    gps_sessions = gps["sessions"]
+    if not gps_sessions:
+        return None
+    gps_expected = sum(s["expected_points"] for s in gps_sessions)
+    gps_actual = gps["total_trackpoints"]
+    gps_coverage_pct = round(100 * gps_actual / gps_expected, 1) if gps_expected else None
+    pct = f" ({gps_coverage_pct}% coverage)" if gps_coverage_pct is not None else ""
+    return (
+        f"GPS Trackpoints: {gps_actual} of {gps_expected} expected{pct} — expected assumes "
+        f"one GPS point roughly every 30 seconds across this day's tracked GPS session(s)."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -798,9 +792,6 @@ _HTML_STYLE = """
   .photo-item img, .photo-item video { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; }
   .photo-time { font-size: 0.65rem; color: var(--ink-faint); padding: 0.35rem 0.5rem 0; }
   .photo-caption { font-size: 0.75rem; line-height: 1.3; color: var(--ink-muted); padding: 0.15rem 0.5rem 0.35rem; min-height: 2.6em; }
-  .coverage-panel { background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 1rem 1.15rem; }
-  .coverage-panel table { background: transparent; border: none; }
-  .coverage-panel thead th { background: transparent; }
   .map-embed { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
   .map-embed iframe { display: block; width: 100%; border: none; }
   footer { color: var(--ink-faint); font-size: 0.75rem; font-family: var(--mono); margin-top: 2.5rem; border-top: 1px solid var(--line); padding-top: 1rem; }
@@ -944,9 +935,37 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     {address_html}{features_html}
   </section>"""
 
-    summary_rows = "".join(
-        f"<tr><td>{_esc(label)}</td><td>{_esc(value)}</td></tr>"
-        for label, value in data_summary_rows(hike_data)
+    # CARD-0176: "Data Summary" renamed "Environmental Data Tracking" and
+    # made omit-when-empty (checked against the underlying stats, same
+    # data-presence convention every other optional section on this page
+    # uses -- not against the formatted "not available" string, which would
+    # be an indirect/fragile check). The Environmental Data coverage row and
+    # any >6min gap notes (formerly the "Expected vs. Actual Data Coverage"
+    # section's Environmental Data half) join the end of this same table.
+    has_env_data = any(stats.get(k) for k in ("temp_f", "humidity_pct", "uv_index", "battery_v"))
+    env_tracking_section = ""
+    if has_env_data:
+        env_rows = data_summary_rows(hike_data) + [environmental_data_coverage_row(coverage)]
+        summary_rows = "".join(
+            f"<tr><td>{_esc(label)}</td><td>{_esc(value)}</td></tr>" for label, value in env_rows
+        )
+        env_gap_html = "".join(
+            f"<p>{_esc(n)}</p>" for n in environmental_data_gap_notes(coverage, offset_delta, offset_str)
+        )
+        env_tracking_section = f"""
+  <section>
+    <h2>Environmental Data Tracking</h2>
+    <table><tbody>{summary_rows}</tbody></table>
+    {env_gap_html}
+  </section>"""
+
+    # CARD-0176: GPS Trackpoints moved out of the old combined coverage
+    # table to right after the Route Map -- see gps_trackpoints_summary()'s
+    # own docstring for why (bare table row had no room to explain what
+    # "expected" meant).
+    gps_trackpoints_text = gps_trackpoints_summary(coverage)
+    gps_trackpoints_section = (
+        f'\n  <p class="gps-trackpoints-note">{_esc(gps_trackpoints_text)}</p>' if gps_trackpoints_text else ""
     )
 
     sun_rows = "".join(
@@ -981,6 +1000,17 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
             f"<tr><td>{_esc(r['time'])}</td><td>{_esc(r['observation'])}</td><td>{_esc(r['categories'])}</td></tr>"
             for r in observations_table_rows(obs, offset_delta)
         )
+        # CARD-0176: Observations by Category moved here, to the end of this
+        # section, from the Environmental Data Tracking table it used to sit
+        # in -- it's a breakdown of this table, not an environmental sensor
+        # reading. Always non-empty when obs is (every observation without
+        # categories buckets into "uncategorized" -- see category_counts()),
+        # so no NA fallback is needed the way the old call site had one.
+        counts = category_counts(obs)
+        category_summary_html = (
+            f'<p class="obs-category-summary"><strong>Observations by Category:</strong> '
+            f'{_esc(", ".join(f"{k} ({v})" for k, v in counts.items()))}</p>'
+        )
         obs_section = f"""
   <section>
     <h2>Full Observations Log</h2>
@@ -988,6 +1018,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
       <thead><tr><th>Time ({_esc(offset_label(offset_str))})</th><th>Observation</th><th>Categories</th></tr></thead>
       <tbody>{obs_rows}</tbody>
     </table>
+    {category_summary_html}
   </section>"""
 
     photos_section = ""
@@ -1107,12 +1138,6 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   }})();
   </script>"""
 
-    coverage_rows = "".join(
-        f"<tr><td>{_esc(s)}</td><td>{_esc(e)}</td><td>{_esc(a)}</td><td>{_esc(p)}</td></tr>"
-        for s, e, a, p in coverage_table_rows(coverage)
-    )
-    coverage_note_html = "".join(f"<p>{_esc(n)}</p>" for n in coverage_notes(coverage, offset_delta, offset_str))
-
     # CARD-0134: vendored Leaflet, same relative path CARD-0082 already
     # deployed to ~/hike-izer-web-app/srv/vendor/leaflet/ -- this pipeline
     # writes its HTML into that same srv/ directory, so no new deployment
@@ -1135,12 +1160,12 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
 <body>
 <main>
   <h1>Hike Summary for {_esc(format_date_display(date_str))}</h1>
-  <p class="subtitle">Generated automatically by hike-izer-orchestrator &middot; data from the JCTsh Environmental Data pipeline</p>
+  <p class="subtitle">Generated automatically by JCTsh hike-izer-orchestrator</p>
   <div class="top-nav"><a href="index.html">&larr; All Hikes</a></div>
   <div class="stat-row">{stat_row}</div>
   {callout}
   {rejected_section}
-  {hike_visuals_section}
+  {hike_visuals_section}{gps_trackpoints_section}
   {gaia_section}
   {location_section}
   <section>
@@ -1148,10 +1173,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     <div class="forecast-row">{forecast_row}</div>
   </section>
   {narrative_section}
-  <section>
-    <h2>Data Summary</h2>
-    <table><tbody>{summary_rows}</tbody></table>
-  </section>
+  {env_tracking_section}
   <section>
     <h2>Sun Position</h2>
     <table><tbody>{sun_rows}</tbody></table>
@@ -1159,16 +1181,6 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   {obs_section}
   {photos_section}
   {birdnet_section}
-  <section>
-    <h2>Expected vs. Actual Data Coverage</h2>
-    <div class="coverage-panel">
-      <table>
-        <thead><tr><th>Source</th><th>Expected</th><th>Actual</th><th>Coverage</th></tr></thead>
-        <tbody>{coverage_rows}</tbody>
-      </table>
-      {coverage_note_html}
-    </div>
-  </section>
   <footer>hike-izer-orchestrator</footer>
 </main>
 </body>

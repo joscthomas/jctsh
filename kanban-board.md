@@ -13,6 +13,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-XXX · [enhancement] [infrastructure] sending notes to log seek — auto-opened from jctsh-core
+**Status:** Backlog
+
+**Auto-generated 2026-08-17 15:04 UTC from jctsh-core's maintenance check.** Raw finding: sending notes to log seek. Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Related:** live dashboard entry at time of generation.
+
+---
+
 ### CARD-0177 · [enhancement] [infrastructure] Back up Pi1's HA + Mosquitto state to the M8 — RESOLVED 2026-08-16 18:50 MST
 
 **Status:** Done

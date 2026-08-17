@@ -9,7 +9,42 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0177 -->
+<!-- next-card-id: CARD-0178 -->
+
+---
+
+### CARD-0177 · [enhancement] [infrastructure] Back up Pi1's HA + Mosquitto state to the M8 — RESOLVED 2026-08-16 18:50 MST
+
+**Status:** Done
+
+**Raised 2026-08-16**, opened directly from CARD-0172's disaster-recovery audit — the one gap recommended *not* to accept. `/mnt/jctsh-logs/homeassistant` (87MB, full HA `/config` — `.storage/` entity+area registries, every integration's own OAuth/pairing state such as SmartThings and the Samsung TV, recorder history) and `/mnt/jctsh-logs/mosquitto` (308KB, broker persistence) have zero backup today. Both are small enough that a fix is cheap; the consequence of losing them (re-pairing every integration, losing all history, rebuilding dashboards from scratch) is real — same asymmetry argument CARD-0095 already used for security-patch cadence.
+
+**Design sketch, matching this repo's existing `photo-library-backup.sh` pattern (`components/m8/backup.md`) — confirm/adjust at Build time, not fixed in stone here:**
+- Weekly rsync (matching that job's cadence) of both directories from the Pi to a destination on the M8, which already has spare capacity and its own backup precedent.
+- Direction and auth: cross-host (Pi→M8 or M8→Pi) needs its own SSH key trust — `CLAUDE.md`'s documented passwordless SSH is only from Joseph's own laptop to each host, not host-to-host. Needs a new key pair generated and authorized specifically for this job, scoped only to what it needs, not reusing either host's own general access.
+- MQTT log visibility for success/failure, same convention every other maintenance script in this repo already uses (`Alert` category on failure, `System` on success).
+- Retention: mirror, not versioned snapshots, unless a real reason emerges to keep history — same "steady state, not an ever-growing pile" reasoning `photo-library-backup.sh` already uses.
+
+**Acceptance criteria:**
+1. Cross-host SSH trust established, scoped narrowly (not reusing Joseph's own laptop-to-host keys).
+2. Weekly backup job running (systemd timer, matching this repo's convention), rsyncing both directories to the M8.
+3. MQTT log visibility for success/failure.
+4. Verified live: a real backup runs successfully, and the M8-side copy is confirmed to actually match the Pi's live state (not just "the job exited 0").
+
+**Built 2026-08-16, matching the design sketch above (Pi pushes to M8):**
+- New dedicated SSH keypair (`/home/pi/.ssh/pi1_backup_ed25519`, no passphrase — runs unattended via systemd), authorized on the M8 via `rrsync` (`command="rrsync /home/jct/pi1-backup/",restrict` in `jct`'s `authorized_keys`). Confirmed live, not just assumed from `rrsync`'s docs: a shell attempt with this key (`ssh ... whoami`) is rejected outright (`SSH_ORIGINAL_COMMAND does not run rsync`), and a destination path outside the restricted directory doesn't escape it — `rrsync` silently re-roots *any* client-supplied path at its own restricted directory instead.
+- **Real bug hit from that same re-rooting behavior**, live on the first actual run: the script's destination path was `.../home/jct/pi1-backup/homeassistant/`, which `rrsync` re-rooted into `/home/jct/pi1-backup/home/jct/pi1-backup/homeassistant/` — a directory that doesn't exist, so the first real run failed outright (`rsync error: error in file IO (code 11)`). Fixed by making the destination paths bare/relative (`jct@192.168.1.165:homeassistant/`), which resolve correctly inside the sandbox without repeating its root — confirmed with a manual dry-run before redeploying.
+- New `core/maintenance/pi1-backup-to-m8.py` (+ matching `.service`/`.timer`) — same MQTT-log pattern as `pi-maintenance-check.py` (`mosquitto_pub`, `/etc/jctsh/log-server.env`, component `jctsh-core`). `RequiresMountsFor=/mnt/jctsh-logs` on the service unit, per `CLAUDE.md`'s standing convention for anything touching that drive. Timer: weekly, Sunday 3:00 AM — after the M8's own 2:15 AM photo backup, clear of both hosts' Monday reboots; added to `jctsh-network.md`'s Scheduled Maintenance Windows table.
+
+**Verified live, real device, both the failure and the fix:**
+- The failed first run correctly published an `Alert` to the log dashboard with the real rsync error text — confirmed via the dashboard itself (Basic Auth), not assumed from the script's own logic.
+- After the fix: `systemctl start` succeeded, published a `System` "complete" message, also confirmed on the dashboard.
+- **Real state match, not just exit-code trust**: `homeassistant/` — 89,563,774 bytes on both the Pi and the M8, byte-identical. `mosquitto/` — 309,428 bytes on both, byte-identical. 300 files total on both sides.
+- Timer confirmed enabled (`systemctl list-timers`), next run correctly scheduled for the following Sunday.
+
+**Done when:** a real backup has run successfully at least once, verified to contain a true mirror of both directories, and the recurring schedule is confirmed enabled. **Met** — byte-identical mirror confirmed live, timer enabled.
+
+**Related:** CARD-0172 (the disaster-recovery audit this closes the one open gap from), `components/m8/backup.md` (the pattern this follows), CARD-0159/CARD-0006 (why this state lives on the USB drive in the first place).
 
 ---
 
@@ -114,9 +149,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0172 · [idea] [infrastructure] Disaster Recovery — auto-opened from jctsh-core
+### CARD-0172 · [idea] [infrastructure] Disaster Recovery — auto-opened from jctsh-core — RESOLVED 2026-08-16 19:30 MST
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-08-15 04:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #12). Raw idea: "Suppose we lose a disk drive on the M8 or the USB drive on Pi1. What can be recovered? Do we have the appropriate backups? How would we rebuild the M8 or Pi1? What can we do to manage this risk?"
 
@@ -127,7 +162,33 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 2. For each host, document what a full rebuild would actually require: OS install, Docker/containerd setup, this repo's own deploy steps (`scp`/systemd units per `CLAUDE.md`'s Core Files section), and which pieces of state are recoverable from the backups in (1) versus lost entirely.
 3. Identify real gaps and make an explicit accept/close decision on each, using the same realistic-threat/consequence framing this repo already applies elsewhere (MQTT exposure risk acceptance, `CLAUDE.md`) — not a blanket "back up everything" reflex.
 
-**Done when:** both hosts have a documented backup inventory, a documented rebuild path, and every identified gap has an explicit decision (close it or accept the risk) written into this card.
+**Audit completed 2026-08-16, live against both real hosts (not assumed from docs).**
+
+**M8 backup inventory:**
+- Immich photo library (`/mnt/photo-library`): weekly rsync to two local drives (`photo-library-backup-joseph`, `photo-library-backup`), confirmed active via crontab and confirmed actually current — `photo-library-backup-success.stamp` dated 2026-08-16 02:32, today. Includes Postgres DB dumps (~2.2GB), so Immich's catalog/albums/faces metadata is covered, not just raw files.
+- `~/hike-izer-web-app/srv/` and `private/` (published hike pages, wildlife life list, photo manifests, the Xeno-canto cache) — **not backed up at all.** Partially regenerable: `private/*_hike_data.json` can be re-fetched from the Google Sheets source (which Google backs up independently) via `fetch_hike_data.py`, but the actual published HTML and any post-publish curation/manual edits would not reproduce identically.
+- NetAlertX device-tracking data (`/home/jct/netalertx-app/data`, bind-mounted on the M8's own OS drive) — **not backed up.** Lower stakes: presence/device history, not household-critical, self-heals via re-detection over time.
+- Docker/compose config itself is in good shape for a rebuild — `components/hike-izer-web/docker-compose.yml`, `components/m8/docker-compose.yml`, and `components/netalertx/docker-compose.yml` are all already version-controlled in this repo.
+- **All backup copies are physically local to the M8** — both backup drives are attached to the same machine as the primary. A location-level event (theft, fire, flood) takes out primary and both backups together; no offsite copy exists.
+
+**Pi1 backup inventory — the "currently unknown" from the raised idea, now established: zero.** Checked `crontab -l` (only a DuckDNS renewal job) and every systemd timer on the Pi (`systemctl list-timers --all`) — nothing backs up `/mnt/jctsh-logs` in any form. Concretely at risk if that drive fails: `homeassistant/` (87MB — full HA `/config`, including `.storage/` entity+area registries and every integration's own state: SmartThings OAuth tokens, the Samsung TV/Denon AVR pairing, Ring, Google Cast — plus the recorder history DB), `mosquitto/` (308KB — broker persistence), and Docker/containerd's data-root (image/container state, less critical since images are re-pullable). Only `automations.yaml`/`configuration.yaml` are version-controlled (`core/homeassistant/`) — everything else on that drive exists in exactly one place.
+
+**Rebuild path, Pi1 (Debian 13 "trixie"):** fresh OS install; reinstall Docker, Tailscale, Mosquitto, Node-RED, fail2ban, DuckDNS client; restore Docker/containerd config from this repo (`core/docker/daemon.json`, `core/docker/containerd-config.toml`); remount the USB drive if it physically survived (if it's what failed, HA/Mosquitto state above is gone, full stop); re-import Node-RED flows manually from the repo's JSON exports (UI import, per established convention — flows aren't auto-deployable); redeploy `core/logging/log_server.py`; recreate every MQTT account and its password (from `credentials.local.md`); HA needs either the USB drive's `.storage/` intact or a full manual reconfiguration — re-pairing SmartThings, the Samsung TV, rebuilding dashboards, and permanently losing recorder history.
+
+**Rebuild path, M8 (Ubuntu 26.04 LTS):** fresh OS install; Docker + Compose + Tailscale + `cloudflared`; restore the three tracked `docker-compose.yml` files above; restore `~/hike-izer-web-app/.env` credentials (from `credentials.local.md`); restore Immich's photo library from whichever of the two backup drives survived (confirmed current as of today); `srv`/`private` and NetAlertX data start effectively from zero (see gaps below).
+
+**Cross-cutting finding, not specific to either host: `credentials.local.md` is a single point of failure.** It's gitignored — exists in exactly one place, this Windows laptop. If that laptop were lost at the same time as either host, rebuilding requires regenerating essentially every credential in the project from scratch (MQTT passwords, API keys, the HA long-lived token, `WEBHOOK_SECRET`s) rather than restoring them. **Genuinely unknown to me whether this file has any backup of its own** (password manager, cloud sync, printed copy) — that's Joseph's own laptop/personal-backup-habit question, not something derivable from repo state.
+
+**Identified gaps and recommended decisions:**
+1. **Pi1's HA + Mosquitto state has zero backup (87MB + 308KB total — trivially small).** Recommend **not accepting this one** — real, painful consequence (lose all HA history, every integration's pairing/OAuth state, dashboard customization) against near-zero cost to fix, same asymmetry argument CARD-0095 already used for security patching. A daily/weekly rsync of `/mnt/jctsh-logs/homeassistant` + `/mnt/jctsh-logs/mosquitto` to the M8 (which already has spare capacity and its own backup precedent) would close this cheaply. Building/testing that is out of this card's own scope (audit only, no live build) — recommend opening a follow-up card for it.
+2. **M8's photo backups are both physically local, no offsite copy.** Recommend **accept** — same realistic-threat/consequence framing this repo already applies to MQTT's cleartext exposure risk (`CLAUDE.md`): a true offsite copy is a meaningfully bigger undertaking (ongoing cloud storage cost at this data volume, or physically rotating a drive), and the specific threat (a fire/theft/flood at the exact moment recovery is needed) is low-probability. Worth revisiting only if an offsite option becomes cheap.
+3. **hike-izer-web's `srv`/`private` data isn't backed up.** Recommend **accept** — low stakes, Joseph's own hobby-project data rather than household-critical, and mostly reconstructable from the Google-Sheets-backed source data.
+4. **NetAlertX's device history isn't backed up.** Recommend **accept** — self-healing by design (rebuilds from re-detection), not household-critical.
+5. **`credentials.local.md`'s single-laptop exposure. Closed 2026-08-16** — Joseph confirmed it already has a backup outside this laptop. No action needed.
+
+**All five gaps decided, 2026-08-16 (Joseph confirmed all recommendations above):** gaps 2–4 accepted as scoped; gap 5 closed (already backed up); gap 1 not accepted — spun off as **CARD-0177** (back up Pi1's HA + Mosquitto state to the M8), since actually building/testing that fix is real Build-stage work outside this audit-only card's own scope.
+
+**Done when:** both hosts have a documented backup inventory, a documented rebuild path, and every identified gap has an explicit decision (close it or accept the risk) written into this card. **Met** — all five gaps have an explicit decision; the one not-accepted gap has a scoped follow-up card rather than being left dangling.
 
 **Related:** CARD-0151 (the email-idea capture pipeline this came in through), `components/m8/backup.md`, CARD-0159/CARD-0006 (USB-drive-based state on the Pi that would be part of any Pi1 rebuild story), CARD-0095 (the audit-and-document pattern this follows).
 

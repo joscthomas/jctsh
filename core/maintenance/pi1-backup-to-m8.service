@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly backup of Pi1's HA + Mosquitto state to the M8 (CARD-0177)
+After=network-online.target mosquitto.service
+Wants=mosquitto.service
+RequiresMountsFor=/mnt/jctsh-logs
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/pi1-backup-to-m8.py

@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly Pi1-to-M8 backup, Sunday 3AM (JCTsh maintenance, Pi) -- after the M8's own 2:15AM photo backup, before both hosts' Monday reboots
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00
+Persistent=true
+Unit=pi1-backup-to-m8.service
+
+[Install]
+WantedBy=timers.target

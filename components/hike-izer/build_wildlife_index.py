@@ -31,6 +31,8 @@ from html import escape as _esc_attr
 from pathlib import Path
 from urllib.parse import quote
 
+import xeno_canto
+
 _STYLE = """
   :root {
     --bg: #f7f5f0;
@@ -116,6 +118,9 @@ _STYLE = """
   th.sort-desc::after { content: " ▼"; }
   tr:last-child td { border-bottom: none; }
   td.scientific { font-style: italic; color: var(--ink-muted); }
+  /* CARD-0174: reference-call speaker icon (xeno_canto.render_button_html()) */
+  .audio-btn { background: none; border: none; cursor: pointer; font-size: 0.85em; padding: 0 0.2em; vertical-align: middle; line-height: 1; }
+  .audio-btn:hover { opacity: 0.65; }
 
   footer {
     color: var(--ink-faint);
@@ -144,16 +149,22 @@ def wikipedia_url(scientific_name):
     return f"https://en.wikipedia.org/wiki/{quote(scientific_name.replace(' ', '_'))}"
 
 
-def _render_page(life_list):
+def _render_page(life_list, xeno_canto_key=None):
     species = sorted(life_list.values(), key=lambda e: e["common_name"].lower())
 
     if not species:
         body = '<p class="empty">No wildlife identified yet.</p>'
     else:
+        # CARD-0174: reference-call speaker icon, right after the common
+        # name -- see xeno_canto.py for the lookup/caching and shared
+        # markup (same helper templating.py's per-hike Wildlife Heard
+        # table uses, so both pages render identical markup).
         rows = "".join(
             f"<tr>"
             f"<td data-sort-value=\"{_esc_attr(e['common_name'].lower())}\">"
-            f"<a href=\"{wikipedia_url(e['scientific_name'])}\" target=\"_blank\" rel=\"noopener\">{e['common_name']}</a></td>"
+            f"<a href=\"{wikipedia_url(e['scientific_name'])}\" target=\"_blank\" rel=\"noopener\">{e['common_name']}</a>"
+            f"{xeno_canto.render_button_html(xeno_canto.lookup(e['scientific_name'], xeno_canto_key), _esc_attr)}"
+            f"</td>"
             f"<td class=\"scientific\" data-sort-value=\"{_esc_attr(e['scientific_name'].lower())}\">{e['scientific_name']}</td>"
             # first_heard_file_stem is already YYYY-MM-DD -- sorts correctly
             # as plain text, no separate date-parsing needed.
@@ -233,6 +244,16 @@ def _render_page(life_list):
     th.addEventListener("click", function () {{ sortBy(i); }});
   }});
   ths[0].classList.add("sort-asc");
+
+  // CARD-0174: speaker-icon click -> toggle play/pause on the button's own
+  // next-sibling <audio> element (xeno_canto.render_button_html()'s
+  // markup). Event delegation on the table, not a per-button listener.
+  table.addEventListener("click", function (e) {{
+    if (!e.target.classList || !e.target.classList.contains("audio-btn")) return;
+    var audio = e.target.nextElementSibling;
+    if (!audio) return;
+    if (audio.paused) {{ audio.play(); }} else {{ audio.pause(); }}
+  }});
 }})();
 </script>
 </body>
@@ -244,6 +265,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--life-list", required=True, help="Path to the persisted wildlife_life_list.json")
     ap.add_argument("--srv-dir", required=True, help="Directory to write wildlife.html into")
+    ap.add_argument("--xeno-canto-key", default=None, help="CARD-0174: Xeno-canto API key for reference-call speaker icons (optional -- icons omitted entirely when not provided)")
     args = ap.parse_args()
 
     try:
@@ -253,7 +275,7 @@ def main():
         life_list = {}
 
     out_path = Path(args.srv_dir) / "wildlife.html"
-    out_path.write_text(_render_page(life_list), encoding="utf-8")
+    out_path.write_text(_render_page(life_list, args.xeno_canto_key), encoding="utf-8")
 
     print(f"Wrote {out_path}: {len(life_list)} species indexed.", file=sys.stderr)
 

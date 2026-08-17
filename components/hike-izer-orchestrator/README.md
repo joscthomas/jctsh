@@ -45,7 +45,7 @@ update:
 
 ```
 scp components/hike-izer-orchestrator/*.py components/hike-izer-orchestrator/Dockerfile components/hike-izer-orchestrator/requirements.txt jct@m8.local:~/hike-izer-web-app/orchestrator/
-scp components/hike-izer/fetch_hike_data.py components/hike-izer/fetch_hike_photos.py components/hike-izer/build_hike_map.py components/hike-izer/build_hike_chart.py jct@m8.local:~/hike-izer-web-app/orchestrator/
+scp components/hike-izer/fetch_hike_data.py components/hike-izer/fetch_hike_photos.py components/hike-izer/build_hike_map.py components/hike-izer/build_hike_chart.py components/hike-izer/build_calendar_index.py components/hike-izer/build_wildlife_index.py components/hike-izer/xeno_canto.py jct@m8.local:~/hike-izer-web-app/orchestrator/
 scp .claude/skills/hike-izer/SKILL.md jct@m8.local:~/hike-izer-web-app/orchestrator/
 ssh jct@m8.local "cd ~/hike-izer-web-app && docker compose up -d --build orchestrator"
 ```
@@ -57,7 +57,11 @@ see `components/hike-izer-web/.env.example` for the full list and
 `IMMICH_KEY`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `THUNDERFOREST_API_KEY`
 (CARD-0134 — the Route Map's basemap tiles; a missing/empty value just
 means `render_html()` omits the map section, same "not available" pattern
-as every other optional section, not a generation failure). The MQTT
+as every other optional section, not a generation failure), `XENO_CANTO_API_KEY`
+(CARD-0174 — the Wildlife Heard/Life List speaker icon's reference-call
+audio, from `xeno_canto.org`'s Account Page; same optional/graceful-omission
+pattern as `THUNDERFOREST_API_KEY` — a missing value just means no speaker
+icons, not a generation failure). The MQTT
 account needs to be created on the Pi once (`sudo mosquitto_passwd ...` —
 see `credentials.local.md`) before publish-visibility logging works;
 everything else works without it (a missing MQTT account just means

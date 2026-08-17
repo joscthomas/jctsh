@@ -56,6 +56,17 @@ FETCH_DATA_SCRIPT = "/app/fetch_hike_data.py"
 FETCH_PHOTOS_SCRIPT = "/app/fetch_hike_photos.py"
 BUILD_CALENDAR_SCRIPT = "/app/build_calendar_index.py"
 BUILD_WILDLIFE_SCRIPT = "/app/build_wildlife_index.py"
+# CARD-0174: build_wildlife_index.py used to be pure computation (fast,
+# no network) -- the 30s timeout below was generous for that. It now does
+# one live Xeno-canto lookup per species in the life list (cache misses
+# only; hits are a local JSON read). Real failure hit live 2026-08-16
+# regenerating the 8/15 hike, the very first run against a life list with
+# ~50 species and an empty cache -- every single one was a cache miss,
+# and 30s wasn't enough. Each xeno_canto._query() call has its own 15s
+# cap, so this is a generous ceiling for a full cold-cache run across the
+# whole life list, not a per-species budget -- normal runs after the
+# first (cache mostly warm) finish in a few seconds.
+WILDLIFE_INDEX_TIMEOUT = 300
 
 # CARD-0113: the automatic path's own webhook payload already carries the
 # session's exact start/end (startedtimestamp + duration), unlike the
@@ -82,6 +93,19 @@ def _env(name):
     if not value:
         raise RuntimeError(f"{name} not set in environment")
     return value
+
+
+def _wildlife_index_cmd():
+    # CARD-0174: --xeno-canto-key is optional, unlike THUNDERFOREST_API_KEY
+    # above -- deliberately soft (os.environ.get, not _env()) so the
+    # pipeline keeps working with the speaker icon simply absent until
+    # XENO_CANTO_API_KEY is actually deployed to this host's environment.
+    cmd = [sys.executable, BUILD_WILDLIFE_SCRIPT,
+           "--life-list", wildlife_life_list.LIFE_LIST_PATH, "--srv-dir", SRV_DIR]
+    xeno_canto_key = os.environ.get("XENO_CANTO_API_KEY")
+    if xeno_canto_key:
+        cmd += ["--xeno-canto-key", xeno_canto_key]
+    return cmd
 
 
 def _local_date_and_offset(local_datetime):
@@ -463,16 +487,34 @@ def run(payload):
         # the Route Map + Elevation & Speed chart need no manual staging, unlike
         # the Gaia embed they replaced, so every automatically-published page
         # gets a real map/chart from this very first publish.
-        # CARD-0147: fresh-loaded life list for the "NEW species" badge --
-        # ordering relative to update_from_hike() below doesn't matter for
-        # correctness (see templating.birdnet_table_rows()'s own comment:
-        # the check compares first_heard_file_stem to this hike's file_stem,
-        # a stable fact, not "does this species exist in the list yet").
+        # CARD-0176: merge this hike's species into the cross-hike life list
+        # BEFORE rendering, not after -- real bug found live 2026-08-16 (the
+        # 8/15 hike's 18 genuinely-new species all rendered with no "NEW"
+        # badge). The previous ordering here (render first, merge after) was
+        # justified by a comment claiming it "doesn't matter for
+        # correctness" because is_new checks first_heard_file_stem against
+        # this hike's own file_stem, a stable fact -- true once a species is
+        # already IN the life list, but wrong on a species' very first-ever
+        # render: life_list.get(scientific_name) returns nothing at all yet
+        # (this hike's own update_from_hike() call hadn't run), so is_new
+        # was unconditionally False for every brand-new species on its own
+        # debut hike. Merging first means wildlife_life_list.load() below
+        # already reflects this hike's own species, so first_heard_file_stem
+        # correctly matches file_stem on the very render where it should.
+        # No-op if birdnet_rows is empty, same "no empty scaffolding"
+        # convention as the Photos section.
+        wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows)
+
+        # CARD-0134: thunderforest_api_key passed here too (not just step 2) --
+        # the Route Map + Elevation & Speed chart need no manual staging, unlike
+        # the Gaia embed they replaced, so every automatically-published page
+        # gets a real map/chart from this very first publish.
         html_text = templating.render_html(
             hike_data, [], date_str, offset_str, photos_manifest, file_stem=file_stem,
             thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
             birdnet_rows=birdnet_rows, birdnet_occurrences=birdnet_occurrences,
             life_list=wildlife_life_list.load(),
+            xeno_canto_key=os.environ.get("XENO_CANTO_API_KEY"),
         )
 
         with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
@@ -496,17 +538,10 @@ def run(payload):
             check=True, timeout=30,
         )
 
-        # CARD-0142: merges this hike's species into the cross-hike life
-        # list and rebuilds wildlife.html -- no-op (both calls) if
-        # birdnet_rows is empty, same "no empty scaffolding" convention as
-        # the Photos section.
-        wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows)
+        # CARD-0142: rebuild wildlife.html against the life list already
+        # merged above -- no-op if birdnet_rows is empty.
         if birdnet_rows:
-            subprocess.run(
-                [sys.executable, BUILD_WILDLIFE_SCRIPT,
-                 "--life-list", wildlife_life_list.LIFE_LIST_PATH, "--srv-dir", SRV_DIR],
-                check=True, timeout=30,
-            )
+            subprocess.run(_wildlife_index_cmd(), check=True, timeout=WILDLIFE_INDEX_TIMEOUT)
 
         print(f"Step 1 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
         return file_stem, tracker
@@ -581,14 +616,21 @@ def run_step2(file_stem, with_narrative=False):
             hike_data, skill_md_text, _env("ANTHROPIC_API_KEY"), place_context=narrative_facts, cost_tracker=tracker
         )
 
+    # CARD-0142: same life-list merge as step 1 -- idempotent, so a hike
+    # already recorded by step 1's best-effort pass just re-adds its own
+    # file_stem to each species' hikes list rather than duplicating it.
+    # CARD-0176: moved to run BEFORE render_html() below, same fix and same
+    # reasoning as step 1's own call site -- see that comment for the full
+    # story. This was the second half of the same live bug (both step 1 and
+    # step 2 had the render-then-merge ordering).
+    wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows)
+
     # CARD-0134: gaia_embed_html deliberately not passed anymore -- the
     # native Route Map (CARD-0082) replaced it as this pipeline's default,
     # since it needs no manual staging. _read_staging() above still reads
     # gaia_embed.txt if present (untouched), but this call no longer uses
     # it; templating.render_html's gaia_section stays available for a
     # future caller, just unused by this one now.
-    # CARD-0147: fresh-loaded life list for the "NEW species" badge, same as
-    # step 1's own call -- see templating.birdnet_table_rows()'s comment.
     html_text = templating.render_html(
         hike_data, paragraphs, date_str, offset_str, photos_manifest,
         file_stem=file_stem,
@@ -597,6 +639,7 @@ def run_step2(file_stem, with_narrative=False):
         thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
         birdnet_occurrences=birdnet_occurrences,
         life_list=wildlife_life_list.load(),
+        xeno_canto_key=os.environ.get("XENO_CANTO_API_KEY"),
     )
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
@@ -607,16 +650,8 @@ def run_step2(file_stem, with_narrative=False):
         check=True, timeout=30,
     )
 
-    # CARD-0142: same life-list merge as step 1 -- idempotent, so a hike
-    # already recorded by step 1's best-effort pass just re-adds its own
-    # file_stem to each species' hikes list rather than duplicating it.
-    wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows)
     if birdnet_rows:
-        subprocess.run(
-            [sys.executable, BUILD_WILDLIFE_SCRIPT,
-             "--life-list", wildlife_life_list.LIFE_LIST_PATH, "--srv-dir", SRV_DIR],
-            check=True, timeout=30,
-        )
+        subprocess.run(_wildlife_index_cmd(), check=True, timeout=WILDLIFE_INDEX_TIMEOUT)
 
     print(f"Step 2 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
     return file_stem, tracker

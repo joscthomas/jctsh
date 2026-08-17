@@ -29,6 +29,7 @@ from datetime import datetime, timedelta, timezone
 import build_hike_chart
 import build_hike_map
 import build_wildlife_index
+import xeno_canto
 
 NA = "not available"
 
@@ -366,7 +367,7 @@ def _build_event_markers(hike_data, photos_manifest, photos_dir, offset_delta, c
     return markers
 
 
-def birdnet_table_rows(birdnet_rows, offset_delta, life_list=None, file_stem=None):
+def birdnet_table_rows(birdnet_rows, offset_delta, life_list=None, file_stem=None, xeno_canto_key=None):
     # CARD-0080: birdnet.py already grouped/sorted these by first-detection
     # time and returns raw UTC timestamps -- this is the one place that
     # converts to local, same division of labor as every other time value
@@ -376,20 +377,32 @@ def birdnet_table_rows(birdnet_rows, offset_delta, life_list=None, file_stem=Non
     #
     # CARD-0147: is_new -- a species this hike is the first-ever sighting
     # of. Checked via first_heard_file_stem == this hike's own file_stem,
-    # NOT "absent from life_list entirely" -- tried that first, reasoning
-    # that render_html() always runs before wildlife_life_list.
-    # update_from_hike() in generation.py's own pipeline, so a genuinely new
-    # species would have no entry yet. True on a hike's very first render,
-    # but breaks on any *regeneration* of an already-processed hike (this
-    # project regenerates pages in place routinely -- CARD-0140/144/0085 all
-    # did it) -- by then update_from_hike() has already run once for this
-    # hike, merging its species in, so every one of them would wrongly read
-    # "already known" forever after. first_heard_file_stem is a stable fact
-    # recorded once per species (update_from_hike() only ever moves it
+    # NOT "absent from life_list entirely" -- rejected that first, reasoning
+    # it would break on any *regeneration* of an already-processed hike
+    # (this project regenerates pages in place routinely --
+    # CARD-0140/144/0085 all did it): by a regeneration, the species is
+    # already merged into life_list, so "absent entirely" would wrongly
+    # read "already known" forever after. first_heard_file_stem is a stable
+    # fact recorded once per species (update_from_hike() only ever moves it
     # earlier, for genuine backfill, never on a same-hike reprocess) --
-    # correct regardless of how many times this page gets rebuilt. life_list
-    # is the caller's already-loaded wildlife_life_list.json content,
-    # scientific_name -> entry -- keyed the same way that file itself is.
+    # correct regardless of how many times this page gets rebuilt, GIVEN
+    # that life_list already reflects this hike's own species by the time
+    # it's loaded.
+    #
+    # CARD-0176: that "given" was violated for years -- real bug found live
+    # 2026-08-16 (the 8/15 hike's 18 genuinely-new species all rendered
+    # with no "NEW" badge). generation.py used to call wildlife_life_list.
+    # update_from_hike() (the merge) AFTER render_html() (this function),
+    # on the mistaken assumption noted here previously that ordering
+    # "doesn't matter for correctness" -- wrong specifically for a
+    # species' own debut hike, where life_list.get(scientific_name) had
+    # nothing to find yet, so is_new was unconditionally False right when
+    # it should have been True. Fixed by reordering both of generation.py's
+    # call sites to merge before rendering, not by changing this function
+    # -- the check here was always correct, given an up-to-date life_list.
+    # life_list is the caller's already-loaded wildlife_life_list.json
+    # content, scientific_name -> entry -- keyed the same way that file
+    # itself is.
     # CARD-0147: wikipedia_url/confidence_pct/time_iso added alongside the
     # already-formatted display fields, not in place of them -- the table
     # needs both a human string to show (e.g. "83%", "8:01 AM") and a
@@ -398,6 +411,15 @@ def birdnet_table_rows(birdnet_rows, offset_delta, life_list=None, file_stem=Non
     # something sortable as text (percent sign, AM/PM). wikipedia_url reuses
     # build_wildlife_index's own helper -- same link construction as the
     # life-list page, not a second copy of the same one-liner.
+    #
+    # CARD-0174: audio -- a reference-call lookup via Xeno-canto
+    # (xeno_canto.lookup(), server-side only -- the API key never reaches
+    # the browser, only Xeno-canto's own public audio-file URL does, same
+    # as any other CDN link). None when xeno_canto_key isn't configured yet
+    # (feature silently absent, not a crash -- same optional-credential
+    # convention as thunderforest_api_key) or when no recording was found
+    # for that species; caller omits the speaker icon in either case,
+    # never fabricates one.
     life_list = life_list or {}
     return [
         {
@@ -410,6 +432,7 @@ def birdnet_table_rows(birdnet_rows, offset_delta, life_list=None, file_stem=Non
             "time": format_time_local(r["first_timestamp"], offset_delta),
             "time_iso": r["first_timestamp"],
             "is_new": life_list.get(r["scientific_name"], {}).get("first_heard_file_stem") == file_stem,
+            "audio": xeno_canto.lookup(r["scientific_name"], xeno_canto_key),
         }
         for r in birdnet_rows
     ]
@@ -787,6 +810,9 @@ _HTML_STYLE = """
     letter-spacing: 0.04em; background: var(--accent); color: var(--accent-ink);
     padding: 0.1rem 0.4rem; border-radius: 999px; vertical-align: middle;
   }
+  /* CARD-0174: reference-call speaker icon (xeno_canto.render_button_html()) */
+  .audio-btn { background: none; border: none; cursor: pointer; font-size: 0.85em; padding: 0 0.2em; vertical-align: middle; line-height: 1; }
+  .audio-btn:hover { opacity: 0.65; }
   .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.6rem; }
   .photo-item { display: flex; flex-direction: column; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); }
   .photo-item img, .photo-item video { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; }
@@ -810,7 +836,7 @@ def _stat_card(label, value, na=False):
 def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None,
                  gaia_embed_html=None, file_stem=None, birdnet_rows=None,
                  address=None, named_features=None, thunderforest_api_key=None,
-                 birdnet_occurrences=None, life_list=None):
+                 birdnet_occurrences=None, life_list=None, xeno_canto_key=None):
     offset_delta = _parse_offset(offset_str)
     coverage = hike_data["coverage"]
     stats = hike_data["stats"]
@@ -1087,11 +1113,12 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
             f"<tr><td data-sort-value=\"{_esc(r['species'].lower())}\">"
             f"<a href=\"{r['wikipedia_url']}\" target=\"_blank\" rel=\"noopener\">{_esc(r['species'])}</a>"
             f"{new_species_badge if r['is_new'] else ''}"
+            f"{xeno_canto.render_button_html(r['audio'], _esc)}"
             f" <em>({_esc(r['scientific_name'])})</em></td>"
             f"<td data-sort-value=\"{r['count']}\">{_esc(r['count'])}</td>"
             f"<td data-sort-value=\"{r['confidence_pct']}\">{_esc(r['confidence'])}</td>"
             f"<td data-sort-value=\"{_esc(r['time_iso'])}\">{_esc(r['time'])}</td></tr>"
-            for r in birdnet_table_rows(birdnet_rows, offset_delta, life_list, file_stem)
+            for r in birdnet_table_rows(birdnet_rows, offset_delta, life_list, file_stem, xeno_canto_key)
         )
         birdnet_section = f"""
   <section>
@@ -1136,6 +1163,21 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
       }});
     }});
   }})();
+  // CARD-0174: speaker-icon click -> toggle play/pause on the button's own
+  // next-sibling <audio> element (xeno_canto.render_button_html()'s
+  // markup). Event delegation on the table (own getElementById call --
+  // out of the sort IIFE's function scope above), not a per-button
+  // listener -- this table can have a couple dozen rows, each with its
+  // own button.
+  var audioTable = document.getElementById("birdnet-table");
+  if (audioTable) {{
+    audioTable.addEventListener("click", function (e) {{
+      if (!e.target.classList || !e.target.classList.contains("audio-btn")) return;
+      var audio = e.target.nextElementSibling;
+      if (!audio) return;
+      if (audio.paused) {{ audio.play(); }} else {{ audio.pause(); }}
+    }});
+  }}
   </script>"""
 
     # CARD-0134: vendored Leaflet, same relative path CARD-0082 already

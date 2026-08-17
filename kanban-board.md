@@ -37,7 +37,11 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Verified so far: code-level only, via a synthetic smoke test** against `templating.py` covering both a full-data hike and an empty/edge-case hike (no environmental data, no GPS sessions, no observations) — confirmed the old section names/text are gone, the new section appears and is correctly omitted when empty, GPS Trackpoints text and placement are correct and correctly absent with no GPS sessions, and Observations by Category renders after Full Observations Log with correct content. **Not yet verified against a real published hike page** — these changes only affect newly generated pages (no existing page was re-rendered, per Joseph's explicit instruction), so the literal "Done when" bar below isn't met yet; staying in Build until the next real hike gets generated and the live page is actually viewed.
 
-**Done when:** all four changes above are live on a real published hike page, verified by viewing it (not just diffing template code).
+**Real, unrelated bug found and fixed, 2026-08-16, folded into this card rather than opened separately (Joseph's call):** Joseph noticed the 8/15 hike page showed no "NEW" species badges at all, despite 18 genuinely first-ever species that day. Root cause, confirmed against the real `wildlife_life_list.json` on the M8 (`~/hike-izer-web-app/private/`) — the persisted data itself was already correct (all 18 correctly recorded `first_heard_file_stem: "2026-08-15"`), so this was a rendering bug, not a data bug. `generation.py` called `wildlife_life_list.update_from_hike()` (the merge that records a species' first-heard fact) *after* `templating.render_html()` at both step 1 and step 2 call sites — a stale comment (originally written for CARD-0147) claimed this ordering "doesn't matter for correctness," which is true once a species is already in the life list, but wrong on that species' own debut hike: `life_list.get(scientific_name)` had nothing to find yet at render time, so `is_new` was unconditionally `False` exactly when it should have been `True`. **Fixed** by reordering both call sites to merge before rendering; stale comments in both `generation.py` and `templating.py`'s `birdnet_table_rows()` corrected to explain the real history. Compiles clean and the existing smoke test suite still passes; not yet verified live (needs a real hike regenerated with the fix in place — see the M8 deploy step below).
+
+**Open question, not yet decided:** the already-published 8/15 page itself still won't show its 18 "NEW" badges until it's re-rendered — the underlying data is fine, only that one page's HTML is stale. Per standing practice (don't silently re-render a live page after a substantive fix), asking Joseph whether/when to regenerate it, rather than doing it as part of this deploy.
+
+**Done when:** all four original changes above are live on a real published hike page, verified by viewing it (not just diffing template code) — and the "NEW" badge fix is confirmed live against a real hike with at least one genuinely new species.
 
 **Related:** CARD-0151 (the email-idea capture pipeline this came in through).
 
@@ -62,24 +66,35 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0174 · [idea] [hike-izer] Add a microphone icon to the web page for hearing the birds — auto-opened from jctsh-core
+### CARD-0174 · [idea] [hike-izer] Add a speaker icon to the web page for hearing the birds — auto-opened from jctsh-core
 
-**Status:** Backlog
+**Status:** Build
 
-**Raised 2026-08-15 14:30 MST**, via CARD-0151's email-idea pipeline (GitHub PR #15). Raw idea: add a microphone icon to the web page for hearing the birds.
+**Raised 2026-08-15 14:30 MST**, via CARD-0151's email-idea pipeline (GitHub PR #15). Raw idea: add a microphone icon to the web page for hearing the birds. **Corrected 2026-08-16 (Joseph): a speaker icon, not a microphone** — title/acceptance criteria below updated throughout; a microphone implies recording input, a speaker matches the actual behavior (playing a call back).
 
-**Interviewed 2026-08-16.** Applies to both the per-hike page's Wildlife section and the cross-hike Wildlife Life List (CARD-0142) — a microphone icon next to each detected species in both places. Clicking it plays a **reference call for that species** (a stock/known recording), not the actual BirdNET-captured audio from that specific detection.
+**Interviewed 2026-08-16.** Applies to both the per-hike page's Wildlife Heard table and the cross-hike Wildlife Life List (CARD-0142) — a speaker icon right after each species' common name in both places. Clicking it plays a **reference call for that species** (a stock/known recording), not the actual BirdNET-captured audio from that specific detection.
 
-**Open question for Planning, not yet decided:** which reference-audio source to use (e.g. Xeno-canto, Macaulay Library/eBird, Wikipedia species pages) — needs checking licensing/embeddability and whether a species-name-keyed lookup/API exists that's simple to wire into hike-izer's existing per-species rendering.
+**Audio source decided 2026-08-16: Xeno-canto.** Considered against Wikipedia/Wikimedia (no signup needed, but noticeably spottier per-species audio coverage) — Joseph chose Xeno-canto for species coverage/quality despite requiring a free account + API key (same pattern as the existing Thunderforest key). Account created and key generated by Joseph, stored in `credentials.local.md`.
 
 **Acceptance criteria:**
-1. Reference-audio source selected and confirmed usable (license permits embedding, has reasonable species coverage for what this repo's hikes actually detect).
-2. Microphone icon added next to each species on both the per-hike Wildlife section and the cross-hike Wildlife Life List (CARD-0142), wired to play that species' reference call.
+1. Reference-audio source selected and confirmed usable (license permits embedding, has reasonable species coverage for what this repo's hikes actually detect). **Met** — Xeno-canto, CC-licensed per recording (BY-NC-SA in what's been checked), attribution handled via a tooltip.
+2. Speaker icon added right after each species' common name on both the per-hike Wildlife Heard table and the cross-hike Wildlife Life List (CARD-0142), wired to play that species' reference call.
 3. Verified live on a real published hike page and the life-list page — icon present, playback works for a species actually detected in this repo's data.
 
-**Done when:** both surfaces show a working microphone icon per species, verified against real detections, not just a mockup.
+**Built 2026-08-16:**
+- New `components/hike-izer/xeno_canto.py` (deployed copy, same "shared by both templates" pattern `build_wildlife_index.py`'s `wikipedia_url()` already used) — queries Xeno-canto's v3 API by scientific name (`gen:`/`sp:` query), picks the best available recording (prefers `song`/`call` types over incidental noise like alarm calls, then higher quality rating), caches results to `/srv/hike-izer-private/xeno_canto_cache.json` (shared across the two separate OS processes that generate the two pages) so a species looked up once isn't re-queried on every subsequent hike. `render_button_html()` produces one shared markup snippet (speaker emoji button + hidden `<audio>`, license/recordist attribution in a hover tooltip) used identically by both pages. **API key is server-side only** — `XENO_CANTO_API_KEY`, optional (missing value just means no icons, not a generation failure, same convention as `THUNDERFOREST_API_KEY`) — never reaches the browser; only Xeno-canto's own public audio-file URL does.
+- `templating.py` (`birdnet_table_rows()`/`render_html()`) and `build_wildlife_index.py` (`_render_page()`/`main()`) both wired to call it, with a small shared click-delegation script (speaker click → toggle play/pause on the adjacent `<audio>`) added to each page's existing `<script>` block.
+- `generation.py` threads `XENO_CANTO_API_KEY` through both `templating.render_html()` call sites and a new `_wildlife_index_cmd()` helper (deduplicating what was previously two identical `subprocess.run(...)` blocks) for `build_wildlife_index.py`'s `--xeno-canto-key`.
+- `Dockerfile` and `README.md` updated for the new deployed-copy file and `.env` key. **Found and fixed a pre-existing gap while touching the README's deploy `scp` command**: it was already missing `build_calendar_index.py`/`build_wildlife_index.py` (both real Dockerfile dependencies since CARD-0142) — not something this card introduced, but it would have silently broken this card's own deploy if left as-is, so fixed alongside adding `xeno_canto.py`.
 
-**Related:** CARD-0157 (BirdNET Live pipeline documentation), CARD-0142 (Cross-hike Wildlife Life List, the second surface this applies to), CARD-0151 (the email-idea capture pipeline this came in through).
+**Verified so far:**
+- Code-level: a synthetic smoke test confirms the icon renders only when a key is configured, sits after the species name and before the scientific name (per Joseph's explicit placement instruction) on both the per-hike page and the life-list page, and is correctly absent with no key configured.
+- **Real API integration, live**: a direct call against Xeno-canto's actual v3 API with the real key returned a genuine recording for American Robin (`Turdus migratorius`) with a working `xeno-canto.org` download URL; the cache file persisted correctly and a second lookup served from cache without needing a valid key; a nonsense species correctly returned `None` instead of erroring.
+- **Not yet verified**: an actual played-back audio clip in a real browser, and criterion 3 (a real published hike page) — this hasn't been deployed to the M8 yet, so no real page has been (re)generated with this code. Staying in Build until that happens.
+
+**Done when:** both surfaces show a working speaker icon per species, verified against real detections in a real browser, not just a mockup or an API-level check.
+
+**Related:** CARD-0157 (BirdNET Live pipeline documentation), CARD-0142 (Cross-hike Wildlife Life List, the second surface this applies to), CARD-0151 (the email-idea capture pipeline this came in through), CARD-0176 (the sibling hike-izer template restructuring this session also did — same "keep both templates in sync" discipline followed here).
 
 ---
 
@@ -137,22 +152,32 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0170 · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1) — auto-opened from jctsh-core
+### CARD-0170 · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1) — auto-opened from jctsh-core — RESOLVED 2026-08-16 18:00 MST
 
-**Status:** Backlog
+**Status:** Done
 
 **Auto-generated 2026-08-15 13:30 MST from jctsh-core's maintenance check** (GitHub PR #13). Raw finding: Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1).
 
 **Scoped 2026-08-16, not yet built.** Landed as a proper Backlog card rather than left as a raw auto-opened stub. Superseded two earlier stale findings for the same underlying update chain (PR #7: 2026.8.0 available when HA was still on 2026.5.1; PR #8: 2026.8.1 available, same baseline — both closed 2026-08-16 once HA was confirmed already running 2026.8.1, past both).
 
-**Acceptance criteria:**
-1. Check HA's 2026.8.2 release notes / breaking changes for anything relevant to MQTT, `automations.yaml` schema, SmartThings, Docker, or reverse proxies — same discipline CARD-0130 used, don't skip straight to the image bump.
-2. Apply the update (`docker compose pull homeassistant` + `docker compose up -d homeassistant`).
-3. Verify live on the real device: confirmed running version via `/api/config` (not just "the container restarted"), Docker health check reports `healthy`, all existing automation entities present and loaded, SmartThings integration reconnects normally.
+**Release notes checked, 2026-08-16 (Joseph confirmed home before proceeding, per CARD-0130's established gating).** 2026.8.2's full changelog (32 items, checked against the actual GitHub release, not just the raw finding text) is a pure bugfix patch — Teslemetry, Husqvarna, TP-Link Omada, SMTP, Tado, Midea, KNX, Matter, and similar integration-specific fixes, none of which this deployment uses. Zero items touch MQTT, `automations.yaml` schema, SmartThings, Docker, or reverse proxies/HTTP. Confirmed still genuinely current: HA was still running 2026.8.1 live at check time.
 
-**Done when:** HA is confirmed running 2026.8.2 with the above verification complete, no regressions found.
+**Update applied, 2026-08-16 ~18:00 MST:** `docker compose pull homeassistant` (clean), then `docker compose up -d homeassistant`.
 
-**Related:** CARD-0130 (the same recurring HA-image-update pattern, template for acceptance criteria and verification steps here), CARD-0158 (`reboot-health-check.py`, reusable for the post-update health verification instead of a one-off check).
+**Real incident during the recreate, not just a routine restart — Docker's own daemon failed to stop the old container cleanly:** `cannot stop container: ...: tried to kill container, but did not receive an exit event`. Confirmed via `docker ps`/`docker info`/`journalctl -u docker`: SIGTERM (10s) then SIGKILL (10s) both timed out against the running container before Docker's own compose command gave up and errored out — HA was briefly still up on the old image at that point (lucky timing), but containerd finished the kill moments later regardless, and HA went fully down (`Exited (137)`, HTTP not responding) independent of what compose's own error message suggested. **This was a real, if brief, live outage on the household's HA**, not a no-op failed command — caught immediately by checking actual container/HTTP state rather than trusting the compose error text at face value.
+
+**Recovery:** re-ran `docker compose up -d homeassistant` once the old container had actually fully exited — this started the new image successfully, but under a temporary rename Compose had created mid-swap (`a21509cd7bb9_homeassistant`) instead of the real service name. Fixed with a plain `docker rename` (no restart needed, zero additional downtime) once the container was confirmed healthy. `docker ps -a` confirmed clean afterward — exactly one container, correctly named.
+
+**Verified live, real device, all four checks:**
+- Version: `2026.8.2` via `/api/config` (not just "the container restarted").
+- Docker health check: `healthy`.
+- Automations: 13 loaded (10 enabled), confirmed via `/api/states` — but this needed a second look, since the *first* check (run too soon after the healthcheck passed) showed **0 automations and 339 total entities**, against 772 total entities and 13 automations a few checks later. Real startup-timing lag on this memory-constrained Pi (905Mi RAM, seen down to 43Mi free mid-recorder-migration), not a regression — Docker's `healthy` state reflects the container process/port being up, not that HA has finished loading YAML-based platforms like `automation:`. Re-verified stable on a second pass before trusting it.
+- SmartThings: 8 `smartthings`-domain entities present.
+- Two automation entities show `unavailable` (`Traveling Lights - Night Off`, `CARD-0158 - Reboot Health Check Reminder`) — confirmed **pre-existing, not caused by this update**: neither appears anywhere in the live `automations.yaml` (grep, zero matches), consistent with CARD-0158's own reminder-removal commit from earlier — these are stale entity-registry leftovers from an already-completed prior removal, not a new regression.
+
+**Done when:** HA is confirmed running 2026.8.2 with the above verification complete, no regressions found. **Met** — the daemon-level stop failure and brief outage were a real incident along the way, but root-caused, recovered cleanly, and confirmed to have left no lasting damage (correct version, correct name, correct health, no automation/SmartThings regression).
+
+**Related:** CARD-0130 (the same recurring HA-image-update pattern, template for acceptance criteria and verification steps here), CARD-0158 (the reminder automation whose stale registry entry was ruled out as a regression here; also `reboot-health-check.py`, not used this time since a manual check was already in progress when the real incident surfaced).
 
 ---
 

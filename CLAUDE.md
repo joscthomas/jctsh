@@ -294,7 +294,9 @@ sudo systemctl restart mosquitto
 HTTP Basic Auth — username `jctsh`, password in `/etc/jctsh/log-server.env` as `DASHBOARD_PASS`.
 
 ### SSH
-Passwordless SSH from this machine via key auth (`~/.ssh/id_ed25519`). Pi password is set but not needed for normal use — store it securely offline.
+Passwordless SSH from this machine via key auth (`~/.ssh/id_ed25519`) to both the Pi (`pi@`) and the M8 (`jct@`). Both hosts' login passwords are set but not needed for normal use — store them securely offline.
+
+**Sudo:** the Pi's `pi` user has blanket `NOPASSWD: ALL` — Raspberry Pi OS's own out-of-the-box default, not something JCTsh deliberately configured. The M8's `jct` user got the same blanket `NOPASSWD: ALL` added deliberately, 2026-08-16 (CARD-0171, `/etc/sudoers.d/jct-nopasswd`), specifically so `fwupdmgr`/`apt`/reboot-class maintenance can run non-interactively in a session — worth being aware of given the M8's real internet-facing surface area (`hikes.jctnet.com` via Cloudflare Tunnel, per CARD-0095's own risk framing), not a fully closed LAN device the way the Pi effectively is.
 
 ## Future Components
 Use **ESPHome YAML** (not Arduino C++) for new ESP-based components:

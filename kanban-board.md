@@ -9,7 +9,58 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0178 -->
+<!-- next-card-id: CARD-0180 -->
+
+---
+
+### CARD-0179 · [idea] [infrastructure] Route captured voice notes to LogSeq, alongside the kanban PR pipeline
+
+**Status:** Backlog
+
+**Raised 2026-08-17 12:03 MST (Joseph, via voice note):** Originally arrived as PR #21 (CARD-XXX) from the email-idea-check pipeline (CARD-0151/CARD-0173) with the garbled transcribed subject "sending notes to log seek" — asked Joseph directly, actual idea is "sending notes to LogSeq." PR #21 closed without merging; this card replaces it with a real interview pass.
+
+**Interviewed 2026-08-17:**
+- LogSeq setup: points at a local folder of markdown files, kept in sync across devices via LogSeq's own built-in Sync (not Syncthing/Dropbox/Git). That folder does not yet exist on either the Pi or the M8 — LogSeq Sync has no Linux CLI/daemon, so there's no obvious server-side hook into it yet. **Open design problem, not yet solved:** how does a script running on Pi/M8 get a note into a graph that only LogSeq's proprietary Sync touches? Candidates to evaluate at Planning time: a git-backed LogSeq graph (LogSeq supports this natively as an alternative to LogSeq Sync) that the pipeline commits/pushes into; some other cloud-synced folder LogSeq Sync itself can be pointed at; or accepting this only works if Joseph moves off LogSeq Sync for this graph. None of these confirmed yet.
+- Relationship to the existing kanban pipeline: **alongside, not a replacement.** CARD-0151/0173's voice-idea → email → kanban PR path stays as-is for actionable work items. LogSeq becomes a second destination for looser notes/thoughts that aren't necessarily a card.
+- Routing (how the pipeline tells "this is a LogSeq note" apart from "this is a kanban idea"): leaning toward a second Gmail plus-alias (e.g. `joscthomas+logseq@gmail.com`) alongside the existing `+kbc` one, so which inbox it lands in decides the route with no parsing needed — **but Joseph flagged this as still undecided**, not locked in.
+
+**Acceptance criteria:** not yet written — the LogSeq-folder-access mechanism above needs to be resolved first; real acceptance criteria depend on which mechanism gets picked. Revisit at Planning.
+
+**Done when:** a voice note sent to the LogSeq-routed address lands as a note in Joseph's actual LogSeq graph, verified live (not just "the pipeline ran without erroring").
+
+**Related:** CARD-0151 (email-to-kanban-card watcher this reuses/sits alongside), CARD-0173 (voice idea capture, Pixel to kanban PR — the existing pipeline this is *not* replacing).
+
+---
+
+### CARD-0178 · [enhancement] [photo-quality-review] Auto-select the larger photo for same-owner near-duplicate pairs, sort groups by size — RESOLVED 2026-08-17 12:05 MST
+
+**Status:** Done
+
+**Raised 2026-08-16 (Joseph):** "New rule for photo review: if two photos have the same owner, auto select the largest photo." Genuinely new logic — `maybeAutoSelectGroup()` (`public/review.js`) currently has three tie-breaker steps (Motion Photo integrity → album membership → cross-account identical-size), and every one of them either applies regardless of owner or explicitly requires the two photos to have *different* owners (CARD-0155's cross-account tie-breaker and Super Rule). There's no existing same-owner branch, and file size is currently only ever compared for exact equality, never "pick the bigger one" — a same-owner pair that's merely near-duplicate (not byte-identical) currently gets no auto-select at all and sits for manual review indefinitely.
+
+**Interviewed 2026-08-16:**
+- New step inserted into `maybeAutoSelectGroup()`'s existing priority chain, right after the album-membership check (and its disagree-with-motion abstain), before the cross-account identical-size tie-breaker — same "only fires once stronger signals are inconclusive" gating the existing steps already use.
+- Condition: both members share the same `ownerLabel`, both have a non-null `size`, and the sizes differ. Auto-select the larger.
+- If sizes are exactly equal (no "larger" to pick): abstain, leave for manual review — same "can't decide, don't guess" behavior the existing steps already use when signals disagree.
+- **Not asked, decided here and flagged for confirmation at Build/verify time:** unlike the cross-account tie-breaker, this rule does *not* require czkawka `difference === 0`. Reasoning: the group is already czkawka-near-duplicate by construction (that's why it's a group at all), this only ever touches one person's own library (lower consequence than the cross-account case, which is why that one demanded byte-identical certainty before touching someone else's collection), and "larger file = likely the original/higher-quality version, smaller = a resized or re-compressed copy" is a common-sense heuristic that doesn't need byte-level identity to be reasonable. Worth Joseph confirming this reasoning holds before/while building, not fixed in stone from this interview alone.
+
+**Scope grew mid-build, 2026-08-16 (Joseph):** "Sort duplicate photos by size with largest photo last" — a display-order change for how a group's members are laid out, folded into this same card rather than opened separately (same component, same duplicate-group area, same session).
+
+**Acceptance criteria:**
+1. New tie-breaker step added to `maybeAutoSelectGroup()`, matching the priority placement and gating above.
+2. `autoReason` text for this case clearly distinguishes it from the existing cross-account reason (e.g. "same owner, kept the larger file") — the UI surfaces this reason, per the existing pattern.
+3. Verified live against a real same-owner near-duplicate pair in the actual review UI (not just unit logic) — correct member auto-selected, correct reason shown, and an equal-size same-owner pair correctly abstains instead of guessing.
+4. Confirm this doesn't interact badly with the Super Rule's own static/server-side structural checks (`isSuperRuleStaticCandidate()`/`isSuperRuleCandidate()`) — Super Rule is cross-account by definition, so this new same-owner step should never overlap with it, but worth confirming rather than assuming.
+5. Group members render sorted by file size ascending, largest last.
+
+**Built 2026-08-16:**
+- New tie-breaker branch in `maybeAutoSelectGroup()` (`public/review.js`), inserted exactly where interviewed — after the album-membership check, before the cross-account tie-breaker's `else`. Equal-size same-owner pairs correctly fall through to that final `else` too (its own `isCrossAccount` check fails for a same-owner pair), landing on "still nothing decisive" and abstaining — no special-casing needed, the existing fallthrough already does the right thing.
+- `renderDuplicateGroup()` now renders from a sorted *copy* of `group.members` (ascending by `size`, nulls sorted first), not an in-place sort — `group.members` itself is left untouched since other code reads it order-sensitively elsewhere (the group-list's own date sort uses `members[0]` as a representative timestamp; `maybeAutoSelectGroup`'s `a`/`b` pair is already order-agnostic by construction, but no reason to couple the two regardless).
+- No Node available locally to syntax-check — used the M8 itself (`node --check`, it already has Node for this service) before deploying. This is a static frontend file served via plain `express.static`, no server restart needed; confirmed the *actually-served* file (not just the copied one) contains the new code via a live HTTP fetch.
+
+**Verified live 2026-08-17 12:05 MST (Joseph):** confirmed against a real same-owner near-duplicate pair in the actual review UI — correct member auto-selected, reason text correct, sort order (largest last) correct. No-`difference`-gate reasoning confirmed to still hold.
+
+**Related:** CARD-0155 (the existing cross-account tie-breaker and Super Rule this new step sits alongside, same file/function), CARD-0148 (perf/debounce work on the same `maybeAutoSelectGroup()` call path).
 
 ---
 
@@ -324,8 +375,8 @@ This is the nginx reverse-proxy trust setting from CARD-0096/CARD-0141's HTTPS w
 
 ---
 
-### CARD-0167 · [enhancement] [infrastructure] Close CARD-0096's mDNS transition-window aliases — due 2026-08-17 09:00 MST
-**Status:** Build
+### CARD-0167 · [enhancement] [infrastructure] Close CARD-0096's mDNS transition-window aliases — RESOLVED 2026-08-17 12:11 MST
+**Status:** Done
 
 **Raised 2026-08-14 16:15 MST**, split out from CARD-0096 (Done) so this last step doesn't get lost inside an already-closed card. Two systemd units are still deliberately running: `raspberrypi-mdns-alias.service` (Pi) and `photo-server-mdns-alias.service` (M8), each publishing the old hostname as a static mDNS alias for the unchanged real IP, per CARD-0096's own transition-window design.
 
@@ -340,6 +391,14 @@ This is the nginx reverse-proxy trust setting from CARD-0096/CARD-0141's HTTPS w
 4. Both hosts' core services (HA, MQTT, Node-RED, Immich, NetAlertX, hike-izer-web) still healthy post-cleanup.
 
 **Done when:** both alias services are removed, both old `.local` names confirmably no longer resolve, and nothing broke in the process.
+
+**Closed 2026-08-17 12:11 MST:**
+1. Fresh repo-wide grep for `raspberrypi`/`photo-server` — no live/runtime config depends on the old names. The 3 ESP32 devices flagged as load-bearing in CARD-0096's own audit (`front-porch-temp-sensor`, `garage-radar`, `salt-sensor`) already use the IP (`192.168.1.117`) in their `secrets.yaml`, not the hostname. Remaining hits are stale doc references only (`components/m8/README.md`, `network.md`, `operations.md`, the phase2-planning/claude-code-instructions docs, an archived Arduino sketch's `secrets.h`, a `.claude/settings.local.json` permission string) — pre-existing drift from before this card, not new dependencies, and out of this card's scope.
+2. Both alias units stopped, disabled, and removed (`raspberrypi-mdns-alias.service` on the Pi, `photo-server-mdns-alias.service` on the M8), `daemon-reload` run on both.
+3. Confirmed from each host itself (not this Windows laptop, per the mDNS-reliability caveat): `avahi-resolve -n raspberrypi.local` (on the Pi) and `avahi-resolve -n photo-server.local` (on the M8) both now fail with "Timeout reached" — the old names no longer resolve.
+4. Both hosts' core services healthy post-cleanup: Pi — `homeassistant` container healthy, `mosquitto`/`nodered`/`jctsh-logging` all active. M8 — all 8 containers (`immich_*`, `netalertx`, `hike-izer-*`) up and healthy.
+
+**Related:** CARD-0096 (the rename this closes out).
 
 **Related:** CARD-0096 (the rename this closes out).
 
@@ -548,8 +607,8 @@ Deployed (`scp` + `sudo systemctl restart jctsh-logging`), confirmed clean resta
 
 ---
 
-### CARD-0158 · [enhancement] [infrastructure] Automated post-reboot health check on the Device Status dashboard — due 2026-08-17
-**Status:** Build
+### CARD-0158 · [enhancement] [infrastructure] Automated post-reboot health check on the Device Status dashboard — RESOLVED 2026-08-17 12:14 MST
+**Status:** Done
 
 **Raised 2026-08-13 20:53 MST**, during CARD-0129's close-out. That card's pre-check found the Pi had already been rebooted 3 days earlier by its own `scheduled-reboot.timer` (2026-08-10) with nobody noticing — the reboot happened to go fine, but nothing would have surfaced it if it hadn't. Current coverage: the watchdog/heartbeat system (`core/logging/log_server.py` + Node-RED watchdog flow) catches MQTT/Node-RED/log-server going silent, but nothing watches Docker/container health specifically after a reboot — a bad `homeassistant` container recovery, for instance, would go unnoticed until someone happened to check by hand.
 
@@ -600,6 +659,17 @@ system reboot. `reboot-health-check.service` is enabled and will fire
 automatically at the next real boot regardless — **check in 2026-08-17**
 (the next `scheduled-reboot.timer` firing) to confirm it survives a genuine
 cold boot, not just a manual script invocation, before moving this to Done.
+
+**Verified live against the real cold boot, 2026-08-17 12:14 MST:** the
+Pi's `scheduled-reboot.timer` fired at 03:00 MST as expected;
+`reboot-health-check.service` ran automatically (03:01:58–03:02:52 MST,
+`journalctl` confirms `code=exited, status=0/SUCCESS`) and correctly
+reported `{'homeassistant': 'healthy', 'nodered': 'active', 'mosquitto':
+'active'}` from genuine post-boot state, not a manual invocation. Dashboard
+(`/status`) confirmed reflecting it correctly: `jctsh-core` row, Last Reboot
+column shows `✓ 2026-08-17 03:00:42` — real boot timestamp, healthy state,
+exactly the "current truth" design goal. Last remaining condition for Done
+is satisfied.
 
 **Related:** CARD-0129 (the check that surfaced this gap), CARD-0127 (the retained-MQTT-state pattern this generalizes, full implementation detail there), CARD-0126 (sibling dashboard-visibility work, container-image updates), `core/logging/log_server.py` (`_pending_updates`, `_build_status_html`), `jctsh-network.md` (Scheduled Maintenance Windows table, for the possible M8 extension).
 

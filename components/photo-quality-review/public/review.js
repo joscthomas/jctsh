@@ -651,6 +651,26 @@ async function maybeAutoSelectGroup(groupKey) {
   } else if (albumWinner) {
     keepAssetId = albumWinner;
     autoReason = 'this copy is in an album, the other is not';
+  } else if (a.ownerLabel === b.ownerLabel && a.size != null && b.size != null && a.size !== b.size) {
+    // Same-owner, differing-size tie-breaker (CARD-0178, Joseph's call
+    // 2026-08-16): deliberately only checked once motion AND album have
+    // both come back inconclusive, same "never override a real quality
+    // signal" reasoning the cross-account tie-breaker below already uses.
+    // Doesn't require czkawka's difference: 0 the way the cross-account
+    // case does -- this group is already czkawka-near-duplicate by
+    // construction, this only ever touches one person's own library
+    // (lower consequence than reaching into someone else's, which is
+    // why that case demanded byte-identical certainty first), and
+    // "larger file = likely the original/higher-quality version,
+    // smaller = a resized or re-compressed copy" is a reasonable
+    // heuristic without needing byte-level identity. Equal sizes (no
+    // "larger" to prefer) deliberately don't match this branch's own
+    // condition -- they fall through to the cross-account branch below,
+    // which also won't match (same owner, not cross-account), correctly
+    // landing on "still nothing decisive" and abstaining for manual
+    // review, same as any other undecidable case.
+    keepAssetId = a.size > b.size ? a.assetId : b.assetId;
+    autoReason = 'same owner, kept the larger file';
   } else {
     // Cross-account, identical-size tie-breaker (Joseph's call, 2026-08-08):
     // deliberately only checked once motion AND album have both come back
@@ -737,7 +757,14 @@ function ownerLabelText(ownerLabel) {
 
 function renderDuplicateGroup(group) {
   const decision = group.decision;
-  const items = group.members.map((m) => {
+  // CARD-0178: display order only, largest last -- a sorted copy, not an
+  // in-place sort of group.members itself, since other code (the group-list
+  // date sort above, maybeAutoSelectGroup's a/b pair) reads that array and
+  // has no reason to care about size ordering. Nulls (missing size) sort
+  // first, alongside the rest of the ascending order, rather than being
+  // treated as a special case.
+  const sortedMembers = [...group.members].sort((x, y) => (x.size ?? -Infinity) - (y.size ?? -Infinity));
+  const items = sortedMembers.map((m) => {
     const meta = duplicateMeta(m);
     return `
     <div class="item" data-asset-id="${m.assetId}">

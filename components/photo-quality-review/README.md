@@ -192,9 +192,11 @@ ssh jct@<M8 Tailscale IP> "sudo systemctl restart photo-quality-review"
 ```
 
 The unit install/reload steps only need re-running if `photo-quality-review.service`
-itself changes -- a plain code deploy just needs the `restart`. Needs
-Joseph's own interactive `sudo` step each time (no passwordless sudo on the
-M8, unlike the Pi).
+itself changes -- a plain code deploy just needs the `restart`. The `sudo`
+steps above no longer need Joseph's own interactive password entry --
+CARD-0171 (2026-08-16) added the M8's `jct` user the same blanket
+`NOPASSWD: ALL` the Pi's `pi` user already had, so these can run
+unattended in a session now, same as the Pi.
 
 ## Related
 

@@ -133,9 +133,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0173 · [idea] [core] Voice input for a new kanban card from my phone — auto-opened from jctsh-core
+### CARD-0173 · [idea] [core] Voice input for a new kanban card from my phone — auto-opened from jctsh-core — RESOLVED 2026-08-16 20:20 MST
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-08-15 14:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #14). Raw idea: voice input for creating a new kanban card from a phone.
 
@@ -143,9 +143,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Clarified 2026-08-16 (Joseph):** the intended mechanism is Tasker voice capture on the Pixel — the same pattern already built and verified live for hiking-monitor's "Log Observation" widget (CARD-0135/CARD-0156: Tasker speech-to-text → queued/sent to a backend, with offline retry). Here, the captured text would feed the same `to:kbc` email pipeline CARD-0151 already built, rather than a new backend.
 
-**Not yet interviewed/scoped in full.** Needs a Planning pass to work out the concrete build: a new Tasker profile/task mirroring "Log Observation"'s structure but targeting the email-idea address instead of the hiking Apps Script endpoint, and whether the existing offline-queue/retry logic should be reused as-is or simplified (idea capture is lower-stakes than hiking data, may not need the same resilience).
+**Interviewed 2026-08-16.** Trigger: home-screen widget, matching "Log Observation" exactly (tap to speak). Resilience: kept simple, no offline queue — Joseph's explicit call, idea capture is lower-stakes than hiking data.
 
-**Related:** CARD-0151 (the existing email-idea pipeline this would extend), CARD-0135/CARD-0156 ("Log Observation" — the existing Tasker voice-capture pattern this reuses), `core/maintenance/email-idea-check.py`.
+**Design changed from the original plan, 2026-08-16 — real research findings, not just a preference.** The original idea was to feed CARD-0151's `to:kbc` email pipeline. Investigated how Tasker would actually send that email and hit the same wall CARD-0151's own build already hit: Gmail App Passwords aren't available on this account, and Tasker's classic SMTP "Send Email" action needs exactly that. Two workarounds considered and set aside: a compose-intent (`ACTION_SENDTO`) approach works with zero credentials but needs a manual tap to actually send, not hands-free; doing the OAuth2 token exchange directly from Tasker (mirroring what `email-idea-check.py` does server-side) would work hands-free but means putting that refresh token + client secret on the phone itself, a second copy of a sensitive credential in a higher-loss-risk location.
+
+**Joseph's own alternative, adopted: skip email entirely.** A webhook receives the spoken text and calls `open_kanban_pr.open_finding_pr()` directly — the same function `email-idea-check.py` already calls after reading an email, just invoked one hop earlier. Confirmed live before committing to this design: the existing Gmail OAuth token (already proven working for CARD-0151) *does* have send capability (`gmail.modify` scope, verified via a live API call that got a 400 invalid-payload error rather than a 403 insufficient-scope error) — so sending was technically possible, but the direct-to-PR route was chosen anyway since it needs no Gmail credential on the M8 at all (that container already has its own GitHub PAT, the same one its host-level `maintenance-check.py` uses), is simpler code, and lands the PR instantly instead of after up to a 30-minute poll.
+
+**Built and verified live, 2026-08-16 — server side only, Tasker side is Joseph's to build:**
+- New `/webhook/idea` route in `components/hike-izer-orchestrator/app.py` (same file, same `?key=<WEBHOOK_SECRET>` auth pattern the `hike-end` webhook already uses — no new secret). Receives `{"text": "..."}`, calls `open_finding_pr("jctsh-core", text, ...)` synchronously (fast enough not to need backgrounding, same reasoning `_handle_stage_file` already uses) — same `jctsh-core` component email-captured ideas use, so a voice-captured card reads identically to an emailed one, no visible difference on the kanban board.
+- New deployed-copy dependency: `core/maintenance/open_kanban_pr.py` (a new source directory for this Dockerfile's "deployed copy" family — every prior one came from `components/hike-izer/`).
+- `GITHUB_PAT` added to the M8's `.env` — the same PAT already at `/etc/jctsh/github.env` on that same host, reused via env var since the container is a separate process from the host-level script that already had it. `.env.example` also brought up to date while touching it (was already missing `HA_TOKEN`/`HA_URL`/`XENO_CANTO_API_KEY` from earlier cards, unrelated to this one but fixed alongside).
+- **Verified against the real public endpoint**, not just locally: wrong key → 401; empty `text` → 400; a real request → PR #18 opened for real (`"CARD-0173 end-to-end webhook test, safe to close"`), confirmed correct card text, confirmed the MQTT log line shows up on the dashboard under `hike-izer-orchestrator` (that service's own established log-component convention, distinct from — and not a bug against — the PR's own `jctsh-core` component text). Test PR closed and its branch deleted immediately after confirming.
+- `README.md` updated with the full webhook contract and a numbered "Joseph does" Tasker build guide (`Log Idea` task: Get Voice → Stop-if-empty → HTTP Post → Flash, plus the home-screen widget step), mirroring Step 24-25's exact structure and tone in `hiking-monitor-claude-code-instructions.md`.
+
+**Tasker task built and verified live, 2026-08-16, walked through step by step in a live session (not from the README — Joseph explicitly didn't want to read it himself).** All four actions built as documented (Get Voice → Stop-if-not-set → HTTP Post → Flash), confirmed correct via a screenshot of the built task. First manual test (Tasks-list play button) worked — real PR #19 opened for "test," confirmed and closed as a test.
+
+**Real gap found and fixed at the home-screen-icon step — the documented Widgets → Task Shortcut route didn't work on Joseph's Tasker version.** The widget-configuration preview screen had no checkmark, and the back arrow didn't save it either — stuck, not a mistake in following the steps, a real difference from whatever Tasker version "Log Observation" Step 25 was originally built against. **Joseph found the actual fix himself:** in the Tasks tab, select the task, use its 3-dot overflow menu → **Add to Launcher** — places a home-screen icon directly, bypassing the Android widget-placement flow entirely. `README.md` corrected to document this as the real method, with the widget route's failure noted for context.
+
+**Final end-to-end test, real home-screen icon, not the Tasks list:** tapped the icon, spoke "test idea," confirmed real PR #20 opened correctly (`docker logs` showed `Idea webhook: opened ... for 'test idea'`). Closed as a test, same as the two before it.
+
+**Done when:** the `Log Idea` icon exists on the home screen, a real spoken idea produces a real kanban PR (verified via the icon itself, not just the Tasks-list manual test), and the resulting card reads correctly. **Met** — verified twice from the actual home screen (once during the corrected-icon-placement debugging, once as the final clean test), both produced correct cards.
+
+**Related:** CARD-0151 (the email-idea pipeline this ended up bypassing, not extending, once the App Password wall reappeared), CARD-0135/CARD-0156 ("Log Observation" — the Tasker task structure this mirrors), CARD-0128 (`open_finding_pr()`, called one hop earlier here than `email-idea-check.py` calls it), `core/maintenance/email-idea-check.py`.
 
 ---
 

@@ -43,9 +43,17 @@ from urllib.parse import urlsplit, parse_qs
 
 import generation
 import mqtt_log
+import open_kanban_pr  # CARD-0173: /webhook/idea
 
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 PORT = int(os.environ.get("PORT", "8080"))
+# CARD-0173: same GitHub PAT already used by this M8's own host-level
+# maintenance-check.py (that's how PR #5, the KEK CA firmware finding,
+# got opened) -- reused here, not a new token, since this container is a
+# separate process from that host script and needs its own copy via env
+# var, same "one credential, read from wherever it's needed" pattern
+# already used for HA_TOKEN across this repo.
+GITHUB_PAT = os.environ.get("GITHUB_PAT", "")
 
 
 def log(message):
@@ -89,6 +97,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parts.path == "/webhook/stage-file":
             self._handle_stage_file(parts)
+            return
+        if parts.path == "/webhook/idea":
+            self._handle_idea(parts)
             return
         self._respond(404, {"status": "error", "message": "not found"})
 
@@ -241,6 +252,72 @@ class Handler(BaseHTTPRequestHandler):
             log(f"Staged {kind} file for {file_stem}: {dest}")
             _log_mqtt_async("System", f"Staged {kind} file for {file_stem}.")
             self._respond(200, {"status": "ok", "file_stem": file_stem})
+
+    def _handle_idea(self, parts):
+        """CARD-0173: Tasker voice-capture -> straight to a placeholder
+        kanban PR, no email in between. Same open_finding_pr() every
+        other maintenance-check script in this repo already uses
+        (CARD-0128) -- component "jctsh-core", matching email-idea-
+        check.py's own choice, so a voice-captured idea reads identically
+        to an emailed one on the kanban board, no third "auto-opened
+        from X" variant to special-case anywhere.
+
+        Runs synchronously, not backgrounded like hike-end -- opening a
+        PR is a handful of fast GitHub API calls, not a multi-step
+        generation pipeline, same reasoning _handle_stage_file already
+        uses for its own synchronous response ("writing a file is fast,
+        no background thread needed"). A real, immediate success/failure
+        response is also what makes Tasker's own confirmation Flash
+        ("Idea logged." vs "Idea failed.") mean anything.
+
+        fingerprint is a fresh timestamp each call, not reused across
+        requests -- state is always {} too, same as email-idea-check.py's
+        own per-message calls. There's no repeat-finding concept here the
+        way maintenance-check scripts have (the same underlying condition
+        showing up on every poll); every voice capture is a genuinely new,
+        distinct utterance, so open_finding_pr()'s dedup logic is simply
+        never exercised via this path."""
+        if not self._authorized(parts):
+            log("Rejected idea webhook POST: missing or incorrect key")
+            _log_mqtt_async("Alert", "Idea webhook POST rejected: missing or incorrect key.")
+            self._respond(401, {"status": "error", "message": "unauthorized"})
+            return
+
+        if not GITHUB_PAT:
+            log("Rejected idea webhook POST: GITHUB_PAT not configured")
+            _log_mqtt_async("Alert", "Idea webhook POST rejected: GITHUB_PAT not configured on this host.")
+            self._respond(500, {"status": "error", "message": "not configured"})
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length else b""
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            log(f"Rejected idea webhook POST: invalid JSON body ({raw!r})")
+            self._respond(400, {"status": "error", "message": "invalid JSON"})
+            return
+
+        text = (payload.get("text") or "").strip()
+        if not text:
+            log("Rejected idea webhook POST: empty or missing 'text'")
+            self._respond(400, {"status": "error", "message": "empty or missing 'text'"})
+            return
+
+        fingerprint = f"voice-{datetime.now(timezone.utc).isoformat()}"
+        try:
+            _, pr_url = open_kanban_pr.open_finding_pr(
+                "jctsh-core", text, fingerprint, GITHUB_PAT, {},
+            )
+        except Exception as e:
+            log(f"Idea webhook: open_finding_pr failed: {e}")
+            _log_mqtt_async("Alert", f"Idea webhook failed to open PR: {e}")
+            self._respond(502, {"status": "error", "message": "failed to open PR"})
+            return
+
+        log(f"Idea webhook: opened {pr_url} for {text!r}")
+        _log_mqtt_async("System", f'Voice idea -> kanban PR: "{text}" -- {pr_url}')
+        self._respond(200, {"status": "ok", "pr_url": pr_url})
 
     def _respond(self, status, body):
         data = json.dumps(body).encode()

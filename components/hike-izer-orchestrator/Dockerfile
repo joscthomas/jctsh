@@ -25,12 +25,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 # CARD-0174 (reference-call speaker icon) -- imported by both templating.py
 # and build_wildlife_index.py, same "deployed copy, shared by both" pattern
 # build_wildlife_index.py itself already used for wikipedia_url().
+# open_kanban_pr.py added CARD-0173 (voice-idea webhook, /webhook/idea in
+# app.py) -- deployed copy from core/maintenance/ (a new source directory
+# for this Dockerfile's deployed-copy family; every prior one came from
+# components/hike-izer/), same open_finding_pr() this repo's other
+# maintenance-check scripts already use to open placeholder kanban PRs.
 COPY app.py generation.py narrative.py templating.py mqtt_log.py ha_notify.py \
      photo_captions.py place_context.py cost_tracking.py birdnet.py \
      wildlife_life_list.py \
      fetch_hike_data.py fetch_hike_photos.py build_calendar_index.py \
      build_hike_map.py build_hike_chart.py build_wildlife_index.py \
-     xeno_canto.py SKILL.md \
+     xeno_canto.py open_kanban_pr.py SKILL.md \
      /app/
 
 CMD ["python3", "/app/app.py"]

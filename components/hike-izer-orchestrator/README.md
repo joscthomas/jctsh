@@ -46,6 +46,7 @@ update:
 ```
 scp components/hike-izer-orchestrator/*.py components/hike-izer-orchestrator/Dockerfile components/hike-izer-orchestrator/requirements.txt jct@m8.local:~/hike-izer-web-app/orchestrator/
 scp components/hike-izer/fetch_hike_data.py components/hike-izer/fetch_hike_photos.py components/hike-izer/build_hike_map.py components/hike-izer/build_hike_chart.py components/hike-izer/build_calendar_index.py components/hike-izer/build_wildlife_index.py components/hike-izer/xeno_canto.py jct@m8.local:~/hike-izer-web-app/orchestrator/
+scp core/maintenance/open_kanban_pr.py jct@m8.local:~/hike-izer-web-app/orchestrator/
 scp .claude/skills/hike-izer/SKILL.md jct@m8.local:~/hike-izer-web-app/orchestrator/
 ssh jct@m8.local "cd ~/hike-izer-web-app && docker compose up -d --build orchestrator"
 ```
@@ -61,7 +62,13 @@ as every other optional section, not a generation failure), `XENO_CANTO_API_KEY`
 (CARD-0174 — the Wildlife Heard/Life List speaker icon's reference-call
 audio, from `xeno_canto.org`'s Account Page; same optional/graceful-omission
 pattern as `THUNDERFOREST_API_KEY` — a missing value just means no speaker
-icons, not a generation failure). The MQTT
+icons, not a generation failure), `GITHUB_PAT` (CARD-0173 — `/webhook/idea`'s
+own direct-to-kanban-PR path; same GitHub PAT this M8's own host-level
+`maintenance-check.py` already has at `/etc/jctsh/github.env`, reused here
+as an env var since this container is a separate process and needs its own
+copy — not required for anything else this component does, so a missing
+value only breaks that one endpoint, same graceful-degradation convention).
+The MQTT
 account needs to be created on the Pi once (`sudo mosquitto_passwd ...` —
 see `credentials.local.md`) before publish-visibility logging works;
 everything else works without it (a missing MQTT account just means
@@ -97,6 +104,23 @@ are logged and ignored. Wrong/missing `key` gets a 401. `local_datetime`
 to determine "today" for the hike and to render every timestamp in the
 output as explicit local time, rather than hardcoding `America/Phoenix` the
 way the stationary-sensor pipeline (`environmental-data.gs`) does.
+
+`POST https://hikes.jctnet.com/webhook/idea?key=<WEBHOOK_SECRET>`
+
+CARD-0173: Tasker voice capture straight to a placeholder kanban PR, no
+email in between (skips the `email-idea-check.py`/CARD-0151 path
+entirely — same underlying `open_finding_pr()`, called directly).
+
+```json
+{"text": "the spoken idea, verbatim"}
+```
+
+Runs synchronously (unlike `hike-end`) — opening a PR is a handful of fast
+GitHub API calls, so the response itself tells Tasker whether it actually
+worked. Wrong/missing `key` gets a 401; missing/empty `text` gets a 400;
+a GitHub API failure gets a 502 — all three are real, Tasker-visible
+failures, not a silent drop. On success: `{"status": "ok", "pr_url":
+"..."}`.
 
 ## Building the Tasker profile (Joseph)
 
@@ -161,6 +185,65 @@ it. Confirm `docker logs hike-izer-orchestrator` on the M8 shows a real
 `stopped` event with real `filename`/`local_datetime` values — not the
 empty-field manual test above. This is the one verification step that
 can't be done from a desk (CARD-0086's stage 1 verification, step 3).
+
+## Building the voice-idea Tasker task (Joseph)
+
+CARD-0173. Mirrors "Log Observation"'s original design exactly
+(`components/hiking-monitor/hiking-monitor-claude-code-instructions.md`,
+Step 24) — a manually-tapped home-screen widget, not an event-triggered
+Profile like `hike-end` above (there's no external event to fire on here,
+this only ever starts because you tapped it).
+
+**1. Create the Task** — Tasker → Tasks tab → **+** → name it `Log Idea`:
+
+1. **Action 1 — Get Voice:**
+   - Title: `Speak your idea`
+   - Output Variable: `idea_text` (Get Voice actually stores its result in
+     `%VOICE` regardless of this field — same quirk Step 24 already
+     documented for "Log Observation")
+
+2. **Action 2 — Stop if no input (user cancelled):**
+   - Search for **Stop**
+   - Condition: `%VOICE` **Is Not Set**
+   - Error checkbox: **unchecked**
+
+3. **Action 3 — HTTP Post:**
+   - Method: `POST`
+   - Server:Port: `https://hikes.jctnet.com`
+   - Path: `/webhook/idea?key=G3sOgsf6Ly5N9XwYN2cb1r0qokkHkmug`
+     (`WEBHOOK_SECRET` from `credentials.local.md` — same key `hike-end`
+     already uses, one shared secret across every route on this webhook
+     receiver, not a separate one per endpoint)
+   - Headers: `Content-Type: application/json`
+   - Body: `{"text":"%VOICE"}`
+
+4. **Action 4 — Flash:**
+   - Text: `Idea logged`
+   - The HTTP Post action's own response code is available as
+     `%HTTP_RESPONSE_CODE` if you want a real success/failure distinction
+     here instead of an unconditional Flash — optional, confirm what's
+     actually available in your Tasker version when building this live.
+
+**Test the task manually before adding the widget:** tap the play button
+next to `Log Idea` in the Tasks list, speak a test idea, then check
+`docker logs hike-izer-orchestrator` on the M8 for a matching `Idea
+webhook: opened ... for '...'` line, and confirm a new `CARD-XXX:` PR
+actually appeared (`gh pr list` or the GitHub web UI).
+
+**2. Add the home screen icon.** **Correction, found live 2026-08-16:** the
+Widgets → Task Shortcut route documented for "Log Observation" Step 25
+led to a widget-configuration preview screen with no visible way to
+confirm/save it on this Tasker version (no checkmark, and the back arrow
+didn't place it either) — a real UI difference from whatever Tasker
+version Step 25 was originally built against, not a mistake in following
+those steps. **What actually works:** in Tasker's **Tasks** tab, tap
+**Log Idea** to select it, open its **3-dot overflow menu**, and choose
+**Add to Launcher** — this places a launcher icon directly on the home
+screen without going through the Android widget-placement flow at all.
+
+**Real end-to-end test:** tap the icon from the home screen (not the
+Tasks list), speak a real idea, confirm the PR appears. This is the one
+verification step that can't be done from a desk.
 
 ## Checking it's up
 

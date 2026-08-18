@@ -18,16 +18,23 @@ import urllib.request
 NOTIFY_SERVICE = "mobile_app_pixel_10_pro_xl"
 
 
-def send_push(title, message):
+def send_push(title, message, url=None):
     ha_url = os.environ.get("HA_URL")
     ha_token = os.environ.get("HA_TOKEN")
     if not ha_url or not ha_token:
         print(f"[ha_notify] HA_URL/HA_TOKEN not set -- skipping push: {message}", flush=True)
         return
 
+    payload = {"title": title, "message": message}
+    if url:
+        # CARD-0183: clickAction is the field the HA companion app reads to
+        # make tapping the notification open a link -- without it the URL
+        # in `message` is just unclickable text.
+        payload["data"] = {"clickAction": url}
+
     req = urllib.request.Request(
         f"{ha_url}/api/services/notify/{NOTIFY_SERVICE}",
-        data=json.dumps({"title": title, "message": message}).encode("utf-8"),
+        data=json.dumps(payload).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {ha_token}",
             "Content-Type": "application/json",

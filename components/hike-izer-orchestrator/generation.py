@@ -675,6 +675,7 @@ def run_and_log(payload):
         ha_notify.send_push(
             "Hike-izer",
             f"Hike summary published: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
+            url=f"https://hikes.jctnet.com/{file_stem}_hike-summary.html",
         )
     except Exception as e:
         print(f"Step 1 generation failed: {e}", file=sys.stderr)
@@ -696,6 +697,7 @@ def run_step2_and_log(file_stem, with_narrative=False):
         ha_notify.send_push(
             "Hike-izer",
             f"Enriched hike summary published: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
+            url=f"https://hikes.jctnet.com/{file_stem}_hike-summary.html",
         )
     except Exception as e:
         print(f"Step 2 generation failed: {e}", file=sys.stderr)

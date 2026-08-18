@@ -13,6 +13,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-XXX · [enhancement] [infrastructure] tank battle in Cologne — auto-opened from jctsh-core
+**Status:** Backlog
+
+**Auto-generated 2026-08-18 03:38 UTC from jctsh-core's maintenance check.** Raw finding: tank battle in Cologne. Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Related:** live dashboard entry at time of generation.
+
+---
+
 ### CARD-0179 · [idea] [infrastructure] Route captured voice notes to LogSeq, alongside the kanban PR pipeline
 
 **Status:** Backlog

@@ -9,16 +9,74 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0180 -->
+<!-- next-card-id: CARD-0184 -->
 
 ---
 
-### CARD-XXX · [enhancement] [infrastructure] for the hike either published notification make the link go to the web page — auto-opened from jctsh-core
+### CARD-0183 · [bug] [hike-izer] Hike-publish push notification link isn't clickable
 **Status:** Backlog
 
-**Auto-generated 2026-08-18 16:57 UTC from jctsh-core's maintenance check.** Raw finding: for the hike either published notification make the link go to the web page. Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+**Raised 2026-08-18 (Joseph, via voice note, PR #25).** The push notification sent on hike-summary publish (CARD-0141) includes the published page's URL as plain text inside the message body — confirmed in `components/hike-izer-orchestrator/generation.py`'s two success call sites (`run_and_log()`, `run_step2_and_log()`), both of which build the URL into the `message` string passed to `ha_notify.send_push()`. `ha_notify.py`'s `send_push()` only sends `title`/`message` to HA's notify service — no `data.clickAction` (or `data.url`), the field the HA companion app actually uses to make a notification tap open a link. Tapping the notification today does nothing; the URL has to be manually copied out of the notification text.
 
-**Related:** live dashboard entry at time of generation.
+**Fix:** add an optional `url` parameter to `send_push()` that sets `data: {"clickAction": url}` in the HA notify service call; pass the hike page URL through from both success call sites in `generation.py`.
+
+**Done when:** `ha_notify.send_push()` accepts a `url` param and sets `clickAction`; both success call sites pass it; deployed to the M8 orchestrator; and a real test notification confirmed tapping it opens the hike page in the browser on Joseph's Pixel.
+
+**Related:** CARD-0141 (introduced the push notification this fixes).
+
+---
+
+### CARD-0182 · [idea] [hike-izer] BirdNET Live recording practices while hiking
+**Status:** Backlog
+
+**Raised 2026-08-18 (Joseph, via voice note, PR #26).** BirdNET Live's phone-side bird-call recognition is degraded by trail noise (wind, footsteps, breathing) and phone mic/recording setup while hiking. JCTsh's pipeline only consumes BirdNET Live's already-identified detections after the fact (`components/hike-izer-orchestrator/birdnet-pipeline.md`) — it does no audio processing itself, so this is a practices/documentation item, not a pipeline code change.
+
+**Scope, confirmed 2026-08-18:** research and document phone/app-side practices to reduce noise and improve recording quality (mic placement/carrying position, BirdNET Live app settings) as a new section in `components/hike-izer-orchestrator/birdnet-pipeline.md`.
+
+**Done when:** best-practice recommendations are researched and documented there, and Joseph has a concrete checklist to try on the next hike.
+
+**Related:** CARD-0157 (BirdNET Live pipeline documentation, the doc this extends).
+
+---
+
+### CARD-0181 · [bug] [hiking-monitor] No way to cut real power without disassembling the enclosure
+**Status:** Planning
+
+**Raised 2026-08-17 18:04 MST (Joseph), called a "major design failure."** Discovered while reassembling the enclosure post-CARD-0009: the only true hard-off state for this device is disconnecting the LiPo's JST connector from the TP4056 (per `operations.md`'s Power Switch Behavior table — "Storage — fully off" requires "Disconnected" battery, no other row reaches true off). That connector is inside the sealed enclosure with no external access, so once assembled, there is no way to actually cut power without taking it apart again.
+
+**Compounding issue:** the device's slide switch reads as a power switch but isn't one — `operations.md` line 79: "VOUT+ runs directly to ESP32 VIN — the switch is not in the power path." It only sets a GPIO-read mode flag (field vs. upload mode); the lowest-power reachable state via the switch is deep sleep (~10µA), not true off. For most purposes (avoiding activity while handling the device) that's sufficient, but it is not the same guarantee as no power draw at all, and the UI/labeling (a slide switch on the outside of the case) actively implies otherwise.
+
+**Not yet decided — fix approach deferred to Planning, Joseph's call 2026-08-17:** candidates raised but not chosen: (1) an accessible inline power switch, wired directly into the battery path (not the existing mode-select switch), reachable from outside the enclosure — true hard off on demand; (2) a JST pigtail extended from the battery connector to an external access cutout, so the existing connector can be reached and unplugged without disassembly, no new switch hardware. Neither confirmed; revisit at Planning.
+
+**Standard raised from this, 2026-08-18 14:35 MST:** `JCTsh-Build-Standards.md` §1.7 (Accessible Power Control for Enclosed Devices, v1.19) now makes this a required decision for every future enclosed build, made before the enclosure is sealed — this card and CARD-0180 are its origin case. §1.7 lists both candidate approaches above as acceptable patterns for requirement 1 (true hard off); whichever gets chosen here should also be reflected there if it changes/refines the general pattern.
+
+**Done when:** the real hiking-monitor can be put into a genuine zero-draw off state without opening the enclosure, verified live (not just wired correctly) — and the chosen mechanism is documented in `operations.md`'s Power Switch Behavior table alongside the existing modes.
+
+**Related:** CARD-0009 (the final-assembly work this surfaced during), CARD-0180 (on-demand remote reboot — a related but distinct need; that card is about forcing a *restart*, this one is about achieving true *power-off*).
+
+---
+
+---
+
+### CARD-0180 · [enhancement] [hiking-monitor] On-demand remote reboot, triggered from Home Assistant
+**Status:** Planning
+
+**Raised 2026-08-17 18:01 MST (Joseph):** surfaced while closing out CARD-0009's final assembly — no way to reset the device without disassembling the enclosure (no exposed reset button, no remote-reboot mechanism in the current firmware). Deep sleep wake cycles already function as a full reset in normal operation, but there's no way to force one on demand.
+
+**Interviewed 2026-08-17:**
+- Trigger: **from Home Assistant** — a switch/button entity Joseph can press in HA, not a raw MQTT topic he'd have to publish to by hand.
+- Log it: yes — publish a System-category message to the existing `/log` topic right before rebooting (`"Manual reboot triggered"` or similar), consistent with how every other action on this device already shows up on the dashboard.
+- **Open question, not yet decided:** how to get an entity into HA at all. `hiking-monitor.yaml`'s `mqtt:` block currently has `discovery: false` with an explicit comment — "No HA discovery — hiking-monitor has no Home Assistant integration." Flipping that to `true` would auto-register just the new restart button via standard MQTT discovery (everything else stays `internal: true`, so nothing else gets exposed) with zero edits to `configuration.yaml`. Proposed 2026-08-17, **Joseph deferred the decision ("we'll figure this out later")** rather than approving or rejecting it outright — don't assume yes, revisit at Planning/Build time.
+
+**Not yet decided/built:** the discovery approach above (or an alternative), the actual `button: platform: restart` component, and how this gets deployed (OTA — device's aggressive sleep cycle makes catching an awake window unreliable, per CARD-0076's own OTA testing this session — or USB, which reintroduces the exact disassembly problem this card exists to avoid; worth deciding deliberately rather than defaulting to USB out of habit).
+
+**Standard raised from this, 2026-08-18 14:35 MST:** `JCTsh-Build-Standards.md` §1.7 (Accessible Power Control for Enclosed Devices, v1.19) now makes an accessible reboot/reset trigger (requirement 2, physical or remote) a required decision for every future enclosed build, made before the enclosure is sealed — this card and CARD-0181 are its origin case. §1.7 notes a remote/software-triggered restart (what this card is pursuing) is generally preferable to a physical reset button for a battery-powered field device, since it avoids an extra enclosure penetration.
+
+**Done when:** Joseph can trigger a hiking-monitor reboot from Home Assistant on demand, the action is visible on the log dashboard, and the mechanism for getting there (HA integration approach + deployment method) has been explicitly decided rather than assumed.
+
+**Related:** CARD-0009 (the final-assembly session this surfaced during), CARD-0076 (the OTA-reliability finding — this device rarely has a catchable awake window for WiFi-based flashing).
+
+---
 
 ---
 
@@ -2902,8 +2960,8 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 ---
 
-### CARD-0076 · [bug] [hiking-monitor] Rotate all secrets exposed via a botched redaction command, and finish outstanding device re-flashes
-**Status:** Build
+### CARD-0076 · [bug] [hiking-monitor] Rotate all secrets exposed via a botched redaction command, and finish outstanding device re-flashes — RESOLVED 2026-08-18 14:33 MST
+**Status:** Done
 
 **Notes:** Raised 2026-07-21. During CARD-0070's debugging session (2026-07-20), a `sed` redaction command intended to mask `secrets.yaml` values before display used a pattern (`key=value`) that didn't match the file's actual `key: "value"` YAML syntax — the redaction silently failed and the **entire** `hiking-monitor-test/secrets.yaml` file printed in plaintext into the conversation transcript: WiFi password, hotspot password, AP fallback password, MQTT password, and OTA password. (Process fix for the redaction mistake itself already logged separately, so this doesn't recur.) The repo's own copy of this file is confirmed gitignored (`components/hiking-monitor/.gitignore`) and was never committed/pushed — the exposure is contained to this session's transcript, not a public leak, but is still being treated as a real exposure event since transcripts can be logged/reviewed outside this conversation.
 
@@ -2927,9 +2985,19 @@ Phases 1–3 (planning, hardware selection, architecture/integration) all comple
 
 **Blocked as of 2026-08-03 19:10 MST — both devices must be online/reachable to be reflashed, and neither currently is.** Test rig is asleep with no wake source wired (needs the GPIO32→3.3V wake trick, OTA, or a USB flash); the real field-deployed hiking-monitor is physically elsewhere. New passwords are already staged in all three `secrets.yaml` copies — reflash is the only remaining step once a device is accessible.
 
+**Real field-deployed hiking-monitor: rotated 2026-08-17 17:36 MST**, discovered/completed as a side effect of CARD-0009's display-rotation flash (device came back on the bench for that, so this rode along). USB serial flash (OTA was still on the old, unrecorded password — this rotation had never actually reached the device, exactly the risk this card's own "Done when" line was written to catch). `ota_password` and `mqtt_password` now live on the device; Mosquitto broker-side `hiking-monitor` account updated to match in the same session, device confirmed reconnected (`Connected.` on the dashboard). **`hotspot_password` rotation declined, Joseph's call 2026-08-17** — the Pixel's hotspot password was never going to change alongside it, so that field was reverted to its current live value in `secrets.yaml` before this flash rather than deployed half-coordinated. See `credentials.local.md` for the live values.
+
+**Standing lesson from this — the order matters.** The original 2026-07-21 rotation wrote the new `ota_password` into every `secrets.yaml`/doc copy *before* either device could be reflashed, so by the time a device came back on the bench, nobody could say what password it actually expected — the recorded value had moved on without it. New rule going forward (Joseph, 2026-08-17): change the device first, confirm it, then update the record. Never write down a new password before the device it describes has already been changed to match.
+
+**Test rig (`hiking-monitor-test`) still not reflashed** — remains blocked exactly as before, unaffected by the above.
+
 **Second, separate exposure event — Immich API keys, 2026-08-11.** Different component (`photo-quality-review`, not hiking-monitor) and a different root cause, tracked here rather than under a new card since it's the same category of issue -- a botched redaction printing real secrets into a Claude Code session transcript. While answering a question about running a second review-app instance, a `sed` redaction command (`s/(PASS|TOKEN|SECRET|KEY)=.*/\1=****/`) meant to mask sensitive `.env` values before display only matches a variable name that *ends* in one of those words immediately followed by `=` -- `IMMICH_API_KEY_JOSEPH=` and `IMMICH_API_KEY_ROBIN=` have `KEY` in the middle of the name, not at the end, so the pattern silently didn't match and both full API keys printed in plaintext into the transcript. Same containment profile as the hiking-monitor exposure above: confined to this session's private transcript, never committed/pushed, no evidence of actual access.
 
-**Not yet rotated -- no decision made yet.** Recommended if/when Joseph decides to proceed: regenerate both keys in Immich (Settings → API Keys, for both the Joseph and Robin accounts), update `IMMICH_API_KEY_JOSEPH`/`IMMICH_API_KEY_ROBIN` in `/home/jct/photo-quality-review/.env` on the M8, and restart the service (`sudo systemctl restart photo-quality-review`). **Done when (Immich keys):** both keys rotated and the service confirmed still working end-to-end afterward -- or a risk-acceptance decision recorded here instead, same as WiFi/AP above.
+**Immich API key rotation declined, Joseph's call 2026-08-18 14:33 MST — risk accepted, not blocked/pending.** Same containment profile and reasoning as the WiFi/AP decision above: confined to this session's private transcript, never committed/pushed, no evidence of actual access. Not rotating now; if it ever becomes relevant it'll be handled alongside the test-rig reflash below (see that note), not as a standalone action.
+
+**Test rig (`hiking-monitor-test`) reflash — deferred, not blocking closure, Joseph's call 2026-08-18 14:33 MST.** Still asleep/unreachable, unchanged from the 2026-08-03 blocked note above. Whatever secrets need rotating on it (OTA/hotspot/MQTT, already staged in its `secrets.yaml`) will be handled together, whenever that device next comes back for other work — same lockstep-with-reflash discipline as the real device followed. Not treating this as an open item on this card going forward.
+
+**Card closed 2026-08-18 14:33 MST.** Real field-deployed hiking-monitor fully rotated and verified (2026-08-17 note above) — that was this card's actual operational risk (a live, internet-exposed device). The two remaining loose ends (test rig, Immich keys) are both deliberate, recorded risk-acceptance/deferral decisions, not unfinished work.
 
 ---
 
@@ -3038,8 +3106,8 @@ GPIO pin ───────────────────────�
 
 ---
 
-### CARD-0009 · [enhancement] [hiking-monitor] Enclosure design and build
-**Status:** Build
+### CARD-0009 · [enhancement] [hiking-monitor] Enclosure design and build — RESOLVED 2026-08-18 14:33 MST
+**Status:** Done
 
 **Notes:** Design and build the permanent enclosure. Field prototype (two-board sandwich) documented in `components/hiking-monitor/enclosure-prototype.md`. Standoffs arrive 2026-06-14; temp enclosure build before camping trip departure 2026-06-15. Device will be used in the field for ~2 weeks on that trip — hiking and van sensor simulation. Full 3D-printed permanent enclosure is a later step.
 
@@ -3066,9 +3134,37 @@ GPIO pin ───────────────────────�
 - Lip on the bottom shell removed.
 - A 1mm reference line added to the bottom shell floor, marking the perfboard's position and adjusted for the screw hole placement.
 
-**Follow-up needed before `hiking-monitor-enclosure-plan.md` Section 0 can be updated to match:** these were live Tinkercad edits — exact new values weren't captured during the session. Section 0 exists specifically as the reproduction record (Tinkercad edits can't be replayed automatically), so it needs: the USB port's new wall/position, the new M3/solar hole diameters, what the removed "lip" was and why, and the floor reference line's exact position/dimensions relative to the perfboard. Get these from Joseph (re-opening the Tinkercad project or checking with calipers) before updating the plan doc.
+**Follow-up needed before `hiking-monitor-enclosure-plan.md` Section 0 can be updated to match:** these were live Tinkercad edits — exact new values weren't captured during the session. Section 0 exists specifically as the reproduction record (Tinkercad edits can't be replayed automatically), so it needs: the USB port's new wall/position, the new M3/solar hole diameters, what the removed "lip" was and why, and the floor reference line's exact position/dimensions relative to the perfboard. Get these from Joseph (re-opening the Tinkercad project or checking with calipers) before updating the plan doc. **Explicitly declined, Joseph's call 2026-08-17** (see the 12:20 MST progress note below) — not done, a deliberate skip, not blocking closure.
+
+**Reflection items complete, 2026-08-18 14:33 MST:**
+1. **3D-enclosure instruction template** — `JCTsh-3D-Enclosure-Instructions-Template.md` created at repo root, generalized from `hiking-monitor-enclosure-instructions.md` (hiking-monitor-specific dimensions/sensors stripped, reusable procedure kept: OpenSCAD+Tinkercad two-tool workflow, `-raw`/`-final` naming, open-face-down print orientation, PLA-test-then-final-material pattern, test-fit checklist structure).
+2. **Broader pattern harvest** — `JCTsh-Build-Standards.md` bumped to v1.18: new §1.5 (3D-Printed Enclosure Build Pattern — Step 56's full candidate list, all now validated by the completed real build) and §1.6 (Sensor Cable Relocation for Mounting-Orientation Flexibility — the STEMMA QT/Dupont relocation pattern, generalized beyond this one sensor). The `hiking-sensor`/`hiking-monitor` folder-vs-device-name confusion was checked directly (grep across the repo) and confirmed already fully resolved in every hiking-monitor file since the 2026-07-13 doc fix — no stray references remain. `hiking-monitor-enclosure-instructions.md`'s own Step 56 is superseded by this broader harvest; confirmed it was never silently skipped, it just hadn't been run until now. `components/hiking-monitor/README.md` also updated with a new Enclosure section (files, planning doc, display rotation, BME280 offset, LTR-390 relocation, template/standards cross-references) and status line.
+
+**Don't-close criteria met:** rewiring physically complete and I2C re-verified (12:14 MST note above), both reflection items complete (above). Closing.
 
 **Next print planned: white ASA, Session 2** (`hiking-monitor-enclosure-instructions.md` Part 6, Steps 37+) — the final-material print per the doc's existing PLA-test-then-ASA-final pattern. Joseph's expectation going in: should be close given Session 1's fit corrections, with another print iteration available if needed. Section 0's dimension updates (above) should ideally be captured before Session 2 slices the files, so the ASA print reflects the corrected design rather than repeating any not-yet-documented fixes from memory.
+
+**Progress, 2026-08-17 12:20 MST (Joseph):** LTR-390 STEMMA QT rewiring physically complete. Final ASA print (Session 2) done. **`hiking-monitor-enclosure-plan.md` Section 0 dimension capture — explicitly declined, Joseph's call:** the reproduction-record update flagged above (2026-07-17) will not be done; not an oversight, a deliberate skip. Currently doing final assembly of the perfboard/components into the printed enclosure. Next: retest that everything still works post-reassembly (I2C/sensor re-verification per this card's own "Don't close until" line).
+
+**LTR-390 rewiring retest, 2026-08-17 12:14 MST — passed.** Live MQTT `data` topic reading captured post-reassembly: `uv_index: 0.00` (a real, non-null value — the firmware only ever publishes `null` for UV when the LTR-390 read comes back NaN/undetected, so a genuine `0.00` confirms I2C communication over the new STEMMA QT cable is working; zero itself is expected indoors, away from direct sky). BME280 (temp/humidity/pressure, unchanged wiring) and battery voltage (3.75V) also reporting sane non-NaN values.
+
+**New follow-on, raised 2026-08-17 16:51 MST (Joseph): display needs to be rotated 180°** given the final mounting orientation from assembly. `hiking-monitor.yaml`'s `display:` rotation changed `90` → `270` (repo + `C:\esphome\hiking-monitor\` synced), compiled successfully. **Blocked on physical USB access** — the enclosure is already buttoned up post-final-assembly, and the device isn't reachable via OTA (see below), so flashing requires opening it back up. Joseph's call, 2026-08-17: hold off for now rather than reopen the enclosure immediately — flash whenever it's next open. Firmware change is committed to the working tree, ready to go the next time USB access is available.
+
+**OTA blocked — CARD-0076 fallout, discovered 2026-08-17 while attempting to flash the rotation fix.** `secrets.yaml`'s `ota_password` was rotated 2026-07-21 (CARD-0076) but never actually pushed to the real device — both devices were physically unreachable at the time and the card sat blocked since 2026-08-03. The device is still running its old, unrecorded OTA password, so `esphome upload --device 192.168.1.161` fails with `Authentication invalid`. Confirms CARD-0076's own "reflash is the only remaining step once a device is accessible" — now that it will be, that reflash should carry the already-staged `ota_password`/`mqtt_password`/`hotspot_password` rotation too (coordinated with the Mosquitto broker account and the Pixel hotspot setting per `credentials.local.md`'s existing lockstep steps), not just the display fix, per the standing rule that a recorded password must never be updated before the device itself changes to match.
+
+**USB serial flash completed 2026-08-17 17:31 MST.** Joseph disassembled the enclosure for USB access, connected via COM7 (Silicon Labs CP210x). First `esphome run` attempt hung ~24 min waiting for the ESP32's auto-reset to enter the bootloader (no CPU activity — classic hand-soldered-perfboard issue, no auto-program circuit); killed and retried with a manual BOOT/IO0 + EN/RESET bootloader-entry sequence, which caught successfully. Firmware uploaded, hash verified, rotation-270° display fix and the CARD-0076 password rotation (see that card) both now live on the device.
+
+**Two things flagged in the post-flash boot log, worth checking:**
+1. `Error resolving broker IP address: -6` on the very first boot attempt — likely just WiFi not associated yet that quickly after boot, not necessarily a real fault; device reconnected fine once the Mosquitto broker password was updated to match (confirmed live on the dashboard).
+2. `[E][waveshare_epaper] Timeout while displaying image!` — the e-ink display timed out trying to refresh right after boot, before the device dropped to sleep. **Resolved by visual confirmation, 2026-08-17 17:54 MST (Joseph):** display looks right, rotated correctly. Treating the boot-time timeout as a one-off transient (device still settling immediately post-flash/reset), not a real wiring fault — the display is demonstrably working now.
+
+**Full post-flash verification complete, 2026-08-17 17:54 MST:**
+- Fresh live `data` topic reading captured (not retained — real-time, `ts: 2026-08-18T00:53:32Z`): `temp: 108.7°F, humidity: 16.0%, pressure: 927.5 hPa, UV index: 0.00, battery: 3.92V, RSSI: -47dBm` — BME280 and LTR-390 both reporting sane values post-reflash.
+- A new live status message (`"Field session ended at 2026-08-18T00:51:32Z"`) confirmed real-time device activity, not stale state.
+- MQTT stable since the CARD-0076 password fix — no repeat disconnects (the dashboard's "silent for 35 minutes" watchdog alert is a leftover from before the fix, hasn't recurred).
+- Display confirmed visually correct (rotated properly, no display fault) — Joseph, 2026-08-17 17:54 MST.
+
+Display-rotation follow-on: **done.**
 
 ---
 

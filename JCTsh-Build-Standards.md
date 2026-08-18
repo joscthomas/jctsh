@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.18
-**Version description:** Added §1.5 3D-Printed Enclosure Build Pattern and §1.6 Sensor Cable Relocation for Mounting-Orientation Flexibility — harvested from the completed hiking-monitor enclosure build (CARD-0009), the first JCTsh component to go through the custom-printed-enclosure process end-to-end. §1.5 also introduces `JCTsh-3D-Enclosure-Instructions-Template.md` (repo root), a reusable instruction-set skeleton for future printed-enclosure builds.
+**Version:** 1.19
+**Version description:** Added §1.7 Accessible Power Control for Enclosed Devices — any component going into a project box or 3D-printed enclosure must have a true hard power-off and a reboot/reset trigger both reachable without disassembly, decided before the enclosure is sealed. Harvested from hiking-monitor's final assembly (CARD-0009) surfacing both gaps only after the enclosure was already sealed (CARD-0181, CARD-0180) — including the specific gotcha that an externally accessible switch can look like a power switch without actually sitting in the power path.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -28,6 +28,8 @@ Escalate to a more enclosed option only when:
 - Dust accumulation becomes a documented problem → add an acrylic lid panel (cut to perfboard footprint, held by the same standoffs)
 
 Never purchase or specify an enclosure without first confirming the open standoff mount is unsuitable for the specific installation context.
+
+**Any component moving to an enclosed option (project box or 3D-printed enclosure) must satisfy §1.7 (Accessible Power Control for Enclosed Devices) as part of the design, before the enclosure is finalized/sealed in assembly** — not discovered afterward. See §1.7 for what "satisfy" requires and why it has to be decided this early.
 
 ### 1.2 Breadboard vs. Perfboard
 
@@ -70,6 +72,19 @@ When a sensor is rigid-socket-mounted (soldered pin headers) directly to the mai
 - **Verify pinout empirically, don't assume color-to-color continuity from breadboard jumpers.** Cable color conventions can differ between a breadboard prototype and a purpose-made cable — STEMMA QT cables are SDA/SCL-swapped from typical breadboard jumper coloring. Confirm against the sensor's datasheet, not by matching wire colors to the old breadboard wiring.
 - **Document the change with a dated addendum, not an overwrite.** Update the wiring and perfboard-layout docs to reflect the new cable/pinout, but keep the original build history intact rather than rewriting over it — the original prototype wiring remains useful reference even after the change.
 - Only the sensor-side segment changes; traces from the main board to the microcontroller stay as they were.
+
+### 1.7 Accessible Power Control for Enclosed Devices
+
+**Any component going into a project box or 3D-printed enclosure must have both of the following reachable from outside the sealed enclosure, without disassembly:**
+
+1. **A true hard power-off** — a mechanism that actually breaks the power path from the battery/power source to the rest of the circuit, reducing draw to zero (or as close as the hardware allows).
+2. **A reboot/reset trigger** — a way to force the device to restart without opening the enclosure, either physically (an exposed reset button) or remotely (a software-triggered restart reachable over the network/MQTT/HA).
+
+**This must be decided and designed in before the enclosure is finalized and sealed in final assembly — not discovered afterward.** Once a device is sealed into its permanent enclosure, adding either of these requires full disassembly, which defeats the purpose. Include this explicitly in the enclosure planning doc's design checklist, alongside apertures and mounting features.
+
+**The concrete failure this standard exists to prevent:** hiking-monitor's final assembly (CARD-0009) surfaced both gaps only after the enclosure was already sealed — CARD-0181 (no accessible true off-state; the only hard-off is unplugging the LiPo's internal JST connector, unreachable once assembled) and CARD-0180 (no reboot mechanism, physical or remote). A contributing root cause worth calling out on its own: the device's slide switch *looks* like a power switch (an externally accessible toggle on the case) but isn't one — it only sets a GPIO-read mode flag; the actual power path (`VOUT+` → ESP32 `VIN`) runs through it untouched, so flipping it doesn't cut power at all, only changes firmware behavior. **Don't assume an externally accessible switch satisfies this standard just because it looks like a power switch — verify it actually sits in the power path, not just a GPIO input,** before relying on it to meet requirement 1 above.
+
+Acceptable approaches for requirement 1 include (not exhaustive): an inline switch wired directly into the battery path (not a mode-select switch tapped off a GPIO) with its actuator reachable through the enclosure wall; or a battery connector (e.g. JST) pigtailed out to an externally accessible cutout so it can be unplugged without opening the case. For requirement 2: a firmware-level restart routine triggered over MQTT/HA (see `JCTsh-Build-Standards.md` §3 for the MQTT conventions this would use) is generally preferable to a physical reset button on a battery-powered field device, since it doesn't need an extra enclosure penetration — but either satisfies the standard.
 
 ---
 
@@ -923,6 +938,7 @@ On the Windows dev machine, the private key (`~/.ssh/id_ed25519`) must be restri
 
 | Version | Change |
 |---|---|
+| 1.19 | Added §1.7 Accessible Power Control for Enclosed Devices — a true hard power-off and a reboot/reset trigger, both reachable without disassembly, required for any enclosed component and decided before the enclosure is sealed. Harvested from hiking-monitor's final assembly (CARD-0009) surfacing both gaps only after sealing (CARD-0181, CARD-0180), including the gotcha that a switch can look like a power switch without sitting in the power path. |
 | 1.18 | Added §1.5 3D-Printed Enclosure Build Pattern (two-tool OpenSCAD+Tinkercad workflow, `-raw`/`-final` naming, open-face-down print orientation, PLA-test-then-final-material pattern, hex-nut capture fastening, ASA/PETG material choice, press-fit/slot/bail sizing tolerances, design-record discipline for live Tinkercad edits) and §1.6 Sensor Cable Relocation for Mounting-Orientation Flexibility (STEMMA QT/Dupont relocation for rigid-socket-mounted sensors, pinout-verification-not-color-matching gotcha) — harvested from the completed hiking-monitor enclosure build (CARD-0009). |
 | 1.17 | Added §9.7 Container-Image Update Visibility via GitHub Releases — harvested from CARD-0126 (NetAlertX, Caddy, cloudflared, Home Assistant). Generic pattern: check the OCI `source` label's repo for GitHub releases (verified, not assumed — Caddy's own label points at the wrong repo), determine current version from the `version` label or a binary `--version` exec, normalize tag formats before comparing, notify-only via the same throttled `System`-category convention as every other maintenance check. |
 | 1.16 | §1.2 now points to `JCTsh-Perfboard-Build-Template.md` (new, repo root) — a reusable section skeleton for a component's `perfboard-layout.md`, generalized from hiking-monitor's and salt-sensor's builds now that there are two real examples to draw from. |

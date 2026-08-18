@@ -9,7 +9,20 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0182 -->
+<!-- next-card-id: CARD-0183 -->
+
+---
+
+### CARD-0182 · [idea] [hike-izer] BirdNET Live recording practices while hiking
+**Status:** Backlog
+
+**Raised 2026-08-18 (Joseph, via voice note, PR #26).** BirdNET Live's phone-side bird-call recognition is degraded by trail noise (wind, footsteps, breathing) and phone mic/recording setup while hiking. JCTsh's pipeline only consumes BirdNET Live's already-identified detections after the fact (`components/hike-izer-orchestrator/birdnet-pipeline.md`) — it does no audio processing itself, so this is a practices/documentation item, not a pipeline code change.
+
+**Scope, confirmed 2026-08-18:** research and document phone/app-side practices to reduce noise and improve recording quality (mic placement/carrying position, BirdNET Live app settings) as a new section in `components/hike-izer-orchestrator/birdnet-pipeline.md`.
+
+**Done when:** best-practice recommendations are researched and documented there, and Joseph has a concrete checklist to try on the next hike.
+
+**Related:** CARD-0157 (BirdNET Live pipeline documentation, the doc this extends).
 
 ---
 

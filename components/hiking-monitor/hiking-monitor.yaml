@@ -413,7 +413,8 @@ binary_sensor:
 # ── E-ink Display ─────────────────────────────────────────────────────────────
 # Waveshare 2.13" HAT V4, 250×122, SSD1680
 # Model string: 2.13in-ttgo-b74 (confirm at Step 5 — try alternatives if wrong)
-# Rotation: 90° so 250px is horizontal (landscape)
+# Rotation: 270° so 250px is horizontal (landscape), flipped 180° from the
+# original 90° per CARD-0009's final-assembly mounting orientation (2026-08-17)
 # update_interval: never — triggered every 2-min cycle; full refresh each time
 display:
   - platform: waveshare_epaper
@@ -423,7 +424,7 @@ display:
     busy_pin: GPIO4
     reset_pin: GPIO16
     model: 2.13in-ttgo-b74
-    rotation: 90
+    rotation: 270
     update_interval: never
     full_update_every: 1
     lambda: |-

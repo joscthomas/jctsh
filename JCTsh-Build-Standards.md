@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.17
-**Version description:** Added §9.7 Container-Image Update Visibility via GitHub Releases — harvested from CARD-0126 (NetAlertX, Caddy, cloudflared, Home Assistant). Generic pattern: check the OCI `source` label's repo for GitHub releases (verified, not assumed — Caddy's own label points at the wrong repo), determine current version from the `version` label or a binary `--version` exec, normalize tag formats before comparing, notify-only via the same throttled `System`-category convention as every other maintenance check.
+**Version:** 1.18
+**Version description:** Added §1.5 3D-Printed Enclosure Build Pattern and §1.6 Sensor Cable Relocation for Mounting-Orientation Flexibility — harvested from the completed hiking-monitor enclosure build (CARD-0009), the first JCTsh component to go through the custom-printed-enclosure process end-to-end. §1.5 also introduces `JCTsh-3D-Enclosure-Instructions-Template.md` (repo root), a reusable instruction-set skeleton for future printed-enclosure builds.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -46,6 +46,30 @@ M3 brass male-female standoffs are the standard mounting hardware. Check JCTsh-P
 ### 1.4 Parts Inventory
 
 Consult JCTsh-Parts-Inventory.md before adding any item to the BOM. Use on-hand parts before purchasing. Update the inventory update log at the end of every project.
+
+### 1.5 3D-Printed Enclosure Build Pattern
+
+A further escalation beyond §1.1's project-box option, for components needing integrated apertures, mounting features, or a cavity shape no off-the-shelf box provides. Use `JCTsh-3D-Enclosure-Instructions-Template.md` (repo root) as the instruction-set skeleton for any new printed-enclosure build — generalized from the hiking-monitor enclosure build (CARD-0009), the first component to go through this process end-to-end.
+
+- **Two-tool workflow:** OpenSCAD generates the parametric two-piece shell (a downloaded parametric template, not built from scratch); Tinkercad adds all cutouts, apertures, and mounting features on top of the OpenSCAD export.
+- **File naming:** `-raw` = initial OpenSCAD export, before any Tinkercad edits; `-final` = after Tinkercad finalizes cutouts/features. Applies to every shell/insert STL in a component's `enclosure/` folder.
+- **Print orientation:** shells print open-face down on the bed — clean result, no supports needed.
+- **Test print before final print, always:** validate fit and dimensions in a cheap material (PLA) first; never print the final material on the first attempt. Iterate print → real-hardware test-fit → Tinkercad correction until every fit check passes, before scheduling the final-material print session.
+- **Fastening:** hex-nut capture in printed corner bosses (pressed in with needle-nose pliers) is the preferred first-choice method — no extra tooling beyond what's already on hand, unlike heat-set threaded inserts.
+- **Final material:** ASA by default for any outdoor/sun-exposed install; PETG as the fallback if ASA isn't available. If falling back, confirm the actual printer/bed can reach the fallback material's required temps — don't assume a backup printer can substitute without checking (see hiking-monitor's Elegoo Centauri Carbon vs. PLA-only-backup situation).
+- **Press-fit insert tolerance:** size the insert 0.2mm tighter than its cutout, on both width and height, for a snug press fit without forcing.
+- **Slot sizing patterns:** strap slot = strap width + 1mm wide (established at 4mm tall); connector slot (e.g. USB-C) = socket width/height + 0.5mm each dimension.
+- **Bail/loop sizing:** a carabiner or similar loop feature's inner diameter = the mating hardware's spine/body thickness + 3mm minimum clearance.
+- **Design-record discipline:** live Tinkercad edits made during a physical test-fit session are easy to make and easy to forget to record. If the plan doc reserves a section for reproducing the design (exact dimensions, hole positions), update it in the same session the edit happens — not as a deferred cleanup step. A plan doc that drifts out of sync with the live Tinkercad project can only be caught by re-opening Tinkercad or re-measuring by hand; treat that drift as a real, observed risk on this build type, not a hypothetical one.
+- **Run the pattern-harvest step for real.** It's easy to consider a build "done" once the hardware works and skip reviewing it for new reusable patterns — the harvest is what makes the next enclosure build faster than the last. Confirm explicitly, every time, whether anything new applies to this section.
+
+### 1.6 Sensor Cable Relocation for Mounting-Orientation Flexibility
+
+When a sensor is rigid-socket-mounted (soldered pin headers) directly to the main perfboard, but final assembly needs it to face a different direction than the board's own orientation dictates (e.g. a sky-facing UV/light sensor on a board that mounts flat), replace the rigid header connection with a flexible cable between the sensor and the board — STEMMA QT/Qwiic for I2C sensors that support it, or extended Dupont leads otherwise — so the sensor can be positioned and oriented independently of the main board inside the enclosure.
+
+- **Verify pinout empirically, don't assume color-to-color continuity from breadboard jumpers.** Cable color conventions can differ between a breadboard prototype and a purpose-made cable — STEMMA QT cables are SDA/SCL-swapped from typical breadboard jumper coloring. Confirm against the sensor's datasheet, not by matching wire colors to the old breadboard wiring.
+- **Document the change with a dated addendum, not an overwrite.** Update the wiring and perfboard-layout docs to reflect the new cable/pinout, but keep the original build history intact rather than rewriting over it — the original prototype wiring remains useful reference even after the change.
+- Only the sensor-side segment changes; traces from the main board to the microcontroller stay as they were.
 
 ---
 
@@ -899,6 +923,8 @@ On the Windows dev machine, the private key (`~/.ssh/id_ed25519`) must be restri
 
 | Version | Change |
 |---|---|
+| 1.18 | Added §1.5 3D-Printed Enclosure Build Pattern (two-tool OpenSCAD+Tinkercad workflow, `-raw`/`-final` naming, open-face-down print orientation, PLA-test-then-final-material pattern, hex-nut capture fastening, ASA/PETG material choice, press-fit/slot/bail sizing tolerances, design-record discipline for live Tinkercad edits) and §1.6 Sensor Cable Relocation for Mounting-Orientation Flexibility (STEMMA QT/Dupont relocation for rigid-socket-mounted sensors, pinout-verification-not-color-matching gotcha) — harvested from the completed hiking-monitor enclosure build (CARD-0009). |
+| 1.17 | Added §9.7 Container-Image Update Visibility via GitHub Releases — harvested from CARD-0126 (NetAlertX, Caddy, cloudflared, Home Assistant). Generic pattern: check the OCI `source` label's repo for GitHub releases (verified, not assumed — Caddy's own label points at the wrong repo), determine current version from the `version` label or a binary `--version` exec, normalize tag formats before comparing, notify-only via the same throttled `System`-category convention as every other maintenance check. |
 | 1.16 | §1.2 now points to `JCTsh-Perfboard-Build-Template.md` (new, repo root) — a reusable section skeleton for a component's `perfboard-layout.md`, generalized from hiking-monitor's and salt-sensor's builds now that there are two real examples to draw from. |
 | 1.15 | Added §1.2 pin-verification guidance — harvested from salt-sensor's CARD-0049 perfboard build: identify pins by printed silkscreen label rather than a documented reference table's position numbers (different board brands/clones can have different physical pin order despite the same GPIO count), and add isolation checks between visually-adjacent pin labels to Pre-Power Checks, not just intentional-net continuity checks. |
 | 1.14 | Added §10 Security Standards — harvested from the completed JCTsh security hardening audit (CARD-0022/CARD-0023, `jctsh-security-hardening.md`). Covers SSH key-only auth, MQTT broker auth, `secrets.yaml` gitignore requirement, Node-RED `adminAuth`, Tailscale-as-sole-remote-access-path with the accepted MQTT-port-forward exception, MFA requirement across every cloud account (including per-user HA TOTP), router UPnP/remote-management policy, router admin password/firmware currency, and Windows SSH private key permissions. |

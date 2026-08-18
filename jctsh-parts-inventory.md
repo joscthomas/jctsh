@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.21
-**Version description:** Bag 34 BS250 P-channel MOSFETs flagged suspected defective/counterfeit (CARD-0070) — do not use until individually verified.
+**Version:** 2.22
+**Version description:** Genuine BS250 replacement stock (Jameco, ×10) received, Bag 35 — separate from the suspect Bag 34 batch, not yet diode-test verified or used.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -156,7 +156,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | BC547B NPN Transistor | Diotec, NPN 45V 0.1A TO-92. DigiKey 4878-BC547BCT-ND | 50 | Music Response bin | General-purpose small-signal NPN. |
 | 1N4148 Signal Diode | onsemi, 100V 200mA DO-35. DigiKey 1N4148FS-ND | 50 | Music Response bin | Fast switching signal diode. |
 | MCP1700 LDO Voltage Regulator | Microchip MCP1700, LDO linear voltage regulator, fixed 3.3V output, through-hole TO-92. https://www.amazon.com/dp/B0B2S2CT78 | 10 | Bag 32 | No project assigned. |
-| BS250 P-Channel MOSFET | TO-92, P-channel, 45V 0.23A 0.7W. https://www.amazon.com/dp/B0FPQKX4H1 | 10 | Bag 34 | **Suspected defective/counterfeit batch (2026-07-20, CARD-0070)** — 2 units tested during the LDO/gate prototype both showed abnormal Source-Drain conduction (~15-19kΩ effective) at Vgs=0, where a healthy enhancement-mode P-channel MOSFET should be solidly in cutoff. Wiring, orientation, and Vgs were all directly verified correct, isolating the fault to the parts themselves. Do not use remaining units from this bag for CARD-0070 or any project until/unless individually verified via diode-test (Gate = OL to both legs in both directions; Source-Drain pair shows one clean ~0.5-0.7V diode reading, OL the reverse). Genuine replacements ordered from Jameco (Diodes Incorporated, authorized distributor). |
+| BS250 P-Channel MOSFET | TO-92, P-channel, 45V 0.23A 0.7W. https://www.amazon.com/dp/B0FPQKX4H1 | 10 | Bag 34 | **Suspected defective/counterfeit batch (2026-07-20, CARD-0070)** — 2 units tested during the LDO/gate prototype both showed abnormal Source-Drain conduction (~15-19kΩ effective) at Vgs=0, where a healthy enhancement-mode P-channel MOSFET should be solidly in cutoff. Wiring, orientation, and Vgs were all directly verified correct, isolating the fault to the parts themselves. Do not use remaining units from this bag for CARD-0070 or any project until/unless individually verified via diode-test (Gate = OL to both legs in both directions; Source-Drain pair shows one clean ~0.5-0.7V diode reading, OL the reverse). Genuine replacements ordered from Jameco (Diodes Incorporated, authorized distributor) — received, see Bag 35 below. |
+| BS250 P-Channel MOSFET | TO-92, P-channel, 45V 0.23A 0.7W. Jameco, Diodes Incorporated (authorized distributor) | 12 | Bag 35 | **Genuine replacement stock (received 2026-08-17)** for the suspect Bag 34 batch, CARD-0070. Not yet diode-test verified or used — CARD-0070 itself is Deferred (2026-08-14), so no immediate project consumption planned; kept on hand for a future battery-powered sensor build. |
 
 ---
 
@@ -270,3 +271,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-07-20 | Stock | BS250 P-channel MOSFET ×10 received (ASIN B0FPQKX4H1), added to Discrete Semiconductors, new Bag 34 |
 | 2026-07-20 | CARD-0070 | Bag 34 BS250 stock flagged suspected defective/counterfeit — 2 units tested, both showed abnormal Source-Drain conduction at Vgs=0 during the LDO/gate prototype. Wiring/orientation/Vgs verified correct, isolating fault to the parts. Do not use remainder without individual diode-test verification. Genuine replacements ordered from Jameco (Diodes Incorporated). |
 | 2026-07-20 | Stock | Heat set insert tool tips (M2–M6, ASIN B0DB1SSKVN) received, added to Tools — Bench Equipment, new "Soldering Tools" location (added to Location Key) |
+| 2026-08-17 | Stock | BS250 P-channel MOSFET ×10 received (Jameco, Diodes Incorporated) — genuine replacement for the suspect Bag 34 batch (CARD-0070), added to Discrete Semiconductors, new Bag 35 |

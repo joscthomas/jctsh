@@ -5,8 +5,8 @@ pressure, and UV index, displays live readings on an e-ink screen, logs to onboa
 storage, and syncs the full hike dataset to Google Sheets automatically on return home.
 
 **Status:** Complete and field-tested — perfboard, deep sleep, Pixel hotspot sync (Step 21),
-GPS correlation (Steps 19-20), and hiking observations pipeline (Steps 23-26) all done.
-Step 15 (permanent enclosure) remains; a temporary standoff enclosure is in use.
+GPS correlation (Steps 19-20), hiking observations pipeline (Steps 23-26), and the permanent
+3D-printed enclosure (CARD-0009) all done as of 2026-08-17.
 As of 2026-07-03: original LiPo failed in the field and was replaced from spare stock;
 a firmware low-battery cutoff was added as a result (see Power System below).
 **Hardware:** ESP32 + BME280 + LTR-390 + Waveshare 2.13" e-ink display + LiPo
@@ -161,6 +161,29 @@ JCTsh battery-powered components.
 
 ---
 
+## Enclosure
+
+Two-shell ASA printed enclosure (bottom + top shell), 70mm × 50mm footprint, joined by
+M3 screws into captured hex nuts. Built and finalized 2026-08-17 (CARD-0009).
+
+- Files: `enclosure/bottom-shell-final.stl`, `enclosure/top-shell-final.stl`,
+  `enclosure/vent-insert-final.stl`
+- Planning document: `hiking-monitor-enclosure-plan.md`
+- Build instructions: `hiking-monitor-enclosure-instructions.md`
+- Display rotation: `270°` (landscape, corrected from the original `90°` to match the
+  final chest-mounted orientation)
+- BME280 temperature offset: none required
+- LTR-390 UV sensor relocated to a STEMMA QT cable (from soldered headers) so it can be
+  oriented sky-facing independent of the main board's mounting orientation inside the
+  enclosure — see `JCTsh-Build-Standards.md` §1.6
+
+The enclosure workflow (OpenSCAD + Tinkercad, PLA-test-then-ASA-final, hex-nut capture,
+press-fit vent insert) is generalized into `JCTsh-3D-Enclosure-Instructions-Template.md`
+(repo root) for reuse on future printed-enclosure builds; the reusable patterns
+themselves are captured in `JCTsh-Build-Standards.md` §1.5.
+
+---
+
 ## Files
 
 | File | Purpose |
@@ -174,6 +197,8 @@ JCTsh battery-powered components.
 | `perfboard-layout.md` | Permanent soldered build layout |
 | `power-system.md` | Power system design and measurements |
 | `enclosure-prototype.md` | Field prototype enclosure (two-board sandwich) |
+| `hiking-monitor-enclosure-plan.md` | Permanent 3D-printed enclosure design decisions and diagram |
+| `hiking-monitor-enclosure-instructions.md` | Permanent enclosure build instruction set (complete) |
 | `wifi-config.md` | Pixel hotspot setup and sync workflow (Step 21) |
 | `gps-pipeline.md` | GPSLogger → Node-RED GPS correlation pipeline (Steps 19–20) |
 | `data-pipeline.md` | Full data pipeline from device to Google Sheets |

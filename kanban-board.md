@@ -9,7 +9,22 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0185 -->
+<!-- next-card-id: CARD-0186 -->
+
+---
+
+### CARD-0185 · [enhancement] [homeassistant] Upgrade CARD-0145's trigger to ring-mqtt's binary_sensor.*_motion (near-instant, vs. ~30-90s poll delay)
+**Status:** Backlog
+
+**Raised 2026-08-18 18:23 MST (Joseph), while building CARD-0146.** CARD-0145's Ring motion announcement currently triggers on `sensor.*_last_activity` (CARD-0184's fix for the durably-broken native `ring` integration `event.*` platform) — reliable, but polled at ~60s intervals, so real delay can run 30-90+ seconds between an actual motion event and the announcement.
+
+`ring-mqtt` (installed this session for CARD-0146) publishes its own independent `binary_sensor.<camera>_motion` entities, separate codebase/connection from the broken native integration. Live-tested today on the doorbell (`binary_sensor.doorbell_ding`/`binary_sensor.doorbell_motion`): near-instant, on within a few seconds of a real event — confirmed reliable across all of today's CARD-0146 testing. Confirmed the same entities exist for CARD-0145's other 4 cameras too: `binary_sensor.path_motion`, `binary_sensor.gate_motion`, `binary_sensor.front_porch_motion`, `binary_sensor.front_door_motion` (all present, all `off` at check time).
+
+**Not yet decided/scoped:** swapping CARD-0145's trigger from `sensor.*_last_activity` to `binary_sensor.*_motion` for all 5 cameras (gate, path, front_door, front_porch, doorbell) — mechanically similar to CARD-0184's own swap, but the reverse direction. The `category == 'motion'` filter condition CARD-0184 added would no longer be needed (`binary_sensor.*_motion` entities are motion-only by construction, same reasoning as the original native-integration `event.*_motion` entities). Needs a live test pass on all 5 cameras (not just doorbell, which is all that's been proven so far) before trusting it as a full swap, plus the debounce/cooldown logic reconsidered for a fast-push source (the current 3s trailing delay and 30s entry-cluster window were tuned against a poll-based source's own timing characteristics).
+
+**Done when:** CARD-0145's automation trigger is swapped to `binary_sensor.*_motion`, live-tested against real events on multiple cameras (not just doorbell), and confirmed both correctly-triggered and correctly-debounced — or a decision to keep the current poll-based trigger is recorded instead, with reasoning.
+
+**Related:** CARD-0145 (the automation this would upgrade), CARD-0184 (introduced the current `sensor.*_last_activity` fallback this would replace), CARD-0146 (the build that surfaced ring-mqtt's own motion entities as a viable alternative).
 
 ---
 
@@ -1176,8 +1191,8 @@ Both fixes deployed and verified against a fresh regeneration of both real pages
 
 ---
 
-### CARD-0145 · [idea] [ring] Audible Ring motion notification on Google Home
-**Status:** Build
+### CARD-0145 · [idea] [ring] Audible Ring motion notification on Google Home — RESOLVED 2026-08-18 17:14 MST
+**Status:** Done
 
 **Raised 2026-08-07 14:18 MST.** Play a spoken announcement on Google Home whenever motion is detected on any of the 7 Ring cameras (garage, side yard, side gate, back porch, front porch, front door, gathering room) — not just the doorbell. Announcement plays on all Google Home speakers/displays in the house (garage, gathering room, back porch speakers, master bath Nest Display, gathering room Pixel Tablet), not just a subset.
 
@@ -1249,12 +1264,14 @@ Both fixes deployed and verified against a fresh regeneration of both real pages
 
 **Done when:** the Patio/Path real-event gap above is investigated (Ring app settings) and `patio_speaker` and/or the two other offline Master Bedroom entities (`master_bedroom_speaker_2`, `master_bedroom_tv`) come back online and get reconsidered for the target list. Everything else — trigger, queuing/spacing, message content, TTS delivery — is now confirmed working end-to-end against a real event and multiple simulated ones.
 
+**Closed out, 2026-08-18 17:14 MST, via CARD-0184.** The Patio/Path gap was never a Ring-app-settings issue — it was the same `event.*_motion` freeze CARD-0184 diagnosed and fixed (switched trigger to `sensor.*_last_activity`). `sensor.path_last_activity` confirms Path's own motion detection was always working (`category: motion` recorded 2026-08-15, before the freeze); Patio itself was already dropped from the trigger list that same day, so moot either way. Speaker recheck: `patio_speaker` and `master_bedroom_speaker_2` still `unavailable`; `master_bedroom_tv` is now `idle`/available (new) but **Joseph's call, 2026-08-18: leave the target list as-is** (`garage_speaker`, `groom_speaker`, `master_bedroom_speaker`) rather than add it.
+
 **Related:** CARD-0146 (companion card — Ring doorbell live video on the Gathering room TV, same Ring/HA/Google Home integration surface; its "zero camera entities" finding needs a re-check now that the native `ring` integration is confirmed live), `ENVIRONMENT.md` (stale — camera list needs updating to the real 10-device inventory found here).
 
 ---
 
 ### CARD-0146 · [idea] [ring] Show Ring doorbell live video on Gathering room TV
-**Status:** Planning
+**Status:** Build
 
 **Raised 2026-08-07 14:18 MST.** When the Ring doorbell detects activity, automatically show its live video feed on the Gathering room TV (the Chromecast/Google TV, per `ENVIRONMENT.md`), interrupting whatever is currently playing. Feed stays up for as long as there's motion/activity at the door, then automatically returns to whatever was playing before.
 
@@ -1298,6 +1315,47 @@ Both fixes deployed and verified against a fresh regeneration of both real pages
 **Fourth path checked and also ruled out, 2026-08-14:** Joseph noted SmartThings' own app shows live video for Ring cameras — checked whether HA's SmartThings bridge could expose that as a `camera.*` entity instead of the direct Ring integration. Confirmed live: queried `integration_entities("smartthings")` against this HA instance directly — zero camera/video-domain entities anywhere in it, only the same motion/battery/lock/switch set `ENVIRONMENT.md` already documented. Confirmed why, not just that: HA's SmartThings integration's new camera support (2026.2+) is tied to SmartThings' Matter 1.5 camera rollout, currently limited to a small set of new Matter-partner cameras (Aqara, Eve, Xthings) — Ring isn't Matter and isn't among them. SmartThings' own live view is a SmartThings-app-native capability, not something its HA bridge exposes.
 
 **Decision needed before continuing — not made here:** pursue `ring-mqtt` as new infrastructure, or park this card (Backlog/Defer) given the added scope/uncertainty this discovery introduced.
+
+**Interim clarification, 2026-08-18 (surfaced while closing CARD-0145):** Joseph observed a Ring video playing on the Gathering room TV and asked whether that meant live video was already working. Confirmed it was the already-documented `media_player.play_media`/`camera_proxy_stream` fallback from Step 3 above (cached/recorded content, not live) — no new mechanism, matches the existing "Net finding" that HA's official `ring` integration cannot deliver genuine live view to a Chromecast target via any standard mechanism (WebRTC-only, no `stream_source()`). A second possible path was floated (display HA's own dashboard, where the camera card does render real WebRTC, directly on the TV via some app/kiosk-browser on the Google TV hardware, rather than routing Ring's raw stream through native Chromecast casting) but not pursued.
+
+**Decided, 2026-08-18 17:20 MST (Joseph): pursue `ring-mqtt`.** Moving to Build.
+
+**Progress, 2026-08-18 17:23 MST — infrastructure staged, blocked on Joseph's interactive Ring login for the next step:**
+- Dedicated Mosquitto account `ring-mqtt` created on the Pi broker, verified live (`mosquitto_pub` auth test succeeded). Recorded in `credentials.local.md`.
+- `~/ring-mqtt/{config,docker-compose.yml}` created on the M8. Compose file: `tsightler/ring-mqtt:latest`, `./config:/data` bind mount, RTSP gateway port `8554:8554` published, `restart: unless-stopped` — matches the M8's existing Docker-app conventions (netalertx/hike-izer-web-app patterns).
+- Confirmed via the project's own wiki (not assumed): RTSP stream URL format is `rtsp://<host>/<camera_id>_live` on port 8554; `config.json`'s `mqtt_url` field takes a full connection URL (`mqtt://user:pass@host:port`); `livestream_user`/`livestream_pass` are optional but recommended since this will be LAN-reachable — a password for that was generated, not yet applied (blocked on init, see below).
+
+**Blocked on Joseph — the Ring account init step is interactive by design and needs his own login/2FA, not something to run on his behalf:**
+```
+cd ~/ring-mqtt
+docker run -it --rm --mount type=bind,source="$(pwd)/config",target=/data \
+  --entrypoint /app/ring-mqtt/init-ring-mqtt.js tsightler/ring-mqtt
+```
+Run on the M8 (SSH in first: `ssh jct@100.111.16.14`). Prompts for the Ring account email/password already tied to the physical devices (same account CARD-0145's native `ring` integration already uses) and a 2FA code. Generates `ring-state.json` (refresh token) and a default `config.json` in `~/ring-mqtt/config/`. Once that's done, next step is editing `config.json` to add the `ring-mqtt` MQTT account + livestream credentials above, then `docker compose up -d`.
+
+**Not yet done:** the init step above, bringing the container up, confirming it actually creates a camera/RTSP stream for the doorbell, adding HA's Generic Camera integration pointed at the RTSP URL, the Step 3 smoke test (`camera.play_stream` against `media_player.groom_tv`, this time via Generic Camera's entity rather than the native `ring` integration's), and the automation build/live-test from the original plan above.
+
+**Hard blocker solved — real live video confirmed on the TV, 2026-08-18 17:35 MST.** Joseph completed the interactive Ring login (`init-ring-mqtt.js`, prompted for the same account CARD-0145's native integration already uses, plus 2FA) — `ring-state.json`/`config.json` generated in `~/ring-mqtt/config/` on the M8. `config.json`'s `mqtt_url` set to the new `ring-mqtt` account (`mqtt://ring-mqtt:...@192.168.1.117:1883`) during the init prompt itself; `livestream_user`/`livestream_pass` added afterward (container writes `/data` as root, needed `sudo` to edit — file ownership restored to `jct` after). `docker compose up -d` — clean startup confirmed in logs: Ring API connected via the saved refresh token, MQTT connected, one location (`Marana`) discovered, 10 devices published via HA MQTT discovery including a `Live Stream`/`Event Stream` switch and an independent `_motion`/`_ding` pair per camera (separate from the native `ring` integration's own entities — a second, independently-maintained data path into Ring's API). `go2rtc` RTSP gateway confirmed listening on `:8554`.
+
+Added HA's **Generic Camera** integration via its config-flow REST API (`POST /api/config/config_entries/flow`, handler `generic`) — no UI click-through needed. Pointed at `rtsp://192.168.1.165:8554/3ca30803f9b4_live` (`3ca30803f9b4` = the doorbell's ring-mqtt device ID, matches its MAC) with the `ring-mqtt` livestream credentials; validated cleanly (no `stream_source` error) and created `camera.192_168_1_165` (`state: loaded`). **Smoke test: `camera.play_stream` targeting `media_player.groom_tv` returned HTTP 200** (vs. the native integration's outright `does not support play stream service` failure) — HA transcoded the RTSP feed to HLS and cast it, `media_duration: -1` (live-stream indicator, not a fixed-length recording, confirming this isn't a repeat of the cached-recording dead end). **Joseph confirmed live at the TV: real live video, not a recording.** Stopped via `media_player.media_stop` once confirmed, per `ring-mqtt`'s own guidance against leaving streams open longer than needed.
+
+**Automation built and live, 2026-08-18 18:21 MST** — `core/homeassistant/automations.yaml`, `CARD-0146 - Doorbell Live Video on Gathering Room TV` (id `1786800000002`). Triggers on `binary_sensor.doorbell_ding`/`binary_sensor.doorbell_motion` (ring-mqtt's own, per the reliability finding above) going `to: 'on'`; captures `media_player.groom_tv`'s prior `media_content_id`/`media_content_type`/state; calls `camera.play_stream`; waits for both sensors off; best-effort resumes the captured content via `media_player.play_media`, falling back to `media_player.media_stop` if nothing usable was captured (Joseph's call, 2026-08-18 — resume isn't guaranteed for session-based streaming apps, accepted known gap).
+
+**Two real logic bugs found and fixed via live testing, 2026-08-18:**
+1. **Empty `media_content_id` treated as resumable.** YouTube TV's Cast session reports `media_content_id` as an empty string, not null — the original `is not none` check passed on it, which would have called `play_media` with a blank ID. Fixed to also require non-empty content after trimming.
+2. **Premature revert from independent-entity re-trigger.** Original design used `mode: restart` (matching the Traveling Mode TV automation's own lesson) and a `wait_for_trigger` on *either* sensor going off, reasoning a repeat ring wouldn't re-fire `to: "on"` since the entity would already be on. That missed that ding and motion are two independent entities with independent timers — motion firing after ding was already active caused `mode: restart` to cancel the run and re-capture "prior" state *while the live stream was already playing* (capturing the stream's own URL as "prior"), and the either-sensor-off wait let the run finish once whichever entity's window was shorter cleared, even while the other was still active. Fixed: `mode: single` (a redundant second trigger during an active interruption is correctly ignored, nothing is lost by ignoring it) and `wait_template` requiring both sensors off. Re-verified live after the fix — automation correctly waited for both to clear and correctly fell to the `media_stop` branch (YouTube TV, no resumable content).
+
+**Video reliability: intermittent, not fully solved — 3 live tests, 1 clean success.** Test 1 (2026-08-18 17:35 MST, manual `camera.play_stream`): worked end-to-end, Joseph confirmed real live video on the TV. Tests 2 and 3 (via the automation, then a manual pre-warm-the-stream-switch-first retry): both failed the same way — video never rendered, TV stuck showing the stream-receiver app without playing content. Debug logging (`homeassistant.components.stream`/`generic`/`camera`) enabled temporarily to diagnose, reset back to `warning` afterward.
+
+Root-caused as far as current access allows:
+- Test 2's failure: HA's stream worker (FFmpeg) logged `Error opening stream (Invalid data found when processing input, rtsp://...)` ~5s after `Started stream`, retried every 10s per its own built-in retry logic, gave up after ~65s (`Stopped stream`).
+- Test 3 (pre-warmed via `switch.doorbell_live_stream` before calling `play_stream`, to rule out a go2rtc cold-start race): the RTSP side ran clean this time, no "Invalid data" error — but still failed. HA gave up after 40s with no client ever successfully pulling the HLS output, then ~8s later logged `Failed to cast media ... from internal_url (http://192.168.1.117:8123)`.
+- Traced that log line to HA's `cast/media_player.py` source directly: it fires when the Chromecast's own Cast-protocol status reports `player_is_idle` + `idle_reason: "ERROR"` — a generic "the receiver couldn't play this" signal from the device itself, not a diagnosed reachability failure (HA's message text is boilerplate covering common causes, not an actual diagnosis).
+- Tested the HLS endpoint's reachability/correctness directly: fetching the live playlist URL from this machine returned HTTP 200 but garbled binary — turned out the response carries `Content-Encoding: gzip` even though the request didn't ask for it (no `Accept-Encoding` sent); decompressing manually gives a perfectly valid `#EXTM3U` playlist. The response is only 108 bytes, unusually small to trigger typical opportunistic compression middleware, suggesting this may be deliberate/unconditional behavior in HA's `stream` component's HLS serving rather than generic aiohttp compression. Real-world HLS serving guidance generally warns against gzip-compressing `.m3u8`/segment responses for exactly this class of compatibility reason with minimal embedded media clients (which is what a Chromecast's built-in "Default Media Receiver" is, not a full browser). **Leading hypothesis, not confirmed** — would need either a way to disable/test without this compression, or actual visibility into what the Chromecast's request/response looked like (packet capture), neither available in this session. A 2020 HA GitHub issue with the identical "Failed to cast media ... from internal_url" log line (home-assistant/core#41579) turned out to be a different cause (AVC codec profile too high for an old Home Hub speaker) — checked our own playlist's codec string (`avc1.640028,mp4a.40.2`, High Profile/Level 4.0) and it's a standard combination, not obviously the same issue, and Joseph's target is a full Google TV device, not a small speaker/display, so this doesn't look like a match.
+
+**Decided, 2026-08-18 18:21 MST (Joseph): leave the automation live as-is.** It genuinely works when the relay chain cooperates (test 1), and the automation's own logic is now correct and verified. Accepting intermittent video reliability as a known, documented gap rather than disabling the feature — revisit with deeper access (packet capture, or a way to test with compression disabled) in a future session if it's worth chasing further.
+
+**Remaining before this card can fully close:** the intermittent video-reliability gap above (gzip hypothesis unconfirmed) — otherwise the trigger source, automation logic, and resume/fallback behavior are all decided, built, and verified live.
 
 **Unrelated but significant finding surfaced during this research:** Samsung is ending free SmartThings API access in October 2026 — affects the entire SmartThings bridge (100+ entities), not just Ring. Spun out to its own card: CARD-0164.
 

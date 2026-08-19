@@ -355,32 +355,57 @@
   alias: CARD-0145 - Ring Motion Announcement
   description: >-
     Spoken TTS announcement on Google Home speakers when motion fires on
-    any of 9 Ring cameras/doorbell (garage camera excluded per Joseph's
-    request), via the native `ring` integration's `event.*_motion`
-    entities (push-based, low-latency when working).
+    any of 5 Ring cameras/doorbell (gate, path, front door, front porch,
+    doorbell), via `sensor.*_last_activity` (polled, ~60s cadence) with
+    a `category == 'motion'` filter.
 
-    2026-08-15 history: briefly switched to `sensor.*_last_activity`
-    after `event.*_motion` appeared to stop delivering live events
-    entirely (frozen since setup despite genuine Ring push
-    notifications/video reaching Joseph's phone). That switch introduced
-    two new problems: `sensor.*_last_activity` reflects ANY camera
-    activity, not just motion (fixed with a `category == 'motion'`
-    condition after a false "Motion at Gathering Room" announcement),
-    and it's polled rather than pushed -- a real motion event didn't
-    reach the automation for 60-90+ seconds (confirmed: multiple
-    cameras' `last_activity` entities updated within 11ms of each other,
-    consistent with a shared poll cycle, not live per-event delivery).
-    That delay was worse than the outage it was working around, so
-    **reverted back to `event.*_motion` 2026-08-15** (Joseph's call --
-    working theory is a transient Ring/HA cloud-side relay issue that
-    may clear on its own; revisit if `event.*_motion` is still frozen
-    after 2026-08-16). The `category` filter condition was removed on
-    revert -- `event.*_motion` entities are motion-only by construction
-    (`event_types: ['motion']`), no non-motion contamination possible
-    the way `sensor.*_last_activity` had.
+    2026-08-18 (CARD-0184): switched back to `sensor.*_last_activity`
+    for good, after confirming `event.*_motion` (the push-based
+    alternative, used since 2026-08-15) is durably broken, not
+    transient. Diagnosed live: `event.*_motion` state values stayed
+    frozen at 2026-08-15 timestamps through two independent real-world
+    tests (a confirmed real walk-by at the gate and front porch,
+    verified via `sensor.*_last_activity` picking it up correctly)
+    across BOTH a full HA restart (`docker restart homeassistant`,
+    2026-08-18 15:35 MST) AND a full Ring integration delete-and-
+    re-authenticate (2026-08-18, Joseph's own action) -- ruling out both
+    a stuck process and a stale/corrupted auth session as the cause.
+    Matches a known upstream bug, home-assistant/core#128597. Source
+    inspection of the installed `ring` integration (HA 2026.8.2,
+    `ring_doorbell` 0.9.14) confirms the push path runs through a
+    separate `RingListenCoordinator`/`RingEventListener` that, per its
+    own source, logs only a WARNING if it fails to start and has no
+    visible retry logic -- consistent with a silent, permanent stall
+    rather than a recoverable blip. `sensor.*_last_activity`'s ~60s
+    cadence comes from `RingDataCoordinator`'s `SCAN_INTERVAL =
+    timedelta(minutes=1)` in the integration's own `const.py` -- hardcoded
+    in HA core source, not exposed as a user-configurable option
+    anywhere in the integration's config/options flow, so the delay
+    is not adjustable without patching HA core itself (not something to
+    hand-maintain against upstream updates). Findings queued to be
+    filed on the upstream issue.
+
+    2026-08-15 history (first time this was tried): briefly switched to
+    `sensor.*_last_activity` after `event.*_motion` appeared to stop
+    delivering live events entirely (frozen since setup despite genuine
+    Ring push notifications/video reaching Joseph's phone). That switch
+    introduced two new problems: `sensor.*_last_activity` reflects ANY
+    camera activity, not just motion (fixed with a `category ==
+    'motion'` condition after a false "Motion at Gathering Room"
+    announcement), and it's polled rather than pushed -- a real motion
+    event didn't reach the automation for 60-90+ seconds (confirmed:
+    multiple cameras' `last_activity` entities updated within 11ms of
+    each other, consistent with a shared poll cycle, not live per-event
+    delivery). That delay was worse than the outage it was working
+    around at the time, so **reverted back to `event.*_motion`
+    2026-08-15** (Joseph's call -- working theory then was a transient
+    Ring/HA cloud-side relay issue that might clear on its own; revisit
+    if `event.*_motion` was still frozen after 2026-08-16 -- it was,
+    confirmed 2026-08-18, see above). The `category` filter condition
+    removed on that revert is restored here, permanently this time.
 
     All debounce/queue/entry-cluster logic below is unchanged throughout
-    both switches. Prior revision history, 2026-08-15: the original
+    every switch. Prior revision history, 2026-08-15: the original
     `for: 10s` trigger debounce delayed every
     single announcement by a full 10s, and separately `mode: parallel`
     let near-simultaneous triggers overlap their tts.cloud_say calls on
@@ -421,18 +446,18 @@
   triggers:
   - trigger: state
     entity_id:
-    - event.gate_motion
-    - event.path_motion
-    - event.front_door_motion
-    - event.front_porch_motion
-    - event.doorbell_motion
+    - sensor.gate_last_activity
+    - sensor.path_last_activity
+    - sensor.front_door_last_activity
+    - sensor.front_porch_last_activity
+    - sensor.doorbell_last_activity
   variables:
     camera_names:
-      event.gate_motion: Gate
-      event.path_motion: Path
-      event.front_door_motion: Front Door
-      event.front_porch_motion: Front Porch
-      event.doorbell_motion: Doorbell
+      sensor.gate_last_activity: Gate
+      sensor.path_last_activity: Path
+      sensor.front_door_last_activity: Front Door
+      sensor.front_porch_last_activity: Front Porch
+      sensor.doorbell_last_activity: Doorbell
     camera_messages: {}
     camera_quiet_hours: {}
     quiet_hours: "{{ camera_quiet_hours.get(trigger.entity_id) }}"
@@ -443,9 +468,9 @@
            (quiet_hours.start >= quiet_hours.end and (now().strftime('%H:%M') >= quiet_hours.start or now().strftime('%H:%M') < quiet_hours.end))
          ) }}
     entry_cluster:
-    - event.front_porch_motion
-    - event.front_door_motion
-    - event.doorbell_motion
+    - sensor.front_porch_last_activity
+    - sensor.front_door_last_activity
+    - sensor.doorbell_last_activity
     entry_cluster_suppressed: >-
       {% set ns = namespace(suppress=false) %}
       {% if trigger.entity_id in entry_cluster %}
@@ -458,6 +483,8 @@
       {% endif %}
       {{ ns.suppress }}
   conditions:
+  - condition: template
+    value_template: "{{ trigger.to_state.attributes.get('category') == 'motion' }}"
   - condition: template
     value_template: "{{ not in_quiet_hours }}"
   - condition: template

@@ -837,7 +837,7 @@ UUID=<disk-uuid>  /mnt/<mount-point>  ext4  defaults,nofail  0  2
 
 Prefer bus-powered 2.5" USB drives for compact installations — no separate power brick/cable to manage or fail. Note the tradeoff when sizing spares: a larger bus-powered drive may not exist, forcing a choice between capacity and the bus-powered convenience.
 
-**Reference implementation:** `components/m8/backup.md`, `components/m8/network.md`.
+**Reference implementation:** `components/photo-server/backup.md`, `hosts/m8/network.md`.
 
 ### 9.3 Incremental Local Backup (rsync)
 
@@ -845,7 +845,7 @@ Weekly cron running `rsync -av --delete <source>/ <backup-destination>/` from pr
 
 **This is incremental by design** — worth stating explicitly, since it is not obvious from a one-line script. `rsync` only transfers files that are new or changed since the last run (by size/mtime); `--delete` additionally removes anything from the destination no longer present in the source, keeping it an exact mirror rather than an ever-growing pile. A slow first run does not mean something is wrong — it means the destination is being fully reconciled for the first time (or after an unrelated change invalidated it); subsequent weekly runs should be fast, transferring only that week's actual changes.
 
-**Reference implementation:** `components/m8/photo-library-backup.sh`, `components/m8/backup.md`.
+**Reference implementation:** `components/photo-server/photo-library-backup.sh`, `components/photo-server/backup.md`.
 
 ### 9.4 Dashboard Visibility for Scheduled/Background Jobs
 
@@ -861,7 +861,7 @@ Reuse the host's existing MQTT account (e.g. `photo-server`, `jctsh-log-server`)
 
 This pattern was established twice in the same build with an identical shape both times (scheduled-reboot notifications, then backup-run notifications), which is what promotes it from a one-off to a standard — the second implementation should not need to reinvent it.
 
-**Reference implementation:** `core/maintenance/reboot-complete-pi.service` / `reboot-complete-m8.service`, `components/m8/photo-library-backup.sh`.
+**Reference implementation:** `core/maintenance/reboot-complete-pi.service` / `reboot-complete-m8.service`, `components/photo-server/photo-library-backup.sh`.
 
 ### 9.5 Scheduled Maintenance Windows — Cross-Host Coordination
 
@@ -875,7 +875,7 @@ For any long-running remote job (data imports, backups, verification runs) that 
 
 **Critical:** verify actual state via `ps aux` / `systemctl status` on the remote host directly. Never assume that stopping a local monitoring tool has any effect on a detached remote process — it does not, and assuming otherwise caused a real duplicate-write race during the original `photo-server` Takeout migration (two `mv` operations racing on the same files after a local poller was stopped but the remote job kept running).
 
-**Reference:** `components/m8/migration.md` ("Killed background processes didn't actually die").
+**Reference:** `components/photo-server/migration.md` ("Killed background processes didn't actually die").
 
 ### 9.7 Container-Image Update Visibility via GitHub Releases
 
@@ -886,7 +886,7 @@ For any Docker-based component running an open-source image (not project-specifi
 3. Normalize before comparing — different projects format release tags differently (`v2.11.4` vs. bare `26.7.1`); strip a leading `v` before the equality check.
 4. Notify-only, `category: "System"` (not `Alert` — an available update is informational, same tier as Immich's own update-check, not an active problem), same 7-day reminder throttle every other maintenance check in this repo uses. Never pull or apply an update automatically.
 
-**Reference implementation:** `core/maintenance/container_update_check.py` (shared, generic — takes a `SERVICES` list per host) plus a thin per-host wrapper (`components/m8/container-update-check.py`, `core/homeassistant/container-update-check.py`) that just declares which containers to check and how each one exposes its current version. Established covering NetAlertX, Caddy, cloudflared, and Home Assistant (CARD-0126) — a fourth confirms the pattern generalizes, not a one-off.
+**Reference implementation:** `core/maintenance/container_update_check.py` (shared, generic — takes a `SERVICES` list per host) plus a thin per-host wrapper (`hosts/m8/container-update-check.py`, `core/homeassistant/container-update-check.py`) that just declares which containers to check and how each one exposes its current version. Established covering NetAlertX, Caddy, cloudflared, and Home Assistant (CARD-0126) — a fourth confirms the pattern generalizes, not a one-off.
 
 **Not this pattern:** a component with its own real version-check API (Immich exposes `/api/server/version-check` directly) should keep using that — it's more authoritative than a GitHub tag, and `immich-update-check.py` predates this standard. This section is for the common case where a project's only public "what's current" signal is its GitHub Releases page.
 

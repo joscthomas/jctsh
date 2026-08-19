@@ -77,8 +77,8 @@ Identical operating mode pattern to the hiking monitor. See `components/hiking-m
 ### Power
 | Decision | Rationale |
 |---|---|
-| EEMB LiPo pouch 603449 (1100mAh) | On hand (Bag 7). Flat form factor suits clip case. Estimated runtime ~58–68 hours at ~13–15mA average draw — far exceeds any hike duration. |
-| TP4056 + boost combined module | On hand (Bag 8). Same module as hiking monitor — charges LiPo and boosts to 5V out → ESP32 VIN. The Adafruit #5964 breakout provides its own internal boost for the SEN55; TP4056 output feeds ESP32 only. |
+| EEMB LiPo pouch 603449 (1100mAh) | On hand (Bag 7). Flat form factor suits clip case. Estimated runtime ~58–68 hours at ~13–15mA average draw — far exceeds any hike duration. **Superseded 2026-08-19 (Claude Code instructions v1.1):** this estimate never accounted for the boost module's own quiescent draw (same blind spot CARD-0026 found on hiking-monitor, ~22.6mA measured there); with the boost module as planned here, real runtime likely would have been closer to ~30 hours. See the instructions doc's recalculated ~73–85h estimate under the LDO decision below. |
+| TP4056 + boost combined module | **Superseded 2026-08-19** — boost stage no longer used; replaced with a direct LiPo-to-LDO architecture (MCP1700, Bag 32) per `JCTsh-Build-Standards.md` §2.14 point 7, decided while starting Phase 5 execution (CARD-0012). TP4056 half (charging, on hand, Bag 8) is unchanged and still used. See `air-quality-monitor-claude-code-instructions.md` v1.1 Hardware Context for the full reasoning. The Adafruit #5964 breakout's own internal 5V boost for the SEN55 is unaffected either way — it never depended on this module. |
 | JST solar port — external | Low cost to include at enclosure design stage; TP4056+boost module supports it natively. SUNYIMA panels on hand (Bag 6) for backpacking use. |
 | Micro USB charging port — external | Charging access, same as hiking monitor. |
 

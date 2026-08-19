@@ -14,7 +14,7 @@
 Before any work begins, read:
 - `JCTsh-Build-Standards.md` (repo root)
 - `photo-tv-display-phase1-planning.md` and `photo-tv-display-phase2-planning.md` (this component's planning history)
-- `photo-server-claude-code-instructions.md` and the resulting `components/m8/` documentation — confirm `photo-server` is fully built and operational before proceeding
+- `photo-server-claude-code-instructions.md` and the resulting `components/photo-server/` documentation — confirm `photo-server` is fully built and operational before proceeding
 - `CLAUDE.md` (repo root) — existing HA REST API integration pattern (Node-RED → HA REST API → SmartThings is the precedent; here it's Node.js → HA REST API directly)
 
 **Hard dependency check:** Do not begin this build until `photo-server` is confirmed operational — Immich running, both user accounts created, and at minimum a test subset of photos imported (full migration does not need to be complete, but Immich must be reachable and have queryable data for development and testing).

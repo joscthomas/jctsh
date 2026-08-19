@@ -61,9 +61,9 @@ entirely and the watchdog alerts after 35 minutes of silence, same as any other 
 
 | File | Deployed to |
 |---|---|
-| `components/m8/photo-server-heartbeat.py` | `/usr/local/bin/photo-server-heartbeat.py` |
-| `components/m8/photo-server-heartbeat.service` | `/etc/systemd/system/photo-server-heartbeat.service` |
-| `components/m8/photo-server-heartbeat.timer` | `/etc/systemd/system/photo-server-heartbeat.timer` |
+| `components/photo-server/photo-server-heartbeat.py` | `/usr/local/bin/photo-server-heartbeat.py` |
+| `components/photo-server/photo-server-heartbeat.service` | `/etc/systemd/system/photo-server-heartbeat.service` |
+| `components/photo-server/photo-server-heartbeat.timer` | `/etc/systemd/system/photo-server-heartbeat.timer` |
 
 ## Files on photo-server (not in repo)
 
@@ -76,9 +76,9 @@ entirely and the watchdog alerts after 35 minutes of silence, same as any other 
 ## Deployment
 
 ```
-scp components/m8/photo-server-heartbeat.py jct@192.168.1.165:/tmp/
-scp components/m8/photo-server-heartbeat.service jct@192.168.1.165:/tmp/
-scp components/m8/photo-server-heartbeat.timer jct@192.168.1.165:/tmp/
+scp components/photo-server/photo-server-heartbeat.py jct@192.168.1.165:/tmp/
+scp components/photo-server/photo-server-heartbeat.service jct@192.168.1.165:/tmp/
+scp components/photo-server/photo-server-heartbeat.timer jct@192.168.1.165:/tmp/
 ssh jct@192.168.1.165 "sudo install -m 755 /tmp/photo-server-heartbeat.py /usr/local/bin/photo-server-heartbeat.py && sudo cp /tmp/photo-server-heartbeat.service /etc/systemd/system/ && sudo cp /tmp/photo-server-heartbeat.timer /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart photo-server-heartbeat.timer"
 ```
 

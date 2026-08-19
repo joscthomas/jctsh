@@ -4,7 +4,7 @@ Weekly rsync mirrors the primary Immich library (Seagate Backup Plus 1TB) to **t
 
 | Property | Value |
 |---|---|
-| Script | `/usr/local/bin/photo-library-backup.sh` — version-controlled at `components/m8/photo-library-backup.sh` |
+| Script | `/usr/local/bin/photo-library-backup.sh` — version-controlled at `components/photo-server/photo-library-backup.sh` |
 | Schedule | Weekly, Sunday 2:15 AM — **active** (moved from 2:00 AM 2026-07-22, CARD-0077 — collided with Immich's nightly 2:00 AM DB dump) |
 | Log | `/var/log/photo-library-backup.log` |
 | Primary drive | `/mnt/photo-library` (Backup Plus 1TB, UUID `cd4612e2-7c14-4134-8dcb-f43a251f2127`) |

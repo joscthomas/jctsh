@@ -143,7 +143,7 @@ Version-controlled unit files: `core/maintenance/scheduled-reboot-pi.service` (d
 `scheduled-reboot.timer`). `Persistent=true` — if the Pi is powered off at the scheduled
 time, it reboots on next boot instead of skipping the week.
 
-Staggered one hour ahead of the M8's own weekly reboot (Monday 4:00 AM) so the M8's heartbeat script isn't trying to publish to Mosquitto while the Pi is mid-reboot. See `components/m8/operations.md`.
+Staggered one hour ahead of the M8's own weekly reboot (Monday 4:00 AM) so the M8's heartbeat script isn't trying to publish to Mosquitto while the Pi is mid-reboot. See `hosts/m8/operations.md`.
 
 To check: `systemctl list-timers scheduled-reboot.timer`
 

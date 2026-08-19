@@ -18,7 +18,7 @@ environmental monitoring into a single integrated ecosystem.
 | [automatic-garage-door-opener-closer](components/automatic-garage-door-opener-closer/) | Voice and auto-close control for LiftMaster opener | Production |
 | [front-porch-temp-sensor](components/front-porch-temp-sensor/) | Front porch temperature, pressure, and light with push notifications | Production |
 | [p-w-firefly](components/p-w-firefly/) | Firefly Integrations RV-C coach interface for Pleasure-Way Lexor FL | Production |
-| [m8](components/m8/) | Self-hosted Immich photo/video library on dedicated mini PC | Production |
+| [photo-server](components/photo-server/) | Self-hosted Immich photo/video library, runs on the M8 (`hosts/m8/`) | Production |
 | [photo-tv-display](components/photo-tv-display/) | Ambient photo slideshow + phone controller for Google TV, backed by m8 | In Progress |
 | [hiking-monitor](components/hiking-monitor/) | Portable environmental sensor — logs to flash during hikes, syncs on return | In Progress |
 | [weather-station](components/weather-station/) | Outdoor DIY weather station posting to Weather Underground and Google Sheets | Planned |

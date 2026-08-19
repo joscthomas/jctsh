@@ -2,14 +2,14 @@
 
 Per `JCTsh-Build-Standards.md` §7 — this captures what actually happened versus `photo-server-claude-code-instructions.md`, since as-built rarely matches the plan exactly. Read the instructions doc for the intended sequence; read this for what actually occurred.
 
+Base machine setup (OS, ethernet gotcha) split out to `hosts/m8/setup.md`, 2026-08-19 — see `kanban-board.md` CARD-0096's addendum.
+
 ## Steps 1-10 — Base Build
 
-Followed the instructions doc closely. Key as-built values (see `network.md` for the full reference):
+Followed the instructions doc closely. Key as-built values (see `hosts/m8/network.md` for the full reference):
 
-- OS: **Ubuntu 26.04 LTS** (not a placeholder "current LTS" — confirmed via `lsb_release -a`)
 - Drive mapping: Backup Plus 1TB → `/dev/sda` (916G), Momentus 640GB → `/dev/sdb` (586G)
 - Immich version: pinned `IMMICH_VERSION=v3` in `.env`; running v3.0.1 as of 2026-07-09 (v3.0.2 available, routine update not yet applied)
-- M8 has two identical-looking ethernet ports — only `eno1` carries the DHCP lease; the other silently drops network if used by mistake
 
 ## Step 11 — Quality Pass: Skipped by Decision
 
@@ -36,7 +36,7 @@ Installed well after the original build (Node v24.18.0, npm v11.16.0 via NodeSou
 Several things were built that aren't in the original instructions doc at all:
 
 - **`photo-server-heartbeat.py`** (CARD-0029) — MQTT heartbeat to the JCTsh log dashboard, checking Docker container health *and* (after CARD-0032) actual storage read/write access inside the container, not just container status
-- **Scheduled weekly reboot** (CARD-0035) with dashboard visibility (CARD-0036) — `core/maintenance/scheduled-reboot-m8.service`/`.timer` and `reboot-complete-m8.service`, requiring `mosquitto-clients` to be installed (the heartbeat script uses Python `paho-mqtt` instead, so the CLI wasn't already present)
+- **Scheduled weekly reboot** (CARD-0035/CARD-0036) — host-level, see `hosts/m8/setup.md` and `hosts/m8/operations.md`
 - **CARD-0037** — found and fixed a large gap where ML processing (face detection/recognition, CLIP smart search, OCR, duplicate detection) had never run on ~11-92% of the library depending on job type, for both accounts
 - **CARD-0039** — a second gap, found by re-running `immich-go` for real against the retained Takeout zips: 3,433 assets were genuinely missing from Immich entirely, not just missing ML processing
 

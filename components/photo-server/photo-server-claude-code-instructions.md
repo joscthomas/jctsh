@@ -379,7 +379,7 @@ No further `photo-tv-display` setup happens in this build — that is a separate
 
 ## Step 16 — Documentation
 
-Per `JCTsh-Build-Standards.md` §7, create the following in `components/m8/`:
+Per `JCTsh-Build-Standards.md` §7, create the following in `components/photo-server/`:
 
 | Document | Contents |
 |---|---|
@@ -401,7 +401,7 @@ Add `.env`, any API keys, and the Apps Script deployment URL/key to the gitignor
 
 1. Add `photo-server` to the Components table in root `README.md`:
    ```
-   | [photo-server](components/m8/) | Self-hosted Immich photo/video library on dedicated mini PC | Production |
+   | [photo-server](components/photo-server/) | Self-hosted Immich photo/video library on dedicated mini PC | Production |
    ```
 2. Confirm `jctsh-network.md` has been updated (Steps 2 and 3)
 3. Add an entry to `jctsh-parts-inventory.md` inventory update log noting the hardware deployed:

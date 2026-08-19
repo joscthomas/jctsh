@@ -47,10 +47,10 @@ Consolidated view across all recurring reboot/backup jobs, so a new one can be s
 |---|---|---|---|
 | KeepConnect router reboot | Weekly, Wed 3:00 AM (drifts — see note) | Router | `keepconnect.md` |
 | Pi scheduled reboot | Weekly, Mon 3:00 AM | Pi | `SOFTWARE-ENVIRONMENT.md` |
-| M8 scheduled reboot | Weekly, Mon 4:00 AM | M8 | `components/m8/operations.md` |
-| M8 backup (rsync) | Weekly, Sun 2:00 AM | M8 | `components/m8/backup.md` |
-| M8 heartbeat | Every 30 min | M8 | `components/m8/heartbeat.md` |
-| M8 Immich update check | Daily, 6:00 AM | M8 | `components/m8/operations.md` |
+| M8 scheduled reboot | Weekly, Mon 4:00 AM | M8 | `hosts/m8/operations.md` |
+| M8 backup (rsync) | Weekly, Sun 2:00 AM | M8 | `components/photo-server/backup.md` |
+| M8 heartbeat | Every 30 min | M8 | `components/photo-server/heartbeat.md` |
+| M8 Immich update check | Daily, 6:00 AM | M8 | `components/photo-server/operations.md` |
 | M8 container-image update check | Daily, 6:30 AM | M8 | `kanban-board.md` CARD-0126 |
 | M8 OS/firmware maintenance check | Monthly, 1st at 7:00 AM | M8 | `kanban-board.md` CARD-0095 |
 | Pi container-image update check | Daily, 6:30 AM | Pi | `kanban-board.md` CARD-0126 |

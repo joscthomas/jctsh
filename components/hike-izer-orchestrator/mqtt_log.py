@@ -3,10 +3,10 @@
 MQTT publish-visibility logging for hike-izer-orchestrator (CARD-0086).
 
 Same connect/publish/disconnect pattern as
-components/m8/photo-server-heartbeat.py -- loop_start() before
+components/photo-server/photo-server-heartbeat.py -- loop_start() before
 publish, wait_for_publish() before loop_stop()/disconnect(), since a bare
 publish()-then-disconnect() was found to drop QoS-1 messages in production
-(see components/m8/heartbeat.md).
+(see components/photo-server/heartbeat.md).
 """
 
 import json

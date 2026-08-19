@@ -149,26 +149,32 @@ Conforms to `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`. Field
 ## Bill of Materials
 
 ### On Hand
+
+**Updated 2026-08-19** — SEN55/adapter/cable moved here from "Ordered" (arrived and allocated 2026-07-01/07-09, this table just hadn't caught up); BC547B, MCP1700 LDO, and the inline power switch added (all decided/found this session, see `air-quality-monitor-claude-code-instructions.md` v1.1). TP4056+boost row split — boost stage no longer used, see the LDO row.
+
 | Component | Qty | Location | Notes |
 |---|---|---|---|
 | ESP32 DevKitC-32 (38-pin, CP2102, USB-C) | 1 | Bag 1 | 1 remaining after hiking monitor |
+| Sensirion SEN55 (SparkFun SEN-23715) | 1 | Plastic Box | PM1.0/2.5/4.0/10, VOC, NOx. I2C address 0x69 (fixed). Integrated fan. ~59mm × 37mm × 23mm. Requires 5V — supplied by Adafruit #5964 onboard boost. |
+| Adafruit SEN54/SEN55 Adapter Breakout (#5964) | 1 | Bag 25 | JST GH connector, onboard 5V boost, level shifting, STEMMA QT output. |
+| JST GH 1.25mm 6-pin cable (100mm) | 1 | Bag 25 | Connects SEN55 to Adafruit #5964 adapter |
 | EEMB LiPo pouch 603449 (1100mAh) | 1 | Bag 7 | Verify polarity before connecting |
-| TP4056 + boost combined module | 1 | Bag 8 | Same module as hiking monitor |
+| TP4056 + boost combined module | 1 | Bag 8 | Charging half only — boost stage unused, see MCP1700 row |
+| MCP1700-3302E/TO LDO | 1 | Bag 32 | Direct LiPo-to-3.3V, replaces the boost stage per `JCTsh-Build-Standards.md` §2.14 point 7 |
+| BC547B NPN transistor | 1 | Music Response bin | SEN55 power-gate, low-side switch (GPIO27) |
+| Inline power switch (Gebildet SS12D10) | 1 | Bag 23 | From the slide-switch assortment — true transport/storage off, wired directly in the battery+ path |
 | RGB LED module | 1 | Plastic Box | From Greekcreit 37-module kit |
 | SUNYIMA solar panel (5.5V, 80mA) | 1 | Bag 6 | Backpacking use only |
-| Perfboard | 1 | Bag 9 | Size TBD at Phase 2 — SEN55 + adapter footprint is dominant constraint |
+| Perfboard | 1 | Bag 9 | Size TBD at Step 3 — SEN55 + adapter footprint is dominant constraint |
 | Female pin header strips | As needed | Plastic Box | |
 | M3 standoffs, nuts, screws | As needed | Plastic Box | |
-| Resistors | As needed | Bag 17 | RGB LED current limiting |
+| Resistors | As needed | Bag 17 | SEN55 gate base/pull-down, both voltage dividers — **not** the RGB LED, confirmed 2026-08-19 to be a KY-016 module with its own onboard current-limiting resistors, see `wiring.md` |
 | Breadboard | 1 | Bag 12 | Prototyping phase |
 | Jumper wires | As needed | Plastic Box | |
 
 ### Ordered
-| Component | Notes |
-|---|---|
-| Sensirion SEN55 | PM1.0/2.5/4.0/10, VOC, NOx. I2C address 0x69 (fixed). Integrated fan. ~59mm × 37mm × 23mm. Requires 5V — supplied by Adafruit #5964 onboard boost. |
-| Adafruit SEN54/SEN55 Adapter Breakout (#5964) | JST GH connector, onboard 5V boost, level shifting, STEMMA QT output. https://www.adafruit.com/product/5964 |
-| JST GH 6-pin cable | Connects SEN55 to Adafruit #5964 adapter. |
+
+Nothing currently on order — everything needed is on hand (see above).
 
 ---
 

@@ -17,13 +17,15 @@ GPIO32 note: configured as INPUT (no pull-up or pull-down) — the dock detect v
 
 ## GPIO Assignment Summary
 
+**GPIO18/19/23 all connect to the same single RGB LED module (KY-016)** — its `R`/`G`/`B` pins respectively, not three separate LEDs. See "RGB LED Wiring" below for the full 4-pin mapping.
+
 | GPIO | Function | Component |
 |---|---|---|
-| GPIO18 | RGB LED — Red | Field indicator |
-| GPIO19 | RGB LED — Green | Field indicator |
+| GPIO18 | RGB LED module — `R` pin (no external resistor — module has its own, see below) | Field indicator |
+| GPIO19 | RGB LED module — `G` pin (same module, no external resistor) | Field indicator |
 | GPIO21 | I2C SDA | SEN55 (via Adafruit #5964 adapter) |
 | GPIO22 | I2C SCL | SEN55 (via Adafruit #5964 adapter) |
-| GPIO23 | RGB LED — Blue | Field indicator |
+| GPIO23 | RGB LED module — `B` pin (same module, no external resistor) | Field indicator |
 | GPIO27 | SEN55 power-gate control (active-high) | BC547B base, via resistor |
 | GPIO32 | Dock detect (divider midpoint, INPUT) | TP4056 IN+ → 68kΩ → midpoint → 100kΩ → GND |
 | GPIO34 | Battery ADC (input-only) | Voltage divider midpoint |
@@ -32,18 +34,31 @@ GPIO32 note: configured as INPUT (no pull-up or pull-down) — the dock detect v
 
 ## SEN55 (via Adafruit #5964 Adapter) Wiring
 
-The Adafruit SEN54/SEN55 Adapter Breakout has its own onboard 5V boost and level shifting — it accepts 3.3V logic from the ESP32 directly and handles the SEN55's 5V/I2C needs internally. No separate 5V supply is needed anywhere on this board.
+**This sensor connects through two entirely separate interfaces, in series: ESP32 ↔ (bare wires) ↔ Adafruit #5964 adapter ↔ (JST-GH cable) ↔ SEN55.** Don't cross-reference wire colors between the two segments — they're different connection types with nothing in common (see below).
 
-| Adapter Pin | Wire color | ESP32 Pin | Notes |
-|---|---|---|---|
-| VIN | Red | 3.3V (via BC547B gate, see below — not straight to 3.3V rail) | Adapter's own onboard boost steps this up to 5V for the SEN55 |
-| GND | Black | GND (via BC547B collector/emitter, see below) | |
-| SDA | Yellow | GPIO21 | I2C data |
-| SCL | Blue | GPIO22 | I2C clock |
+### Segment 1 — ESP32 to adapter (bare wires, you choose the colors)
+
+The adapter has a 4-pin **input** header, labeled directly on the Adafruit board: `VIN`, `GND`, `SCL`, `SDA`. This is a standard 0.1" header — you're making up individual jumper wires yourself here, so the "wire color" is just your own convention, not something to verify against anything.
+
+| Adafruit board pin (labeled on the board) | ESP32 Pin | Notes |
+|---|---|---|
+| `VIN` | 3.3V (via BC547B gate, see SEN55 Power Gate section — not straight to the 3.3V rail) | Board's own onboard boost converter steps this up to 5V internally, for the SEN55 side only |
+| `GND` | GND | |
+| `SDA` | GPIO21 | I2C data |
+| `SCL` | GPIO22 | I2C clock |
 
 I2C address: 0x69 (fixed — no configurable address pin). No other I2C devices on this bus, no conflicts.
 
-**Cable:** JST GH connector, adapter-to-SEN55 side (on hand, confirmed in Phase 2). Adapter-to-ESP32 side uses standard 0.1" headers/jumpers on breadboard.
+### Segment 2 — adapter to SEN55 (JST-GH cable, colors irrelevant)
+
+**The adapter has a second, completely separate connector for this: a 6-pin JST-GH socket**, distinct from the 4-pin header above. This is what the SEN55 actually plugs into — it carries the boosted 5V, SDA, SCL, and the sensor's `SEL` interface-select line (Adafruit's board ties `SEL` to `GND` internally on this connector; there is no exposed `SEL` pin to wire by hand).
+
+**The SEN55 sensor itself also has its own onboard 6-pin JST-GH socket** (built into the sensor's own PCB, inside its metal case) — this is separate from the Dupont-terminated pigtail cable the sensor was bundled with.
+
+**Connection: plug the Bag 25 JST-GH cable directly between these two sockets** — one end into the Adafruit adapter's JST-GH socket, the other end into the SEN55's own onboard JST-GH socket.
+
+- **Do not use the SEN55's bundled Dupont-terminated cable for this build at all** — set it aside. It's a separate breadboard-prototyping accessory, not part of this design.
+- **Do not try to identify or match wire colors on the JST-GH cable.** Both sockets are the same fixed, keyed 6-pin JST-GH standard this sensor family is built around — the connector's physical shape guarantees pin 1 lines up with pin 1 (and so on) on both ends, regardless of what color any individual wire inside the cable happens to be. This was verified at length on 2026-08-19 (see `kanban-board.md` CARD-0012) after a real, confusing false start: the SEN55's bundled Dupont cable and the Bag 25 JST-GH cable use *different, unrelated wire-color conventions* (they're different products from different manufacturers) — comparing their colors against each other looked like a mismatch but was actually a meaningless comparison, since neither cable's colors need to relate to the other's at all.
 
 Enable `scan: true` in the ESPHome `i2c:` block during initial testing to confirm the device is detected:
 ```
@@ -166,16 +181,16 @@ LiPo BAT+ (post-switch) ──── R1 (100kΩ) ──┬── R2 (100kΩ) ─
 
 ## RGB LED Wiring (GPIO18/19/23)
 
-Common-cathode RGB LED (Greekcreit kit, Plastic Box) — PM2.5 threshold color indicator per Step 5 (green <12, yellow 12-35, red >35 µg/m³).
+**Confirmed 2026-08-19 against the actual physical module** (Greekcreit/Geekcreit 37-module kit, Plastic Box) — a KY-016: common-cathode, clear 5mm LED, 4-pin header silkscreened `- R G B` in that order, **with three current-limiting resistors already built onto the module's own small PCB.**
 
-| LED Pin | ESP32 Pin | Resistor |
+| Module Pin | ESP32 Pin | External resistor? |
 |---|---|---|
-| Red anode | GPIO18 | 330Ω (`JCTsh-Build-Standards.md` §8) |
-| Green anode | GPIO19 | 330Ω |
-| Blue anode | GPIO23 | 330Ω |
-| Common cathode | GND | — |
+| `-` (common cathode) | GND | — |
+| `R` | GPIO18 | **None** — module has its own onboard resistor per channel; do not add an external one in series, it would only dim the LED further |
+| `G` | GPIO19 | None (see above) |
+| `B` | GPIO23 | None (see above) |
 
-**Confirm common-cathode vs. common-anode before wiring** — the kit's exact module variant should be checked against its datasheet/markings; a common-anode module would need the wiring (and ESPHome output polarity) inverted.
+This deviates from `JCTsh-Build-Standards.md` §8's default (330Ω external, for a bare LED with no onboard resistor) — that default assumes a bare LED, not a pre-resistored module like this one. Wire the module's 4 pins straight to GND/GPIO18/GPIO19/GPIO23, no discrete resistors in the RGB LED's signal path.
 
 ---
 

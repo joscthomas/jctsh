@@ -14,7 +14,8 @@ export specifically, once it's staged.
 ## Architecture Overview
 
 ```
-BirdNET Live app (phone, Survey Mode)
+BirdNET Live app (phone, Live Mode through 2026-08-19 -- see CARD-0182;
+switching to Survey Mode going forward, see Section 4)
     │  session export (.zip, or .json pulled from it)
     ▼
 AutoShare app → Tasker → POST /webhook/stage-file?kind=birdnet&key=<SECRET>
@@ -70,12 +71,14 @@ already produced.
 
 ## Section 1 — What actually gets shared, and how it lands
 
-A BirdNET Live Survey Mode session export: either the app's raw `.zip`
-(auto-extracted in-memory by `birdnet.py`'s `_load_export()` — Joseph never
-has to unzip it himself) or a bare `.json` already pulled out of one. Each
-`detections[]` entry carries a precise UTC `timestamp`, `commonName`,
-`scientificName`, and `confidence` — confirmed against two real hikes'
-exports, 2026-07-29.
+A BirdNET Live session export: either the app's raw `.zip` (auto-extracted
+in-memory by `birdnet.py`'s `_load_export()` — Joseph never has to unzip it
+himself) or a bare `.json` already pulled out of one. Each `detections[]`
+entry carries a precise UTC `timestamp`, `commonName`, `scientificName`,
+and `confidence` — confirmed against two real hikes' exports, 2026-07-29
+(Live Mode; see CARD-0182 — the export shape is shared across BirdNET
+Live's modes via its common Session Review/export system, so this parsing
+isn't mode-specific).
 
 **Normal path (fully automatic, CARD-0122):** AutoShare → Tasker → `POST
 /webhook/stage-file?kind=birdnet` lands the file directly in the correct
@@ -154,6 +157,201 @@ single hike's own page.
 
 ---
 
+## Section 4 — Field recording practices while hiking (CARD-0182)
+
+This pipeline only consumes BirdNET Live's already-identified detections
+after the fact — it does no audio processing of its own, so recording
+quality is entirely determined by phone/app setup on the trail. Raised
+2026-08-18: trail noise (wind, footsteps, breathing) and phone mic/carry
+setup degrade BirdNET Live's on-device recognition. Researched 2026-08-19;
+sourced from general field-recording practice plus BirdNET-model-family
+documentation (BirdNET-Pi/BirdNET-Analyzer) — the model-family concepts
+below (confidence threshold, sensitivity, overlap) are well-documented for
+those products, but **not independently confirmed against BirdNET Live's
+own settings screen** — check there directly since the app is a different,
+simpler UI than the Pi/Analyzer tools these ideas come from.
+
+**Mode correction, 2026-08-19 — significant finding.** Every hike so far
+has actually used **Live Mode**, not Survey Mode — the "Survey Mode"
+references throughout this doc and `birdnet.py`'s docstring were CARD-0080's
+original assumption, never actually verified, and never actually true.
+Functionally this didn't break anything (see Section 1 — the export shape
+`birdnet.py` parses is shared across modes, and the Route Map's per-sighting
+location comes from the hike's own independent GPS track via
+`build_hike_map.interpolate_position()`, not from any location BirdNET Live
+itself reports — confirmed by reading that function directly, not assumed).
+
+But it does mean the background-operation question needs a real answer
+for the mode actually in use. Checked BirdNET Live's own source
+(`birdnet-team/birdnet-live-app` on GitHub): the `flutter_foreground_task`
+package — Android's standard mechanism for keeping audio recording alive
+through a screen lock or app-switch — is wired into a dedicated
+`survey_notification.dart` for Survey Mode and `aru_notification.dart` for
+ARU Mode. No equivalent file exists for Live Mode, and Live Mode's own docs
+describe it as an actively-open, on-screen experience (scrolling
+spectrogram, live-updating detection list, a "Ready" / "Identifying
+species" status line) with no mention of a persistent notification or
+background survival. Not a documented certainty either way, but strong
+circumstantial evidence that **Live Mode likely stops or pauses listening
+when the screen locks or another app takes focus** — every past hike may
+have had silent gaps whenever the phone screen locked, on top of the
+trail-noise degradation this card originally set out to fix.
+
+**Decided 2026-08-19 (Joseph): switch to Survey Mode for hiking going
+forward.** It's purpose-built for exactly this use case — confirmed
+background survival via the persistent foreground notification (elapsed
+time, detection count, species count, distance walked — worth a glance
+partway through a hike to confirm it's still running, since some OEM
+battery-optimization settings can still override standard foreground-
+service protections), plus its own continuous GPS track (not needed by
+this pipeline, but no downside). Setup is a 5-step wizard (name, observer
+info, starting location, recording parameters, species alerts, pre-start
+checklist); stop via the end-survey button in the top bar. Detection
+Sampling controls which audio *clips* are kept on disk, not which
+detections get logged — **All** keeps every clip, **Top N** (default 10)
+keeps only the highest-confidence clips per species, **Smart** adds
+spatial spreading so one persistent singer near the trailhead doesn't fill
+storage with near-duplicate clips of the same individual. Not yet field-
+tested — first real Survey Mode hike will confirm this actually resolves
+the gaps.
+
+**Confirmed 2026-08-19 — no pipeline changes needed for the mode switch.**
+Checked BirdNET Live's own export documentation and `birdnet.py` directly
+rather than assuming: the core export packaging (zip archive, JSON
+detection records, `memos/` structure) is identical across every mode —
+Survey Mode's exports carry *extra* fields on top (GPS track, spatial
+metadata) that Live Mode's don't, but `birdnet.py` only ever reads
+`data.get("detections", [])` from the top-level export and ignores every
+other key, so those extra fields are inert. Session Review/export is
+explicitly shared infrastructure across modes too (both Live and Survey
+Mode's own docs use identical language — "saves the session and opens
+Session Review") — so the existing AutoShare → Tasker → webhook path
+(CARD-0122) needs no changes either; it triggers off that same shared
+screen regardless of which mode produced the session. Net effect of the
+mode switch: same file format, same sharing mechanism, same pipeline
+output — the only real difference is Survey Mode keeps recording through a
+screen lock or app-switch, where Live Mode likely didn't.
+
+**Pixel 10 Pro XL microphone hardware, 2026-08-19.** Confirmed via Google's
+own Pixel hardware diagram: three built-in mics — **top** (near the top
+edge), **bottom** (next to USB-C — Google moved this to the *left* side of
+the port on the Pixel 10 Pro XL specifically, a known change from the 9 Pro
+XL that makes right-handed users more likely to cover it while holding the
+phone), and **rear** (near the camera bar). Joseph's usual carry — front
+cargo pocket, top of the phone exposed above the pocket opening — puts the
+*top* mic in open air while bottom and rear stay muffled in-pocket, which
+is the favorable mic for that carry style if the app is actually recording
+from it.
+
+**BirdNET Live's actual "Select audio source" screen, confirmed live via
+screenshot (Joseph's real device, not app docs) — correction to what was
+said earlier.** The generic app documentation claims built-in mics get
+listed by position name ("bottom", "back") on phones that expose that —
+**not true on this device.** The real screen has two sections:
+- **PROCESSING** — `Phone default` (ships selected; whatever the phone
+  normally uses, including its speech-oriented noise reduction) /
+  `Unprocessed` (raw signal, no noise reduction or automatic gain —
+  app's own description: "usually the best choice") / `Voice recognition`
+  (also disables noise reduction and gain, works on nearly every phone —
+  app's own guidance: try this if Unprocessed makes no difference).
+- **MICROPHONE** — `System default` (ships selected) plus **two entries
+  both generically labeled "Pixel 10 Pro XL"** with no position
+  information at all — the app cannot tell Joseph which one is the top
+  mic from the UI alone.
+
+**Recommendation given the real screen:** switch **Processing** to
+`Unprocessed` first (directly targets the original problem — phone speech
+processing blurring bird calls — and the app calls it usually the best
+choice); fall back to `Voice recognition` only if that doesn't help.
+Leave **Microphone** on `System default` rather than guessing between two
+identically-labeled options. To actually identify which one is the top
+mic, if it matters enough to pin down: select one of the two non-default
+options, cover the top mic hole with a finger, and watch the live
+spectrogram/input level for a drop — repeat for the other option to
+confirm. Not yet done.
+
+**Inference/audio settings applied, 2026-08-19 (Joseph):**
+
+| Setting | Applied | Recommended | Notes |
+|---|---|---|---|
+| Gain | 1.0× | 1.0× | Matches — default, unchanged. |
+| High-pass filter | 150 Hz | ~150 Hz | Matches. |
+| Window duration | 3 s | 3–5 s | Matches. |
+| Confidence threshold | **50%** | ~20% (superseded, see correction below) | Joseph's call — turns out to be the better-reasoned choice once the review-step assumption below is corrected. |
+| Sensitivity | 1.15 | ~1.15–1.25 | Matches — but the original "more false positives, mitigated by review" caveat is also invalid per the no-review correction below; kept at 1.15 (not the higher end of the range) is the more defensible choice given that. |
+| Inference rate | 0.7 Hz | 0.70 Hz (default) | Matches — kept Survey Mode's default rather than the battery-saving 0.30 Hz option. |
+
+Processing/Microphone (Unprocessed vs. Phone default; which physical mic)
+not yet confirmed as applied — revisit before/after the first Survey Mode
+hike.
+
+**Correction, 2026-08-19 (Joseph): there is no manual review/curation step
+in the actual workflow.** The confidence-threshold reasoning above ("lower
+it and curate later at Session Review") assumed Joseph reviews and filters
+detections before they reach the exported data — **he doesn't.** His own
+words: "there is no review at the end of a session. I just take it as it
+comes. I have no expertise for any review." Whatever the app confidently
+reports flows straight through export → this pipeline → the published
+hike's "Wildlife Heard" table and the cross-hike Wildlife Life List, with
+no human filtering step anywhere in between. This reverses the earlier
+reasoning: a **higher, more conservative confidence threshold is the
+better-justified choice**, not a lower one — Joseph's own 50% turns out to
+be well-reasoned on its own merits, independent of my original ~20%
+suggestion, which was built on a wrong assumption about the workflow.
+
+**Other general settings, recommended 2026-08-19 (not yet confirmed as
+applied):**
+
+- **Recording mode → "Detections only"**, not "Full." A multi-hour
+  continuous raw recording is a lot of storage/battery for no benefit this
+  pipeline currently uses — only clips around actual detections are
+  needed.
+- **Format → FLAC** over WAV — same audio quality, meaningfully smaller
+  files, no real downside for this use case.
+- **Timestamp display → Absolute**, not relative-to-session-start — makes
+  it easier to cross-reference a detection against photos or the GPS track
+  later, both of which key off real clock time.
+- **Announcements (TTS)** — worth considering since the phone stays in a
+  pocket and the screen isn't visible while hiking: an audible alert on
+  detection means Joseph would actually know something was heard in real
+  time, rather than only finding out at Session Review afterward. Set
+  frequency to **Sparse** or verbosity to **Watchlist only** to avoid
+  constant interruption for common species. Untested whether it's audible
+  enough through a pocket to be worth using — a real trial would confirm.
+
+**Checklist to try on the next hike:**
+
+- **Carry position — chest, mic facing inward toward the body, not
+  outward.** Chest-level placement reduces wind distortion significantly
+  versus a neck lanyard or holding the phone up. Facing the capsule toward
+  the chest uses your own clothing as a wind diffuser, at some cost to
+  overall pickup — the tradeoff is worth it on breezy trail sections.
+- **Favor the leeward side of your body** (the side facing away from the
+  wind) when possible — your torso creates a turbulence shadow that can
+  meaningfully cut wind noise at the mic versus a front-facing mount.
+- **Wear quiet layers near the phone** — fleece or cotton rather than
+  anything crinkly/rustly (rain shells, some synthetic packs) right against
+  or near the carry pocket. Clothing rustle close to the mic is louder in
+  the recording than it sounds in person.
+- **Pause, don't record while actively hiking, when a call is worth
+  capturing.** Footstep and trekking-pole noise reads as loud, sharp
+  transients right next to the mic. Stopping for even a few seconds around
+  a promising call meaningfully improves the recognizer's odds.
+- **Hold steady if handheld.** Every shift of grip or brush of fabric
+  against the phone shows up as a thud/scrape in the recording — brace
+  against a trekking pole, rock, or your own chest rather than holding
+  free in the air if you're not using a chest carry.
+- **Set Audio source → Processing to `Unprocessed`** (see the confirmed
+  screen contents above) — targets the original noise-reduction-blurring-
+  bird-calls problem directly, and it's the app's own recommended default
+  choice where supported.
+
+**Not yet tried in the field** — this is a checklist to validate on a real
+hike, not a confirmed fix. Revisit and update this section with results
+once Joseph has tested it.
+
+---
+
 ## Related
 - `components/hike-izer-orchestrator/staging.md` — the staging directory
   mechanism itself (both staged-resource types, the `Z:` mount).
@@ -170,4 +368,5 @@ single hike's own page.
 - Kanban: CARD-0080 (original integration), CARD-0112 (staging mechanism),
   CARD-0119 (staging.md + SSHFS-Win mount), CARD-0122 (automatic phone→server
   path), CARD-0133 (Route Map occurrence markers), CARD-0136 (hike-end race
-  condition fix), CARD-0147 (life-list "NEW species" badge).
+  condition fix), CARD-0147 (life-list "NEW species" badge), CARD-0182
+  (field recording best practices, Section 4 above).

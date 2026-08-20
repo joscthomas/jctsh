@@ -2,7 +2,7 @@
 """
 Hike-izer BirdNET Live integration (CARD-0080).
 
-Parses whatever BirdNET Live Survey Mode export(s) Joseph has dropped into a
+Parses whatever BirdNET Live session export(s) Joseph has dropped into a
 hike's staging directory -- either the app's raw `.zip` (auto-extracted here,
 so he never has to unzip it himself first) or a bare `.json` already pulled
 out of one. Deliberately parsing only: no local-time formatting (that's
@@ -11,7 +11,8 @@ calls (unlike photo_captions.py/place_context.py/narrative.py, there's
 nothing here for Claude to identify -- BirdNET Live already did the
 classification on-device).
 
-Real exports (2026-07-29, two actual hikes) confirmed the shape: each
+Real exports (2026-07-29, two actual hikes, Live Mode -- see CARD-0182)
+confirmed the shape: each
 `detections[]` entry has a precise UTC `timestamp`, `commonName`,
 `scientificName`, and `confidence` -- but GPS is session-level only (one
 lat/lon for the whole survey, not per-detection). `parse_detections()`

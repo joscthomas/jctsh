@@ -98,13 +98,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0181 · [bug] [hiking-monitor] No way to cut real power without disassembling the enclosure
-**Status:** Planning
+**Status:** Defer
 
 **Raised 2026-08-17 18:04 MST (Joseph), called a "major design failure."** Discovered while reassembling the enclosure post-CARD-0009: the only true hard-off state for this device is disconnecting the LiPo's JST connector from the TP4056 (per `operations.md`'s Power Switch Behavior table — "Storage — fully off" requires "Disconnected" battery, no other row reaches true off). That connector is inside the sealed enclosure with no external access, so once assembled, there is no way to actually cut power without taking it apart again.
 
 **Compounding issue:** the device's slide switch reads as a power switch but isn't one — `operations.md` line 79: "VOUT+ runs directly to ESP32 VIN — the switch is not in the power path." It only sets a GPIO-read mode flag (field vs. upload mode); the lowest-power reachable state via the switch is deep sleep (~10µA), not true off. For most purposes (avoiding activity while handling the device) that's sufficient, but it is not the same guarantee as no power draw at all, and the UI/labeling (a slide switch on the outside of the case) actively implies otherwise.
 
 **Not yet decided — fix approach deferred to Planning, Joseph's call 2026-08-17:** candidates raised but not chosen: (1) an accessible inline power switch, wired directly into the battery path (not the existing mode-select switch), reachable from outside the enclosure — true hard off on demand; (2) a JST pigtail extended from the battery connector to an external access cutout, so the existing connector can be reached and unplugged without disassembly, no new switch hardware. Neither confirmed; revisit at Planning.
+
+**Deferred 2026-08-19 (Joseph).** No fix approach chosen, no work started. Revisit at Planning when the enclosure is next opened (CARD-0180's remote-reboot work covers the reboot half of the accessible-control need in the meantime; this card is only about true power-off).
 
 **Standard raised from this, 2026-08-18 14:35 MST:** `JCTsh-Build-Standards.md` §1.7 (Accessible Power Control for Enclosed Devices, v1.19) now makes this a required decision for every future enclosed build, made before the enclosure is sealed — this card and CARD-0180 are its origin case. §1.7 lists both candidate approaches above as acceptable patterns for requirement 1 (true hard off); whichever gets chosen here should also be reflected there if it changes/refines the general pattern.
 

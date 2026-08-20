@@ -10,7 +10,7 @@
 
 ## Overview
 
-`air-quality-monitor` is a portable, clip-mounted air quality sensor (PM1.0/2.5/4.0/10, VOC index, NOx index via a Sensirion SEN55) carried on hikes alongside hiking-monitor. It follows hiking-monitor's operating-mode architecture exactly: field mode (duty-cycle logging to onboard flash while away from WiFi) and home mode (WiFi replay of the stored hike's readings while docked/charging). A single RGB LED gives real-time PM2.5 field awareness without a display.
+`air-quality-monitor` is a portable, clip-mounted air quality sensor (PM1.0/2.5/4.0/10, VOC index, NOx index via a Sensirion SEN55) carried on hikes alongside hiking-monitor. Field-mode duty-cycle logging to onboard flash runs unconditionally, regardless of dock-detect state (**superseded 2026-08-20** — see Timeout policy below); dock-detect only triggers a background WiFi connection attempt (home or Pixel hotspot), and logging only pauses once that connection actually succeeds, at which point stored readings replay to MQTT. A single RGB LED gives real-time PM2.5 field awareness without a display.
 
 This project inherits hiking-monitor's *firmware architecture* — it does not depend on hiking-monitor's physical enclosure, which remains a separate, unfinished, unrelated deliverable (CARD-0009).
 
@@ -36,13 +36,13 @@ Claude Code creates documentation and configuration files. Joseph follows those 
 | Inline power switch | Gebildet SS12D10 slide switch (SPDT, wired as SPST — Bag 23, on hand) wired **directly into the battery+ path**, ahead of the TP4056/LDO, no GPIO involved. True hard off for transport/storage — decided 2026-08-19 directly from CARD-0181's hiking-monitor finding (a GPIO-tapped switch only sets a mode flag, it doesn't cut power). Kept deliberately separate from dock-detect: dock-detect answers "which firmware mode," this switch answers "is the device powered at all." Pre-satisfies `JCTsh-Build-Standards.md` §1.7 before enclosure design even starts. |
 | Custom firmware component | Required for onboard flash logging + WiFi replay only (SEN55 reading itself uses the native platform above) — reuse `components/hiking-monitor/hiking_logger.h`, rename prefix per its own template instructions |
 | Perfboard | Chanzon FR4, size TBD — measured in Step 3 below (SEN55 + adapter footprint is the dominant constraint) |
-| Enclosure | **Deferred to a follow-on card** — clip case + carabiner, 3D-printed, air intake/exhaust ports for the SEN55 fan (see Future Enhancement section) |
+| Enclosure | **Deferred to a follow-on card** — clip case + carabiner, 3D-printed. **SEN55 mounts externally (decided 2026-08-20)**, 3M double-sided foam tape (on hand, Plastic Box) to the enclosure's smooth outer surface, cabled to the internal Adafruit #5964 adapter via the existing 100mm JST-GH cable through a small pass-through hole — no custom intake/exhaust venting needed, the SEN55's own sealed metal housing/fan shield handles its own airflow. See Future Enhancement section and `JCTsh-air-quality-monitor-phase1.md`'s Carry and Enclosure section. |
 
 **GPIO assignments:**
 | GPIO | Assignment |
 |---|---|
-| GPIO21 | I2C SDA (SEN55 via Adafruit adapter) |
-| GPIO22 | I2C SCL |
+| GPIO21 | I2C SDA (SEN55 via Adafruit adapter) — blue |
+| GPIO22 | I2C SCL — yellow |
 | GPIO34 | `battery_v` ADC — voltage divider midpoint (input-only pin, ADC1), 100kΩ/100kΩ divider, same pattern as hiking-monitor. **Corrected 2026-08-19** — this row previously said 68kΩ/68kΩ, but hiking-monitor's actual `wiring.md` uses 100kΩ/100kΩ for its battery divider; 68kΩ/100kΩ is the *dock-detect* divider, a different one (see the GPIO32 row below, unaffected). |
 | GPIO32 | Dock-detect divider — same 68kΩ/100kΩ pattern and pin as hiking-monitor's `IN+` divider (USB present → HIGH, absent → LOW) |
 | GPIO27 | SEN55 power-gate control — BC547B base via resistor, **active-high** (low-side switch: GPIO HIGH → transistor ON → SEN55 GND return connected → powered) |
@@ -65,11 +65,14 @@ With the LDO swap (MCP1700's own quiescent draw is ~1.6µA — negligible), that
 ```
 SEN55 (I2C 0x69, via Adafruit #5964 adapter) ── ESP32 DevKitC-32 (ESPHome)
                                                       │
-                                    Field mode: duty-cycle log to flash
-                                    Home mode: WiFi replay to MQTT
-                                                      │ MQTT
+                        Field-mode duty-cycle log to flash: always running
+                        Dock-detect HIGH (home dock, USB charging, or solar):
+                          triggers a bounded-window WiFi attempt (home WiFi or
+                          Pixel hotspot) in the background — logging keeps
+                          running until that attempt actually succeeds
+                                                      │ MQTT (once connected)
                                                       ▼
-                                    Mosquitto broker (pi1.local:1883)
+                              Mosquitto broker (jctsh.duckdns.org:8883, TLS)
                                          │
                                          └──► Node-RED
                                                 │ routes /log → Python log server
@@ -84,7 +87,9 @@ SEN55 (I2C 0x69, via Adafruit #5964 adapter) ── ESP32 DevKitC-32 (ESPHome)
 
 **No SmartThings, no Home Assistant integration** — no real-time state to expose (per Phase 3 decision).
 
-**Timeout policy (Phase 3 decision, 2026-07-09):** match hiking-monitor's approach — no elaborate custom WiFi/MQTT connect-timeout logic, reasonable since home mode only happens while docked/charging (USB-powered). **Do not blindly copy hiking-monitor's `wifi.ap:` fallback block** — confirm in Step 4 below whether this device actually needs one before including it; if included, be aware of the known ESPHome bug (CARD-0045) where `reboot_timeout` doesn't apply when `wifi.ap:` is configured.
+**Timeout policy — superseded 2026-08-20** (see `JCTsh-air-quality-monitor-phase1.md`'s JCTsh Integration table for the full decision history): the original 2026-07-09 decision assumed home mode only happens docked/charging at home, USB-powered — false, since solar and field USB charging share the dock-detect (`IN+`) signal with the home dock, so dock-detect can go HIGH mid-hike, on battery, with no home WiFi in range.
+
+Current design: field duty-cycle logging runs unconditionally, independent of dock-detect state. Dock-detect HIGH only triggers a background WiFi connection *attempt* against both configured networks (`JCTnet1` and the Pixel hotspot — see the new `hotspot_ssid`/`hotspot_password` secrets), bounded to a target 2-minute window before disabling the WiFi radio (`wifi.disable`) rather than retrying indefinitely, then re-attempting periodically (target 15–20 minutes) for as long as dock-detect stays HIGH. No cap on the number of periodic retry cycles — only on how long each individual attempt window runs. Logging only pauses once WiFi **and** MQTT actually connect, at which point the device replays the SPIFFS backlog and switches to publishing live, exactly like hiking-monitor's home mode. Implementation (interval/lambda structure for the attempt window and radio disable/enable) is a Step 4/Step 8 task, not specified further here. Still explicitly does not inherit hiking-monitor's `wifi.ap:` + `reboot_timeout` bug interaction (CARD-0045) — confirm in Step 4 whether an `ap:` fallback block is actually needed before including one.
 
 ---
 
@@ -121,16 +126,16 @@ Account created, secrets file in place and untracked by git.
 
 ---
 
-## Step 3 — Breadboard wiring and perfboard footprint measurement
+## Step 3 — Breadboard wiring
 
 **Claude Code does:**
-Create `wiring.md` and `ESP32-project-pins.md` (full 38-pin table) covering: I2C bus to the SEN55/adapter, the BC547B SEN55 power-gate circuit, the `battery_v` divider, the dock-detect divider (matching hiking-monitor's exact values), the MCP1700 LDO wiring (`VIN` to battery+ node in parallel with TP4056's `BAT+`, `VOUT` to ESP32 `3V3` directly, per the CARD-0026/CARD-0070 rig pattern), and the inline power switch (in-line on the battery+ path, ahead of both the TP4056 and the LDO tap point). Also document the perfboard footprint measurement procedure (SEN55 module + Adafruit adapter physical dimensions, laid out to determine minimum board size).
+Create `wiring.md` and `ESP32-project-pins.md` (full 38-pin table) covering: I2C bus to the SEN55/adapter, the BC547B SEN55 power-gate circuit, the `battery_v` divider, the dock-detect divider (matching hiking-monitor's exact values), the MCP1700 LDO wiring (`VIN` to battery+ node in parallel with TP4056's `BAT+`, `VOUT` to ESP32 `3V3` directly, per the CARD-0026/CARD-0070 rig pattern), and the inline power switch (in-line on the battery+ path, ahead of both the TP4056 and the LDO tap point). Also document the perfboard footprint measurement procedure in `wiring.md` (SEN55 module + Adafruit adapter physical dimensions, laid out to determine minimum board size) — **for use at Step 9, not this step** (superseded 2026-08-20: measuring footprint this early was premature, before there's a real perfboard layout to size against; moved to where it's actually actionable).
 
 **Joseph does:**
-Wire on breadboard, powered via USB. Physically measure the SEN55 + adapter footprint and report back.
+Wire on breadboard, powered via USB.
 
 **Joseph confirms:**
-Wiring complete; perfboard size determined.
+Wiring complete.
 
 **Claude Code does:**
 Record the confirmed perfboard size in this doc and the BOM.
@@ -140,7 +145,7 @@ Record the confirmed perfboard size in this doc and the BOM.
 ## Step 4 — ESPHome base config and SEN55 validation
 
 **Claude Code does:**
-Write the initial `air-quality-monitor.yaml` — standard boilerplate (§2.8), I2C bus, native `sen5x` sensor platform, standard `on_connect`/heartbeat MQTT patterns (§2.7). Resolve Step 1's mode-switching design into the `wifi:` block — per the timeout policy above, do not include a `wifi.ap:` fallback unless Step 1 established a real need for it.
+Write the initial `air-quality-monitor.yaml` — standard boilerplate (§2.8), I2C bus, native `sen5x` sensor platform, standard `on_connect`/heartbeat MQTT patterns (§2.7). `wifi: networks:` lists both `wifi_ssid`/`wifi_password` and `hotspot_ssid`/`hotspot_password` (added 2026-08-20 — see Timeout policy above), matching hiking-monitor's pattern. `mqtt:` block uses `port: 8883` with `certificate_authority: !secret mqtt_ca_cert` (TLS, matching hiking-monitor's CARD-0003 config) — not plaintext 1883, now that `mqtt_broker` points at `jctsh.duckdns.org`. Resolve Step 1's mode-switching design into the `wifi:` block — per the timeout policy above, do not include a `wifi.ap:` fallback unless Step 1 established a real need for it.
 
 **Joseph does:**
 Flash via USB. Confirm PM/VOC/NOx readings on the log dashboard.
@@ -179,7 +184,7 @@ Reports measured on/off current; transistor confirmed adequate (or flags an issu
 ## Step 7 — LiPo polarity check and power validation
 
 **Claude Code does:**
-Document the JST polarity verification procedure (same requirement as hiking-monitor) before first battery connection. Include confirming the LDO's `VOUT` reads a clean 3.3V under load and the inline power switch actually breaks the circuit in both positions (measure for zero voltage/current downstream when off, not just "the LED goes out").
+Document the JST polarity verification procedure (same requirement as hiking-monitor) before first battery connection. Include confirming the LDO's `VOUT` reads a clean 3.3V under load and the inline power switch actually breaks the circuit in both positions (measure for zero voltage/current downstream when off, not just "the LED goes out"). Note that the inline switch is what satisfies `wiring.md`'s "never power from USB and the LDO at the same time" caution — switching it off removes the LDO's `VIN` entirely, equivalent to unplugging it, so USB flashing just requires the switch off rather than any physical disconnect. This isn't a one-time Step 7 concern: once the battery/LDO are wired in here, it applies to every subsequent USB connection for the rest of the build and field life of the device — Step 8's and Step 9's USB flashes below, and any future re-flash over USB, all need the switch off first.
 
 **Joseph does:**
 Verify polarity, connect the EEMB LiPo pouch to the TP4056 module, confirm normal charge behavior (TP4056 side) and normal 3.3V power delivery via the LDO (not the boost module's old 5V→onboard-regulator path). Confirm the inline power switch cuts power cleanly in both directions.
@@ -192,26 +197,32 @@ Polarity correct, battery connected, LDO delivering clean 3.3V, inline switch ve
 ## Step 8 — Field/home mode duty-cycle and WiFi replay firmware
 
 **Claude Code does:**
-Implement the field-mode duty-cycle logging (SEN55 power-gated on for ~10s active per 2-minute cycle per the Phase 1 power budget, reading via the native `sen5x` platform, logged to flash via the adapted `hiking_logger.h` pattern) and home-mode WiFi replay (dock-detect triggers replay of stored readings to MQTT using original timestamps, per hiking-monitor's exact pattern). Include the 5-minute heartbeat in home mode only.
+Implement the field-mode duty-cycle logging (SEN55 power-gated on for ~10s active per 2-minute cycle per the Phase 1 power budget, reading via the native `sen5x` platform, logged to flash via the adapted `hiking_logger.h` pattern) — **this runs unconditionally, independent of dock-detect state** (superseded 2026-08-20 Timeout policy decision above; deviates from hiking-monitor's exact pattern, which stops field logging as soon as dock-detect goes HIGH — call this deviation out explicitly in code comments so a future reader doesn't assume it's identical).
+
+Dock-detect HIGH triggers a background WiFi connection attempt (against both `JCTnet1` and the hotspot networks) via an interval/lambda: bounded to a ~2-minute attempt window, then `wifi.disable()` if not connected rather than retrying indefinitely, then re-enable and retry roughly every 15–20 minutes for as long as dock-detect stays HIGH. No cap on the number of these periodic cycles.
+
+Once WiFi **and** MQTT actually connect (whether via `JCTnet1` at home or the hotspot in the field), switch to home-mode behavior: replay the SPIFFS backlog to MQTT using original timestamps, then publish new readings live instead of buffering (per hiking-monitor's exact pattern from that point on). Include the 5-minute heartbeat in home mode only.
 
 **Joseph does:**
-Flash via USB, simulate a field session (undock, wait through a few duty cycles) then redock and confirm replay.
+Switch the inline power switch off before connecting USB (battery/LDO are wired in as of Step 7 — see that step's note), then flash via USB, simulate a field session (undock, wait through a few duty cycles) then redock and confirm replay. Additionally test the new field-WiFi-attempt path: with the device undocked and running on battery, trigger dock-detect (e.g. connect USB or solar) with no `JCTnet1`/hotspot in range, and confirm logging continues uninterrupted through at least one full attempt-window-then-backoff cycle rather than stalling.
 
 **Joseph confirms:**
-Field-mode logging and home-mode replay both work as expected, matching hiking-monitor's proven behavior.
+Field-mode logging and home-mode replay both work as expected, matching hiking-monitor's proven behavior — plus the new bounded-retry behavior confirmed not to interrupt logging or get stuck when no network is reachable.
 
 ---
 
-## Step 9 — Perfboard transfer
+## Step 9 — Perfboard footprint measurement and transfer
 
 **Claude Code does:**
-Create `perfboard-layout.md` using the footprint confirmed in Step 3.
+N/A until Joseph reports the footprint measurement below — then create `perfboard-layout.md` using it.
 
 **Joseph does:**
-Transfer the validated breadboard circuit to perfboard: ESP32 + SEN55/adapter + BC547B gate + RGB LED + both dividers. Continuity-check before power-on.
+**First, measure the footprint** (moved here 2026-08-20 from Step 3, where it was premature): follow `wiring.md`'s Perfboard Footprint Measurement Procedure — physically measure the SEN55 module + Adafruit #5964 adapter, lay out the full component set, and confirm whether the standard 5×7cm Chanzon FR4 board (Bag 9) is sufficient. **Working assumption: the same 5×7cm size hiking-monitor uses will probably work here too** (`hiking-monitor/perfboard-layout.md` confirms that's what it used) — treat the measurement as confirming/adjusting that assumption, not starting from zero. Report the result back.
+
+Then transfer the validated breadboard circuit to perfboard: ESP32 + SEN55/adapter + BC547B gate + RGB LED + both dividers. Continuity-check before power-on. Switch off before connecting USB for any post-transfer USB flash/debug, same as Step 8.
 
 **Joseph confirms:**
-Perfboard build complete, device boots and operates identically to the breadboard version.
+Footprint measured, perfboard size confirmed (or corrected from the 5×7cm assumption); perfboard build complete, device boots and operates identically to the breadboard version.
 
 ---
 
@@ -250,10 +261,13 @@ See "Future Enhancement" below.
 
 ## Future Enhancement — Clip Case Enclosure
 
+**Planning started 2026-08-20** — `air-quality-monitor-enclosure-plan.md` captures what's already decided and the open questions still needing physical measurement, following the same process used for `hiking-monitor-enclosure-plan.md`/`hiking-monitor-enclosure-instructions.md`. CAD work itself does not begin until the bench phase below is confirmed complete.
+
 Once the bench phase above is complete, open a follow-on planning pass covering:
 - 3D-printed clip case with carabiner attachment, independent of hiking-monitor's own enclosure
-- Air intake/exhaust port placement for the SEN55 fan — **re-verify Sensirion's mechanical guidelines directly** before finalizing (the current understanding is flagged low-confidence in the Phase 1 doc — sourced from a search-snippet synthesis after two failed PDF fetches, not confirmed by actually reading the primary document)
-- Light-colored PETG to minimize solar gain (already decided in Phase 1)
+- ~~Air intake/exhaust port placement for the SEN55 fan~~ **Moot — resolved 2026-08-20.** SEN55 mounts externally via 3M double-sided foam tape to the enclosure's smooth outer surface (its own sealed metal housing/fan shield handles airflow directly from ambient, not through the JCTsh enclosure), cabled to the internal Adafruit #5964 adapter via the existing 100mm JST-GH cable. No custom venting to design; the low-confidence Sensirion orientation research no longer needs re-verification for this build.
+- **New:** small cable pass-through hole for the SEN55's JST-GH cable, sized/positioned so the sensor sits flush against the exterior mounting point — same pattern as the solar JST exit hole
+- White ASA for final print (corrected 2026-08-20 from Phase 1's original PETG call — matches hiking-monitor's own upgrade for Tucson UV/heat resistance) to minimize solar gain
 - Micro USB charging port and external JST solar port placement (SUNYIMA panel, backpacking use)
 - Screw/fastening hardware — confirm actual length needed once enclosure dimensions exist, same caution as remote-temp-sensor-01 and hiking-monitor (don't assume on-hand kit screws are long enough)
 

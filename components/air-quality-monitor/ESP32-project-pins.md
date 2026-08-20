@@ -10,10 +10,10 @@
 |----------------------------------|---|-------------------------------|------------------|---|----------------------------------------------------|
 | 3.3V rail (from MCP1700 LDO VOUT, not VIN — see wiring.md) | 1 | 3V3                           | GND              | 38 | GND rail black |
 |                                 | 2 | EN                            | GPIO23           | 37 | RGB LED module — `B` pin |
-|                                 | 3 | SVP - GPIO36 *(input only)*   | GPIO22           | 36 | SCL (SEN55 via adapter) blue |
+|                                 | 3 | SVP - GPIO36 *(input only)*   | GPIO22           | 36 | SCL (SEN55 via adapter) yellow |
 |                                 | 4 | SVN - GPIO39 *(input only)*   | TX - GPIO1 (TXD) | 35 | |
 | Battery ADC white               | 5 | GPIO34 *(input only)*         | RX - GPIO3 (RXD) | 34 | |
-|                                 | 6 | GPIO35 *(input only, unused)* | GPIO21           | 33 | SDA (SEN55 via adapter) yellow |
+|                                 | 6 | GPIO35 *(input only, unused)* | GPIO21           | 33 | SDA (SEN55 via adapter) blue |
 | Dock detect (TP4056 IN+) green  | 7 | GPIO32                        | GND              | 32 | GND rail |
 |                                 | 8 | GPIO33                        | GPIO19           | 31 | RGB LED module — `G` pin |
 |                                 | 9 | GPIO25                        | GPIO18           | 30 | RGB LED module — `R` pin |

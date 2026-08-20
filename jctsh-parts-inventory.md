@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.22
-**Version description:** Genuine BS250 replacement stock (Jameco, ×10) received, Bag 35 — separate from the suspect Bag 34 batch, not yet diode-test verified or used.
+**Version:** 2.23
+**Version description:** Corrected Bag 35 BS250 quantity to 10 in the table (was showing 12, inconsistent with this doc's own earlier ×10 note) — also now Bin B1 per the 2026-08-20 bag-to-bin reorg.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -19,6 +19,7 @@
 | Music Response bin | Plastic storage bin labeled "Music Response" — houses discrete components and supplies for the music response project         |
 | Deployed           | Installed in a live JCTsh component; not on hand                                                                              |
 | Soldering Tools    | Container/kit labeled "Soldering Tools" — houses soldering iron tips, heat-set insert tooling, and related accessories                                                                              |
+| Bin [A-D][1-6]     | Plastic bin storage box, organized as a grid — rows A-D, columns 1-6 (e.g., Bin A1) — added 2026-08-20 as select bags are consolidated out of individual numbered zip-lock bags                     |
 
 ---
 
@@ -72,14 +73,14 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
-| HLK-LD2412 | EC Buying, 24GHz mmWave radar, UART, ±75°, 9m range | 1 | Bag 18 | 1 used: garage radar project. |
-| BH1750 (GY-302) | hiBCTR 3-pack, illumination/light sensor, I2C | 5 | Bag 19 | 1 used: front-porch-temp-sensor. |
-| BMP280 (sold as BME280) | Podazz 3-pack, counterfeit — pressure/temp only, no humidity, I2C, 5V | 2 | Bag 2 | 3 returned 2026-05-26. 2 spares removed from front-porch-temp-sensor. |
+| HLK-LD2412 | EC Buying, 24GHz mmWave radar, UART, ±75°, 9m range | 0 | Discarded | 1 used: garage radar project. Bag 18 confirmed empty and discarded during the 2026-08-20 bag-to-bin reorg. |
+| BH1750 (GY-302) | hiBCTR 3-pack, illumination/light sensor, I2C | 5 | Bin C3 (was Bag 19) | 1 used: front-porch-temp-sensor. |
+| BMP280 (sold as BME280) | Podazz 3-pack, counterfeit — pressure/temp only, no humidity, I2C, 5V | 2 | Bin B3 (was Bag 2) | 3 returned 2026-05-26. 2 spares removed from front-porch-temp-sensor. |
 | BME280 (GY-BME280) | 2PCS packs, genuine — temp/humidity/pressure, I2C/SPI, 5V breakout | 3 | Bag 3 | 1 deployed: front-porch-temp-sensor (2026-05-26). 1 used: hiking-monitor. 2 spares. |
-| LTR390 UV Light Sensor | Adafruit #4831, STEMMA QT / Qwiic I2C, UV and ambient light, 3.3V/5V. https://www.amazon.com/dp/B0BPR31P59 | 1 | Bag 22 | 1 used: hiking-monitor. 1 spare. |
+| LTR390 UV Light Sensor | Adafruit #4831, STEMMA QT / Qwiic I2C, UV and ambient light, 3.3V/5V. https://www.amazon.com/dp/B0BPR31P59 | 1 | Bin B2 (was Bag 22) | 1 used: hiking-monitor. 1 spare. |
 | SparkFun SEN-23715 | Sensirion **SEN55** (corrected 2026-07-09 — was mislabeled SEN54; part number SEN-23715 is the genuine SEN55 per SparkFun's own product listing), particle (PM1/2.5/4/10), VOC, NOx, humidity, temperature, I2C/UART. | 1 | Plastic Box | Allocated: air-quality-monitor project. Matches the air-quality-monitor plan's SEN55 requirement (NOx included) — no substitution occurred. **Caveat:** this correction trusts that the physical item on hand actually carries part number SEN-23715, which hasn't been checked against the item's own label/silkscreen — worth a quick physical glance next time the box is open. |
 | Adafruit SEN54/SEN55 Adapter Breakout | STEMMA QT / Qwiic, I2C adapter breakout for Sensirion SEN54/SEN55. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
-| DS3231 RTC Module | HiLetgo 5pcs, high precision real time clock, I2C, 3.3V/5V, CR2032 battery backup. https://www.amazon.com/dp/B01N1LZSK3 | 5 | Bag 28 | 1 allocated: bedside-clock. |
+| DS3231 RTC Module | HiLetgo 5pcs, high precision real time clock, I2C, 3.3V/5V, CR2032 battery backup. https://www.amazon.com/dp/B01N1LZSK3 | 5 | Bin A5 (was Bag 28) | 1 allocated: bedside-clock. |
 | JSN-SR04T-V3.0 | 2pcs, waterproof ultrasonic distance measuring sensor transducer module, integrated. https://www.amazon.com/dp/B0CP5YQF43 | 2 | Bag 30 | No project assigned. |
 | Greekcreit Sensor Module Kit for Arduino | Kit of 37 modules including: active/passive buzzer, LED modules (common cathode red/green, two-color, RGB, colorful auto flash), knock/shock/tilt/magnet-ring/hall/analogy hall/magnetic spring sensors, photo resistor, push button, infrared TX/RX, rotate encoder, light break sensor, finger pulse sensor, obstacle avoidance, tracking, microphone, laser TX, relay, analog/digital/18b20 temperature, flame, voice, humidity, joystick PS2, touch sensor | — | Plastic Box | |
 
@@ -93,7 +94,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | EVE 3.3V 18650 Cell | 18650BatteryStore.com, 3200mAh, 10A, flat top | 5 | Bag 5 | No project assigned. |
 | Mini Solar Panel | SUNYIMA, 5.5V 80mA, 2.36"×2.36", DIY photovoltaic | 10 | Bag 6 | No project assigned. |
 | LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 3 | Bag 7 | 1 in service: hiking-monitor. Hiking-monitor's original cell failed in the field (2026-07-03) and was replaced from this stock — physical recount confirmed 2 still remaining in Bag 7 afterward; trust this physical count over prior used/remaining math. |
-| TP4056 Battery Charger Modules | USB TP4056, 3.7V–4.2V to 9V/5V, 2A, charge/discharge integrated step-up. https://www.amazon.com/dp/B098989NRZ | 5 | Bag 8 | 1 used: hiking-monitor. |
+| TP4056 Battery Charger Modules | USB TP4056, 3.7V–4.2V to 9V/5V, 2A, charge/discharge integrated step-up. https://www.amazon.com/dp/B098989NRZ | 5 | Bin A4 (was Bag 8) | 1 used: hiking-monitor. |
 | DC Buck Converter 12V→5V 3A | 2pcs, 15W, USB-C output, compatible with Raspberry Pi 4. https://www.amazon.com/dp/B0CMZWN7WS | 2 | Bag 21 | No project assigned. |
 | Power Supply Module 3.3V/5V | HiLetgo, dual output 3.3V and 5V, breadboard-compatible. | 5 | Music Response bin | No project assigned. |
 | 9V Battery Clips I-Type DC Plug | HiLetgo, I-type DC barrel connector. | 10 | Music Response bin | No project assigned. |
@@ -114,14 +115,14 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | JST SM 2-Pin Connectors | Male/female pairs, EL wire cable style. https://www.amazon.com/dp/B00T2U76V0 | Assortment | Bag 14            | Verify selection before build. |
 | Pin Header JST Plug Connectors | QTEATAK, 2P/3P/4P/5P, right angle, 2.54mm pitch. https://www.amazon.com/dp/B0CH8G2XN9 | Assortment | Plastic Box       | Verify selection before build. |
 | Dupont Connector Kit 2.54mm | Taiss 600pcs, 1–7 pin housing, male/female crimp pins, 2.54mm pitch. https://www.amazon.com/dp/B0B11SX39B | Assortment | Plastic Box       | Use with SN-28B crimping tool. Verify selection before build. |
-| Slide Switch Assortment | Gebildet 40pcs, SS12D10 (SPDT 1P2T 3-pin, 250V/3A) and SS12F15 (mini panel SPDT 3-pin, 50V/0.5A). https://www.amazon.com/dp/B0D55ZSH8Y | Assortment | Bag 23 | Verify rating before build. |
+| Slide Switch Assortment | Gebildet 40pcs, SS12D10 (SPDT 1P2T 3-pin, 250V/3A) and SS12F15 (mini panel SPDT 3-pin, 50V/0.5A). https://www.amazon.com/dp/B0D55ZSH8Y | Assortment | Bin A3 (was Bag 23) | Verify rating before build. |
 | Wire Lever Connectors | 32Pcs Lever Wire Connectors, DIY Mini Compact Splicing Assortment Quick Electrical Connector Kit for 24-12 AWG https://www.amazon.com/dp/B0B28GQVVG | Assortment | Plastic Box       | Verify selection before build. |
 | Jumper Wires | Jumper Wire Kit - 840 Piece Breadboard Jumper Wire Set, 22ga 14 Assorted Lengths for Prototyping https://www.amazon.com/dp/B07WLPN929 | Assortment | Plastic Box       | Suitable for perfboard use, but not breadboards. |
 | M2 Screw Assortment | 645 pcs metric, M2 countersunk flat-head hex socket cap screws, bolts, nuts, washers, 304 stainless steel. https://www.amazon.com/dp/B0GFDQ6457 | Assortment | Plastic Box       | Verify selection before build. |
 | 3M Double Sided Foam Tape | 3M 5925, 0.5" × 15.4 ft, heavy duty, 0.025" thick, black, strong adhesive for mounting. https://www.amazon.com/dp/B0CHDVNS5T | 1 roll | Plastic Box       | No project assigned. |
-| 2-Pin Screw Terminal Block 3.5mm | uxcell, 50 pcs, 2-pin, 3.5mm pitch, panel/PCB mount, green. https://www.amazon.com/dp/B01C3DGIBQ | 50 | Plastic Box       | No project assigned. |
-| Heat Shrink Butt Connectors 26-24 AWG | 100 pcs, insulated waterproof crimp butt splice connectors, marine/automotive grade. https://www.amazon.com/dp/B08LR7NV7M | 100 | Bag 26 | No project assigned. |
-| Momentary Push Button Switch 12mm | Twidec 6pcs, PBS-33B-BK-X, 12mm, 1/2" panel mount, waterproof, pre-soldered wires, black. https://www.amazon.com/dp/B08JHW8BPV | 6 | Bag 27 | 1 allocated: bedside-clock. |
+| 2-Pin Screw Terminal Block 3.5mm | uxcell, 50 pcs, 2-pin, 3.5mm pitch, panel/PCB mount, green. https://www.amazon.com/dp/B01C3DGIBQ | 50 | Bin B4 (was Plastic Box) | No project assigned. |
+| Heat Shrink Butt Connectors 26-24 AWG | 100 pcs, insulated waterproof crimp butt splice connectors, marine/automotive grade. https://www.amazon.com/dp/B08LR7NV7M | 100 | Bin D2 (was Bag 26) | No project assigned. |
+| Momentary Push Button Switch 12mm | Twidec 6pcs, PBS-33B-BK-X, 12mm, 1/2" panel mount, waterproof, pre-soldered wires, black. https://www.amazon.com/dp/B08JHW8BPV | 6 | Bin C2 (was Bag 27) | 1 allocated: bedside-clock. |
 | M3 Heat Set Threaded Inserts | 300 pcs, M3 × D5 × L4, brass, knurled, for melting into 3D-printed plastic. https://www.amazon.com/dp/B0DG59PW2R | 300 | Plastic Box | No project assigned. |
 | M3 Screw Assortment | 600 pcs, M3 hex button head cap screws, bolts, nuts, washers, 8 sizes: 6/8/10/12/16/20/25/30mm, 304 stainless steel. https://www.amazon.com/dp/B0D1457XQ3 | 600 | Plastic Box | No project assigned. Verify selection before build. |
 
@@ -141,10 +142,10 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
 | USB-C to Micro USB Adapter | JXMOX 4-pack, Type-C female to Micro USB male, supports charge and data sync, grey. https://www.amazon.com/dp/B07GH5KJH2 | 4 | Bag 20 | Useful for powering or connecting Micro USB devices from USB-C sources. |
-| 3M Mini-Clamp Connectors | 3M, 4-conductor. Pinout for p-w-firefly CAN bus: Red=12V+ (leave unconnected), White=CAN-H, Green/Blue=CAN-L, Black=GND. | 3 | Bag 24 | Allocated: p-w-firefly project. Do not connect Red (12V+) to PiCAN2. |
+| 3M Mini-Clamp Connectors | 3M, 4-conductor. Pinout for p-w-firefly CAN bus: Red=12V+ (leave unconnected), White=CAN-H, Green/Blue=CAN-L, Black=GND. | 3 | Bin D3 (was Bag 24) | Allocated: p-w-firefly project. Do not connect Red (12V+) to PiCAN2. |
 | JST GH 1.25mm Pitch 6-Pin Cable | 100mm long. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
-| STEMMA QT / Qwiic Cable | Adafruit #4209, JST SH 4-pin to premium male headers, 150mm long. https://www.adafruit.com/product/4209 | 2 | Bag 31 | 1 used: hiking-monitor (LTR-390 sensor-side rewiring, CARD-0009). 1 spare. |
-| AreMe 90° USB-C Male to Female Adapter | 2-pack, 90-degree angled, USB-C male to USB-C female, metallic purple. https://www.amazon.com/dp/B0B2NJ3P3L | 2 | Bag 33 | No project assigned. |
+| STEMMA QT / Qwiic Cable | Adafruit #4209, JST SH 4-pin to premium male headers, 150mm long. https://www.adafruit.com/product/4209 | 2 | Bin A2 (was Bag 31) | 1 used: hiking-monitor (LTR-390 sensor-side rewiring, CARD-0009). 1 spare. |
+| AreMe 90° USB-C Male to Female Adapter | 2-pack, 90-degree angled, USB-C male to USB-C female, metallic purple. https://www.amazon.com/dp/B0B2NJ3P3L | 2 | Bin D1 (was Bag 33) | No project assigned. |
 
 ---
 
@@ -155,9 +156,9 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | BC557B PNP Transistor | Diotec, PNP 45V 0.1A TO-92. DigiKey 4878-BC557BCT-ND | 10 | Music Response bin | General-purpose small-signal PNP. |
 | BC547B NPN Transistor | Diotec, NPN 45V 0.1A TO-92. DigiKey 4878-BC547BCT-ND | 50 | Music Response bin | General-purpose small-signal NPN. |
 | 1N4148 Signal Diode | onsemi, 100V 200mA DO-35. DigiKey 1N4148FS-ND | 50 | Music Response bin | Fast switching signal diode. |
-| MCP1700 LDO Voltage Regulator | Microchip MCP1700, LDO linear voltage regulator, fixed 3.3V output, through-hole TO-92. https://www.amazon.com/dp/B0B2S2CT78 | 10 | Bag 32 | No project assigned. |
-| BS250 P-Channel MOSFET | TO-92, P-channel, 45V 0.23A 0.7W. https://www.amazon.com/dp/B0FPQKX4H1 | 10 | Bag 34 | **Suspected defective/counterfeit batch (2026-07-20, CARD-0070)** — 2 units tested during the LDO/gate prototype both showed abnormal Source-Drain conduction (~15-19kΩ effective) at Vgs=0, where a healthy enhancement-mode P-channel MOSFET should be solidly in cutoff. Wiring, orientation, and Vgs were all directly verified correct, isolating the fault to the parts themselves. Do not use remaining units from this bag for CARD-0070 or any project until/unless individually verified via diode-test (Gate = OL to both legs in both directions; Source-Drain pair shows one clean ~0.5-0.7V diode reading, OL the reverse). Genuine replacements ordered from Jameco (Diodes Incorporated, authorized distributor) — received, see Bag 35 below. |
-| BS250 P-Channel MOSFET | TO-92, P-channel, 45V 0.23A 0.7W. Jameco, Diodes Incorporated (authorized distributor) | 12 | Bag 35 | **Genuine replacement stock (received 2026-08-17)** for the suspect Bag 34 batch, CARD-0070. Not yet diode-test verified or used — CARD-0070 itself is Deferred (2026-08-14), so no immediate project consumption planned; kept on hand for a future battery-powered sensor build. |
+| MCP1700 LDO Voltage Regulator | Microchip MCP1700, LDO linear voltage regulator, fixed 3.3V output, through-hole TO-92. https://www.amazon.com/dp/B0B2S2CT78 | 10 | Bin A1 (was Bag 32) | No project assigned. |
+| BS250 P-Channel MOSFET | TO-92, P-channel, 45V 0.23A 0.7W. https://www.amazon.com/dp/B0FPQKX4H1 | 10 | Bin C1 (was Bag 34) | **Suspected defective/counterfeit batch (2026-07-20, CARD-0070)** — 2 units tested during the LDO/gate prototype both showed abnormal Source-Drain conduction (~15-19kΩ effective) at Vgs=0, where a healthy enhancement-mode P-channel MOSFET should be solidly in cutoff. Wiring, orientation, and Vgs were all directly verified correct, isolating the fault to the parts themselves. Do not use remaining units from this bag for CARD-0070 or any project until/unless individually verified via diode-test (Gate = OL to both legs in both directions; Source-Drain pair shows one clean ~0.5-0.7V diode reading, OL the reverse). Genuine replacements ordered from Jameco (Diodes Incorporated, authorized distributor) — received, see Bag 35 below. |
+| BS250 P-Channel MOSFET | TO-92, P-channel, 45V 0.23A 0.7W. Jameco, Diodes Incorporated (authorized distributor) | 10 | Bin B1 (was Bag 35) | **Genuine replacement stock (received 2026-08-17)** for the suspect Bag 34 batch, CARD-0070. Not yet diode-test verified or used — CARD-0070 itself is Deferred (2026-08-14), so no immediate project consumption planned; kept on hand for a future battery-powered sensor build. |
 
 ---
 
@@ -165,7 +166,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
-| BOJACK T3.15AL250V Slow Blow Fuse | 5×20mm (0.2×0.78in) glass tube, 3.15A 250V, time-delay/slow-blow. Pack of 20. https://www.amazon.com/dp/B07X2K4NTQ | 20 | Plastic Box | For multimeter (replacement fuse). |
+| BOJACK T3.15AL250V Slow Blow Fuse | 5×20mm (0.2×0.78in) glass tube, 3.15A 250V, time-delay/slow-blow. Pack of 20. https://www.amazon.com/dp/B07X2K4NTQ | 20 | Bin C4 (was Plastic Box) | For multimeter (replacement fuse). |
 
 ---
 
@@ -272,3 +273,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-07-20 | CARD-0070 | Bag 34 BS250 stock flagged suspected defective/counterfeit — 2 units tested, both showed abnormal Source-Drain conduction at Vgs=0 during the LDO/gate prototype. Wiring/orientation/Vgs verified correct, isolating fault to the parts. Do not use remainder without individual diode-test verification. Genuine replacements ordered from Jameco (Diodes Incorporated). |
 | 2026-07-20 | Stock | Heat set insert tool tips (M2–M6, ASIN B0DB1SSKVN) received, added to Tools — Bench Equipment, new "Soldering Tools" location (added to Location Key) |
 | 2026-08-17 | Stock | BS250 P-channel MOSFET ×10 received (Jameco, Diodes Incorporated) — genuine replacement for the suspect Bag 34 batch (CARD-0070), added to Discrete Semiconductors, new Bag 35 |
+| 2026-08-20 | Stock | Bag-to-bin reorg started (new "Bin [A-D][1-6]" Location Key entry): Bag 32 → Bin A1, Bag 35 → Bin B1, Bag 34 → Bin C1, Bag 33 → Bin D1, Bag 31 → Bin A2. Bag 18 (HLK-LD2412) confirmed empty and discarded — qty corrected to 0. Also corrected Bag 35 BS250 table quantity from 12 to 10, matching this doc's own earlier note. |

@@ -1,0 +1,295 @@
+# JCTsh Air Quality Monitor — ESPHome Configuration
+# Hardware: ESP32 DevKitC-32 (38-pin, CP2102 USB-C)
+#           + Sensirion SEN55 (I2C 0x69, via Adafruit #5964 adapter) — PM1.0/2.5/4.0/10, VOC, NOx
+#           + SEN55 power gate: BC547B NPN low-side switch → GPIO27 (pin 11)
+#           + RGB LED (KY-016) — GPIO18/19/23 (pins 30/31/37) — NOT wired up yet, see Step 5
+#           + Dock detect: TP4056 IN+ (or solar) → 68kΩ+100kΩ divider → GPIO32 (pin 7)
+#           + Battery voltage divider → GPIO34 (pin 5, input-only)
+#           + EEMB 1100mAh LiPo + TP4056 (charging only) + MCP1700 LDO + inline power switch
+#
+# STEP 4 SCOPE — SEN55 base validation only. Powered via USB during breadboard
+# Steps 4-6 (wiring.md) — LiPo/LDO not connected until Step 7, so no battery-
+# voltage-driven low-battery cutoff is wired in yet either (Build-Standards
+# §2.14 point 2 requires this once a battery is actually in the circuit — add
+# it starting Step 7/8, not deferred past that point). SEN55 power gate
+# (GPIO27) is simply held ALWAYS_ON here for continuous readings during bench
+# validation. Field/home mode duty-cycle logging, SPIFFS storage, WiFi replay,
+# the bounded-attempt-window/backoff WiFi retry logic, and RGB LED threshold
+# logic are NOT implemented in this file — those are Step 8 (firmware) and
+# Step 5 (LED) deliverables, built on top of this base config, not re-derived
+# from scratch here.
+#
+# GPIO assignments (ESP32-project-pins.md has the full 38-pin table):
+#   GPIO21  I2C SDA (SEN55 via Adafruit adapter) — blue
+#   GPIO22  I2C SCL — yellow
+#   GPIO27  SEN55 power-gate control, active-high (BC547B transistor base via 1kΩ)
+#   GPIO32  Dock detect (TP4056 IN+ or solar → divider, HIGH = docked/charging)
+#   GPIO34  Battery voltage ADC (input-only; placeholder reading until Step 7 wires the LiPo)
+#
+# MQTT topics (prefix: jctsh/components/air-quality-monitor):
+#   .../data       — sensor readings (JSON payload per JCTsh-Environmental-Data-Architecture.md) — Step 8
+#   .../log        — diagnostic messages (JSON, wildcard routed to Python log server)
+#   .../heartbeat  — 5-min heartbeat when MQTT connected (matches hiking-monitor's
+#                    established deviation from the generic 30-min standard, Step 0)
+
+esphome:
+  name: air-quality-monitor
+  friendly_name: Air Quality Monitor
+  on_boot:
+    - priority: -100.0
+      then:
+        - delay: 2s   # let the SEN55 fan/sensor settle before forcing a first read
+        - component.update: sen55
+        - component.update: battery_voltage
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# ── WiFi ──────────────────────────────────────────────────────────────────────
+# Multi-network (portable component): home WiFi first, Pixel hotspot second —
+# added 2026-08-20 now that solar/field-USB charging can trigger dock-detect
+# away from home (see JCTsh-air-quality-monitor-phase1.md's superseded
+# Timeout/timer logic decision). `ap:` fallback included here (standard
+# default per JCTsh-Build-Standards.md §2.8) — the earlier Step 1 note about
+# not blindly inheriting hiking-monitor's `wifi.ap:` + `reboot_timeout`
+# interaction (CARD-0045) still applies today (this file doesn't yet
+# implement the bounded-attempt-window/wifi.disable() logic that would make
+# it moot — that's Step 8), so this device carries the same low-priority,
+# accepted risk hiking-monitor already does until Step 8 ships.
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+    - ssid: !secret hotspot_ssid
+      password: !secret hotspot_password
+  ap:
+    ssid: "air-quality-monitor-fallback"
+    password: !secret ap_password
+
+captive_portal:
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logger:
+  level: INFO
+
+# ── OTA updates ───────────────────────────────────────────────────────────────
+# First flash: USB from C:\esphome\air-quality-monitor\
+# All subsequent updates: OTA — esphome run air-quality-monitor.yaml
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# ── MQTT ──────────────────────────────────────────────────────────────────────
+# TLS on 8883 against jctsh.duckdns.org — matches hiking-monitor's current
+# config (CARD-0003), corrected 2026-08-20 from the originally-planned
+# LAN-only pi1.local:1883 now that field connections are a real path.
+mqtt:
+  id: mqtt_client
+  broker: !secret mqtt_broker
+  port: 8883
+  certificate_authority: !secret mqtt_ca_cert
+  idf_send_async: false  # ESPHome-recommended stability setting for MQTT+TLS on esp-idf
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  topic_prefix: jctsh/components/air-quality-monitor
+  discovery: false  # no Home Assistant integration (Phase 3 decision) — do not leave at ESPHome's true default
+  will_message:
+    topic: jctsh/components/air-quality-monitor/log
+    payload: '{"component":"air-quality-monitor","category":"MQTT","message":"MQTT disconnected"}'
+    retain: false
+    qos: 0
+  on_connect:
+    - delay: 500ms
+    - mqtt.publish:
+        topic: jctsh/components/air-quality-monitor/log
+        payload: !lambda |-
+          char buf[256];
+          snprintf(buf, sizeof(buf),
+            "{\"component\":\"air-quality-monitor\",\"category\":\"System\","
+            "\"message\":\"Air quality monitor online - ESPHome " ESPHOME_VERSION ", IP: %s\"}",
+            id(wifi_ip).state.c_str());
+          return std::string(buf);
+    - mqtt.publish:
+        topic: jctsh/components/air-quality-monitor/log
+        payload: '{"component":"air-quality-monitor","category":"MQTT","message":"MQTT connected"}'
+
+# ── I2C ───────────────────────────────────────────────────────────────────────
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+
+# ── SEN55 power gate ────────────────────────────────────────────────────────
+# ALWAYS_ON for Step 4 bench validation only — Step 8 replaces this with real
+# duty-cycle control (~10s active per 2-min cycle, per the Phase 1 power
+# budget) via turn_on/turn_off in the field-mode logging lambda.
+switch:
+  - platform: gpio
+    pin: GPIO27
+    id: sen55_power_gate
+    name: "SEN55 Power Gate"
+    internal: true
+    restore_mode: ALWAYS_ON
+
+# ── Sensors ───────────────────────────────────────────────────────────────────
+sensor:
+  # SEN55 — native sen5x platform (esphome.io/components/sensor/sen5x/)
+  # Temperature/humidity sub-sensors intentionally omitted — Phase 1 decision:
+  # those fields come from hiking-monitor, not this device's payload.
+  - platform: sen5x
+    address: 0x69
+    update_interval: 10s  # fast for bench validation; Step 8 changes this to the duty-cycle pattern
+    pm_1_0:
+      name: "PM 1.0"
+      id: sen55_pm1
+      internal: true
+    pm_2_5:
+      name: "PM 2.5"
+      id: sen55_pm25
+      internal: true
+    pm_4_0:
+      name: "PM 4.0"
+      id: sen55_pm4
+      internal: true
+    pm_10_0:
+      name: "PM 10.0"
+      id: sen55_pm10
+      internal: true
+    voc:
+      name: "VOC Index"
+      id: sen55_voc
+      internal: true
+    nox:
+      name: "NOx Index"
+      id: sen55_nox
+      internal: true
+
+  # Battery voltage — voltage divider on GPIO34 (100kΩ + 100kΩ → 2:1 divider).
+  # Placeholder reading until Step 7 wires the LiPo — see wiring.md's Battery
+  # Voltage Divider Wiring notes (breadboard-tested from the 3.3V rail for now).
+  - platform: adc
+    pin: GPIO34
+    name: "Battery Voltage"
+    id: battery_voltage
+    attenuation: 12db
+    update_interval: 30s
+    filters:
+      - multiply: 2.0
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+    internal: true
+
+  # Internal sensors used in on_connect/heartbeat lambdas
+  - platform: uptime
+    id: uptime_sec
+    internal: true
+
+  - platform: wifi_signal
+    id: wifi_rssi
+    internal: true
+    update_interval: 60s
+
+# ── WiFi IP (used in on_connect log message) ──────────────────────────────────
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: wifi_ip
+      internal: true
+
+# ── Dock detect ───────────────────────────────────────────────────────────────
+# TP4056 IN+ (USB VBUS) or solar → 68kΩ → midpoint → 100kΩ → GND; midpoint to
+# GPIO32. HIGH = docked/charging (home mode) or solar connected. No
+# mode-switching logic wired to this yet — Step 8 adds the
+# field/home duty-cycle behavior and the bounded WiFi-attempt/backoff logic
+# described in JCTsh-air-quality-monitor-phase1.md's Timeout/timer decision.
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO32
+      mode: INPUT
+    name: "Dock Detect"
+    id: dock_detect
+    internal: true
+
+# ── Heartbeat ─────────────────────────────────────────────────────────────────
+# 5-minute interval — matches hiking-monitor's established deviation from the
+# generic 30-min standard (JCTsh-Build-Standards.md §4.1), not re-derived here.
+# Guarded by mqtt_client.is_connected() per §2.7's home-mode-only pattern.
+interval:
+  - interval: 5min
+    then:
+      - if:
+          condition:
+            lambda: 'return id(mqtt_client).is_connected();'
+          then:
+            - mqtt.publish:
+                topic: jctsh/components/air-quality-monitor/log
+                payload: !lambda |-
+                  uint32_t secs = (uint32_t)id(uptime_sec).state;
+                  uint32_t h = secs / 3600;
+                  uint32_t m = (secs % 3600) / 60;
+                  int rssi = (int)id(wifi_rssi).state;
+                  float pm25 = id(sen55_pm25).state;
+                  float voc  = id(sen55_voc).state;
+                  float nox  = id(sen55_nox).state;
+                  float batt = id(battery_voltage).state;
+                  char pm25_str[16], voc_str[16], nox_str[16], batt_str[16];
+                  if (isnan(pm25)) strcpy(pm25_str, "unavailable");
+                  else snprintf(pm25_str, sizeof(pm25_str), "%.1f", pm25);
+                  if (isnan(voc)) strcpy(voc_str, "unavailable");
+                  else snprintf(voc_str, sizeof(voc_str), "%.0f", voc);
+                  if (isnan(nox)) strcpy(nox_str, "unavailable");
+                  else snprintf(nox_str, sizeof(nox_str), "%.0f", nox);
+                  if (isnan(batt)) strcpy(batt_str, "unavailable");
+                  else snprintf(batt_str, sizeof(batt_str), "%.2fV", batt);
+                  char buf[320];
+                  snprintf(buf, sizeof(buf),
+                    "{\"component\":\"air-quality-monitor\",\"category\":\"System\","
+                    "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, PM2.5: %s, VOC: %s, NOx: %s, batt: %s\"}",
+                    h, m, rssi, pm25_str, voc_str, nox_str, batt_str);
+                  return std::string(buf);
+            - mqtt.publish:
+                topic: jctsh/components/air-quality-monitor/heartbeat
+                payload: !lambda |-
+                  uint32_t secs = (uint32_t)id(uptime_sec).state;
+                  uint32_t h = secs / 3600;
+                  uint32_t m = (secs % 3600) / 60;
+                  int rssi = (int)id(wifi_rssi).state;
+                  float batt = id(battery_voltage).state;
+                  char batt_json[16];
+                  if (isnan(batt)) strcpy(batt_json, "null");
+                  else snprintf(batt_json, sizeof(batt_json), "%.2f", batt);
+                  char buf[160];
+                  snprintf(buf, sizeof(buf),
+                    "{\"component\":\"air-quality-monitor\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"battery_v\":%s}",
+                    h, m, rssi, batt_json);
+                  return std::string(buf);
+
+  # Bench-validation log — every 30s, so PM/VOC/NOx readings show up on the log
+  # dashboard quickly for Step 4's "confirm plausible values" check, independent
+  # of the 5-min heartbeat above. Remove or fold into Step 8's duty-cycle
+  # lambda once field/home mode logic replaces this.
+  - interval: 30s
+    then:
+      - mqtt.publish:
+          topic: jctsh/components/air-quality-monitor/log
+          payload: !lambda |-
+            float pm1  = id(sen55_pm1).state;
+            float pm25 = id(sen55_pm25).state;
+            float pm4  = id(sen55_pm4).state;
+            float pm10 = id(sen55_pm10).state;
+            float voc  = id(sen55_voc).state;
+            float nox  = id(sen55_nox).state;
+            if (isnan(pm1) || isnan(pm25) || isnan(pm4) || isnan(pm10)) {
+              return std::string(
+                "{\"component\":\"air-quality-monitor\",\"category\":\"Sensor\","
+                "\"message\":\"SEN55 initializing - no valid reading yet\"}");
+            }
+            char buf[256];
+            snprintf(buf, sizeof(buf),
+              "{\"component\":\"air-quality-monitor\",\"category\":\"Sensor\","
+              "\"message\":\"PM1.0: %.1f, PM2.5: %.1f, PM4.0: %.1f, PM10: %.1f, VOC: %.0f, NOx: %.0f\"}",
+              pm1, pm25, pm4, pm10, voc, nox);
+            return std::string(buf);

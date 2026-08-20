@@ -139,7 +139,7 @@ text_sensor:
 # ── Restart button ────────────────────────────────────────────────────────────
 button:
   - platform: restart
-    name: "Restart"
+    name: "Front Porch Temp Sensor Restart"
 
 # ── Data pipeline + heartbeat intervals ───────────────────────────────────────
 interval:

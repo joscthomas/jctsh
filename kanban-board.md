@@ -9,7 +9,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0186 -->
+<!-- next-card-id: CARD-0187 -->
 
 ---
 
@@ -116,8 +116,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0180 · [enhancement] [hiking-monitor] On-demand remote reboot, triggered from Home Assistant
-**Status:** Planning
+### CARD-0180 · [enhancement] [hiking-monitor] On-demand remote reboot, triggered from Home Assistant — RESOLVED 2026-08-19 17:24 MST
+**Status:** Done
 
 **Raised 2026-08-17 18:01 MST (Joseph):** surfaced while closing out CARD-0009's final assembly — no way to reset the device without disassembling the enclosure (no exposed reset button, no remote-reboot mechanism in the current firmware). Deep sleep wake cycles already function as a full reset in normal operation, but there's no way to force one on demand.
 
@@ -126,13 +126,41 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - Log it: yes — publish a System-category message to the existing `/log` topic right before rebooting (`"Manual reboot triggered"` or similar), consistent with how every other action on this device already shows up on the dashboard.
 - **Open question, not yet decided:** how to get an entity into HA at all. `hiking-monitor.yaml`'s `mqtt:` block currently has `discovery: false` with an explicit comment — "No HA discovery — hiking-monitor has no Home Assistant integration." Flipping that to `true` would auto-register just the new restart button via standard MQTT discovery (everything else stays `internal: true`, so nothing else gets exposed) with zero edits to `configuration.yaml`. Proposed 2026-08-17, **Joseph deferred the decision ("we'll figure this out later")** rather than approving or rejecting it outright — don't assume yes, revisit at Planning/Build time.
 
-**Not yet decided/built:** the discovery approach above (or an alternative), the actual `button: platform: restart` component, and how this gets deployed (OTA — device's aggressive sleep cycle makes catching an awake window unreliable, per CARD-0076's own OTA testing this session — or USB, which reintroduces the exact disassembly problem this card exists to avoid; worth deciding deliberately rather than defaulting to USB out of habit).
+**Discovery approach decided and built, 2026-08-19 17:16 MST.** Confirmed: ESPHome's `internal: true` flag excludes an entity from discovery *and* the native API entirely, not just hides it in HA — so flipping the device-level `discovery: true` while every existing sensor/entity stays `internal: true` (unchanged) means only a new, deliberately-non-internal entity is exposed. `hiking-monitor.yaml` updated: `mqtt:` block's `discovery: false` → `discovery: true` + `discovery_prefix: homeassistant`; new `button: platform: restart` (`Hiking Monitor Restart`, not internal — the only entity this device exposes to HA), `on_press:` publishes the required System-category log message to `/log` before rebooting.
+
+**Deployed and flashed via OTA, 2026-08-19** — device happened to be in an awake USB-connected upload-mode window, so the OTA-vs-USB blocker resolved itself without needing a decision. Live testing then surfaced two real bugs, neither visible from code review alone:
+
+1. **MQTT discovery `unique_id` collision.** Renaming the button's `name:` from "Hiking Monitor Restart" to "Restart" (cosmetic cleanup) created a *new* discovery entity rather than renaming the old one in place — ESPHome derives the discovery unique_id from the entity name, not the YAML `id:`. The new auto-generated id (`ESPbuttonrestart`, from the default `discovery_unique_id_generator: legacy`) collided with identical ids already published by `front-porch-temp-sensor` and `salt-sensor`'s own restart buttons (confirmed live via `mosquitto_sub` on `homeassistant/button/#`), so HA silently dropped hiking-monitor's entity. Fixed by adding `discovery_unique_id_generator: mac` to the `mqtt:` block (folds the device's own MAC into the id) and clearing the stale retained discovery topic before reflashing. Verified via a fresh `mosquitto_sub` showing a MAC-scoped uniq_id and `button.hiking_monitor_restart` appearing correctly in HA. **This same legacy-generator collision risk applies to every other ESPHome device using MQTT discovery — see follow-up below.**
+2. **`platform: restart`'s `press_action()` doesn't wait for `on_press:`.** First live test-press rebooted the device successfully, but the custom pre-reboot log message never reached the broker — only the platform's own built-in "Rebooting safely" line did. Root-caused: the `restart` platform's press action reboots immediately/independently of any `on_press:` automation attached to it. Fixed by switching to `platform: template` with an explicit `on_press:` sequence: publish the log message → `delay: 500ms` → `lambda: 'App.safe_reboot();'`.
+
+**Verified live, 2026-08-19 17:24 MST:** re-flashed with both fixes, captured MQTT traffic during a real button press from HA — confirmed order `button/restart/command PRESS` → `log` message `"Manual reboot triggered from Home Assistant"` published → `debug` `"Rebooting safely"`. Entity `button.hiking_monitor_restart` shows correctly in HA with no duplication.
 
 **Standard raised from this, 2026-08-18 14:35 MST:** `JCTsh-Build-Standards.md` §1.7 (Accessible Power Control for Enclosed Devices, v1.19) now makes an accessible reboot/reset trigger (requirement 2, physical or remote) a required decision for every future enclosed build, made before the enclosure is sealed — this card and CARD-0181 are its origin case. §1.7 notes a remote/software-triggered restart (what this card is pursuing) is generally preferable to a physical reset button for a battery-powered field device, since it avoids an extra enclosure penetration.
 
-**Done when:** Joseph can trigger a hiking-monitor reboot from Home Assistant on demand, the action is visible on the log dashboard, and the mechanism for getting there (HA integration approach + deployment method) has been explicitly decided rather than assumed.
+**Done when:** Joseph can trigger a hiking-monitor reboot from Home Assistant on demand, the action is visible on the log dashboard, and the mechanism for getting there (HA integration approach + deployment method) has been explicitly decided rather than assumed. — **Met, verified live 2026-08-19 17:24 MST.**
 
-**Related:** CARD-0009 (the final-assembly session this surfaced during), CARD-0076 (the OTA-reliability finding — this device rarely has a catchable awake window for WiFi-based flashing).
+**Related:** CARD-0009 (the final-assembly session this surfaced during), CARD-0076 (the OTA-reliability finding — this device rarely has a catchable awake window for WiFi-based flashing), CARD-0186 (follow-up: front-porch-temp-sensor and salt-sensor already collide on the same legacy discovery unique_id this card found and fixed).
+
+---
+
+### CARD-0186 · [bug] [front-porch-temp-sensor] [salt-sensor] Restart button MQTT discovery id collision — RESOLVED 2026-08-19
+**Status:** Done
+
+**Raised 2026-08-19 (Joseph, while closing CARD-0180):** "What about front-porch-temp-sensor and salt-sensor?" — asked after CARD-0180's investigation found hiking-monitor's restart button colliding with these two devices' restart buttons on the exact same auto-generated MQTT discovery `unique_id` (`ESPbuttonrestart`, from ESPHome's default `discovery_unique_id_generator: legacy`, which derives the id from the entity's type + name alone — any two devices with an entity of the same type sharing the literal name "Restart" collide). All three devices' restart buttons are named plain `"Restart"`.
+
+**Confirmed live before starting:** checked HA directly — `button.front_porch_temp_sensor_restart` exists (currently the collision "winner"); `button.salt_sensor_restart` returns "Entity not found" (the silent loser — has never worked from HA, unnoticed until now).
+
+**Scope decision:** hiking-monitor's own fix used `discovery_unique_id_generator: mac` at the device's `mqtt:` block level — safe there because that device exposes only one entity (everything else `internal: true`). front-porch-temp-sensor is not the same shape: it discovers several live entities (temperature/humidity/pressure, light level) feeding the environmental data pipeline, and the generator setting is device-wide, not per-entity — flipping it would regenerate *every* entity's unique_id on that device, orphaning current HA registrations (same duplication mess as CARD-0180's own bug, but on live sensor data instead of an unused button). salt-sensor only discovers the button (its SmartThings switches are separate virtual entities, not published by this device) so either fix is equally safe there. **Decided:** apply the surgical, lower-blast-radius fix to both — give each device's restart button a distinct `name:` (device-specific, not the shared literal "Restart") so the existing legacy generator naturally produces distinct ids. No `mqtt:` block changes, no other entities touched on either device.
+
+**Done when:** both devices reflashed, `button.salt_sensor_restart` (or its post-rename entity_id) appears live in HA for the first time, `button.front_porch_temp_sensor_restart`'s entity confirmed still intact/no duplicate created, verified via live `mosquitto_sub` + HA state check same as CARD-0180.
+
+**Built and verified live, 2026-08-19.** Both devices reflashed OTA. Confirmed via `mosquitto_sub` on `homeassistant/button/#` that each device now publishes a distinct `uniq_id` (`ESPbuttonfront_porch_temp_sensor_restart`, `ESPbuttonsalt_sensor_restart`) — no more collision with each other or with hiking-monitor. Old stale retained discovery topics (`.../restart/config`, `uniq_id: ESPbuttonrestart`) cleared on both via `mosquitto_pub -n -r` so HA drops the orphaned pre-fix entities.
+
+**Result:** `button.salt_sensor_salt_sensor_restart` now exists and works — first time ever (previously silently dropped, confirmed "Entity not found" before this fix). `button.porch_front_front_porch_temp_sensor_front_porch_temp_sensor_restart` (front-porch) also works, no duplication.
+
+**Known cosmetic side effect, not fixed by this card:** naming both buttons with the device name already included (e.g. "Salt Sensor Restart") caused HA to double up device-name + entity-name when generating entity_id/friendly_name — both ended up more verbose/mangled than intended (front-porch's especially, from a brief three-way collision window while the stale topic was being cleared). Functionally correct, cosmetically ugly. **Joseph is doing the entity_id cleanup himself** via HA's UI (Settings → Devices & Services → Entities → rename entity ID) — not scripted, since HA's entity registry rename isn't exposed over the REST API, only the frontend's WS API.
+
+**Related:** CARD-0180 (hiking-monitor — origin case, found this collision as a side effect).
 
 ---
 

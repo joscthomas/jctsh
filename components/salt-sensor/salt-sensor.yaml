@@ -199,7 +199,7 @@ text_sensor:
 # ── Restart button ────────────────────────────────────────────────────────────
 button:
   - platform: restart
-    name: "Restart"
+    name: "Salt Sensor Restart"
 
 # ── LED outputs ───────────────────────────────────────────────────────────────
 output:

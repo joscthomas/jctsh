@@ -150,8 +150,23 @@ mqtt:
   username: !secret mqtt_username
   password: !secret mqtt_password
   topic_prefix: jctsh/components/hiking-monitor
-  # No HA discovery — hiking-monitor has no Home Assistant integration
-  discovery: false
+  # CARD-0180 (2026-08-19): discovery enabled for HA integration, but scoped
+  # narrowly -- every existing sensor/entity below stays `internal: true`,
+  # which ESPHome excludes from discovery (and the native API) entirely, not
+  # just hides in HA. Only the restart button below (not internal) is meant
+  # to actually appear in HA. See JCTsh-Build-Standards.md §1.7 -- this is
+  # the accessible-reboot mechanism CARD-0180/CARD-0181 exist to provide.
+  discovery: true
+  discovery_prefix: homeassistant
+  # Real collision found 2026-08-19: ESPHome's default ("legacy") unique_id
+  # generator derives the MQTT unique_id from just the entity name
+  # (ESPbutton<slugified-name>), not the device -- front-porch-temp-sensor
+  # and salt-sensor both already publish a "Restart" button with the exact
+  # same generated ID, so a same-named button here collided and HA silently
+  # rejected it (logged as an ERROR, easy to miss). `mac` generator
+  # incorporates the device's own MAC, guaranteeing no cross-device
+  # collision even with identically-named entities.
+  discovery_unique_id_generator: mac
   will_message:
     topic: jctsh/components/hiking-monitor/log
     payload: '{"component":"hiking-monitor","category":"MQTT","message":"MQTT disconnected"}'
@@ -275,6 +290,32 @@ script:
       - delay: 2s   # allow e-ink full refresh to complete before power cut
       - deep_sleep.allow: deep_sleep_control
       - deep_sleep.enter: deep_sleep_control
+
+# ── Remote Reboot (CARD-0180) ───────────────────────────────────────────────────
+# On-demand reboot triggered from Home Assistant, without disassembling the
+# enclosure. The only entity on this device that isn't `internal: true` --
+# deliberately the sole thing exposed via the discovery: true flip above.
+#
+# `platform: template`, not `platform: restart` -- found live, 2026-08-19:
+# the restart platform's own press_action() reboots immediately and does not
+# wait for on_press automations to complete, so a log-then-delay sequence
+# under a restart-platform button gets cut off mid-flight (confirmed: only
+# the platform's own built-in "Restarting device" log appeared, the custom
+# message never published). Template button's on_press runs the full
+# sequence itself, including the reboot via App.safe_reboot() as the last
+# step, so the log message is guaranteed to publish first.
+button:
+  - platform: template
+    name: "Restart"
+    id: hiking_monitor_restart
+    icon: "mdi:restart"
+    device_class: restart
+    on_press:
+      - mqtt.publish:
+          topic: jctsh/components/hiking-monitor/log
+          payload: '{"component":"hiking-monitor","category":"System","message":"Manual reboot triggered from Home Assistant"}'
+      - delay: 500ms  # give the log publish time to actually reach the broker before rebooting
+      - lambda: 'App.safe_reboot();'
 
 # ── Sensors ───────────────────────────────────────────────────────────────────
 sensor:

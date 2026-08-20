@@ -9,12 +9,42 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0187 -->
+<!-- next-card-id: CARD-0188 -->
 
 ---
 
-### CARD-0185 · [enhancement] [homeassistant] Upgrade CARD-0145's trigger to ring-mqtt's binary_sensor.*_motion (near-instant, vs. ~30-90s poll delay)
+### CARD-0187 · [bug] [ring] [homeassistant] Ring motion/video pipeline consolidation — shared trigger, doorbell voice/video coordination, missed-event investigation
 **Status:** Backlog
+
+**Raised 2026-08-20 16:18 MST (Joseph), via live field observation of a real delivery + package pickup at the front door.** Consolidates CARD-0185's scope plus three fresh findings from pulling real HA history/state data for that event, replacing continued piecemeal edits to the already-closed CARD-0145/CARD-0184. **Supersedes and closes CARD-0185** — its trigger-swap scope is fully absorbed here, see that card for its own closing note.
+
+**Why consolidate now, not another incremental card:** CARD-0145 (voice) and CARD-0146 (video) were built independently against two different, separately-maintained Ring integrations — HA's native `ring` integration (`sensor.*_last_activity`, CARD-0184's fix) and the third-party `ring-mqtt` container (`binary_sensor.*_motion`/`*_ding`, CARD-0146's own build) — with zero coordination between them. Four cards (CARD-0145, CARD-0146, CARD-0184, CARD-0185) already cross-reference each other across two weeks on this one feature; two of them are marked Done and kept accumulating new findings anyway. This card is the single place to finish reconciling it.
+
+**Real field data behind this card — a genuine delivery + pickup event, 2026-08-20, pulled directly from HA's history/states API (not estimated from memory):**
+
+1. **The delivery drop-off itself was never seen by either Ring pipeline.** Your phone got a real Ring push + Google Home notification for it, confirming Ring's own cloud detected it — but neither `binary_sensor.doorbell_motion`/`_ding` (ring-mqtt) nor `sensor.doorbell_last_activity` (native integration) show any trace of it anywhere in a 4.5-hour history window. Both independent codebases missed the same event, which points upstream of either integration's own code — a real motion-zone/sensitivity/cooldown setting on the camera itself, or something about how Ring classifies that particular event type, not an integration bug.
+2. **The second event (Joseph walking up to retrieve the package) is what both automations actually reacted to** — real timestamps: motion detected 22:00:54 UTC → `binary_sensor.doorbell_motion` on at 22:00:55 → CARD-0146's automation fired within ~1s → TV stabilized on live video at 22:01:21 (~27s after the actual event, matches expectation) → **video stream died on its own at 22:02:42, only ~93s after starting, well before `binary_sensor.doorbell_motion` cleared at 22:03:55** (the automation's own `wait_template` restore condition never got a clean chance to run) → CARD-0145's voice announcement fired at 22:03:50, **~2m56s after the actual motion** — far worse than CARD-0184's own measured ~30s baseline, and not the quick-after-video timing it felt like live.
+3. **Net user experience:** live video appeared roughly on schedule, then died prematurely, then an unrelated-feeling voice announcement fired almost 3 minutes later, disconnected from the video that had already come and gone — motivating the coordination work below, not just a trigger-speed fix.
+
+**Scope, decided via interview 2026-08-20:**
+
+1. **Shared trigger source.** Move CARD-0145's trigger from `sensor.*_last_activity` (native integration, polled, ~60-90s+ real-world lag per the finding above) to ring-mqtt's `binary_sensor.*_motion` for all 5 cameras (gate, path, front_door, front_porch, doorbell) — CARD-0185's original scope. Drop the `category == 'motion'` filter (not needed — these entities are motion-only by construction). Re-tune the 3s trailing delay / 30s entry-cluster suppression window against a fast-push source's own timing characteristics, not a poll-based source's. Live-test on all 5 cameras, not just doorbell.
+2. **Doorbell voice/video coordination — decided behavior: skip voice entirely if video shows.** For the doorbell only (the one camera with both), video is the notification — if `camera.play_stream` successfully renders on `media_player.groom_tv`, no voice announcement plays for that event. Voice fires as a fallback only if video fails to start. The other 4 voice-only cameras are unaffected — this logic is doorbell-specific, added as a condition on CARD-0145's automation (not a merge of the two automations — kept separate for failure isolation and complexity reasons, see design discussion this session).
+3. **Fix CARD-0146's premature stream termination.** Diagnose why the live-view stream self-terminated at ~93s (well under Ring's documented ~10min live-view session limit) — check ring-mqtt's own `number.doorbell_motion_duration`/`_ding_duration` plateau settings, go2rtc/RTSP gateway logs, and whether the automation's `wait_template`/restore logic needs to react to the stream dying on its own rather than assuming it only ends via the motion-cleared path.
+4. **Investigate the missed-first-event gap — root cause required, not just documented.** Check Ring app-side motion zone/sensitivity/frequency settings for the doorbell, whether a cooldown/snooze window is suppressing rapid back-to-back detections, and whether ring-mqtt/the native integration's own logs show anything around the delivery's actual timestamp (unknown — only the phone notification confirms it happened; no HA-side timestamp exists to search from). May take a few more real-world events to catch it recurring before a cause can be confirmed.
+
+**Done when:**
+- CARD-0145 triggers on `binary_sensor.*_motion` for all 5 cameras, live-tested and correctly debounced.
+- Doorbell events: video plays and voice is correctly suppressed when video succeeds; voice correctly fires as fallback when video fails (both paths live-tested, not just configured).
+- CARD-0146's stream no longer terminates prematurely mid-visit, confirmed against a real live event lasting past the ~93s mark previously observed.
+- The missed-first-event gap has a confirmed root cause (not just a plausible theory) and, if fixable, a fix in place — or, if genuinely undiagnosable after reasonable investigation, that's recorded here explicitly with what was ruled out, not left silently open.
+
+**Related:** CARD-0145 (voice automation being retargeted), CARD-0146 (video automation being fixed/coordinated), CARD-0184 (diagnosed the native integration's dead `event.*` platform, whose `sensor.*_last_activity` fallback this card retires as a trigger source), CARD-0185 (superseded — see below).
+
+---
+
+### CARD-0185 · [enhancement] [homeassistant] Upgrade CARD-0145's trigger to ring-mqtt's binary_sensor.*_motion (near-instant, vs. ~30-90s poll delay) — SUPERSEDED 2026-08-20 by CARD-0187
+**Status:** Defer
 
 **Raised 2026-08-18 18:23 MST (Joseph), while building CARD-0146.** CARD-0145's Ring motion announcement currently triggers on `sensor.*_last_activity` (CARD-0184's fix for the durably-broken native `ring` integration `event.*` platform) — reliable, but polled at ~60s intervals, so real delay can run 30-90+ seconds between an actual motion event and the announcement.
 
@@ -24,7 +54,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Done when:** CARD-0145's automation trigger is swapped to `binary_sensor.*_motion`, live-tested against real events on multiple cameras (not just doorbell), and confirmed both correctly-triggered and correctly-debounced — or a decision to keep the current poll-based trigger is recorded instead, with reasoning.
 
-**Related:** CARD-0145 (the automation this would upgrade), CARD-0184 (introduced the current `sensor.*_last_activity` fallback this would replace), CARD-0146 (the build that surfaced ring-mqtt's own motion entities as a viable alternative).
+**Superseded 2026-08-20 16:18 MST.** A real field event the same day surfaced two more findings (a doorbell voice/video coordination problem, and a premature CARD-0146 stream termination) that don't fit this card's narrow trigger-swap scope — rather than keep bolting new findings onto this and CARD-0145/CARD-0184, all of it (including this card's own trigger-swap scope, unchanged) is consolidated into CARD-0187. No work here was wasted — the `binary_sensor.*_motion` entity confirmation and scoping notes above carry forward directly.
+
+**Related:** CARD-0145 (the automation this would have upgraded), CARD-0184 (introduced the current `sensor.*_last_activity` fallback this would have replaced), CARD-0146 (the build that surfaced ring-mqtt's own motion entities as a viable alternative), CARD-0187 (supersedes this card).
 
 ---
 

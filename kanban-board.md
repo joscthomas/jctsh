@@ -14,7 +14,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0187 · [bug] [ring] [homeassistant] Ring motion/video pipeline consolidation — shared trigger, doorbell voice/video coordination, missed-event investigation
-**Status:** Backlog
+**Status:** Planning
 
 **Raised 2026-08-20 16:18 MST (Joseph), via live field observation of a real delivery + package pickup at the front door.** Consolidates CARD-0185's scope plus three fresh findings from pulling real HA history/state data for that event, replacing continued piecemeal edits to the already-closed CARD-0145/CARD-0184. **Supersedes and closes CARD-0185** — its trigger-swap scope is fully absorbed here, see that card for its own closing note.
 
@@ -40,6 +40,55 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - The missed-first-event gap has a confirmed root cause (not just a plausible theory) and, if fixable, a fix in place — or, if genuinely undiagnosable after reasonable investigation, that's recorded here explicitly with what was ruled out, not left silently open.
 
 **Related:** CARD-0145 (voice automation being retargeted), CARD-0146 (video automation being fixed/coordinated), CARD-0184 (diagnosed the native integration's dead `event.*` platform, whose `sensor.*_last_activity` fallback this card retires as a trigger source), CARD-0185 (superseded — see below).
+
+**Step 1 deployed, 2026-08-20 18:00 MST.** CARD-0145's trigger swapped from `sensor.*_last_activity` to ring-mqtt's `binary_sensor.*_motion` (all 5 cameras), `to: 'on'` added, `category == 'motion'` condition removed, `camera_names`/`entry_cluster` updated — deployed via `scp` + `automation/reload`, confirmed live via HA's own config API (loaded description matches the deployed file byte-for-byte). **Not yet live-tested against real motion on all 5 cameras** — only the doorbell was proven reliable pre-swap. Steps 2-4 (doorbell coordination, stream-drop fix, missed-event investigation) not yet started.
+
+**Documentation gap closed, same session.** CARD-0187's own investigation surfaced that neither Traveling Mode's TV alert (CARD-0150) nor either Ring automation (CARD-0145, CARD-0146) had a documented home outside this file and `automations.yaml`'s own inline comments — unlike garage-presence/front-porch-temp-sensor/traveling-lights, which already followed a directory-per-app pattern without it being written down as a rule. Fixed both the gap and the missing rule:
+- **New standing convention:** `JCTsh-Build-Standards.md` §7.1a — every HA-only automation app gets a `components/<name>/` directory (README + CLAUDE.md), same as any hardware component (v1.20 → v1.21).
+- **`components/traveling-lights/` renamed to `components/traveling/`** (`git mv`) and its README/CLAUDE.md restructured into two sub-features — Traveling Lights (unchanged content) and Unexpected TV Activity (CARD-0150's full investigation/design/bug history, previously only in this file, moved in verbatim from the card history above).
+- **New `components/outdoor-presence-detection/`** created — README + CLAUDE.md covering both Ring sub-features (Motion Announcement, Doorbell Live Video), full path-finding/dead-end history, both automations' current YAML, and the two known-issue writeups (premature stream drop, missed first event) from this card.
+- Root `README.md`'s System Status table updated (new `outdoor-presence-detection` row, `traveling-lights` link corrected to `traveling`).
+- All 4 affected automations in `automations.yaml` got a one-line "See components/.../CLAUDE.md" pointer added to their existing inline `description:` blocks, deployed and reloaded — closes the loop from the quick-reference YAML comment back to the full documented history, and vice versa.
+
+---
+
+## Implementation Plan (Planning, 2026-08-20)
+
+Written against the actual current YAML in `core/homeassistant/automations.yaml` (ids `1786800000001` CARD-0145, `1786800000002` CARD-0146), not from memory. Four steps, in dependency order — Step 2 depends on Step 1's entity IDs, Step 3 and Step 4 are independent of the other two and can happen in any order.
+
+### Step 1 — Shared trigger source (CARD-0145 → ring-mqtt)
+
+**Change the `triggers:` block** from `sensor.*_last_activity` (5 entities) to `binary_sensor.*_motion` (5 entities), **with `to: 'on'` added** — this is a real correction, not just a rename. `sensor.*_last_activity` is a timestamp string that gets a new value on every poll, so a bare `trigger: state` (no `to:`) only ever fires on genuine value changes. `binary_sensor.*_motion` toggles on/off; without `to: 'on'` the automation would also fire on the off transition, doubling every announcement. Also update the `camera_names` and `entry_cluster` variable dicts/lists to the new entity IDs (same structure, new keys).
+
+**Drop the `category == 'motion'` condition** — not applicable to `binary_sensor.*_motion` (motion-only by construction, confirmed in CARD-0185's own research; matches the same reasoning already used for the old native-integration `event.*_motion` entities before CARD-0184's fix).
+
+**Debounce/queue logic — evaluate, likely no change needed.** The `mode: queued` (max 20) + trailing `delay: 3s` exists to space out TTS calls across *different* cameras system-wide, and the entry-cluster 30s suppression exists because Front Porch/Front Door/Doorbell are physically clustered — both are about cross-camera behavior, not about the trigger source's own timing characteristics, so neither should need retuning just from the source swap. The one real question: does ring-mqtt's `binary_sensor.*_motion` ever double-fire (on→off→on) for a single real visit the way the old native `event.*_motion` platform did (the original 2026-08-15 doorbell double-fire, 4.9s apart)? Not yet known — ring-mqtt holds each `binary_sensor` "on" for a plateau (`number.<camera>_motion_duration`, 180s for the doorbell) after its last real detection, which should collapse rapid re-triggers into one continuous "on" span rather than distinct on/off/on cycles — but confirm this live rather than assume it, since it directly affects whether the debounce logic actually needs anything new.
+
+**Deploy and test:** `scp` to `/mnt/jctsh-logs/homeassistant/automations.yaml`, `automation/reload` (per `CLAUDE.md`'s standard deploy pattern). Live-test against real motion on all 5 cameras, not just the doorbell (the only one proven so far, per CARD-0185's own note) — confirm each announces correctly, confirm entry-cluster suppression still only allows one announcement when Front Porch/Front Door/Doorbell fire close together, confirm no double-announcements.
+
+### Step 2 — Doorbell voice/video coordination (skip voice when video succeeds)
+
+**New helper entity required:** `input_boolean.doorbell_video_live`, defined in `core/homeassistant/configuration.yaml` (version-controlled, not a UI-only helper) so it survives a from-scratch HA rebuild like the rest of this repo's tracked config.
+
+**CARD-0146 sets it:** turn `input_boolean.doorbell_video_live` **on** immediately after the `camera.play_stream` action (that action either succeeds or the automation raises/stops — no separate success check needed, since a raised error already halts the sequence before reaching the "on" step). Turn it **off** at the end of the automation, in both branches of the existing `choose` (the resume-prior-content branch and the `default`/`media_stop` branch) — guarantees the flag always clears whether the run finished via `wait_template` success or the 4-minute timeout.
+
+**CARD-0145 checks it, doorbell-only:** add a `choose` inside the doorbell trigger's action path — actually, since the existing `actions:` block is a flat `tts.cloud_say` + `delay` shared by all 5 cameras, restructure to: for the doorbell trigger specifically, first `delay` a few seconds (long enough for CARD-0146's `camera.play_stream` call to have committed one way or the other — today's data showed CARD-0146 firing within ~1s of the trigger, so a 3-5s wait should be enough margin, but this needs live-tuning, not a guessed-right-first-time constant) then check `input_boolean.doorbell_video_live`: if **on**, skip the TTS action entirely (video succeeded, it's the notification); if **off**, proceed with the announcement (video failed to start — fallback). The other 4 cameras keep their existing immediate-fire behavior unchanged, no delay, no condition — this logic only branches for `trigger.entity_id == 'binary_sensor.doorbell_motion'`.
+
+**This is the fiddliest step in this plan** — coordinating two independently-triggered automations via a shared helper always has a race-condition edge (what if CARD-0146's own trigger is suppressed or delayed for some unrelated reason and the helper flips on *after* CARD-0145's wait already expired?). Budget real live-test iteration here, not a one-shot deploy-and-done — this file's own history shows every piece of CARD-0145/CARD-0146's existing logic went through 2-4 rounds of live-test-and-fix before landing.
+
+### Step 3 — Fix CARD-0146's premature stream termination
+
+**Investigate first, don't guess a fix.** Root cause unknown — candidates: ring-mqtt/go2rtc's own RTSP session handling dropping early (check `docker logs ring-mqtt` on the M8 around the already-captured 2026-08-20 22:02:42 UTC timestamp — logs may still be in scrollback from this exact incident, worth checking before waiting for a fresh repro), HA's own HLS transcode pipeline timing out independent of Ring's side (check `docker logs homeassistant` same window), or a Ring-side live-view session limit shorter than the ~10min figure previously documented from ring-mqtt's own docs.
+
+**Once root cause is known**, the fix is either a config change (e.g., a go2rtc/session-duration setting) or a firmware-side accommodation (e.g., the automation detects the stream ending early via a `wait_template` on `media_player.groom_tv` leaving `playing`/`buffering` state, not just on the doorbell sensors clearing, and either restarts `camera.play_stream` once or falls through to the existing resume/stop logic immediately rather than sitting on a dead feed until the 4-minute timeout). Exact fix is not specified further here — depends entirely on Step 3's own investigation findings.
+
+### Step 4 — Missed-first-event investigation
+
+**Needed from Joseph first:** a rough time anchor for when the delivery notification actually arrived on your phone (check the Ring app's own notification history, which has its own timestamp independent of anything HA-side) — without that, there's no window to search logs against. The HA-side history pull already confirmed there's nothing to find on the HA/ring-mqtt side without an external anchor.
+
+**Once a time window is known:** check `docker logs ring-mqtt` and `docker logs homeassistant` (both M8/Pi respectively) around that window for any error/warning; check the Ring app itself (Joseph-does step, not queryable via HA) for the doorbell's motion zone, sensitivity, and motion-frequency/snooze settings — a delivery drop-off (brief presence, no lingering) is a plausible case for a motion-zone or minimum-duration filter to reject while a slower, more deliberate approach (Joseph walking up) passes.
+
+**If no root cause emerges from the first pass**, this is an explicit "watch and wait" per the interview decision — don't close this scope item on a guess; wait for a recurrence with a known timestamp and repeat the log check, and record each attempt (successful repro or not) here rather than letting the investigation go silent.
 
 ---
 

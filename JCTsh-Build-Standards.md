@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.20
-**Version description:** Added a cross-device unique_id collision gotcha to §3.5 MQTT Discovery — ESPHome's default `discovery_unique_id_generator: legacy` derives an entity's discovery id from type+name alone, so two devices with an identically-named entity (e.g. two "Restart" buttons) silently collide in HA, with the loser dropped and only a logger.error to notice it by. Harvested from CARD-0180/CARD-0186: hiking-monitor's, front-porch-temp-sensor's, and salt-sensor's restart buttons all collided on the same generated id — salt-sensor's had never worked in HA at all until this was found and fixed.
+**Version:** 1.21
+**Version description:** Added §7.1a — every HA-only automation app (no ESP32/hardware) gets its own `components/<name>/` directory with a README (+ CLAUDE.md for full YAML/history), same as any hardware component. Codified after finding CARD-0145/CARD-0146 (Ring motion/video) and CARD-0150 (Traveling Mode TV alert) had no documented home anywhere outside `kanban-board.md` and `automations.yaml`'s own inline comments — unlike garage-presence, front-porch-temp-sensor, and traveling-lights, which already followed this pattern without it being written down as a rule.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -788,6 +788,19 @@ Every completed component must have the following in `components/<name>/`:
 | `integration-notes.md` | Findings from investigating existing logging, watchdog, presence automation, and SmartThings bridge patterns |
 | `end-to-end-test.md` | Full system validation procedure |
 | Pinout PNG | ESP32 DevKit pinout reference image |
+
+### 7.1a Required Documents for HA-Only Automation Components
+
+**Every automation app gets a component directory — no exceptions for "it's just a couple automations in `automations.yaml`."** This applies whether the component has any dedicated hardware or not. §7.1's list above assumes an ESP32/physical build; a component that's purely HA automations (no firmware, no wiring, no enclosure) doesn't need those hardware-specific documents, but still needs a real, discoverable home in `components/<name>/` rather than living only in `automations.yaml`'s own inline `description:` comments and `kanban-board.md`'s card history.
+
+| Document | Purpose |
+|---|---|
+| `README.md` | What the component does, which `automations.yaml` entries belong to it (by `id:`/`alias:`), entities involved, how to verify it's working, how to turn it on/off if applicable |
+| `CLAUDE.md` | Full automation YAML (kept in sync with the deployed source) plus design rationale and revision history — mirrors the inline `description:` block already required in every automation (§2.7-adjacent convention), but as a standalone, greppable file rather than only living inside the YAML comment |
+
+Multiple related automations belonging to one conceptual feature (e.g. a nightly randomizer automation plus its action automation) share one component directory — split into separate documented sub-features within the same README/CLAUDE.md rather than one directory per individual automation entity, if they're clearly part of the same user-facing feature.
+
+**Reference implementations:** `components/traveling/` (Traveling Lights + Unexpected TV Activity), `components/outdoor-presence-detection/` (Ring motion announcement + doorbell live video).
 
 ### 7.2 Top-Level README
 

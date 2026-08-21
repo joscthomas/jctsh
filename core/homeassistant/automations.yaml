@@ -148,6 +148,7 @@
 - id: '1785200000001'
   alias: Traveling Lights - Randomize Daily Times
   description: >-
+    See components/traveling/CLAUDE.md for full design history.
     CARD-0098. Regenerates the on/off clock times for the traveling-lights
     presence simulation every night at 3am, so the actual time varies day to
     day instead of firing at the exact same minute every night. Always
@@ -175,6 +176,7 @@
 - id: '1785200000002'
   alias: Traveling Lights
   description: >-
+    See components/traveling/CLAUDE.md for full design history.
     CARD-0098 presence simulation while traveling. Single on/off toggle
     (Settings > Automations) covers both directions -- toggle on before a
     trip, off after. Two triggers, tagged 'on'/'off', fire at
@@ -238,6 +240,7 @@
 - id: '1786600000001'
   alias: Traveling Mode - Unexpected TV Activity
   description: >-
+    See components/traveling/CLAUDE.md for full design history.
     CARD-0150. Real-time alert both ways if the Groom TV's power state
     changes while the Traveling Lights toggle is on (Settings > Automations
     > Traveling Lights -- the same CARD-0098 toggle that gates the
@@ -354,10 +357,32 @@
 - id: '1786800000001'
   alias: CARD-0145 - Ring Motion Announcement
   description: >-
+    See components/outdoor-presence-detection/CLAUDE.md for full design history.
     Spoken TTS announcement on Google Home speakers when motion fires on
     any of 5 Ring cameras/doorbell (gate, path, front door, front porch,
-    doorbell), via `sensor.*_last_activity` (polled, ~60s cadence) with
-    a `category == 'motion'` filter.
+    doorbell), via ring-mqtt's `binary_sensor.*_motion` (near-instant,
+    MQTT push) -- no category filter needed, these entities are
+    motion-only by construction.
+
+    2026-08-20 (CARD-0187): switched from `sensor.*_last_activity` to
+    ring-mqtt's `binary_sensor.*_motion` -- the same near-instant source
+    CARD-0146's live-video automation already uses, standardizing both
+    automations on one Ring pipeline instead of two independently-
+    maintained ones. Motivated by a real field event the same day: a
+    genuine motion event was measured firing this automation ~2m56s
+    after the actual motion (22:00:54 UTC actual -> 22:03:50 fire), far
+    worse than CARD-0184's own ~30s measured baseline -- the poll-based
+    source's real-world lag was worse than documented. `to: 'on'` added
+    to the trigger (not needed for `sensor.*_last_activity`, a
+    timestamp-valued entity with no on/off states, but required here or
+    the automation would also fire -- and announce -- on the off
+    transition). `category == 'motion'` condition removed -- not
+    applicable to a motion-only entity. `camera_names`/`entry_cluster`
+    updated to the new entity IDs; debounce/queue/entry-cluster *logic*
+    itself unchanged, since it governs cross-camera spacing/clustering,
+    not trigger-source timing. See CARD-0187 for the full consolidation
+    this is part of (also fixes CARD-0146's premature stream drop and
+    adds doorbell voice/video coordination, tracked there).
 
     2026-08-18 (CARD-0184): switched back to `sensor.*_last_activity`
     for good, after confirming `event.*_motion` (the push-based
@@ -446,18 +471,19 @@
   triggers:
   - trigger: state
     entity_id:
-    - sensor.gate_last_activity
-    - sensor.path_last_activity
-    - sensor.front_door_last_activity
-    - sensor.front_porch_last_activity
-    - sensor.doorbell_last_activity
+    - binary_sensor.gate_motion
+    - binary_sensor.path_motion
+    - binary_sensor.front_door_motion
+    - binary_sensor.front_porch_motion
+    - binary_sensor.doorbell_motion
+    to: 'on'
   variables:
     camera_names:
-      sensor.gate_last_activity: Gate
-      sensor.path_last_activity: Path
-      sensor.front_door_last_activity: Front Door
-      sensor.front_porch_last_activity: Front Porch
-      sensor.doorbell_last_activity: Doorbell
+      binary_sensor.gate_motion: Gate
+      binary_sensor.path_motion: Path
+      binary_sensor.front_door_motion: Front Door
+      binary_sensor.front_porch_motion: Front Porch
+      binary_sensor.doorbell_motion: Doorbell
     camera_messages: {}
     camera_quiet_hours: {}
     quiet_hours: "{{ camera_quiet_hours.get(trigger.entity_id) }}"
@@ -468,9 +494,9 @@
            (quiet_hours.start >= quiet_hours.end and (now().strftime('%H:%M') >= quiet_hours.start or now().strftime('%H:%M') < quiet_hours.end))
          ) }}
     entry_cluster:
-    - sensor.front_porch_last_activity
-    - sensor.front_door_last_activity
-    - sensor.doorbell_last_activity
+    - binary_sensor.front_porch_motion
+    - binary_sensor.front_door_motion
+    - binary_sensor.doorbell_motion
     entry_cluster_suppressed: >-
       {% set ns = namespace(suppress=false) %}
       {% if trigger.entity_id in entry_cluster %}
@@ -483,8 +509,6 @@
       {% endif %}
       {{ ns.suppress }}
   conditions:
-  - condition: template
-    value_template: "{{ trigger.to_state.attributes.get('category') == 'motion' }}"
   - condition: template
     value_template: "{{ not in_quiet_hours }}"
   - condition: template
@@ -507,6 +531,7 @@
 - id: '1786800000002'
   alias: CARD-0146 - Doorbell Live Video on Gathering Room TV
   description: >-
+    See components/outdoor-presence-detection/CLAUDE.md for full design history.
     Interrupts media_player.groom_tv with the doorbell's real live video
     (via ring-mqtt's RTSP gateway -> HA's Generic Camera integration,
     camera.192_168_1_165 -> camera.play_stream) whenever the doorbell

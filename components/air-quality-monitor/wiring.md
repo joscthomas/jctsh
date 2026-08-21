@@ -69,6 +69,19 @@ Enable `scan: true` in the ESPHome `i2c:` block during initial testing to confir
 [I][i2c.arduino:069]: Found i2c device at address 0x69  ← SEN55
 ```
 
+**SEN55's own 6-pin JST-GH connector pinout** (per Sensirion's official datasheet — confirmed 2026-08-21, [SEN5x Datasheet PDF](https://sensirion.com/media/documents/6791EFA0/62A1F68F/Sensirion_Datasheet_Environmental_Node_SEN5x.pdf), corroborated against multiple independent sources including ESPHome's own `sen5x` component docs):
+
+| Pin | Signal | Notes |
+|---|---|---|
+| 1 | VDD | 5V ±10% supply |
+| 2 | GND | |
+| 3 | SDA | I2C data |
+| 4 | SCL | I2C clock |
+| 5 | SEL | Interface select — pull to GND (pin 2) to select I2C mode |
+| 6 | NC | Do not connect |
+
+**Useful diagnostic test point:** pin 1 (VDD) at the SEN55's own onboard socket is downstream of the entire power delivery chain (adapter's boost converter → JST-GH cable → sensor) — probing here directly confirms whether the sensor is actually receiving its 5V supply, independent of where in that chain a fault might be. A healthy ~5V here rules out the cable/connector/sensor as the problem; a low or absent reading confirms the boost converter isn't delivering power through whatever's currently gating it.
+
 ---
 
 ## SEN55 Power Gate — BC547B NPN Transistor Low-Side Switch (GPIO27, pin 11)

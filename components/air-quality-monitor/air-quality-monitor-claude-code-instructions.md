@@ -151,7 +151,7 @@ Write the initial `air-quality-monitor.yaml` — standard boilerplate (§2.8), I
 Flash via USB. Confirm PM/VOC/NOx readings on the log dashboard.
 
 **Joseph confirms:**
-All SEN55 fields reporting plausible values.
+All SEN55 fields reporting plausible values. **Met 2026-08-21 10:33 MST** — after a real multi-hour diagnostic session (see CARD-0012's kanban entry for the full trail): a firmware bug (`sen5x:` block missing its `id:`, referenced by `on_boot`) was found and fixed first, then an extensive hardware fault chase on the SEN55 power-gate transistor circuit (BC547B) — every individual component/connection checked out (resistor, base voltage, VIN, transistor swap, relocation, Collector/Emitter continuity) yet the circuit still wouldn't reliably power the sensor, eventually traced to an intermittent breadboard contact via the adapter's own power LED, though not fully/durably resolved. **Confirmed via the bypass jumper configuration** (adapter `GND` wired directly to common ground, bypassing the transistor entirely) — this is a legitimate, temporary substitute for the gate circuit specifically for the purpose of validating the SEN55/adapter/I2C wiring itself, which is genuinely proven now. The gate circuit itself remains unresolved and is deferred to Step 6, which now also inherits a real open design question (low-side vs. high-side switching) surfaced during tonight's debugging — see that step's updated notes.
 
 ---
 
@@ -170,14 +170,18 @@ All three color states verified.
 
 ## Step 6 — SEN55 power-gate transistor bench test
 
+**Scope expanded 2026-08-21, inheriting findings from Step 4's diagnostic session (see CARD-0012 kanban entry for the full trail).** This is no longer just a current-draw measurement — the BC547B low-side gate circuit failed to reliably power the SEN55 during Step 4's bench work despite every individual component/connection checking out clean (base resistor, base voltage, VIN, transistor swap, relocation, Collector/Emitter continuity), eventually traced toward an intermittent breadboard contact but not durably resolved. Step 4 was completed on a bypass jumper (adapter `GND` wired directly to common ground) instead of the gate circuit.
+
+**Real open design question, not just a component fault:** `wiring.md`'s existing justification for low-side (GND-return) switching — that the SEN55/adapter sit on "their own 5V-boosted rail" — doesn't hold up: the natural high-side switching point (adapter `VIN`) is on the shared 3.3V rail, the same domain `JCTsh-Build-Standards.md` §2.14 point 8's P-FET pattern targets and was dismissed as "not applicable here." Low-side switching has a structural weakness directly implicated in Step 4's failures: a marginal GND-return connection shifts the load's entire ground reference (silently breaking I2C) rather than just reducing voltage, the way a marginal high-side connection would. Neither pattern is actually validated end-to-end in this project (§2.14 point 8's own P-FET candidate was never finished, CARD-0070, deferred) — this step needs to decide whether to keep debugging the low-side approach or build the high-side alternative, not just re-run the original bench test against the existing circuit.
+
 **Claude Code does:**
-Document the bench test procedure for the BC547B low-side switch — confirm it reliably powers the SEN55 on/off via GPIO27, and measure actual current draw in both states with a multimeter (this both validates the transistor choice and replaces the "reasoned, not measured" fan-transistor estimate from the Phase 1 doc with a real number).
+Document the bench test procedure for whichever gate topology is decided on (low-side BC547B, retried; or a high-side P-FET/PNP redesign) — confirm it reliably powers the SEN55 on/off via GPIO27 (or the equivalent active-low high-side control signal), and measure actual current draw in both states with a multimeter (this both validates the transistor choice and replaces the "reasoned, not measured" fan-transistor estimate from the Phase 1 doc with a real number).
 
 **Joseph does:**
-Run the bench test.
+Decide low-side retry vs. high-side redesign, then run the bench test.
 
 **Joseph confirms:**
-Reports measured on/off current; transistor confirmed adequate (or flags an issue if not).
+Reports measured on/off current; gate circuit confirmed to reliably power the SEN55 through multiple boot cycles, not just a single successful test (Step 4's own experience showed a circuit can look correct for one run and still fail on the next).
 
 ---
 

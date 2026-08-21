@@ -139,6 +139,7 @@ sensor:
   # Temperature/humidity sub-sensors intentionally omitted — Phase 1 decision:
   # those fields come from hiking-monitor, not this device's payload.
   - platform: sen5x
+    id: sen55
     address: 0x69
     update_interval: 10s  # fast for bench validation; Step 8 changes this to the duty-cycle pattern
     pm_1_0:

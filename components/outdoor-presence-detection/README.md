@@ -5,7 +5,7 @@ of the existing Ring camera hardware: a spoken Google Home announcement when
 motion fires on any of 5 outdoor cameras, and live doorbell video automatically
 cast to the Gathering Room TV.
 
-**Status:** Production, actively being consolidated (CARD-0187)
+**Status:** Ring Motion Announcement — production, confirmed working (2026-08-21 live use). Doorbell Live Video — **deactivated** 2026-08-21 (automation removed from `automations.yaml`, not just paused; CARD-0187 Steps 2-4 on hold).
 **Hardware:** None — the Ring devices themselves (doorbell + cameras) are
 existing hardware, not part of this build; this component is the HA-side
 automation logic on top of them.
@@ -88,6 +88,8 @@ Automations → **CARD-0145 - Ring Motion Announcement** → Traces for run hist
 ---
 
 ## Sub-Feature 2 — Doorbell Live Video
+
+**Deactivated (2026-08-21)** — Joseph reports video isn't working today, "not ready for prime time." The automation itself was removed from `automations.yaml` and deployed (not just left running while broken) — the doorbell will not interrupt the Gathering Room TV until this is restored. See `CLAUDE.md` for the restore point (full automation YAML) and status detail; CARD-0187's remaining scope (Steps 2-4) is on hold.
 
 ### Behavior
 

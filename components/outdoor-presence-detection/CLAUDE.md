@@ -219,12 +219,11 @@ message, no quiet hours for all 5 to start) but structured as per-entity-id
 lookups so either can be set for an individual camera later without
 restructuring the automation.
 
-## Not Yet Live-Tested Against the v4 Trigger Swap
+## v4 Trigger Swap — Confirmed Live, 2026-08-21
 
-The v4 switch (2026-08-20) has been deployed and confirmed loaded via HA's
-config API, but not yet live-tested against real motion on all 5 cameras (only
-the doorbell was proven reliable pre-swap, during CARD-0146's own testing) —
-tracked as an open item under CARD-0187.
+Joseph reports real-world use: voice notifications are working great. The
+v4 switch (`binary_sensor.*_motion` via ring-mqtt, 2026-08-20) is confirmed
+live-tested, not just deployed — closes the open item noted under CARD-0187.
 
 ---
 
@@ -329,8 +328,11 @@ the original `is not none` check passed on it, which would have called
 `play_media` with a blank ID. Fixed to also require non-empty content after
 trimming.
 
-## Current HA Automation (as of CARD-0187 Step 1, 2026-08-20 — CARD-0146's
-own logic unchanged so far, only CARD-0145 was touched in that step)
+## Automation YAML — Deactivated 2026-08-21, This Is The Restore Point
+
+No longer present in `automations.yaml` (removed, see "Status — Deactivated"
+above). This is the last-known-good version, preserved here to paste back in
+and redeploy when video work resumes.
 
 ```yaml
 alias: CARD-0146 - Doorbell Live Video on Gathering Room TV
@@ -385,6 +387,23 @@ for another ~73s after the stream died) and well under Ring's documented
 `ring-mqtt`/`go2rtc`'s own RTSP session handling, HA's own HLS transcode
 pipeline timing out independently, or a shorter real Ring-side session limit
 than previously documented. Tracked under CARD-0187 Step 3.
+
+## Status — Deactivated (2026-08-21)
+
+Joseph reports video is not working today — "not ready for prime time." Per
+Joseph's instruction, the automation itself was deactivated, not just left
+running while broken: removed entirely from `automations.yaml` (deployed +
+`automation/reload`'d), confirmed via HA's states API that
+`automation.card_0146_doorbell_live_video_on_gathering_room_tv` is now
+`unavailable`/`restored: true` (no longer config-backed). The doorbell will
+not attempt to interrupt the Gathering Room TV at all until this is restored.
+
+The full automation YAML is preserved below ("Current HA Automation") as the
+restore point — paste it back into `automations.yaml`, deploy, and reload to
+reactivate. CARD-0187's Steps 2-4 (doorbell coordination, stream-drop fix,
+missed-event investigation) remain the valid plan for when this is picked
+back up; no further diagnosis done this session beyond what's already
+tracked below (premature stream termination, missed-first-event gap).
 
 ## Known Gap — Missed First Event
 

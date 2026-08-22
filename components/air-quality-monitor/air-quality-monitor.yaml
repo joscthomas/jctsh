@@ -1,28 +1,42 @@
 # JCTsh Air Quality Monitor — ESPHome Configuration
 # Hardware: ESP32 DevKitC-32 (38-pin, CP2102 USB-C)
 #           + Sensirion SEN55 (I2C 0x69, via Adafruit #5964 adapter) — PM1.0/2.5/4.0/10, VOC, NOx
-#           + SEN55 power gate: BC547B NPN low-side switch → GPIO27 (pin 11)
-#           + RGB LED (KY-016) — GPIO18/19/23 (pins 30/31/37) — NOT wired up yet, see Step 5
+#             SEN55 is hard-wired always-on whenever the device has power (see
+#             Step 6 decision below) — no dedicated power-gate transistor.
+#           + RGB LED (KY-016) — GPIO18/19/23 (pins 30/31/37), PM2.5 threshold
+#             indicator, boot self-test/init sequence, then brief per-reading
+#             blink instead of continuous-on (Step 5, power-savings follow-up)
 #           + Dock detect: TP4056 IN+ (or solar) → 68kΩ+100kΩ divider → GPIO32 (pin 7)
 #           + Battery voltage divider → GPIO34 (pin 5, input-only)
 #           + EEMB 1100mAh LiPo + TP4056 (charging only) + MCP1700 LDO + inline power switch
+#
+# STEP 6 DECISION (2026-08-21): no dedicated SEN55 power-gate transistor.
+# Sensirion's own "Reduced Power Operation for SEN5x" doc recommends I2C
+# mode-switching (Measurement ↔ RHT/Gas-Only) as the primary duty-cycle
+# power-saving mechanism, not physically cutting power — and the existing
+# inline power switch (battery+ path, Step 1) already covers true full-off
+# for storage/transport. That leaves no real use case for a GPIO27 gate,
+# which also eliminates the low-side/high-side reliability question Step 4's
+# diagnostic session surfaced. SEN55 stays hard-wired to the common ground
+# rail (the former "bypass jumper" is now the permanent design, not a
+# workaround). Step 8 implements the I2C mode-switching duty-cycle logic.
 #
 # STEP 4 SCOPE — SEN55 base validation only. Powered via USB during breadboard
 # Steps 4-6 (wiring.md) — LiPo/LDO not connected until Step 7, so no battery-
 # voltage-driven low-battery cutoff is wired in yet either (Build-Standards
 # §2.14 point 2 requires this once a battery is actually in the circuit — add
-# it starting Step 7/8, not deferred past that point). SEN55 power gate
-# (GPIO27) is simply held ALWAYS_ON here for continuous readings during bench
-# validation. Field/home mode duty-cycle logging, SPIFFS storage, WiFi replay,
-# the bounded-attempt-window/backoff WiFi retry logic, and RGB LED threshold
-# logic are NOT implemented in this file — those are Step 8 (firmware) and
-# Step 5 (LED) deliverables, built on top of this base config, not re-derived
-# from scratch here.
+# it starting Step 7/8, not deferred past that point). Field/home mode
+# duty-cycle logging, SPIFFS storage, WiFi replay, and the
+# bounded-attempt-window/backoff WiFi retry logic are NOT implemented
+# in this file — those are Step 8 firmware deliverables, built on top of this
+# base config, not re-derived from scratch here. RGB LED threshold logic
+# (Step 5) IS implemented below.
 #
 # GPIO assignments (ESP32-project-pins.md has the full 38-pin table):
 #   GPIO21  I2C SDA (SEN55 via Adafruit adapter) — blue
 #   GPIO22  I2C SCL — yellow
-#   GPIO27  SEN55 power-gate control, active-high (BC547B transistor base via 1kΩ)
+#   GPIO27  Unused — previously reserved for the SEN55 power-gate transistor,
+#           dropped 2026-08-21 (see STEP 6 DECISION above)
 #   GPIO32  Dock detect (TP4056 IN+ or solar → divider, HIGH = docked/charging)
 #   GPIO34  Battery voltage ADC (input-only; placeholder reading until Step 7 wires the LiPo)
 #
@@ -38,14 +52,140 @@ esphome:
   on_boot:
     - priority: -100.0
       then:
+        # Reset-reason LED signal, shown immediately, before anything else —
+        # added 2026-08-21 during the battery/LDO brownout investigation.
+        # Live serial isn't safe to watch on battery power (same dual-
+        # regulator conflict as USB+LDO), and MQTT-based reporting (the
+        # on_connect log message, below) only works if the device actually
+        # gets far enough to connect — no good on a hard boot-loop. The LED
+        # has no such dependency, so it reports every single boot's own
+        # reset reason directly: solid Red (3s) = brownout or power-glitch
+        # detected, solid Blue (1s) = anything else (normal power-on, sw
+        # reset, etc.). ESP32 string values per ESPHome's debug component:
+        # esphome.io/components/debug — "brownout" / "power glitch detected"
+        # are the ones we're watching for here.
+        - if:
+            condition:
+              lambda: |-
+                std::string reason = id(reset_reason_text).state;
+                return reason.find("rownout") != std::string::npos ||
+                       reason.find("glitch") != std::string::npos;
+            then:
+              - output.turn_on: rgb_led_red
+              - delay: 3s
+              - output.turn_off: rgb_led_red
+            else:
+              - output.turn_on: rgb_led_blue
+              - delay: 1s
+              - output.turn_off: rgb_led_blue
+        # Force SEN55 into Idle mode (~2.6mA) immediately, before its own
+        # sen5x platform setup() auto-starts full Measurement mode (~63mA).
+        # Added 2026-08-21: testing whether SEN55's continuous ~63mA draw
+        # stacking on top of the ESP32's WiFi-connection current spikes —
+        # both drawn from the same 250mA-rated MCP1700 LDO — is causing a
+        # brownout reset on battery power (works fine on USB, fails to
+        # boot/connect on battery+LDO). SEN55 stays in Idle through the
+        # self-test LED animation and the WiFi connection window below,
+        # then resumes Measurement mode once that window should be past.
+        # ESPHome's native sen5x platform has no built-in idle-mode option
+        # (esphome/feature-requests#3041) — this sends the raw I2C command
+        # directly via the SensirionI2CDevice base class's public
+        # write_command(), which the sen5x platform doesn't otherwise
+        # expose in YAML.
+        - lambda: 'id(sen55).write_command((uint16_t) 0x3f86);'  # SEN5X_CMD_STOP_MEASUREMENTS -> Idle mode
+        # Boot self-test LED sequence: two quick blinks per color (Blue, Red,
+        # Yellow, Green) exercise all three channels, then blink Green with NO
+        # timeout until SEN55 produces a first valid PM2.5 reading — Step 4's
+        # diagnostic saga showed a "looks fine" power connection can still
+        # produce zero valid readings for minutes, so a timeout here would
+        # falsely declare success. Solid Green briefly = all is well, then
+        # hand off to the operational blink-mode handler on pm_2_5's on_value.
+        - repeat:
+            count: 2
+            then:
+              - output.turn_on: rgb_led_blue
+              - delay: 300ms
+              - output.turn_off: rgb_led_blue
+              - delay: 300ms
+        - repeat:
+            count: 2
+            then:
+              - output.turn_on: rgb_led_red
+              - delay: 300ms
+              - output.turn_off: rgb_led_red
+              - delay: 300ms
+        - repeat:
+            count: 2
+            then:
+              - output.turn_on: rgb_led_red
+              - output.turn_on: rgb_led_green
+              - delay: 300ms
+              - output.turn_off: rgb_led_red
+              - output.turn_off: rgb_led_green
+              - delay: 300ms
+        - repeat:
+            count: 2
+            then:
+              - output.turn_on: rgb_led_green
+              - delay: 300ms
+              - output.turn_off: rgb_led_green
+              - delay: 300ms
+        - delay: 1s
+        # Resume full Measurement mode now that the highest-current boot
+        # window (WiFi association) should be past.
+        - lambda: 'id(sen55).write_command((uint16_t) 0x0021);'  # SEN5X_CMD_START_MEASUREMENTS
         - delay: 2s   # let the SEN55 fan/sensor settle before forcing a first read
         - component.update: sen55
         - component.update: battery_voltage
+        - while:
+            condition:
+              lambda: 'return isnan(id(sen55_pm25).state);'
+            then:
+              - output.turn_on: rgb_led_green
+              - delay: 400ms
+              - output.turn_off: rgb_led_green
+              - delay: 400ms
+        - output.turn_on: rgb_led_green
+        - delay: 2s
+        - output.turn_off: rgb_led_green
+        - lambda: 'id(boot_sequence_done) = true;'
+        # Threshold-color confirmation: hold solid Yellow then solid Red for 3s
+        # each, matching the exact colors/combinations the operational
+        # blink-mode handler uses on pm_2_5's on_value. Lets Yellow/Red be
+        # visually confirmed correct on every boot without needing an actual
+        # particulate source in range — not test-only, deliberately permanent.
+        - delay: 1s
+        - output.turn_on: rgb_led_red
+        - output.turn_on: rgb_led_green
+        - delay: 3s
+        - output.turn_off: rgb_led_red
+        - output.turn_off: rgb_led_green
+        - delay: 500ms
+        - output.turn_on: rgb_led_red
+        - delay: 3s
+        - output.turn_off: rgb_led_red
 
 esp32:
   board: esp32dev
   framework:
     type: arduino
+
+# ── Debug / reset reason ──────────────────────────────────────────────────────
+# Added 2026-08-21 to diagnose a suspected LDO current-limit brownout: the
+# device fails to boot/connect on battery+LDO power but works fine on USB.
+# Live serial monitoring isn't safe on battery power (the ESP32 DevKitC's
+# onboard USB regulator would back-feed 3V3 alongside the external LDO), so
+# this reports the reset reason over MQTT instead, once a connection succeeds.
+debug:
+
+# ── Globals ───────────────────────────────────────────────────────────────────
+# Gates the pm_2_5 on_value LED handler below so it doesn't fight the boot
+# self-test animation above over the same GPIO outputs.
+globals:
+  - id: boot_sequence_done
+    type: bool
+    restore_value: false
+    initial_value: 'false'
 
 # ── WiFi ──────────────────────────────────────────────────────────────────────
 # Multi-network (portable component): home WiFi first, Pixel hotspot second —
@@ -105,11 +245,11 @@ mqtt:
     - mqtt.publish:
         topic: jctsh/components/air-quality-monitor/log
         payload: !lambda |-
-          char buf[256];
+          char buf[320];
           snprintf(buf, sizeof(buf),
             "{\"component\":\"air-quality-monitor\",\"category\":\"System\","
-            "\"message\":\"Air quality monitor online - ESPHome " ESPHOME_VERSION ", IP: %s\"}",
-            id(wifi_ip).state.c_str());
+            "\"message\":\"Air quality monitor online - ESPHome " ESPHOME_VERSION ", IP: %s, reset reason: %s\"}",
+            id(wifi_ip).state.c_str(), id(reset_reason_text).state.c_str());
           return std::string(buf);
     - mqtt.publish:
         topic: jctsh/components/air-quality-monitor/log
@@ -121,17 +261,29 @@ i2c:
   scl: GPIO22
   scan: true
 
-# ── SEN55 power gate ────────────────────────────────────────────────────────
-# ALWAYS_ON for Step 4 bench validation only — Step 8 replaces this with real
-# duty-cycle control (~10s active per 2-min cycle, per the Phase 1 power
-# budget) via turn_on/turn_off in the field-mode logging lambda.
-switch:
+# ── RGB LED (PM2.5 threshold indicator) ─────────────────────────────────────
+# KY-016 module, common cathode, onboard current-limiting resistors — no
+# external resistors, direct GPIO drive (wiring.md). Simple on/off per
+# channel (no PWM/dimming needed) — three colors, per Phase 1's EPA-style
+# thresholds: Green <12 µg/m³ (Good), Yellow 12-35 (Moderate, Red+Green
+# combined), Red >35 (Unhealthy). Driven from the pm_2_5 sensor's own
+# on_value trigger below, not a separate interval — updates exactly when a
+# new reading arrives, no extra polling. Gated by the boot_sequence_done
+# global (see esphome.on_boot above) so it doesn't run during the boot
+# self-test animation. Once gated on, each reading gets a brief ~1s flash
+# rather than staying continuously lit — same visual information, most of
+# the LED's power draw eliminated (see CARD-0012 kanban notes for the
+# blink-vs-continuous power comparison this was chosen from).
+output:
   - platform: gpio
-    pin: GPIO27
-    id: sen55_power_gate
-    name: "SEN55 Power Gate"
-    internal: true
-    restore_mode: ALWAYS_ON
+    pin: GPIO18
+    id: rgb_led_red
+  - platform: gpio
+    pin: GPIO19
+    id: rgb_led_green
+  - platform: gpio
+    pin: GPIO23
+    id: rgb_led_blue
 
 # ── Sensors ───────────────────────────────────────────────────────────────────
 sensor:
@@ -150,6 +302,30 @@ sensor:
       name: "PM 2.5"
       id: sen55_pm25
       internal: true
+      on_value:
+        then:
+          - if:
+              condition:
+                lambda: 'return id(boot_sequence_done) && !isnan(x);'
+              then:
+                - lambda: |-
+                    if (x < 12.0f) {
+                      id(rgb_led_red).turn_off();
+                      id(rgb_led_green).turn_on();
+                      id(rgb_led_blue).turn_off();
+                    } else if (x <= 35.0f) {
+                      id(rgb_led_red).turn_on();
+                      id(rgb_led_green).turn_on();
+                      id(rgb_led_blue).turn_off();
+                    } else {
+                      id(rgb_led_red).turn_on();
+                      id(rgb_led_green).turn_off();
+                      id(rgb_led_blue).turn_off();
+                    }
+                - delay: 1s
+                - output.turn_off: rgb_led_red
+                - output.turn_off: rgb_led_green
+                - output.turn_off: rgb_led_blue
     pm_4_0:
       name: "PM 4.0"
       id: sen55_pm4
@@ -197,6 +373,10 @@ text_sensor:
   - platform: wifi_info
     ip_address:
       id: wifi_ip
+      internal: true
+  - platform: debug
+    reset_reason:
+      id: reset_reason_text
       internal: true
 
 # ── Dock detect ───────────────────────────────────────────────────────────────

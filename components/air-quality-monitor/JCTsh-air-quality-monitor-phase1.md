@@ -163,7 +163,7 @@ Conforms to `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`. Field
 | EEMB LiPo pouch 603449 (1100mAh) | 1 | Bag 7 | Verify polarity before connecting |
 | TP4056 + boost combined module | 1 | Bag 8 | Charging half only — boost stage unused, see MCP1700 row |
 | MCP1700-3302E/TO LDO | 1 | Bag 32 | Direct LiPo-to-3.3V, replaces the boost stage per `JCTsh-Build-Standards.md` §2.14 point 7 |
-| BC547B NPN transistor | 1 | Music Response bin | SEN55 power-gate, low-side switch (GPIO27) |
+| BC547B NPN transistor | 1 | Music Response bin | **Superseded 2026-08-21** — SEN55 power-gate transistor dropped entirely at Step 6 (see `air-quality-monitor-claude-code-instructions.md`); this part is unused by this build |
 | Inline power switch (Gebildet SS12D10) | 1 | Bag 23 | From the slide-switch assortment — true transport/storage off, wired directly in the battery+ path |
 | RGB LED module | 1 | Plastic Box | From Greekcreit 37-module kit |
 | SUNYIMA solar panel (5.5V, 80mA) | 1 | Bag 6 | Backpacking use only |

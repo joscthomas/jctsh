@@ -8,7 +8,7 @@
 
 **ESP32 pin label orientation:** ESP32 DevKit pin labels face **down** when the board is inserted in a breadboard — the text is on the underside. Mark key GPIO rows with masking tape labels on the breadboard before wiring to avoid pin confusion (`JCTsh-Build-Standards.md` §2.6).
 
-Rows to label: GPIO18 (pin 30), GPIO19 (pin 31), GPIO21 (pin 33), GPIO22 (pin 36), GPIO23 (pin 37), GPIO27 (pin 11), GPIO32 (pin 7), GPIO34 (pin 5).
+Rows to label: GPIO18 (pin 30), GPIO19 (pin 31), GPIO21 (pin 33), GPIO22 (pin 36), GPIO23 (pin 37), GPIO32 (pin 7), GPIO34 (pin 5). GPIO27 (pin 11) is unused — see SEN55 Power Gate section below.
 
 GPIO34 (pin 5) note: input-only pin (ADC1) — no pull-up or pull-down; the battery voltage divider provides defined state.
 GPIO32 (pin 7) note: configured as INPUT (no pull-up or pull-down) — the dock detect voltage divider provides defined state.
@@ -28,7 +28,7 @@ Physical pin numbers below are from `ESP32-project-pins.md` — verify against t
 | GPIO21 | 33 | I2C SDA — blue | SEN55 (via Adafruit #5964 adapter) |
 | GPIO22 | 36 | I2C SCL — yellow | SEN55 (via Adafruit #5964 adapter) |
 | GPIO23 | 37 | RGB LED module — `B` pin (same module, no external resistor) | Field indicator |
-| GPIO27 | 11 | SEN55 power-gate control (active-high) | BC547B transistor base, via resistor |
+| GPIO27 | 11 | **Unused** — previously reserved for the SEN55 power-gate transistor, dropped 2026-08-21 | — |
 | GPIO32 | 7 | Dock detect (divider midpoint, INPUT) | TP4056 IN+ → 68kΩ → midpoint → 100kΩ → GND |
 | GPIO34 | 5 | Battery ADC (input-only) | Voltage divider midpoint |
 
@@ -44,8 +44,8 @@ The adapter has a 4-pin **input** header, labeled directly on the Adafruit board
 
 | Adafruit board pin (labeled on the board) | ESP32 Pin | Board Pin # | Wire Color | Notes |
 |---|---|---|---|---|
-| `VIN` | 3.3V (direct — the BC547B transistor switches the adapter's GND return instead, see SEN55 Power Gate section below) | 1 | red | Board's own onboard boost converter steps this up to 5V internally, for the SEN55 side only |
-| `GND` | GND | 38 / 32 / 18 / 14 (any GND pin) | black | |
+| `VIN` | 3.3V (direct) | 1 | red | Board's own onboard boost converter steps this up to 5V internally, for the SEN55 side only |
+| `GND` | GND | 38 / 32 / 18 / 14 (any GND pin) | black | Direct connection, always-on — no gate transistor in this path (see SEN55 Power Gate section below) |
 | `SDA` | GPIO21 | 33 | blue | I2C data |
 | `SCL` | GPIO22 | 36 | yellow | I2C clock |
 
@@ -84,9 +84,14 @@ Enable `scan: true` in the ESPHome `i2c:` block during initial testing to confir
 
 ---
 
-## SEN55 Power Gate — BC547B NPN Transistor Low-Side Switch (GPIO27, pin 11)
+## SEN55 Power Gate — DROPPED, 2026-08-21 (was: BC547B NPN Transistor Low-Side Switch, GPIO27 pin 11)
 
-Duty-cycles the SEN55 (via the adapter) on/off to manage its ~70mA active draw during field-mode logging (~10s active per 2-minute cycle, per the Phase 1 power budget). NPN low-side switch — correct topology since SEN55/the adapter sit on their own 5V-boosted rail, not the ESP32's shared 3.3V logic rail (unlike the unvalidated §2.14 point 8 P-FET pattern, which targets peripherals on that shared rail — not applicable here, see Hardware Context in the instructions doc for the full reasoning).
+**No gate transistor in the current design. SEN55's `GND` return is wired directly to common ground, permanently — the "bypass jumper" used to complete Step 4 during the diagnostic session below is now the actual design, not a workaround.** Duty-cycling the SEN55's ~63mA active draw is handled instead by I2C mode-switching (Measurement ↔ RHT/Gas-Only, per Sensirion's own power-reduction guidance) in firmware at Step 8 — see `air-quality-monitor-claude-code-instructions.md`'s Step 6 entry for the full reasoning. GPIO27 (pin 11) is unused. If a BC547B is still physically in place on the breadboard from earlier bench work, it can be removed — it's not part of the active circuit.
+
+**Why this is worth knowing even though it's gone:** Step 4's bench work found a real structural weakness in this topology — a marginal low-side (GND-return) connection shifts the load's entire ground reference and silently breaks I2C, rather than just reducing voltage the way a marginal high-side connection would. That fragility, not just "this specific breadboard contact was bad," is part of why the gate was dropped rather than redesigned as a high-side P-FET switch. Kept here for reference in case a future build considers gating a similar 5V-boosted-rail peripheral this way.
+
+<details>
+<summary>Historical circuit reference (BC547B low-side gate, as originally built)</summary>
 
 **BC547B transistor TO-92 lead identification** (flat face toward you, legs down — standard EBC pinout):
 
@@ -107,10 +112,11 @@ GPIO27 (pin 11) ──── R (1kΩ) ──── Base
 ```
 
 - **Low-side switch: the transistor sits between the adapter's GND return and common GND**, not between the 3.3V supply and the adapter's VIN. The adapter's VIN stays tied directly to 3.3V; switching the GND return is what actually de-energizes it.
-- **Base resistor: 1kΩ** (Bag on hand, `jctsh-parts-inventory.md`) — targets several mA of base current at 3.3V GPIO drive, comfortably into saturation for the BC547B transistor's typical hFE at the ~70mA collector current this needs to switch.
-- **Base pull-down: 10kΩ**, base to GND. Not in the original hiking-monitor gate pattern, but added here as a direct lesson from CARD-0070's BS250 floating-gate finding on the LDO/gate rig (a floating gate can leave a switch in an unintended state before firmware configures the GPIO, e.g. during the ESP32's reset/boot window). This is the NPN/active-high equivalent precaution — pull-down ensures the gate defaults to SEN55-off whenever GPIO27 (pin 11) isn't actively driven HIGH, not just after firmware takes over.
+- **Base resistor: 1kΩ** — targets several mA of base current at 3.3V GPIO drive, comfortably into saturation for the BC547B transistor's typical hFE at the ~70mA collector current this needs to switch.
+- **Base pull-down: 10kΩ**, base to GND — direct lesson from CARD-0070's BS250 floating-gate finding (a floating gate can leave a switch in an unintended state before firmware configures the GPIO, e.g. during the ESP32's reset/boot window).
 - **Active-high:** GPIO27 (pin 11) HIGH → transistor ON → SEN55 GND return connected → powered. GPIO27 (pin 11) LOW (or floating, thanks to the pull-down) → transistor OFF → SEN55 unpowered.
-- Firmware: drive GPIO27 (pin 11) HIGH before an I2C read, allow the SEN55's own settle/warm-up time (see `air-quality-monitor-claude-code-instructions.md` Step 8 for the exact duty-cycle timing), then read; drive LOW again before the next sleep/idle period.
+
+</details>
 
 ---
 
@@ -181,7 +187,7 @@ LiPo BAT+ (via inline switch) ──┬──── TP4056 BAT+ (charging only �
 - **LDO `VIN` taps the battery+ node in parallel with TP4056's `BAT+` input** — a parallel connection straight off the raw battery (through the inline switch), not fed from TP4056's boost/`VOUT+` output.
 - **LDO `VOUT` → ESP32 dev board's `3V3` pin directly** (not `VIN`) — `VIN` expects ~5V and routes through the board's own onboard regulator; feeding `3V3` bypasses that second regulation stage, which is the entire point of this change.
 - **Caution: never power the board from USB and the LDO at the same time** — both would drive the `3V3` rail from separate unisolated sources, risking backfeeding either regulator. Disconnect the LDO before flashing over USB, and vice versa. (Breadboard Steps 4-6 below power via USB only — do not connect the LiPo/LDO until Step 7.) **This is scoped specifically to the ESP32's own USB-C port** (the one used for flashing/serial) — the TP4056's separate micro-USB charging port never touches `3V3` at all, it only feeds the LiPo's `BAT+`/`BAT-` via the charge circuit (see Dock Detect Wiring below). Charging via TP4056 while the LDO powers the ESP32 off the battery is normal, expected home-mode operation, not a conflict — no need to switch off for that. **The inline power switch satisfies the ESP32-USB-C case** — switching it off removes the LDO's `VIN` entirely (functionally equivalent to unplugging it), so flashing over the ESP32's USB-C just requires the switch to be off rather than physically disconnecting anything (switch back on immediately after — see the Inline Power Switch operating rule above). Note: with the switch off, `VIN` is floating rather than grounded, so a microamp-scale reverse leakage back onto that node via the LDO's parasitic body diode (`VOUT`→`VIN`) is theoretically possible while `VOUT` is USB-fed — not a real hazard for the MCP1700, not worth acting on.
-- The Adafruit #5964 adapter's own onboard 5V boost for the SEN55 is fed from this same `3V3` rail (`VIN` direct, GND return switched by the BC547B transistor — see SEN55 Power Gate section above) — it never depended on TP4056's boost output, so this change doesn't affect it.
+- The Adafruit #5964 adapter's own onboard 5V boost for the SEN55 is fed from this same `3V3` rail (`VIN` direct, `GND` also direct — no gate transistor, see SEN55 Power Gate section above) — it never depended on TP4056's boost output, so this change doesn't affect it.
 
 ---
 
@@ -263,20 +269,16 @@ Power wiring for Steps 4-6:
 ┌────▼────┐  ┌───▼────┐                    │                                  │
 │ TP4056  │  │ MCP1700│──VOUT──────────────►│ 3V3 (pin 1)                      │
 │(chg only)│  │  LDO   │                    │       │                          │
-└────┬────┘  └────────┘                    │       └──► adapter VIN (direct — GND return switched by BC547B transistor, below)
+└────┬────┘  └────────┘                    │       └──► adapter VIN (direct — GND also direct, no gate transistor) │
      │ IN+ (green)                          │                                  │
      ├──R3(68kΩ)──┬──R4(100kΩ)──GND         │                                  │
      │            └──────────────► GPIO32 (pin 7) │                            │
      │ BAT+ (post-switch, white)             │                                  │
      ├──R1(100kΩ)──┬──R2(100kΩ)──GND        │                                  │
      │             └──────────────► GPIO34 (pin 5) │                           │
-     └──────────────────────────────────────┤ GND                              │
+     └──────────────────────────────────────┤ GND ◄── adapter GND (direct, always-on) │
                                              │                                  │
-                                             │ GPIO27 (pin 11) ──R(1k)── Base(BC547B transistor) │
-                                             │           │      Collector◄─adapter GND
-                                             │        R_pd(10k)  Emitter──GND   │
-                                             │           │                      │
-                                             │          GND                     │
+                                             │ GPIO27 (pin 11) — unused         │
                                              │                                  │
                                              │ GPIO21 (pin 33, SDA, blue) ◄─ SEN55 adapter │
                                              │ GPIO22 (pin 36, SCL, yellow) ◄─ SEN55 adapter │
@@ -290,7 +292,7 @@ Power wiring for Steps 4-6:
 
 **Performed at Step 9 (perfboard transfer), not Step 3** (moved 2026-08-20 — measuring before there's a real perfboard layout to size against was premature). Determines the minimum perfboard size. **Scope narrowed 2026-08-20:** the SEN55 module itself is no longer part of this measurement — it mounts externally to the enclosure via 3M tape (see the Phase 1 doc's Carry and Enclosure section), not inside it, so its 59mm × 37mm × 23mm footprint doesn't constrain the internal board layout at all. Only the small **Adafruit #5964 adapter** stays inside, connected to the externally-mounted SEN55 via the JST-GH cable through a pass-through hole. **Working assumption:** the same 5×7cm Chanzon FR4 board hiking-monitor uses (`components/hiking-monitor/perfboard-layout.md`) will probably work here too, likely with more headroom than originally expected now that SEN55 itself is out of the equation — this procedure confirms or corrects that assumption, not a from-scratch sizing exercise.
 
-1. **Lay out the full component set** on a flat surface in their approximate final relative positions: ESP32 DevKitC-32 (with its two 19-pin female header strips, per `JCTsh-Build-Standards.md` §1.2), the Adafruit #5964 adapter (SEN55 itself is external — see above, not part of this layout), the BC547B transistor + its two resistors, the two voltage dividers (4 resistors total), the RGB LED module, the MCP1700 LDO, and the inline power switch.
+1. **Lay out the full component set** on a flat surface in their approximate final relative positions: ESP32 DevKitC-32 (with its two 19-pin female header strips, per `JCTsh-Build-Standards.md` §1.2), the Adafruit #5964 adapter (SEN55 itself is external — see above, not part of this layout), the two voltage dividers (4 resistors total), the RGB LED module, the MCP1700 LDO, and the inline power switch. No gate transistor — dropped 2026-08-21 (see SEN55 Power Gate section above).
 2. **Measure the Adafruit #5964 adapter board** — its footprint plus mounting clearance around the JST GH connector, and clearance for the cable running to the pass-through hole.
 3. **Determine overall bounding footprint** needed for ESP32 + adapter + discrete components with reasonable trace/solder-pad spacing (don't pack components edge-to-edge — leave room for hand-soldered traces).
 4. **Compare against the standard 5×7cm Chanzon FR4 board** (`JCTsh-Build-Standards.md` §1.2 default) — report whether that standard size fits (expected, now that SEN55 is out of the internal footprint).

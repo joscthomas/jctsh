@@ -1463,7 +1463,7 @@ Both fixes deployed and verified against a fresh regeneration of both real pages
 ---
 
 ### CARD-0146 · [idea] [ring] Show Ring doorbell live video on Gathering room TV
-**Status:** Build
+**Status:** Defer (deactivated 2026-08-21 — see CARD-0187)
 
 **Raised 2026-08-07 14:18 MST.** When the Ring doorbell detects activity, automatically show its live video feed on the Gathering room TV (the Chromecast/Google TV, per `ENVIRONMENT.md`), interrupting whatever is currently playing. Feed stays up for as long as there's motion/activity at the door, then automatically returns to whatever was playing before.
 

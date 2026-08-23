@@ -14,7 +14,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0193 · [idea] [infrastructure] Kanban board scaling strategy
-**Status:** Planning
+**Status:** Build
+
+**Moved to Build 2026-08-22 19:28 MST (Joseph).** Design is settled enough to start implementation; the remaining "Still open" items below (secondary age threshold, un-archive rule, single-vs-per-year archive file) aren't full blockers — resolve them as part of doing the work, not before starting it.
 
 **Raised 2026-08-22 18:24 MST (Joseph), during a strategy discussion following CARD-0190.** `kanban-board.md` just crossed GitHub's 1MB Contents API limit (CARD-0190) and is still growing unboundedly — that fix patches the automated PR pipeline's read path, but doesn't address the underlying growth, or two other size-sensitive consumers this discussion surfaced: Claude's own Read tool (256KB cap, already forcing grep-only access on this file this session) and `core/logging/log_server.py`'s `/kanban` viewer, which has **no caching at all** — every single page load re-downloads and re-parses the entire raw file from GitHub, with a 10s timeout. Since Joseph's own habit is always viewing the rendered board (never the raw file), that third one is the cost he'd actually feel most directly as the file keeps growing.
 
@@ -31,7 +33,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Still open, to resolve before Build:**
 - The secondary age backup threshold (180 days suggested, not yet confirmed) — lower priority than the size threshold since it's explicitly a slow long-tail sweep, not the primary mechanism.
-- Whether this waits for CARD-0191's directory consolidation (the archive file's path depends on where `kanban-board.md` ends up) or can proceed independently with a repo-root archive file for now, migrated later.
+- ~~Whether this waits for CARD-0191's directory consolidation~~ — resolved: CARD-0191 is Done, `tos/` exists, the dated archive file can target `tos/kanban-archive-2026.md` directly with no interim location needed.
 - A rule for **un-archiving**: if an already-archived card needs a real update later (this session's own CARD-0146 correction, months after its original close, is exactly this shape), does it move back into the live file, or get edited in place in the archive/component doc? Leaning toward "move back to live" to keep the invariant that the live file only holds active-or-recently-touched cards, but not yet confirmed.
 - Whether one growing dated archive file just reproduces the same size problem on a longer timeline, vs. splitting by year to mirror this project's own environmental-data Sheets-by-year convention.
 

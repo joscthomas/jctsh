@@ -9,16 +9,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0191 -->
-
----
-
-### CARD-0190 · [enhancement] [infrastructure] CARD-0190 end-to-end webhook test, safe to close — auto-opened from jctsh-core
-**Status:** Backlog
-
-**Auto-generated 2026-08-23 00:41 UTC from jctsh-core's maintenance check.** Raw finding: CARD-0190 end-to-end webhook test, safe to close. Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
-
-**Related:** live dashboard entry at time of generation.
+<!-- next-card-id: CARD-0190 -->
 
 ---
 

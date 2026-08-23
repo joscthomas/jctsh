@@ -57,8 +57,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0191 · [idea] [infrastructure] Consolidate TOS (Team Operating System) tooling into its own directory
-**Status:** Build
+### CARD-0191 · [idea] [infrastructure] Consolidate TOS (Team Operating System) tooling into its own directory — RESOLVED 2026-08-22 18:54 MST
+**Status:** Done
 
 **Confirmed 2026-08-22 18:40 MST (Joseph):** move `kanban-board.md` into `tos/` along with everything else — the recommendation below proceeds as written, not the "leave it at root" alternative.
 
@@ -90,9 +90,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Real, serious finding while doing that grep-and-verify pass, 2026-08-22 18:50 MST — CARD-0190's fix was never fully deployed.** `open_kanban_pr.py` has no single deployed location: it's a plain sibling-import module, so a physical copy has to sit next to *every* script that imports it — `email-idea-check.py` and `pi-maintenance-check.py` on the Pi (`/usr/local/bin/open_kanban_pr.py`), `maintenance-check.py` on the M8 (`/usr/local/bin/open_kanban_pr.py`), and `hike-izer-orchestrator`'s own copy inside its Docker image. CARD-0190 only redeployed the last one (the Docker rebuild that was actually live-tested). Checked directly via SSH just now: **both `/usr/local/bin/open_kanban_pr.py` copies (Pi and M8) are still the old, pre-CARD-0190 broken version** — confirmed by grep (no `CARD-0190`/`tos/kanban` strings present, matching the old file's shape exactly). This means `pi-maintenance-check.py` (monthly), `maintenance-check.py` (the M8's own scheduled check), and **`email-idea-check.py` (every 30 minutes, the `joscthomas+kbc@gmail.com` path)** have all been silently broken in production this whole time, the same failure mode as the Tasker widget, just not yet noticed because nothing happened to trigger a real finding/email idea on either host since CARD-0190 shipped. Folding the fix into this card's own deploy step rather than opening a separate one, since it's the same file already being redeployed for the path rename.
 
-**Not yet decided:** whether `kanban-board.md` itself moves into `tos/` (Claude's recommendation, above) or stays at repo root while only the surrounding tooling consolidates — Joseph to confirm before Build starts, given the size of that particular blast radius.
+**Executed, redeployed, and live-tested end-to-end, 2026-08-22 18:54 MST.** `kanban-board.md`, `JCTsh-Operating-System.md`, `open_kanban_pr.py`, `land_pr_card.py`, and `email-idea-check.py` (+ `.service`/`.timer`) all moved into `tos/` via `git mv`, preserving history. Every hardcoded reference fixed: `log_server.py`'s `KANBAN_RAW_URL`, both PR scripts' GitHub API paths, `hike-izer-orchestrator`'s deploy docs/Dockerfile comment, `CLAUDE.md`'s Session Start instructions and Repository Layout (which also now points at `JCTsh-Operating-System.md`, closing the discoverability gap noted above), and root `README.md`. New `tos/README.md` indexes the directory and the auto-PR intake pipeline, pointing at `JCTsh-Operating-System.md` for process rather than duplicating it.
 
-**Related:** CARD-0190 (the bug that surfaced this whole discussion), CARD-0128 (`open_finding_pr()`), CARD-0173 (Tasker voice-idea widget), CARD-0057/CARD-0114 (`log_server.py`'s kanban viewer), `JCTsh-Operating-System.md` (the pre-existing process doc this card found, undiscoverable until now, and will give a real home).
+**Two real bugs caught during the final verify pass, before anything was pushed:** (1) the sed pass that added `tos/` prefixes missed two occurrences embedded in an f-string (`contents/kanban-board.md` inside the actual PUT-call URL, in both `open_kanban_pr.py` and `land_pr_card.py`) — caught by a full-repo grep sweep, not the original targeted edit. (2) A more serious one found only via live testing: `_blob_sha_at()`'s Git Data API tree lookup called `GET /git/trees/{sha}` without `?recursive=1`, which only lists top-level entries — worked fine when `kanban-board.md` was at repo root (a top-level entry) but silently could never match a nested path like `tos/kanban-board.md` once the file moved. Fixed in both scripts.
+
+**Live-tested against the real repo, not a shrunk copy:** a fresh webhook call opened PR #29 with the correct zero-diff empty-commit shape; `resolve_and_merge()` correctly parsed it, wrote a real diff to `tos/kanban-board.md` on the branch, and (after the same known `mergeable_state: unknown` merge-retry flake CARD-0190 hit) merged a correctly-numbered `CARD-0194` test card onto `main`. Reverted and cleaned up the same way as CARD-0190's test. The two stale `/usr/local/bin/open_kanban_pr.py` copies found broken above (Pi and M8) were redeployed with both fixes and reconfirmed present via grep.
+
+**Related:** CARD-0190 (the bug that surfaced this whole discussion), CARD-0128 (`open_finding_pr()`), CARD-0173 (Tasker voice-idea widget), CARD-0057/CARD-0114 (`log_server.py`'s kanban viewer), `JCTsh-Operating-System.md` (the pre-existing process doc this card found, undiscoverable until now, given a real home in `tos/`), CARD-0192 (watchdog self-test — would have caught the standalone-copy gap this card found the hard way), CARD-0193 (scaling — the archive file's home now resolved: `tos/`).
 
 ---
 

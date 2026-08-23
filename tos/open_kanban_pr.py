@@ -118,7 +118,7 @@ def _blob_sha_at(path, ref, token):
     content download at all -- trees report blob sha regardless of size)."""
     ref_data = _api("GET", f"/repos/{REPO}/git/refs/heads/{ref}", token)
     commit = _api("GET", f"/repos/{REPO}/git/commits/{ref_data['object']['sha']}", token)
-    tree = _api("GET", f"/repos/{REPO}/git/trees/{commit['tree']['sha']}", token)
+    tree = _api("GET", f"/repos/{REPO}/git/trees/{commit['tree']['sha']}?recursive=1", token)
     for entry in tree["tree"]:
         if entry["path"] == path:
             return entry["sha"]

@@ -48,6 +48,30 @@ esphome:
     - priority: 600.0
       then:
         - lambda: 'hike_log_begin();'
+        # CARD-0195: if the device booted into field mode on an abnormal
+        # reset (brownout/panic/watchdog -- not a normal power-on or
+        # deep-sleep wake), record it. Field mode has no WiFi to carry an
+        # MQTT log message, so this rides the same flash-buffer-then-replay
+        # path real readings use. Positive-match on abnormal keywords
+        # (same approach air-quality-monitor's reset-reason LED uses) rather
+        # than trying to enumerate every normal-reason string.
+        - if:
+            condition:
+              and:
+                - binary_sensor.is_on: slide_switch
+                - binary_sensor.is_off: dock_detect
+                - lambda: |-
+                    std::string reason = id(reset_reason_text).state;
+                    return reason.find("rownout") != std::string::npos ||
+                           reason.find("anic") != std::string::npos ||
+                           reason.find("atchdog") != std::string::npos;
+            then:
+              - lambda: |-
+                  char buf[192];
+                  snprintf(buf, sizeof(buf),
+                    "{\"event\":\"reset\",\"reason\":\"%s\"}",
+                    id(reset_reason_text).state.c_str());
+                  hike_log_write(std::string(buf));
     - priority: -100.0
       then:
         - component.update: hiking_display
@@ -79,6 +103,11 @@ esp32:
   board: esp32dev
   framework:
     type: arduino
+
+# ── Debug / reset reason (CARD-0195) ────────────────────────────────────────────
+# Feeds the unexpected-reset check in esphome.on_boot above. Same mechanism
+# air-quality-monitor already uses (components/air-quality-monitor/air-quality-monitor.yaml).
+debug:
 
 # ── WiFi ──────────────────────────────────────────────────────────────────────
 # KNOWN ISSUE (CARD-0045, found 2026-07-09): no explicit reboot_timeout is set here,
@@ -190,6 +219,14 @@ mqtt:
         if (hike_log_has_data()) {
           int count = hike_log_count();
           if (count > 0) {
+            // CARD-0199: Connected -> Uploading -> Done(elapsed) display
+            // sequence, shown only when there's real buffered hike data to
+            // replay -- a plain reconnect with nothing queued leaves the
+            // display on its normal state, untouched.
+            id(upload_display_state) = 1;  // Connected
+            id(hiking_display).update();
+            delay(1500);  // let "Connected" be visible before Uploading replaces it
+
             char log_buf[128];
             snprintf(log_buf, sizeof(log_buf),
               "{\"component\":\"hiking-monitor\",\"category\":\"System\","
@@ -197,6 +234,11 @@ mqtt:
               count);
             id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
                                     std::string(log_buf), 0, false);
+
+            id(upload_display_state) = 2;  // Uploading
+            id(upload_start_ms) = millis();
+            id(hiking_display).update();
+
             hike_log_replay_stream([](const std::string& line) {
               id(mqtt_client).publish("jctsh/components/hiking-monitor/data",
                                       line, 0, false);
@@ -206,6 +248,10 @@ mqtt:
               std::string("{\"component\":\"hiking-monitor\",\"category\":\"System\","
                          "\"message\":\"Hike log replay complete.\"}"), 0, false);
             hike_log_clear();
+
+            id(upload_duration_ms) = millis() - id(upload_start_ms);
+            id(upload_display_state) = 3;  // Done -- stays until switch-on or dock-removed
+            id(hiking_display).update();
           }
         }
     - if:
@@ -258,6 +304,12 @@ globals:
     type: std::string
     restore_value: false
     initial_value: '"=>"'
+  # CARD-0196: counts 2-min cycles spent in field mode, for the display
+  # refresh throttle in the interval: block below.
+  - id: field_display_cycle
+    type: int
+    restore_value: false
+    initial_value: '0'
   - id: deep_sleep_pending
     type: bool
     restore_value: false
@@ -266,6 +318,23 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
+  # Post-hike upload display sequence: 0=normal, 1=Connected, 2=Uploading,
+  # 3=Done (upload_duration_ms holds the elapsed replay time for state 3).
+  # Cleared on switch-on or dock-removed (see slide_switch/dock_detect
+  # on_state below) -- not time-based, matches upload mode's own
+  # idle-until-touched behavior.
+  - id: upload_display_state
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: upload_start_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: upload_duration_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
 
 # ── Low battery safety cutoff ─────────────────────────────────────────────────
 # Below 3.4V, force deep sleep to protect the LiPo from over-discharge damage,
@@ -381,6 +450,11 @@ text_sensor:
     ip_address:
       id: wifi_ip
       internal: true
+  # CARD-0195: reset reason, checked in esphome.on_boot above.
+  - platform: debug
+    reset_reason:
+      id: reset_reason_text
+      internal: true
 
 # ── Binary sensors ────────────────────────────────────────────────────────────
 # Slide switch: GPIO27 with internal pull-up. Switch ON (closed) pulls GPIO27 LOW.
@@ -412,6 +486,12 @@ binary_sensor:
             - delay: 2s   # allow e-ink full refresh to complete before power cut
             - deep_sleep.allow: deep_sleep_control
             - deep_sleep.enter: deep_sleep_control
+          else:
+            # CARD-0199: switch turned ON -- clear any leftover post-hike
+            # upload display state (e.g. "Upload complete" from a prior
+            # dock session) so the display goes back to live readings.
+            - lambda: 'id(upload_display_state) = 0;'
+            - component.update: hiking_display
 
   # Dock detect: TP4056 IN+ (USB VBUS) → 68kΩ → midpoint → 100kΩ → GND; midpoint to GPIO32.
   # Measured: IN+ = 0.47V (USB absent) → 0.28V / 5.1V (USB present) → 3.04V.
@@ -437,6 +517,12 @@ binary_sensor:
                       topic: jctsh/components/hiking-monitor/log
                       payload: '{"component":"hiking-monitor","category":"System","message":"Upload mode — USB connected, switch off"}'
           else:
+            # CARD-0199: USB removed -- always clear any leftover post-hike
+            # upload display state, regardless of switch position (covers
+            # unplugging while switch is still on, not just the sleep path
+            # below).
+            - lambda: 'id(upload_display_state) = 0;'
+            - component.update: hiking_display
             - if:
                 condition:
                   binary_sensor.is_off: slide_switch   # USB removed, switch off — return to sleep
@@ -489,6 +575,26 @@ display:
         it.print(125, 77, id(font_data), TextAlign::CENTER, "asleep");
         return;
       }
+      // CARD-0199: post-hike upload sequence -- see mqtt.on_connect above
+      // for where these states get set, and slide_switch/dock_detect
+      // on_state below for where they get cleared.
+      if (id(upload_display_state) == 1) {
+        it.print(125, 45, id(font_data), TextAlign::CENTER, "Connected");
+        it.print(125, 77, id(font_data), TextAlign::CENTER, "Starting upload...");
+        return;
+      }
+      if (id(upload_display_state) == 2) {
+        it.print(125, 45, id(font_data), TextAlign::CENTER, "Uploading");
+        it.print(125, 77, id(font_data), TextAlign::CENTER, "hike data...");
+        return;
+      }
+      if (id(upload_display_state) == 3) {
+        char dur[24];
+        snprintf(dur, sizeof(dur), "%.1fs", id(upload_duration_ms) / 1000.0f);
+        it.print(125, 45, id(font_data), TextAlign::CENTER, "Upload complete");
+        it.print(125, 77, id(font_data), TextAlign::CENTER, dur);
+        return;
+      }
       if (isnan(temp) || isnan(hum) || isnan(uv)) {
         it.print(5,  3, id(font_data), "Hiking monitor");
         it.print(5, 42, id(font_data), "initializing");
@@ -526,10 +632,25 @@ interval:
           float uv   = id(ltr_uv_index).state;
           float batt = id(battery_voltage).state;
 
-          // Low-battery safety cutoff — force sleep before the boost
-          // converter's end-of-charge instability can over-discharge the cell
-          if (id(slide_switch).state && !id(dock_detect).state &&
-              !isnan(batt) && batt < 3.4f) {
+          // Field mode, home mode, or upload mode (switch off)? Computed
+          // early -- used by the low-battery cutoff below as well as the
+          // publish/log branch and display throttle further down.
+          bool in_field_mode = id(slide_switch).state && !id(mqtt_client).is_connected();
+
+          // Low-battery safety cutoff -- force sleep before the boost
+          // converter's end-of-charge instability can over-discharge the
+          // cell. Gated on in_field_mode, not dock_detect (fixed
+          // 2026-08-23): dock_detect goes HIGH for solar same as USB
+          // (power-system.md, shared IN+ pad), and there is currently no
+          // sensor reading the panel's own output -- "something is
+          // connected" was being treated as "definitely charging enough to
+          // skip the cutoff," which isn't a safe assumption for a ~55-80mA
+          // panel against field-mode's continuous-awake draw. This still
+          // isn't as good as a real solar_v-vs-battery_v check (CARD-0017
+          // designed that schema but the ADC divider to actually read the
+          // panel was never wired into hardware) -- gating on field mode
+          // is the safe firmware-only fix available without new wiring.
+          if (in_field_mode && !isnan(batt) && batt < 3.4f) {
             id(low_battery_shutdown).execute();
             return;
           }
@@ -552,6 +673,11 @@ interval:
           ESPTime now = id(sntp_time).now();
           if (!now.is_valid()) {
             ESP_LOGW("HikeLog", "NTP not synced — skipping reading");
+            // CARD-0195: record the skip itself, not just a local ESP_LOGW
+            // that never leaves the device in field mode (no WiFi to carry
+            // it). Rides the same flash-buffer-then-replay path real
+            // readings use.
+            hike_log_write("{\"event\":\"skip\",\"reason\":\"clock_invalid\"}");
             return;
           }
           time_t epoch = (time_t)now.timestamp;
@@ -563,6 +689,18 @@ interval:
           // Handle NaN sensor values gracefully
           if (isnan(temp) || isnan(hum) || isnan(pres)) {
             ESP_LOGW("HikeLog", "Sensor read incomplete — skipping logging");
+            // CARD-0195: same as above -- record which field(s) came back
+            // NaN so a future hike's gaps can be told apart (I2C glitch vs.
+            // clock issue) after the fact, not just observed as missing.
+            char tbuf[16], hbuf[16], pbuf[16];
+            if (isnan(temp)) strcpy(tbuf, "null"); else snprintf(tbuf, sizeof(tbuf), "%.1f", temp);
+            if (isnan(hum))  strcpy(hbuf, "null"); else snprintf(hbuf, sizeof(hbuf), "%.1f", hum);
+            if (isnan(pres)) strcpy(pbuf, "null"); else snprintf(pbuf, sizeof(pbuf), "%.1f", pres);
+            char skip_buf[160];
+            snprintf(skip_buf, sizeof(skip_buf),
+              "{\"event\":\"skip\",\"reason\":\"nan_sensor\",\"temp\":%s,\"hum\":%s,\"pres\":%s}",
+              tbuf, hbuf, pbuf);
+            hike_log_write(std::string(skip_buf));
             return;
           }
 
@@ -604,7 +742,26 @@ interval:
           } else {
             hike_log_write(std::string(payload));
           }
-      - component.update: hiking_display
+
+          // CARD-0196: throttle the e-ink refresh in field mode only —
+          // each refresh has its own current spike, and field mode is
+          // exactly where every mA matters (home/upload mode stays docked
+          // and charging, so no throttle there). Refreshes on the first
+          // field-mode cycle (immediate data) and every FIELD_DISPLAY_
+          // REFRESH_CYCLES-th cycle after that; skipped cycles leave the
+          // last-drawn frame on screen (e-ink holds its image with zero
+          // power when not refreshing). Tune the constant below to trade
+          // display freshness against refresh current.
+          const int FIELD_DISPLAY_REFRESH_CYCLES = 10;  // 10 x 2min = refresh every ~20 min
+          if (!in_field_mode) {
+            id(field_display_cycle) = 0;  // stay in sync for the next field-mode entry
+            id(hiking_display).update();
+          } else if (id(field_display_cycle) % FIELD_DISPLAY_REFRESH_CYCLES == 0) {
+            id(hiking_display).update();
+            id(field_display_cycle)++;
+          } else {
+            id(field_display_cycle)++;
+          }
 
   # 5-minute heartbeat — only when home WiFi + MQTT connected
   - interval: 5min

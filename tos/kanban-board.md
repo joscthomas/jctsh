@@ -9,7 +9,48 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0199 -->
+<!-- next-card-id: CARD-0201 -->
+
+---
+
+### CARD-0200 · [bug] [hiking-monitor] Low-battery safety cutoff silently disabled by solar (shares dock-detect signal with USB) — cheap fix built, proper fix needs new wiring
+**Status:** Build
+
+**Raised 2026-08-23 14:16 MST (Joseph), found during a discussion of how connecting the SUNYIMA solar panel affects hiking-monitor's firmware.** The 3.4V low-battery cutoff (`hiking-monitor.yaml`, the 2-min interval lambda) was gated on `!id(dock_detect).state` — but solar wires into the same `IN+`/`IN-` pads as USB (`power-system.md:17,24-25,138-139`), so `dock_detect` goes HIGH identically whether it's a stable USB charger or a ~55-80mA solar panel in variable field conditions. Net effect: **connecting solar while actively hiking silently disables the one safety net protecting the LiPo from over-discharge**, with no check on whether the panel is actually outpacing drain.
+
+**Two fix paths identified, interviewed 2026-08-23:**
+1. **Cheap patch (built this session):** gate the cutoff on `in_field_mode` (switch on, MQTT not connected — the same bool CARD-0196's display throttle already computes) instead of `dock_detect`. Pure firmware, no new wiring — the safety net now stays active whenever genuinely out hiking, regardless of whether solar happens to be connected.
+2. **Proper fix (not built — needs new hardware):** a real `solar_v` ADC reading compared against `battery_v` (`solar_v > battery_v + ~0.3V` = actually charging), letting the cutoff make a genuinely informed decision instead of treating "something's plugged in" as a proxy for "definitely safe." **CARD-0017 (marked Done, 2026-06-15) already designed this exact schema field and the comparison logic** — but only the Sheets/Apps Script half was ever built. Confirmed by grep: no `solar_v` sensor exists anywhere in `hiking-monitor.yaml`, and `power-system.md` documents no voltage divider on the panel's own output (only `battery_v` via `BAT+`, and the digital-ish `dock_detect` divider) — so populating it for real would mean adding a new physical divider circuit, the exact kind of perfboard rework this pass is explicitly avoiding (same reasoning CARD-0196 item 1 and CARD-0070 already apply).
+
+**Decision:** ship the cheap patch now (low risk, built and config-validated); leave the proper `solar_v` fix as a future hardware-pass item, most naturally grouped with CARD-0070's "v2 rebuild" rather than reopening CARD-0017 today.
+
+**Built and config-validated, 2026-08-23 14:16 MST — not yet flashed/verified.** `esphome config` clean against the synced `C:\esphome\hiking-monitor\` copy. No physical device access from this session.
+
+**Compounding risk worth naming (not part of this card's fix, cross-referenced on CARD-0045 too):** if CARD-0045's suspected stuck-WiFi-reconnect-loop bug ever fires while solar is connected mid-hike, this cutoff being disabled the whole time meant there was previously *no* backstop against draining the battery to nothing. This fix closes that half of the failure chain; CARD-0045 itself (unbounded WiFi retry) is still open and unfixed.
+
+**Related:** CARD-0017 (the schema this fix reuses conceptually but doesn't implement in hardware), CARD-0045 (the compounding risk noted above), CARD-0196 (the sibling `in_field_mode` bool this reuses, from the same file's display-throttle logic), CARD-0070 (where the proper hardware fix would naturally land), `components/hiking-monitor/hiking-monitor.yaml`, `components/hiking-monitor/power-system.md`.
+
+---
+
+### CARD-0199 · [enhancement] [hiking-monitor] E-ink display shows Connected/Uploading/Upload-complete-with-duration during post-hike sync — code written, not yet flashed/verified
+**Status:** Build
+
+**Raised 2026-08-23 13:39 MST (Joseph).** Currently, when the device reconnects to WiFi after a hike and replays its buffered flash log, the e-ink display shows nothing about that process — it just keeps showing whatever it last displayed (stale field-mode readings, or "initializing") straight through connect and replay, then silently jumps to normal readings once done, with no visibility into what happened or how long it took.
+
+**Interviewed 2026-08-23 — one real design fork, resolved:** how long should the final "upload complete" message stay on screen. **Chosen: until switch-on or dock-removed** (not a fixed timer) — matches upload mode's own existing idle-until-touched behavior rather than adding a new time-based mechanism.
+
+**Design:** a 3-state sequence (`upload_display_state` global: 0=normal, 1=Connected, 2=Uploading, 3=Done), gated behind `hike_log_has_data()` being true at connect time — a plain reconnect with nothing buffered leaves the display untouched, since there's nothing to report. Hooks directly into the existing `mqtt.on_connect:` replay lambda (`hiking-monitor.yaml`) rather than adding a parallel code path:
+1. **Connected** — set the moment there's confirmed data to replay, held visible ~1.5s (`delay(1500)` in the lambda) before the sequence moves on, so it's actually readable rather than flashing past.
+2. **Uploading** — set right before `hike_log_replay_stream()` starts; `upload_start_ms = millis()` captured here.
+3. **Done** — set right after replay completes and the flash log is cleared; `upload_duration_ms = millis() - upload_start_ms` computed and shown as `"%.1fs"` (e.g. "8.2s").
+
+**Display lambda** (`hiking-monitor.yaml`, `display:` block) gets three new early-return branches for these states, checked after the existing `low_battery_pending`/`deep_sleep_pending` checks (unchanged priority — a critical battery/sleep state still wins over an upload-status message) and before the normal live-reading branch.
+
+**Reset points, per the interview decision above:** `slide_switch`'s `on_state` gained an `else` branch (switch turned ON — previously only handled switch-OFF) that clears `upload_display_state` back to 0. `dock_detect`'s `on_state` else-branch (USB removed) now unconditionally clears it too, not just inside the existing "switch also off → sleep" path — covers unplugging while the switch is still on, which the prior code didn't touch at all.
+
+**Verified:** `esphome config` — "Configuration is valid!" against the synced `C:\esphome\hiking-monitor\` copy. **Not yet flashed or live-tested** — no physical device access from this session. First real verification has to be a live dock/reconnect cycle confirming the three states actually appear in sequence and the elapsed time is plausible, plus confirming the reset paths (switch-on, dock-removed) actually clear the message rather than leaving it stuck.
+
+**Related:** `components/hiking-monitor/hiking-monitor.yaml` (`mqtt.on_connect:`, `display:` lambda, `slide_switch`/`dock_detect` `on_state`), CARD-0196 (the sibling battery-endurance card touching the same display component's refresh *frequency* — a different concern, no overlap in the actual code touched).
 
 ---
 
@@ -127,7 +168,7 @@ hiking-monitor's design is simpler because it has no high-current peripheral to 
    - Wake source: a timed RTC wake (ESP32 `esp_sleep_enable_timer_wakeup`), not the existing dock-detect/slide-switch external wake sources (those stay as-is, unrelated).
    - **If this genuinely can't be done without rewiring once actually scoped, it's out — Joseph explicitly does not want the perfboard disturbed for this**, unlike CARD-0070 which he's deliberately treating as a future "v2" rebuild, not something to revisit now.
 
-2. **Throttle e-ink display refresh frequency — in scope, confirmed ("this'll work").** Currently refreshes every single 2-minute cycle (`component.update: hiking_display`, `hiking-monitor.yaml:607`) — ~90 refreshes over a 3-hour hike, each with its own current spike, for a display that doesn't need that resolution. Reduce to every Nth cycle (exact N to be decided at Planning) or on-demand via the existing display button.
+2. **Throttle e-ink display refresh frequency — in scope, confirmed ("this'll work"). Built and config-validated, 2026-08-23 13:42 MST — not yet flashed/verified.** Currently refreshes every single 2-minute cycle (`component.update: hiking_display`, `hiking-monitor.yaml:607`) — ~90 refreshes over a 3-hour hike, each with its own current spike, for a display that doesn't need that resolution. **Correction: there is no "existing display button"** — grepped the current `hiking-monitor.yaml` and confirmed the only `button:` platform is the HA restart button (CARD-0180); that on-demand-via-button alternative named when this card was raised doesn't exist in this codebase, so it was dropped rather than pursued. Implemented instead: a new `field_display_cycle` global counts 2-min cycles while in field mode (`slide_switch` on, MQTT not connected); the display refreshes on the first field-mode cycle and every `FIELD_DISPLAY_REFRESH_CYCLES`-th cycle after (constant set to 10, i.e. ~20 min cadence — Joseph's call 2026-08-23, revised up from the initial 5/~10min default — easy to retune further), skipped cycles leave the last-drawn e-ink frame on screen at zero extra power. Home/upload mode (docked, charging) is explicitly excluded from the throttle — refreshes every cycle as before, since battery isn't the constraint there. `esphome config` validates clean against the synced `C:\esphome\hiking-monitor\` copy; not flashed, no physical device access from this session.
 
 3. **Solar panel used on day hikes, not just multi-day trips — noted, not committed ("maybe").** No engineering work involved (the SUNYIMA panel already exists and is documented for multi-day use in `power-system.md`) — just a possible operational habit change, not a deliverable of this card. Not part of "done" criteria.
 
@@ -142,7 +183,14 @@ hiking-monitor's design is simpler because it has no high-current peripheral to 
 ---
 
 ### CARD-0195 · [enhancement] [hiking-monitor] Field-mode diagnostic instrumentation — skip-reason logging and reset-reason detection
-**Status:** Backlog
+**Status:** Build
+
+**Built and config-validated, 2026-08-23 14:16 MST — not yet flashed/verified.** Identified as low-risk (small, additive, no behavior change to existing operation) during a broader reconciliation of hiking-monitor's open power/connectivity cards (CARD-0045, CARD-0070, CARD-0196, this card) — implemented alongside a related low-battery-cutoff bug fix from that same reconciliation (see the new small bug card below). All three scope items built:
+1. Skip-reason logging — both silent-return branches (`hiking-monitor.yaml`, the 2-min interval lambda) now call `hike_log_write()` with `{"event":"skip","reason":"clock_invalid"}` or `{"event":"skip","reason":"nan_sensor","temp":...,"hum":...,"pres":...}` (NaN fields rendered as JSON `null`, matching this file's existing convention) before returning.
+2. Reset-reason detection — added `debug:` component + a `text_sensor: platform: debug: reset_reason:` (`id: reset_reason_text`), same mechanism air-quality-monitor already uses. `esphome.on_boot`'s priority-600.0 block now checks, right after `hike_log_begin()`: if booting into field mode (switch on, dock off) with a reset reason matching "rownout"/"anic"/"atchdog" (positive-match on abnormal keywords, same approach as air-quality-monitor's LED check — not enumerating every normal-reason string), writes `{"event":"reset","reason":"<text>"}` to the hike log.
+3. Node-RED routing — `core/data-pipeline/environmental-data.flow.json` gained a new function node ("Route skip/reset events") right after the `jctsh/components/+/data` MQTT-in, splitting into two outputs: `event:"skip"`/`event:"reset"` records get converted to a standard log message (`category: System` for skip, `category: Alert` for reset) and published to the component's own `/log` topic (component name derived from `msg.topic`, not a payload field — the skip/reset JSON records don't carry a `component` field, so this avoids needing to add one); everything else continues unchanged through the existing GPS-lookup/Sheets pipeline. **Needs manual re-import into Node-RED** (per this project's standing workflow — JSON edited in the repo, pasted into Node-RED via Import, not deployed via SCP).
+
+`esphome config` validates clean against the synced `C:\esphome\hiking-monitor\` copy; the Node-RED JSON validates as well-formed. Not flashed, not re-imported into the live Node-RED flow, no physical device access from this session.
 
 **Raised 2026-08-23 04:20 MST (Joseph), found while investigating three data gaps (totaling ~22 missed 2-minute samples) in the 2026-08-22 hike — the first real field deployment.** The 2-minute sensor-read interval (`hiking-monitor.yaml:520-607`) has two explicit silent-skip branches, and field mode has zero telemetry (no WiFi, so `ESP_LOGW` output never reaches anywhere durable) — so after the fact there's no way to tell which of several possible causes (I2C sensor glitch, clock-invalid state, or a full device reset) produced any given gap. This card makes those causes visible on the next hike instead of staying invisible.
 
@@ -1280,6 +1328,8 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 15970
 **Reopened 2026-08-20 11:12 MST — priority assessment was wrong.** Surfaced while designing air-quality-monitor's own solar/dock-detect handling (CARD-0012): the "USB dock power, not draining battery" reasoning above assumed dock-detect only goes HIGH at the physical home dock. It doesn't — hiking-monitor's SUNYIMA solar panel wires into the same `IN+`/`IN−` pads as the dock (`power-system.md`, `perfboard-layout.md`'s "IN+ / IN− — solar/USB charging input; IN+ also tapped for dock detect"). So dock-detect can go HIGH mid-hike, on battery, exactly the scenario this card's priority call assumed couldn't happen. If the `reboot_timeout`/`wifi.ap:` bug does prevent recovery, a solar-triggered stuck reconnect *would* drain field battery, with no dock nearby to physically reflash. Raising to **medium** — still no confirmed real-world failure (CARD-0008 succeeded, but that test wasn't solar-triggered), but the "no real cost" justification for deprioritizing no longer holds.
 
 **Resolution path — concrete design from the air-quality-monitor solar/timeout work (2026-08-20), not yet implemented on hiking-monitor:** rather than relying on `reboot_timeout` at all (sidestepping the `wifi.ap:` interaction bug entirely instead of deciding whether to remove the AP fallback), decouple field sensor logging from dock-detect state — keep the sensor-read/SPIFFS-log loop (and e-ink field display) running unconditionally whenever the hiking switch is ON, regardless of dock-detect. Let dock-detect HIGH trigger only a background WiFi connection attempt, bounded to a ~2-minute window, then `wifi.disable()` rather than retrying indefinitely, then re-enable and retry roughly every 15–20 minutes for as long as dock-detect stays HIGH (no cap on the number of these periodic cycles). Only switch to actual replay+live-publish once WiFi and MQTT both actually connect. This is a change to already-deployed, field-proven firmware — treat as its own scoped implementation pass, not a quick edit; matching air-quality-monitor's parallel implementation (`air-quality-monitor-claude-code-instructions.md` Step 8) once that's built and field-tested may be the lower-risk order of operations, since it validates the approach on hardware that hasn't shipped yet first.
+
+**Compounding risk found 2026-08-23 (CARD-0200) — this card's failure mode used to have zero backstop, now has one.** The low-battery safety cutoff was gated on the same `dock_detect` signal this card is about — meaning if this bug's stuck-retry scenario ever fired while solar was connected mid-hike, the cutoff was *also* silently disabled the whole time, so a stuck reconnect loop could have drained the battery to nothing with nothing to stop it. CARD-0200 fixed the cutoff side (now gated on field mode, not dock state) — this card (the actual unbounded-retry behavior) is still open and unfixed; the two together were a real failure chain, not independent risks.
 
 ---
 

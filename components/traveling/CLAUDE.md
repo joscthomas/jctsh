@@ -544,3 +544,46 @@ repeat isn't caught live, or if the TV-as-its-own-device idea gets picked up.
 **Related:** CARD-0078 (NetAlertX network-presence entities referenced during investigation), CARD-0098 (Traveling Lights, the toggle this card's alert automation is gated on), `core/homeassistant/automations.yaml`.
 
 ---
+
+**Archived from `tos/kanban-board.md` on 2026-08-22 (CARD-0193)** — 7811B, over the 5000B size threshold.
+
+### CARD-0098 · [enhancement] [traveling] Randomized/staggered occupancy-simulation lighting while traveling — RESOLVED 2026-07-28
+**Status:** Done
+
+**Raised 2026-07-25**, prompted by Joseph asking how feasible an HA lights-while-traveling automation would be, then asking to build it now. New HA-only component, `components/traveling-lights/` (README.md + CLAUDE.md), following the `garage-presence` precedent for HA-only components with no hardware.
+
+**Design went through five rounds before landing:**
+1. First cut controlled all 5 entities (`light.overhead_light`, `switch.kitchen_overhead`, `light.nook`, `light.pendants`, `light.chandelier`) via a single `homeassistant.turn_on`/`turn_off` at one randomized time per night.
+2. Joseph flagged the real flaw: all 5 are in the same room, so firing them simultaneously looks like a single master-switch flip regardless of how random the clock time is — not real occupancy behavior. **Fix:** each light gets its own random 1–5 min delay and the firing order is shuffled fresh every run (`| shuffle` + `repeat: for_each`).
+3. Joseph asked how he'd know it actually ran while traveling, with no lights dashboard to check. **Fix:** both action automations end with a push notification (both Pixels) stating the fire time and which lights were turned on/off — same pattern as CARD-0036 (scheduled-reboot notifications) and front-porch-temp-sensor's threshold alerts.
+4. Joseph noted the household normally turns lights on before full dark, not at a fixed clock time — and Tucson's real sunset swings ~5:25pm (Dec) to ~7:35pm (Jun), so a fixed window would look wrong most of the year. **Fix:** on-time is now `sun.sun`'s `next_setting` + a random 0–35 min offset, computed fresh each night. Off-time stays a fixed 10:00–11:30pm window (bedtime doesn't track the seasons).
+5. After live-testing the two-automation design, Joseph asked why two switches were needed instead of one, and separately asked to drop `light.overhead_light`/`switch.kitchen_overhead` (down to 3 entities: nook, pendants, chandelier). **Fix:** merged "Evening On"/"Night Off" into a single **Traveling Lights** automation — two triggers tagged `id: 'on'`/`id: 'off'`, a `choose:` block runs the matching branch. One entity, one toggle, both directions.
+
+**How it works:** "Traveling Lights - Randomize Daily Times" (always enabled) runs nightly at 3am, writing tonight's on-time (sunset-relative) and off-time (fixed window) into two `input_datetime` helpers. The single **Traveling Lights** automation (disabled by default) fires at whichever time comes due, staggers the 3 entities in a shuffled order with random per-light delays, then pushes a confirmation notification. Toggling that one automation (Settings → Automations → search "traveling") is the full "traveling mode" switch.
+
+**Status: deployed 2026-07-25, partially live-verified.** Both `input_datetime` helpers created by Joseph via Settings → Devices & Services → Helpers → Date and/or time (Time-only). `automations.yaml` deployed to the Pi and reloaded four times as the design evolved — confirmed live each time via the HA API. Manually triggered the randomizer directly against real `sun.sun` data: actual sunset was `19:27` local, computed on-time landed at `19:33` (6 min after sunset, inside the intended window) — confirms the sunset-relative calc is correct against real data. Live-tested the pre-merge 5-entity/2-automation design end-to-end: enabled Evening On with a near-future test time, confirmed `light.overhead_light`, `light.pendants`, and `light.chandelier` actually turned on at staggered (non-simultaneous) times, exactly as designed.
+
+**Real finding from the merge deploy:** the automation was still mid-run (`current: 1`) when the round-5 merge was reloaded — its manually-toggled `on` state reset to `off` afterward, unlike the three earlier reloads (which were minor content edits and preserved toggle state). Documented in `CLAUDE.md` as a practical rule: minor tweaks preserve the toggle across a reload, but a reload that restructures triggers/`choose:` logic under the same automation `id` may not — always re-check after any structural reload.
+
+**Cosmetic-only leftovers from the merge (documented, not blocking):** the merged automation kept the old entity ID `automation.traveling_lights_evening_on` (HA doesn't re-slugify entity IDs to match a changed alias) even though it's now named "Traveling Lights" and covers both directions. `automation.traveling_lights_night_off` is now an orphaned `unavailable` entity — safe to delete via Settings → Entities, or ignore.
+
+**Full on+off run confirmed live 2026-07-26/27 (pre-trim, 3 entities):** on-branch triggered 19:35:22 local, chandelier/pendants/nook fired at 19:38/19:41/19:42 (staggered ~1–3 min apart, matching the 1–5 min per-light delay design). Off-branch triggered 22:02:00 local (inside the 22:00–23:30 window), same 3 lights turned off at 22:06/22:10/22:12. Confirms the merged single-automation `choose:` structure works correctly for both directions — verified via HA `/api/logbook` rather than Joseph watching the house live.
+
+**Round 6 — 2026-07-27, prompted by Joseph reviewing the verified run:**
+1. Noticed the push notification's light list was raw entity IDs (`light.chandelier, light.pendants, light.nook`) instead of readable names. **Fix:** added a `lights_names` variable (`lights_order | map('state_attr', 'friendly_name') | join(', ')`) and pointed both notification templates at it — messages now read e.g. "Turned on: Nook, Pendants."
+2. Asked to drop `light.chandelier` — down to 2 entities: `light.nook`, `light.pendants`.
+3. Asked why the automation was found disabled despite having been manually enabled and live-tested the night before. **Root cause:** the Pi's pre-existing weekly `scheduled-reboot.timer` (CARD-0036) fired at 03:00 local on 2026-07-27, restarting Docker → the `homeassistant` container (confirmed via `docker inspect` StartedAt + HA's own "stopped"/"started" logbook entries 3 min apart). The automation's `initial_state: false` key forces that *specific* state on every HA startup — not just first-ever load with no registry entry, as CLAUDE.md previously (incorrectly) documented from the round-5 reload finding. **Fix:** removed `initial_state: false` entirely, so HA now restores whatever the toggle was last set to across any restart, including future scheduled reboots.
+
+**Status: deployed and re-enabled 2026-07-27, 2-entity/friendly-name version armed for the night's live cycle** (on/off times randomized for that day: ~19:58/22:14 local).
+
+**Closing criteria confirmed 2026-07-28.** The natural overnight cycle (2026-07-27 evening → 2026-07-28 early morning) ran on its own, verified via HA `/api/logbook`:
+- On-branch triggered 19:58:41 local (exact match to the randomized on-time) — Pendants on at 20:01:47, Nook on at 20:03:47 (staggered, ~2 min apart).
+- Off-branch triggered 22:14:00 local (exact match to the randomized off-time) — Pendants off at 22:15:06, Nook off at 22:17:06 (staggered, ~2 min apart).
+- No `unavailable`/error states in this window. (a) staggering confirmed via logbook, (b) friendly names in the push notification confirmed by Joseph directly.
+
+**Automation left enabled, not disabled — correcting an assumption caught by Joseph 2026-07-28.** The original closing note said "disable again until an actual trip," carried forward from stale text in an earlier scheduled check-in task rather than a live confirmation of travel status. Joseph is on an active trip as of this closing, so the automation stays on.
+
+**Related:** `components/garage-presence/` (the HA-only-component precedent this follows), `components/traveling-lights/README.md`, `components/traveling-lights/CLAUDE.md`.
+
+---
+

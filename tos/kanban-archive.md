@@ -170,3 +170,87 @@ Real nuance found while fixing it, though — reading the actual files (not just
 **Related:** CARD-0088 (hike-izer-web hosting — owns the Funnel URL this rename breaks), `jctsh-network.md`, `components/photo-server/`, `hosts/m8/`, `hosts/pi1/`.
 
 ---
+
+**Archived from `tos/kanban-board.md` on 2026-08-22 (CARD-0193)** — 9049B, over the 5000B size threshold.
+
+### CARD-0172 · [idea] [infrastructure] Disaster Recovery — auto-opened from jctsh-core — RESOLVED 2026-08-16 19:30 MST
+
+**Status:** Done
+
+**Raised 2026-08-15 04:00 MST**, via CARD-0151's email-idea pipeline (GitHub PR #12). Raw idea: "Suppose we lose a disk drive on the M8 or the USB drive on Pi1. What can be recovered? Do we have the appropriate backups? How would we rebuild the M8 or Pi1? What can we do to manage this risk?"
+
+**Interviewed 2026-08-16.** Scope is both storage loss (a drive dying under a still-working host) and full host loss (the Pi or M8 itself dying) — not just the narrower "lost a disk" framing in the raw idea. Deliverable is an audit/documentation pass, not a rebuild-from-scratch drill — matches how CARD-0095 handled the M8 maintenance backlog: inventory real posture, identify real gaps, write findings and any accepted-risk decisions into this card. A live restore test is explicitly out of scope for this card; could be a follow-up card if the audit surfaces something worth proving live.
+
+**Acceptance criteria:**
+1. Inventory what's actually backed up today for both hosts: M8 has a weekly rsync (`components/m8/backup.md`) — confirm what it covers and where it lands; Pi1's USB drive (`/mnt/jctsh-logs` — HA config/recorder DB, Mosquitto persistence, Docker/containerd data-root per CARD-0159) backup posture is currently unknown and needs establishing.
+2. For each host, document what a full rebuild would actually require: OS install, Docker/containerd setup, this repo's own deploy steps (`scp`/systemd units per `CLAUDE.md`'s Core Files section), and which pieces of state are recoverable from the backups in (1) versus lost entirely.
+3. Identify real gaps and make an explicit accept/close decision on each, using the same realistic-threat/consequence framing this repo already applies elsewhere (MQTT exposure risk acceptance, `CLAUDE.md`) — not a blanket "back up everything" reflex.
+
+**Audit completed 2026-08-16, live against both real hosts (not assumed from docs).**
+
+**M8 backup inventory:**
+- Immich photo library (`/mnt/photo-library`): weekly rsync to two local drives (`photo-library-backup-joseph`, `photo-library-backup`), confirmed active via crontab and confirmed actually current — `photo-library-backup-success.stamp` dated 2026-08-16 02:32, today. Includes Postgres DB dumps (~2.2GB), so Immich's catalog/albums/faces metadata is covered, not just raw files.
+- `~/hike-izer-web-app/srv/` and `private/` (published hike pages, wildlife life list, photo manifests, the Xeno-canto cache) — **not backed up at all.** Partially regenerable: `private/*_hike_data.json` can be re-fetched from the Google Sheets source (which Google backs up independently) via `fetch_hike_data.py`, but the actual published HTML and any post-publish curation/manual edits would not reproduce identically.
+- NetAlertX device-tracking data (`/home/jct/netalertx-app/data`, bind-mounted on the M8's own OS drive) — **not backed up.** Lower stakes: presence/device history, not household-critical, self-heals via re-detection over time.
+- Docker/compose config itself is in good shape for a rebuild — `components/hike-izer-web/docker-compose.yml`, `components/m8/docker-compose.yml`, and `components/netalertx/docker-compose.yml` are all already version-controlled in this repo.
+- **All backup copies are physically local to the M8** — both backup drives are attached to the same machine as the primary. A location-level event (theft, fire, flood) takes out primary and both backups together; no offsite copy exists.
+
+**Pi1 backup inventory — the "currently unknown" from the raised idea, now established: zero.** Checked `crontab -l` (only a DuckDNS renewal job) and every systemd timer on the Pi (`systemctl list-timers --all`) — nothing backs up `/mnt/jctsh-logs` in any form. Concretely at risk if that drive fails: `homeassistant/` (87MB — full HA `/config`, including `.storage/` entity+area registries and every integration's own state: SmartThings OAuth tokens, the Samsung TV/Denon AVR pairing, Ring, Google Cast — plus the recorder history DB), `mosquitto/` (308KB — broker persistence), and Docker/containerd's data-root (image/container state, less critical since images are re-pullable). Only `automations.yaml`/`configuration.yaml` are version-controlled (`core/homeassistant/`) — everything else on that drive exists in exactly one place.
+
+**Rebuild path, Pi1 (Debian 13 "trixie"):** fresh OS install; reinstall Docker, Tailscale, Mosquitto, Node-RED, fail2ban, DuckDNS client; restore Docker/containerd config from this repo (`core/docker/daemon.json`, `core/docker/containerd-config.toml`); remount the USB drive if it physically survived (if it's what failed, HA/Mosquitto state above is gone, full stop); re-import Node-RED flows manually from the repo's JSON exports (UI import, per established convention — flows aren't auto-deployable); redeploy `core/logging/log_server.py`; recreate every MQTT account and its password (from `credentials.local.md`); HA needs either the USB drive's `.storage/` intact or a full manual reconfiguration — re-pairing SmartThings, the Samsung TV, rebuilding dashboards, and permanently losing recorder history.
+
+**Rebuild path, M8 (Ubuntu 26.04 LTS):** fresh OS install; Docker + Compose + Tailscale + `cloudflared`; restore the three tracked `docker-compose.yml` files above; restore `~/hike-izer-web-app/.env` credentials (from `credentials.local.md`); restore Immich's photo library from whichever of the two backup drives survived (confirmed current as of today); `srv`/`private` and NetAlertX data start effectively from zero (see gaps below).
+
+**Cross-cutting finding, not specific to either host: `credentials.local.md` is a single point of failure.** It's gitignored — exists in exactly one place, this Windows laptop. If that laptop were lost at the same time as either host, rebuilding requires regenerating essentially every credential in the project from scratch (MQTT passwords, API keys, the HA long-lived token, `WEBHOOK_SECRET`s) rather than restoring them. **Genuinely unknown to me whether this file has any backup of its own** (password manager, cloud sync, printed copy) — that's Joseph's own laptop/personal-backup-habit question, not something derivable from repo state.
+
+**Identified gaps and recommended decisions:**
+1. **Pi1's HA + Mosquitto state has zero backup (87MB + 308KB total — trivially small).** Recommend **not accepting this one** — real, painful consequence (lose all HA history, every integration's pairing/OAuth state, dashboard customization) against near-zero cost to fix, same asymmetry argument CARD-0095 already used for security patching. A daily/weekly rsync of `/mnt/jctsh-logs/homeassistant` + `/mnt/jctsh-logs/mosquitto` to the M8 (which already has spare capacity and its own backup precedent) would close this cheaply. Building/testing that is out of this card's own scope (audit only, no live build) — recommend opening a follow-up card for it.
+2. **M8's photo backups are both physically local, no offsite copy.** Recommend **accept** — same realistic-threat/consequence framing this repo already applies to MQTT's cleartext exposure risk (`CLAUDE.md`): a true offsite copy is a meaningfully bigger undertaking (ongoing cloud storage cost at this data volume, or physically rotating a drive), and the specific threat (a fire/theft/flood at the exact moment recovery is needed) is low-probability. Worth revisiting only if an offsite option becomes cheap.
+3. **hike-izer-web's `srv`/`private` data isn't backed up.** Recommend **accept** — low stakes, Joseph's own hobby-project data rather than household-critical, and mostly reconstructable from the Google-Sheets-backed source data.
+4. **NetAlertX's device history isn't backed up.** Recommend **accept** — self-healing by design (rebuilds from re-detection), not household-critical.
+5. **`credentials.local.md`'s single-laptop exposure. Closed 2026-08-16** — Joseph confirmed it already has a backup outside this laptop. No action needed.
+
+**All five gaps decided, 2026-08-16 (Joseph confirmed all recommendations above):** gaps 2–4 accepted as scoped; gap 5 closed (already backed up); gap 1 not accepted — spun off as **CARD-0177** (back up Pi1's HA + Mosquitto state to the M8), since actually building/testing that fix is real Build-stage work outside this audit-only card's own scope.
+
+**Done when:** both hosts have a documented backup inventory, a documented rebuild path, and every identified gap has an explicit decision (close it or accept the risk) written into this card. **Met** — all five gaps have an explicit decision; the one not-accepted gap has a scoped follow-up card rather than being left dangling.
+
+**Related:** CARD-0151 (the email-idea capture pipeline this came in through), `components/m8/backup.md`, CARD-0159/CARD-0006 (USB-drive-based state on the Pi that would be part of any Pi1 rebuild story), CARD-0095 (the audit-and-document pattern this follows).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-08-22 (CARD-0193)** — 8063B, over the 5000B size threshold.
+
+### CARD-0093 · [enhancement] [personal] Clean up DNS records on both `jctnet.com` and `jctnet.net` — RESOLVED 2026-07-27
+**Status:** Done
+
+**Both originally-open decisions resolved 2026-07-27:** `jctnet.com`'s root `A`/parking records — full removal, domain goes fully dormant (Joseph opted for the simplest teardown, splitting the 3 still-wanted Google Sites pages out into **CARD-0103** instead of keeping any DNS around for them). `jctnet.net`'s dangling `google-site-verification` TXT — confirmed safe to remove; both `jctnet.com` and `jctnet.net` showed zero indexed pages in Search Console, so there was nothing live to lose, and `jctnet.com` isn't being re-verified in Search Console at all going forward (nothing left to index once it's parked).
+
+**Notes:** Raised 2026-07-24, during CARD-0088's Cloudflare Tunnel setup — reviewing `jctnet.com`'s DNS in Cloudflare's onboarding scan surfaced 27 records, most of them dead cruft. Not part of CARD-0088 itself (that card doesn't touch the root domain at all) — a separate, standalone cleanup. **Broadened 2026-07-24** after Joseph flagged a second, separate domain also in play — `jctnet.net` — with its own live DNS and its own history; checked directly via public DNS lookup (Cloudflare's DoH API), not assumed. Folded into this same card rather than a sibling one, since it's the same underlying pattern (per-record keep/remove decision).
+
+**Context on the two domains, from Joseph directly (2026-07-24):** `jctnet.net` was his long-time personal email domain (`jcthomas@jctnet.net`), managed across a GoDaddy-hosted-email/Microsoft 365 history. He's since migrated nearly everything important to `joscthomas@gmail.com` and set up Zoho on `jctnet.net` purely to catch remaining mail and forward it to Gmail during that transition — **this forwarding stays live indefinitely** (not an email-disable case like `jctnet.com`). While setting up Zoho he also incidentally created `jcthomas@jctnet.com`, but never gave that address to anyone, so `jctnet.com`'s email was fully safe to drop. `jctnet.com`'s Google Sites content was also mostly unwanted (3 specific pages carved out into CARD-0103), which **broadened the original cleanup scope** (the `www` CNAME/Google verification TXT were originally marked "Keep," superseded by full removal). `jctnet.net` separately turned out to have its own live Canva-connected site (found via DNS scan, not something Joseph had mentioned) — confirmed removable too.
+
+**Both domains registered/managed at GoDaddy** — one registrar login covered the DNS editing for both.
+
+---
+
+**`jctnet.com` — full teardown to zero active records. DONE, confirmed live 2026-07-27.**
+- **Removed — email disabled entirely** (never gave this address to anyone): `MX` ×3 (Zoho), `TXT "v=spf1 include:zohomail.com ~all"`, `TXT "zoho-verification=..."`.
+- **Removed — Google Sites, now unwanted:** `CNAME www → ghs.googlehosted.com`, `TXT google-site-verification=...`. The 3 pages Joseph still wants (Cochie Springs hike, Mustang, Karli's Summer) are being re-homed on the M8 separately via **CARD-0103** — the content stays live at its native `sites.google.com` URL regardless of this DNS removal.
+- **Removed — dead legacy cruft** from a Microsoft 365/Skype-for-Business + GoDaddy-hosted-email history predating Zoho: `CNAME autodiscover, lyncdiscover, sip, msoid` + both `SRV` records (`_sipfederationtls._tcp`, `_sip._tls`) — Microsoft federation; `CNAME e, email, mail, imap, pop, smtp, webmail, mobilemail, pda` → `secureserver.net`; `CNAME ftp → jctnet.com`; `CNAME _domainconnect → ...gd.domaincontrol.com`; `TXT "v=verifydomain MS=..."`.
+- **Root `A` records removed too** (`15.197.148.33`, `3.33.130.190` — GoDaddy's forwarding/parking infra, likely root cause of the separate `/lander`-resolves-blank bug Joseph is investigating independently). Joseph opted for the simplest end state — fully parked, nothing forwarding — over fixing the forwarding target. Showed in GoDaddy's UI as `A @ → "Parked"` rather than raw IPs, and (same as `jctnet.net`'s `jct1` below) couldn't be deleted from the plain DNS table — removed via GoDaddy → **Forwarding** tab instead.
+- **Live GoDaddy re-check 2026-07-27 confirmed no surprises** — no DKIM/DMARC records existed for `jctnet.com` (unlike `jctnet.net`; Joseph never actually used `jcthomas@jctnet.com`, so Zoho's optional DKIM/DMARC setup was never done here). All 24 non-infrastructure records matched the plan exactly.
+- **Final state:** just `NS` ×2 (`ns23`/`ns24.domaincontrol.com`) and `SOA` — registrar infrastructure only. Zero active records, fully dormant, parked domain.
+
+**`jctnet.net` — keep the email bridge, drop everything else. DONE, confirmed live 2026-07-27.**
+- **Kept — the active forwarding bridge:** `MX` ×3 (`mx.zoho.com`, `mx2`, `mx3`), `TXT "v=spf1 include:zohomail.com ~all"`, `TXT "zoho-verification=..."` ×2 (`zb46987192...`, `zb84210231...`).
+- **Kept — missed by the original 2026-07-24 research, found live 2026-07-27:** `TXT jctnet._domainkey` (Zoho's DKIM signing key) and `TXT _dmarc` (DMARC policy, `rua`/`ruf` → `jcthomas@jctnet.net`) — active email-authentication records supporting the same Zoho mail flow. Removing either wouldn't have stopped forwarding outright but would have risked deliverability/reputation for anything sent as `jctnet.net` — the opposite of what this card was protecting. Worth remembering for any future domain-cleanup card: a scan done for one purpose (Cloudflare onboarding, a DoH lookup) can miss records like DKIM/DMARC that don't show up unless you check the live registrar panel directly.
+- **Removed:** the Canva site (`TXT "canva-domain-verify=..."`, root + `www` `A` records → Canva's hosting, `103.169.142.0`), `TXT "v=verifydomain MS=..."`, `TXT "google-site-verification=..."` (confirmed via Search Console — zero indexed pages), the full Microsoft/GoDaddy legacy-email bucket (`CNAME autodiscover, e, email, ftp, imap, lyncdiscover, mail, mobilemail, msoid, pda, pop, sip, smtp, webmail, _domainconnect` + `SRV _autodiscover._tcp, _sip._tls, _sipfederationtls._tcp` — 21 records, same pattern as `jctnet.com` but not individually enumerated in the original write-up), and `CNAME litesrv._domainkey → litesrv._domainkey.mlsend.com` (MailerSend, not Zoho — also missed by the original research).
+- **`A jct1` ×2 (`15.197.142.173`, `3.33.152.147`)** — same GoDaddy forwarding-IP pattern as `jctnet.com`'s parked root, also missed by the original research. Joseph didn't recognize it, called it legacy cruft. Couldn't be deleted from the DNS table ("delete not allowed" — GoDaddy blocks direct deletion of records auto-generated by its **Domain Forwarding** feature); removed via GoDaddy → `jctnet.net` → **Forwarding** tab → deleting the `jct1` subdomain-forwarding entry, which cleared the underlying A records.
+- **Final state:** exactly the target 8 records (`MX` ×3, SPF `TXT`, `zoho-verification` `TXT` ×2, `jctnet._domainkey` `TXT`, `_dmarc` `TXT`) plus `NS` ×2/`SOA` (untouched, registrar infrastructure).
+
+**Side effect worth knowing about, not a driver of this card:** now that `jctnet.com` genuinely has no live email, the single biggest risk factor against a full-domain Cloudflare nameserver migration (which CARD-0088 explicitly avoided, falling back to Tailscale Funnel instead, specifically because live Zoho mail made that migration too risky) is gone. Doesn't mean CARD-0088 should be redone — just reopens that path as a future option if a real reason to revisit it ever comes up (see CARD-0094). `jctnet.net` keeping live email doesn't reopen anything, since CARD-0088 never considered that domain.
+
+**Related:** CARD-0088 (the card whose Cloudflare setup surfaced `jctnet.com`'s cleanup), CARD-0094 (deferred Cloudflare switch, now lower-risk), CARD-0103 (migrating the 3 still-wanted Google Sites pages to the M8, split out 2026-07-27), the separate (not yet carded) `/lander` blank-page bug Joseph is fixing independently on `jctnet.com`.
+
+---
+

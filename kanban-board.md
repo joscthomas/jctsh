@@ -9,7 +9,86 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0191 -->
+<!-- next-card-id: CARD-0194 -->
+
+---
+
+### CARD-0193 · [idea] [infrastructure] Kanban board scaling strategy
+**Status:** Planning
+
+**Raised 2026-08-22 18:24 MST (Joseph), during a strategy discussion following CARD-0190.** `kanban-board.md` just crossed GitHub's 1MB Contents API limit (CARD-0190) and is still growing unboundedly — that fix patches the automated PR pipeline's read path, but doesn't address the underlying growth, or two other size-sensitive consumers this discussion surfaced: Claude's own Read tool (256KB cap, already forcing grep-only access on this file this session) and `core/logging/log_server.py`'s `/kanban` viewer, which has **no caching at all** — every single page load re-downloads and re-parses the entire raw file from GitHub, with a 10s timeout. Since Joseph's own habit is always viewing the rendered board (never the raw file), that third one is the cost he'd actually feel most directly as the file keeps growing.
+
+**Design decided via interview 2026-08-22:**
+1. **Archive trigger: age-based, automatic.** A periodic script moves cards that have been Done/Defer for more than N days into an archive — no manual judgment needed per card, so the live file actually shrinks over time rather than depending on someone remembering to prune it. N (e.g. 90 days) not yet fixed — small enough to keep the file bounded, large enough that a card isn't archived while still plausibly relevant to recent work or the Session Start "updated in last 7 days" scan (which is date-text-based, not file-position-based, so archiving old cards doesn't interfere with it as long as N stays well above 7).
+2. **Archive destination: component doc when one fits, dated archive file otherwise.** Extends CARD-0187's existing precedent (that card's full history was migrated into `components/outdoor-presence-detection/CLAUDE.md`). Proposed heuristic for the automation: if a card's own `[component-tag]` matches an existing `components/<name>/` directory, migrate its full text there (appended, not overwriting); otherwise it goes into a dated archive file (e.g. `kanban-archive-2026.md` — final home depends on CARD-0191's directory consolidation landing first).
+3. **Archive trace: a short pointer stub stays in `kanban-board.md`.** Not deleted outright — e.g. `### CARD-0155 · ... — Done, archived to components/photo-quality-review/README.md`. Keeps the live file a complete, scannable index of every card that ever existed, consistent with this repo's existing "never let resolved work silently vanish with no trace" convention (already applied elsewhere, e.g. `photo-quality-review`'s `resolvedCounts`).
+4. **Quick, independent win identified alongside this:** add caching to `log_server.py`'s `_load_kanban_cards()` (short TTL, or a conditional GET against GitHub's ETag) regardless of the archival timeline — fixes the "re-fetch and re-parse megabytes on every page view" cost on its own, worth doing even before archival ships.
+
+**Still open, to resolve before Build:**
+- The exact age threshold N.
+- Whether this waits for CARD-0191's directory consolidation (the archive file's path depends on where `kanban-board.md` ends up) or can proceed independently with a repo-root archive file for now, migrated later.
+- A rule for **un-archiving**: if an already-archived card needs a real update later (this session's own CARD-0146 correction, months after its original close, is exactly this shape), does it move back into the live file, or get edited in place in the archive/component doc? Leaning toward "move back to live" to keep the invariant that the live file only holds active-or-recently-touched cards, but not yet confirmed.
+- Whether one growing dated archive file just reproduces the same size problem on a longer timeline, vs. splitting by year to mirror this project's own environmental-data Sheets-by-year convention.
+
+**"Should this just be a real database instead?" — considered and ruled out, 2026-08-22, Claude's analysis.** Raised as a genuine question, not rhetorical, given how many of these problems (size limits, ad-hoc concurrency handling) a database would erase outright. Weighed both ways:
+
+*What a database would fix:* all three size-based failure modes permanently (no 1MB API cap, no 256KB Read-tool cap, no re-fetch-and-reparse-everything-per-view); real structured queries instead of grep; and it would eliminate the concurrency machinery CARD-0128 had to hand-build (deferred numbering, empty commits, blob-sha tree lookups, manual merge-conflict recovery via the Git Data API) — a database's transactions give that for free.
+
+*What it would cost — the three biggest strengths already identified this session:* (1) **git-native sync** — code and project-state currently share one commit history; a database is either a separate service outside git (state/code can drift again) or a SQLite file checked into git (unreadable diffs, unmergeable binary conflicts on concurrent writes — worse than today's text conflicts, not better). (2) **AI-cold-readability** — reading a markdown file with full narrative reasoning in one pass is free today; a database needs a query layer built and maintained just to preserve that. (3) **The PR-based review gate** — "open a PR, get reviewed, then merge" reuses GitHub's existing trust infrastructure as the approval workflow; a database write is just a write, and staging/approval would have to be reinvented as custom app logic.
+
+*The size math doesn't support it either.* 1.14MB / ~190 cards is trivially small for any database — the problem was never "this data needs a database," it's "the tooling around a plain file assumed it would stay small forever." Every concrete failure so far is narrow and already fixed or already planned here (CARD-0190's API fix, this card's caching + archival plan). A database also assumes multi-writer contention this solo-operator-plus-AI setup rarely produces — the one real concurrency bug seen (CARD-0128's numbering race) came from two *automated scripts*, not human contention, and was already solved cheaply without one.
+
+**Decision: not now, likely not ever at this scale.** Middle-ground option kept in reserve if search/filtering ever genuinely hurts: a SQLite index built *from* the parsed markdown (`log_server.py` already parses every card into a dict; caching that into a queryable local index gives fast filtering without making SQLite the source of truth) — not needed today, worth remembering if the calculus changes.
+
+**Related:** CARD-0190 (the size limit that surfaced this), CARD-0191 (TOS directory consolidation — affects where an archive file would live), CARD-0187 (existing precedent for migrating a card's history into a component doc), `JCTsh-Operating-System.md` (found during CARD-0191's own research — the process side of the TOS this all belongs under).
+
+---
+
+### CARD-0192 · [idea] [infrastructure] Watchdog self-test for the kanban-PR intake pipeline
+**Status:** Backlog
+
+**Raised 2026-08-22 18:24 MST (Joseph), during a strategy discussion following CARD-0190.** CARD-0190's root bug (the Tasker "Log Idea" widget silently failing while hiking) was only discovered because Joseph happened to check the PR list afterward — nothing surfaced the failure on its own. Addresses the top-priority weakness identified in that discussion: the auto-PR intake pipeline (`open_finding_pr()`/CARD-0128/CARD-0173) runs unattended (a webhook always listening, `email-idea-check.py` polling on a timer) but has no monitoring of its own, unlike this project's other unattended services.
+
+**Proposed approach, not yet interviewed/scoped:** mirror the existing Node-RED watchdog pattern (`core/node-red/watchdog.flow.json` — alerts via HA companion-app push notification if a component goes silent for 10 minutes) rather than inventing a new alerting mechanism. A periodic synthetic self-test — e.g. a scheduled job that calls `open_finding_pr()` with a recognizable test fingerprint, confirms a PR actually opened, then either auto-closes it or leaves it for `resolve_and_merge()`'s own idempotent handling — with a failure routed into the same MQTT log / HA-notification path every other component's health check already uses, so a broken pipeline pages Joseph instead of waiting to be noticed by chance.
+
+**Open questions for interview before Build:** test cadence (hourly? daily?); where the self-test job runs (a new systemd timer alongside `email-idea-check.py` on the M8, or folded into an existing maintenance-check script); whether a failed self-test should also be evidence that a *real* idea/finding might have been silently dropped during the same window (CARD-0190's actual incident) and whether that's worth surfacing distinctly; whether the test PR needs cleanup automation or can just accumulate and get closed manually/occasionally.
+
+**Related:** CARD-0190 (the incident this directly addresses), CARD-0128 (`open_finding_pr()`, what's being tested), CARD-0173 (Tasker "Log Idea" widget, the path that failed silently), `core/node-red/watchdog.flow.json` (the existing pattern this mirrors).
+
+---
+
+### CARD-0191 · [idea] [infrastructure] Consolidate TOS (Team Operating System) tooling into its own directory
+**Status:** Planning
+
+**Raised 2026-08-22 18:02 MST (Joseph), while discussing CARD-0190's fix.** Joseph named the collection of kanban-board.md + its surrounding tooling/process the "Team Operating System" (TOS) and wants it consolidated into a dedicated directory rather than scattered across the repo by infrastructure convenience.
+
+**Current state, inventoried 2026-08-22 — TOS code exists but has no dedicated home:**
+
+| Piece | Currently lives in | Why it's there |
+|---|---|---|
+| `kanban-board.md` (the data) | repo root | Historical — predates everything else |
+| Process rules (interview-first, commit=done-done, card/commit/push workflow) | `CLAUDE.md` (repo root, project-level) + `~/.claude/CLAUDE.md` (machine-level, outside this repo entirely) | Repo-root convention for Claude session-start reading |
+| `open_kanban_pr.py` (`open_finding_pr`/`resolve_and_merge`) | `core/maintenance/` | Mixed with ~20 unrelated infra scripts (container updates, heartbeats, reboots, backups) |
+| `land_pr_card.py` (interactive card-landing script) | `core/maintenance/` | Same reason |
+| `email-idea-check.py` + `.service`/`.timer` | `core/maintenance/` | Same reason |
+| `/webhook/idea` route (Tasker voice-idea entry point) | Embedded in `components/hike-izer-orchestrator/app.py` | That container already has a public HTTPS endpoint (Caddy + Tailscale Funnel) — hosted there for the free endpoint, not because it's a hiking feature |
+| `/kanban` viewer route + `_parse_kanban_board`/`_load_kanban_cards` | Embedded in `core/logging/log_server.py` | That's the one web server already running on the Pi |
+
+**Claude's recommendation, given for Joseph to confirm/adjust:**
+
+1. **New top-level directory `tos/`** (peer to `components/` and `core/`, not nested under `core/`) — it's not home-automation infrastructure and it's not a device/app component, it's the project's own self-management tooling, conceptually a third category.
+2. **Move into it:** `kanban-board.md`, `open_kanban_pr.py`, `land_pr_card.py`, `email-idea-check.py` + its `.service`/`.timer` (all via `git mv`, preserving history).
+3. **Leave in place, update their deploy-copy source path:** the `/webhook/idea` route stays in `hike-izer-orchestrator/app.py` (still needs that container's public endpoint) and the `/kanban` viewer stays in `log_server.py` (still needs that running web server) — but both already treat `open_kanban_pr.py`/`kanban-board.md` as "deployed copies from elsewhere," matching this repo's existing convention (e.g. `fetch_hike_data.py` deployed from `components/hike-izer/`) — just repoint the source path to `tos/`.
+4. **Leave `CLAUDE.md` at repo root** — Claude Code specifically looks for it there; moving it breaks auto-loading. Update its internal references (`kanban-board.md` → `tos/kanban-board.md`) instead.
+5. **Add `tos/README.md`** — currently there's no single document explaining the whole system (card lifecycle, the auto-PR intake pipeline, how a PR actually gets landed); that knowledge is scattered across `CLAUDE.md`, individual card text, and component READMEs. New doc gives it one real home, pointing back to `CLAUDE.md` for behavioral rules rather than duplicating them.
+
+**Correction, found mid-execution 2026-08-22 (before any files were actually moved) — point 5 above was wrong.** `JCTsh-Operating-System.md` already exists at the repo root, already titled "JCT Smart Home (JCTsh) Team Operating System (TOS)," and already documents the process side thoroughly: board columns (including a **Design** state — `Backlog → Planning → Design → Build → Done` — that `kanban-board.md`'s own header comment collapses away without naming, since Planning usually absorbs it in practice), state-transition triggers, the required Build → Done Reflection step, and the commit/push relationship. It is **not** referenced anywhere from `CLAUDE.md` or `README.md` — only found by accident via a grep for `kanban-board.md` — so it's real, substantial, already-written content with zero discoverability today. Revised plan: this file moves into `tos/` as the anchor process doc (kept under its own name/versioning, not replaced by a new README); a much shorter `tos/README.md` becomes an index pointing at it plus the code, rather than a from-scratch explanation. `CLAUDE.md` should also gain a pointer to it, since nothing currently tells a fresh session it exists.
+
+**Real risk, flagged before starting:** moving `kanban-board.md` has the largest blast radius of any single file in this repo — every hardcoded reference needs updating in the same commit as the move, not after (CARD-0190 already showed what a missed reference costs): `log_server.py`'s `KANBAN_RAW_URL`, every GitHub API path in `open_kanban_pr.py`/`land_pr_card.py`, the Dockerfile/README deploy-copy comments, and any cross-references elsewhere in the repo. Needs a systematic grep-and-verify pass, not a blind `git mv`, and should be tested live (a real webhook call end-to-end) before considering it done, same discipline CARD-0190 used.
+
+**Not yet decided:** whether `kanban-board.md` itself moves into `tos/` (Claude's recommendation, above) or stays at repo root while only the surrounding tooling consolidates — Joseph to confirm before Build starts, given the size of that particular blast radius.
+
+**Related:** CARD-0190 (the bug that surfaced this whole discussion), CARD-0128 (`open_finding_pr()`), CARD-0173 (Tasker voice-idea widget), CARD-0057/CARD-0114 (`log_server.py`'s kanban viewer), `JCTsh-Operating-System.md` (the pre-existing process doc this card found, undiscoverable until now, and will give a real home).
 
 ---
 

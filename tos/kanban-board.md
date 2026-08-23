@@ -9,7 +9,103 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0194 -->
+<!-- next-card-id: CARD-0198 -->
+
+---
+
+### CARD-0197 · [idea] [data-pipeline] Instrument GPS correlation lookup to confirm the suspected Node-RED/Apps Script timing race
+**Status:** Backlog
+
+**Raised 2026-08-23 04:39 MST (Joseph), following up on the blank-lat/lon investigation from the 2026-08-22 hike's data-gap review.** 6 of 97 Environmental Data readings that hike came back with blank lat/lon, all clustered in the last ~50 minutes. The working theory (not yet proven): `_gpsLookup()` (`environmental-data.gs:276-295`) scans the "GPS Track" sheet for the nearest point *at query time*, ±5 minutes — if the hiking-monitor's buffered-reading correlation call fires before GPSLogger's own webhook-triggered write for the matching point has landed in the sheet, the lookup finds nothing nearby yet and returns null, even though the real point shows up seconds later. Joseph's call: **not worth fixing** (already a known, accepted, low-impact gap per hike-izer's own docs — see the "fixing the correlation timing" discussion, declined as its own card) — but wants confirmation the theory is actually correct, not just plausible.
+
+**Instrumentation plan, designed in this conversation — small, additive, no behavior change to the correlation logic itself:**
+
+1. **New "Correlation Debug" sheet tab** in the "JCTsh Environmental Data" workbook — one row per logged event: `[logged_at (real wall-clock ISO timestamp, not the reading's own ts), event_type, target_ts, best_diff_sec]`.
+
+2. **In `_gpsLookup()`** (`environmental-data.gs:276-295`), right before the final `return`, log only misses (keeps row volume low):
+   ```js
+   if (bestDiff > fiveMin || bestRow === null) {
+     ss.getSheetByName('Correlation Debug').appendRow(
+       [new Date().toISOString(), 'lookup_miss', tsISO, bestRow ? bestDiff/1000 : null]);
+   }
+   ```
+
+3. **In the `action=gps` handler** (`environmental-data.gs:511-536`), right after the existing `gpsSheet.appendRow(...)` at line 536, log every GPS point landing:
+   ```js
+   ss.getSheetByName('Correlation Debug').appendRow([new Date().toISOString(), 'gps_append', tsISO]);
+   ```
+
+**How this proves (or disproves) the theory — a direct comparison, not another inference.** For any `lookup_miss` row (reading timestamp X, wall-clock time T1), find the `gps_append` row whose own point timestamp is closest to X, and check its wall-clock time T2. If T2 > T1 — the matching GPS point landed in the sheet *after* the lookup already gave up — that's conclusive proof of the race. If T2 < T1, the theory is wrong and something else is causing the blanks, which is worth knowing too.
+
+**Scope is diagnostic only — no fix implied or required.** This card is done once the instrumentation is deployed and has captured at least one real blank-lat/lon occurrence on a future hike with enough data to make the T1-vs-T2 comparison — confirming or refuting the theory either way counts as done. Whether to act on a confirmed race (vs. continue accepting it) is a separate future decision, not part of this card.
+
+**Related:** the 2026-08-22 hike's blank-lat/lon investigation (this conversation), the declined "fix the correlation timing" discussion (same conversation, Joseph's call not to pursue a fix — this card only pursues *confirmation*), `core/data-pipeline/environmental-data.gs`, `.claude/skills/hike-izer/SKILL.md` ("Notes on the data" section, which already documents this as a known gap).
+
+---
+
+### CARD-0196 · [enhancement] [hiking-monitor] Extend field-mode hike endurance — true sleep-between-samples, display refresh throttling, longer-LiPo fit check
+**Status:** Backlog
+
+**Raised 2026-08-23 04:36 MST (Joseph), from a battery-usage analysis of the 2026-08-22 hike.** Field mode's actual current draw was reconstructed from the hike's own voltage curve: continuous 4.11V → 3.55V decline over 2h53m of active hiking, projecting to roughly **3h40m of continuous field-mode endurance per full charge** before hitting the firmware's hard-coded 3.4V low-battery cutoff (`hiking-monitor.yaml:531-532`). Root cause: during field mode the ESP32 never actually sleeps between samples — the 2-minute read/log cycle is a plain `interval: 2min` timer (`hiking-monitor.yaml:518-607`) with the whole chip continuously awake for the entire hike, not a wake-sample-sleep pattern. Four candidate fixes were discussed; Joseph's calls on each, interviewed 2026-08-23:
+
+1. **True deep-sleep-between-samples for field mode — in scope, firmware-only, gated on not requiring rewiring.** Real ESP32 hardware deep sleep (~10µA) between the 2-minute reads instead of staying continuously awake is the single largest available lever — Joseph's framing: "if sleep mode can be implemented to help without rewiring, perhaps." This is believed feasible as a pure firmware change: unlike CARD-0070's peripheral-gating design (which needed a new P-FET switch physically wired between the 3.3V rail and the sensors), a wake-read-sleep cycle can use the sensors exactly as continuously wired today — no new hardware, just the ESP32 itself actually sleeping instead of idling. Known technical considerations to work through at Planning/Build, not yet resolved:
+   - SPIFFS (`hike_logger.h`) needs to remount on every wake — currently mounted once at boot and assumed to stay mounted.
+   - The pressure-trend circular buffer (`id(pressure_buf)`, `hiking-monitor.yaml:538-549`) lives in plain RAM, which real deep sleep wipes — needs to move to RTC memory (`RTC_DATA_ATTR`) to survive across sleep cycles, or the 30-minute trend comparison breaks every wake.
+   - Sensor settle time after waking (BME280/LTR-390 need a brief moment post-wake before a valid read) needs to be accounted for in the wake sequence.
+   - Wake source: a timed RTC wake (ESP32 `esp_sleep_enable_timer_wakeup`), not the existing dock-detect/slide-switch external wake sources (those stay as-is, unrelated).
+   - **If this genuinely can't be done without rewiring once actually scoped, it's out — Joseph explicitly does not want the perfboard disturbed for this**, unlike CARD-0070 which he's deliberately treating as a future "v2" rebuild, not something to revisit now.
+
+2. **Throttle e-ink display refresh frequency — in scope, confirmed ("this'll work").** Currently refreshes every single 2-minute cycle (`component.update: hiking_display`, `hiking-monitor.yaml:607`) — ~90 refreshes over a 3-hour hike, each with its own current spike, for a display that doesn't need that resolution. Reduce to every Nth cycle (exact N to be decided at Planning) or on-demand via the existing display button.
+
+3. **Solar panel used on day hikes, not just multi-day trips — noted, not committed ("maybe").** No engineering work involved (the SUNYIMA panel already exists and is documented for multi-day use in `power-system.md`) — just a possible operational habit change, not a deliverable of this card. Not part of "done" criteria.
+
+4. **Longer-but-same-thickness LiPo, contingent on enclosure fit — in scope as a research/procurement thread, bundled into this card per Joseph's call (one card, not split).** A physically longer 3.7V LiPo (same thickness as the current EEMB 1100mAh cell) might fit the existing 3D-printed enclosure (CARD-0009) without a redesign, if there's clearance in an unused dimension. Needs: measuring actual internal clearance in the built enclosure, sourcing candidate cells matching the current thickness/connector but higher mAh, and confirming fit before ordering.
+
+**Explicitly excluded — CARD-0070 (LDO swap replacing the always-on boost converter) stays deferred, reframed as a future "v2" rebuild, not reopened by this card.** Joseph's reasoning: that fix requires meaningfully rewiring the perfboard, which is a bigger disruption than he wants for this pass — the sleep-mode and display fixes above are explicitly scoped to avoid that same cost.
+
+**Verification approach — bench-measurable, unlike CARD-0195's diagnostic card.** Unlike field-mode failure conditions (rare, hard to trigger on demand), the actual current-draw improvement from sleep-between-samples can be measured directly on the bench the same way CARD-0026 measured the original boost-module baseline (multimeter in series on the battery lead). Done when: firmware changes 1-2 above are built and bench-measured to show a real reduction in average current during a simulated multi-cycle field-mode run (not just "should be lower" by inspection), sensor data integrity is confirmed intact across wake/sleep transitions (no NaN reads or lost samples introduced by waking too fast), and the longer-LiPo fit check (item 4) has a concrete yes/no answer with candidate part(s) identified if yes.
+
+**Related:** the 2026-08-22 hike battery-usage analysis (this conversation), CARD-0070 (deferred boost-converter/LDO swap, the explicitly-excluded "v2" item), CARD-0026 (original sleep-current bench measurement methodology, to be reused here), CARD-0009 (enclosure build/dimensions, relevant to the LiPo fit check), CARD-0195 (the sibling diagnostic-instrumentation card from the same investigation), `components/hiking-monitor/hiking-monitor.yaml`, `components/hiking-monitor/hiking_logger.h`, `components/hiking-monitor/power-system.md`.
+
+---
+
+### CARD-0195 · [enhancement] [hiking-monitor] Field-mode diagnostic instrumentation — skip-reason logging and reset-reason detection
+**Status:** Backlog
+
+**Raised 2026-08-23 04:20 MST (Joseph), found while investigating three data gaps (totaling ~22 missed 2-minute samples) in the 2026-08-22 hike — the first real field deployment.** The 2-minute sensor-read interval (`hiking-monitor.yaml:520-607`) has two explicit silent-skip branches, and field mode has zero telemetry (no WiFi, so `ESP_LOGW` output never reaches anywhere durable) — so after the fact there's no way to tell which of several possible causes (I2C sensor glitch, clock-invalid state, or a full device reset) produced any given gap. This card makes those causes visible on the next hike instead of staying invisible.
+
+**Scope, confirmed via interview 2026-08-22/23 — both pieces together, not split across cards:**
+
+1. **Skip-reason logging.** The two silent `return;` branches currently discard the skip with no trace:
+   - `hiking-monitor.yaml:552-556` — clock/NTP not valid at that tick.
+   - `hiking-monitor.yaml:564-567` — BME280 read came back NaN on temp/humidity/pressure.
+
+   Change both to call `hike_log_write()` with a small diagnostic JSON record before returning (e.g. `{"event":"skip","reason":"clock_invalid"}` / `{"event":"skip","reason":"nan_sensor","temp":...,"hum":...,"pres":...}`) instead of doing nothing. These ride the same flash-buffer-then-MQTT-replay path (`hike_logger.h`) real readings already use — no new transport needed on the device side.
+
+2. **Reset-reason detection.** On boot, read `esp_reset_reason()`. If the device boots into field mode (switch on, no dock) with an abnormal reason (`ESP_RST_BROWNOUT`, `ESP_RST_PANIC`, `ESP_RST_TASK_WDT`, etc. — not `ESP_RST_DEEPSLEEP`/`ESP_RST_POWERON`), write that to the hike log the same way, so a mid-hike reset is distinguishable from a sensor glitch after the fact.
+
+3. **Node-RED/Apps Script routing addition needed on the receiving side:** once replayed, a `"event":"skip"` record isn't a sensor reading — the environmental-data wildcard handler needs to route these to the `/log` topic (System or a new diagnostic category) rather than attempting to treat them as an Environmental Data sheet row.
+
+**Verification, confirmed via interview 2026-08-23 — deploy-and-wait, not forced bench testing.** These failure conditions (a real NaN sensor read, a real brownout/panic) are hard to trigger reliably on demand. Done criteria: firmware builds clean, deploys to the real field device via OTA/USB, boots and logs normally in the ordinary case (no false-positive skip/reset records under normal operation) — real validation of the diagnostic paths themselves happens naturally whenever a future hike actually hits one of these conditions, not forced synthetically before closing this card.
+
+**Related:** the 2026-08-22 hike's data-gap investigation (this conversation — not yet a card of its own, the gaps themselves were left unexplained, this card is the follow-up), `components/hiking-monitor/hiking-monitor.yaml`, `components/hiking-monitor/hiking_logger.h`, `core/data-pipeline/environmental-data.flow.json` (Node-RED routing that needs the new branch).
+
+---
+
+### CARD-0194 · [idea] [hike-izer] Method to fix voice-to-text errors in hiking observations
+**Status:** Backlog
+
+**Raised 2026-08-23 03:55 MST (Joseph), found while reviewing the 2026-08-22 hike's data gaps.** The first observation of today's hike reads "hiking The tortellito Preserve this morning with David" — almost certainly a Tasker voice-to-text mishearing of "Tortolita Preserve" (a real preserve in the Marana, AZ area matching the hike's actual GPS location). Left uncorrected on the published summary page rather than silently edited.
+
+**Interviewed 2026-08-22:** scope is a **general mechanism** for catching/fixing this class of error across future hikes, not a one-off fix to today's observation text. Where the correction should actually happen (source Sheet edit vs. an annotation applied at hike-izer render time) was discussed but **explicitly deferred, not decided** — Joseph's call, to revisit later rather than design it now.
+
+**Two candidate approaches surfaced during discussion, neither committed to:**
+1. **Render-time annotation.** Leave the raw observation text in the Hiking Observations sheet untouched (it's the source record, and this matches hike-izer's own existing rule that its Full Observations table shows "the raw text as logged, don't paraphrase or clean it up" — auto-rewriting at render time would contradict that deliberate rule). Instead, cross-check named entities in observations against `place_context.py`'s already-fetched real nearby named features (CARD-0108) and flag a likely near-miss with something like "[likely: Tortolita Preserve]" next to the raw text.
+2. **Manual review habit, no automation.** Skim observations when a hike page is generated and hand-add an annotation only when something's actually wrong — cheaper, matches this project's general bias against building machinery ahead of demonstrated need (this is the first occurrence).
+
+Claude's lean, offered but not acted on: start with the manual approach (2) given this has only happened once so far, and only build the `place_context` fuzzy-matching automation (1) if it turns out to recur across hikes.
+
+**Related:** `.claude/skills/hike-izer/SKILL.md` (the "don't paraphrase" rule this has to respect), `components/hike-izer/place_context.py` (CARD-0108, the data source a render-time approach would reuse), the 2026-08-22 hike-summary page (`https://hikes.jctnet.com/2026-08-22_hike-summary.html`, the motivating instance).
 
 ---
 

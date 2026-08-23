@@ -212,7 +212,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0187 · [bug] [ring] [homeassistant] Ring motion/video pipeline consolidation — shared trigger, doorbell voice/video coordination, missed-event investigation
+### CARD-0187 · [bug] [outdoor-presence-detection] Ring motion/video pipeline consolidation — shared trigger, doorbell voice/video coordination, missed-event investigation
 **Status:** Defer (voice/trigger-source portion confirmed complete — see 2026-08-21 note below; video coordination/fix work deferred)
 
 **Raised 2026-08-20 16:18 MST (Joseph), via live field observation of a real delivery + package pickup at the front door.** Consolidates CARD-0185's scope plus three fresh findings from pulling real HA history/state data for that event, replacing continued piecemeal edits to the already-closed CARD-0145/CARD-0184. **Supersedes and closes CARD-0185** — its trigger-swap scope is fully absorbed here, see that card for its own closing note.
@@ -312,7 +312,7 @@ Written against the actual current YAML in `core/homeassistant/automations.yaml`
 
 ---
 
-### CARD-0184 · [bug] [homeassistant] CARD-0145's Ring motion announcement has been silently dead since 2026-08-15 — RESOLVED 2026-08-18 17:02 MST
+### CARD-0184 · [bug] [outdoor-presence-detection] CARD-0145's Ring motion announcement has been silently dead since 2026-08-15 — RESOLVED 2026-08-18 17:02 MST
 **Status:** Done
 
 **Raised 2026-08-18 22:15 MST (Joseph):** a visitor walked up to the front porch; Ring's own app sent a phone notification, but no Google Home voice announcement played.
@@ -1313,7 +1313,7 @@ Full build history (including the dead ends) written up in `hiking-monitor-claud
 
 ---
 
-### CARD-0150 · [bug] [homeassistant] Samsung TV was on when we got home — investigate and fix
+### CARD-0150 · [bug] [traveling] Samsung TV was on when we got home — investigate and fix
 **Status:** Done
 
 **Raised 2026-08-12 05:48 MST**, from Joseph finding the Samsung TV on when he and family returned from the airport last night (~2026-08-11 22:30 MST) — no known reason for it to have turned on. Not yet confirmed whether the TV is even integrated into HA/SmartThings as a controllable/queryable entity; that's the first thing to check.
@@ -1525,7 +1525,7 @@ Both fixes deployed and verified against a fresh regeneration of both real pages
 
 ---
 
-### CARD-0145 · [idea] [ring] Audible Ring motion notification on Google Home — RESOLVED 2026-08-18 17:14 MST
+### CARD-0145 · [idea] [outdoor-presence-detection] Audible Ring motion notification on Google Home — RESOLVED 2026-08-18 17:14 MST
 **Status:** Done
 
 **Raised 2026-08-07 14:18 MST.** Play a spoken announcement on Google Home whenever motion is detected on any of the 7 Ring cameras (garage, side yard, side gate, back porch, front porch, front door, gathering room) — not just the doorbell. Announcement plays on all Google Home speakers/displays in the house (garage, gathering room, back porch speakers, master bath Nest Display, gathering room Pixel Tablet), not just a subset.
@@ -1604,7 +1604,7 @@ Both fixes deployed and verified against a fresh regeneration of both real pages
 
 ---
 
-### CARD-0146 · [idea] [ring] Show Ring doorbell live video on Gathering room TV
+### CARD-0146 · [idea] [outdoor-presence-detection] Show Ring doorbell live video on Gathering room TV
 **Status:** Defer (deactivated 2026-08-21 — see CARD-0187)
 
 **Raised 2026-08-07 14:18 MST.** When the Ring doorbell detects activity, automatically show its live video feed on the Gathering room TV (the Chromecast/Google TV, per `ENVIRONMENT.md`), interrupting whatever is currently playing. Feed stays up for as long as there's motion/activity at the door, then automatically returns to whatever was playing before.
@@ -4687,7 +4687,7 @@ Joseph is installing the fan next; re-check `vcgencmd get_throttled` afterward p
 
 ---
 
-### CARD-0063 · [idea] [infrastructure] NetAlertX MQTT event richness experiment + log dashboard wiring — RESOLVED 2026-07-14
+### CARD-0063 · [idea] [netalertx] NetAlertX MQTT event richness experiment + log dashboard wiring — RESOLVED 2026-07-14
 **Status:** Done
 
 **Notes:** Raised 2026-07-12, deferred from CARD-0059. Whether NetAlertX's MQTT plugin publishes rich, human-readable event text (new device / down / reconnected, with name/MAC/IP) or only structured Home-Assistant-discovery-style state (per-device online/offline binary sensor + aggregate counts) is genuinely unclear from the docs — there was an open GitHub feature request (#1339) to bring MQTT up to webhook-level richness, closed with a "next release/in dev image" label, but not confirmed against the exact `ghcr.io/netalertx/netalertx:latest` image pulled for this deployment.

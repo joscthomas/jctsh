@@ -5,21 +5,24 @@ Smart home automation monorepo. See `components/<name>/CLAUDE.md` for component-
 ## Session Start
 
 At the start of every Claude Code session in this repo, before doing anything else, read:
-1. The Build column of `kanban-board.md` — what's actively in progress.
-2. Any card in `kanban-board.md`, in any column, that's been updated in the last 7 days —
+1. The Build column of `tos/kanban-board.md` — what's actively in progress.
+2. Any card in `tos/kanban-board.md`, in any column, that's been updated in the last 7 days —
    catches recently-Done or recently-touched Backlog/Planning cards that Build alone would
    miss. Cards in this project consistently carry an explicit date in their title or body
    (`Raised`, `RESOLVED`, `verified`, `Built`, etc.) — scan for those rather than relying on
-   file mtime or git blame, since a single edit to `kanban-board.md` often touches many
+   file mtime or git blame, since a single edit to `tos/kanban-board.md` often touches many
    cards' surrounding text at once and would make every card look recently modified.
 3. Check for open GitHub PRs on the `jctsh` repo (`gh pr list` if available, otherwise the
-   GitHub REST API — see `core/maintenance/open_kanban_pr.py`, CARD-0128). These are
+   GitHub REST API — see `tos/open_kanban_pr.py`, CARD-0128). These are
    auto-opened maintenance findings (container-image updates, firmware, etc.) with a
-   `CARD-XXX` placeholder title, not yet merged into `kanban-board.md`. Summarize what's
+   `CARD-XXX` placeholder title, not yet merged into `tos/kanban-board.md`. Summarize what's
    open and ask Joseph what he wants to do with them — don't merge or close any without
    his go-ahead.
+4. `tos/JCTsh-Operating-System.md` — the process definition governing how work moves through
+   the board (columns, state-transition triggers, the Build → Done Reflection requirement).
+   Read this once per session alongside the board itself, not just the first time.
 
-**Every timestamp written into `kanban-board.md` (`Raised`, `RESOLVED`, `verified`, `Built`,
+**Every timestamp written into `tos/kanban-board.md` (`Raised`, `RESOLVED`, `verified`, `Built`,
 `Decided`, status-line dates, anywhere else a date gets stamped) MUST include a time of day,
 local Phoenix time (`America/Phoenix`, MST, UTC-7, no DST) — e.g. `2026-08-03 14:32 MST`, never
 just `2026-08-03`. This has had to be corrected multiple times because a bare date is easy to
@@ -34,12 +37,16 @@ jctsh/
 │   ├── garage-radar/         — 24GHz mmWave workbench presence radar (ESPHome + LD2412)
 │   ├── garage-presence/      — Garage presence countdown timer (HA-only)
 │   └── automatic-garage-door-opener-closer/  — Automated garage door
-└── core/
-    ├── logging/              — Python MQTT log server (runs on Pi)
-    ├── node-red/             — Node-RED settings + broker config (version control copies)
-    ├── mqtt/                 — Mosquitto config (version control copy)
-    ├── data-pipeline/        — Environmental data pipeline: Apps Script, architecture doc, Node-RED handler flow
-    └── homeassistant/        — Home Assistant config (version control copy, do not modify)
+├── core/
+│   ├── logging/              — Python MQTT log server (runs on Pi)
+│   ├── node-red/             — Node-RED settings + broker config (version control copies)
+│   ├── mqtt/                 — Mosquitto config (version control copy)
+│   ├── data-pipeline/        — Environmental data pipeline: Apps Script, architecture doc, Node-RED handler flow
+│   └── homeassistant/        — Home Assistant config (version control copy, do not modify)
+└── tos/                      — Team Operating System (CARD-0191): the kanban board itself,
+                                 its process definition, and the auto-PR intake/landing tooling
+                                 (open_kanban_pr.py, land_pr_card.py, email-idea-check.py) —
+                                 see tos/README.md
 ```
 
 ## Architecture
@@ -329,12 +336,12 @@ Multiple Claude Code sessions (or the user directly) may edit files in this repo
 
 The real risk is **staleness between reading a file and writing it back**, not how long a file stays "open" (tool calls never hold a file open across turns). Practices:
 
-- **Re-read shared files fresh immediately before editing them**, especially `kanban-board.md` — don't rely on a mental model of its content from earlier in the conversation. A second session may have added, closed, or moved cards since you last looked.
+- **Re-read shared files fresh immediately before editing them**, especially `tos/kanban-board.md` — don't rely on a mental model of its content from earlier in the conversation. A second session may have added, closed, or moved cards since you last looked.
 - **Never `git add -A` or `git add .`** — always stage specific files/paths. A blanket add is what sweeps up another session's unrelated, held-back edits and creates real collisions.
 - **Prefer Edit over Write for shared files.** Edit's exact-string match fails safely if the content changed underneath you; Write blindly overwrites whatever is on disk.
-- **Commit `kanban-board.md` as a whole at natural checkpoints** (a card closing, a card added, meaningful progress) rather than surgically splitting commits per card.
+- **Commit `tos/kanban-board.md` as a whole at natural checkpoints** (a card closing, a card added, meaningful progress) rather than surgically splitting commits per card.
 - **Reserve `git worktree` / branch isolation for the narrow case of two sessions actively rewriting the *same* file at the same time** — it's not a default. Isolating a session onto its own branch means its work is invisible to anything reading `main` directly (e.g. the live kanban page pulled from `main` on GitHub) until an explicit merge, which is unnecessary overhead when sessions are touching disjoint files.
 
 ## Backlog
 
-See `kanban-board.md` (repo root) — lightweight kanban with all cards (Backlog → Planning → Design → Build → Done).
+See `tos/kanban-board.md` — lightweight kanban with all cards (Backlog → Planning → Design → Build → Done). See `tos/JCTsh-Operating-System.md` for the full process definition, and `tos/README.md` for how the surrounding tooling (auto-PR intake, card landing) fits together.

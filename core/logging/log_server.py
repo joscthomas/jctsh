@@ -50,7 +50,7 @@ LOG_DIR     = "/mnt/jctsh-logs"
 LOG_FILE    = os.path.join(LOG_DIR, "jctsh.log")
 STATE_FILE  = os.path.join(LOG_DIR, "state.json")
 MAX_ENTRIES = 1000
-KANBAN_RAW_URL = "https://raw.githubusercontent.com/joscthomas/jctsh/main/kanban-board.md"
+KANBAN_RAW_URL = "https://raw.githubusercontent.com/joscthomas/jctsh/main/tos/kanban-board.md"
 
 # ── Shared state ─────────────────────────────────────────────────────────────
 _lock        = threading.Lock()

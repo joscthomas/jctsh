@@ -46,7 +46,7 @@ update:
 ```
 scp components/hike-izer-orchestrator/*.py components/hike-izer-orchestrator/Dockerfile components/hike-izer-orchestrator/requirements.txt jct@m8.local:~/hike-izer-web-app/orchestrator/
 scp components/hike-izer/fetch_hike_data.py components/hike-izer/fetch_hike_photos.py components/hike-izer/build_hike_map.py components/hike-izer/build_hike_chart.py components/hike-izer/build_calendar_index.py components/hike-izer/build_wildlife_index.py components/hike-izer/xeno_canto.py jct@m8.local:~/hike-izer-web-app/orchestrator/
-scp core/maintenance/open_kanban_pr.py jct@m8.local:~/hike-izer-web-app/orchestrator/
+scp tos/open_kanban_pr.py jct@m8.local:~/hike-izer-web-app/orchestrator/
 scp .claude/skills/hike-izer/SKILL.md jct@m8.local:~/hike-izer-web-app/orchestrator/
 ssh jct@m8.local "cd ~/hike-izer-web-app && docker compose up -d --build orchestrator"
 ```

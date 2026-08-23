@@ -26,9 +26,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # and build_wildlife_index.py, same "deployed copy, shared by both" pattern
 # build_wildlife_index.py itself already used for wikipedia_url().
 # open_kanban_pr.py added CARD-0173 (voice-idea webhook, /webhook/idea in
-# app.py) -- deployed copy from core/maintenance/ (a new source directory
-# for this Dockerfile's deployed-copy family; every prior one came from
-# components/hike-izer/), same open_finding_pr() this repo's other
+# app.py) -- deployed copy from tos/ (CARD-0191 moved it there from
+# core/maintenance/, its original "new source directory for this
+# Dockerfile's deployed-copy family" home; every prior deployed copy came
+# from components/hike-izer/), same open_finding_pr() this repo's other
 # maintenance-check scripts already use to open placeholder kanban PRs.
 COPY app.py generation.py narrative.py templating.py mqtt_log.py ha_notify.py \
      photo_captions.py place_context.py cost_tracking.py birdnet.py \

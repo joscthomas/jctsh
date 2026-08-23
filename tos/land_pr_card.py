@@ -57,7 +57,7 @@ from pathlib import Path
 REPO = "joscthomas/jctsh"
 API = "https://api.github.com"
 BRANCH_BASE = "main"
-CREDS_FILE = Path(__file__).resolve().parents[2] / "credentials.local.md"
+CREDS_FILE = Path(__file__).resolve().parents[1] / "credentials.local.md"
 
 
 def _load_token():
@@ -183,11 +183,11 @@ def _merge_with_retry(pr_number, branch, commit_title, token, attempts=8, delay=
     main_sha = main_ref["object"]["sha"]
     branch_ref = _api("GET", f"/repos/{REPO}/git/refs/heads/{branch}", token)
     branch_sha = branch_ref["object"]["sha"]
-    branch_file_sha = _blob_sha_at("kanban-board.md", branch, token)
+    branch_file_sha = _blob_sha_at("tos/kanban-board.md", branch, token)
     main_commit = _api("GET", f"/repos/{REPO}/git/commits/{main_sha}", token)
     new_tree = _api("POST", f"/repos/{REPO}/git/trees", token, {
         "base_tree": main_commit["tree"]["sha"],
-        "tree": [{"path": "kanban-board.md", "mode": "100644", "type": "blob",
+        "tree": [{"path": "tos/kanban-board.md", "mode": "100644", "type": "blob",
                   "sha": branch_file_sha}],
     })
     merge_commit = _api("POST", f"/repos/{REPO}/git/commits", token, {
@@ -205,7 +205,7 @@ def land_pr_card(pr_number, card_body_template, token):
         raise SystemExit(f"PR #{pr_number} is not open (state={pr['state']!r}) -- nothing to land.")
     branch = pr["head"]["ref"]
 
-    main_text = _get_file_text("kanban-board.md", BRANCH_BASE, token)
+    main_text = _get_file_text("tos/kanban-board.md", BRANCH_BASE, token)
     m = re.search(r"<!-- next-card-id: (CARD-\d{4}) -->", main_text)
     if not m:
         raise SystemExit("Couldn't find the next-card-id marker in main's kanban-board.md.")
@@ -226,11 +226,11 @@ def land_pr_card(pr_number, card_body_template, token):
     insert_at = new_main_text.index("---\n\n") + len("---\n\n")
     new_main_text = new_main_text[:insert_at] + finished_card + new_main_text[insert_at:]
 
-    branch_file_sha = _blob_sha_at("kanban-board.md", branch, token)
+    branch_file_sha = _blob_sha_at("tos/kanban-board.md", branch, token)
     title_line = re.sub(r"^### CARD-\d{4} \xb7 ", "", finished_card.splitlines()[0])
     commit_title = f"{card_id}: {title_line}"
 
-    _api("PUT", f"/repos/{REPO}/contents/kanban-board.md", token, {
+    _api("PUT", f"/repos/{REPO}/contents/tos/kanban-board.md", token, {
         "message": commit_title,
         "content": base64.b64encode(new_main_text.encode("utf-8")).decode("ascii"),
         "sha": branch_file_sha,

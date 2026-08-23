@@ -260,7 +260,7 @@ def resolve_and_merge(pr_number, token, merge_method="squash"):
         if ts_match else datetime.now(timezone.utc)
     )
 
-    main_text = _get_file_text("kanban-board.md", BRANCH_BASE, token)
+    main_text = _get_file_text("tos/kanban-board.md", BRANCH_BASE, token)
     m = re.search(r"<!-- next-card-id: (CARD-\d{4}) -->", main_text)
     card_id = m.group(1)
     next_marker = f"CARD-{int(card_id[5:]) + 1:04d}"
@@ -273,8 +273,8 @@ def resolve_and_merge(pr_number, token, merge_method="squash"):
     insert_at = new_main_text.index("---\n\n") + len("---\n\n")
     new_main_text = new_main_text[:insert_at] + stub + new_main_text[insert_at:]
 
-    branch_file_sha = _blob_sha_at("kanban-board.md", branch, token)
-    _api("PUT", f"/repos/{REPO}/contents/kanban-board.md", token, {
+    branch_file_sha = _blob_sha_at("tos/kanban-board.md", branch, token)
+    _api("PUT", f"/repos/{REPO}/contents/tos/kanban-board.md", token, {
         "message": f"{card_id}: assign real card number at merge",
         "content": base64.b64encode(new_main_text.encode("utf-8")).decode("ascii"),
         "sha": branch_file_sha,
@@ -305,11 +305,11 @@ def resolve_and_merge(pr_number, token, merge_method="squash"):
         main_sha2 = main_ref2["object"]["sha"]
         branch_ref2 = _api("GET", f"/repos/{REPO}/git/refs/heads/{branch}", token)
         branch_sha2 = branch_ref2["object"]["sha"]
-        branch_file_sha2 = _blob_sha_at("kanban-board.md", branch, token)
+        branch_file_sha2 = _blob_sha_at("tos/kanban-board.md", branch, token)
         main_commit2 = _api("GET", f"/repos/{REPO}/git/commits/{main_sha2}", token)
         new_tree = _api("POST", f"/repos/{REPO}/git/trees", token, {
             "base_tree": main_commit2["tree"]["sha"],
-            "tree": [{"path": "kanban-board.md", "mode": "100644", "type": "blob",
+            "tree": [{"path": "tos/kanban-board.md", "mode": "100644", "type": "blob",
                       "sha": branch_file_sha2}],
         })
         merge_commit = _api("POST", f"/repos/{REPO}/git/commits", token, {

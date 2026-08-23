@@ -1117,27 +1117,45 @@ document.getElementById('superRuleConfirmBtn').addEventListener('click', async (
     // Phase 1: turn each qualifying group into a real decision the same way
     // a manual radio click or normal auto-select would (auto:true, its own
     // autoReason) -- this app has no "decide + delete" combined call, every
-    // other path here goes through /api/decide/duplicate first too.
-    let marked = 0;
-    textEl.innerHTML = `<span class="spinner"></span> Marking decisions: ${marked} of ${qualifiedKeys.length}&hellip;`;
-    await forEachWithConcurrency(qualifiedKeys, BADGE_FETCH_CONCURRENCY, async (key) => {
-      const group = findDuplicateGroup(key);
+    // other path here goes through a /api/decide/duplicate* route first too.
+    // CARD-0189: was a forEachWithConcurrency loop calling the single-group
+    // /api/decide/duplicate once per key -- each of those does a full
+    // read-parse-mutate-write of decisions.json, serialized through the
+    // server's global lock, so N groups meant N sequential full-file I/O
+    // round trips (very slow on a real qualifiedCount, and got worse as
+    // decisions.json grew). Switched to the bulk endpoint: one request, one
+    // load-mutate-save on the server.
+    textEl.innerHTML = `<span class="spinner"></span> Marking ${qualifiedKeys.length} decision(s)&hellip;`;
+    // CARD-0189 (found live, second pass): findDuplicateGroup() is a linear
+    // .find() over the WHOLE library's reportData.duplicateGroups (38k+
+    // groups across every year, not just this one) -- fine for the
+    // occasional single lookup elsewhere on this page, genuinely pathological
+    // called once per qualifying key here with no yielding in between:
+    // O(qualifiedKeys.length x duplicateGroups.length) synchronous string
+    // comparisons, freezing the tab for the entire loop with zero visible
+    // progress -- worse than the original per-request version this replaced,
+    // which at least yielded between network calls. A one-time O(M) index
+    // turns each lookup into O(1), so the whole loop is O(N+M) instead.
+    const groupsByKey = new Map(reportData.duplicateGroups.map((g) => [g.groupKey, g]));
+    const bulkDecisions = [];
+    for (const key of qualifiedKeys) {
+      const group = groupsByKey.get(key);
       const joseph = group && group.members.find((m) => m.ownerLabel === 'joseph');
-      if (!group || !joseph) return; // stale (already resolved by another tab/session) -- skip, not fatal
+      if (!group || !joseph) continue; // stale (already resolved by another tab/session) -- skip, not fatal
       group.decision = { keepAssetId: joseph.assetId, auto: true };
-      await api('/api/decide/duplicate', {
+      bulkDecisions.push({
+        groupKey: key,
+        keepAssetId: joseph.assetId,
+        autoReason: "super rule: identical filename, date, and size, exact match -- kept Joseph's copy",
+      });
+    }
+    if (bulkDecisions.length > 0) {
+      await api('/api/decide/duplicates-bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          groupKey: key,
-          keepAssetId: joseph.assetId,
-          auto: true,
-          autoReason: "super rule: identical filename, date, and size, exact match -- kept Joseph's copy",
-        }),
+        body: JSON.stringify({ decisions: bulkDecisions }),
       });
-      marked++;
-      textEl.innerHTML = `<span class="spinner"></span> Marking decisions: ${marked} of ${qualifiedKeys.length}&hellip;`;
-    });
+    }
 
     // Phase 2: the real delete, scoped to exactly these groups -- same
     // /api/confirm the main Preview/Confirm flow uses, same trash + log.

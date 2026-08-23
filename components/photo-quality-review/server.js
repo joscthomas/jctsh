@@ -396,6 +396,38 @@ app.post('/api/decide/duplicate', async (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// CARD-0189: bulk variant of /api/decide/duplicate for the super-rule
+// "Delete all N in Robin's library" flow, which used to call the
+// single-group endpoint once per qualifying group. Each of those calls does
+// a full read-parse-mutate-write of the entire decisions.json file, all
+// serialized through the same withDecisionsLock chain (CARD-0028's race-
+// condition fix) -- fine for one human click at a time, genuinely bad for a
+// tight loop over hundreds/thousands of groups, since it turns into that
+// many sequential full-file I/O round trips instead of one. This endpoint
+// takes the whole list and does a single load -> mutate all -> single save,
+// same decision shape/precedence as the single-group route (every one of
+// these calls is `auto: true`, matching what the super-rule flow always
+// sent).
+app.post('/api/decide/duplicates-bulk', async (req, res) => {
+  const { decisions: incoming } = req.body;
+  if (!Array.isArray(incoming) || incoming.length === 0) {
+    return res.status(400).json({ status: 'error', message: 'decisions (non-empty array) required' });
+  }
+  for (const d of incoming) {
+    if (!d || !d.groupKey || !d.keepAssetId) {
+      return res.status(400).json({ status: 'error', message: 'each entry requires groupKey and keepAssetId' });
+    }
+  }
+  await withDecisionsLock(async () => {
+    const decisions = await loadDecisions();
+    for (const d of incoming) {
+      decisions.duplicates[d.groupKey] = { keepAssetId: d.keepAssetId, auto: true, autoReason: d.autoReason };
+    }
+    await saveDecisions(decisions);
+  });
+  res.json({ status: 'ok', count: incoming.length });
+});
+
 // Simplified (Joseph's call, 2026-08-06): singles used to support 'keep' as
 // a distinct saved decision, but that forced clicking "keep" on every item
 // you *didn't* want to delete -- unnecessary, since pendingDeletions() only

@@ -1,89 +1,127 @@
 [
   {
+    "id": "873111e004dc4435",
+    "type": "tab",
+    "label": "Environmental Data ",
+    "disabled": false,
+    "info": "",
+    "env": []
+  },
+  {
     "id": "env-data-mqtt-in",
     "type": "mqtt in",
+    "z": "873111e004dc4435",
     "name": "jctsh/components/+/data",
     "topic": "jctsh/components/+/data",
     "qos": "1",
     "datatype": "auto",
-    "broker": "",
+    "broker": "mqtt_broker",
+    "x": 140,
+    "y": 100,
     "wires": [["env-data-route-skip-reset"]]
   },
   {
     "id": "env-data-route-skip-reset",
     "type": "function",
+    "z": "873111e004dc4435",
     "name": "Route skip/reset events (CARD-0195)",
     "outputs": 2,
     "func": "// CARD-0195: hiking-monitor's field-mode skip-reason/reset-reason\n// records ride the same flash-buffer-then-replay path real sensor\n// readings use, so they arrive on this same jctsh/components/+/data\n// wildcard topic. They aren't real readings -- don't send them through\n// GPS lookup or into the Environmental Data sheet; convert them to a\n// standard log message on the component's own /log topic instead.\nvar d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return [null, null]; }\n}\nvar parts = msg.topic.split('/'); // jctsh/components/<name>/data\nvar component = parts[2] || 'unknown';\nif (d.event === 'skip' || d.event === 'reset') {\n    var category, message;\n    if (d.event === 'reset') {\n        category = 'Alert';\n        message = 'Unexpected reset in field mode - ' + d.reason;\n    } else {\n        category = 'System';\n        message = 'Skipped reading - ' + d.reason;\n        if (d.temp !== undefined) {\n            message += ' (temp=' + d.temp + ', hum=' + d.hum + ', pres=' + d.pres + ')';\n        }\n    }\n    var logMsg = {\n        topic: 'jctsh/components/' + component + '/log',\n        payload: JSON.stringify({component: component, category: category, message: message})\n    };\n    return [logMsg, null];\n}\nmsg.payload = d;\nreturn [null, msg];",
+    "x": 400,
+    "y": 100,
     "wires": [["env-data-skip-reset-log"], ["env-data-gps-prep"]]
   },
   {
     "id": "env-data-skip-reset-log",
     "type": "mqtt out",
+    "z": "873111e004dc4435",
     "name": "Skip/reset -> component log topic",
     "topic": "",
     "qos": "0",
     "retain": "false",
-    "broker": "",
+    "broker": "mqtt_broker",
+    "x": 700,
+    "y": 60,
     "wires": []
   },
   {
     "id": "env-data-gps-prep",
     "type": "function",
+    "z": "873111e004dc4435",
     "name": "Prepare GPS lookup",
     "func": "var d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\nmsg._sensorData = d;\nvar ts = d.ts || '';\nmsg.url = env.get('APPS_SCRIPT_URL') + '?key=' + encodeURIComponent(env.get('APPS_SCRIPT_KEY')) + '&action=lookup&ts=' + encodeURIComponent(ts);\nmsg.payload = '';\nreturn msg;",
+    "x": 660,
+    "y": 140,
     "wires": [["env-data-gps-lookup"]]
   },
   {
     "id": "env-data-gps-lookup",
     "type": "http request",
+    "z": "873111e004dc4435",
     "name": "GPS lookup",
     "method": "GET",
     "ret": "txt",
     "paytoqs": "ignore",
     "url": "",
+    "x": 860,
+    "y": 140,
     "wires": [["env-data-gps-apply"]]
   },
   {
     "id": "env-data-gps-apply",
     "type": "function",
+    "z": "873111e004dc4435",
     "name": "Apply GPS coords",
     "func": "var d = msg._sensorData;\nif (msg.statusCode === 200) {\n    try {\n        var gps = JSON.parse(msg.payload);\n        if (gps.lat !== null && gps.lat !== undefined) {\n            d.lat = gps.lat;\n            d.lon = gps.lon;\n        }\n    } catch(e) { }\n}\n// Hiking monitor at home has no GPS track — use garage front wall (H6-H7 midpoint).\n// rssi_dbm is 0 for field readings (no WiFi); non-zero confirms home WiFi.\nif (d.component === 'hiking-monitor' && (d.lat === null || d.lat === undefined) && d.rssi_dbm !== 0) {\n    d.lat = 32.4612842;\n    d.lon = -111.1183818;\n}\nmsg.payload = d;\nreturn msg;",
+    "x": 1060,
+    "y": 140,
     "wires": [["env-data-process"]]
   },
   {
     "id": "env-data-process",
     "type": "function",
+    "z": "873111e004dc4435",
     "name": "Compute derived fields + build POST",
     "func": "// Parse payload\nvar d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\n\n// Add source field\nd.source = d.component;\n\n// Compute dew point and heat index if temp + humidity available\nif (d.temp_f != null && d.humidity_pct != null) {\n    var temp_c = (d.temp_f - 32) * 5 / 9;\n    var a = 17.27, b = 237.7;\n    var gamma = (a * temp_c / (b + temp_c)) + Math.log(d.humidity_pct / 100);\n    var dew_c = (b * gamma) / (a - gamma);\n    d.dew_point_f = Math.round((dew_c * 9/5 + 32) * 10) / 10;\n\n    var T = d.temp_f, H = d.humidity_pct;\n    if (T >= 80 && H >= 40) {\n        d.heat_index_f = Math.round((\n            -42.379 + 2.04901523*T + 10.14333127*H\n            - 0.22475541*T*H - 0.00683783*T*T - 0.05481717*H*H\n            + 0.00122874*T*T*H + 0.00085282*T*H*H\n            - 0.00000199*T*T*H*H\n        ) * 10) / 10;\n    } else {\n        d.heat_index_f = Math.round((T + H/5 - 10.3) * 10) / 10;\n    }\n}\n\n// Build HTTP POST\nmsg.url = env.get('APPS_SCRIPT_URL') + '?key=' + encodeURIComponent(env.get('APPS_SCRIPT_KEY'));\nmsg.method = 'POST';\nmsg.headers = {'Content-Type': 'application/json'};\nmsg.payload = JSON.stringify(d);\nmsg._component = d.component;\nreturn msg;",
+    "x": 1300,
+    "y": 140,
     "wires": [["env-data-http-post"]]
   },
   {
     "id": "env-data-http-post",
     "type": "http request",
+    "z": "873111e004dc4435",
     "name": "POST to Apps Script",
     "method": "use",
     "ret": "txt",
     "paytoqs": "ignore",
     "url": "",
+    "x": 1520,
+    "y": 140,
     "wires": [["env-data-check-response"]]
   },
   {
     "id": "env-data-check-response",
     "type": "function",
+    "z": "873111e004dc4435",
     "name": "Check response",
     "outputs": 1,
     "func": "var component = msg._component || 'unknown';\nvar payload = (typeof msg.payload === 'string') ? msg.payload : JSON.stringify(msg.payload);\nvar status = msg.statusCode || 0;\n\n// 405 = Google redirect chain completed (POST redirected to output URL, row was appended)\nif (status === 405 || status === 302) {\n    return null;\n}\n\ntry {\n    var resp = JSON.parse(payload);\n    if (resp.status === 'ok') {\n        return null;\n    } else {\n        msg.payload = JSON.stringify({component:'node-red',category:'Alert',message:'Sheets error for ' + component + ': ' + (resp.message || payload)});\n        return msg;\n    }\n} catch(e) {\n    if (payload.indexOf('Page Not Found') >= 0 || payload.indexOf('unable to open') >= 0) {\n        msg.payload = JSON.stringify({component:'node-red',category:'Alert',message:'Sheets URL unreachable for ' + component});\n        return msg;\n    }\n    return null;\n}",
+    "x": 1740,
+    "y": 140,
     "wires": [["env-data-log-success"]]
   },
   {
     "id": "env-data-log-success",
     "type": "mqtt out",
+    "z": "873111e004dc4435",
     "name": "Log success/error",
     "topic": "jctsh/core/log-server/log",
     "qos": "0",
     "retain": "false",
-    "broker": "",
+    "broker": "mqtt_broker",
+    "x": 1960,
+    "y": 140,
     "wires": []
   }
 ]

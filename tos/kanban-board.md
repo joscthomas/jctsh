@@ -1861,7 +1861,7 @@ Deployed to the M8: `scp`'d the fixed `fetch_hike_data.py` to `~/hike-izer-web-a
 
 ---
 
-### CARD-0137 · [bug] [log-server] Retained-message redelivery on restart resets dashboard "last seen" ages, masking true staleness
+### CARD-0137 · [bug] [logging] Retained-message redelivery on restart resets dashboard "last seen" ages, masking true staleness
 **Status:** Done
 
 **Raised 2026-08-03 09:33 MST**, found while checking a real dashboard reading Joseph didn't trust: the `/status` page showed `hiking-monitor-test` as `Connected. 6h 17m ago` and `hiking-monitor` as `Disconnected (LWT). 6h 17m ago` — both devices have actually been sitting unpowered on the workbench for over a week (`hiking-monitor` even longer than `hiking-monitor-test`). Confirmed live via the broker's own retained messages (`mosquitto_sub --retained-only`): `hiking-monitor/status` correctly reads `offline`, but `hiking-monitor-test/status` is stuck retained at `online` — its firmware apparently never published a proper LWT/`will_message` "offline" on disconnect, unlike the real unit.
@@ -2173,7 +2173,7 @@ same commands this resolution used.
 
 ---
 
-### CARD-0128 · [enhancement] [infrastructure] Maintenance findings auto-open a PR against kanban-board.md instead of just logging an Alert
+### CARD-0128 · [enhancement] [tos] Maintenance findings auto-open a PR against kanban-board.md instead of just logging an Alert
 **Status:** Done
 
 **Notes:** Raised 2026-07-31, from a conversation about whether maintenance-check findings (CARD-0095, CARD-0125) should do more than post a log-dashboard Alert — Joseph wants a real finding to land in the actual work queue (`kanban-board.md`), not just a status flag someone has to notice and manually turn into a card.
@@ -2233,7 +2233,7 @@ same commands this resolution used.
 
 ---
 
-### CARD-0127 · [enhancement] [infrastructure] Reliable "Pending Update" indicator on Device Status page (MQTT retained state, not last-message-wins)
+### CARD-0127 · [enhancement] [logging] Reliable "Pending Update" indicator on Device Status page (MQTT retained state, not last-message-wins)
 **Status:** Done
 
 **Notes:** Raised 2026-07-31, while explaining how `immich-update-check.py`'s notification actually surfaces. Joseph specifically cares about seeing "an Immich update is available" reliably on the `/status` Device Status page — not just the main log dashboard.
@@ -2309,7 +2309,7 @@ Also worth clarifying at Planning time: is the actual goal *detection* (know whe
 
 ---
 
-### CARD-0125 · [enhancement] [infrastructure] Pi OS/firmware maintenance check — CARD-0095's Pi-side counterpart
+### CARD-0125 · [enhancement] [maintenance] Pi OS/firmware maintenance check — CARD-0095's Pi-side counterpart
 **Status:** Done
 
 **Notes:** Raised 2026-07-31, immediately after CARD-0095 shipped the same thing for the M8. The Pi has the identical gap CARD-0095 just closed for the M8 — no visibility into `apt`-upgradable packages, the `reboot-required` flag, or pending firmware, despite having its own weekly scheduled reboot (Mon 3 AM, vs. the M8's Mon 4 AM, `SOFTWARE-ENVIRONMENT.md`) that this same information would make meaningful rather than blind. Arguably a bigger gap than the M8's was: the Pi is the actual household coordination hub (MQTT broker, Node-RED logic, HA integration, log server) — the highest-stakes host in the whole stack per CARD-0096's own risk ranking — yet currently has zero maintenance visibility, while the lower-stakes M8 now does.

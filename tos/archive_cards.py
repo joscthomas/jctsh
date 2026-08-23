@@ -16,12 +16,20 @@ primary lever.
 
 Destination: if exactly one of a card's bracketed tags (after the first,
 which is always the type -- idea/enhancement/bug) matches a real
-components/<name>/ directory, the card's full text is appended verbatim
-under a "## Card History" heading in that component's CLAUDE.md (created
-if missing). Zero or 2+ tag matches fall back to a dated archive file
-(tos/kanban-archive-<year>.md) rather than guessing which component was
-meant -- an ambiguous or absent match is a tagging-precision problem to
-flag and fix, not something this script should silently paper over.
+components/<name>/, core/<name>/, or hosts/<name>/ directory, or the
+literal tag `tos`, the card's full text is appended verbatim under a
+"## Card History" heading in that destination's CLAUDE.md (created if
+missing -- tos/CLAUDE.md is a new file the first time a tos-tagged card
+archives). components/ was the only place originally checked; core/,
+hosts/, and tos itself were added after the first real dry run showed
+genuine cards (e.g. CARD-0128, about the auto-PR pipeline tos/ now
+contains) falling to the dated archive purely because their real home
+wasn't a components/ directory, not because they lacked a real home at
+all. Zero or 2+ tag matches fall back to a dated archive file
+(tos/kanban-archive-<year>.md) rather than guessing which destination was
+meant -- an ambiguous or genuinely absent match is a tagging-precision
+problem to flag and fix, not something this script should silently paper
+over.
 
 A short pointer stub replaces the card in kanban-board.md, keeping the
 **Status:** line so it still renders in /kanban's own column view (see
@@ -99,9 +107,11 @@ def parse_cards(text):
     return cards
 
 
-def is_archive_eligible(card, today):
+def is_archive_eligible(card, today, forced_ids=frozenset()):
     if card["status"] not in ("Done", "Defer"):
-        return False
+        return False  # --force never bypasses the status gate, only the size/age threshold
+    if card["id"] in forced_ids:
+        return True
     if card["size"] > SIZE_THRESHOLD_BYTES:
         return True
     if card["latest_date"] is not None and (today - card["latest_date"]).days > AGE_BACKUP_DAYS:
@@ -109,10 +119,33 @@ def is_archive_eligible(card, today):
     return False
 
 
-def resolve_destination(card, existing_components):
-    matches = [t for t in card["component_tags"] if t in existing_components]
+def discover_destinations():
+    """Every tag that maps to a real CLAUDE.md-style destination: each
+    components/<name>/ and core/<name>/ directory, plus `tos` itself
+    (CARD-0193 found real cards -- e.g. CARD-0128, about the auto-PR
+    pipeline tos/ now contains -- that belonged under `core/` or `tos/`
+    rather than any components/ directory, and were only falling to the
+    generic dated archive because the original design only checked
+    components/). Returns {tag: (label, claude_md_path)}."""
+    dests = {}
+    for p in COMPONENTS_DIR.iterdir():
+        if p.is_dir():
+            dests[p.name] = (p.name, p / "CLAUDE.md")
+    for base in ("core", "hosts"):
+        base_dir = REPO_ROOT / base
+        if not base_dir.is_dir():
+            continue
+        for p in base_dir.iterdir():
+            if p.is_dir():
+                dests[p.name] = (f"{base}/{p.name}", p / "CLAUDE.md")
+    dests["tos"] = ("tos", TOS_DIR / "CLAUDE.md")
+    return dests
+
+
+def resolve_destination(card, destinations):
+    matches = [t for t in card["component_tags"] if t in destinations]
     if len(matches) == 1:
-        return "component", matches[0]
+        return "matched", matches[0]
     if len(matches) == 0:
         return "dated", None
     return "ambiguous", matches
@@ -149,19 +182,19 @@ def append_under_heading(existing_text, heading, addition, fresh_preamble):
 
 
 def apply_plan(plan, today):
-    by_component = {}
+    by_path = {}
     dated_entries = []
-    for card, kind, detail, archive_path in plan:
-        if kind == "component":
-            by_component.setdefault(detail, []).append(card["block"].strip())
+    for card, kind, dest_path, label in plan:
+        if kind == "matched":
+            by_path.setdefault(dest_path, (label, []))[1].append(card["block"].strip())
         else:
             dated_entries.append(card["block"].strip())
 
     written = []
-    for component, blocks in by_component.items():
-        path = REPO_ROOT / "components" / component / "CLAUDE.md"
+    for path, (label, blocks) in by_path.items():
         existing = path.read_text(encoding="utf-8") if path.exists() else None
-        preamble = f"# {component} — Component Context\n"
+        preamble = f"# {label} — Context\n"
+        path.parent.mkdir(parents=True, exist_ok=True)
         new_text = append_under_heading(existing, CARD_HISTORY_HEADING, "\n\n".join(blocks), preamble)
         path.write_text(new_text, encoding="utf-8")
         written.append(path)
@@ -174,8 +207,9 @@ def apply_plan(plan, today):
             f"Cards archived from `tos/kanban-board.md` (CARD-0193) because they were "
             f"Done/Defer and either large ({SIZE_THRESHOLD_BYTES}B+) or old "
             f"({AGE_BACKUP_DAYS}+ days) enough to move out of the live working file, "
-            f"with no single matching `components/<name>/` directory to migrate into "
-            f"instead. Not read by the auto-PR intake pipeline or Session Start -- "
+            f"with no single matching `components/<name>/`, `core/<name>/`, `hosts/<name>/`, "
+            f"or `tos` tag to migrate into instead. Not read by the auto-PR intake "
+            f"pipeline or Session Start -- "
             f"purely a historical record. See the stub left in `tos/kanban-board.md` "
             f"for the pointer back."
         )
@@ -186,52 +220,68 @@ def apply_plan(plan, today):
     # Splice stubs into kanban-board.md, highest offset first so earlier
     # offsets in the same pass stay valid.
     text = KANBAN_PATH.read_text(encoding="utf-8")
-    for card, kind, detail, archive_path in sorted(plan, key=lambda p: p[0]["start"], reverse=True):
-        stub = build_stub(card, archive_path)
+    for card, kind, dest_path, label in sorted(plan, key=lambda p: p[0]["start"], reverse=True):
+        stub = build_stub(card, display_path(dest_path, today))
         text = text[:card["start"]] + stub + text[card["end"]:]
     KANBAN_PATH.write_text(text, encoding="utf-8")
     written.append(KANBAN_PATH)
     return written
 
 
+def display_path(dest_path, today):
+    if dest_path is None:
+        return f"tos/kanban-archive-{today.year}.md"
+    return str(dest_path.relative_to(REPO_ROOT)).replace("\\", "/")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--apply", action="store_true", help="Write changes (default: dry run, plan only)")
+    ap.add_argument(
+        "--force", action="append", default=[], metavar="CARD-NNNN",
+        help="Include a specific card even if it doesn't meet the automatic "
+             "size/age threshold -- for edge cases just under the line "
+             "(e.g. a card that was legitimately eligible before an "
+             "incidental edit shifted its byte count). Repeatable.",
+    )
     args = ap.parse_args()
+    forced_ids = set(args.force)
 
-    existing_components = {p.name for p in COMPONENTS_DIR.iterdir() if p.is_dir()}
+    destinations = discover_destinations()
     text = KANBAN_PATH.read_text(encoding="utf-8")
     cards = parse_cards(text)
     today = date.today()
 
-    eligible = [c for c in cards if is_archive_eligible(c, today)]
+    eligible = [c for c in cards if is_archive_eligible(c, today, forced_ids)]
     plan = []
     skipped_ambiguous = []
     for card in eligible:
-        kind, detail = resolve_destination(card, existing_components)
+        kind, detail = resolve_destination(card, destinations)
         if kind == "ambiguous":
             skipped_ambiguous.append((card, detail))
             continue
-        archive_path = (
-            f"components/{detail}/CLAUDE.md" if kind == "component"
-            else f"tos/kanban-archive-{today.year}.md"
-        )
-        plan.append((card, kind, detail, archive_path))
+        if kind == "matched":
+            label, dest_path = destinations[detail]
+            plan.append((card, kind, dest_path, label))
+        else:
+            plan.append((card, kind, None, None))
 
     print(f"{len(cards)} total cards, {len(eligible)} archive-eligible, {len(plan)} will be archived.\n")
-    for card, kind, detail, archive_path in plan:
+    for card, kind, dest_path, label in plan:
         reasons = []
         if card["size"] > SIZE_THRESHOLD_BYTES:
             reasons.append(f"{card['size']}B")
         if card["latest_date"] and (today - card["latest_date"]).days > AGE_BACKUP_DAYS:
             reasons.append(f"{(today - card['latest_date']).days}d old")
-        tag_note = "no component tag" if kind == "dated" else f"tag: {detail}"
-        print(f"  {card['id']} [{card['status']}] {' '.join(reasons)} ({tag_note}) -> {archive_path}")
+        if card["id"] in forced_ids:
+            reasons.append("forced")
+        tag_note = "no matching tag" if kind == "dated" else f"tag: {label}"
+        print(f"  {card['id']} [{card['status']}] {' '.join(reasons)} ({tag_note}) -> {display_path(dest_path, today)}")
 
     if skipped_ambiguous:
-        print(f"\n{len(skipped_ambiguous)} SKIPPED (ambiguous component match, needs manual review):")
+        print(f"\n{len(skipped_ambiguous)} SKIPPED (ambiguous tag match, needs manual review):")
         for card, tags in skipped_ambiguous:
-            print(f"  {card['id']}: tags {tags} match multiple components/ directories")
+            print(f"  {card['id']}: tags {tags} match multiple known directories")
 
     if not plan:
         print("\nNothing to do.")

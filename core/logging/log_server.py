@@ -870,7 +870,7 @@ def _parse_kanban_board(text):
 
 _KANBAN_CACHE_TTL = 20  # seconds
 _kanban_cache_lock = threading.Lock()
-_kanban_cache = {"cards": None, "fetched_at": 0.0}
+_kanban_cache = {"cards": None, "size": None, "fetched_at": 0.0}
 
 
 def _load_kanban_cards():
@@ -885,30 +885,34 @@ def _load_kanban_cards():
     under the client's own 30s poll interval so a real edit is never more
     than one poll cycle stale. Freshness is still ultimately tied to
     `git push`, not individual edits -- this only bounds how often that
-    push gets *checked for*, not how fresh a check can be. Returns None on
-    any network failure (offline, GitHub down, rate-limited, etc.); a
-    failure does not fall back to a stale cache -- same "surface the
-    failure" behavior as before, just added caching on the success path."""
+    push gets *checked for*, not how fresh a check can be. Returns
+    (cards, size_in_bytes), or (None, None) on any network failure
+    (offline, GitHub down, rate-limited, etc.); a failure does not fall
+    back to a stale cache -- same "surface the failure" behavior as
+    before, just added caching on the success path."""
     now = time.monotonic()
     with _kanban_cache_lock:
         if (_kanban_cache["cards"] is not None
                 and now - _kanban_cache["fetched_at"] < _KANBAN_CACHE_TTL):
-            return _kanban_cache["cards"]
+            return _kanban_cache["cards"], _kanban_cache["size"]
 
     try:
         req = urllib.request.Request(
             KANBAN_RAW_URL, headers={"Cache-Control": "no-cache"}
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
-            text = resp.read().decode("utf-8")
+            raw = resp.read()
+            text = raw.decode("utf-8")
     except (urllib.error.URLError, OSError, UnicodeDecodeError):
-        return None
+        return None, None
 
     cards = _parse_kanban_board(text)
+    size = len(raw)
     with _kanban_cache_lock:
         _kanban_cache["cards"] = cards
+        _kanban_cache["size"] = size
         _kanban_cache["fetched_at"] = now
-    return cards
+    return cards, size
 
 
 # ── On-demand archived-card detail (CARD-0193) ──────────────────────────────
@@ -1067,6 +1071,13 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     display: block; color: var(--ink); font-weight: 600; text-transform: none;
     letter-spacing: normal; font-size: 0.92rem; margin-top: 0.15rem;
   }
+  /* CARD-0193: kanban-board.md size, tiered against two real thresholds --
+     green fits Claude's own 256KB Read-tool limit (no grep-only fallback
+     needed); yellow is over that but still under GitHub's 1MB Contents API
+     cap (CARD-0190); red is back at the size that actually broke things. */
+  .titleblock__meta b.size-green { color: #4caf7d; }
+  .titleblock__meta b.size-yellow { color: #e0b13a; }
+  .titleblock__meta b.size-red { color: #e0554a; }
   .titleblock__controls { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end; }
   .search {
     display: flex; align-items: center; gap: 0.4rem; background: var(--surface-2);
@@ -1156,6 +1167,7 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   <div class="titleblock__meta">
     <div>Cards<b id="metaCount">–</b></div>
     <div>Fetched<b id="metaUpdated">–</b></div>
+    <div>Size<b id="metaSize" class="size-dot">–</b></div>
   </div>
   <div class="titleblock__controls">
     <div class="search">
@@ -1342,10 +1354,26 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     window.scrollTo(0, scrollY);
     document.getElementById('metaCount').textContent = CARDS.length;
   }
+  // CARD-0193: green/yellow/red against two real thresholds, not arbitrary
+  // round numbers -- 256KB is where Claude's own Read tool stops working
+  // directly on this file (forces grep-only); 1MB is GitHub's Contents API
+  // cap, the size that actually broke the auto-PR pipeline (CARD-0190).
+  function formatSize(bytes) {
+    if (bytes == null) return { text: '–', tier: '' };
+    var kb = bytes / 1024;
+    var text = kb >= 1024 ? (kb / 1024).toFixed(2) + ' MB' : Math.round(kb) + ' KB';
+    var tier = bytes < 256 * 1024 ? 'size-green' : bytes < 1024 * 1024 ? 'size-yellow' : 'size-red';
+    return { text: text, tier: tier };
+  }
   var lastDataStr = null;
   function load() {
     fetch('/kanban/data').then(function (r) { return r.json(); }).then(function (data) {
       document.getElementById('metaUpdated').textContent = data.updated;
+      var sizeEl = document.getElementById('metaSize');
+      var sizeInfo = formatSize(data.sizeBytes);
+      sizeEl.textContent = sizeInfo.text;
+      sizeEl.className = 'size-dot' + (sizeInfo.tier ? ' ' + sizeInfo.tier : '');
+      sizeEl.title = 'kanban-board.md size — green: fits a normal read; yellow: over 256KB; red: over GitHub\'s 1MB API limit (CARD-0190)';
       // Skip the rebuild entirely when the board hasn't actually changed since
       // the last poll — this is the common case (nothing edited in the last
       // 30s) and avoids any disruption at all, not just a preserved-state one.
@@ -1599,7 +1627,7 @@ class _Handler(BaseHTTPRequestHandler):
             self.wfile.write(_KANBAN_HTML_BYTES)
             return
         if self.path == "/kanban/data":
-            cards = _load_kanban_cards()
+            cards, size_bytes = _load_kanban_cards()
             if cards is None:
                 self.send_response(503)
                 self.send_header("Content-Type", "text/plain; charset=utf-8")
@@ -1607,7 +1635,7 @@ class _Handler(BaseHTTPRequestHandler):
                 self.wfile.write(f"Could not fetch {KANBAN_RAW_URL}".encode("utf-8"))
                 return
             fetched = datetime.now(_TZ).strftime("%Y-%m-%d %H:%M %Z")
-            body = json.dumps({"cards": cards, "updated": fetched}).encode("utf-8")
+            body = json.dumps({"cards": cards, "updated": fetched, "sizeBytes": size_bytes}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))

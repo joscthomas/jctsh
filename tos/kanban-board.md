@@ -33,11 +33,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Real age-profile data pulled 2026-08-22 — the finding that triggered reconsidering the trigger entirely.** `kanban-board.md` was created 2026-06-13; the whole project is ~70 days old. Of 162 Done/Defer cards (of 193 total), age-by-latest-mentioned-date breaks down as: <30 days: 108 (69%), 30-45 days: 36 (23%), 45-60 days: 8 (5%), 60-70 days: 5 (3%) — **zero cards older than 70 days, because nothing can be.** Any age threshold in the range originally considered (90+ days) would archive nothing for weeks. Cross-checking against the size data above confirms this isn't a coincidence: the file's actual size problem is **verbosity per card**, not accumulated age — CARD-0012, CARD-0187, and CARD-0028 are each thousands of words, all resolved recently (well under 45 days), and every one of them is already in the top-15-by-size list. This is why the trigger was revised to size-primary (point 1) rather than just picking a smaller age number. The `log_server.py` caching fix (point 4) remains the only lever that helps immediately, before any archiving runs at all.
 
-**Still open, to resolve before Build:**
-- The secondary age backup threshold (180 days suggested, not yet confirmed) — lower priority than the size threshold since it's explicitly a slow long-tail sweep, not the primary mechanism.
-- ~~Whether this waits for CARD-0191's directory consolidation~~ — resolved: CARD-0191 is Done, `tos/` exists, the dated archive file can target `tos/kanban-archive-2026.md` directly with no interim location needed.
-- A rule for **un-archiving**: if an already-archived card needs a real update later (this session's own CARD-0146 correction, months after its original close, is exactly this shape), does it move back into the live file, or get edited in place in the archive/component doc? Leaning toward "move back to live" to keep the invariant that the live file only holds active-or-recently-touched cards, but not yet confirmed.
-- Whether one growing dated archive file just reproduces the same size problem on a longer timeline, vs. splitting by year to mirror this project's own environmental-data Sheets-by-year convention.
+**All remaining decisions confirmed 2026-08-22 20:20 MST (Joseph):**
+- ~~The secondary age backup threshold~~ — **90 days**, not 180. `archive_cards.py`'s `AGE_BACKUP_DAYS` updated to match.
+- ~~Whether this waits for CARD-0191's directory consolidation~~ — resolved: CARD-0191 is Done, `tos/` exists, the dated archive file targets `tos/kanban-archive.md` directly.
+- ~~A rule for un-archiving~~ — **move back to the live file.** If an already-archived card needs a real update later (this session's own CARD-0146 correction, months after its original close, is exactly this shape), it moves back into `kanban-board.md` rather than being edited in place in the archive/component doc — keeps the invariant that the live file only holds active-or-recently-touched cards. Not automated (same as archiving itself) — a manual/Claude-driven move when it comes up.
+- ~~Whether one growing dated archive file reproduces the same size problem~~ — **one file, not split by year.** `archive_cards.py` and the already-created archive file both renamed from `tos/kanban-archive-2026.md` to `tos/kanban-archive.md` to match. Revisit splitting only if this file itself ever grows large enough to matter — same "don't solve it before it's a real problem" discipline as everything else on this card.
+- **Tool stays manual, not wired to a timer.** To make sure it doesn't get forgotten, added a periodic (not every-session) check to `CLAUDE.md`'s Session Start: if it's been a few weeks or the file feels large again, dry-run `archive_cards.py` and offer to apply.
 
 **"Should this just be a real database instead?" — considered and ruled out, 2026-08-22, Claude's analysis.** Raised as a genuine question, not rhetorical, given how many of these problems (size limits, ad-hoc concurrency handling) a database would erase outright. Weighed both ways:
 
@@ -1794,7 +1795,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 22500
 ### CARD-0096 · [enhancement] [infrastructure] Rename photo-server → m8 and raspberrypi → pi1, adopt a real host-naming convention — RESOLVED 2026-08-14 16:15 MST
 **Status:** Done
 
-Archived to `tos/kanban-archive-2026.md` on 2026-08-22 (CARD-0193) — 40575B, over the 10000B size threshold.
+Archived to `tos/kanban-archive.md` on 2026-08-22 (CARD-0193) — 40575B, over the 10000B size threshold.
 
 ---
 

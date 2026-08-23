@@ -1,6 +1,6 @@
-# JCTsh Kanban Archive — 2026
+# JCTsh Kanban Archive
 
-Cards archived from `tos/kanban-board.md` (CARD-0193) because they were Done/Defer and either large (10000B+) or old (180+ days) enough to move out of the live working file, with no single matching `components/<name>/`, `core/<name>/`, `hosts/<name>/`, or `tos` tag to migrate into instead. Not read by the auto-PR intake pipeline or Session Start -- purely a historical record. See the stub left in `tos/kanban-board.md` for the pointer back.
+Cards archived from `tos/kanban-board.md` (CARD-0193) because they were Done/Defer and either large (10000B+) or old (90+ days) enough to move out of the live working file, with no single matching `components/<name>/`, `core/<name>/`, `hosts/<name>/`, or `tos` tag to migrate into instead. Not read by the auto-PR intake pipeline or Session Start -- purely a historical record. See the stub left in `tos/kanban-board.md` for the pointer back.
 
 ## Archived Cards
 

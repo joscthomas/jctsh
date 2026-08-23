@@ -26,7 +26,7 @@ genuine cards (e.g. CARD-0128, about the auto-PR pipeline tos/ now
 contains) falling to the dated archive purely because their real home
 wasn't a components/ directory, not because they lacked a real home at
 all. Zero or 2+ tag matches fall back to a dated archive file
-(tos/kanban-archive-<year>.md) rather than guessing which destination was
+(tos/kanban-archive.md) rather than guessing which destination was
 meant -- an ambiguous or genuinely absent match is a tagging-precision
 problem to flag and fix, not something this script should silently paper
 over.
@@ -57,7 +57,7 @@ COMPONENTS_DIR = REPO_ROOT / "components"
 TOS_DIR = REPO_ROOT / "tos"
 
 SIZE_THRESHOLD_BYTES = 10_000
-AGE_BACKUP_DAYS = 180
+AGE_BACKUP_DAYS = 90
 CARD_HISTORY_HEADING = "## Card History"
 
 _CARD_RE = re.compile(
@@ -228,10 +228,10 @@ def apply_plan(plan, today):
         written.append(path)
 
     if dated_entries:
-        path = TOS_DIR / f"kanban-archive-{today.year}.md"
+        path = TOS_DIR / "kanban-archive.md"
         existing = path.read_text(encoding="utf-8") if path.exists() else None
         preamble = (
-            f"# JCTsh Kanban Archive — {today.year}\n\n"
+            f"# JCTsh Kanban Archive\n\n"
             f"Cards archived from `tos/kanban-board.md` (CARD-0193) because they were "
             f"Done/Defer and either large ({SIZE_THRESHOLD_BYTES}B+) or old "
             f"({AGE_BACKUP_DAYS}+ days) enough to move out of the live working file, "
@@ -258,7 +258,7 @@ def apply_plan(plan, today):
 
 def display_path(dest_path, today):
     if dest_path is None:
-        return f"tos/kanban-archive-{today.year}.md"
+        return "tos/kanban-archive.md"
     return str(dest_path.relative_to(REPO_ROOT)).replace("\\", "/")
 
 

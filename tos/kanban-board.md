@@ -13,8 +13,10 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0193 · [idea] [infrastructure] Kanban board scaling strategy
-**Status:** Build
+### CARD-0193 · [idea] [infrastructure] Kanban board scaling strategy — RESOLVED 2026-08-22 20:17 MST
+**Status:** Done
+
+**Closed 2026-08-22 20:17 MST.** Every design point built, deployed, and live-tested: the `log_server.py` caching fix (7x faster repeat polls); `archive_cards.py` (size-primary trigger, `--force`, `--apply`, provenance annotations); a real archiving run (27 cards, `kanban-board.md` 1.18MB → 731KB, all six retagging fixes applied); the on-demand archived-detail lookup in `/kanban`; and a green/yellow/red size indicator on the board header tied to the two real thresholds (256KB Read-tool cap, 1MB GitHub API cap) that this whole card was about in the first place. All previously-open decisions confirmed: 90-day secondary age backup, un-archiving moves a card back to the live file, the dated archive stays one file (`tos/kanban-archive.md`), and the tool stays manual with a periodic Session Start reminder rather than a timer. **Reflection (per `JCTsh-Operating-System.md`'s Build → Done requirement):** the durable knowledge from this card lives in three places that will actually be read again — `tos/README.md` (the system overview), `CLAUDE.md`'s Session Start (the "don't forget" mechanism), and `archive_cards.py`'s own docstring (every design decision and why, next to the code it governs) — not just in this card's own history.
 
 **Moved to Build 2026-08-22 19:28 MST (Joseph).** Design is settled enough to start implementation; the remaining "Still open" items below (secondary age threshold, un-archive rule, single-vs-per-year archive file) aren't full blockers — resolve them as part of doing the work, not before starting it.
 

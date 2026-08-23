@@ -9,7 +9,79 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0198 -->
+<!-- next-card-id: CARD-0199 -->
+
+---
+
+### CARD-0198 · [bug] [air-quality-monitor] Boot sequence resumes SEN55 Measurement mode on a blind fixed delay instead of an actual connectivity check — code fixed, not yet flashed/verified
+**Status:** Build
+
+**Raised 2026-08-23 12:01 MST (Joseph), asked for a full comparative boot-sequence analysis of hiking-monitor vs. air-quality-monitor** (steps, timing, sync vs. async, and how to control which subsystems come up first) **"while I'm away"** — worked fully autonomously per that instruction, including writing and validating a concrete code fix rather than stopping at analysis alone (deploy/flash left for Joseph, no physical device access from this session).
+
+**ESPHome boot model (Arduino framework) — the mechanics behind everything below.** Boot has two phases. (1) `setup()`: every component's `setup()` runs once, synchronously, in descending `setup_priority` order (bus/hardware ~800-1000, sensors ~600, WiFi ~250, MQTT/OTA lower) — each must return before the next starts, but WiFi's `setup()` only *starts* its connection state machine, it doesn't block waiting for association. `on_boot:` triggers are themselves priority-ordered components — the YAML `priority:` value *is* a `setup_priority` on that same number line, so multiple `on_boot:` blocks (and where they fall relative to WiFi/MQTT's own setup) are ordered by it directly. (2) `loop()`: runs forever after setup completes — WiFi association, MQTT connect/TLS, and NTP sync all happen here as async state machines. A `delay:` inside an automation *yields* back to this loop rather than halting it, so other components keep running while a boot script "waits." Neither device's `on_boot` script literally blocks WiFi from connecting — what varies is whether the script's actions are *paced against* what WiFi/MQTT are actually doing, or run blind to it.
+
+**hiking-monitor boot sequence:**
+
+| Priority | Step | Sync/Async |
+|---|---|---|
+| ~1000 (implicit) | I2C, SPI bus init | Sync |
+| 600.0 (`on_boot`) | `hike_log_begin()` — mount SPIFFS | Sync |
+| ~600→250 (implicit) | Sensor components register (BME280, LTR-390, ADC, uptime, wifi_signal) | Sync |
+| ~250 (implicit) | WiFi `setup()` — connection attempt starts here | Async begins |
+| lower (implicit) | MQTT, OTA, display, deep_sleep setup — each just *prepares*, no blocking wait for network | Sync (per-call) |
+| **-100.0 (`on_boot`)** | Force-update display + all sensors, `delay: 10s`, force-update display again | Sync script, runs concurrently with WiFi/MQTT's own async connect |
+| **-200.0 (`on_boot`)** | Decide: sleep now, or low-battery shutdown, based on switch/dock state | Sync script |
+| (event-driven) | `mqtt.on_connect:` — publish online status, replay flash-buffered readings, check switch/dock state | Fully async/event-driven — fires whenever MQTT actually connects, however long that takes |
+| (event-driven) | `interval: 2min` — read sensors, log to flash or MQTT depending on connection state | Async, forever |
+
+Key property: hiking-monitor's "do something once we're actually online" logic lives entirely in `mqtt.on_connect:` — the correct, event-driven pattern. Nothing in its `on_boot:` blocks guesses when WiFi/MQTT will be ready.
+
+**air-quality-monitor boot sequence:**
+
+| Priority | Step | Sync/Async |
+|---|---|---|
+| ~1000 (implicit) | I2C bus init | Sync |
+| ~600→250 (implicit) | Sensor components register (SEN55 — **auto-starts full Measurement mode, ~63mA, right here**, ADC, uptime, wifi_signal) | Sync |
+| ~250 (implicit) | WiFi `setup()` — connection attempt starts here | Async begins |
+| lower (implicit) | MQTT, OTA setup (prepare only) | Sync (per-call) |
+| -100.0 (`on_boot`, step 1) | Reset-reason LED — solid red 3s if reset reason matches "brownout"/"glitch", else solid blue 1s | Sync |
+| -100.0 (`on_boot`, step 2) | Force SEN55 into Idle mode (~2.6mA), overriding its own auto-started Measurement mode from setup() | Sync |
+| -100.0 (`on_boot`, step 3) | Self-test LED blink sequence — 2× each of Blue/Red/Yellow/Green, ~300ms on/off | Sync, **fixed ~4.8s delay** |
+| -100.0 (`on_boot`, step 4, pre-fix) | `delay: 1s`, then blindly resume SEN55 Measurement mode on the assumption WiFi association is done | Sync, **blind fixed delay — the bug** |
+| -100.0 (`on_boot`, step 4, post-fix) | Bounded wait on `id(mqtt_client).is_connected()` (250ms poll, 30s cap) before resuming SEN55 Measurement mode | Sync script, but now paced against WiFi/MQTT's real async state instead of guessing |
+| -100.0 (`on_boot`, step 5) | `delay: 2s` sensor settle, force-update SEN55 + battery_voltage | Sync, fixed 2s delay |
+| -100.0 (`on_boot`, step 6) | Unbounded `while` loop blinking green until first valid PM2.5 reading — **no timeout**, can run minutes per its own comment | Sync, **unbounded wait** |
+| -100.0 (`on_boot`, step 7) | Solid green 2s confirmation, `boot_sequence_done = true` | Sync, fixed 2s delay |
+| -100.0 (`on_boot`, step 8) | Threshold-color LED demo — solid Yellow 3s, solid Red 3s (permanent visual self-check, not test-only) | Sync, **fixed ~6.5s delay** |
+| (event-driven) | `mqtt.on_connect:` — publish online status only | Async |
+| (event-driven) | `pm_2_5.on_value:` — threshold LED, gated by `boot_sequence_done` | Async |
+| (event-driven) | `interval: 5min` heartbeat, `interval: 30s` bench-log | Async |
+
+**Comparison:**
+
+| | hiking-monitor | air-quality-monitor |
+|---|---|---|
+| `on_boot:` blocks | 3, split by purpose (early flash mount / late sensor-force / very-late sleep decision) | 1, doing everything (LED diagnostics + power-mode sequencing + sensor force + threshold demo) |
+| Total on_boot duration | ~10s (one fixed delay) | ~20-25s fixed, *plus* an unbounded wait — could be minutes |
+| "Wait for network" pattern | None needed — deferred entirely to `mqtt.on_connect:` | **Blind fixed delay**, inside `on_boot`, guessing WiFi is done |
+| High-current peripheral awareness | N/A (BME280/LTR-390 draw is negligible) | Explicitly manages SEN55's ~63mA Measurement mode vs. WiFi's association spike — the one place this actually matters |
+| Diagnostic self-instrumentation | None | Reset-reason LED + MQTT report (added 2026-08-21, mid-diagnosis) |
+
+hiking-monitor's design is simpler because it has no high-current peripheral to sequence around. air-quality-monitor does, and that's exactly where the blind-delay guess lives — this is the concrete instance of "how do we manage boot order so basics come first" the rest of this card addresses.
+
+**What's actually "amiss," confirmed against real log data, not just code inspection.** The 2026-08-21 bench session (Step 6→7 of CARD-0012) already added an undocumented mitigation directly in `air-quality-monitor.yaml` — never written back to CARD-0012 or the instructions doc, only discoverable by reading the YAML's own comments — for a suspected LDO current-limit brownout: SEN55's ~63mA Measurement-mode draw stacking on top of WiFi's association current spike, both drawn from the same 250mA-rated MCP1700 LDO. The mitigation forces SEN55 into ~2.6mA Idle mode through boot, waits a **fixed ~10 seconds** of LED self-test delays, then blindly resumes full Measurement mode on the assumption "WiFi association should be past" by then.
+
+**Pulled the Pi's log buffer for the same session (`/mnt/jctsh-logs/state.json`, `component=air-quality-monitor`) and found the fixed-delay guess is empirically wrong under real conditions:** repeated `"reset reason: power-on event"` reconnects on 2026-08-21, several under 2 minutes apart (13:28:18, 13:37:37, 13:39:04, 13:57:52, 15:51:23 MST) — a boot-loop-shaped pattern, not isolated incidents — followed by the device going completely silent for the next ~27 hours (last entry 15:52:58 MST 08-21 until 18:49:22 MST 08-22, a single bare reconnect with nothing since). Battery-voltage heartbeats in the same window are bouncy (3.14–3.59V, non-monotonic) rather than smoothly trending, consistent with either rail sag from repeated brownout events or the ADC still reading the Step-4-era placeholder tap rather than a real battery (Step 7, LiPo/LDO connection, was "next" per CARD-0012's last update at that point) — noted as an open uncertainty, not resolved by this card.
+
+**A second, independent gap found in the existing mitigation's own diagnostic code:** the boot-time RGB LED reset-reason indicator (red=brownout, blue=normal) only pattern-matches `"rownout"` / `"glitch"` in the reset-reason string. Every reset actually observed in the field logs above reports `"power-on event"` or `"software via esp_restart"` — **neither string trips the red-LED path**, so the one visual tool built specifically to catch this class of failure would have shown blue (normal) through the entire boot-loop episode. **Deliberately not widened to also match "power-on event"**, after considering it: this device's normal, expected operation includes being switched fully off (inline power switch) between hikes, so a legitimate power-on always reports the identical string — broadening the match would make the red LED fire on every ordinary cold start, not just real faults, defeating its purpose. No cheap fix for this half found; flagged as a known, accepted limitation rather than silently left unmentioned.
+
+**Fix implemented and config-validated (`esphome config` — "Configuration is valid!"), NOT yet flashed to real hardware:**
+- Replaced the fixed ~10s blind delay with a bounded wait on `id(mqtt_client).is_connected()` (`air-quality-monitor.yaml`, `esphome.on_boot`, priority -100.0 block) — polls every 250ms, capped at 30s so a device with no reachable network doesn't idle SEN55 forever. New global `boot_wait_start` (uint32_t, `millis()`-based) added to track the wait window.
+- This removes the actual race condition (SEN55 resuming Measurement mode while WiFi/MQTT association is still genuinely in progress) rather than trying to out-guess its duration — directly answers Joseph's "how do we manage boot order so basics come up first" question for this specific collision.
+
+**Explicitly not done by this card — left for a physically-present session:** flashing the fix to the real device (USB, per this component's own first-flash convention — OTA needs the device already reachable, which it currently is not per the 27-hour silence above), live verification that the boot-loop pattern actually stops, and resolving the battery-voltage-source ambiguity noted above (whether Step 7's real LiPo is connected yet). CARD-0012 (Step 7, still open) is the parent thread this ultimately feeds back into — this card exists separately because it's a distinct, evidence-driven bug investigation, not a Step 7 sub-task list item.
+
+**Related:** CARD-0012 (parent air-quality-monitor build card, Step 6 closed / Step 7 open at time of writing), CARD-0070/CARD-0026 (hiking-monitor's own LDO/boost-converter power investigations, the precedent this device's LDO choice was built on), `components/hiking-monitor/hiking-monitor.yaml` and `components/air-quality-monitor/air-quality-monitor.yaml` (both boot sequences tabulated above).
 
 ---
 

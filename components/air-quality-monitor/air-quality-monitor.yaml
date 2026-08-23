@@ -131,8 +131,29 @@ esphome:
               - output.turn_off: rgb_led_green
               - delay: 300ms
         - delay: 1s
-        # Resume full Measurement mode now that the highest-current boot
-        # window (WiFi association) should be past.
+        # CARD-0198 (2026-08-23): replaced a blind fixed-~10s delay with an
+        # actual wait on MQTT (the real "the highest-current boot window is
+        # over" signal), bounded to 30s so a device with no reachable network
+        # doesn't idle SEN55 forever. The fixed delay this replaced was a
+        # guess that WiFi association would always finish inside that window
+        # -- log evidence from the 2026-08-21 bench session (repeated "power-
+        # on event" resets, some under 2 minutes apart) is consistent with
+        # that guess being wrong under real conditions (weak signal, AP
+        # retry, TLS handshake) and SEN55's ~63mA Measurement-mode draw
+        # landing back on top of an still-in-progress WiFi/MQTT current
+        # spike -- the exact collision this whole idle-mode mechanism exists
+        # to prevent.
+        - lambda: 'id(boot_wait_start) = millis();'
+        - while:
+            condition:
+              lambda: |-
+                return !id(mqtt_client).is_connected() &&
+                       (millis() - id(boot_wait_start)) < 30000;
+            then:
+              - delay: 250ms
+        # Resume full Measurement mode now that MQTT is connected (or the
+        # 30s bound was hit -- either way, WiFi's own association attempt is
+        # no longer freshly ramping up).
         - lambda: 'id(sen55).write_command((uint16_t) 0x0021);'  # SEN5X_CMD_START_MEASUREMENTS
         - delay: 2s   # let the SEN55 fan/sensor settle before forcing a first read
         - component.update: sen55
@@ -186,6 +207,12 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
+  # CARD-0198: start-of-wait timestamp for the bounded MQTT-connect wait
+  # before SEN55 resumes Measurement mode (see esphome.on_boot above).
+  - id: boot_wait_start
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
 
 # ── WiFi ──────────────────────────────────────────────────────────────────────
 # Multi-network (portable component): home WiFi first, Pixel hotspot second —

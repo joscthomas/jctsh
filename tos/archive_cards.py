@@ -119,6 +119,22 @@ def is_archive_eligible(card, today, forced_ids=frozenset()):
     return False
 
 
+def archive_reason(card, today, forced_ids):
+    """Human-readable why-was-this-archived text, shared by the annotation
+    left on the moved card (see build_archive_note) and the stub's own note
+    -- computed once from the same fields the eligibility check itself used,
+    so the recorded reason can never drift from the actual trigger."""
+    parts = []
+    if card["size"] > SIZE_THRESHOLD_BYTES:
+        parts.append(f"{card['size']}B, over the {SIZE_THRESHOLD_BYTES}B size threshold")
+    if card["latest_date"] is not None and (today - card["latest_date"]).days > AGE_BACKUP_DAYS:
+        days = (today - card["latest_date"]).days
+        parts.append(f"{days} days since last touched, over the {AGE_BACKUP_DAYS}-day backup threshold")
+    if card["id"] in forced_ids:
+        parts.append("manually forced (--force)")
+    return "; ".join(parts) if parts else "reason not recorded"
+
+
 def discover_destinations():
     """Every tag that maps to a real CLAUDE.md-style destination: each
     components/<name>/ and core/<name>/ directory, plus `tos` itself
@@ -151,13 +167,24 @@ def resolve_destination(card, destinations):
     return "ambiguous", matches
 
 
-def build_stub(card, archive_path):
+def build_stub(card, archive_path, today, reason):
     header_line = card["block"].splitlines()[0]
     return (
         f"{header_line}\n"
         f"**Status:** {card['status']}\n\n"
-        f"Archived to `{archive_path}` (CARD-0193).\n\n"
+        f"Archived to `{archive_path}` on {today.isoformat()} (CARD-0193) — {reason}.\n\n"
         f"---\n\n"
+    )
+
+
+def build_archived_block(card, today, reason):
+    """The card's own verbatim text, prefixed with a short note recording
+    when and why it was moved -- the note sits *before* the original
+    heading, outside the card's own text, so the archived copy still reads
+    as "the card, plus a small provenance marker," not a rewritten card."""
+    return (
+        f"**Archived from `tos/kanban-board.md` on {today.isoformat()} (CARD-0193)** — {reason}.\n\n"
+        f"{card['block'].strip()}"
     )
 
 
@@ -184,11 +211,12 @@ def append_under_heading(existing_text, heading, addition, fresh_preamble):
 def apply_plan(plan, today):
     by_path = {}
     dated_entries = []
-    for card, kind, dest_path, label in plan:
+    for card, kind, dest_path, label, reason in plan:
+        block = build_archived_block(card, today, reason)
         if kind == "matched":
-            by_path.setdefault(dest_path, (label, []))[1].append(card["block"].strip())
+            by_path.setdefault(dest_path, (label, []))[1].append(block)
         else:
-            dated_entries.append(card["block"].strip())
+            dated_entries.append(block)
 
     written = []
     for path, (label, blocks) in by_path.items():
@@ -220,8 +248,8 @@ def apply_plan(plan, today):
     # Splice stubs into kanban-board.md, highest offset first so earlier
     # offsets in the same pass stay valid.
     text = KANBAN_PATH.read_text(encoding="utf-8")
-    for card, kind, dest_path, label in sorted(plan, key=lambda p: p[0]["start"], reverse=True):
-        stub = build_stub(card, display_path(dest_path, today))
+    for card, kind, dest_path, label, reason in sorted(plan, key=lambda p: p[0]["start"], reverse=True):
+        stub = build_stub(card, display_path(dest_path, today), today, reason)
         text = text[:card["start"]] + stub + text[card["end"]:]
     KANBAN_PATH.write_text(text, encoding="utf-8")
     written.append(KANBAN_PATH)
@@ -260,23 +288,17 @@ def main():
         if kind == "ambiguous":
             skipped_ambiguous.append((card, detail))
             continue
+        reason = archive_reason(card, today, forced_ids)
         if kind == "matched":
             label, dest_path = destinations[detail]
-            plan.append((card, kind, dest_path, label))
+            plan.append((card, kind, dest_path, label, reason))
         else:
-            plan.append((card, kind, None, None))
+            plan.append((card, kind, None, None, reason))
 
     print(f"{len(cards)} total cards, {len(eligible)} archive-eligible, {len(plan)} will be archived.\n")
-    for card, kind, dest_path, label in plan:
-        reasons = []
-        if card["size"] > SIZE_THRESHOLD_BYTES:
-            reasons.append(f"{card['size']}B")
-        if card["latest_date"] and (today - card["latest_date"]).days > AGE_BACKUP_DAYS:
-            reasons.append(f"{(today - card['latest_date']).days}d old")
-        if card["id"] in forced_ids:
-            reasons.append("forced")
+    for card, kind, dest_path, label, reason in plan:
         tag_note = "no matching tag" if kind == "dated" else f"tag: {label}"
-        print(f"  {card['id']} [{card['status']}] {' '.join(reasons)} ({tag_note}) -> {display_path(dest_path, today)}")
+        print(f"  {card['id']} [{card['status']}] {reason} ({tag_note}) -> {display_path(dest_path, today)}")
 
     if skipped_ambiguous:
         print(f"\n{len(skipped_ambiguous)} SKIPPED (ambiguous tag match, needs manual review):")

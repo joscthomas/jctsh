@@ -9,7 +9,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0190 -->
+<!-- next-card-id: CARD-0191 -->
+
+---
+
+### CARD-0190 · [bug] [infrastructure] Auto-opened kanban PRs (CARD-0128/CARD-0173) broken by kanban-board.md crossing GitHub's 1MB Contents API limit — RESOLVED 2026-08-22 17:48 MST
+**Status:** Done
+
+**Raised 2026-08-22 17:36 MST (Joseph), found live** — used the "Log Idea" Tasker widget (CARD-0173) while hiking; no PR appeared. `hike-izer-orchestrator` logs showed `Idea webhook: open_finding_pr failed: substring not found` at 14:39 UTC the same day.
+
+**Root cause, confirmed by inspecting `core/maintenance/open_kanban_pr.py` and the actual file size:** `open_finding_pr()` fetches `kanban-board.md` via GitHub's Contents API and does `text.index("---\n\n")` to find where to insert the new stub card. That API only populates the JSON `content` field for files **under 1MB**; `kanban-board.md` is now **1.14MB**, so `content` comes back empty, `text` is `""`, and `.index()` raises exactly the logged error. This isn't specific to the Tasker idea path — `resolve_and_merge()` reads the same file the same way, so every auto-opened maintenance-finding PR (CARD-0128) is equally broken, not just voice-captured ideas.
+
+**Design change, decided via interview 2026-08-22 (Joseph's call, not the original plan):** rather than just swapping in a bigger-file-safe read at open time too, `open_finding_pr()` stops touching `kanban-board.md` at all — "grab the text, create the PR; reading kanban-board.md happens later." The branch just needs some commit that differs from main so GitHub will accept the PR (a zero-commit-diff branch 422s) — an **empty commit** (same tree as main, new commit message) satisfies that with no file touched at all. The finding's component/message travel only in the PR's own title/body (already-existing format, no new fields needed). The real `kanban-board.md` insertion still happens exactly once, at merge time, in `resolve_and_merge()` — which now needs the actual size-safe read (raw media type instead of JSON+base64, works up to 100MB) since that's the only place left that touches the real file. Trade-off surfaced and accepted: these PRs will show "0 files changed" in GitHub's own diff view until merged (no more inline kanban-board.md preview) — acceptable since review already happens via Claude's session-start summary, not by reading the raw PR diff.
+
+**Scope:**
+1. `open_finding_pr()`: drop the `kanban-board.md` GET/PUT entirely; create an empty commit (same tree as `main`, via the Git Data API) on the new branch instead of writing a stub; PR body/title unchanged (already carry component + message in parseable form).
+2. `resolve_and_merge()`: parse component + message back out of the PR's own body (regex against the existing `"Auto-opened by {component}'s maintenance check"` / `` "Finding:\n```\n{message}\n```" `` text — no new fields needed); recover the original raised-at timestamp from the branch name's existing `-YYYY-MM-DD-HHMMSS` suffix; render the stub fresh via the existing `_render_stub()` (same function, just called at merge time instead of open time) against a **freshly read** `main` (size-safe raw fetch); get the branch's `kanban-board.md` blob sha via the Git Data API tree lookup (not the Contents API metadata, to avoid any dependence on that endpoint's large-file behavior) for the PUT's concurrency check.
+
+**Done when:** a real webhook call (Tasker idea or a maintenance finding) opens a PR successfully with the new empty-commit approach, and `resolve_and_merge()` correctly parses it and lands a real, correctly-numbered card in `kanban-board.md` — verified against the actual live 1.14MB file, not a shrunk test copy.
+
+**Confirmed before implementing:** `open_finding_pr()` and both callers of it (`/webhook/idea` in `hike-izer-orchestrator`'s `app.py`, the Tasker path; `core/maintenance/email-idea-check.py`, the `joscthomas+kbc@gmail.com` email path) have zero references to `kanban-board.md` — verified by grep, not just by design intent. Every read/write of the real file lives only in `resolve_and_merge()`, which runs interactively at merge time, never from either automated open path.
+
+**Fixed, deployed, and live-tested end-to-end, 2026-08-22 17:48 MST.** Deployed to the M8 (`scp` + `docker compose up -d --build orchestrator`, per this component's own README). Live test via the real `/webhook/idea` endpoint (through the orchestrator container, not a shrunk local copy): `open_finding_pr()` opened real PR #27 with `files: []` (confirmed via `gh pr view --json files`) — exactly the zero-diff empty-commit shape intended. `resolve_and_merge()` correctly parsed the PR body and rendered a real `CARD-0190` stub against the actual live 1.14MB `kanban-board.md`.
+
+**Real merge-step flake hit during the test, unrelated to this fix:** the first two merge attempts 405'd/409'd (`mergeable_state: unknown` — GitHub's own async mergeability computation not yet settled), a known pre-existing pattern with this repo's PR-merge flow, not a regression from this change. A follow-up retry succeeded.
+
+**Real process mistake caught and corrected the same session:** the test merge landed using `CARD-0190` — which collided with *this very card*, written locally but not yet pushed at the time of the test (this card's own number was reserved locally before the live test consumed the same number on `origin/main` via the automated path). Caught immediately after the merge; fixed by reverting the test merge commit (`git revert`, pushed directly) before pushing this card's real content, restoring `next-card-id` to `CARD-0190` for this card to correctly claim. The three now-empty `maintenance-alert/*` branches (two orphaned by the original bug's failed attempts while hiking, one from this test) were deleted as cleanup. **Process note for next time:** avoid live-testing the auto-PR pipeline while a manually-written card is sitting locally uncommitted and unpushed — push (or at least commit) pending manual cards first, so the automated path can't silently claim the same number.
+
+**Related:** CARD-0173 (Tasker "Log Idea" widget, the path that surfaced this), CARD-0128 (`open_finding_pr()`/auto-opened maintenance PRs, equally affected), `core/maintenance/open_kanban_pr.py`, `core/maintenance/email-idea-check.py` (also calls `open_finding_pr()`).
 
 ---
 

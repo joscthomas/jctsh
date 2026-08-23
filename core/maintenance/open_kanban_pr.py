@@ -3,9 +3,24 @@
 Pure GitHub REST API -- no local git clone or `gh` CLI needed on the M8/Pi
 (neither host has one, and this session's own git access from the dev
 machine turned out to be plain `git push`, not the `gh` CLI, so there was
-nothing to reuse). Creates a branch ref, updates kanban-board.md via the
-Contents API (which creates a commit on that branch), opens a PR. Imported
-by maintenance-check.py / pi-maintenance-check.py, not run standalone.
+nothing to reuse). Imported by maintenance-check.py / pi-maintenance-check.py,
+not run standalone.
+
+CARD-0190: open_finding_pr() creates a branch ref pointing at an *empty*
+commit (same tree as main, just a new commit object -- the minimal thing
+that satisfies GitHub's "head and base must differ" requirement for opening
+a PR) and never touches kanban-board.md at all; the finding's component and
+message live only in the PR's own title/body. The real kanban-board.md
+insertion happens once, at merge time, in resolve_and_merge(), which parses
+the finding back out of the PR body. This replaced an earlier design where
+open_finding_pr() itself wrote a CARD-XXX stub into kanban-board.md on the
+branch -- broke once that file crossed GitHub's Contents API's 1MB
+content-size limit (confirmed live, 2026-08-22: every call started failing
+with "substring not found", since the API's `content` field silently comes
+back empty over that threshold, with no error). Deferring to merge time also
+means only the much-less-frequent, interactive merge path needs the
+size-safe read (_get_file_text(), the `application/vnd.github.raw` media
+type) rather than every single automated open.
 
 Dedup: the caller passes its own fingerprint (the same one already used
 for the Alert-notification throttle) and its own persisted state dict.
@@ -24,10 +39,9 @@ not Administration). That rule is what makes this structurally incapable
 of touching main directly, not just "trusted" not to.
 
 Card numbering (fixed 2026-07-31 15:36 MST, from a real race condition
-caught during review): open_finding_pr() no longer reads or bumps main's
-next-card-id marker at all -- the stub goes in with a literal CARD-XXX
-placeholder, and the PR's diff never touches the marker line. Real
-number assignment happens at merge time instead (resolve_and_merge()),
+caught during review): open_finding_pr() never reads or bumps main's
+next-card-id marker -- every PR title/number stays CARD-XXX until merge.
+Real number assignment happens at merge time instead (resolve_and_merge()),
 by reading main's marker *then*, not when the PR was opened. Reasoning:
 main's marker doesn't move until merge regardless of what a PR's diff
 claims, so two concurrent PRs (M8 and Pi both finding something around
@@ -75,6 +89,42 @@ def _pr_still_open(pr_number, token):
         return False
 
 
+def _get_file_text(path, ref, token):
+    """Raw text content of `path` at `ref` (CARD-0190). GitHub's Contents API
+    only populates the JSON `content` field for files under 1MB -- over that
+    (kanban-board.md crossed this in August 2026: confirmed live via a real
+    "substring not found" failure, since the empty `content` decoded to an
+    empty string), it comes back empty with no error. The `application/
+    vnd.github.raw` media type bypasses the JSON+base64 envelope entirely and
+    returns the file's actual bytes, which works up to 100MB."""
+    req = urllib.request.Request(
+        f"{API}/repos/{REPO}/contents/{path}?ref={ref}", method="GET",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github.raw",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return resp.read().decode("utf-8")
+
+
+def _blob_sha_at(path, ref, token):
+    """Current blob sha for `path` at `ref` (CARD-0190), via the Git Data API
+    tree lookup rather than the Contents API's metadata `sha` field -- needed
+    for the Contents API PUT's optimistic-concurrency check, without any
+    dependence on how that same endpoint behaves for files over its 1MB
+    content-size limit (only the JSON metadata is being read here, no file
+    content download at all -- trees report blob sha regardless of size)."""
+    ref_data = _api("GET", f"/repos/{REPO}/git/refs/heads/{ref}", token)
+    commit = _api("GET", f"/repos/{REPO}/git/commits/{ref_data['object']['sha']}", token)
+    tree = _api("GET", f"/repos/{REPO}/git/trees/{commit['tree']['sha']}", token)
+    for entry in tree["tree"]:
+        if entry["path"] == path:
+            return entry["sha"]
+    raise FileNotFoundError(f"{path} not found in {ref}'s tree")
+
+
 def _title_line(message, limit):
     """First line of `message` only, truncated to `limit` chars -- CARD-0151
     found live that a blind message[:limit] slice (the original behavior)
@@ -120,24 +170,27 @@ def open_finding_pr(component, message, fingerprint, token, state):
 
     now = datetime.now(timezone.utc)
     branch = f"maintenance-alert/{component}-{now.strftime('%Y-%m-%d-%H%M%S')}"
-    _api("POST", f"/repos/{REPO}/git/refs", token, {
-        "ref": f"refs/heads/{branch}", "sha": main_sha,
+
+    # CARD-0190: no longer reads or writes kanban-board.md here at all --
+    # that file crossed GitHub's 1MB Contents API content-size limit and
+    # every call started failing with "substring not found" (content comes
+    # back empty over that threshold, with no error). The real insertion
+    # happens once, at merge time, in resolve_and_merge(), which needs the
+    # size-safe fix regardless since it's the one place still touching the
+    # real file. This branch only needs a commit that differs from main so
+    # GitHub will accept the PR (a zero-commit-diff branch 422s) -- an empty
+    # commit (identical tree to main, new message) satisfies that with no
+    # file touched at all. Component + message travel in the PR's own
+    # title/body (already-existing format), parsed back out by
+    # resolve_and_merge() at merge time.
+    main_commit = _api("GET", f"/repos/{REPO}/git/commits/{main_sha}", token)
+    empty_commit = _api("POST", f"/repos/{REPO}/git/commits", token, {
+        "message": f"CARD-XXX: {_title_line(message, 60)}",
+        "tree": main_commit["tree"]["sha"],
+        "parents": [main_sha],
     })
-
-    current = _api("GET", f"/repos/{REPO}/contents/kanban-board.md?ref={BRANCH_BASE}", token)
-    text = base64.b64decode(current["content"]).decode("utf-8")
-
-    # CARD-XXX placeholder -- never reads or touches the next-card-id marker
-    # line, see the module docstring for why. Real number assigned at merge
-    # time by resolve_and_merge().
-    insert_at = text.index("---\n\n") + len("---\n\n")
-    new_text = text[:insert_at] + _render_stub("CARD-XXX", component, message, now) + text[insert_at:]
-
-    _api("PUT", f"/repos/{REPO}/contents/kanban-board.md", token, {
-        "message": f"CARD-XXX: auto-open from {component} maintenance check",
-        "content": base64.b64encode(new_text.encode("utf-8")).decode("ascii"),
-        "sha": current["sha"],
-        "branch": branch,
+    _api("POST", f"/repos/{REPO}/git/refs", token, {
+        "ref": f"refs/heads/{branch}", "sha": empty_commit["sha"],
     })
 
     pr = _api("POST", f"/repos/{REPO}/pulls", token, {
@@ -146,9 +199,12 @@ def open_finding_pr(component, message, fingerprint, token, state):
         "base": BRANCH_BASE,
         "body": f"Auto-opened by {component}'s maintenance check (CARD-0128).\n\n"
                 f"Finding:\n```\n{message}\n```\n\n"
-                f"Card number is a placeholder (`CARD-XXX`) -- real numbering is "
-                f"assigned at merge time, not here, to avoid a race between "
-                f"concurrent findings from different hosts. See resolve_and_merge().",
+                f"Card number is a placeholder (`CARD-XXX`) -- real numbering, and the "
+                f"actual kanban-board.md insertion, both happen at merge time (CARD-0190), "
+                f"not here, to avoid a race between concurrent findings from different "
+                f"hosts and to sidestep kanban-board.md's size on every single open. "
+                f"See resolve_and_merge(). This PR intentionally shows no file changes "
+                f"until then.",
     })
 
     new_state = dict(state)
@@ -157,46 +213,59 @@ def open_finding_pr(component, message, fingerprint, token, state):
     return new_state, pr["html_url"]
 
 
+_FINDING_BODY_RE = re.compile(
+    r"Auto-opened by (?P<component>.+?)'s maintenance check.*?"
+    r"Finding:\n```\n(?P<message>.*?)\n```\n\n",
+    re.DOTALL,
+)
+_BRANCH_TS_RE = re.compile(r"-(\d{4}-\d{2}-\d{2}-\d{6})$")
+
+
 def resolve_and_merge(pr_number, token, merge_method="squash"):
     """Interactive-use only (Claude, when asked to merge a CARD-0128 PR) --
     not called by the deployed scripts. Reads main's next-card-id marker
-    *now* (not whenever the PR happened to be opened), replaces the
-    placeholder with the real ID, sets the marker correctly, pushes a
-    fixup commit on the PR's own branch, then merges -- so the commit
-    that actually lands on main is already fully correct, never a moment
-    where main shows a literal CARD-XXX. Returns the assigned card_id.
+    *now* (not whenever the PR happened to be opened), renders the real
+    stub, pushes a fixup commit on the PR's own branch, then merges -- so
+    the commit that actually lands on main is already fully correct, never
+    a moment where main shows a literal CARD-XXX. Returns the assigned
+    card_id.
 
-    Rebases onto main's *current* content, not the branch's own stale
-    copy -- caught live 2026-07-31 merging two same-session PRs back to
-    back: the first version of this function pushed the branch's entire
-    file content as the fixup, which would have silently reverted the
-    first PR's already-merged card, since the second PR's branch was
-    forked before that merge happened. Now extracts only this PR's own
-    stub block from its branch (stable regardless of main's drift) and
-    re-inserts *that* into a fresh read of main, rather than trusting
-    the branch's full file to still be current."""
-    main_current = _api("GET", f"/repos/{REPO}/contents/kanban-board.md?ref={BRANCH_BASE}", token)
-    main_text = base64.b64decode(main_current["content"]).decode("utf-8")
+    CARD-0190: open_finding_pr() no longer writes a stub into the branch at
+    all (that required reading/writing kanban-board.md at open time, which
+    broke once the file crossed GitHub's 1MB Contents API content-size
+    limit) -- the branch is just an empty commit, and the finding's
+    component/message live only in the PR's own title/body. This function
+    now parses those back out of the PR body and renders the stub fresh via
+    _render_stub(), against a freshly-read `main` (same "never trust a
+    stale copy" discipline the original 2026-07-31 fix established, now
+    simpler since there's no branch-side stub content to reconcile against
+    at all -- only main's kanban-board.md is ever read for content)."""
+    pr = _api("GET", f"/repos/{REPO}/pulls/{pr_number}", token)
+    branch = pr["head"]["ref"]
+
+    body_match = _FINDING_BODY_RE.search(pr.get("body") or "")
+    if not body_match:
+        raise ValueError(f"PR #{pr_number}: could not parse component/finding from its body")
+    component = body_match.group("component")
+    message = body_match.group("message")
+
+    # Recover the original raised-at time from the branch name's own
+    # "-YYYY-MM-DD-HHMMSS" suffix (already embedded there since
+    # open_finding_pr() builds the branch name from it) so the rendered
+    # stub's "Auto-generated {ts}" line reflects when the finding actually
+    # happened, not when it happened to get merged.
+    ts_match = _BRANCH_TS_RE.search(branch)
+    now = (
+        datetime.strptime(ts_match.group(1), "%Y-%m-%d-%H%M%S").replace(tzinfo=timezone.utc)
+        if ts_match else datetime.now(timezone.utc)
+    )
+
+    main_text = _get_file_text("kanban-board.md", BRANCH_BASE, token)
     m = re.search(r"<!-- next-card-id: (CARD-\d{4}) -->", main_text)
     card_id = m.group(1)
     next_marker = f"CARD-{int(card_id[5:]) + 1:04d}"
 
-    pr = _api("GET", f"/repos/{REPO}/pulls/{pr_number}", token)
-    branch = pr["head"]["ref"]
-
-    branch_current = _api("GET", f"/repos/{REPO}/contents/kanban-board.md?ref={branch}", token)
-    branch_text = base64.b64decode(branch_current["content"]).decode("utf-8")
-
-    # Extract just this PR's own stub -- the exact block _render_stub()
-    # produced, identified by its unique "### <id> \xb7 ... \n\n---\n\n"
-    # shape, non-greedy so it stops at the stub's own closing separator
-    # rather than swallowing whatever follows it in the branch's copy.
-    # Matches CARD-XXX *or* an already-assigned CARD-\d{4} -- idempotent
-    # against a prior partial/failed resolve_and_merge attempt having
-    # already resolved the placeholder before failing at the merge step
-    # (confirmed live 2026-07-31: a merge-conflict retry hit exactly this).
-    stub_match = re.search(r"### (?:CARD-XXX|CARD-\d{4}) \xb7 .*?\n\n---\n\n", branch_text, re.DOTALL)
-    stub = re.sub(r"^### CARD-(?:XXX|\d{4}) \xb7 ", f"### {card_id} \xb7 ", stub_match.group(0))
+    stub = _render_stub(card_id, component, message, now)
 
     new_main_text = main_text.replace(
         f"<!-- next-card-id: {card_id} -->", f"<!-- next-card-id: {next_marker} -->", 1,
@@ -204,10 +273,11 @@ def resolve_and_merge(pr_number, token, merge_method="squash"):
     insert_at = new_main_text.index("---\n\n") + len("---\n\n")
     new_main_text = new_main_text[:insert_at] + stub + new_main_text[insert_at:]
 
+    branch_file_sha = _blob_sha_at("kanban-board.md", branch, token)
     _api("PUT", f"/repos/{REPO}/contents/kanban-board.md", token, {
         "message": f"{card_id}: assign real card number at merge",
         "content": base64.b64encode(new_main_text.encode("utf-8")).decode("ascii"),
-        "sha": branch_current["sha"],
+        "sha": branch_file_sha,
         "branch": branch,
     })
 
@@ -235,12 +305,12 @@ def resolve_and_merge(pr_number, token, merge_method="squash"):
         main_sha2 = main_ref2["object"]["sha"]
         branch_ref2 = _api("GET", f"/repos/{REPO}/git/refs/heads/{branch}", token)
         branch_sha2 = branch_ref2["object"]["sha"]
-        branch_current2 = _api("GET", f"/repos/{REPO}/contents/kanban-board.md?ref={branch}", token)
+        branch_file_sha2 = _blob_sha_at("kanban-board.md", branch, token)
         main_commit2 = _api("GET", f"/repos/{REPO}/git/commits/{main_sha2}", token)
         new_tree = _api("POST", f"/repos/{REPO}/git/trees", token, {
             "base_tree": main_commit2["tree"]["sha"],
             "tree": [{"path": "kanban-board.md", "mode": "100644", "type": "blob",
-                      "sha": branch_current2["sha"]}],
+                      "sha": branch_file_sha2}],
         })
         merge_commit = _api("POST", f"/repos/{REPO}/git/commits", token, {
             "message": f"Merge {BRANCH_BASE} into {branch} ({card_id} conflict workaround)",

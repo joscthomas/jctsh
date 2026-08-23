@@ -1373,7 +1373,14 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       var sizeInfo = formatSize(data.sizeBytes);
       sizeEl.textContent = sizeInfo.text;
       sizeEl.className = 'size-dot' + (sizeInfo.tier ? ' ' + sizeInfo.tier : '');
-      sizeEl.title = 'kanban-board.md size — green: fits a normal read; yellow: over 256KB; red: over GitHub\'s 1MB API limit (CARD-0190)';
+      sizeEl.title =
+        'kanban-board.md size. Green: under 256KB, nothing to do. Yellow: over ' +
+        'Claude\'s own comfortable-read size (256KB) but no real risk -- not ' +
+        'urgent, GitHub\'s API can handle up to 100MB since CARD-0190\'s fix. ' +
+        'Red: over 1MB, the size that actually broke the auto-PR pipeline once ' +
+        '(CARD-0190) -- that specific failure is fixed now too, but red still ' +
+        'means "run tos/archive_cards.py soon," since there\'s no good reason ' +
+        'to keep growing past the size that already caused a real incident.';
       // Skip the rebuild entirely when the board hasn't actually changed since
       // the last poll — this is the common case (nothing edited in the last
       // 30s) and avoids any disruption at all, not just a preserved-state one.

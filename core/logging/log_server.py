@@ -867,11 +867,33 @@ def _parse_kanban_board(text):
     return cards
 
 
+_KANBAN_CACHE_TTL = 20  # seconds
+_kanban_cache_lock = threading.Lock()
+_kanban_cache = {"cards": None, "fetched_at": 0.0}
+
+
 def _load_kanban_cards():
-    """Pull kanban-board.md straight from GitHub (public repo) on every
-    request — no local copy on the Pi, no push/scp/hook needed. Freshness
-    is tied to `git push`, not to individual edits. Returns None on any
-    network failure (offline, GitHub down, rate-limited, etc.)."""
+    """Pull kanban-board.md from GitHub (public repo) and parse it, with a
+    short TTL cache (CARD-0193) -- the /kanban page's own client JS polls
+    `/kanban/data` every 30s for as long as a tab stays open (see `load()`'s
+    `setInterval`), and this function used to re-fetch and re-parse the
+    entire raw file (1.15MB+ and growing) on every single one of those
+    calls, unconditionally, with no cache at all. A 20s TTL means repeat
+    polls from the same or multiple open tabs mostly hit the cache instead
+    of hammering GitHub raw + re-parsing every time, while staying well
+    under the client's own 30s poll interval so a real edit is never more
+    than one poll cycle stale. Freshness is still ultimately tied to
+    `git push`, not individual edits -- this only bounds how often that
+    push gets *checked for*, not how fresh a check can be. Returns None on
+    any network failure (offline, GitHub down, rate-limited, etc.); a
+    failure does not fall back to a stale cache -- same "surface the
+    failure" behavior as before, just added caching on the success path."""
+    now = time.monotonic()
+    with _kanban_cache_lock:
+        if (_kanban_cache["cards"] is not None
+                and now - _kanban_cache["fetched_at"] < _KANBAN_CACHE_TTL):
+            return _kanban_cache["cards"]
+
     try:
         req = urllib.request.Request(
             KANBAN_RAW_URL, headers={"Cache-Control": "no-cache"}
@@ -880,7 +902,12 @@ def _load_kanban_cards():
             text = resp.read().decode("utf-8")
     except (urllib.error.URLError, OSError, UnicodeDecodeError):
         return None
-    return _parse_kanban_board(text)
+
+    cards = _parse_kanban_board(text)
+    with _kanban_cache_lock:
+        _kanban_cache["cards"] = cards
+        _kanban_cache["fetched_at"] = now
+    return cards
 
 
 _KANBAN_TEMPLATE = r"""<!DOCTYPE html>

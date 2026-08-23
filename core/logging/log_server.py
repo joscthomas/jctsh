@@ -14,6 +14,7 @@ import signal
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import deque
 from datetime import datetime
@@ -910,6 +911,65 @@ def _load_kanban_cards():
     return cards
 
 
+# ── On-demand archived-card detail (CARD-0193) ──────────────────────────────
+# archive_cards.py moves a Done/Defer card's full text out of kanban-board.md
+# into a component/core/tos CLAUDE.md (or a dated archive file), leaving a
+# stub with an "Archived to `<path>`" pointer. This lets the /kanban page
+# fetch and show that archived text on demand -- one small, single-file
+# fetch triggered by an explicit click, not automatic inlining on every page
+# load (which would reintroduce this whole card's own size/fragility
+# problem, just spread across every component doc instead of one file).
+_ARCHIVE_PATH_ALLOWED_PREFIXES = ("components/", "core/", "hosts/", "tos/")
+_ARCHIVE_CACHE_TTL = 60  # seconds -- archived files change far less often than the live board
+_archive_detail_cache_lock = threading.Lock()
+_archive_detail_cache = {}  # (path, card_id) -> (markdown_or_None, fetched_at)
+
+
+def _archive_card_re(card_id):
+    # Captures an optional preceding "**Archived from ...**" provenance line
+    # plus the card's own "### CARD-<id> · ..." block, stopping at the next
+    # "### CARD-" entry, the next top-level "## " heading, or EOF -- the same
+    # boundary shape archive_cards.py's own CARD_HISTORY_HEADING sections use.
+    return re.compile(
+        r"(?:\*\*Archived from[^\n]*\n\n)?(### CARD-" + re.escape(card_id) + r" ·.*?)"
+        r"(?=\n### CARD-|\n## |\Z)",
+        re.DOTALL,
+    )
+
+
+def _fetch_archived_card(path, card_id):
+    """Fetch `path` from GitHub raw and extract just the named card's own
+    archived text. Returns None on any network failure, an invalid/unsafe
+    path, or if the card isn't found in that file -- the caller renders a
+    plain "not found" message for all of these rather than distinguishing
+    them, since none of them are actionable by the person clicking a link."""
+    if ".." in path or not path.startswith(_ARCHIVE_PATH_ALLOWED_PREFIXES) or not path.endswith(".md"):
+        return None
+    if not re.fullmatch(r"\d{4}", card_id):
+        return None
+
+    key = (path, card_id)
+    now = time.monotonic()
+    with _archive_detail_cache_lock:
+        cached = _archive_detail_cache.get(key)
+        if cached is not None and now - cached[1] < _ARCHIVE_CACHE_TTL:
+            return cached[0]
+
+    url = "https://raw.githubusercontent.com/joscthomas/jctsh/main/" + path
+    try:
+        req = urllib.request.Request(url, headers={"Cache-Control": "no-cache"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            text = resp.read().decode("utf-8")
+    except (urllib.error.URLError, OSError, UnicodeDecodeError):
+        return None
+
+    m = _archive_card_re(card_id).search(text)
+    result = m.group(1).strip() if m else None
+    with _archive_detail_cache_lock:
+        _archive_detail_cache[key] = (result, now)
+    return result
+
+
 _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1178,11 +1238,25 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       });
     });
   }
+  // CARD-0193: a stub left by archive_cards.py reads "Archived to `<path>`
+  // on ..." in its notes -- detect that shape to offer an on-demand fetch
+  // of the full archived text, rather than the page trying to keep it
+  // inline for every such card on every load.
+  var ARCHIVE_NOTE_RE = /Archived to `([^`]+)` on/;
   function cardHtml(card) {
     var flags = '';
     if (card.flag && flagLabels[card.flag]) {
       flags += '<span class="flag" data-flag="' + card.flag + '">' + flagLabels[card.flag] + '</span>';
     }
+    var archiveMatch = ARCHIVE_NOTE_RE.exec(card.notes);
+    // Link + empty target only -- nothing is fetched until the link is
+    // actually clicked (see the click handler in render()), so an archived
+    // card's full text is never pulled down just because the page loaded
+    // or its <details> got expanded.
+    var archiveBlock = archiveMatch
+      ? '<button type="button" class="archive-link" data-archive-path="' + escapeHtml(archiveMatch[1]) + '" data-archive-card="' + card.id + '">Show archived detail &rsaquo;</button>' +
+        '<div class="archive-detail"></div>'
+      : '';
     return (
       '<details class="card" data-type="' + card.type + '" data-id="' + card.id + '">' +
         '<summary>' +
@@ -1193,7 +1267,7 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
           '<span class="ctitle">' + escapeHtml(card.title) + '</span>' +
           (flags ? '<span class="cmeta">' + flags + '</span>' : '') +
         '</summary>' +
-        '<div class="card__detail">' + mdToHtml(card.notes) + '</div>' +
+        '<div class="card__detail">' + mdToHtml(card.notes) + archiveBlock + '</div>' +
       '</details>'
     );
   }
@@ -1240,6 +1314,30 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     });
     board.querySelectorAll('details.card').forEach(function (d) {
       if (openIds[d.getAttribute('data-id')]) d.setAttribute('open', '');
+    });
+    // CARD-0193: fetch is deliberately only triggered from inside this click
+    // handler -- nothing above (render, the periodic 30s reload, expanding
+    // a card's <details>) ever calls /kanban/archive-detail on its own.
+    board.querySelectorAll('.archive-link').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var path = btn.getAttribute('data-archive-path');
+        var cardId = btn.getAttribute('data-archive-card');
+        var target = btn.nextElementSibling;
+        btn.disabled = true;
+        btn.textContent = 'Loading…';
+        fetch('/kanban/archive-detail?path=' + encodeURIComponent(path) + '&card=' + encodeURIComponent(cardId))
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            btn.remove();
+            target.innerHTML = data.found
+              ? mdToHtml(data.markdown)
+              : '<p class="dim">Could not load archived detail.</p>';
+          })
+          .catch(function () {
+            btn.disabled = false;
+            btn.textContent = 'Show archived detail (failed, retry) ›';
+          });
+      });
     });
     window.scrollTo(0, scrollY);
     document.getElementById('metaCount').textContent = CARDS.length;
@@ -1510,6 +1608,21 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             fetched = datetime.now(_TZ).strftime("%Y-%m-%d %H:%M %Z")
             body = json.dumps({"cards": cards, "updated": fetched}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/kanban/archive-detail?"):
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            path = (query.get("path") or [""])[0]
+            card_id = (query.get("card") or [""])[0]
+            markdown = _fetch_archived_card(path, card_id)
+            body = json.dumps({
+                "found": markdown is not None,
+                "markdown": markdown or "",
+            }).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))

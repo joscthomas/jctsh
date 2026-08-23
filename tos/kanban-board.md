@@ -13,7 +13,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0193 · [idea] [infrastructure] Kanban board scaling strategy — RESOLVED 2026-08-22 20:17 MST
+### CARD-0193 · [idea] [tos] Kanban board scaling strategy — RESOLVED 2026-08-22 20:17 MST
 **Status:** Done
 
 **Closed 2026-08-22 20:17 MST.** Every design point built, deployed, and live-tested: the `log_server.py` caching fix (7x faster repeat polls); `archive_cards.py` (size-primary trigger, `--force`, `--apply`, provenance annotations); a real archiving run (27 cards, `kanban-board.md` 1.18MB → 731KB, all six retagging fixes applied); the on-demand archived-detail lookup in `/kanban`; and a green/yellow/red size indicator on the board header tied to the two real thresholds (256KB Read-tool cap, 1MB GitHub API cap) that this whole card was about in the first place. All previously-open decisions confirmed: 90-day secondary age backup, un-archiving moves a card back to the live file, the dated archive stays one file (`tos/kanban-archive.md`), and the tool stays manual with a periodic Session Start reminder rather than a timer. **Reflection (per `JCTsh-Operating-System.md`'s Build → Done requirement):** the durable knowledge from this card lives in three places that will actually be read again — `tos/README.md` (the system overview), `CLAUDE.md`'s Session Start (the "don't forget" mechanism), and `archive_cards.py`'s own docstring (every design decision and why, next to the code it governs) — not just in this card's own history.
@@ -69,7 +69,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0191 · [idea] [infrastructure] Consolidate TOS (Team Operating System) tooling into its own directory — RESOLVED 2026-08-22 18:54 MST
+### CARD-0191 · [idea] [tos] Consolidate TOS (Team Operating System) tooling into its own directory — RESOLVED 2026-08-22 18:54 MST
 **Status:** Done
 
 **Confirmed 2026-08-22 18:40 MST (Joseph):** move `kanban-board.md` into `tos/` along with everything else — the recommendation below proceeds as written, not the "leave it at root" alternative.
@@ -112,7 +112,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0190 · [bug] [infrastructure] Auto-opened kanban PRs (CARD-0128/CARD-0173) broken by kanban-board.md crossing GitHub's 1MB Contents API limit — RESOLVED 2026-08-22 17:48 MST
+### CARD-0190 · [bug] [tos] Auto-opened kanban PRs (CARD-0128/CARD-0173) broken by kanban-board.md crossing GitHub's 1MB Contents API limit — RESOLVED 2026-08-22 17:48 MST
 **Status:** Done
 
 **Raised 2026-08-22 17:36 MST (Joseph), found live** — used the "Log Idea" Tasker widget (CARD-0173) while hiking; no PR appeared. `hike-izer-orchestrator` logs showed `Idea webhook: open_finding_pr failed: substring not found` at 14:39 UTC the same day.
@@ -416,7 +416,7 @@ Real caveats before this becomes the plan (not yet resolved): unofficial/unsuppo
 
 ---
 
-### CARD-0177 · [enhancement] [infrastructure] Back up Pi1's HA + Mosquitto state to the M8 — RESOLVED 2026-08-16 18:50 MST
+### CARD-0177 · [enhancement] [maintenance] Back up Pi1's HA + Mosquitto state to the M8 — RESOLVED 2026-08-16 18:50 MST
 
 **Status:** Done
 
@@ -537,7 +537,7 @@ Real caveats before this becomes the plan (not yet resolved): unofficial/unsuppo
 
 ---
 
-### CARD-0173 · [idea] [core] Voice input for a new kanban card from my phone — auto-opened from jctsh-core — RESOLVED 2026-08-16 20:20 MST
+### CARD-0173 · [idea] [tos] Voice input for a new kanban card from my phone — auto-opened from jctsh-core — RESOLVED 2026-08-16 20:20 MST
 
 **Status:** Done
 
@@ -778,7 +778,7 @@ This is the nginx reverse-proxy trust setting from CARD-0096/CARD-0141's HTTPS w
 
 ---
 
-### CARD-0165 · [enhancement] [voice] Ask Google Home for the front porch temperature — RESOLVED 2026-08-14
+### CARD-0165 · [enhancement] [front-porch-temp-sensor] Ask Google Home for the front porch temperature — RESOLVED 2026-08-14
 **Status:** Done
 
 **Raised 2026-08-14, mid-CARD-0159 session.** Voice query — "Hey Google, what's the front porch temperature?" — should answer from the existing sensor, no new hardware.
@@ -858,7 +858,7 @@ Deployed (`scp` + `sudo systemctl restart jctsh-logging`), confirmed clean resta
 
 ---
 
-### CARD-0162 · [enhancement] [infrastructure] PR-to-kanban-card landing process for CARD-0128 auto-opened findings — RESOLVED 2026-08-14 07:28 MST
+### CARD-0162 · [enhancement] [tos] PR-to-kanban-card landing process for CARD-0128 auto-opened findings — RESOLVED 2026-08-14 07:28 MST
 **Status:** Done
 
 **Raised 2026-08-14 07:28 MST**, from working the Cloudflare/NetAlertX findings (CARD-0160, CARD-0161). Those PRs exposed two real gaps: `open_kanban_pr.py`'s `resolve_and_merge()` only ever renumbers the auto-generated one-line stub — no interview, no real acceptance criteria — and, separately, a live incident where a PR got merged via a "test" API call meant only to inspect an error message, without asking first, right after being explicitly told to ask before acting on PRs.
@@ -921,7 +921,7 @@ Deployed (`scp` + `sudo systemctl restart jctsh-logging`), confirmed clean resta
 
 ---
 
-### CARD-0159 · [enhancement] [infrastructure] Move Docker's data-root from the Pi's SD card to the existing USB drive — RESOLVED 2026-08-14 14:36 MST
+### CARD-0159 · [enhancement] [docker] Move Docker's data-root from the Pi's SD card to the existing USB drive — RESOLVED 2026-08-14 14:36 MST
 **Status:** Done
 
 **Raised 2026-08-13 21:30 MST**, during CARD-0130's HA image update — a pull failed mid-download (`short read: ... unexpected EOF`, a transient registry hiccup, unrelated to this card) and Joseph asked what a USB drive on the Pi would actually buy, prompted by seeing Docker's data-root (`/var/lib/docker`) sitting on the SD card mid-pull.
@@ -959,7 +959,7 @@ Deployed (`scp` + `sudo systemctl restart jctsh-logging`), confirmed clean resta
 
 ---
 
-### CARD-0158 · [enhancement] [infrastructure] Automated post-reboot health check on the Device Status dashboard — RESOLVED 2026-08-17 12:14 MST
+### CARD-0158 · [enhancement] [maintenance] Automated post-reboot health check on the Device Status dashboard — RESOLVED 2026-08-17 12:14 MST
 **Status:** Done
 
 **Raised 2026-08-13 20:53 MST**, during CARD-0129's close-out. That card's pre-check found the Pi had already been rebooted 3 days earlier by its own `scheduled-reboot.timer` (2026-08-10) with nobody noticing — the reboot happened to go fine, but nothing would have surfaced it if it hadn't. Current coverage: the watchdog/heartbeat system (`core/logging/log_server.py` + Node-RED watchdog flow) catches MQTT/Node-RED/log-server going silent, but nothing watches Docker/container health specifically after a reboot — a bad `homeassistant` container recovery, for instance, would go unnoticed until someone happened to check by hand.
@@ -1177,7 +1177,7 @@ Full build history (including the dead ends) written up in `hiking-monitor-claud
 
 ---
 
-### CARD-0151 · [idea] [core] Remote creation of kanban cards from phone
+### CARD-0151 · [idea] [tos] Remote creation of kanban cards from phone
 **Status:** Done
 
 **Raised 2026-08-12 05:48 MST**, from Joseph wanting to open a new kanban card while away from this machine (from his phone), rather than needing to be sitting at a Claude Code session.
@@ -1557,7 +1557,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 12781
 
 ---
 
-### CARD-0132 · [enhancement] [infrastructure] Extend CARD-0127's retained Pending-Update state to the generic container-image checker (HA, NetAlertX, Caddy, cloudflared)
+### CARD-0132 · [enhancement] [logging] Extend CARD-0127's retained Pending-Update state to the generic container-image checker (HA, NetAlertX, Caddy, cloudflared)
 **Status:** Done
 
 **Raised 2026-08-01**, from Joseph noticing the `/status` Device Status page looked inconsistent: `jctsh-core` had logged "Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1)" 14h ago, but its Pending Update column showed `—`, while `photo-server` correctly showed `immich: v3.1.0 available` in the same column for its own real pending update.
@@ -1645,7 +1645,7 @@ update.
 
 ---
 
-### CARD-0129 · [enhancement] [infrastructure] Apply Pi's remaining Docker/kernel packages and reboot — RESOLVED 2026-08-13 20:51 MST
+### CARD-0129 · [enhancement] [maintenance] Apply Pi's remaining Docker/kernel packages and reboot — RESOLVED 2026-08-13 20:51 MST
 **Status:** Done
 
 **Blocked — deferred until Joseph is physically home (2026-07-31).** Same reasoning as CARD-0096's own block: the Pi is the household coordination hub (MQTT broker, Node-RED, HA, log server), Joseph is remote as of this writing, and this specific action (a Docker daemon restart plus a full reboot) is exactly the class of higher-stakes change that mitigation exists for — if Tailscale hiccups mid-action (already happened once this session), being on the home LAN removes it as a dependency for the recovery path.
@@ -1720,7 +1720,7 @@ Archived to `core/logging/CLAUDE.md` on 2026-08-22 (CARD-0193) — 10597B, over 
 
 ---
 
-### CARD-0126 · [enhancement] [infrastructure] Container-image update visibility for floating-tag services (NetAlertX, HA, Caddy, cloudflared)
+### CARD-0126 · [enhancement] [maintenance] Container-image update visibility for floating-tag services (NetAlertX, HA, Caddy, cloudflared)
 **Status:** Done
 
 **Notes:** Raised 2026-07-31, surfaced while explaining CARD-0095's monthly maintenance cycle to Joseph. Immich already has real update visibility — `components/photo-server/immich-update-check.py` compares actual version numbers via Immich's own API and notifies on the log dashboard, notify-only, no auto-apply. Everything else running in Docker across the stack has none at all:
@@ -2505,7 +2505,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 18619
 
 ---
 
-### CARD-0098 · [enhancement] [traveling-lights] Randomized/staggered occupancy-simulation lighting while traveling — RESOLVED 2026-07-28
+### CARD-0098 · [enhancement] [traveling] Randomized/staggered occupancy-simulation lighting while traveling — RESOLVED 2026-07-28
 **Status:** Done
 
 **Raised 2026-07-25**, prompted by Joseph asking how feasible an HA lights-while-traveling automation would be, then asking to build it now. New HA-only component, `components/traveling-lights/` (README.md + CLAUDE.md), following the `garage-presence` precedent for HA-only components with no hardware.
@@ -2801,7 +2801,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 18619
 
 ---
 
-### CARD-0099 · [bug] [core] Timeline sheet's `timestamp_az` column hardcodes Arizona local time for every row, regardless of where it happened — RESOLVED 2026-07-25
+### CARD-0099 · [bug] [data-pipeline] Timeline sheet's `timestamp_az` column hardcodes Arizona local time for every row, regardless of where it happened — RESOLVED 2026-07-25
 **Status:** Done
 
 **Raised 2026-07-25**, discovered while confirming CARD-0097's fix — Joseph asked "are there any other columns in any sheet so named," which surfaced this second, more serious instance of the same standing principle ([[feedback_no_location_assumptions]]).
@@ -3119,7 +3119,7 @@ Archived to `components/hiking-monitor/CLAUDE.md` on 2026-08-22 (CARD-0193) — 
 
 ---
 
-### CARD-0069 · [bug] [infrastructure] log_server.py silently drops heartbeat-only components' messages — RESOLVED 2026-07-15
+### CARD-0069 · [bug] [logging] log_server.py silently drops heartbeat-only components' messages — RESOLVED 2026-07-15
 **Status:** Done
 
 **Notes:** Raised 2026-07-15, found while checking on CARD-0068's netalertx changes at Xerocraft (accessed remotely via Tailscale). `netalertx` appeared completely silent on the log dashboard since 20:36 the prior evening — 14+ hours, no heartbeat displayed anywhere — despite `/status` showing it "Online, 4m ago." Root-caused directly on the Pi (SSH via Tailscale), not guessed:
@@ -3162,7 +3162,7 @@ All five flushed cleanly with formatting identical to the pre-fix collapse patte
 
 ---
 
-### CARD-0060 · [bug] [infrastructure] Pi running in active soft thermal throttling &mdash; no cooling &mdash; RESOLVED 2026-07-15
+### CARD-0060 · [bug] [pi1] Pi running in active soft thermal throttling &mdash; no cooling &mdash; RESOLVED 2026-07-15
 **Status:** Done
 
 **Notes:** Found 2026-07-12 during a Pi health evaluation. `vcgencmd get_throttled` returns `0x80008` (bit 3: soft temperature limit *currently active*; bit 19: has occurred) at a measured 63&ndash;64&deg;C, confirmed on two separate checks. No under-voltage bits set &mdash; power supply is fine, this is purely thermal. No heatsink/fan apparent on this Pi 3B+. Likely compounded by an enclosed/warm install location, matching the pattern of other JCTsh closet-installed devices (photo-server M8, KeepConnect).
@@ -3306,7 +3306,7 @@ Updated `salt-sensor.yaml` (wiring comment + `output:` block), `components/salt-
 
 ---
 
-### CARD-0003 · [enhancement] [infrastructure] TLS for Mosquitto (port 8883) — RESOLVED 2026-07-13
+### CARD-0003 · [enhancement] [mqtt] TLS for Mosquitto (port 8883) — RESOLVED 2026-07-13
 **Status:** Done
 
 **Notes:** Port 1883 is internet-exposed via DuckDNS/port-forward with fail2ban, but credentials and sensor data are cleartext for any device using that path. TLS on 8883 eliminates this — scoped as a **split-port design**, not a fleet-wide switch: 1883 stays plaintext and LAN-only (not forwarded through the router), continuing to serve stationary home devices (garage-radar, salt-sensor, front-porch-temp-sensor, remote-temp-sensor-01, etc.) with no `secrets.yaml`/firmware changes needed. 8883 (TLS) becomes the *only* port forwarded via DuckDNS, used exclusively by devices that actually leave the home network — hiking-monitor today, air-quality-monitor once built (CARD-0012, "carried on hikes alongside the hiking monitor"). Steps: get Let's Encrypt cert for the DuckDNS hostname (certbot with duckdns plugin), add a TLS listener on port 8883 in mosquitto.conf, change the router port-forward from 1883→8883, add CA-cert trust config + updated broker port to the remote-capable devices' `secrets.yaml`/`mqtt:` block, reflash those devices only, update Node-RED broker node / HA MQTT integration if either connects over the forwarded path. CARD-0002 prerequisite complete.
@@ -3383,7 +3383,7 @@ Two real deploy bugs found and fixed: (1) my first compose file was based on a l
 
 ---
 
-### CARD-0057 · [enhancement] [kanban-board] Serve the kanban board as a live-parsing Pi page — RESOLVED 2026-07-11
+### CARD-0057 · [enhancement] [logging] Serve the kanban board as a live-parsing Pi page — RESOLVED 2026-07-11
 **Status:** Done
 
 **Notes:** Raised 2026-07-11. The manual regenerate-after-edit discipline agreed to when closing CARD-0056 is already slipping — updates to `kanban-board.md` aren't reliably followed by a republish. That's exactly the condition CARD-0056 named as the trigger to revisit this alternative, and it's now been hit. There's a second, measured cost beyond just forgetting: a regenerate cycle means re-reading the full ~600-line file (multiple large reads once the board grows) plus manually cross-checking it against the embedded JSON, which alone runs over 20k tokens — expensive as well as easy to skip.

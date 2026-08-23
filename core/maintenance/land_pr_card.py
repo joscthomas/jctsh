@@ -83,6 +83,41 @@ def _api(method, path, token, body=None):
         return json.loads(raw) if raw else {}
 
 
+def _get_file_text(path, ref, token):
+    """Raw text content of `path` at `ref` (CARD-0190). GitHub's Contents API
+    only populates the JSON `content` field for files under 1MB --
+    kanban-board.md crossed that in August 2026, and this script duplicated
+    the same broken base64.b64decode(current["content"]) pattern
+    open_kanban_pr.py's resolve_and_merge() had (confirmed live via that
+    identical failure mode). The `application/vnd.github.raw` media type
+    bypasses the JSON+base64 envelope entirely and works up to 100MB."""
+    req = urllib.request.Request(
+        f"{API}/repos/{REPO}/contents/{path}?ref={ref}", method="GET",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github.raw",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return resp.read().decode("utf-8")
+
+
+def _blob_sha_at(path, ref, token):
+    """Current blob sha for `path` at `ref` (CARD-0190), via the Git Data API
+    tree lookup rather than the Contents API's metadata `sha` field -- same
+    fix as open_kanban_pr.py's helper of the same name, kept as a local
+    duplicate here since this script is deliberately standalone (see module
+    docstring)."""
+    ref_data = _api("GET", f"/repos/{REPO}/git/refs/heads/{ref}", token)
+    commit = _api("GET", f"/repos/{REPO}/git/commits/{ref_data['object']['sha']}", token)
+    tree = _api("GET", f"/repos/{REPO}/git/trees/{commit['tree']['sha']}", token)
+    for entry in tree["tree"]:
+        if entry["path"] == path:
+            return entry["sha"]
+    raise FileNotFoundError(f"{path} not found in {ref}'s tree")
+
+
 def _put_merge(pr_number, token, commit_title, merge_method, attempts, delay):
     """One merge attempt, retried -- GitHub computes PR mergeability
     asynchronously. Confirmed live landing CARD-0160 (PR #11): an
@@ -148,12 +183,12 @@ def _merge_with_retry(pr_number, branch, commit_title, token, attempts=8, delay=
     main_sha = main_ref["object"]["sha"]
     branch_ref = _api("GET", f"/repos/{REPO}/git/refs/heads/{branch}", token)
     branch_sha = branch_ref["object"]["sha"]
-    branch_content = _api("GET", f"/repos/{REPO}/contents/kanban-board.md?ref={branch}", token)
+    branch_file_sha = _blob_sha_at("kanban-board.md", branch, token)
     main_commit = _api("GET", f"/repos/{REPO}/git/commits/{main_sha}", token)
     new_tree = _api("POST", f"/repos/{REPO}/git/trees", token, {
         "base_tree": main_commit["tree"]["sha"],
         "tree": [{"path": "kanban-board.md", "mode": "100644", "type": "blob",
-                  "sha": branch_content["sha"]}],
+                  "sha": branch_file_sha}],
     })
     merge_commit = _api("POST", f"/repos/{REPO}/git/commits", token, {
         "message": f"Merge {BRANCH_BASE} into {branch} ({commit_title} conflict workaround)",
@@ -170,8 +205,7 @@ def land_pr_card(pr_number, card_body_template, token):
         raise SystemExit(f"PR #{pr_number} is not open (state={pr['state']!r}) -- nothing to land.")
     branch = pr["head"]["ref"]
 
-    main_current = _api("GET", f"/repos/{REPO}/contents/kanban-board.md?ref={BRANCH_BASE}", token)
-    main_text = base64.b64decode(main_current["content"]).decode("utf-8")
+    main_text = _get_file_text("kanban-board.md", BRANCH_BASE, token)
     m = re.search(r"<!-- next-card-id: (CARD-\d{4}) -->", main_text)
     if not m:
         raise SystemExit("Couldn't find the next-card-id marker in main's kanban-board.md.")
@@ -192,14 +226,14 @@ def land_pr_card(pr_number, card_body_template, token):
     insert_at = new_main_text.index("---\n\n") + len("---\n\n")
     new_main_text = new_main_text[:insert_at] + finished_card + new_main_text[insert_at:]
 
-    branch_current = _api("GET", f"/repos/{REPO}/contents/kanban-board.md?ref={branch}", token)
+    branch_file_sha = _blob_sha_at("kanban-board.md", branch, token)
     title_line = re.sub(r"^### CARD-\d{4} \xb7 ", "", finished_card.splitlines()[0])
     commit_title = f"{card_id}: {title_line}"
 
     _api("PUT", f"/repos/{REPO}/contents/kanban-board.md", token, {
         "message": commit_title,
         "content": base64.b64encode(new_main_text.encode("utf-8")).decode("ascii"),
-        "sha": branch_current["sha"],
+        "sha": branch_file_sha,
         "branch": branch,
     })
 

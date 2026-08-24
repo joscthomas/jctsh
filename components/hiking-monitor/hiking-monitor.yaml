@@ -772,6 +772,19 @@ interval:
             id(hiking_display).update();
           } else if (id(field_display_cycle) % FIELD_DISPLAY_REFRESH_CYCLES == 0) {
             id(hiking_display).update();
+            // CARD-0196: log every actual throttled refresh, real event time
+            // (not receipt time) per this project's own event-time
+            // convention -- these ride the same flash-buffer-then-replay
+            // path as real readings, and every buffered item lands on the
+            // dashboard within the same ~1s bulk-replay burst at hike-end
+            // regardless of when it actually happened, so a bare receipt
+            // timestamp would be meaningless for confirming the ~20min
+            // cadence. `ts` is already built above from the NTP-synced
+            // clock for this same cycle's own reading.
+            char refresh_buf[64];
+            snprintf(refresh_buf, sizeof(refresh_buf),
+              "{\"event\":\"display_refresh\",\"ts\":\"%s\"}", ts);
+            hike_log_write(std::string(refresh_buf));
             id(field_display_cycle)++;
           } else {
             id(field_display_cycle)++;

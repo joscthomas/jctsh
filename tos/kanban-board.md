@@ -9,7 +9,24 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0210 -->
+<!-- next-card-id: CARD-0211 -->
+
+---
+
+### CARD-0210 · [enhancement] [hike-izer] Wildlife Life List: statistical analysis (detection frequency, trends over time) beyond the current per-species/per-hike view
+**Status:** Backlog
+
+**Raised 2026-08-24 (Joseph)**, via the "Log Idea" Tasker widget (PR #37, "statistical analysis for Life bird net page"). Interviewed same day — wants at least two kinds of stats on the Wildlife Life List page (`wildlife.html`, CARD-0142), and is open to more beyond these two:
+1. **Detection frequency / most-common-species** — a ranked view of how often each species actually shows up, not just the existing "Hikes" column (number of distinct hikes a species was heard on at all, regardless of how many times per hike).
+2. **Trends over time / seasonality** — when species are typically heard (by month/season), and/or how the life list has grown over time.
+
+**Explicitly open to further stat ideas** beyond these two, to be gathered at Planning rather than guessed at here. **Seasonality specifically flagged as interesting** (Joseph, same session) — worth weighting toward when scoping which stats to build first at Planning, not just treated as one option among equals.
+
+**What's already there vs. what's missing, checked against the current data model:** `wildlife_life_list.json` (per `wildlife_life_list.py`, CARD-0142) persists `common_name`, `scientific_name`, `first_heard_date`, `first_heard_file_stem`, and a deduped list of `hikes` — the page's "Hikes" column is just `len(hikes)`. Each individual hike's own BirdNET table (`birdnet.py`'s `parse_detections()`) already computes a **per-hike detection count** per species (the "Count" column, CARD-0080) — but that count is never carried into the cross-hike life list today, only used per-hike. Both stat ideas above would need the life list's data model extended to retain more than just "which hikes" per species (e.g. a per-hike count and date, not just a deduped hike-stem list) to compute frequency and time-based trends from.
+
+**Not yet resolved — exact presentation and full stat list:** a Planning-stage question, not decided here.
+
+**Related:** `components/hike-izer-orchestrator/wildlife_life_list.py` (the persisted cross-hike data model this would extend), `components/hike-izer/build_wildlife_index.py` (renders `wildlife.html`), `components/hike-izer-orchestrator/birdnet.py` (`parse_detections()`, the existing per-hike count this would need to aggregate), PR #37 (the original voice-captured idea this scopes).
 
 ---
 

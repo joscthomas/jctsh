@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.23
-**Version description:** Corrected Bag 35 BS250 quantity to 10 in the table (was showing 12, inconsistent with this doc's own earlier ×10 note) — also now Bin B1 per the 2026-08-20 bag-to-bin reorg.
+**Version:** 2.27
+**Version description:** Added BOJACK DS18B20 waterproof temperature probes ×2 (Sensors, new Bag 37).
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -82,6 +82,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Adafruit SEN54/SEN55 Adapter Breakout | STEMMA QT / Qwiic, I2C adapter breakout for Sensirion SEN54/SEN55. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
 | DS3231 RTC Module | HiLetgo 5pcs, high precision real time clock, I2C, 3.3V/5V, CR2032 battery backup. https://www.amazon.com/dp/B01N1LZSK3 | 5 | Bin A5 (was Bag 28) | 1 allocated: bedside-clock. |
 | JSN-SR04T-V3.0 | 2pcs, waterproof ultrasonic distance measuring sensor transducer module, integrated. https://www.amazon.com/dp/B0CP5YQF43 | 2 | Bag 30 | No project assigned. |
+| DS18B20 Waterproof Temperature Probe | BOJACK, 1M cable, stainless steel probe, digital 1-Wire. https://www.amazon.com/dp/B09NVFJYPS | 2 | Bag 37 | No project assigned. |
 | Greekcreit Sensor Module Kit for Arduino | Kit of 37 modules including: active/passive buzzer, LED modules (common cathode red/green, two-color, RGB, colorful auto flash), knock/shock/tilt/magnet-ring/hall/analogy hall/magnetic spring sensors, photo resistor, push button, infrared TX/RX, rotate encoder, light break sensor, finger pulse sensor, obstacle avoidance, tracking, microphone, laser TX, relay, analog/digital/18b20 temperature, flame, voice, humidity, joystick PS2, touch sensor | — | Plastic Box | |
 
 ---
@@ -126,6 +127,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Momentary Push Button Switch 12mm | Twidec 6pcs, PBS-33B-BK-X, 12mm, 1/2" panel mount, waterproof, pre-soldered wires, black. https://www.amazon.com/dp/B08JHW8BPV | 6 | Bin C2 (was Bag 27) | 1 allocated: bedside-clock. |
 | M3 Heat Set Threaded Inserts | 300 pcs, M3 × D5 × L4, brass, knurled, for melting into 3D-printed plastic. https://www.amazon.com/dp/B0DG59PW2R | 300 | Plastic Box | No project assigned. |
 | M3 Screw Assortment | 600 pcs, M3 hex button head cap screws, bolts, nuts, washers, 8 sizes: 6/8/10/12/16/20/25/30mm, 304 stainless steel. https://www.amazon.com/dp/B0D1457XQ3 | 600 | Plastic Box | No project assigned. Verify selection before build. |
+| GX16-3 Panel Mount Aviation Connector | 3-pin, circular metal aviation connector, panel/metal mount, male/female plug/socket pairs. https://www.amazon.com/dp/B07D3CY5LB | 10 | Bag 36 | No project assigned. |
 
 ---
 
@@ -147,6 +149,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | JST GH 1.25mm Pitch 6-Pin Cable | 100mm long. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
 | STEMMA QT / Qwiic Cable | Adafruit #4209, JST SH 4-pin to premium male headers, 150mm long. https://www.adafruit.com/product/4209 | 2 | Bin A2 (was Bag 31) | 1 used: hiking-monitor (LTR-390 sensor-side rewiring, CARD-0009). 1 spare. |
 | AreMe 90° USB-C Male to Female Adapter | 2-pack, 90-degree angled, USB-C male to USB-C female, metallic purple. https://www.amazon.com/dp/B0B2NJ3P3L | 2 | Bin D1 (was Bag 33) | No project assigned. |
+| HiLetgo CP2102 USB to TTL Module | USB 2.0 to TTL serial converter adapter, with jumper wires. https://www.amazon.com/dp/B00LODGRV8 | 1 | Bin D4 | No project assigned. |
+| 90 Degree USB A Male to USB C Male Adapter | Various angles/orientations. https://www.amazon.com/dp/B0H1H74Z98 | 5 | Bin B5 | No project assigned. |
 
 ---
 
@@ -180,6 +184,14 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Resistor Assortment | 600pcs, 30 values, 10Ω–1MΩ, 20 each | Assortment | Bag 17 | Verify selection before planning. |
 | Resistor 100Ω 1/4W | Stackpole, 1% axial. DigiKey RNF14FTD100RCT-ND | 50 | Music Response bin | Precision 1% tolerance. |
 | 10K Ohm Trim Potentiometer | Flutesan kit, 10K ohm | 24 | Music Response bin | No project assigned. |
+
+---
+
+## Capacitors
+
+| Component | Description | Qty | Location | Notes |
+|---|---|---|---|---|
+| Electrolytic Capacitor Assortment Kit | 28 values, 0.1uF–4700uF, 10V/16V/25V/35V/50V, in-line aluminum electrolytic capacitors. https://www.amazon.com/dp/B0G5X62C69 | Assortment | Plastic Box | No project assigned. |
 
 ---
 
@@ -276,3 +288,8 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-08-17 | Stock | BS250 P-channel MOSFET ×10 received (Jameco, Diodes Incorporated) — genuine replacement for the suspect Bag 34 batch (CARD-0070), added to Discrete Semiconductors, new Bag 35 |
 | 2026-08-20 | Stock | Bag-to-bin reorg started (new "Bin [A-D][1-6]" Location Key entry): Bag 32 → Bin A1, Bag 35 → Bin B1, Bag 34 → Bin C1, Bag 33 → Bin D1, Bag 31 → Bin A2. Bag 18 (HLK-LD2412) confirmed empty and discarded — qty corrected to 0. Also corrected Bag 35 BS250 table quantity from 12 to 10, matching this doc's own earlier note. |
 | 2026-08-21 | Stock | Taiss 600pc Dupont connector kit split: female connectors (housings + crimp pins) moved from Plastic Box to Bag 9; remaining single row PCB pin header strips stay in Plastic Box. Row split into two to match. |
+| 2026-08-24 | Stock | Electrolytic capacitor assortment kit (28 values, 0.1uF–4700uF, ASIN B0G5X62C69) received, added to new Capacitors section, Plastic Box |
+| 2026-08-24 | Stock | HiLetgo CP2102 USB to TTL module (ASIN B00LODGRV8) received, added to Cables and Adapters, Bin D4 |
+| 2026-08-24 | Stock | 90° USB A male to USB C male adapters ×5 (ASIN B0H1H74Z98) received, added to Cables and Adapters, Bin B5 |
+| 2026-08-24 | Stock | GX16-3 3-pin panel mount aviation connectors ×10 (ASIN B07D3CY5LB) received, added to Prototyping and Build Hardware, new Bag 36 |
+| 2026-08-24 | Stock | BOJACK DS18B20 waterproof temperature probes ×2, 1M cable (ASIN B09NVFJYPS) received, added to Sensors, new Bag 37 |

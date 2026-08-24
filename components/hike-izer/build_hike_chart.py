@@ -169,6 +169,12 @@ def build_chart_html(chart_series, chart_id='hikeChart', tz_offset_hours=DEFAULT
     script = build_chart_script(chart_id)
 
     return f'''<div class="chart-card">
+  <button type="button" class="map-expand-btn chart-expand-btn" id="{chart_id}-expand-btn" aria-label="Expand chart to full size" title="Expand chart">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+      <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+    </svg>
+  </button>
   <div class="chart-legend">
     <span><i class="dot-elevation"></i>Elevation</span>
     <span><i class="dot-speed"></i>Speed</span>
@@ -181,6 +187,20 @@ def build_chart_html(chart_series, chart_id='hikeChart', tz_offset_hours=DEFAULT
     <svg class="hike-chart" id="{chart_id}" viewBox="0 0 {VIEWBOX_W} {VIEWBOX_H}" preserveAspectRatio="xMidYMid meet">
       {svg_markup}
     </svg>
+  </div>
+</div>
+<!-- CARD-0194: click-to-expand, same pattern CARD-0147 built for the Route
+     Map -- the *same* chart-card DOM node (legend, tooltip slot, SVG) gets
+     physically relocated into this modal on open and back out on close (see
+     build_chart_script()'s openChartModal()/closeChartModal()), rather than
+     building/keeping a second chart in sync. No invalidateSize()-equivalent
+     needed here the way the Leaflet map required one: this is a plain SVG
+     with viewBox + preserveAspectRatio, so it re-scales to whatever
+     container it's sitting in automatically, purely via CSS layout. -->
+<div class="map-modal-backdrop" id="{chart_id}-modal-backdrop">
+  <div class="map-modal">
+    <button class="map-modal-close" id="{chart_id}-modal-close" aria-label="Close">&times;</button>
+    <div id="{chart_id}-modal-container" class="map-modal-container"></div>
   </div>
 </div>
 {script}'''
@@ -282,5 +302,31 @@ def build_chart_script(chart_id):
   // re-dispatching hikeizer-chart-hover for a hover the map already knows about.
   window.addEventListener("hikeizer-map-hover", function (e) {{ showBoth(e.detail.index); }});
   window.addEventListener("hikeizer-map-unhover", hide);
+
+  // CARD-0194: click-to-expand, mirrors CARD-0147's Route Map modal.
+  var chartCard = svg.closest(".chart-card");
+  var chartOriginalParent = chartCard.parentNode;
+  var chartModalBackdrop = document.getElementById("{chart_id}-modal-backdrop");
+  var chartModalContainer = document.getElementById("{chart_id}-modal-container");
+  var chartModalClose = document.getElementById("{chart_id}-modal-close");
+  var chartExpandBtn = document.getElementById("{chart_id}-expand-btn");
+
+  function openChartModal() {{
+    chartModalBackdrop.classList.add("open");
+    chartModalContainer.appendChild(chartCard);
+  }}
+  function closeChartModal() {{
+    chartModalBackdrop.classList.remove("open");
+    chartOriginalParent.appendChild(chartCard);
+  }}
+
+  chartExpandBtn.addEventListener("click", openChartModal);
+  chartModalClose.addEventListener("click", closeChartModal);
+  chartModalBackdrop.addEventListener("click", function (e) {{
+    if (e.target === chartModalBackdrop) closeChartModal();
+  }});
+  document.addEventListener("keydown", function (e) {{
+    if (e.key === "Escape" && chartModalBackdrop.classList.contains("open")) closeChartModal();
+  }});
 }})();
 </script>'''

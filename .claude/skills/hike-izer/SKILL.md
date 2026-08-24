@@ -322,6 +322,25 @@ section.
    (every observation without categories buckets into "uncategorized"), so no
    "not available" fallback is needed.
 
+   **Voice-to-text place-name correction (CARD-0194, added 2026-08-24).**
+   Tasker's voice transcription occasionally mishears a place name (e.g.
+   "The tortellito Preserve" for "Tortolita Preserve") -- when writing this
+   table, cross-check any place/feature name in an observation against
+   `place_context`'s already-researched real nearby named features (CARD-0108,
+   fetched the same generation pass). If a name doesn't match anything in
+   `place_context` but is clearly a phonetic near-miss of something that
+   does, **substitute the corrected word in place, wrapped in `<em>` (italics)
+   to mark it as an edited word** -- e.g. `hiking The <em>Tortolita</em>
+   Preserve this morning with David`. Don't add a bracketed explanation
+   or footnote; the italics alone are the signal that a word was corrected.
+   This is a judgment call made fresh each generation, not a fuzzy-match
+   algorithm -- only correct a genuine, confident near-miss against real
+   `place_context` data, never guess at a name with no supporting evidence.
+   Leave everything else in the observation exactly as transcribed --
+   this only ever touches the specific mis-transcribed word(s), never
+   reworded or cleaned-up surrounding text (same "raw text as logged"
+   principle the rest of this table follows).
+
    **GPS Trackpoints, placed near the Route Map, not here (CARD-0176) --
    see step 5 below.** The old combined "Expected vs. actual data coverage"
    section is gone; its Environmental Data half moved into part b above, its

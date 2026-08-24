@@ -186,12 +186,26 @@
      polylines, hover hit-targets) is baked in by build_hike_chart.py at
      generation time -- these rules only style it, they don't lay it out. */
   .chart-card {
+    position: relative;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     padding: 1rem 1.15rem 0.85rem;
   }
+  /* CARD-0194: expand button, positioned like a Leaflet control corner
+     since this card isn't a Leaflet map -- .map-expand-btn's own visual
+     styling (white square, border, shadow, defined below near .map-card)
+     is shared with the Route Map's button; this class only adds the
+     absolute placement. */
+  .chart-expand-btn { position: absolute; top: 0.6rem; right: 0.6rem; z-index: 5; border-radius: 4px; box-shadow: var(--shadow); }
+  /* CARD-0194: fills the modal the same way .map-modal-backdrop .map-modal-container .hike-map
+     does for the Route Map below -- see that rule's own comment for why a
+     3-class selector is needed. The SVG's own preserveAspectRatio handles
+     the actual up-scale/letterbox, no JS involved. */
+  .map-modal-backdrop .map-modal-container .chart-card { height: 100%; display: flex; flex-direction: column; }
+  .map-modal-backdrop .map-modal-container .chart-svg-wrap { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; }
+  .map-modal-backdrop .map-modal-container svg.hike-chart { height: 100%; width: 100%; }
   .chart-legend {
     display: flex;
     gap: 1.25rem;
@@ -258,6 +272,62 @@
     border-radius: var(--radius);
     border: 1px solid var(--line);
   }
+  /* CARD-0147: click-to-expand. .map-expand-btn matches Leaflet's own
+     control-button look (white square, border, shadow) rather than
+     inventing a new visual language for it. The modal itself holds no map
+     markup of its own -- build_hike_map.py's script physically moves the
+     *same* Leaflet container into .map-modal-container on open (and back
+     out again on close, see that file's own comment for why), so this CSS
+     is only ever about the overlay chrome, not map internals. Ported into
+     this template 2026-08-24 (CARD-0194) -- present in the orchestrator's
+     templating.py since CARD-0147 but missed here at the time, so the Route
+     Map's expand button/modal never actually worked on a page generated
+     through this interactive-Skill template. */
+  .map-expand-btn {
+    background: var(--surface); width: 30px; height: 30px; display: flex;
+    align-items: center; justify-content: center; border: none; cursor: pointer;
+    color: var(--ink-muted);
+  }
+  .map-expand-btn:hover { background: var(--surface-2); color: var(--ink); }
+  .map-expand-btn svg { width: 16px; height: 16px; }
+  .map-modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    align-items: center; justify-content: center; z-index: 20; padding: 1.5rem;
+  }
+  .map-modal-backdrop.open { display: flex; }
+  /* CARD-0147 fix: height:100% percentage chains through several nested
+     divs are fragile -- .map-modal/.map-modal-container use an explicit
+     flex column with flex:1 1 auto instead, a more robust "fill the
+     remaining space" pattern. min-height:0 on the flex child matters: flex
+     items default to min-height:auto, which can stop a child (especially
+     one like a Leaflet map with its own internal sizing) from actually
+     shrinking/growing to fill the flex parent -- a well-known flexbox
+     gotcha, not a redundant reset. */
+  .map-modal {
+    position: relative; background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow); width: 100%; height: 100%; max-width: 75rem;
+    padding: 0.75rem; display: flex; flex-direction: column;
+  }
+  .map-modal-container { flex: 1 1 auto; min-height: 0; }
+  /* CARD-0147 fix: this modal markup is nested *inside* the Route Map's own
+     <section> (inside .hike-visuals), so even once JS relocates the map div
+     into the modal, it's still a genuine DOM descendant of .hike-visuals,
+     position:fixed notwithstanding (CSS descendant selectors match by DOM
+     ancestry, not visual/layout escape). .hike-visuals .hike-map's own
+     responsive rule (height: 15rem, below) has the same specificity as a
+     plain 2-class selector and is declared later in the stylesheet, so it
+     would otherwise win the specificity tie and clamp the map to 15rem
+     regardless of the modal's own real size. This 3-class selector is
+     unambiguously higher specificity, so it always wins regardless of
+     source order. */
+  .map-modal-backdrop .map-modal-container .hike-map { height: 100%; }
+  .map-modal-close {
+    position: absolute; top: -0.9rem; right: -0.9rem; z-index: 21;
+    width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); font-size: 1.3rem; line-height: 1;
+    cursor: pointer; box-shadow: var(--shadow);
+  }
+  .map-modal-close:hover { background: var(--surface-2); }
   /* Leaflet ships its own base styles via vendor/leaflet/leaflet.css --
      these only theme the route line/highlight to match the page palette. */
   .route-line { stroke: var(--accent); stroke-width: 3; }

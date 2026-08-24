@@ -291,6 +291,11 @@ def observations_table_rows(hiking_observations, offset_delta):
             "time": format_time_local(o.get("timestamp"), offset_delta),
             "observation": o.get("observation", ""),
             "categories": ", ".join(cats) if cats else "—",
+            # CARD-0194: raw timestamp, not just the formatted local time --
+            # the stable per-row identifier the manual-edit feature keys
+            # corrections against (a formatted display string isn't unique
+            # or round-trippable back to the source row).
+            "timestamp": o.get("timestamp") or "",
         })
     return rows
 
@@ -584,7 +589,20 @@ _HTML_STYLE = """
   .stat__value--na { font-size: 1rem; font-weight: 400; color: var(--ink-faint); font-style: italic; }
   .forecast-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); gap: 0.75rem; }
   .stat-row--rich { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.75rem; }
-  .chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.15rem 0.85rem; }
+  .chart-card { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.15rem 0.85rem; }
+  /* CARD-0194: expand button, positioned like a Leaflet control corner
+     since this card isn't a Leaflet map -- .map-expand-btn's own visual
+     styling (white square, border, shadow) is shared with the Route Map's
+     button; this class only adds the absolute placement. */
+  .chart-expand-btn { position: absolute; top: 0.6rem; right: 0.6rem; z-index: 5; border-radius: 4px; box-shadow: var(--shadow); }
+  /* CARD-0194: fills the modal the same way .map-modal-backdrop .map-modal-container .hike-map
+     does for the Route Map -- see that rule's own comment for why a 3-class
+     selector is needed (specificity tie against a plain-class responsive
+     rule declared later in this stylesheet). The SVG's own
+     preserveAspectRatio handles the actual up-scale/letterbox, no JS. */
+  .map-modal-backdrop .map-modal-container .chart-card { height: 100%; display: flex; flex-direction: column; }
+  .map-modal-backdrop .map-modal-container .chart-svg-wrap { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; }
+  .map-modal-backdrop .map-modal-container svg.hike-chart { height: 100%; width: 100%; }
   .chart-legend { display: flex; gap: 1.25rem; font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); margin-bottom: 0.6rem; }
   .chart-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
   .chart-legend i { width: 0.7rem; height: 0.7rem; border-radius: 2px; display: inline-block; }
@@ -774,6 +792,11 @@ _HTML_STYLE = """
   .callout strong { color: var(--warning); }
   section { margin-bottom: 2.25rem; }
   section > h2 { font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); border-bottom: 1px solid var(--line); padding-bottom: 0.4rem; margin: 0 0 1rem; }
+  /* CARD-0194: per-section data-source attribution, right under the h2 it
+     describes -- deliberately its own line rather than appended to the h2
+     text, so it doesn't compete with the uppercase/letter-spaced heading
+     style above. */
+  .data-source { color: var(--ink-muted); font-size: 0.78rem; font-style: italic; margin: -0.6rem 0 1rem; }
   .narrative p { margin: 0 0 1rem; font-size: 1.02rem; }
   table { width: 100%; border-collapse: collapse; font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
   th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); }
@@ -781,6 +804,11 @@ _HTML_STYLE = """
   tbody tr:last-child td { border-bottom: none; }
   tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-2) 40%, transparent); }
   .obs-table thead th { position: sticky; top: 0; }
+  /* CARD-0194: manual observation editing -- invisible until unlocked via
+     the secret keyword (see the obs-section script), so no visible affordance
+     invites editing before then. */
+  .obs-editable { cursor: pointer; border-bottom: 1px dashed var(--accent); }
+  .obs-editable:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
   /* CARD-0147: click-to-sort, scoped to #birdnet-table specifically -- the
      hiking-observations table also uses .obs-table but isn't sortable, so
      this can't just target th generally without implying every table here
@@ -900,6 +928,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
         gaia_section = f"""
   <section>
     <h2>Route Map</h2>
+    <p class="data-source">from GPSLogger</p>
     <div class="map-embed">{gaia_embed_html}</div>
   </section>"""
 
@@ -930,8 +959,14 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     )
     hike_visuals_section = ""
     if map_html or chart_html:
-        map_part = f'<section><h2>Route Map</h2>{map_html}</section>' if map_html else ""
-        chart_part = f'<section><h2>Elevation and Speed</h2>{chart_html}</section>' if chart_html else ""
+        map_part = (
+            f'<section><h2>Route Map</h2><p class="data-source">from GPSLogger</p>{map_html}</section>'
+            if map_html else ""
+        )
+        chart_part = (
+            f'<section><h2>Elevation and Speed</h2><p class="data-source">from GPSLogger</p>{chart_html}</section>'
+            if chart_html else ""
+        )
         hike_visuals_section = f"""
   <div class="hike-visuals">{map_part}{chart_part}
   </div>"""
@@ -981,6 +1016,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
         env_tracking_section = f"""
   <section>
     <h2>Environmental Data Tracking</h2>
+    <p class="data-source">from JCTsh Hiking Monitor</p>
     <table><tbody>{summary_rows}</tbody></table>
     {env_gap_html}
   </section>"""
@@ -1023,7 +1059,9 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     obs_section = ""
     if obs:
         obs_rows = "".join(
-            f"<tr><td>{_esc(r['time'])}</td><td>{_esc(r['observation'])}</td><td>{_esc(r['categories'])}</td></tr>"
+            f'<tr><td>{_esc(r["time"])}</td>'
+            f'<td><span class="obs-text" data-obs-ts="{_esc(r["timestamp"])}">{_esc(r["observation"])}</span></td>'
+            f'<td>{_esc(r["categories"])}</td></tr>'
             for r in observations_table_rows(obs, offset_delta)
         )
         # CARD-0176: Observations by Category moved here, to the end of this
@@ -1037,15 +1075,79 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
             f'<p class="obs-category-summary"><strong>Observations by Category:</strong> '
             f'{_esc(", ".join(f"{k} ({v})" for k, v in counts.items()))}</p>'
         )
+        # CARD-0194: manual observation-text editing. Hidden behind typing
+        # a secret word anywhere on the page (not a visible "Edit" button --
+        # deliberately not inviting a random visitor to try it) followed by
+        # a PIN, checked server-side on every save (the client never
+        # verifies the PIN itself, just remembers it in localStorage after
+        # a first successful save). Edits POST to /webhook/edit-observation
+        # (proxied to the orchestrator, same auth shape as the other
+        # webhooks) and are applied both to this live page immediately and
+        # to a per-hike overrides file the pipeline re-applies on any future
+        # regeneration -- see app.py's _handle_edit_observation.
+        edit_script = f"""
+  <script>
+  (function () {{
+    var SECRET = "unlock", PIN_KEY = "hikeizerEditPin";
+    var typed = "", unlocked = false;
+    var fileStem = {json.dumps(file_stem or date_str)};
+
+    function markEditable() {{
+      unlocked = true;
+      document.querySelectorAll(".obs-text").forEach(function (el) {{
+        el.classList.add("obs-editable");
+      }});
+    }}
+
+    document.addEventListener("keydown", function (e) {{
+      var t = e.target.tagName;
+      if (t === "INPUT" || t === "TEXTAREA" || unlocked) return;
+      if (e.key.length !== 1) return;
+      typed = (typed + e.key.toLowerCase()).slice(-SECRET.length);
+      if (typed === SECRET) {{
+        typed = "";
+        if (!localStorage.getItem(PIN_KEY)) {{
+          var pin = window.prompt("Edit PIN:");
+          if (!pin) return;
+          localStorage.setItem(PIN_KEY, pin);
+        }}
+        markEditable();
+      }}
+    }});
+
+    var table = document.querySelector(".obs-table");
+    if (!table) return;
+    table.addEventListener("click", function (e) {{
+      if (!unlocked) return;
+      var el = e.target.closest(".obs-text");
+      if (!el) return;
+      var current = el.textContent;
+      var updated = window.prompt("Edit observation text:", current);
+      if (updated === null || updated === current) return;
+      var pin = localStorage.getItem(PIN_KEY);
+      fetch("/webhook/edit-observation?key=" + encodeURIComponent(pin), {{
+        method: "POST",
+        headers: {{"Content-Type": "application/json"}},
+        body: JSON.stringify({{file_stem: fileStem, timestamp: el.dataset.obsTs, text: updated}})
+      }}).then(function (r) {{
+        if (r.ok) {{ el.textContent = updated; return; }}
+        if (r.status === 401) localStorage.removeItem(PIN_KEY);
+        window.alert("Save failed (" + r.status + "). " + (r.status === 401 ? "Wrong PIN -- try again." : "Try again."));
+      }}).catch(function () {{ window.alert("Save failed -- network error."); }});
+    }});
+  }})();
+  </script>"""
+
         obs_section = f"""
   <section>
     <h2>Full Observations Log</h2>
+    <p class="data-source">from field voice-to-text notes</p>
     <table class="obs-table">
       <thead><tr><th>Time ({_esc(offset_label(offset_str))})</th><th>Observation</th><th>Categories</th></tr></thead>
       <tbody>{obs_rows}</tbody>
     </table>
     {category_summary_html}
-  </section>"""
+  </section>{edit_script}"""
 
     photos_section = ""
     # CARD-0113/CARD-0115: the photos directory on disk is named after the
@@ -1087,6 +1189,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
         photos_section = f"""
   <section>
     <h2>Photos</h2>
+    <p class="data-source">from JCT via Immich</p>
     <div class="photo-grid">{"".join(items)}</div>
   </section>"""
 
@@ -1126,6 +1229,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
       <h2>Wildlife Heard (BirdNET)</h2>
       <a class="nav-link" href="wildlife.html">Life List &rarr;</a>
     </div>
+    <p class="data-source">from BirdNET Live</p>
     <table class="obs-table" id="birdnet-table">
       <thead><tr>
         <th data-sort-type="text">Species</th>
@@ -1212,12 +1316,14 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   {location_section}
   <section>
     <h2>Weather Forecast at Hike Start</h2>
+    <p class="data-source">from Open-Meteo</p>
     <div class="forecast-row">{forecast_row}</div>
   </section>
   {narrative_section}
   {env_tracking_section}
   <section>
     <h2>Sun Position</h2>
+    <p class="data-source">computed from GPS data</p>
     <table><tbody>{sun_rows}</tbody></table>
   </section>
   {obs_section}

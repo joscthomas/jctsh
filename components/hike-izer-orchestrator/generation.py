@@ -368,6 +368,34 @@ def _read_staging(file_stem):
     return staged
 
 
+def _apply_observation_overrides(hike_data, file_stem):
+    """CARD-0194: apply any manual observation-text corrections (made via
+    the live page's hidden edit UI, POSTed to app.py's
+    /webhook/edit-observation) on top of the freshly-fetched Sheet data,
+    every time this hike gets (re)generated. The Sheet itself is never
+    written to -- corrections live in a small per-hike overrides file
+    (SRV_DIR, keyed by the observation's own raw timestamp, the same
+    stable identifier the live page's data-obs-ts attribute uses), applied
+    here as a patch step so a future regeneration doesn't silently discard
+    a correction by re-pulling the original mis-transcribed text."""
+    overrides_path = os.path.join(SRV_DIR, f"{file_stem}_hike-summary.overrides.json")
+    try:
+        with open(overrides_path, "r", encoding="utf-8") as f:
+            overrides = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return
+    if not overrides:
+        return
+    applied = 0
+    for o in hike_data.get("hiking_observations", []):
+        ts = o.get("timestamp")
+        if ts in overrides:
+            o["observation"] = overrides[ts]
+            applied += 1
+    if applied:
+        print(f"Applied {applied} observation override(s) for {file_stem}", file=sys.stderr, flush=True)
+
+
 def run(payload):
     """Step 1 (CARD-0112): fully automatic, unchanged trigger (CARD-0086's
     GPSLogger 'stopped' webhook). Publishes a data-only page immediately --
@@ -418,6 +446,7 @@ def run(payload):
         )
         with open(hike_data_path, "r", encoding="utf-8") as f:
             hike_data = json.load(f)
+        _apply_observation_overrides(hike_data, file_stem)
 
         # CARD-0100: don't spend a real Claude API call or publish a live page
         # for a day with no confirmed hike (e.g. GPSLogger left running during a
@@ -564,6 +593,7 @@ def run_step2(file_stem, with_narrative=False):
     hike_data_path = os.path.join(PRIVATE_DIR, f"{file_stem}_hike_data.json")
     with open(hike_data_path, "r", encoding="utf-8") as f:
         hike_data = json.load(f)
+    _apply_observation_overrides(hike_data, file_stem)
 
     meta_path = os.path.join(SRV_DIR, f"{file_stem}_hike-summary.meta.json")
     with open(meta_path, "r", encoding="utf-8") as f:

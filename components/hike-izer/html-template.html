@@ -309,6 +309,22 @@
     height: 20rem;
     border-radius: var(--radius);
     border: 1px solid var(--line);
+    /* CARD-0204 bugfix: Leaflet's own panes/controls use large internal
+       z-index values (tiles 200, markers 600, popups 700, controls up to
+       1000 -- vendor/leaflet/leaflet.css). .hike-map had no position/
+       isolation of its own, so those z-indexes were compared directly
+       against the page's root stacking context -- including any *other*
+       modal's backdrop (z-index: 20, e.g. the Elevation & Speed chart's
+       expand button). Since 200-1000 > 20, the inline Route Map rendered
+       on top of a chart modal instead of staying beneath it. The Route
+       Map's own modal never hit this (CARD-0082/CARD-0147 physically
+       relocate this same Leaflet DOM node into the modal on open, so
+       nothing is left on the page to leak through) -- only a *different*
+       element's modal opening while this map stays inline exposed it.
+       isolation: isolate contains Leaflet's z-indexes to this element's
+       own local stacking context so they can never outrank anything
+       elsewhere on the page, regardless of the numbers either side uses. */
+    isolation: isolate;
   }
   /* CARD-0147: click-to-expand. .map-expand-btn matches Leaflet's own
      control-button look (white square, border, shadow) rather than
@@ -422,10 +438,27 @@
     margin-bottom: 2.25rem;
   }
   .hike-visuals section { margin-bottom: 0; }
+  /* CARD-0207: Environmental Data stacked in the same grid column as
+     Elevation & Speed (not a 3rd grid column) -- wrapping both in one flex
+     column makes them one grid item, so they share the Route Map's column
+     width exactly. Since svg.hike-chart uses viewBox + preserveAspectRatio
+     (chart-svg-wrap has no fixed height of its own), matching column width
+     alone makes both charts render at the identical size -- no separate
+     height rule needed. */
+  .hike-visuals-col { display: flex; flex-direction: column; gap: 1.25rem; }
+  /* align-items: center (was start) -- Route Map's column is shorter than
+     the stacked Elevation & Speed + Environmental Data column now that
+     the latter two share one grid column (CARD-0207); centering the map
+     vertically against that combined height keeps it visible/close to
+     both charts rather than pinned to the top with dead space below.
+     Only scoped here, inside the desktop breakpoint -- on mobile
+     (<52rem) grid-template-columns is 1fr (single column, CSS grid's
+     default rule above), so there's no shared row height to center
+     within and no extra space to add. */
   @media (min-width: 52rem) {
     .hike-visuals {
       grid-template-columns: 1fr 1fr;
-      align-items: start;
+      align-items: center;
     }
     .hike-visuals .hike-map { height: 15rem; }
   }
@@ -560,6 +593,56 @@
   </div>
 
   <!--
+    Weather Forecast at Hike Start (CARD-0083, sits between the hero stat
+    row above and Route Map below, CARD-0207) -- always rendered, same
+    convention as the stat row above: when hike_start_forecast (from
+    fetch_hike_data.py's JSON) is empty (a hike from before this feature
+    shipped, or a capture failure that day), every card shows "not
+    available" (.stat__value--na) instead of the real value -- never a
+    blank or a fabricated number. This section is NOT omitted like Photos
+    below; unlike a variable-length gallery, five named values render a
+    "not available" placeholder cleanly, so the stat-row convention applies
+    here, not the Photos one.
+    Five cards, same .stat/.stat__label/.stat__value classes as the stat
+    row above:
+      Temp           -- hike_start_forecast[0].temp_f
+      Precip Chance  -- hike_start_forecast[0].precip_pct + "%"
+      Wind           -- hike_start_forecast[0].wind_mph + " mph"
+      Humidity       -- hike_start_forecast[0].humidity_pct + "%"
+      UV Index       -- hike_start_forecast[0].uv_index
+    This is a live snapshot captured the moment the hike began (Open-Meteo,
+    no station/airport concept -- interpolated to the exact GPS-correlated
+    coordinate of that first observation), not a forecast re-checked at
+    whenever the summary happens to be generated.
+  -->
+  <section>
+    <h2>Weather Forecast at Hike Start</h2>
+    <div class="forecast-row">
+      <div class="stat">
+        <div class="stat__label">Temp</div>
+        <div class="stat__value">{{FORECAST_TEMP_F}}&deg;F</div>
+        <!-- when unavailable: <div class="stat__value stat__value--na">not available</div> -->
+      </div>
+      <div class="stat">
+        <div class="stat__label">Precip Chance</div>
+        <div class="stat__value">{{FORECAST_PRECIP_PCT}}%</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">Wind</div>
+        <div class="stat__value">{{FORECAST_WIND_MPH}} mph</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">Humidity</div>
+        <div class="stat__value">{{FORECAST_HUMIDITY_PCT}}%</div>
+      </div>
+      <div class="stat">
+        <div class="stat__label">UV Index</div>
+        <div class="stat__value">{{FORECAST_UV_INDEX}}</div>
+      </div>
+    </div>
+  </section>
+
+  <!--
     Route Map (CARD-0082) + Elevation & Speed chart (CARD-0110), wrapped
     together in .hike-visuals so they render side-by-side (falling back to
     stacked on narrow screens) -- both are only present when chart_series is
@@ -582,10 +665,36 @@
     {{ROUTE_MAP}}
   </section>
 
+  <div class="hike-visuals-col">
   <section>
     <h2>Elevation and Speed</h2>
     {{ELEVATION_SPEED_CHART}}
   </section>
+
+  <!--
+    Environmental Data (CARD-0204, stacked with Elevation & Speed in the
+    same grid column rather than its own full-width section, CARD-0207 --
+    Joseph's call, so a data point's location is easy to cross-reference
+    against the adjacent Route Map, and so the two charts render at
+    matching size since they now share the same column width) --
+    temp/humidity/pressure/UV plotted against the same distance axis as
+    the Elevation & Speed chart above, reusing chart_series' own per-point
+    temp_f/humidity_pct/pressure_hpa/uv_index fields (fetch_hike_data.py's
+    _correlate_environmental_series -- linear interpolation between
+    bracketing real readings, capped, so a real gap draws no line rather
+    than implying a value never measured). Markup and script generated
+    verbatim by build_hike_chart.py's build_env_chart_html(chart_series) --
+    splice the return value in directly, do not hand-author or edit it per
+    hike, same convention as {{ROUTE_MAP}}/{{ELEVATION_SPEED_CHART}} above.
+    Omit this whole section when build_env_chart_html() returns '' (no
+    environmental sensor data at all for the day) -- same "no empty
+    scaffolding" convention every other optional section here follows.
+  -->
+  <section>
+    <h2>Environmental Data</h2>
+    {{ENVIRONMENTAL_DATA_CHART}}
+  </section>
+  </div>
   </div>
 
   <!--
@@ -641,55 +750,6 @@
     <strong>GPS confirmation: unable to confirm.</strong> {{GPS_CONFIRMATION_EXPLANATION}}
   </div>
 
-  <!--
-    Weather Forecast at Hike Start (CARD-0083) -- always rendered, same
-    convention as the hero stat row above: when hike_start_forecast (from
-    fetch_hike_data.py's JSON) is empty (a hike from before this feature
-    shipped, or a capture failure that day), every card shows "not
-    available" (.stat__value--na) instead of the real value -- never a
-    blank or a fabricated number. This section is NOT omitted like Photos
-    below; unlike a variable-length gallery, five named values render a
-    "not available" placeholder cleanly, so the stat-row convention applies
-    here, not the Photos one.
-    Five cards, same .stat/.stat__label/.stat__value classes as the hero
-    stat row above:
-      Temp           -- hike_start_forecast[0].temp_f
-      Precip Chance  -- hike_start_forecast[0].precip_pct + "%"
-      Wind           -- hike_start_forecast[0].wind_mph + " mph"
-      Humidity       -- hike_start_forecast[0].humidity_pct + "%"
-      UV Index       -- hike_start_forecast[0].uv_index
-    This is a live snapshot captured the moment the hike began (Open-Meteo,
-    no station/airport concept -- interpolated to the exact GPS-correlated
-    coordinate of that first observation), not a forecast re-checked at
-    whenever the summary happens to be generated.
-  -->
-  <section>
-    <h2>Weather Forecast at Hike Start</h2>
-    <div class="forecast-row">
-      <div class="stat">
-        <div class="stat__label">Temp</div>
-        <div class="stat__value">{{FORECAST_TEMP_F}}&deg;F</div>
-        <!-- when unavailable: <div class="stat__value stat__value--na">not available</div> -->
-      </div>
-      <div class="stat">
-        <div class="stat__label">Precip Chance</div>
-        <div class="stat__value">{{FORECAST_PRECIP_PCT}}%</div>
-      </div>
-      <div class="stat">
-        <div class="stat__label">Wind</div>
-        <div class="stat__value">{{FORECAST_WIND_MPH}} mph</div>
-      </div>
-      <div class="stat">
-        <div class="stat__label">Humidity</div>
-        <div class="stat__value">{{FORECAST_HUMIDITY_PCT}}%</div>
-      </div>
-      <div class="stat">
-        <div class="stat__label">UV Index</div>
-        <div class="stat__value">{{FORECAST_UV_INDEX}}</div>
-      </div>
-    </div>
-  </section>
-
   <section class="narrative">
     <h2>The Hike</h2>
     <!-- One <p> per paragraph of the same narrative prose written for the .md.
@@ -720,26 +780,6 @@
     </table>
     <!-- Only present when coverage.environmental_data.gaps_over_6min is non-empty. -->
     <p>Gaps over 6 minutes in Environmental Data: {{ENV_DATA_GAPS}}.</p>
-  </section>
-
-  <!--
-    Environmental Data Chart (CARD-0204) -- temp/humidity/pressure/UV
-    plotted against the same distance axis as the Elevation & Speed chart
-    above, reusing chart_series' own per-point temp_f/humidity_pct/
-    pressure_hpa/uv_index fields (fetch_hike_data.py's
-    _correlate_environmental_series -- linear interpolation between
-    bracketing real readings, capped, so a real gap draws no line rather
-    than implying a value never measured). Markup and script generated
-    verbatim by build_hike_chart.py's build_env_chart_html(chart_series) --
-    splice the return value in directly, do not hand-author or edit it per
-    hike, same convention as {{ROUTE_MAP}}/{{ELEVATION_SPEED_CHART}} above.
-    Omit this whole section when build_env_chart_html() returns '' (no
-    environmental sensor data at all for the day) -- same "no empty
-    scaffolding" convention every other optional section here follows.
-  -->
-  <section>
-    <h2>Environmental Data Chart</h2>
-    {{ENVIRONMENTAL_DATA_CHART}}
   </section>
 
   <section>

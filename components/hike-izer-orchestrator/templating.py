@@ -686,7 +686,22 @@ _HTML_STYLE = """
   .chart-toggle-btn:hover:not(.active) { background: var(--surface); color: var(--ink); }
   .hover-guide { stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 2 2; pointer-events: none; }
   .map-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.15rem 0.85rem; }
-  .hike-map { height: 20rem; border-radius: var(--radius); border: 1px solid var(--line); }
+  /* CARD-0204 bugfix: Leaflet's own panes/controls use large internal
+     z-index values (tiles 200, markers 600, popups 700, controls up to
+     1000 -- vendor/leaflet/leaflet.css). .hike-map had no position/
+     isolation of its own, so those z-indexes were compared directly
+     against the page's root stacking context -- including any *other*
+     modal's backdrop (z-index: 20, e.g. the Elevation & Speed chart's
+     expand button). Since 200-1000 > 20, the inline Route Map rendered on
+     top of a chart modal instead of staying beneath it. The Route Map's
+     own modal never hit this (CARD-0082/CARD-0147 physically relocate
+     this same Leaflet DOM node into the modal on open, so nothing is left
+     on the page to leak through) -- only a *different* element's modal
+     opening while this map stays inline exposed it. isolation: isolate
+     contains Leaflet's z-indexes to this element's own local stacking
+     context so they can never outrank anything elsewhere on the page,
+     regardless of the numbers either side uses. */
+  .hike-map { height: 20rem; border-radius: var(--radius); border: 1px solid var(--line); isolation: isolate; }
   /* CARD-0147: click-to-expand. .map-expand-btn matches Leaflet's own
      control-button look (white square, border, shadow) rather than
      inventing a new visual language for it. The modal itself holds no map
@@ -844,7 +859,24 @@ _HTML_STYLE = """
   .travel-arrow-icon svg { width: 100%; height: 100%; overflow: visible; }
   .hike-visuals { display: grid; grid-template-columns: 1fr; gap: 1.25rem; margin-bottom: 2.25rem; }
   .hike-visuals section { margin-bottom: 0; }
-  @media (min-width: 52rem) { .hike-visuals { grid-template-columns: 1fr 1fr; align-items: start; } .hike-visuals .hike-map { height: 15rem; } }
+  /* CARD-0207: Environmental Data stacked in the same grid column as
+     Elevation & Speed (not a 3rd grid column) -- wrapping both in one flex
+     column makes them one grid item, so they share the Route Map's column
+     width exactly. Since svg.hike-chart uses viewBox + preserveAspectRatio
+     (chart-svg-wrap has no fixed height of its own), matching column width
+     alone makes both charts render at the identical size -- no separate
+     height rule needed. */
+  .hike-visuals-col { display: flex; flex-direction: column; gap: 1.25rem; }
+  /* align-items: center (was start) -- Route Map's column is shorter than
+     the stacked Elevation & Speed + Environmental Data column now that the
+     latter two share one grid column (CARD-0207); centering the map
+     vertically against that combined height keeps it visible/close to
+     both charts rather than pinned to the top with dead space below.
+     Only scoped here, inside the desktop breakpoint -- on mobile
+     (<52rem) grid-template-columns is 1fr (single column, CSS grid's
+     default rule above), so there's no shared row height to center
+     within and no extra space to add. */
+  @media (min-width: 52rem) { .hike-visuals { grid-template-columns: 1fr 1fr; align-items: center; } .hike-visuals .hike-map { height: 15rem; } }
   @media (prefers-reduced-motion: reduce) { .chart-tooltip-slot, .hover-dot { transition: none; } }
   .callout { background: var(--warning-bg); border: 1px solid var(--warning); border-radius: var(--radius); padding: 1rem 1.15rem; margin-bottom: 1.75rem; font-size: 0.95rem; }
   .callout strong { color: var(--warning); }
@@ -1024,8 +1056,20 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
         )
         if chart_series and thunderforest_api_key else ""
     )
+    # CARD-0207: Environmental Data joins Elevation & Speed in the second
+    # grid column (stacked, same width -- see .hike-visuals-col's own CSS
+    # comment for why that alone matches their sizes) rather than sitting
+    # in its own full-width section below the grid, Joseph's call so a
+    # data point's location is easy to cross-reference against the
+    # adjacent Route Map. env_chart_part folds into hike_visuals_section
+    # below instead of the standalone env_chart_section this card
+    # originally shipped with.
+    env_chart_part = (
+        f'<section><h2>Environmental Data</h2><p class="data-source">from JCTsh Hiking Monitor</p>{env_chart_html}</section>'
+        if env_chart_html else ""
+    )
     hike_visuals_section = ""
-    if map_html or chart_html:
+    if map_html or chart_html or env_chart_part:
         map_part = (
             f'<section><h2>Route Map</h2><p class="data-source">from GPSLogger</p>{map_html}</section>'
             if map_html else ""
@@ -1035,7 +1079,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
             if chart_html else ""
         )
         hike_visuals_section = f"""
-  <div class="hike-visuals">{map_part}{chart_part}
+  <div class="hike-visuals">{map_part}<div class="hike-visuals-col">{chart_part}{env_chart_part}</div>
   </div>"""
 
     # CARD-0123: Location/Nearby Named Features -- previously only ever woven
@@ -1088,16 +1132,14 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     {env_gap_html}
   </section>"""
 
-    # CARD-0204: env_chart_html can be non-empty even when has_env_data above
-    # is False in principle (has_env_data checks the summary-range stats;
-    # env_chart_html checks the per-point chart_series values) -- in
-    # practice they're derived from the same env_rows so they should always
-    # agree, but each section is independently omit-when-empty on its own
-    # actual content rather than trusting the other's gate.
-    env_chart_section = (
-        f'<section><h2>Environmental Data Chart</h2><p class="data-source">from JCTsh Hiking Monitor</p>{env_chart_html}</section>'
-        if env_chart_html else ""
-    )
+    # CARD-0207: env_chart_part (built alongside hike_visuals_section above)
+    # is what actually renders now -- env_chart_html can be non-empty even
+    # when has_env_data above is False in principle (has_env_data checks the
+    # summary-range stats; env_chart_html checks the per-point chart_series
+    # values), but in practice they're derived from the same env_rows so
+    # they should always agree; each section stays independently
+    # omit-when-empty on its own actual content rather than trusting the
+    # other's gate.
 
     # CARD-0176: GPS Trackpoints moved out of the old combined coverage
     # table to right after the Route Map -- see gps_trackpoints_summary()'s
@@ -1387,19 +1429,18 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   <p class="subtitle">Generated automatically by JCTsh hike-izer-orchestrator</p>
   <div class="top-nav"><a href="index.html">&larr; All Hikes</a></div>
   <div class="stat-row">{stat_row}</div>
-  {callout}
-  {rejected_section}
-  {hike_visuals_section}{gps_trackpoints_section}
-  {gaia_section}
-  {location_section}
   <section>
     <h2>Weather Forecast at Hike Start</h2>
     <p class="data-source">from Open-Meteo</p>
     <div class="forecast-row">{forecast_row}</div>
   </section>
+  {callout}
+  {rejected_section}
+  {hike_visuals_section}{gps_trackpoints_section}
+  {gaia_section}
+  {location_section}
   {narrative_section}
   {env_tracking_section}
-  {env_chart_section}
   <section>
     <h2>Sun Position</h2>
     <p class="data-source">computed from GPS data</p>

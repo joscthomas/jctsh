@@ -320,8 +320,13 @@ section.
    where precise figures belong -- the narrative shouldn't need to repeat
    them.
 
-   **Environmental Data Chart (CARD-0204), right after this table:** fill
-   the `{{ENVIRONMENTAL_DATA_CHART}}` placeholder by calling
+   **Environmental Data (CARD-0204, renamed from "Environmental Data
+   Chart" and moved into `.hike-visuals-col`, stacked with Elevation &
+   Speed in the same grid column rather than after the Environmental Data
+   Tracking table, CARD-0207 -- Joseph's call, so a data point's location
+   is easy to cross-reference against the adjacent Route Map, and so both
+   charts render at matching size since they share the same column
+   width):** fill the `{{ENVIRONMENTAL_DATA_CHART}}` placeholder by calling
    `build_hike_chart.build_env_chart_html(hike_data['chart_series'])` --
    temp/humidity/pressure/UV plotted against the same distance axis as the
    Elevation & Speed chart above, reusing `chart_series`' own per-point
@@ -335,10 +340,10 @@ section.
    environmental sensor data at all (device not carried that day) -- omit
    the whole `<section>` in that case, same "no empty scaffolding"
    convention as everything else here. This section's presence is
-   independent of the Environmental Data Tracking table above it (both are
-   omitted on their own actual content, not on each other's), though in
-   practice they'll almost always agree since both come from the same
-   `env_rows`.
+   independent of the Environmental Data Tracking table further down the
+   page (both are omitted on their own actual content, not on each
+   other's), though in practice they'll almost always agree since both
+   come from the same `env_rows`.
 
    **Full observations table (added 2026-07-23):** the complete list of that
    day's Hiking Observations as its own table -- columns Time (local, MST,

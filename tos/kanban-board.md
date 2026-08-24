@@ -9,7 +9,47 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0208 -->
+<!-- next-card-id: CARD-0209 -->
+
+---
+
+### CARD-0208 · [enhancement] [hiking-monitor] Spoken mile-marker announcements on the Pixel during a hike
+**Status:** Backlog
+
+**Raised 2026-08-24 (Joseph)**, via the "Log Idea" Tasker widget (PR #35, "mile notifications"). Interviewed same day: wants a **voice** notification (TTS, spoken aloud) on the Pixel at each whole-mile mark during a hike, not a silent push notification — the original PR title undersold what was actually wanted.
+
+**Interviewed 2026-08-24, two design decisions confirmed (via AskUserQuestion):**
+1. **Announcement text: just the mile count** — "One mile," "Two miles," etc. Not mile + elapsed time (considered and passed over as extra distraction while hiking).
+2. **Trigger: automatic, tied to GPSLogger running** — starts announcing as soon as GPSLogger starts tracking, no separate toggle to remember. Same enabling signal CARD-0086 already established for hike start/end.
+
+**Mechanism, researched (not assumed) 2026-08-24 — real finding changes the design for the better.** GPSLogger only exposes a Tasker-catchable broadcast for its own **start/stop** events (`com.mendhak.gpslogger.EVENT`, already used by CARD-0086) — its per-point location logging (every 30s, this project's configured interval) goes straight to the Apps Script over HTTP with nothing else Tasker can listen to. So live mile-crossing detection can't piggyback on the custom-URL logging path directly.
+
+**But GPSLogger's local CSV output can be reused instead of Tasker running its own independent GPS poll** — confirmed by reading the actual source (`CSVFileLogger.java`, `github.com/mendhak/gpslogger`), not assumed:
+- `write(Location loc)` → `annotate()` opens the CSV in **append mode** (`new FileWriter(file, true)`) and writes one row **per logged point, in real time** — same cadence as every other output GPSLogger produces.
+- The CSV already carries a **`distance` column** (`Session.getInstance().getTotalTravelled()`) — GPSLogger's own running cumulative-distance total in meters, recomputed and written fresh on every single row. **No haversine math needed on the Tasker side at all** — just read the number.
+- Full column order (24 fields, `getCSVFileHeaders()`): `time, lat, lon, elevation, accuracy, bearing, speed, satellites, provider, hdop, vdop, pdop, geoidheight, ageofdgpsdata, dgpsid, activity, battery, annotation, timestamp_ms, time_offset, distance, starttimestamp_ms, profile_name, battery_charging` — `distance` is field 21 of 24.
+
+**Why this beats the originally-floated alternative (a second, independent Tasker GPS poll running alongside GPSLogger's own):** avoids the extra battery draw of duplicate GPS polling entirely, reuses a number GPSLogger is already computing for its own purposes, and needs no math logic in Tasker beyond unit conversion (meters → miles, `/1609.344`) and a simple "did this cross a new whole number" check.
+
+**This project's own GPSLogger config currently has local file outputs disabled** (`gps-pipeline.md`: "Logging Details → uncheck all local file formats (GPX, KML, CSV) — Google Sheets is the only needed output") — re-enabling CSV output is a real, deliberate config change, not free, but a small one (an app setting, not new code).
+
+**Design sketch, to confirm/adjust at Planning:**
+1. Re-enable CSV local file logging in GPSLogger (alongside the existing custom-URL logging, which stays unchanged — this doesn't touch the Sheets pipeline).
+2. New Tasker Profile: **File Modified** trigger on the CSV file, active only while GPSLogger is running (gated the same way CARD-0086's own start/stop-driven profiles already are).
+3. On each fire: read the file's last line, parse the `distance` field (index 20, 0-based) out of the comma-split row, convert to miles.
+4. Compare against a stored `%last_announced_mile` variable; if the new value's integer floor is greater, `Say` "\<N\> mile(s)" (Tasker's built-in offline TTS) and update the stored value.
+5. On GPSLogger's `stopped` broadcast (already-used signal): reset `%last_announced_mile` for the next hike.
+
+**Open questions for Planning/Build — not yet resolved:**
+- Confirm live whether `Session.getInstance().getTotalTravelled()` resets to 0 at the start of each new GPSLogger logging session (expected, given `starttimestamp_ms` is a per-session field written alongside it, but not directly confirmed from the one file read) — trivial to check by starting GPSLogger and reading the CSV's first few real rows.
+- Confirm GPSLogger's actual per-session file-naming/creation behavior (one file per day vs. per logging session) — determines whether Tasker's "watch this file" target needs to be recomputed at each hike start or can stay fixed.
+- Whether GPSLogger's own `distance` accumulator does any accuracy/noise filtering, or sums every raw fix unfiltered — a real-time convenience feature can tolerate more noise than hike-izer's own precise post-hike mileage stat (CARD-0110's GPS-accuracy-filtering fixes), so this is a "note the discrepancy is possible, don't block on it" item, not a blocker.
+- Whether Tasker's "read last line of a file" is cheap enough at typical hike-length CSV sizes (`gps-pipeline.md`'s own estimate: ~1,200 rows / ~75KB for a 10-hour hike) — almost certainly fine for local phone I/O, but worth a real spot-check once built.
+- Exact Tasker action sequence (File Modified event availability/reliability, string-parsing the CSV line, the math/comparison actions) — Joseph builds and confirms the actual Tasker profile, matching this project's established division of labor for every prior Tasker-side feature (CARD-0007, CARD-0086, CARD-0122, CARD-0156).
+
+**Done when:** GPSLogger's CSV output is confirmed live-appending with a real `distance` value during an actual test walk, the Tasker profile correctly speaks each new whole mile with no repeats/skips, and it correctly stays silent (no announcements) when GPSLogger isn't running.
+
+**Related:** CARD-0086 (the GPSLogger start/stop broadcast this reuses as the enabling signal), CARD-0110 (hike-izer's own server-side distance computation and GPS-noise-filtering — a different, more precise pipeline this doesn't need to match exactly), `components/hiking-monitor/gps-pipeline.md` (GPSLogger's current custom-URL-only configuration, the "local file outputs disabled" note this card reconsiders), PR #35 (the original voice-captured idea this scopes).
 
 ---
 

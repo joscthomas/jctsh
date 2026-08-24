@@ -983,11 +983,21 @@ def analyze_coverage(env_rows, gps_rows, obs_rows, start_dt, end_dt):
 
     duration_min = (effective_end_dt - start_dt).total_seconds() / 60
 
-    expected_env = max(1, round(duration_min / 2))
-    actual_env = len(env_rows)
-
     gps_sessions = _gps_sessions(gps_rows)
     actual_gps = len(gps_rows)
+
+    # Environmental Data's "expected" denominator must match gps_track's own
+    # per-session convention (real session bounds, no padding) rather than the
+    # full padded query window -- otherwise it counts minutes before the
+    # hiking-monitor was even switched on (the ±10min SESSION_QUERY_PADDING,
+    # generation.py) as "expected" readings, understating real coverage. Falls
+    # back to the whole-window duration only when no GPS session exists at all
+    # (e.g. environmental readings with no accompanying GPS track).
+    env_expected_duration_min = (
+        sum(s['duration_minutes'] for s in gps_sessions) if gps_sessions else duration_min
+    )
+    expected_env = max(1, round(env_expected_duration_min / 2))
+    actual_env = len(env_rows)
 
     env_with_coords = sum(1 for r in env_rows if r.get('lat') not in (None, ''))
     field_mode_rows = sum(1 for r in env_rows if r.get('rssi_dbm') == 0)

@@ -9,7 +9,37 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0206 -->
+<!-- next-card-id: CARD-0207 -->
+
+---
+
+### CARD-0206 · [bug] [hike-izer] Environmental Data coverage stat measures against the padded query window instead of the real GPS session bounds — RESOLVED 2026-08-24
+**Status:** Done
+
+**Raised 2026-08-24 (Joseph)**, reviewing the 2026-08-24 hike ("Boulder Pass Loop") alongside the hiking-monitor Build cards. That page's Environmental Data Tracking table read "44 of 47 expected (93.6% coverage)" — looked like a real 3-sample gap worth explaining via CARD-0195's new skip-reason logging, but the skip/reset log stayed completely silent for the whole hike despite the firmware being confirmed flashed.
+
+**Root cause, traced by pulling the real `coverage` object out of the hike's persisted `hike_data.json` on the M8:** `analyze_coverage()` (`components/hike-izer/fetch_hike_data.py`) computes `expected_env = round(duration_min / 2)` from the *entire requested query window* (`start_dt` to `effective_end_dt`) — which is the GPS session's own bounds padded ±10 min each side (`SESSION_QUERY_PADDING`, `generation.py`), not the session's real bounds. Confirmed exactly: real GPS session ran 82.4 min (13:38:16–15:00:40Z); the query window was `(session_start − 10min)` to `min(session_end + 10min, now)` — and since step 1 generation ran only ~1 minute after the hike ended, that padded end got truncated to "now" rather than the full +10min, landing at 93.27 min of window duration. `round(93.27 / 2) = 47` — an exact match for the reported figure, confirming the "47 expected" was measuring 10 minutes of dead time *before* the hiking-monitor was even switched on (plus a few more from the truncated tail padding), not a real reading gap. The real field-mode window (`hiking-monitor`'s own first-to-last reading, 13:40:16–14:56:49Z) was only ~76.6 min, against which 43 field-mode readings is at-or-above a clean 2-min cadence — no real deficit at all.
+
+**Inconsistency this reveals:** `gps_track`'s own per-session coverage stat already does this correctly — `expected_points` is computed from each detected session's own real `start`/`end` (no padding), which is why it correctly showed 165/165 = 100% on the same hike. `environmental_data`'s coverage stat is the only one still measuring against the wider padded fetch window instead of matching that same session-scoped convention.
+
+**Decided fix (interviewed 2026-08-24):** keep the ±10 min padding for what actually needs it — *fetching* data, so boundary-adjacent readings/observations aren't clipped — but compute the Environmental Data coverage denominator from the real GPS session bounds (summed `duration_minutes` across every session `_gps_sessions()` detects in the window, hike-classified or not — this is about real elapsed activity time, not hike/non-hike judgment) instead of the outer padded `start_dt`/`end_dt`. Falls back to the current whole-window behavior only when zero GPS sessions exist in range (e.g. environmental readings present with no GPS track at all) — no regression for that edge case.
+
+**Accepted trade-off:** a reading that happens to land in the padding buffer (like this hike's one non-field-mode tail reading, captured after reconnecting post-hike) now counts as a small bonus against the narrower expected denominator rather than being absorbed into a bigger one — harmless, arguably more honest than the current behavior.
+
+**Scope:**
+1. `components/hike-izer/fetch_hike_data.py`'s `analyze_coverage()`: compute `env_expected_duration_min` from summed real GPS-session durations (falling back to the existing whole-window `duration_min` when no sessions exist), use it for `expected_env` instead of the padded-window `duration_min`. `duration_hours` (the top-level whole-window figure, used elsewhere) stays unchanged.
+2. Verify against today's real persisted 2026-08-24 hike data (re-fetched via the same original query window, no new API cost) — expected should drop from 47 to something close to the real ~76.6 min field window (≈38-39), and coverage should read at or above 100%, not 93.6%.
+3. Re-render and redeploy the already-published `2026-08-24_hike-summary.html` with the corrected figure once verified, same "regenerate in place, reuse already-fetched data" pattern this project always uses for a stat-only fix (CARD-0101, CARD-0120).
+
+**Done when:** the fix is verified against today's real hike data showing a corrected, non-misleading expected/coverage figure, deployed to the M8 orchestrator, and the live `2026-08-24_hike-summary.html` page reflects the corrected numbers.
+
+**Built and verified, 2026-08-24, same session.** `analyze_coverage()` now sums `duration_minutes` across every `_gps_sessions()`-detected session (real bounds, no padding) as the Environmental Data expected-readings denominator, falling back to the old whole-window `duration_min` only when zero GPS sessions exist. Unit-verified two ways before touching real data: a synthetic replica of today's hike shape (82.4-min session, 43 field-mode readings) dropped `expected_env` from 47 to 41 and coverage from 93.6% to 104.9%; the zero-session fallback case reproduced the exact old-behavior numbers (30/30/100%), confirming no regression for that path.
+
+**Deployed and verified against the real 2026-08-24 hike, not just synthetic data.** Redeployed `fetch_hike_data.py` to the M8 orchestrator (`docker compose up -d --build orchestrator`, confirmed healthy). Re-ran it inside the container against the hike's own exact original query window (`2026-08-24T13:28:16Z`–`15:10:40Z`, pulled from the persisted `hike_data.json`'s own `query` field — a plain Apps Script re-fetch, no API cost) — real corrected output: **41 expected, 44 actual, 107.3% coverage** (was 47/44/93.6%), against a real GPS session of 82.4 min. Persisted the corrected `hike_data.json`, then regenerated `2026-08-24_hike-summary.html` in place (same "reuse already-fetched photos manifest, no narrative re-run" pattern as CARD-0140/CARD-0120 — this hike never had step 2/narrative run, so nothing else needed re-fetching). Confirmed live on the public page (`https://hikes.jctnet.com/2026-08-24_hike-summary.html`, HTTP 200): "Readings Recorded: 44 of 41 expected (107.3% coverage)" — all other sections (8 data-source labels, both env chart mode panels) confirmed present and unchanged, no regression from the surgical re-render.
+
+**Reflection:** the durable fix lives in `analyze_coverage()`'s own code comment (why the denominator has to match `gps_track`'s session-scoped convention, not the padded fetch window) — no separate doc needed, this was a narrowly scoped stat-calculation bug, not a new pattern worth writing up elsewhere. The bug was only found because CARD-0195's skip-reason logging staying silent against an apparent 3-sample gap didn't add up — worth remembering that a "clean" diagnostic result is itself a signal worth chasing down, not just a relief.
+
+**Related:** CARD-0195 (the skip-reason diagnostic this misleading stat was initially mistaken for evidence against), CARD-0113 (introduced the session-scoped query-window padding this fix has to respect while still fixing the denominator), CARD-0140/CARD-0120 (precedent for in-place stat-only page regeneration without a full re-render), `components/hike-izer/fetch_hike_data.py` (`analyze_coverage`, `_gps_sessions`).
 
 ---
 

@@ -232,6 +232,7 @@ def data_summary_rows(hike_data):
     return [
         ("Temperature", _range_display(stats.get("temp_f"), "°F")),
         ("Humidity", _range_display(stats.get("humidity_pct"), "%")),
+        ("Pressure", _range_display(stats.get("pressure_hpa"), "hPa")),
         ("UV Index", _range_display(stats.get("uv_index"))),
         ("Battery Voltage", _range_display(stats.get("battery_v"), "V", decimals=2)),
     ]
@@ -533,6 +534,10 @@ _HTML_STYLE = """
     --sans: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --chart-elevation: #96723f; --chart-elevation-fill: rgba(150, 114, 63, 0.12); --chart-speed: #3f6a8a; --chart-speed-fill: rgba(63, 106, 138, 0.10);
     --marker-photo: #7a4f8a; --marker-observation: #3f8a7a; --marker-bird: #c17d2e;
+    /* CARD-0204: Environmental Data chart (temp/humidity/pressure/UV) --
+       distinct from the elevation/speed tokens above so both charts can sit
+       on the page without any color collision. */
+    --chart-temp: #c1502e; --chart-humidity: #2e7ac1; --chart-pressure: #7a4fb0; --chart-uv: #b08a1a;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -553,6 +558,7 @@ _HTML_STYLE = """
       --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 20px -10px rgba(0,0,0,0.5);
       --chart-elevation: #cda978; --chart-elevation-fill: rgba(205, 169, 120, 0.14); --chart-speed: #7bb4d9; --chart-speed-fill: rgba(123, 180, 217, 0.12);
       --marker-photo: #c9a0d9; --marker-observation: #7ad9c4; --marker-bird: #e0a768;
+      --chart-temp: #e08a68; --chart-humidity: #6ba8e0; --chart-pressure: #b090e0; --chart-uv: #e0c068;
     }
   }
   * { box-sizing: border-box; }
@@ -614,6 +620,11 @@ _HTML_STYLE = """
   .chart-tooltip-slot .tt-metric { font-weight: 700; }
   .chart-tooltip-slot .tt-metric.elevation { color: var(--chart-elevation); }
   .chart-tooltip-slot .tt-metric.speed { color: var(--chart-speed); }
+  .chart-tooltip-slot .tt-metric.temp { color: var(--chart-temp); }
+  .chart-tooltip-slot .tt-metric.humidity { color: var(--chart-humidity); }
+  .chart-tooltip-slot .tt-metric.pressure { color: var(--chart-pressure); }
+  .chart-tooltip-slot .tt-metric.uv { color: var(--chart-uv); }
+  .chart-tooltip-slot .tt-metric + .tt-metric { margin-left: 0.75rem; }
   .chart-svg-wrap { width: 100%; overflow-x: auto; }
   svg.hike-chart { width: 100%; height: auto; display: block; cursor: crosshair; }
   .axis-label { font-family: var(--mono); font-size: 9px; fill: var(--ink-faint); }
@@ -622,10 +633,32 @@ _HTML_STYLE = """
   .line-elevation { fill: none; stroke: var(--chart-elevation); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
   .line-elevation-fill { fill: var(--chart-elevation-fill); stroke: none; }
   .line-speed { fill: none; stroke: var(--chart-speed); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  /* CARD-0204: Environmental Data chart lines -- same stroke treatment as
+     elevation/speed above, no area fill (two lines already differentiate by
+     color, matching .line-speed's own unfilled precedent). */
+  .line-temp { fill: none; stroke: var(--chart-temp); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .line-humidity { fill: none; stroke: var(--chart-humidity); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .line-pressure { fill: none; stroke: var(--chart-pressure); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .line-uv { fill: none; stroke: var(--chart-uv); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
   .hit-target { fill: transparent; cursor: pointer; }
   .hover-dot { r: 4; fill: var(--surface); stroke-width: 2.5; transition: opacity 0.08s ease; pointer-events: none; }
   .hover-dot.elevation { stroke: var(--chart-elevation); }
   .hover-dot.speed { stroke: var(--chart-speed); }
+  .hover-dot.temp { stroke: var(--chart-temp); }
+  .hover-dot.humidity { stroke: var(--chart-humidity); }
+  .hover-dot.pressure { stroke: var(--chart-pressure); }
+  .hover-dot.uv { stroke: var(--chart-uv); }
+  /* CARD-0204: legend-as-toggle for the Environmental Data chart's two
+     preset pairings (Temp+Humidity / Pressure+UV) -- same visual weight as
+     .chart-legend above, but clickable buttons instead of static labels. */
+  .chart-toggle { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
+  .chart-toggle-btn {
+    font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;
+    background: var(--surface-2); color: var(--ink-muted); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 0.3rem 0.7rem; cursor: pointer;
+  }
+  .chart-toggle-btn.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .chart-toggle-btn:hover:not(.active) { background: var(--surface); color: var(--ink); }
   .hover-guide { stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 2 2; pointer-events: none; }
   .map-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem 1.15rem 0.85rem; }
   .hike-map { height: 20rem; border-radius: var(--radius); border: 1px solid var(--line); }
@@ -945,6 +978,15 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     chart_html = (
         build_hike_chart.build_chart_html(chart_series, tz_offset_hours=offset_hours) if chart_series else ""
     )
+    # CARD-0204: Environmental Data (temp/humidity/pressure/UV), same shared
+    # chart_series -- fetch_hike_data.py already interpolated these fields
+    # onto every point, so no separate fetch/correlation step is needed
+    # here. build_env_chart_html() returns '' on its own when the hike had
+    # no environmental readings at all (device not carried) -- same
+    # omit-when-empty convention as chart_html above.
+    env_chart_html = (
+        build_hike_chart.build_env_chart_html(chart_series, tz_offset_hours=offset_hours) if chart_series else ""
+    )
     # CARD-0133: event markers (photos/observations/bird occurrences) --
     # computed regardless of whether there's a map to put them on (cheap),
     # only actually used when map_html ends up non-empty below.
@@ -1003,7 +1045,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     # be an indirect/fragile check). The Environmental Data coverage row and
     # any >6min gap notes (formerly the "Expected vs. Actual Data Coverage"
     # section's Environmental Data half) join the end of this same table.
-    has_env_data = any(stats.get(k) for k in ("temp_f", "humidity_pct", "uv_index", "battery_v"))
+    has_env_data = any(stats.get(k) for k in ("temp_f", "humidity_pct", "pressure_hpa", "uv_index", "battery_v"))
     env_tracking_section = ""
     if has_env_data:
         env_rows = data_summary_rows(hike_data) + [environmental_data_coverage_row(coverage)]
@@ -1020,6 +1062,17 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     <table><tbody>{summary_rows}</tbody></table>
     {env_gap_html}
   </section>"""
+
+    # CARD-0204: env_chart_html can be non-empty even when has_env_data above
+    # is False in principle (has_env_data checks the summary-range stats;
+    # env_chart_html checks the per-point chart_series values) -- in
+    # practice they're derived from the same env_rows so they should always
+    # agree, but each section is independently omit-when-empty on its own
+    # actual content rather than trusting the other's gate.
+    env_chart_section = (
+        f'<section><h2>Environmental Data Chart</h2><p class="data-source">from JCTsh Hiking Monitor</p>{env_chart_html}</section>'
+        if env_chart_html else ""
+    )
 
     # CARD-0176: GPS Trackpoints moved out of the old combined coverage
     # table to right after the Route Map -- see gps_trackpoints_summary()'s
@@ -1321,6 +1374,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   </section>
   {narrative_section}
   {env_tracking_section}
+  {env_chart_section}
   <section>
     <h2>Sun Position</h2>
     <p class="data-source">computed from GPS data</p>

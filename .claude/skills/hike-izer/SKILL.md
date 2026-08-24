@@ -287,22 +287,44 @@ section.
 
    **b. Environmental Data Tracking (CARD-0176, renamed from "Data
    Summary")** -- the actual sensor numbers: temperature range, humidity
-   range, UV index range, battery voltage range. Elevation range/gain **in
-   feet** (`stats.altitude_ft`) and duration belong in the hero stat row
-   (step 5), not repeated here. Observation count by category no longer
-   belongs in this table -- see the Full observations table below. Append
-   one more row at the end of this same table: Environmental Data readings
-   recorded vs. expected (and coverage %), from `coverage.environmental_data`
-   -- this is the old "Expected vs. actual data coverage" section's
-   Environmental Data half, now folded into this table instead of living in
-   its own separate section. If `coverage.environmental_data.gaps_over_6min`
-   is non-empty, report those gaps (with timestamps) directly under this
-   table too. **Omit this whole section when there's no environmental sensor
-   data at all for the day** (temperature/humidity/UV/battery all null) --
-   same "no empty scaffolding" convention Photos follows, checked against
-   the underlying stats, not against a formatted "not available" string.
-   This is where precise figures belong -- the narrative shouldn't need to
-   repeat them.
+   range, pressure range (`stats.pressure_hpa`, in hPa -- found missing from
+   this table entirely, CARD-0204, 2026-08-24), UV index range, battery
+   voltage range. Elevation range/gain **in feet** (`stats.altitude_ft`) and
+   duration belong in the hero stat row (step 5), not repeated here.
+   Observation count by category no longer belongs in this table -- see the
+   Full observations table below. Append one more row at the end of this
+   same table: Environmental Data readings recorded vs. expected (and
+   coverage %), from `coverage.environmental_data` -- this is the old
+   "Expected vs. actual data coverage" section's Environmental Data half,
+   now folded into this table instead of living in its own separate section.
+   If `coverage.environmental_data.gaps_over_6min` is non-empty, report
+   those gaps (with timestamps) directly under this table too. **Omit this
+   whole section when there's no environmental sensor data at all for the
+   day** (temperature/humidity/pressure/UV/battery all null) -- same "no
+   empty scaffolding" convention Photos follows, checked against the
+   underlying stats, not against a formatted "not available" string. This is
+   where precise figures belong -- the narrative shouldn't need to repeat
+   them.
+
+   **Environmental Data Chart (CARD-0204), right after this table:** fill
+   the `{{ENVIRONMENTAL_DATA_CHART}}` placeholder by calling
+   `build_hike_chart.build_env_chart_html(hike_data['chart_series'])` --
+   temp/humidity/pressure/UV plotted against the same distance axis as the
+   Elevation & Speed chart above, reusing `chart_series`' own per-point
+   `temp_f`/`humidity_pct`/`pressure_hpa`/`uv_index` fields (already
+   correlated onto the GPS-derived points by `fetch_hike_data.py`, no
+   separate step needed here). Returns complete, ready-to-embed markup
+   (legend-toggle between two preset pairings, SVG with baked-in geometry
+   for both, hover `<script>`) -- splice it in verbatim, don't hand-author
+   or edit it per hike, same convention as `{{ROUTE_MAP}}`/
+   `{{ELEVATION_SPEED_CHART}}` above. Returns `''` when the hike had no
+   environmental sensor data at all (device not carried that day) -- omit
+   the whole `<section>` in that case, same "no empty scaffolding"
+   convention as everything else here. This section's presence is
+   independent of the Environmental Data Tracking table above it (both are
+   omitted on their own actual content, not on each other's), though in
+   practice they'll almost always agree since both come from the same
+   `env_rows`.
 
    **Full observations table (added 2026-07-23):** the complete list of that
    day's Hiking Observations as its own table -- columns Time (local, MST,

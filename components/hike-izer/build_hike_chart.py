@@ -19,6 +19,7 @@ Usage (as a library, called from the hike-izer generation step):
     # splice chart_html into html-template.html's {{ELEVATION_SPEED_CHART}}
 """
 
+import json
 from datetime import datetime, timedelta, timezone
 
 # America/Phoenix, no DST -- the default because it's right for every hike
@@ -303,6 +304,16 @@ def build_chart_script(chart_id):
   window.addEventListener("hikeizer-map-hover", function (e) {{ showBoth(e.detail.index); }});
   window.addEventListener("hikeizer-map-unhover", hide);
 
+  // CARD-0204: mirror a hover that started on the new Environmental Data
+  // chart panel (build_env_chart_html/build_env_chart_script below) -- it
+  // dispatches the same hikeizer-chart-hover/-unhover events this chart
+  // itself already dispatches on its own hover, so listening here picks up
+  // its hovers too. This chart also receives its own dispatched event back
+  // (window-level CustomEvents aren't scoped per-origin) -- harmless, just a
+  // redundant showBoth() call with the index it just set.
+  window.addEventListener("hikeizer-chart-hover", function (e) {{ showBoth(e.detail.index); }});
+  window.addEventListener("hikeizer-chart-unhover", hide);
+
   // CARD-0194: click-to-expand, mirrors CARD-0147's Route Map modal.
   var chartCard = svg.closest(".chart-card");
   var chartOriginalParent = chartCard.parentNode;
@@ -320,6 +331,275 @@ def build_chart_script(chart_id):
     chartOriginalParent.appendChild(chartCard);
   }}
 
+  chartExpandBtn.addEventListener("click", openChartModal);
+  chartModalClose.addEventListener("click", closeChartModal);
+  chartModalBackdrop.addEventListener("click", function (e) {{
+    if (e.target === chartModalBackdrop) closeChartModal();
+  }});
+  document.addEventListener("keydown", function (e) {{
+    if (e.key === "Escape" && chartModalBackdrop.classList.contains("open")) closeChartModal();
+  }});
+}})();
+</script>'''
+
+
+# CARD-0204: Environmental Data (temp/humidity/pressure/UV) chart -- reuses
+# chart_series' own per-point temp_f/humidity_pct/pressure_hpa/uv_index
+# fields (fetch_hike_data.py's _correlate_environmental_series, linear
+# interpolation between bracketing real readings within a capped gap). Two
+# preset pairings share one panel via a legend-toggle, decided over either
+# 4 lines on one axis (unit spread makes that unreadable) or a free-pick-any-2
+# UI (real complexity for a combination nobody asked for) -- see CARD-0204's
+# own interview notes on kanban-board.md.
+ENV_CHART_MODES = [
+    {
+        'key': 'temp-humidity',
+        'label': 'Temp & Humidity',
+        'left': {'field': 'temp_f', 'unit': '°F', 'css': 'temp'},
+        'right': {'field': 'humidity_pct', 'unit': '%', 'css': 'humidity'},
+    },
+    {
+        'key': 'pressure-uv',
+        'label': 'Pressure & UV',
+        'left': {'field': 'pressure_hpa', 'unit': 'hPa', 'css': 'pressure'},
+        'right': {'field': 'uv_index', 'unit': '', 'css': 'uv'},
+    },
+]
+
+
+def build_env_chart_html(chart_series, chart_id='hikeEnvChart', tz_offset_hours=DEFAULT_TZ_OFFSET_HOURS):
+    """Returns the Environmental Data chart's <div class="chart-card">...
+    markup, or '' if chart_series is empty or carries no environmental
+    values at all for any of the 4 fields (e.g. the hiking-monitor device
+    wasn't carried that day) -- same "no empty scaffolding" convention
+    build_chart_html() itself follows. Both preset pairings' full geometry
+    is precomputed here and shipped in the same SVG as two sibling <g>
+    elements; the legend-toggle only ever flips which one is visible
+    (build_env_chart_script()), no client-side math."""
+    env_fields = ('temp_f', 'humidity_pct', 'pressure_hpa', 'uv_index')
+    if not chart_series or not any(p.get(f) is not None for p in chart_series for f in env_fields):
+        return ''
+
+    plot_w = VIEWBOX_W - MARGIN['left'] - MARGIN['right']
+    plot_h = VIEWBOX_H - MARGIN['top'] - MARGIN['bottom']
+    max_dist = chart_series[-1]['distance_mi'] or 0.001
+
+    def x(d):
+        return MARGIN['left'] + (d / max_dist) * plot_w
+
+    segments = []
+    for p in chart_series:
+        if p.get('session_break') or not segments:
+            segments.append([])
+        segments[-1].append(p)
+
+    mode_groups = []
+    for mi, mode in enumerate(ENV_CHART_MODES):
+        left, right = mode['left'], mode['right']
+        left_vals = [p[left['field']] for p in chart_series if p.get(left['field']) is not None]
+        right_vals = [p[right['field']] for p in chart_series if p.get(right['field']) is not None]
+        left_min, left_max = (min(left_vals) - 1, max(left_vals) + 1) if left_vals else (0, 1)
+        right_min, right_max = (min(right_vals) - 1, max(right_vals) + 1) if right_vals else (0, 1)
+        if left_max == left_min:
+            left_max += 1
+        if right_max == right_min:
+            right_max += 1
+
+        def y_left(v, lo=left_min, hi=left_max):
+            return MARGIN['top'] + plot_h - ((v - lo) / (hi - lo)) * plot_h
+
+        def y_right(v, lo=right_min, hi=right_max):
+            return MARGIN['top'] + plot_h - ((v - lo) / (hi - lo)) * plot_h
+
+        svg_parts = []
+        for frac in (0, 0.5, 1):
+            v = left_min + frac * (left_max - left_min)
+            yy = y_left(v)
+            svg_parts.append(f'<line class="gridline" x1="{MARGIN["left"]}" x2="{VIEWBOX_W - MARGIN["right"]}" y1="{yy:.1f}" y2="{yy:.1f}"/>')
+            svg_parts.append(f'<text class="axis-label" x="{MARGIN["left"] - 6}" y="{yy + 3:.1f}" text-anchor="end">{v:.0f}{left["unit"]}</text>')
+        for frac in (0, 0.5, 1):
+            v = right_min + frac * (right_max - right_min)
+            yy = y_right(v)
+            svg_parts.append(f'<text class="axis-label" x="{VIEWBOX_W - MARGIN["right"] + 6}" y="{yy + 3:.1f}" text-anchor="start">{v:.0f}{right["unit"]}</text>')
+        for frac in (0, 0.25, 0.5, 0.75, 1):
+            d = frac * max_dist
+            xx = x(d)
+            svg_parts.append(f'<text class="axis-label" x="{xx:.1f}" y="{VIEWBOX_H - 6}" text-anchor="middle">{d:.2f}mi</text>')
+        svg_parts.append(f'<line class="axis-line" x1="{MARGIN["left"]}" x2="{VIEWBOX_W - MARGIN["right"]}" y1="{MARGIN["top"] + plot_h}" y2="{MARGIN["top"] + plot_h}"/>')
+
+        for field_info, y_fn in ((left, y_left), (right, y_right)):
+            line_parts = []
+            for seg in segments:
+                pts = [(x(p['distance_mi']), y_fn(p[field_info['field']])) for p in seg if p.get(field_info['field']) is not None]
+                if pts:
+                    line_parts.append(' '.join(f'{"M" if i == 0 else "L"}{px:.1f},{py:.1f}' for i, (px, py) in enumerate(pts)))
+            if line_parts:
+                svg_parts.append(f'<path class="line-{field_info["css"]}" d="{" ".join(line_parts)}"/>')
+
+        svg_parts.append(f'<line class="hover-guide" x1="0" x2="0" y1="{MARGIN["top"]}" y2="{MARGIN["top"] + plot_h}" opacity="0"/>')
+        svg_parts.append(f'<circle class="hover-dot {left["css"]}" data-metric="{left["css"]}" r="4" opacity="0"/>')
+        svg_parts.append(f'<circle class="hover-dot {right["css"]}" data-metric="{right["css"]}" r="4" opacity="0"/>')
+
+        for i, p in enumerate(chart_series):
+            time_str = _esc(_local_time_str(p['timestamp'], tz_offset_hours))
+            for field_info, y_fn in ((left, y_left), (right, y_right)):
+                v = p.get(field_info['field'])
+                if v is None:
+                    continue
+                px, py = x(p['distance_mi']), y_fn(v)
+                svg_parts.append(
+                    f'<circle class="hit-target" cx="{px:.1f}" cy="{py:.1f}" r="10" data-index="{i}" '
+                    f'data-metric="{field_info["css"]}" data-time="{time_str}" data-value="{v:.1f}" data-unit="{field_info["unit"]}"/>'
+                )
+
+        svg_markup = '\n      '.join(svg_parts)
+        display = '' if mi == 0 else ' style="display:none"'
+        mode_groups.append(f'<g class="env-mode-group" id="{chart_id}-mode-{mode["key"]}"{display}>\n      {svg_markup}\n    </g>')
+
+    groups_markup = '\n    '.join(mode_groups)
+    toggle_buttons = ''.join(
+        f'<button type="button" class="chart-toggle-btn{" active" if i == 0 else ""}" data-mode="{mode["key"]}">{_esc(mode["label"])}</button>'
+        for i, mode in enumerate(ENV_CHART_MODES)
+    )
+    script = build_env_chart_script(chart_id, [m['key'] for m in ENV_CHART_MODES])
+
+    return f'''<div class="chart-card">
+  <button type="button" class="map-expand-btn chart-expand-btn" id="{chart_id}-expand-btn" aria-label="Expand chart to full size" title="Expand chart">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+      <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+    </svg>
+  </button>
+  <div class="chart-toggle" id="{chart_id}-toggle">{toggle_buttons}</div>
+  <div class="chart-tooltip-slot" id="{chart_id}-tooltip">
+    <span class="tt-time">Hover the chart</span>
+    <span class="tt-metric">&mdash;</span>
+  </div>
+  <div class="chart-svg-wrap">
+    <svg class="hike-chart" id="{chart_id}" viewBox="0 0 {VIEWBOX_W} {VIEWBOX_H}" preserveAspectRatio="xMidYMid meet">
+      {groups_markup}
+    </svg>
+  </div>
+</div>
+<div class="map-modal-backdrop" id="{chart_id}-modal-backdrop">
+  <div class="map-modal">
+    <button class="map-modal-close" id="{chart_id}-modal-close" aria-label="Close">&times;</button>
+    <div id="{chart_id}-modal-container" class="map-modal-container"></div>
+  </div>
+</div>
+{script}'''
+
+
+def build_env_chart_script(chart_id, mode_keys):
+    """Mirrors build_chart_script()'s hover-sync contract exactly -- same
+    data-index attribute, same hikeizer-chart-hover/-unhover window
+    CustomEvents -- so this panel, the Route Map, and the Elevation & Speed
+    chart all stay in sync regardless of which one a hover starts on. The
+    one thing on top of that shared pattern: a legend-toggle switches which
+    of the two pre-baked <g class="env-mode-group"> is visible; toggling
+    only ever flips a style.display, no data recomputed client-side."""
+    mode_keys_json = json.dumps(mode_keys)
+    return f'''<script>
+(function () {{
+  var svg = document.getElementById("{chart_id}");
+  var tooltipSlot = document.getElementById("{chart_id}-tooltip");
+  var toggle = document.getElementById("{chart_id}-toggle");
+  var modeKeys = {mode_keys_json};
+  var activeMode = modeKeys[0];
+
+  function activeGroup() {{ return document.getElementById("{chart_id}-mode-" + activeMode); }}
+
+  function setMode(mode) {{
+    activeMode = mode;
+    modeKeys.forEach(function (k) {{
+      document.getElementById("{chart_id}-mode-" + k).style.display = (k === mode) ? "" : "none";
+    }});
+    Array.prototype.forEach.call(toggle.querySelectorAll(".chart-toggle-btn"), function (btn) {{
+      btn.classList.toggle("active", btn.getAttribute("data-mode") === mode);
+    }});
+    hide();
+  }}
+
+  Array.prototype.forEach.call(toggle.querySelectorAll(".chart-toggle-btn"), function (btn) {{
+    btn.addEventListener("click", function () {{ setMode(btn.getAttribute("data-mode")); }});
+  }});
+
+  function showByIndex(index) {{
+    var g = activeGroup();
+    var targets = g.querySelectorAll('.hit-target[data-index="' + index + '"]');
+    if (!targets.length) {{ hide(); return; }}
+    var guide = g.querySelector(".hover-guide");
+    var dots = g.querySelectorAll(".hover-dot");
+    var firstCx = targets[0].getAttribute("cx");
+    guide.setAttribute("x1", firstCx);
+    guide.setAttribute("x2", firstCx);
+    guide.setAttribute("opacity", 1);
+    var shownMetrics = {{}};
+    var parts = [];
+    Array.prototype.forEach.call(targets, function (circle) {{
+      var metric = circle.getAttribute("data-metric");
+      shownMetrics[metric] = true;
+      var dot = g.querySelector(".hover-dot." + metric);
+      dot.setAttribute("cx", circle.getAttribute("cx"));
+      dot.setAttribute("cy", circle.getAttribute("cy"));
+      dot.setAttribute("opacity", 1);
+      parts.push('<span class="tt-metric ' + metric + '">' + circle.getAttribute("data-value") + circle.getAttribute("data-unit") + '</span>');
+    }});
+    Array.prototype.forEach.call(dots, function (dot) {{
+      var metric = dot.getAttribute("data-metric");
+      if (!shownMetrics[metric]) dot.setAttribute("opacity", 0);
+    }});
+    tooltipSlot.innerHTML = '<span class="tt-time">' + targets[0].getAttribute("data-time") + '</span>' + parts.join("");
+    tooltipSlot.classList.add("is-active");
+  }}
+
+  function hide() {{
+    modeKeys.forEach(function (k) {{
+      var g = document.getElementById("{chart_id}-mode-" + k);
+      var guide = g.querySelector(".hover-guide");
+      if (guide) guide.setAttribute("opacity", 0);
+      Array.prototype.forEach.call(g.querySelectorAll(".hover-dot"), function (dot) {{ dot.setAttribute("opacity", 0); }});
+    }});
+    tooltipSlot.innerHTML = '<span class="tt-time">Hover the chart</span><span class="tt-metric">&mdash;</span>';
+    tooltipSlot.classList.remove("is-active");
+  }}
+
+  Array.prototype.forEach.call(svg.querySelectorAll(".hit-target"), function (circle) {{
+    circle.addEventListener("mouseenter", function () {{
+      var index = Number(circle.getAttribute("data-index"));
+      showByIndex(index);
+      window.dispatchEvent(new CustomEvent("hikeizer-chart-hover", {{detail: {{index: index}}}}));
+    }});
+    circle.addEventListener("mouseleave", function () {{
+      hide();
+      window.dispatchEvent(new CustomEvent("hikeizer-chart-unhover"));
+    }});
+  }});
+
+  // Three-way sync (CARD-0204): pick up hovers from the Route Map and the
+  // Elevation & Speed chart the same way this panel's own hover reaches
+  // them (both already listen for/dispatch these same event names).
+  window.addEventListener("hikeizer-map-hover", function (e) {{ showByIndex(e.detail.index); }});
+  window.addEventListener("hikeizer-map-unhover", hide);
+  window.addEventListener("hikeizer-chart-hover", function (e) {{ showByIndex(e.detail.index); }});
+  window.addEventListener("hikeizer-chart-unhover", hide);
+
+  // CARD-0194-style click-to-expand, same DOM-relocation pattern build_chart_script() uses.
+  var chartCard = svg.closest(".chart-card");
+  var chartOriginalParent = chartCard.parentNode;
+  var chartModalBackdrop = document.getElementById("{chart_id}-modal-backdrop");
+  var chartModalContainer = document.getElementById("{chart_id}-modal-container");
+  var chartModalClose = document.getElementById("{chart_id}-modal-close");
+  var chartExpandBtn = document.getElementById("{chart_id}-expand-btn");
+
+  function openChartModal() {{
+    chartModalBackdrop.classList.add("open");
+    chartModalContainer.appendChild(chartCard);
+  }}
+  function closeChartModal() {{
+    chartModalBackdrop.classList.remove("open");
+    chartOriginalParent.appendChild(chartCard);
+  }}
   chartExpandBtn.addEventListener("click", openChartModal);
   chartModalClose.addEventListener("click", closeChartModal);
   chartModalBackdrop.addEventListener("click", function (e) {{

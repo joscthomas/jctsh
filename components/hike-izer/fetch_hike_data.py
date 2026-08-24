@@ -818,7 +818,83 @@ def compute_hike_detail_stats(gps_rows, sessions, distance_mi, duration_min):
     }
 
 
-def build_chart_series(gps_rows, sessions, max_points=80):
+# CARD-0204: Environmental Data (temp/humidity/pressure/UV) arrives from the
+# JCTsh Hiking Monitor at its own ~2-min interval cadence -- coarser than
+# GPS's ~30s and never on the same timestamps as a chart point. A chart
+# point's environmental values are linearly interpolated between the nearest
+# real reading before and after it, same "interpolate between bracketing
+# points" shape as build_hike_map.py's interpolate_position() (CARD-0133),
+# but with its own cap tuned for Environmental Data's coarser cadence rather
+# than reusing that function's 600s (GPS-to-event) constant -- a routine
+# single missed 2-min reading is a ~240s gap on its own, and this cap needs
+# to comfortably clear that without also bridging a real multi-session gap
+# (which starts at 600s by definition, per _gps_sessions' own threshold).
+ENV_INTERPOLATION_MAX_GAP_SEC = 900.0
+
+ENV_CHART_FIELDS = ('temp_f', 'humidity_pct', 'pressure_hpa', 'uv_index')
+
+
+def _correlate_environmental_series(chart_ts_list, env_rows, max_gap_sec=ENV_INTERPOLATION_MAX_GAP_SEC):
+    """Returns a list aligned 1:1 with chart_ts_list (must be chronologically
+    sorted, true of chart_series' own point order), each entry
+    {temp_f, humidity_pct, pressure_hpa, uv_index}. Each field is linearly
+    interpolated between the nearest real Environmental Data reading before
+    and after that timestamp; a field missing on one side falls back to the
+    other side alone (within max_gap_sec); missing entirely (or too far on
+    both sides) yields None, so the chart draws no line through that stretch
+    rather than implying a value that was never measured near there."""
+    parsed = sorted(
+        (
+            {
+                'ts': ts,
+                **{f: to_float(r.get(f)) for f in ENV_CHART_FIELDS},
+            }
+            for r in env_rows
+            for ts in [parse_ts(r.get('timestamp'))]
+            if ts is not None
+        ),
+        key=lambda r: r['ts'],
+    )
+    if not parsed:
+        return [{f: None for f in ENV_CHART_FIELDS} for _ in chart_ts_list]
+
+    out = []
+    j = 0
+    n = len(parsed)
+    for target in chart_ts_list:
+        while j < n and parsed[j]['ts'] < target:
+            j += 1
+        after = parsed[j] if j < n else None
+        before = parsed[j - 1] if j > 0 else None
+        point = {}
+        for f in ENV_CHART_FIELDS:
+            bv = before[f] if before is not None else None
+            av = after[f] if after is not None else None
+            gap_b = (target - before['ts']).total_seconds() if before is not None else None
+            gap_a = (after['ts'] - target).total_seconds() if after is not None else None
+            if bv is not None and av is not None:
+                span = (after['ts'] - before['ts']).total_seconds()
+                if span <= 0:
+                    point[f] = bv
+                elif gap_b <= max_gap_sec and gap_a <= max_gap_sec:
+                    point[f] = bv + (gap_b / span) * (av - bv)
+                elif gap_b <= max_gap_sec:
+                    point[f] = bv
+                elif gap_a <= max_gap_sec:
+                    point[f] = av
+                else:
+                    point[f] = None
+            elif bv is not None and gap_b <= max_gap_sec:
+                point[f] = bv
+            elif av is not None and gap_a <= max_gap_sec:
+                point[f] = av
+            else:
+                point[f] = None
+        out.append(point)
+    return out
+
+
+def build_chart_series(gps_rows, sessions, env_rows=None, max_points=80):
     """CARD-0110: downsampled elevation+speed-vs-distance series for the
     Elevation & Speed chart -- resampled by cumulative distance rather than
     plotting every raw ~30s GPS point, which would make for a cluttered
@@ -834,7 +910,13 @@ def build_chart_series(gps_rows, sessions, max_points=80):
     CARD-0082: also carries lat/lon per point (already computed by
     _hike_point_series, just not previously passed through) -- this is the
     one shared series the Route Map reads too, so the map and the chart can
-    never disagree about what a given point actually is."""
+    never disagree about what a given point actually is.
+
+    CARD-0204: also carries temp_f/humidity_pct/pressure_hpa/uv_index per
+    point, interpolated from env_rows (see _correlate_environmental_series)
+    -- kept on this same shared series, not a second list, so a new
+    Environmental Data chart panel can't drift out of index-sync with the
+    Route Map / Elevation & Speed chart's existing hover-sync contract."""
     all_series = _session_point_series(gps_rows, sessions)
     if not all_series:
         return []
@@ -854,6 +936,11 @@ def build_chart_series(gps_rows, sessions, max_points=80):
                     next_target += step_mi
             if picked[-1] is not series[-1]:
                 picked.append(series[-1])
+        # CARD-0204: correlated once per session (its own bracket-and-scan,
+        # not per point) -- picked[i]['ts'] is already chronologically sorted
+        # within a session, matching _correlate_environmental_series' own
+        # sorted-input assumption.
+        env_values = _correlate_environmental_series([p['ts'] for p in picked], env_rows or [])
         for i, p in enumerate(picked):
             # CARD-0085: sun position computed per-point here (cheap, pure
             # math, no API cost) rather than reused from the separately
@@ -863,6 +950,7 @@ def build_chart_series(gps_rows, sessions, max_points=80):
             # sun-gadget stays correctly index-matched to whatever points
             # are actually hoverable.
             sun_elev, sun_az = solar_position(p['ts'], p['lat'], p['lon'])
+            ev = env_values[i]
             out.append({
                 'timestamp': p['ts'].isoformat(),
                 'distance_mi': round(p['distance_mi'] + dist_offset, 3),
@@ -874,6 +962,10 @@ def build_chart_series(gps_rows, sessions, max_points=80):
                 'sun_azimuth_deg': round(sun_az, 1),
                 'sun_elevation_deg': round(sun_elev, 1),
                 'travel_bearing_deg': round(p['bearing_deg'], 1) if p.get('bearing_deg') is not None else None,
+                'temp_f': round(ev['temp_f'], 1) if ev['temp_f'] is not None else None,
+                'humidity_pct': round(ev['humidity_pct'], 1) if ev['humidity_pct'] is not None else None,
+                'pressure_hpa': round(ev['pressure_hpa'], 1) if ev['pressure_hpa'] is not None else None,
+                'uv_index': round(ev['uv_index'], 1) if ev['uv_index'] is not None else None,
             })
         dist_offset += total_mi
     return out
@@ -1075,7 +1167,7 @@ def main():
     hike_sessions = coverage['gps_track']['sessions']
     stats.update(compute_hike_detail_stats(altitude_gps_rows, hike_sessions, stats['distance_mi'], hike_duration_min))
     chart_series = (
-        build_chart_series(altitude_gps_rows, hike_sessions) if coverage['gps_track']['hike_confirmed'] else []
+        build_chart_series(altitude_gps_rows, hike_sessions, env_rows) if coverage['gps_track']['hike_confirmed'] else []
     )
 
     out = {

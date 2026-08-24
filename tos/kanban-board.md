@@ -217,7 +217,7 @@ hiking-monitor's design is simpler because it has no high-current peripheral to 
 ---
 
 ### CARD-0196 · [enhancement] [hiking-monitor] Extend field-mode hike endurance — display refresh throttling
-**Status:** Backlog
+**Status:** Build
 
 **Raised 2026-08-23 04:36 MST (Joseph), from a battery-usage analysis of the 2026-08-22 hike.** Field mode's actual current draw was reconstructed from the hike's own voltage curve: continuous 4.11V → 3.55V decline over 2h53m of active hiking, projecting to roughly **3h40m of continuous field-mode endurance per full charge** before hitting the firmware's hard-coded 3.4V low-battery cutoff (`hiking-monitor.yaml:531-532`). Four candidate fixes were originally discussed and interviewed 2026-08-23, since split into separate cards by risk/kind: **item 1 (true deep-sleep-between-samples) → CARD-0201** (highest risk, firmware rearchitecture); **item 4 (longer-LiPo fit check) → CARD-0203** (physical research/procurement, not firmware). This card now covers just item 2 (built) and item 3 (a non-deliverable note).
 

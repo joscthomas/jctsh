@@ -197,12 +197,16 @@ Deferred per Phase 1's "Deferred Features" table: solar panel mount/clip design.
 ```
 LiPo BAT+ (via inline switch) ──┬──── TP4056 BAT+ (charging only — TP4056's boost pads unused)
                                  │
-                                 └──── MCP1700 VIN
-                                       MCP1700 GND ──── common GND
-                                       MCP1700 VOUT ──── ESP32 3V3 pin directly
+                                 ├──── MCP1700 VIN
+                                 │     MCP1700 GND ──── common GND
+                                 │     MCP1700 VOUT ──── ESP32 3V3 pin directly
+                                 │
+                                 └──── Battery Voltage Divider — R1 (100kΩ) top leg
+                                       (see Battery Voltage Divider Wiring below;
+                                       same node as VIN, not a separate wire run)
 ```
 
-- **LDO `VIN` taps the battery+ node in parallel with TP4056's `BAT+` input** — a parallel connection straight off the raw battery (through the inline switch), not fed from TP4056's boost/`VOUT+` output.
+- **LDO `VIN` taps the battery+ node in parallel with TP4056's `BAT+` input and the Battery Voltage Divider's top leg** — three things sharing one node straight off the raw battery (through the inline switch), not fed from TP4056's boost/`VOUT+` output.
 - **LDO `VOUT` → ESP32 dev board's `3V3` pin directly** (not `VIN`) — `VIN` expects ~5V and routes through the board's own onboard regulator; feeding `3V3` bypasses that second regulation stage, which is the entire point of this change.
 - **Caution: never power the board from USB and the LDO at the same time** — both would drive the `3V3` rail from separate unisolated sources, risking backfeeding either regulator. Disconnect the LDO before flashing over USB, and vice versa. (Breadboard Steps 4-6 below power via USB only — do not connect the LiPo/LDO until Step 7.) **This is scoped specifically to the ESP32's own USB-C port** (the one used for flashing/serial) — the TP4056's separate micro-USB charging port never touches `3V3` at all, it only feeds the LiPo's `BAT+`/`BAT-` via the charge circuit (see Dock Detect Wiring below). Charging via TP4056 while the LDO powers the ESP32 off the battery is normal, expected home-mode operation, not a conflict — no need to switch off for that. **The inline power switch satisfies the ESP32-USB-C case** — switching it off removes the LDO's `VIN` entirely (functionally equivalent to unplugging it), so flashing over the ESP32's USB-C just requires the switch to be off rather than physically disconnecting anything (switch back on immediately after — see the Inline Power Switch operating rule above). Note: with the switch off, `VIN` is floating rather than grounded, so a microamp-scale reverse leakage back onto that node via the LDO's parasitic body diode (`VOUT`→`VIN`) is theoretically possible while `VOUT` is USB-fed — not a real hazard for the MCP1700, not worth acting on.
 - The Adafruit #5964 adapter's own onboard 5V boost for the SEN55 is fed from this same `3V3` rail (`VIN` direct, `GND` also direct — no gate transistor, see SEN55 Power Gate section above) — it never depended on TP4056's boost output, so this change doesn't affect it.

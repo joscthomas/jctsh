@@ -37,6 +37,9 @@
 #   GPIO22  I2C SCL — yellow
 #   GPIO27  Unused — previously reserved for the SEN55 power-gate transistor,
 #           dropped 2026-08-21 (see STEP 6 DECISION above)
+#   GPIO17  Debug UART2 TX (CARD-0205, 2026-08-24) — external CP2102 adapter,
+#           transmit-only. ESP32's fixed UART2 TX pin (not remappable via
+#           ESPHome's logger component — see logger: block below)
 #   GPIO32  Dock detect (TP4056 IN+ or solar → divider, HIGH = docked/charging)
 #   GPIO34  Battery voltage ADC (input-only; placeholder reading until Step 7 wires the LiPo)
 #
@@ -52,16 +55,38 @@ esphome:
   on_boot:
     - priority: -100.0
       then:
-        # Reset-reason LED signal, shown immediately, before anything else —
-        # added 2026-08-21 during the battery/LDO brownout investigation.
-        # Live serial isn't safe to watch on battery power (same dual-
-        # regulator conflict as USB+LDO), and MQTT-based reporting (the
-        # on_connect log message, below) only works if the device actually
-        # gets far enough to connect — no good on a hard boot-loop. The LED
-        # has no such dependency, so it reports every single boot's own
-        # reset reason directly: solid Red (3s) = brownout or power-glitch
-        # detected, solid Blue (1s) = anything else (normal power-on, sw
-        # reset, etc.). ESP32 string values per ESPHome's debug component:
+        # Force SEN55 into Idle mode (~2.6mA) as the very first on_boot
+        # action — moved ahead of the reset-reason LED block below,
+        # 2026-08-24, after live testing showed the original ordering still
+        # left SEN55 running full ~63mA Measurement mode (auto-started by
+        # its own sen5x platform setup(), priority ~600, well before this
+        # script's priority -100.0) through the entire reset-reason LED
+        # delay (up to 1-3s) before ever being told to idle down. With SEN55
+        # actually connected, that extra second-plus of sustained ~63mA
+        # stacked on WiFi's own connection-spike current reproduced the same
+        # brownout reset-loop signature seen before the bulk capacitor was
+        # added (pulsing onboard red LED) — even with the capacitor in
+        # place. This reorder minimizes that exposure window to whatever
+        # component setup() itself takes (fast, no delays), not however long
+        # the LED signal chooses to hold. SEN55 stays in Idle through the
+        # self-test LED animation and the WiFi connection window below, then
+        # resumes Measurement mode once that window should be past.
+        # ESPHome's native sen5x platform has no built-in idle-mode option
+        # (esphome/feature-requests#3041) — this sends the raw I2C command
+        # directly via the SensirionI2CDevice base class's public
+        # write_command(), which the sen5x platform doesn't otherwise
+        # expose in YAML.
+        - lambda: 'id(sen55).write_command((uint16_t) 0x3f86);'  # SEN5X_CMD_STOP_MEASUREMENTS -> Idle mode
+        # Reset-reason LED signal — added 2026-08-21 during the battery/LDO
+        # brownout investigation, now second (see reorder note above). Live
+        # serial isn't safe to watch on battery power (same dual-regulator
+        # conflict as USB+LDO), and MQTT-based reporting (the on_connect log
+        # message, below) only works if the device actually gets far enough
+        # to connect — no good on a hard boot-loop. The LED has no such
+        # dependency, so it reports every single boot's own reset reason
+        # directly: solid Red (3s) = brownout or power-glitch detected,
+        # solid Blue (1s) = anything else (normal power-on, sw reset, etc.).
+        # ESP32 string values per ESPHome's debug component:
         # esphome.io/components/debug — "brownout" / "power glitch detected"
         # are the ones we're watching for here.
         - if:
@@ -78,21 +103,6 @@ esphome:
               - output.turn_on: rgb_led_blue
               - delay: 1s
               - output.turn_off: rgb_led_blue
-        # Force SEN55 into Idle mode (~2.6mA) immediately, before its own
-        # sen5x platform setup() auto-starts full Measurement mode (~63mA).
-        # Added 2026-08-21: testing whether SEN55's continuous ~63mA draw
-        # stacking on top of the ESP32's WiFi-connection current spikes —
-        # both drawn from the same 250mA-rated MCP1700 LDO — is causing a
-        # brownout reset on battery power (works fine on USB, fails to
-        # boot/connect on battery+LDO). SEN55 stays in Idle through the
-        # self-test LED animation and the WiFi connection window below,
-        # then resumes Measurement mode once that window should be past.
-        # ESPHome's native sen5x platform has no built-in idle-mode option
-        # (esphome/feature-requests#3041) — this sends the raw I2C command
-        # directly via the SensirionI2CDevice base class's public
-        # write_command(), which the sen5x platform doesn't otherwise
-        # expose in YAML.
-        - lambda: 'id(sen55).write_command((uint16_t) 0x3f86);'  # SEN5X_CMD_STOP_MEASUREMENTS -> Idle mode
         # Boot self-test LED sequence: two quick blinks per color (Blue, Red,
         # Yellow, Green) exercise all three channels, then blink Green with NO
         # timeout until SEN55 produces a first valid PM2.5 reading — Step 4's
@@ -158,9 +168,23 @@ esphome:
         - delay: 2s   # let the SEN55 fan/sensor settle before forcing a first read
         - component.update: sen55
         - component.update: battery_voltage
+        # CARD-0198 (2026-08-24): bounded to 30s, same pattern as the MQTT-connect
+        # wait above. Originally unbounded on the assumption that a "looks fine"
+        # power connection could still take minutes to produce a first valid
+        # reading (Step 4's diagnostic saga) -- true for a connected sensor, but
+        # if SEN55 is disconnected or genuinely faulty, pm_2_5 never leaves NaN
+        # and this would hang forever, permanently blocking boot_sequence_done
+        # and the operational LED handoff. A real sensor fault in the field
+        # shouldn't be able to hang the device any more than a real network
+        # fault should (which is exactly why the MQTT wait above got the same
+        # treatment). 30s bound is well past the ~12s first-reading time observed
+        # in Step 4's own working-config bench test.
+        - lambda: 'id(pm25_wait_start) = millis();'
         - while:
             condition:
-              lambda: 'return isnan(id(sen55_pm25).state);'
+              lambda: |-
+                return isnan(id(sen55_pm25).state) &&
+                       (millis() - id(pm25_wait_start)) < 30000;
             then:
               - output.turn_on: rgb_led_green
               - delay: 400ms
@@ -213,6 +237,13 @@ globals:
     type: uint32_t
     restore_value: false
     initial_value: '0'
+  # CARD-0198: start-of-wait timestamp for the bounded first-PM2.5-reading
+  # wait (see esphome.on_boot above) -- separate from boot_wait_start since
+  # the two waits happen at different points in the same script.
+  - id: pm25_wait_start
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
 
 # ── WiFi ──────────────────────────────────────────────────────────────────────
 # Multi-network (portable component): home WiFi first, Pixel hotspot second —
@@ -238,8 +269,23 @@ wifi:
 captive_portal:
 
 # ── Logging ───────────────────────────────────────────────────────────────────
+# CARD-0205 (2026-08-24): moved to UART2 for a secondary debug UART via an
+# external HiLetgo CP2102 adapter. Corrected same day: ESPHome's logger
+# component has no tx_pin option at all (confirmed against the installed
+# esphome package's own logger/__init__.py config schema) -- hardware_uart
+# only selects which of the ESP32's fixed UART peripherals to use; its pins
+# are not remappable through this component. On the original ESP32
+# (Arduino framework), UART2's fixed pins are TX=GPIO17/RX=GPIO16, not the
+# originally-planned GPIO27 -- GPIO17 was confirmed unused on this board
+# (ESP32-project-pins.md) and is what's actually wired: GPIO17 -> adapter
+# RXD, ESP32 GND -> adapter GND. Adapter's own VCC/3V3/5V power pins stay
+# disconnected so the board stays powered exclusively by its LDO/battery
+# (the whole point: the onboard USB-C port can't show boot logs while
+# genuinely running on battery, per wiring.md's LDO/USB-power-conflict
+# warning). Transmit-only (logger doesn't receive), so RX/GPIO16 is unused.
 logger:
   level: INFO
+  hardware_uart: UART2
 
 # ── OTA updates ───────────────────────────────────────────────────────────────
 # First flash: USB from C:\esphome\air-quality-monitor\

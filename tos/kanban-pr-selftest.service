@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily self-test of the kanban-PR intake pipeline (CARD-0192)
+After=network-online.target mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/kanban-pr-selftest.py

@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily: self-test the kanban-PR intake pipeline (CARD-0192)
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=kanban-pr-selftest.service
+
+[Install]
+WantedBy=timers.target

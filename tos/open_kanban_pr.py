@@ -78,7 +78,14 @@ def _api(method, path, token, body=None):
         },
     )
     with urllib.request.urlopen(req, timeout=20) as resp:
-        return json.loads(resp.read())
+        # CARD-0192, found live: DELETE (e.g. deleting a branch ref) returns
+        # 204 No Content -- an empty body. json.loads(b'') raises
+        # JSONDecodeError, not caught by callers that only expect
+        # urllib.error.HTTPError. Every existing caller before CARD-0192
+        # only ever hit GET/POST/PUT/PATCH against endpoints that always
+        # return a body, so this was latent until the first DELETE caller.
+        raw = resp.read()
+        return json.loads(raw) if raw else None
 
 
 def _pr_still_open(pr_number, token):
@@ -87,6 +94,25 @@ def _pr_still_open(pr_number, token):
         return data.get("state") == "open"
     except urllib.error.HTTPError:
         return False
+
+
+def close_pr(pr_number, token):
+    """Close a PR without merging, and delete its branch (CARD-0192's
+    daily self-test cleanup -- each run closes the previous run's test PR
+    before opening a fresh one). Tolerant of the PR already being closed/
+    merged/gone -- cleanup failing shouldn't block opening today's test.
+    Catches Exception broadly, not just HTTPError -- this is best-effort
+    cleanup, not something that should ever block opening today's real
+    test PR, whatever the failure mode turns out to be."""
+    try:
+        _api("PATCH", f"/repos/{REPO}/pulls/{pr_number}", token, {"state": "closed"})
+    except Exception:
+        pass
+    try:
+        pr = _api("GET", f"/repos/{REPO}/pulls/{pr_number}", token)
+        _api("DELETE", f"/repos/{REPO}/git/refs/heads/{pr['head']['ref']}", token)
+    except Exception:
+        pass
 
 
 def _get_file_text(path, ref, token):

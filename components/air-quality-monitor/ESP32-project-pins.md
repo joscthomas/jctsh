@@ -18,7 +18,7 @@
 |                                 | 8 | GPIO33                        | GPIO19           | 31 | RGB LED module — `G` pin |
 |                                 | 9 | GPIO25                        | GPIO18           | 30 | RGB LED module — `R` pin |
 |                                 | 10 | GPIO26                        | GPIO5            | 29 | |
-| Unused — SEN55 power-gate dropped 2026-08-21 | 11 | GPIO27                        | GPIO17           | 28 | |
+| Reserved — planned debug UART TX (CARD-0205), not yet wired | 11 | GPIO27                        | GPIO17           | 28 | |
 |                                 | 12 | GPIO14                        | GPIO16           | 27 | |
 |                                 | 13 | GPIO12                        | GPIO4            | 26 | |
 |                                 | 14 | GND                           | GPIO0 ⚠️         | 25 | |

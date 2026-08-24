@@ -9,7 +9,36 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0205 -->
+<!-- next-card-id: CARD-0206 -->
+
+---
+
+### CARD-0205 · [enhancement] [air-quality-monitor] Secondary debug UART for battery-powered serial logging via external USB-TTL adapter
+**Status:** Build
+
+**Moved to Build 2026-08-24 (Joseph) — explicitly paused, not started.** "Move it to Build, but don't change any YAML until we are ready to use it. We'll pick up with testing the air-quality-monitor later." No firmware change made yet — the `logger:`/`hardware_uart:`/`tx_pin:` edit described below waits for Joseph's go-ahead to actually begin, not just for the physical adapter/wiring prep to be ready.
+
+**Raised 2026-08-24 (Joseph), after receiving a HiLetgo CP2102 USB-to-TTL adapter with no defined purpose yet.** Interviewed to find a real use: air-quality-monitor's boot behavior is still under active investigation (CARD-0198 fixed a firmware boot race, but the underlying "power-on event" resets found in `state.json` earlier this session haven't been fully explained) — a serial console that works while the device is powered from its real LiPo/LDO path, not from the board's own onboard USB-C, is a genuine diagnostic gap this adapter can fill.
+
+**Why the board's own onboard USB-C port doesn't already cover this:** `wiring.md`'s LDO section explicitly warns against powering the board from USB and the LDO simultaneously (risk of backfeeding both regulators) — the documented workaround is flipping the inline power switch off before flashing over USB, which also kills LDO/battery power entirely. That means the board's own USB-C port can never show boot logs while the device is genuinely running on battery power — exactly the power path the resets being investigated happen on.
+
+**Why not just tap the onboard CP2102's own TX0/RX0 lines (GPIO1/GPIO3) with the new adapter:** those pins are already driven by the onboard CP2102 chip, which is powered by the board's own 3.3V rail (fed by the LDO) independent of whether anything's plugged into the USB-C port — so an external adapter wired to the same pins risks electrical contention with the onboard chip's own driver, not a clean tap.
+
+**Design, from the pre-card discussion:** move ESPHome's `logger:` to a second UART on an already-free, already-approved GPIO instead of GPIO1/3 — **GPIO27** (freed 2026-08-21 when the SEN55 power-gate transistor was dropped; already on `wiring.md`'s "unused" list and on this project's global safe-pins guidance). ESPHome's logger only transmits (device → computer), so only 2 wires are needed, not 4: `GPIO27 → adapter RXD`, `ESP32 GND → adapter GND`. The adapter's own VCC/3V3 output pin stays deliberately disconnected — the board must stay powered exclusively by its LDO/battery for this to test what it's meant to test, connecting the adapter's own power pin too would recreate the exact dual-power-source risk this design is built to avoid.
+
+**Scope:**
+1. `air-quality-monitor.yaml`: add `hardware_uart: UART2` and `tx_pin: GPIO27` to the existing `logger:` block.
+2. Prep the physical adapter: install the CP210x driver if Windows doesn't auto-detect it (same driver already referenced in `front-porch-temp-sensor/flashing.md`/`garage-radar/flashing.md`), and **set its voltage-select jumper to 3.3V, not 5V** before ever connecting it to the board — the one step that actually matters for board safety.
+3. Wire GPIO27 → adapter RXD, ESP32 GND → adapter GND, on the breadboard (device is still in breadboard/Phase 1 state, confirmed 2026-08-24 — not yet transferred to perfboard/enclosure, so this is a straightforward jumper addition, not a perfboard rework).
+4. Flash the firmware change (OTA is fine — this isn't a bootloader-level change).
+5. Verify: connect the adapter to a PC, confirm it enumerates as a COM port, and confirm real boot-time log lines actually appear (`esphome logs air-quality-monitor.yaml --device COMx` or an equivalent serial terminal at 115200 baud) while the board is powered only from its LiPo/LDO path, USB-C disconnected.
+6. Document the addition in `components/air-quality-monitor/wiring.md` (new section, matching the existing pattern used for the Inline Power Switch / SEN55 Power Gate sections — what it's for and why the onboard USB-C port doesn't already cover it) and update `ESP32-project-pins.md`'s GPIO27 row (currently reads "Unused — SEN55 power-gate dropped 2026-08-21" — needs to reflect the new debug-UART assignment).
+
+**Explicitly out of scope (Joseph's call, 2026-08-24):** actually using this to diagnose the power-on-event resets. This card closes once the mechanism itself works — a real boot log observed coming through the adapter while the device runs on battery power. Using it to investigate the resets is real follow-on work, either a new card or folded into CARD-0198's own thread once it comes up.
+
+**Done when:** the `logger:` UART2/GPIO27 change is flashed, the adapter is wired per the design above, a real boot sequence's log output is confirmed arriving over the adapter while the board is powered exclusively from its LiPo/LDO (not USB-C), and both `wiring.md` and `ESP32-project-pins.md` reflect the change.
+
+**Related:** CARD-0198 (the boot-race fix that surfaced the still-open "power-on event" reset question this tool is meant to help investigate, once built), `components/air-quality-monitor/wiring.md` (LDO/USB-power-conflict section this design works around), `components/air-quality-monitor/ESP32-project-pins.md` (GPIO27's current "unused" entry, to be updated).
 
 ---
 

@@ -120,6 +120,24 @@ GPIO27 (pin 11) ──── R (1kΩ) ──── Base
 
 ---
 
+## Debug UART — External USB-TTL Adapter (CARD-0205, GPIO27 pin 11) — planned, not yet wired
+
+**Raised 2026-08-24**, after the SEN55 power gate above freed GPIO27 with nothing using it. Purpose: a serial console that works while the board is powered from its real LiPo/LDO path, for diagnosing the "power-on event" resets CARD-0198 partially addressed. **This can't use the board's own onboard USB-C port** — see the LDO section below's caution against powering from USB and the LDO simultaneously; the documented workaround (flip the inline switch off before flashing) also kills LDO/battery power, so the onboard port can never show boot logs under real battery power. It also can't just tap the onboard CP2102's own TX0/RX0 (GPIO1/GPIO3) with a second adapter — those pins are already actively driven by the onboard chip (powered independently of USB, off the same 3.3V rail), so a second driver on the same pins risks contention rather than a clean tap.
+
+**Design:** move ESPHome's `logger:` to a second UART (`hardware_uart: UART2`) with `tx_pin: GPIO27` instead of the default UART0/GPIO1. The logger is transmit-only (device → computer), so only 2 wires are needed:
+
+```
+ESP32 GPIO27 (pin 11) ──────────────────────► Adapter RXD
+ESP32 GND (any GND pin) ─────────────────────► Adapter GND
+Adapter VCC/3V3 ── NOT CONNECTED — board stays powered exclusively by LiPo/LDO, that's the whole point
+```
+
+**Adapter prep, before ever connecting it:** install the CP210x driver if Windows doesn't auto-detect it (same driver referenced in `front-porch-temp-sensor/flashing.md`/`garage-radar/flashing.md`), and **set the adapter's voltage-select jumper to 3.3V, not 5V** — the ESP32's GPIO is a 3.3V logic device, and getting this wrong risks damaging the board.
+
+**Not yet built — waiting on Joseph's go-ahead (CARD-0205, 2026-08-24: "don't change any YAML until we are ready to use it").** GPIO27 remains listed as unused in the GPIO Assignment Summary table below until this is actually wired and flashed.
+
+---
+
 ## Inline Power Switch — True Transport/Storage Off
 
 **Decided 2026-08-19, directly from CARD-0181's hiking-monitor finding** — a switch tapped off a GPIO only sets a mode flag, it does not cut power. This switch is wired **directly into the battery+ path**, ahead of both the TP4056 and the LDO tap point, so switching it off isolates the entire board from the battery with zero current draw. It is not connected to any GPIO and does not appear in the GPIO table above.

@@ -48,7 +48,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0203 · [enhancement] [hiking-monitor] Longer-but-same-thickness LiPo — candidate sourced, enclosure fit still needs physical measurement
+### CARD-0203 · [enhancement] [hiking-monitor] Longer-but-same-thickness LiPo — fit confirmed, candidate cell out of stock
 **Status:** Backlog
 
 **Raised 2026-08-23 14:27 MST (Joseph), broken out from CARD-0196 item 4** (and separately again from CARD-0196 immediately after CARD-0201 was split out) — this is physical research/procurement work, not firmware, and closes on a different timeline (Joseph's hands on the enclosure) than the firmware cards it was originally bundled with.
@@ -57,9 +57,11 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Sourcing done, 2026-08-23 14:27 MST — real candidate identified:** [EEMB LP603466](https://eemb.store/products/lp603466-3-7v-1400mah), 3.7V 1400mAh, 6.5×34.5×68mm, JST connector, PCM-protected (overcharge/overdischarge/overcurrent/short-circuit), UL-certified and UN 38.3 compliant — same safety profile as the current cell. Verified against the current cell's own real dimensions, [EEMB LP603449](https://eemb.store/products/lp603449) at 6.3×34.5×50mm/1100mAh: essentially identical thickness (6.5 vs 6.3mm — within normal manufacturing tolerance) and identical width (34.5mm both), **18mm longer for +27% capacity.** Same manufacturer/product family as the currently-deployed cell (`hiking-monitor-claude-code-instructions.md`, `JCTsh-hiking-monitor-phase1.md`), so no new supplier-trust question.
 
-**Fit check — genuinely needs Joseph's hands on the physical enclosure, not researchable from here.** CARD-0009's own history notes the built enclosure's exact internal dimensions were never formally captured (Section 0's dimension-capture step was explicitly declined at the time) — so there's no recorded internal-clearance figure to check the extra 18mm of length against. Needs: measure actual internal clearance in the battery bay, confirm whether 18mm of extra length fits (and in which orientation, if the bay isn't a simple rectangular cavity), order only once confirmed.
+**Fit confirmed, 2026-08-23 (Joseph) — the 68mm length fits the physical enclosure.**
 
-**Done when:** the fit check has a concrete yes/no answer against the real enclosure — not just a sourced candidate part.
+**Candidate out of stock, 2026-08-23 (Joseph, confirmed on Amazon).** The sourced LP603466 is not currently purchasable.
+
+**Done when:** a purchasable cell matching the confirmed-fitting envelope (~6.3-6.5mm thick, 34.5mm wide, up to 68mm long) is identified and ordered.
 
 **Related:** CARD-0196 (the parent card this was broken out of), CARD-0009 (enclosure build — and the undocumented-internal-dimensions gap this card has to work around), CARD-0017 (unrelated schema card, no connection beyond both concerning the LiPo/charging system), `components/hiking-monitor/power-system.md`, `components/hiking-monitor/hiking-monitor-enclosure-plan.md`.
 

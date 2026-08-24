@@ -323,9 +323,23 @@ globals:
   # Cleared on switch-on or dock-removed (see slide_switch/dock_detect
   # on_state below) -- not time-based, matches upload mode's own
   # idle-until-touched behavior.
+  #
+  # restore_value: true (CARD-0199 real-hike fix, 2026-08-24) -- a plain
+  # RAM global resets to initial_value on every boot, including waking from
+  # deep_sleep.enter, which is a full reboot on next wake. The device
+  # always sleeps between a hike ending (switch off) and getting docked,
+  # so a plain global made "stays until switch-on/dock-removed" false in
+  # practice: state 3 (Done) got silently reset to 0 by the very next
+  # sleep/wake cycle, and the following unconditional home-mode display
+  # refresh (the `!in_field_mode` branch in the 2min interval) then
+  # overwrote the still-correct e-ink image with live readings before
+  # either real reset trigger ever fired. restore_value backs this with
+  # flash-persisted storage (NVS), which survives deep sleep/reboot --
+  # only switch-on/dock-removed clear it now, matching what this card
+  # always claimed. A few writes per hike is negligible flash wear.
   - id: upload_display_state
     type: int
-    restore_value: false
+    restore_value: true
     initial_value: '0'
   - id: upload_start_ms
     type: uint32_t
@@ -333,7 +347,7 @@ globals:
     initial_value: '0'
   - id: upload_duration_ms
     type: uint32_t
-    restore_value: false
+    restore_value: true
     initial_value: '0'
 
 # ── Low battery safety cutoff ─────────────────────────────────────────────────

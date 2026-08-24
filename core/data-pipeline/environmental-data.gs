@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-08-05.1-gps-direction';
+var SCRIPT_VERSION = '2026-08-24.1-correlation-debug';
 
 // ---------------------------------------------------------------------------
 // doPost — environmental sensor data (Node-RED → Sheets)
@@ -273,6 +273,23 @@ function _localString(utcDate, lat, lon, offsetCache) {
 // Returns {lat, lon} of the nearest GPS trackpoint within ±5 minutes of tsISO,
 // or {lat: null, lon: null} if GPS Track is empty or no match within the window.
 
+// CARD-0197: get-or-create the "Correlation Debug" tab and append one
+// diagnostic row. Used to test the suspected timing race between
+// _gpsLookup's read (below) and the action=gps handler's write (further
+// down) -- compare a 'lookup_miss' row's own logged_at against the
+// 'gps_append' row for the same underlying point: if the append's
+// logged_at is later, that's direct proof the point hadn't landed yet
+// when the lookup ran. Diagnostic only -- never affects the lookup's own
+// return value or the action=gps handler's own behavior.
+function _logCorrelationDebug(ss, eventType, targetTs, bestDiffSec) {
+  var sheet = ss.getSheetByName('Correlation Debug');
+  if (!sheet) {
+    sheet = ss.insertSheet('Correlation Debug');
+    sheet.appendRow(['logged_at', 'event_type', 'target_ts', 'best_diff_sec']);
+  }
+  sheet.appendRow([new Date().toISOString(), eventType, targetTs, bestDiffSec]);
+}
+
 function _gpsLookup(ss, tsISO) {
   var gpsSheet = ss.getSheetByName('GPS Track');
   if (!gpsSheet) return {lat: null, lon: null};
@@ -287,6 +304,10 @@ function _gpsLookup(ss, tsISO) {
   for (var i = 1; i < data.length; i++) {
     var diff = Math.abs(targetTime - new Date(data[i][0]).getTime());
     if (diff < bestDiff) { bestDiff = diff; bestRow = data[i]; }
+  }
+
+  if (bestDiff > fiveMin || bestRow === null) {
+    _logCorrelationDebug(ss, 'lookup_miss', tsISO, bestRow ? bestDiff / 1000 : null);
   }
 
   return (bestDiff <= fiveMin && bestRow !== null)
@@ -534,6 +555,9 @@ function doGet(e) {
       var ss = SpreadsheetApp.getActiveSpreadsheet();
       var gpsSheet = ss.getSheetByName('GPS Track');
       gpsSheet.appendRow([tsISO, lat, lon, acc, alt, direction]);
+      // CARD-0197: log every GPS point landing, for cross-referencing
+      // against _gpsLookup's 'lookup_miss' rows (see that function).
+      _logCorrelationDebug(ss, 'gps_append', tsISO, null);
 
       // CARD-0106: capture the weather forecast on the first GPS point of a
       // new local calendar day -- a live snapshot of what was forecast right

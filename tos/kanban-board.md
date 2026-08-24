@@ -181,7 +181,13 @@ hiking-monitor's design is simpler because it has no high-current peripheral to 
 ---
 
 ### CARD-0197 · [idea] [data-pipeline] Instrument GPS correlation lookup to confirm the suspected Node-RED/Apps Script timing race
-**Status:** Backlog
+**Status:** Build
+
+**Built and deployed, verified live 2026-08-24 00:21 MST.** Implemented as designed, with one refinement: rather than duplicating the get-or-create-sheet + appendRow logic at both call sites, added a shared helper `_logCorrelationDebug(ss, eventType, targetTs, bestDiffSec)` (`environmental-data.gs`, right above `_gpsLookup`) that gets or creates the "Correlation Debug" tab (writing a header row on first creation: `logged_at, event_type, target_ts, best_diff_sec`) and appends one row. `_gpsLookup()` calls it with `'lookup_miss'` on a miss (before its final `return`); the `action=gps` handler calls it with `'gps_append'` right after its existing `gpsSheet.appendRow(...)`.
+
+**Deployment confirmed, not just assumed:** `SCRIPT_VERSION` bumped to `2026-08-24.1-correlation-debug` (missed on the first pass, caught when Joseph asked about it directly), then verified live via `curl "...?action=version"` — returned `{"status":"ok","version":"2026-08-24.1-correlation-debug"}`, exact match, confirming the redeploy actually took effect rather than trusting the editor's own "saved" state (per this file's own established gotcha, CARD-0099's card history).
+
+**Remaining before this card is fully Done:** capture at least one real blank-lat/lon occurrence on a future hike with both a `lookup_miss` and a matching `gps_append` row, and do the T1-vs-T2 wall-clock comparison this card exists to enable. Instrumentation is live and ready to catch it; nothing more to build until that happens.
 
 **Raised 2026-08-23 04:39 MST (Joseph), following up on the blank-lat/lon investigation from the 2026-08-22 hike's data-gap review.** 6 of 97 Environmental Data readings that hike came back with blank lat/lon, all clustered in the last ~50 minutes. The working theory (not yet proven): `_gpsLookup()` (`environmental-data.gs:276-295`) scans the "GPS Track" sheet for the nearest point *at query time*, ±5 minutes — if the hiking-monitor's buffered-reading correlation call fires before GPSLogger's own webhook-triggered write for the matching point has landed in the sheet, the lookup finds nothing nearby yet and returns null, even though the real point shows up seconds later. Joseph's call: **not worth fixing** (already a known, accepted, low-impact gap per hike-izer's own docs — see the "fixing the correlation timing" discussion, declined as its own card) — but wants confirmation the theory is actually correct, not just plausible.
 

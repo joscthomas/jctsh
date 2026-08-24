@@ -213,6 +213,57 @@ def _rows_in_hike_sessions(rows, sessions):
     return result
 
 
+# CARD-0207: fixed reference window for the battery discharge-rate indicator
+# -- chosen because both the 2026-08-22 and 2026-08-24 hikes fully crossed
+# it, and it sits clear of both the near-full "shoulder" and the near-cutoff
+# (3.4V, hiking-monitor.yaml) steep zone of a single-cell LiPo's non-linear
+# discharge curve. A *fixed* window (not each hike's own start/end range) is
+# the whole point -- comparing different hikes' own full ranges conflates
+# curve-position with real draw, confirmed live: the 2026-08-22 vs 2026-08-24
+# raw full-range rates looked ~62% apart, but the identical 4.00V->3.70V
+# slice in both hikes' own data narrowed the real gap to ~19%.
+BATTERY_TREND_WINDOW_HIGH_V = 4.00
+BATTERY_TREND_WINDOW_LOW_V = 3.70
+
+
+def _battery_window_crossing_min(env_rows, high_v=BATTERY_TREND_WINDOW_HIGH_V,
+                                  low_v=BATTERY_TREND_WINDOW_LOW_V):
+    """CARD-0207: minutes to cross a fixed voltage window during field mode,
+    a rough field indicator of battery drain rate comparable across hikes
+    (see the module-level comment on the constants above for why a fixed
+    window, not each hike's own range). Restricted to field_mode rows
+    (rssi_dbm == 0) -- a docked/charging reading mixed into the same query
+    window would rise instead of decline and corrupt the interpolation.
+    Returns None (not minutes) when the hike's own data doesn't fully
+    bracket both reference points -- e.g. too short, or the battery started
+    already below high_v -- same "omit rather than guess" convention every
+    other hike-izer stat already follows, rather than a misleading
+    partial-window estimate.
+    """
+    rows = [r for r in env_rows if r.get('rssi_dbm') == 0 and to_float(r.get('battery_v')) is not None
+            and r.get('timestamp')]
+    rows.sort(key=lambda r: r['timestamp'])
+
+    def crossing_time(target_v):
+        for i in range(len(rows) - 1):
+            v0, v1 = to_float(rows[i]['battery_v']), to_float(rows[i + 1]['battery_v'])
+            if v0 >= target_v >= v1:
+                t0, t1 = parse_ts(rows[i]['timestamp']), parse_ts(rows[i + 1]['timestamp'])
+                if t0 is None or t1 is None:
+                    return None
+                if v0 == v1:
+                    return t0
+                frac = (v0 - target_v) / (v0 - v1)
+                return t0 + (t1 - t0) * frac
+        return None
+
+    t_high = crossing_time(high_v)
+    t_low = crossing_time(low_v)
+    if t_high is None or t_low is None:
+        return None
+    return round((t_low - t_high).total_seconds() / 60, 1)
+
+
 def compute_stats(env_rows, gps_rows):
     def rng(rows, key):
         vals = [to_float(r.get(key)) for r in rows]
@@ -234,6 +285,7 @@ def compute_stats(env_rows, gps_rows):
         'uv_index': rng(env_rows, 'uv_index'),
         'battery_v': rng(env_rows, 'battery_v'),
         'altitude_ft': altitude_ft,
+        'battery_window_crossing_min': _battery_window_crossing_min(env_rows),
     }
 
 

@@ -353,7 +353,7 @@ def _render_page(months_sorted, index, by_month, years_latest_month):
 <main>
   <h1>Hike-izer</h1>
   <p class="subtitle">Days with a published summary are highlighted and link to it.</p>
-  <div class="top-links"><a href="wildlife.html">Wildlife Life List &rarr;</a></div>
+  <div class="top-links"><a href="wildlife.html">Wildlife Life List &rarr;</a> <a href="battery-trend.html">Battery Trend &rarr;</a></div>
   {nav}
   {grid}
   <footer>hike-izer</footer>
@@ -378,7 +378,7 @@ def _empty_page():
 <main>
   <h1>Hike-izer</h1>
   <p class="empty">No hike summaries published yet.</p>
-  <div class="top-links"><a href="wildlife.html">Wildlife Life List &rarr;</a></div>
+  <div class="top-links"><a href="wildlife.html">Wildlife Life List &rarr;</a> <a href="battery-trend.html">Battery Trend &rarr;</a></div>
   <footer>hike-izer</footer>
 </main>
 </body>

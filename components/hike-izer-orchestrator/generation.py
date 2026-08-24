@@ -56,6 +56,7 @@ FETCH_DATA_SCRIPT = "/app/fetch_hike_data.py"
 FETCH_PHOTOS_SCRIPT = "/app/fetch_hike_photos.py"
 BUILD_CALENDAR_SCRIPT = "/app/build_calendar_index.py"
 BUILD_WILDLIFE_SCRIPT = "/app/build_wildlife_index.py"
+BUILD_BATTERY_TREND_SCRIPT = "/app/build_battery_trend_index.py"
 # CARD-0174: build_wildlife_index.py used to be pure computation (fast,
 # no network) -- the 30s timeout below was generous for that. It now does
 # one live Xeno-canto lookup per species in the life list (cache misses
@@ -572,6 +573,16 @@ def run(payload):
         if birdnet_rows:
             subprocess.run(_wildlife_index_cmd(), check=True, timeout=WILDLIFE_INDEX_TIMEOUT)
 
+        # CARD-0207: rebuild the battery-trend page unconditionally, unlike
+        # wildlife -- every hike's own hike_data.json (just written above)
+        # already has stats.battery_window_crossing_min computed by
+        # fetch_hike_data.py, no birdnet-style optional data source to gate
+        # on.
+        subprocess.run(
+            [sys.executable, BUILD_BATTERY_TREND_SCRIPT, "--srv-dir", SRV_DIR, "--private-dir", PRIVATE_DIR],
+            check=True, timeout=30,
+        )
+
         print(f"Step 1 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
         return file_stem, tracker
     finally:
@@ -682,6 +693,16 @@ def run_step2(file_stem, with_narrative=False):
 
     if birdnet_rows:
         subprocess.run(_wildlife_index_cmd(), check=True, timeout=WILDLIFE_INDEX_TIMEOUT)
+
+    # CARD-0207: same unconditional rebuild as step 1 -- step 2 reads the
+    # same persisted hike_data.json step 1 already wrote (run_step2's own
+    # top), which already carries battery_window_crossing_min from
+    # fetch_hike_data.py's compute_stats(), so there's nothing new to
+    # recompute here, just re-render the index against it.
+    subprocess.run(
+        [sys.executable, BUILD_BATTERY_TREND_SCRIPT, "--srv-dir", SRV_DIR, "--private-dir", PRIVATE_DIR],
+        check=True, timeout=30,
+    )
 
     print(f"Step 2 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
     return file_stem, tracker

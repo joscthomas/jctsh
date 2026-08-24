@@ -235,7 +235,32 @@ def data_summary_rows(hike_data):
         ("Pressure", _range_display(stats.get("pressure_hpa"), "hPa")),
         ("UV Index", _range_display(stats.get("uv_index"))),
         ("Battery Voltage", _range_display(stats.get("battery_v"), "V", decimals=2)),
+        ("Battery Discharge Rate", _battery_discharge_display(stats.get("battery_window_crossing_min"))),
     ]
+
+
+def _battery_discharge_display(crossing_min):
+    # CARD-0207: a rough field indicator, comparable across hikes because the
+    # reference window (4.00V->3.70V, fetch_hike_data.py) is fixed rather than
+    # each hike's own start/end range -- see that module's own comment for why
+    # a fixed window matters (LiPo discharge curve non-linearity). None means
+    # this hike's battery data didn't fully bracket both reference points
+    # (too short, or started already below 4.00V) -- omit rather than guess.
+    if crossing_min is None:
+        return NA
+    return f"{crossing_min:.1f} min per 0.30V (4.00V→3.70V)"
+
+
+def _env_row_label_cell(label):
+    # CARD-0207: Battery Discharge Rate links to the cross-hike trend page
+    # (battery-trend.html, same served directory) so a reader can jump
+    # straight from "here's this hike's number" to "how does that compare
+    # over time" -- every other label here is plain static text, so this is
+    # the one row that needs raw (unescaped) HTML instead of the generic
+    # _esc() every other label/value in this table goes through.
+    if label == "Battery Discharge Rate":
+        return f'<a href="battery-trend.html">{_esc(label)}</a>'
+    return _esc(label)
 
 
 GOLDEN_HOUR_MAX_ELEVATION_DEG = 10  # common rule-of-thumb upper bound for warm, low-angle "golden" light
@@ -1050,7 +1075,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     if has_env_data:
         env_rows = data_summary_rows(hike_data) + [environmental_data_coverage_row(coverage)]
         summary_rows = "".join(
-            f"<tr><td>{_esc(label)}</td><td>{_esc(value)}</td></tr>" for label, value in env_rows
+            f"<tr><td>{_env_row_label_cell(label)}</td><td>{_esc(value)}</td></tr>" for label, value in env_rows
         )
         env_gap_html = "".join(
             f"<p>{_esc(n)}</p>" for n in environmental_data_gap_notes(coverage, offset_delta, offset_str)

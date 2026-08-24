@@ -31,11 +31,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Dockerfile's deployed-copy family" home; every prior deployed copy came
 # from components/hike-izer/), same open_finding_pr() this repo's other
 # maintenance-check scripts already use to open placeholder kanban PRs.
+# build_battery_trend_index.py added CARD-0207 (battery discharge-rate
+# trend page) -- same "deployed copy from components/hike-izer/" pattern
+# as build_calendar_index.py/build_wildlife_index.py, computation lives in
+# fetch_hike_data.py's compute_stats()/_battery_window_crossing_min().
 COPY app.py generation.py narrative.py templating.py mqtt_log.py ha_notify.py \
      photo_captions.py place_context.py cost_tracking.py birdnet.py \
      wildlife_life_list.py \
      fetch_hike_data.py fetch_hike_photos.py build_calendar_index.py \
      build_hike_map.py build_hike_chart.py build_wildlife_index.py \
+     build_battery_trend_index.py \
      xeno_canto.py open_kanban_pr.py SKILL.md \
      /app/
 

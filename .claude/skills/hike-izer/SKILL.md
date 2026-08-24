@@ -289,7 +289,21 @@ section.
    Summary")** -- the actual sensor numbers: temperature range, humidity
    range, pressure range (`stats.pressure_hpa`, in hPa -- found missing from
    this table entirely, CARD-0204, 2026-08-24), UV index range, battery
-   voltage range. Elevation range/gain **in feet** (`stats.altitude_ft`) and
+   voltage range, and **Battery Discharge Rate** (`stats.battery_window_crossing_min`,
+   CARD-0207, 2026-08-24) -- render as `"{X:.1f} min per 0.30V (4.00V→3.70V)"`
+   when not `None`, else `"not available"` (same convention as every other
+   row here). This row's *label* (not the value) is a hyperlink to
+   `battery-trend.html` (the cross-hike trend page, same served directory)
+   -- the one label in this table that isn't plain text. A rough field
+   indicator, not a precision measurement -- it's
+   the time this specific hike's own field-mode battery readings took to
+   cross a *fixed* reference voltage window, comparable across hikes because
+   the window itself never changes (see `fetch_hike_data.py`'s own comment
+   on `BATTERY_TREND_WINDOW_HIGH_V`/`_LOW_V` for why a fixed window matters
+   here, not each hike's own start/end range). `None` means this hike's data
+   didn't fully bracket both reference points (too short, or started already
+   below 4.00V) -- report "not available", don't estimate from a partial
+   window. Elevation range/gain **in feet** (`stats.altitude_ft`) and
    duration belong in the hero stat row (step 5), not repeated here.
    Observation count by category no longer belongs in this table -- see the
    Full observations table below. Append one more row at the end of this

@@ -9,7 +9,18 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0209 -->
+<!-- next-card-id: CARD-0210 -->
+
+---
+
+### CARD-0209 · [idea] [hike-izer] UV Index shown as a risk-level color (red/yellow/green), not just a raw number
+**Status:** Backlog
+
+**Raised 2026-08-24 (Joseph)**, via the "Log Idea" Tasker widget (PR #36, "Uv light red yellow green"). Interviewed same day: about hiking-monitor's own UV Index readings (from the LTR-390 sensor) — "some thinking about what UV index means and how best to evaluate it as part of analyzing the hiking monitor data." A raw UV Index number (0–11+) isn't intuitively meaningful at a glance; a red/yellow/green (or the fuller standard EPA/WHO UV Index risk scale: Low/Moderate/High/Very High/Extreme) color coding would make it legible without knowing the numeric thresholds by heart.
+
+**Not yet resolved — where this actually shows up:** could be hike-izer's own webpage display (the UV Index stat/range, and/or the Environmental Data chart's UV line) recolored by risk level, or something device-side (hiking-monitor has no RGB LED today, unlike air-quality-monitor). Leaning toward the hike-izer/display side given how it was described, but not settled — a real Planning-stage question, not decided here.
+
+**Related:** `components/hike-izer-orchestrator/templating.py` (UV Index stat display, `data_summary_rows()`), `components/hike-izer/build_hike_chart.py` (Environmental Data chart's UV line, CARD-0204), `components/hiking-monitor/hiking-monitor.yaml` (LTR-390 UV sensor, the data source), PR #36 (the original voice-captured idea this scopes).
 
 ---
 

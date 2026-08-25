@@ -219,6 +219,27 @@ mqtt:
         if (hike_log_has_data()) {
           int count = hike_log_count();
           if (count > 0) {
+            // CARD-0212: don't attempt the replay burst on a critically low
+            // battery -- real sustained WiFi/MQTT current draw, same physics
+            // as CARD-0198's air-quality-monitor investigation. Reuses the
+            // same 3.4V threshold as low_battery_shutdown below (per
+            // JCTsh-Build-Standards.md Sec2.14 point 2, amended 2026-08-25 to
+            // require this for any WiFi-burst operation, not just continuous
+            // field logging -- low_battery_shutdown itself is deliberately
+            // skipped while docked so charging can proceed, which left this
+            // gap). Skips only this connection cycle -- data stays buffered,
+            // the next reconnect (once charging brings voltage back up)
+            // tries again naturally, no separate retry timer needed.
+            if (!isnan(id(battery_voltage).state) && id(battery_voltage).state < 3.4f) {
+              char skip_buf[176];
+              snprintf(skip_buf, sizeof(skip_buf),
+                "{\"component\":\"hiking-monitor\",\"category\":\"Alert\","
+                "\"message\":\"Replay deferred - battery %.2fV below 3.4V cutoff, waiting for charge\"}",
+                id(battery_voltage).state);
+              id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
+                                      std::string(skip_buf), 0, false);
+            } else {
+
             // CARD-0199: Connected -> Uploading -> Done(elapsed) display
             // sequence, shown only when there's real buffered hike data to
             // replay -- a plain reconnect with nothing queued leaves the
@@ -274,6 +295,7 @@ mqtt:
             id(upload_duration_ms) = millis() - id(upload_start_ms);
             id(upload_display_state) = 3;  // Done -- stays until switch-on or dock-removed
             id(hiking_display).update();
+            }
           }
         }
     - if:

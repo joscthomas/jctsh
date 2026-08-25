@@ -9,7 +9,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0211 -->
+<!-- next-card-id: CARD-0212 -->
+
+---
+
+### CARD-0211 · [bug] [hiking-monitor] Analyze results for the 2026-08-25 hike — upload stuck in a reset loop
+**Status:** Build
+
+**Raised 2026-08-25 (Joseph)**, after using hiking-monitor for a hike today. Switched off at end of hike; display showed a low-battery warning. Got home, plugged in USB to charge (switch left off, per this device's normal upload-mode procedure — the switch is not in the power path, see `wiring.md`'s Slide Switch Wiring section). Watched the display show an "initialization" message 6-7 times, with nothing about uploading the data.
+
+**Open-ended investigation** — scope covers getting today's 111 buffered readings uploaded and reviewed, confirming/refining the root-cause diagnosis below, and considering whether anything should change to prevent this on a future long/hot hike. Not closing until the root cause is actually confirmed, not just plausible.
+
+**Diagnosis so far, from `/mnt/jctsh-logs/state.json` on the Pi:**
+
+Reconstructed timeline:
+| Time | Event |
+|---|---|
+| 8/24 evening → 8/25 05:22 | Previous charge/upload session — **completely stable for 8+ hours straight**, battery healthy the whole time (4.26–4.28V) |
+| 8/25 05:22:43 | "Entering deep sleep" — device came off the charger for today's hike |
+| 8/25 05:23 → 11:55 | **~6.5 hour gap — today's hike**, device logging in the field. Heartbeat temps logged in the 108-111°F range going into the hike, consistent with serious heat |
+| 8/25 11:55:25 | Device reconnects, logs "Replaying 111 hike readings..." — **the reset loop starts here**, not later as first assumed from a narrower log window |
+
+Since 11:55:25, the device has been cycling roughly every 27-30 seconds: connects to WiFi/MQTT, logs "Hiking monitor online," starts "Replaying 111 hike readings...", then disconnects and restarts the identical sequence — always restarting from all 111 readings, never completing a partial replay. Confirmed still ongoing as of ~12:52 MST (about an hour into the loop at that point, matching what Joseph observed), and continued past an hour of TP4056 charging without resolving.
+
+**Working theory:** a battery that started the day fully charged (4.28V the night before), put through a ~6.5 hour hike in 108-111°F heat (heat increases LiPo internal resistance and accelerates apparent voltage sag under load), ending in a genuine low-battery warning on the device's own display. Publishing 111 buffered readings over WiFi/MQTT is real sustained current draw, on top of the TP4056+boost module's own known quiescent draw (a documented weak point on this exact hardware architecture, from CARD-0026/CARD-0070) — plausibly not enough headroom to get through a full replay before browning out and resetting, matching the consistent ~28s cycle time reasonably well. Last night's rock-solid 8-hour session on the identical hardware argues against a newly-introduced hardware fault.
+
+**Not yet confirmed:** whether more charging time eventually lets the replay complete (the expected outcome if the battery-depletion theory is right), or whether something else is contributing given an hour of charging didn't resolve it. No data is at risk — the 111 readings are safely in onboard flash regardless of how many times the replay attempt restarts.
+
+**Related:** `components/hiking-monitor/wiring.md` (Slide Switch Wiring, TP4056 Perfboard Connector sections), CARD-0026/CARD-0070 (hiking-monitor's own boost-converter quiescent-draw findings, the precedent for this theory), tonight's separate air-quality-monitor CARD-0198 investigation (same general class of marginal-battery-headroom problem, different device).
 
 ---
 

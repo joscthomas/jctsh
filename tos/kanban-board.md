@@ -9,12 +9,57 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0212 -->
+<!-- next-card-id: CARD-0214 -->
 
 ---
 
-### CARD-0211 · [bug] [hiking-monitor] Analyze results for the 2026-08-25 hike — upload stuck in a reset loop
-**Status:** Build
+### CARD-0213 · [enhancement] [infrastructure] Quantified peak-current headroom standard for battery-powered builds — RESOLVED 2026-08-25
+**Status:** Done
+
+**Raised 2026-08-25 (Joseph)**, stepping back after two separate same-night incidents (CARD-0198's air-quality-monitor brownout investigation, CARD-0211's hiking-monitor reset loop) hit the identical underlying physics: a WiFi TX/association current spike (100s of mA, millisecond-scale) landing on a battery+regulator chain without enough peak headroom, sagging the rail below the ESP32's brownout threshold. Asked directly: why does this keep happening, is it common, and what does a genuinely robust design look like — scoped as a **general JCTsh reference standard** (not just a fix for these two devices), since the same physics will hit every future battery-powered build.
+
+**Existing `JCTsh-Build-Standards.md` §2.14 already covers cell protection (point 1), a low-battery firmware cutoff (point 2), charging safety (point 3), and a qualitative LDO-vs-boost preference (point 7) — but has no quantified rule for how much current headroom a regulator needs against real transient loads, and no bulk-capacitance guidance at all.** air-quality-monitor's MCP1700 (250mA rated) turned out marginal against WiFi+SEN55 combined; hiking-monitor's boost converter was directly measured (CARD-0026) brownout-looping under a 100-250mA WiFi burst on a rig, a mechanism now suspected to have hit the real field device for the first time today (CARD-0211).
+
+**Scope:** write a new, numbers-grounded point in §2.14 covering:
+1. **Regulator current rating margin** — size for the peak coincident load (WiFi spike + any active peripheral + baseline draw), not the average/idle draw. A rule of thumb multiplier (e.g. 2-3x), grounded in CARD-0026's real measured WiFi-burst range (100-250mA on this exact hardware) and tonight's SEN55 (~63mA) and boost-quiescent (22.6mA) numbers, not an abstract guess.
+2. **Bulk capacitance at the point of load** — a real minimum value (electrolytic + ceramic combination) for absorbing millisecond-scale transients, explicitly framed as a complement to adequate regulator headroom, not a substitute for it (a cap can't manufacture sustained current a regulator can't supply).
+3. **Extend point 2's low-battery cutoff to cover WiFi-burst operations specifically**, not just continuous field/logging operation — closing the exact gap CARD-0211/CARD-0212 found (hiking-monitor's cutoff protected the hike loop but not the upload-mode replay burst).
+4. **Sequence current-hungry startup operations in firmware** — don't let WiFi association and a peripheral's own power-up coincide; generalize the pattern air-quality-monitor's SEN55-idle-during-boot logic already uses.
+
+**Done when:** §2.14 has a new point with concrete numbers (not just qualitative preference) covering all four items above, cross-referenced from both CARD-0198 and CARD-0211/CARD-0212.
+
+**Standard written, 2026-08-25 — `JCTsh-Build-Standards.md` bumped to v1.22.** All four scope items addressed:
+1. Regulator peak-current headroom — new §2.14 point 9, 2-3x the coincident peak load, grounded in CARD-0026's real measured 109-154mA WiFi-burst current on hiking-monitor's own hardware plus tonight's SEN55 (~63mA) and boost-quiescent (22.6mA) numbers.
+2. Bulk capacitance at the point of load — same point 9, a real minimum (few hundred µF electrolytic + small ceramic) explicitly framed as a complement to headroom, not a substitute — noting tonight's own finding that a bulk cap alone didn't reliably fix an undersized regulator.
+3. Low-battery cutoff extended to WiFi-burst operations — point 2 amended directly, citing CARD-0211/CARD-0212's exact gap (hike-loop cutoff existed, replay-burst cutoff didn't).
+4. Firmware sequencing of current-hungry startup operations — new §2.14 point 10, generalizing air-quality-monitor's SEN55-idle-during-boot pattern.
+
+**Done.**
+
+**Related:** CARD-0198 (air-quality-monitor's own brownout investigation, the immediate trigger), CARD-0211/CARD-0212 (hiking-monitor's matching incident, same night), CARD-0026 (the real measured WiFi-burst current numbers this standard is grounded in), CARD-0070 (the deferred hardware-side fix for hiking-monitor specifically — this card is the general standard, not a replacement for actually applying it to either device).
+
+---
+
+### CARD-0212 · [enhancement] [hiking-monitor] Gate the hike-log replay burst behind the existing low-battery cutoff
+**Status:** Backlog
+
+**Raised 2026-08-25 (Joseph), directly from CARD-0211's diagnosis.** hiking-monitor already has a low-battery safety cutoff (`low_battery_shutdown` script, `hiking-monitor.yaml`) that forces deep sleep below **3.4V** — but by design it only applies during field/hiking mode (`slide_switch on, dock_detect off`); it's deliberately skipped while docked so charging can proceed uninterrupted. The replay burst (`mqtt.on_connect:` handler, ~line 221-250 — publishes every buffered reading with a 50ms gap between each, real sustained WiFi/MQTT current draw for several seconds) has no equivalent gate at all. CARD-0211's incident is exactly this gap: device comes home from a hot, long hike already battery-warned, gets plugged in, and the replay burst attempts (and brownout-resets) repeatedly before the battery has recovered enough headroom, rather than waiting.
+
+**Decided 2026-08-25 (interview):** reuse the existing 3.4V threshold rather than defining a new one — same battery, same physics, no reason for the replay burst to need a different safety margin than the field-mode cutoff already established.
+
+**Scope (proposed, to be refined at Build):**
+- In the `mqtt.on_connect:` handler, before starting `hike_log_replay_stream(...)`: check `id(battery_voltage).state >= 3.4f`. If below, skip the replay for this connection cycle (leave the buffered readings untouched — nothing is lost either way), log an Alert-category message noting the skip and current voltage, and let the device sit connected/charging rather than repeatedly attempting and resetting.
+- **Retry mechanism not yet decided** — options to weigh at Build: periodically recheck voltage on an interval while docked and retry once above threshold; or simply rely on the natural reconnect-on-MQTT-drop behavior already happening (each reconnect re-triggers the check, so it self-heals once voltage recovers, same mechanism that's currently causing the reset loop but now gated safely instead of attempting the risky operation).
+- Consider whether the e-ink display should show something distinct from the normal "Connected → Uploading → Done" sequence while skipped-for-low-battery (e.g., "Charging — low battery" instead of silently doing nothing), matching this device's existing pattern of surfacing state on the always-visible e-ink even with no WiFi.
+
+**Done when:** a real low-battery dock/charge scenario (real device or reproduced on the bench) shows the replay burst deferred rather than attempted while below 3.4V, no reset loop, and resumes automatically once the battery has recovered — verified live, not just code-reviewed.
+
+**Related:** CARD-0211 (the 2026-08-25 incident this directly follows from), CARD-0026 (measured the boost-converter brownout-reset-loop mechanism this is meant to avoid triggering), CARD-0070 (deferred LDO+gate hardware fix for the same underlying weakness — this card is a firmware mitigation, not a replacement for that hardware fix), `components/hiking-monitor/hiking-monitor.yaml`.
+
+---
+
+### CARD-0211 · [bug] [hiking-monitor] Analyze results for the 2026-08-25 hike — upload stuck in a reset loop — RESOLVED 2026-08-25 16:04 MST
+**Status:** Done
 
 **Raised 2026-08-25 (Joseph)**, after using hiking-monitor for a hike today. Switched off at end of hike; display showed a low-battery warning. Got home, plugged in USB to charge (switch left off, per this device's normal upload-mode procedure — the switch is not in the power path, see `wiring.md`'s Slide Switch Wiring section). Watched the display show an "initialization" message 6-7 times, with nothing about uploading the data.
 
@@ -36,7 +81,36 @@ Since 11:55:25, the device has been cycling roughly every 27-30 seconds: connect
 
 **Not yet confirmed:** whether more charging time eventually lets the replay complete (the expected outcome if the battery-depletion theory is right), or whether something else is contributing given an hour of charging didn't resolve it. No data is at risk — the 111 readings are safely in onboard flash regardless of how many times the replay attempt restarts.
 
-**Related:** `components/hiking-monitor/wiring.md` (Slide Switch Wiring, TP4056 Perfboard Connector sections), CARD-0026/CARD-0070 (hiking-monitor's own boost-converter quiescent-draw findings, the precedent for this theory), tonight's separate air-quality-monitor CARD-0198 investigation (same general class of marginal-battery-headroom problem, different device).
+**Update, 2026-08-25 ~14:25 MST — still looping after ~2.5 hours total, over 2 hours of charging.** Confirmed via the log: identical pattern still ongoing (`14:23:35`-`14:25:06` shows the same ~27-30s connect/replay/disconnect cycle, still always "Replaying 111 hike readings..."). Over 2 hours of charging not resolving it starts to push against the pure "just needs more recovery time" read of the battery-depletion theory, or at minimum shows recovery is taking substantially longer than a typical partial-depletion scenario would suggest. **Checked whether a live battery voltage could be pulled via MQTT to confirm charging progress directly** (`hiking-monitor.yaml`'s `mqtt.on_connect:` handler) — it does not publish battery voltage anywhere before attempting the replay; the only live reading is the 20-minute heartbeat, which this loop never reaches, and the only battery data flowing at all is historical (embedded in the buffered readings themselves, from hike time). **A direct multimeter reading at the battery is the only way to get a current voltage right now** — not yet done as of this update.
+
+**Real pivot, 2026-08-25 ~14:35-14:47 MST — battery/boost converter ruled out entirely as the cause.** With the battery physically unplugged from the TP4056 (boost converter therefore fully dead, no live source on the ESP32's `VIN` node) and the ESP32 powered directly from its own USB port instead, **the identical reset loop continued** — same ~27-30s cycle, same "Replaying 111 hike readings..." every time. This is a clean, controlled negative result: with no battery and no boost converter anywhere in the circuit, the failure persists, so tonight's entire battery-depletion/heat theory — however well it fit the circumstantial timeline — was not the actual cause of the loop. This is a firmware bug, not a power problem.
+
+**Data rescued, 2026-08-25 ~14:47 MST — all 111 readings safely recovered independent of the broken replay path.** Added a temporary early-`on_boot` action (`hiking-monitor.yaml`, ahead of the WiFi/MQTT/display code that's crashing) dumping the full buffered hike log to USB serial via `ESP_LOGI` instead of MQTT. Flashed and captured over COM7 (USB moved from the wall adapter to this PC specifically for this). **All 111 readings captured, extracted, and validated as clean JSON** — zero parse errors. **One real data-quality flag: reading at `ts: 2026-08-25T16:03:06Z` is corrupted** (temp_f 370.6, pressure_hpa -174.9, uv_index 7294.44 — a sensor glitch during the hike itself, not an extraction artifact) — exclude or flag it before this data reaches the Sheets pipeline. Data is now safe regardless of the ongoing firmware bug, and ready to publish into the real MQTT pipeline via `mosquitto_pub` (same end destination — Node-RED → Google Sheets — as a normal on-device replay, just triggered from the PC instead) whenever wanted.
+
+**Two new, real findings from the serial capture, beyond just the data rescue:**
+1. **`Error resolving broker IP address: -6`** on this specific boot — MQTT/DNS resolution itself failed, and the device correctly gave up and entered deep sleep rather than attempting a replay it couldn't complete. This is a *different* failure signature than the Pi dashboard's usual pattern (a successful connect immediately followed by a mid-replay disconnect) — suggesting more than one thing may be wrong, not a single root cause.
+2. **`[E][waveshare_epaper:163]: Timeout while displaying image!`** recurred — the same e-ink error CARD-0009 saw once and dismissed as a one-off transient. Seeing it again during this exact investigation strengthens (doesn't prove) the working theory that the two e-ink refreshes in the `on_connect:` sequence (Connected → Uploading, both immediately before the 111-message MQTT publish loop) are implicated in the crash, independent of power.
+
+**Two real dead ends before the actual root cause, both worth recording so they aren't re-chased later:**
+1. **Display-refresh theory (removing the e-ink update before the replay loop) — ruled out.** Tested clean (dump code removed) and the identical fast failure persisted. Root-caused separately: it only ever showed up while accidentally testing with `dock_detect` reading OFF (USB was only on the ESP32's own flashing port, not the TP4056's separate charging port) — an unrelated, unguarded `on_boot` priority -200 check (`slide_switch off AND dock_detect off` → immediate `deep_sleep.enter()`) was firing almost instantly on every boot, abruptly interrupting an in-flight display update and producing the "Timeout while displaying image!" error as a side effect, not a cause. The original CARD-0009 sighting of that same error was very likely the same mechanism, not a separate display hardware issue.
+2. **Battery/boost-converter theory — genuinely ruled out** (unplugging the battery entirely didn't stop the loop), but this also meant most of the afternoon's testing wasn't reproducing the real bug at all, for the same `dock_detect`-off reason as above.
+
+**Real root cause, found via an actual crash backtrace once `dock_detect` was correctly asserted (both the ESP32's own USB port AND the TP4056's charging port connected simultaneously) — a genuine ESP32 task watchdog timeout, not power-related at all:**
+```
+23.80s: MQTT Connected
+23.91s: "mqtt took a long time for an operation (113 ms), max is 30 ms"
+29.33s: E task_wdt: Task watchdog got triggered - loopTask (CPU 1) did not
+        reset the watchdog in time. Aborting. Rebooting...
+```
+~5.4s between MQTT connect and the crash — matching the replay loop's own minimum runtime almost exactly (111 readings × 50ms explicit delay = 5.55s, already over the ESP32's default 5-second task watchdog window before any real per-message MQTT/TLS overhead is added). `delay(50)` yields the *CPU* to other tasks, but the watchdog specifically needs `loopTask` itself to return/make forward progress, which it never does across all 111 iterations inside one continuous `on_connect:` lambda call. Reproduced identically three times in one capture, each cycle landing within a second of ~29s — matching the Pi dashboard's original pattern precisely.
+
+**Why this never showed up before today, confirmed not a regression:** git history shows zero changes to `hiking-monitor.yaml` between Saturday's successful hike (2026-08-22) and the start of this investigation — the exact same firmware that worked Saturday is what failed today. This is a latent bug that's likely always sat right at the watchdog's edge: any replay batch over roughly ~100 readings (100 × 50ms = 5.0s) risks tripping a 5-second watchdog before real network overhead is even counted. Saturday's hike almost certainly buffered meaningfully fewer readings (shorter hike, and/or some readings published live along the way rather than needing replay) than today's ~6.5-hour, fully-out-of-range hike, which produced 111.
+
+**Fix: explicit `App.feed_wdt()` inside the replay loop** (`hiking-monitor.yaml`, `on_connect:` handler), satisfying the watchdog every iteration regardless of real per-message timing — makes the replay robust for any batch size, not dependent on staying under a fixed threshold by luck. Also restored the display-refresh call removed during the (ruled-out) display theory, now confirmed working correctly.
+
+**Verified live, 2026-08-25 16:04:58 MST — real success, not inferred:** `"Hike log replay complete."` followed by `"Upload mode — USB connected, switch off"`, confirmed stable online for 7+ minutes afterward with no further disconnect. 125 readings replayed (the original 111 plus readings accumulated from tonight's own test reboots, all safely buffered the whole time). Data now needs to actually reach the Sheets pipeline (already-extracted rescue copy can be republished, or this live replay already delivered it) and the one corrupted reading (`16:03:06Z`) should be excluded/flagged when reviewed.
+
+**Related:** `components/hiking-monitor/wiring.md` (Slide Switch Wiring, TP4056 Perfboard Connector sections — dock_detect specifically monitors the TP4056's own charging port), CARD-0026/CARD-0070 (hiking-monitor's own boost-converter quiescent-draw findings — considered as a theory, ruled out here), CARD-0213 (the general power-headroom standard this incident helped write — not actually the cause of *this* bug, but a real, separate, correct piece of work from the same night), CARD-0212 (the low-battery cutoff fix for the replay burst — still worth building independently, unrelated to the watchdog fix), tonight's separate air-quality-monitor CARD-0198 investigation (a genuinely different, power-related bug on different hardware — worth not conflating the two despite both surfacing the same night).
 
 ---
 
@@ -519,7 +593,9 @@ hiking-monitor's design is simpler because it has no high-current peripheral to 
 - Stages 1 (+WiFi), 2 (+MQTT), 3 (+I2C/SEN55) — **not yet built or reached.**
 - Battery voltage has been trending down across the session (3.9V early, 3.11V most recent heartbeat) from hours of repeated power cycling — a real, simple confound worth controlling for (fresh/rested battery vs. depleted) before trusting any more A/B comparisons. USB charging via the TP4056 was started but not yet given time to meaningfully recover before this write-up.
 
-**Related:** CARD-0012 (parent air-quality-monitor build card, Step 6 closed / Step 7 open at time of writing), CARD-0070/CARD-0026 (hiking-monitor's own LDO/boost-converter power investigations, the precedent this device's LDO choice was built on), CARD-0205 (debug UART — wiring corrected but real log capture still not working, see above), `components/air-quality-monitor/minimal-test.yaml` (the incremental test build), `components/hiking-monitor/hiking-monitor.yaml` and `components/air-quality-monitor/air-quality-monitor.yaml` (both boot sequences tabulated above).
+**Concrete redesign written, 2026-08-25 — applies CARD-0213's new §2.14 points 9-10 to this device's actual power path.** `components/air-quality-monitor/power-system-redesign.md` (new, design only, not yet built): swaps the MCP1700 LDO (250mA, the part CARD-0198 found repeatedly marginal) for a Pololu D24V10F3 (3.3V, 1A buck/switching regulator, breakout-board form factor) — sized against a calculated ~450mA coincident peak (WiFi TX burst + SEN55's ~63mA + ESP32 baseline), giving the 2-3x headroom the new standard requires. Adds a 4.7µF ceramic alongside the existing 470µF electrolytic at the ESP32's 3V3/GND pins. Explicitly not a boost-then-buck design (the thing §2.14 point 7 actually warns against) — a single direct buck stage from raw battery voltage, chosen over another LDO specifically because a linear regulator's only response to a spike beyond its rating is to sag, while a switching regulator handles the same transient far more gracefully at a comparable hand-solderable form factor. Everything downstream of the 3V3 pin (SEN55, RGB LED, both dividers, debug UART) is unchanged — a point-load swap, not a full rewire. **Not yet built, ordered, or bench-tested** — full open-items list in the doc itself.
+
+**Related:** CARD-0012 (parent air-quality-monitor build card, Step 6 closed / Step 7 open at time of writing), CARD-0070/CARD-0026 (hiking-monitor's own LDO/boost-converter power investigations, the precedent this device's LDO choice was built on), CARD-0205 (debug UART — wiring corrected but real log capture still not working, see above), CARD-0211/CARD-0212 (hiking-monitor's matching same-night incident), CARD-0213 (the general `JCTsh-Build-Standards.md` §2.14 peak-current-headroom standard harvested from this investigation, resolved), `components/air-quality-monitor/power-system-redesign.md` (the concrete regulator swap applying that standard to this device, design only), `components/air-quality-monitor/minimal-test.yaml` (the incremental test build), `components/hiking-monitor/hiking-monitor.yaml` and `components/air-quality-monitor/air-quality-monitor.yaml` (both boot sequences tabulated above).
 
 ---
 

@@ -235,13 +235,35 @@ mqtt:
             id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
                                     std::string(log_buf), 0, false);
 
+            // Display-refresh removal theory (2026-08-25) tested and ruled
+            // out -- the "Timeout while displaying image!" error only ever
+            // showed up while accidentally testing with dock_detect reading
+            // OFF (USB was on the ESP32's own flashing port, not the
+            // TP4056's charging port), which triggers an unrelated early
+            // deep_sleep.enter() abruptly interrupting an in-flight display
+            // update. With dock_detect genuinely asserted, the display works
+            // correctly and this update is restored to its original spot.
             id(upload_display_state) = 2;  // Uploading
             id(upload_start_ms) = millis();
             id(hiking_display).update();
 
+            // CARD-0211 real fix (2026-08-25): found via an actual crash
+            // backtrace, not guesswork -- a genuine ESP32 task watchdog
+            // timeout (`Task watchdog got triggered ... loopTask (CPU 1) did
+            // not reset the watchdog in time`), firing ~5-6s after MQTT
+            // connects, matching this loop's minimum runtime (111 readings x
+            // 50ms = 5.55s of explicit delay alone, before real per-message
+            // MQTT/TLS overhead -- a live capture showed one publish taking
+            // 113ms against ESPHome's own 30ms expectation). delay(50) yields
+            // the CPU to other tasks, but the watchdog specifically needs
+            // loopTask itself to return/make progress, which it never does
+            // across all 111 iterations inside one continuous lambda call.
+            // Explicit feed_wdt() on every iteration satisfies it regardless
+            // of how long the real publish/TLS overhead ends up taking.
             hike_log_replay_stream([](const std::string& line) {
               id(mqtt_client).publish("jctsh/components/hiking-monitor/data",
                                       line, 0, false);
+              App.feed_wdt();
               delay(50);
             });
             id(mqtt_client).publish("jctsh/components/hiking-monitor/log",

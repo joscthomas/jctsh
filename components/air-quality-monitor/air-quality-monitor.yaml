@@ -285,7 +285,12 @@ captive_portal:
 # warning). Transmit-only (logger doesn't receive), so RX/GPIO16 is unused.
 logger:
   level: INFO
-  hardware_uart: UART2
+  # TEMPORARY (2026-08-24): hardware_uart: UART2 disabled again to reconfirm
+  # the base platform (no SEN55) is still reliable on the new board with
+  # UART2/GPIO16-17 fully out of the picture -- closing the loop on whether
+  # UART2 itself is the toggle for boot reliability, isolated on the same
+  # physical hardware as the UART2-enabled test. Restore once evaluated.
+  # hardware_uart: UART2
 
 # ── OTA updates ───────────────────────────────────────────────────────────────
 # First flash: USB from C:\esphome\air-quality-monitor\

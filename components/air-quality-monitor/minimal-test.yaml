@@ -1,0 +1,60 @@
+# Minimal incremental test build (2026-08-24) — CARD-0198 battery-boot
+# investigation. Starts bare (boot + LED blink only) and adds one subsystem
+# at a time (WiFi, MQTT, debug UART, I2C, SEN55) to isolate which piece
+# introduces battery-boot instability. NOT the real component firmware —
+# a standalone diagnostic build, kept in the repo so this test sequence
+# survives past one session. Flash from C:\esphome\air-quality-monitor\
+# (copy this file there first) same as the real component, per
+# feedback_esphome_flash_path. See CARD-0198 in tos/kanban-board.md for
+# the full narrative, current stage, and results at each stage.
+#
+# CURRENT STAGE (as of 2026-08-24 ~17:30 MST): STAGE 0b — boot + LED blink
+# + debug UART (UART2/GPIO17) + explicit reset-reason log line, so a
+# spontaneous idle-time reset can actually be captured and read, not just
+# inferred from a repeated blink count. NOT YET REACHED: Stage 1 (+WiFi),
+# Stage 2 (+MQTT), Stage 3 (+I2C/SEN55).
+
+esphome:
+  name: aqm-minimal-test
+  friendly_name: AQM Minimal Test
+  on_boot:
+    - priority: -100.0
+      then:
+        - logger.log:
+            format: "BOOT - reset reason: %s"
+            args: ['id(reset_reason_text).state.c_str()']
+        - repeat:
+            count: 3
+            then:
+              - output.turn_on: rgb_led_green
+              - delay: 300ms
+              - output.turn_off: rgb_led_green
+              - delay: 300ms
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+debug:
+
+text_sensor:
+  - platform: debug
+    reset_reason:
+      id: reset_reason_text
+      internal: true
+
+logger:
+  level: INFO
+  hardware_uart: UART2
+
+output:
+  - platform: gpio
+    pin: GPIO18
+    id: rgb_led_red
+  - platform: gpio
+    pin: GPIO19
+    id: rgb_led_green
+  - platform: gpio
+    pin: GPIO23
+    id: rgb_led_blue

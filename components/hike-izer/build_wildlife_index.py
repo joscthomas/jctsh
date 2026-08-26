@@ -75,6 +75,8 @@ _STYLE = """
   }
   main { max-width: 46rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
   h1 { font-size: 1.7rem; margin: 0 0 0.15rem; }
+  /* CARD-0210: Detections by Month / Life List Growth section headers */
+  h2 { font-size: 1.15rem; margin: 2rem 0 0.5rem; }
   .subtitle { color: var(--ink-muted); font-size: 0.85rem; margin: 0 0 1.5rem; }
   .empty { color: var(--ink-faint); font-style: italic; }
 
@@ -149,11 +151,64 @@ def wikipedia_url(scientific_name):
     return f"https://en.wikipedia.org/wiki/{quote(scientific_name.replace(' ', '_'))}"
 
 
+# CARD-0210: entry["hikes"] items are normally {"file_stem": ..., "count": ...}
+# dicts -- these two accessors tolerate a not-yet-backfilled entry still
+# holding a bare file_stem string (count assumed 1, unknown) rather than
+# crashing on it, so a partially-migrated life list still renders.
+def _hike_stem(h):
+    return h["file_stem"] if isinstance(h, dict) else h
+
+
+def _hike_count(h):
+    return h["count"] if isinstance(h, dict) else 1
+
+
+def _total_detections(entry):
+    return sum(_hike_count(h) for h in entry["hikes"])
+
+
+_MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
+
+
+def _detections_by_month(species):
+    """CARD-0210: seasonality, collapsed across years per Joseph's own
+    framing ("by month/season", not "by month in a specific year") --
+    every hike a species was heard on contributes its detection count to
+    that hike's own calendar month, regardless of which year it fell in."""
+    detections = [0] * 12
+    species_seen = [set() for _ in range(12)]
+    for e in species:
+        for h in e["hikes"]:
+            month_idx = int(_hike_stem(h)[5:7]) - 1
+            detections[month_idx] += _hike_count(h)
+            species_seen[month_idx].add(e["scientific_name"])
+    return [
+        {"month": _MONTH_NAMES[i], "detections": detections[i], "species": len(species_seen[i])}
+        for i in range(12)
+    ]
+
+
+def _new_species_by_year(species):
+    """CARD-0210: "how the life list has grown over time" -- new species
+    first heard per calendar year, from first_heard_file_stem's own year
+    prefix. No new data needed -- every entry already carries this."""
+    counts = {}
+    for e in species:
+        year = e["first_heard_file_stem"][:4]
+        counts[year] = counts.get(year, 0) + 1
+    return sorted(counts.items())
+
+
 def _render_page(life_list, xeno_canto_key=None):
     species = sorted(life_list.values(), key=lambda e: e["common_name"].lower())
 
     if not species:
         body = '<p class="empty">No wildlife identified yet.</p>'
+        month_section = ""
+        year_section = ""
     else:
         # CARD-0174: reference-call speaker icon, right after the common
         # name -- see xeno_canto.py for the lookup/caching and shared
@@ -171,6 +226,9 @@ def _render_page(life_list, xeno_canto_key=None):
             f"<td data-sort-value=\"{e['first_heard_file_stem']}\">"
             f"<a href=\"{_hike_url(e['first_heard_file_stem'])}\">{e['first_heard_date']}</a></td>"
             f"<td data-sort-value=\"{len(e['hikes'])}\">{len(e['hikes'])}</td>"
+            # CARD-0210: total detections across every hike, not just the
+            # distinct-hike count the existing Hikes column already shows.
+            f"<td data-sort-value=\"{_total_detections(e)}\">{_total_detections(e)}</td>"
             f"</tr>"
             for e in species
         )
@@ -180,10 +238,38 @@ def _render_page(life_list, xeno_canto_key=None):
             "<th data-sort-type=\"text\">Scientific Name</th>"
             "<th data-sort-type=\"text\">First Heard</th>"
             "<th data-sort-type=\"number\">Hikes</th>"
+            "<th data-sort-type=\"number\">Detections</th>"
             "</tr></thead><tbody>"
             f"{rows}"
             "</tbody></table>"
         )
+
+        # CARD-0210: seasonality -- a plain calendar-order table, not a
+        # chart. This page is deliberately zero-JS except the click-to-sort
+        # exception above; a static month breakdown answers "which months
+        # are busiest" without needing new interactivity, so it stays in
+        # calendar order rather than being made sortable like the main table.
+        month_rows = "".join(
+            f"<tr><td>{m['month']}</td><td>{m['detections']}</td><td>{m['species']}</td></tr>"
+            for m in _detections_by_month(species)
+        )
+        month_section = f"""
+  <h2>Detections by Month</h2>
+  <p class="subtitle">Collapsed across every year hiked -- shows which months tend to be most active, not any single year's own pattern.</p>
+  <table><thead><tr><th>Month</th><th>Total Detections</th><th>Distinct Species Heard</th></tr></thead>
+  <tbody>{month_rows}</tbody></table>"""
+
+        year_data = _new_species_by_year(species)
+        if len(year_data) > 1:
+            year_rows = "".join(f"<tr><td>{y}</td><td>{n}</td></tr>" for y, n in year_data)
+            year_section = f"""
+  <h2>Life List Growth</h2>
+  <table><thead><tr><th>Year</th><th>New Species First Heard</th></tr></thead>
+  <tbody>{year_rows}</tbody></table>"""
+        else:
+            # Only one year of data so far -- a growth-over-time table with
+            # a single row says nothing yet; omit rather than show it empty.
+            year_section = ""
 
     count = len(species)
     subtitle = (
@@ -207,6 +293,8 @@ def _render_page(life_list, xeno_canto_key=None):
   <p class="subtitle">{subtitle}</p>
   <div class="top-nav"><a href="index.html">&larr; Calendar</a></div>
   {body}
+  {month_section}
+  {year_section}
   <footer>hike-izer</footer>
 </main>
 <script>

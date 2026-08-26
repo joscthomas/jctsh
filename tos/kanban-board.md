@@ -248,8 +248,8 @@ Since 11:55:25, the device has been cycling roughly every 27-30 seconds: connect
 
 ---
 
-### CARD-0210 · [enhancement] [hike-izer] Wildlife Life List: statistical analysis (detection frequency, trends over time) beyond the current per-species/per-hike view
-**Status:** Backlog
+### CARD-0210 · [enhancement] [hike-izer] Wildlife Life List: statistical analysis (detection frequency, trends over time) beyond the current per-species/per-hike view — RESOLVED 2026-08-25 evening
+**Status:** Done
 
 **Raised 2026-08-24 (Joseph)**, via the "Log Idea" Tasker widget (PR #37, "statistical analysis for Life bird net page"). Interviewed same day — wants at least two kinds of stats on the Wildlife Life List page (`wildlife.html`, CARD-0142), and is open to more beyond these two:
 1. **Detection frequency / most-common-species** — a ranked view of how often each species actually shows up, not just the existing "Hikes" column (number of distinct hikes a species was heard on at all, regardless of how many times per hike).
@@ -259,9 +259,33 @@ Since 11:55:25, the device has been cycling roughly every 27-30 seconds: connect
 
 **What's already there vs. what's missing, checked against the current data model:** `wildlife_life_list.json` (per `wildlife_life_list.py`, CARD-0142) persists `common_name`, `scientific_name`, `first_heard_date`, `first_heard_file_stem`, and a deduped list of `hikes` — the page's "Hikes" column is just `len(hikes)`. Each individual hike's own BirdNET table (`birdnet.py`'s `parse_detections()`) already computes a **per-hike detection count** per species (the "Count" column, CARD-0080) — but that count is never carried into the cross-hike life list today, only used per-hike. Both stat ideas above would need the life list's data model extended to retain more than just "which hikes" per species (e.g. a per-hike count and date, not just a deduped hike-stem list) to compute frequency and time-based trends from.
 
-**Not yet resolved — exact presentation and full stat list:** a Planning-stage question, not decided here.
+**Designed 2026-08-25 evening, grounded in the real code (`wildlife_life_list.py`, `birdnet.py`, `build_wildlife_index.py` all read in full):**
 
-**Related:** `components/hike-izer-orchestrator/wildlife_life_list.py` (the persisted cross-hike data model this would extend), `components/hike-izer/build_wildlife_index.py` (renders `wildlife.html`), `components/hike-izer-orchestrator/birdnet.py` (`parse_detections()`, the existing per-hike count this would need to aggregate), PR #37 (the original voice-captured idea this scopes).
+**1. Data model change — the one extension that unlocks both requested stats.** `wildlife_life_list.py`'s `entry["hikes"]` is currently a plain deduped list of file_stems (`["2026-08-25", ...]`). Change to a list of `{"file_stem": ..., "count": ...}` dicts — `birdnet.parse_detections()` already computes a per-species `count` for every hike (the existing per-hike "Count" column, CARD-0080), it's just never carried into the persisted life list today. No new date field needed: every `file_stem` already starts with `YYYY-MM-DD` (the same trick the existing "First Heard" column's sort already relies on), so month/year is always derivable from it directly.
+- **Idempotency, updated:** `update_from_hike()` currently just adds `file_stem` to the list if absent (a set). With counts, a hike can legitimately be reprocessed with a different count (step 1's best-effort BirdNET pass vs. step 2's real pass, CARD-0135) — so on a repeat `file_stem`, **overwrite that hike's stored count with the latest value** (last-processed-wins) rather than appending a duplicate or summing, keeping re-runs safe the same way the current design already is.
+
+**2. Stat #1 (detection frequency) — one new column on the existing table.** `build_wildlife_index.py`'s table gains a **Detections** column (`sum(h["count"] for h in entry["hikes"])`), sortable via the existing click-to-sort mechanism (`data-sort-type="number"`, same pattern as the current "Hikes" column) — no new page section, no new JS.
+
+**3. Stat #2 (seasonality/trends) — a new, separate, page-level "Detections by Month" table, not per-species.** Matches Joseph's own framing ("when species are typically heard... how the life list has grown") better than a per-species breakdown would, and stays within this page's existing zero-JS-except-sort convention (a real chart would be new scope beyond what's needed — a plain table answers "which months are busiest" directly). Walk every species' every hike entry, bucket by the month extracted from `file_stem` (collapsed across years — Joseph's own "by month/season" framing, not "by month in a specific year"), render:
+
+| Month | Total Detections | Distinct Species Heard |
+|---|---|---|
+
+**4. "How the life list has grown over time" — smaller, lower-priority, v1-optional.** Joseph's phrasing framed this as an "and/or" alongside seasonality, not an equal-weight second requirement. If built: a simple **species-per-calendar-year** table (or a single cumulative-total-over-time figure), same derivation (bucket `first_heard_file_stem` by year). Flagged as a candidate first cut to trim if Build time is tight — the two items above are the real core of what was asked for.
+
+**5. Real backfill required, not a placeholder.** Every already-published hike's staged BirdNET export still exists on disk (staged files are never deleted, per CARD-0112/CARD-0119's convention) — a one-time backfill script re-runs `birdnet.parse_detections()` against each hike's own `_staging/` directory and rebuilds `wildlife_life_list.json`'s `hikes` list from scratch with real counts, rather than migrating the old file in place with a synthetic count (e.g. count=1) that would understate every hike processed before this card. A full rebuild is simpler and more correct than a partial migration, since the old format never stored counts to migrate from.
+
+**Built and deployed, 2026-08-25 evening — all four scope items, item 4 included rather than deferred (cheap enough to build alongside 2/3):**
+- `wildlife_life_list.py`: `update_from_hike()` now stores `{"file_stem": ..., "count": ...}` per hike (last-processed-wins on a repeat `file_stem`, per the design).
+- `build_wildlife_index.py`: `_hike_stem()`/`_hike_count()` tolerate a not-yet-backfilled entry still holding a bare file_stem string (treated as count=1) so a partial migration can't crash the page. New **Detections** column on the main table (sortable, same click-to-sort mechanism as every other column). New **Detections by Month** table (calendar order, not sortable — a static seasonality view doesn't need the interactivity exception this page otherwise reserves for the main table). New **Life List Growth** table (new species per calendar year), rendered only when more than one year of data exists — a single-row growth table says nothing, so it's omitted rather than shown empty.
+- New `backfill_wildlife_counts.py` (one-time, re-runnable) — rebuilds `wildlife_life_list.json` from scratch by re-running `birdnet.parse_detections()` against every hike's still-present `<file_stem>_staging/` directory, recovering real historical counts rather than leaving pre-CARD-0210 hikes undercounted at the legacy count=1 fallback.
+
+**Verified live, 2026-08-25 evening:**
+- Synthetic smoke test first (three species across different months/years, plus one deliberately left in the old bare-string `hikes` shape) — confirmed correct month-bucketed totals, correct legacy-shape tolerance, no crash.
+- Backfill run against the real M8 data: **13 hikes with BirdNET exports, 70 species, 635 total real detections recovered** — the actual historical counts, not placeholders.
+- Real published `wildlife.html` confirmed live: Detections column showing real per-species totals (e.g. Verdin: 127 detections across 5 hikes); Detections by Month showing real seasonal skew (August: 534 detections/60 species, July: 101/22, all other months correctly 0 — matches this project's own hiking history, which only started in earnest in July 2026); Life List Growth correctly **absent** (all 13 hikes fall within 2026, a single year, so the one-row-says-nothing guard suppressed it as designed, not a bug).
+
+**Related:** `components/hike-izer-orchestrator/wildlife_life_list.py` (the persisted cross-hike data model this extends — `update_from_hike()`'s `hikes` list shape, `entry["hikes"]`), `components/hike-izer/build_wildlife_index.py` (renders `wildlife.html` — new Detections column, Detections-by-Month and Life-List-Growth tables), `components/hike-izer-orchestrator/birdnet.py` (`parse_detections()`, the existing per-hike `count` this aggregates), `components/hike-izer-orchestrator/backfill_wildlife_counts.py` (the one-time real-count recovery script), PR #37 (the original voice-captured idea this scopes).
 
 ---
 

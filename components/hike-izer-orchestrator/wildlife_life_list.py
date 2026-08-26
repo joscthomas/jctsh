@@ -10,9 +10,19 @@ best-effort pass and step 2's real pass, CARD-0135), the caller merges that
 hike's species into this file.
 
 Keyed by scientific_name (globally unique, unlike common_name). Idempotent:
-re-processing the same hike (step 1 then step 2, or a re-render) just
-re-adds that hike's own file_stem to a set -- never double-counts or
-duplicates.
+re-processing the same hike (step 1 then step 2, or a re-render) updates
+that hike's own entry in place -- never duplicates, never double-counts.
+
+CARD-0210: each entry's "hikes" list holds {"file_stem": ..., "count": ...}
+dicts, not bare file_stem strings -- count is birdnet.parse_detections()'s
+own per-hike detection count for that species, carried through so
+build_wildlife_index.py can compute detection-frequency and by-month
+seasonality stats. No separate date field needed: every file_stem already
+starts with YYYY-MM-DD, the same trick the "First Heard" column's sort
+already relies on. Re-processing the same hike overwrites that hike's own
+stored count (last-processed-wins) rather than appending a duplicate or
+summing -- step 2's real BirdNET pass should supersede step 1's best-effort
+one, not add to it.
 """
 
 import json
@@ -57,8 +67,11 @@ def update_from_hike(file_stem, date_str, birdnet_rows, path=LIFE_LIST_PATH):
             entry["first_heard_date"] = date_str
             entry["first_heard_file_stem"] = file_stem
 
-        if file_stem not in entry["hikes"]:
-            entry["hikes"].append(file_stem)
+        existing_hike = next((h for h in entry["hikes"] if h["file_stem"] == file_stem), None)
+        if existing_hike is None:
+            entry["hikes"].append({"file_stem": file_stem, "count": row["count"]})
+        else:
+            existing_hike["count"] = row["count"]
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:

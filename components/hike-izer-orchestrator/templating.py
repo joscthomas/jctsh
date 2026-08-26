@@ -189,6 +189,47 @@ def _range_display(rng, unit="", decimals=1):
     return f"{fmt.format(rng['min'])}–{fmt.format(rng['max'])}{unit}"
 
 
+# CARD-0209: standard EPA/WHO UV Index risk bands. Real-data check (2026-08-25,
+# against the actual 2026-08-25 hike) found no meaningful directional bias from
+# hiking into/away from the sun once the LTR-390's real sky-facing mounting was
+# accounted for (Pearson r=-0.06 between facing angle and elevation-normalized
+# UV across 80 points) -- so the raw reading is applied directly here, no
+# direction correction.
+_UV_BANDS = [
+    (2, "Low", "uv-band-low"),
+    (5, "Moderate", "uv-band-moderate"),
+    (7, "High", "uv-band-high"),
+    (10, "Very High", "uv-band-very-high"),
+    (float("inf"), "Extreme", "uv-band-extreme"),
+]
+
+
+def _uv_band(value):
+    for threshold, label, css_class in _UV_BANDS:
+        if value <= threshold:
+            return label, css_class
+    return _UV_BANDS[-1][1], _UV_BANDS[-1][2]
+
+
+def _uv_index_display(rng):
+    # CARD-0209: leads with the hike's peak reading (not an instantaneous or
+    # average value) -- peak is what actually drives sun-protection decisions,
+    # and tends to occur near midday (high sun elevation, where the ruled-out
+    # directional confound above would matter least anyway even if it were
+    # real). Returns raw HTML (the risk-band badge) -- the caller must not
+    # run this through the generic _esc() every other row's value goes
+    # through, same "flagged, not-generic" pattern _env_row_label_cell
+    # already uses for the Battery Discharge Rate row's link.
+    if not rng:
+        return NA
+    peak = rng["max"]
+    label, css_class = _uv_band(peak)
+    return (
+        f'Peak {peak:.1f} <span class="uv-band {css_class}">{_esc(label)}</span>'
+        f'<span class="uv-range">(range {rng["min"]:.1f}–{rng["max"]:.1f})</span>'
+    )
+
+
 def _sun_direction_display(stats):
     start = stats.get("sun_direction_start")
     end = stats.get("sun_direction_end")
@@ -233,7 +274,7 @@ def data_summary_rows(hike_data):
         ("Temperature", _range_display(stats.get("temp_f"), "°F")),
         ("Humidity", _range_display(stats.get("humidity_pct"), "%")),
         ("Pressure", _range_display(stats.get("pressure_hpa"), "hPa")),
-        ("UV Index", _range_display(stats.get("uv_index"))),
+        ("UV Index", _uv_index_display(stats.get("uv_index"))),
         ("Battery Voltage", _range_display(stats.get("battery_v"), "V", decimals=2)),
         ("Battery Discharge Rate", _battery_discharge_display(stats.get("battery_window_crossing_min"))),
     ]
@@ -261,6 +302,15 @@ def _env_row_label_cell(label):
     if label == "Battery Discharge Rate":
         return f'<a href="battery-trend.html">{_esc(label)}</a>'
     return _esc(label)
+
+
+def _env_row_value_cell(label, value):
+    # CARD-0209: UV Index's value is already-built raw HTML (the risk-band
+    # badge, see _uv_index_display) -- same "flagged, not-generic" pattern
+    # _env_row_label_cell above uses, mirrored on the value side.
+    if label == "UV Index":
+        return value
+    return _esc(value)
 
 
 GOLDEN_HOUR_MAX_ELEVATION_DEG = 10  # common rule-of-thumb upper bound for warm, low-angle "golden" light
@@ -563,6 +613,18 @@ _HTML_STYLE = """
        distinct from the elevation/speed tokens above so both charts can sit
        on the page without any color collision. */
     --chart-temp: #c1502e; --chart-humidity: #2e7ac1; --chart-pressure: #7a4fb0; --chart-uv: #b08a1a;
+    /* CARD-0209: standard EPA/WHO UV Index risk bands -- Low/Moderate reuse
+       the existing --good/--warning severity tokens (same meaning, no new
+       palette needed); High and Extreme are new, sitting visually between
+       warning and danger, and past danger, respectively. */
+    --uv-low: var(--good); --uv-moderate: var(--warning); --uv-high: #b5601f;
+    --uv-very-high: var(--danger); --uv-extreme: #7a3f8a;
+    /* CARD-0209: light-mode band colors are dark/saturated (white text
+       reads fine); dark-mode band colors below are lighter pastels for
+       visibility against the dark page background, which flips which text
+       color actually contrasts -- one shared token instead of five
+       separate per-band ink pairs. */
+    --badge-ink: #fff;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -584,6 +646,9 @@ _HTML_STYLE = """
       --chart-elevation: #cda978; --chart-elevation-fill: rgba(205, 169, 120, 0.14); --chart-speed: #7bb4d9; --chart-speed-fill: rgba(123, 180, 217, 0.12);
       --marker-photo: #c9a0d9; --marker-observation: #7ad9c4; --marker-bird: #e0a768;
       --chart-temp: #e08a68; --chart-humidity: #6ba8e0; --chart-pressure: #b090e0; --chart-uv: #e0c068;
+      --uv-low: var(--good); --uv-moderate: var(--warning); --uv-high: #e0a85c;
+      --uv-very-high: var(--danger); --uv-extreme: #c98fd9;
+      --badge-ink: #1a1f16;
     }
   }
   * { box-sizing: border-box; }
@@ -928,6 +993,18 @@ _HTML_STYLE = """
     letter-spacing: 0.04em; background: var(--accent); color: var(--accent-ink);
     padding: 0.1rem 0.4rem; border-radius: 999px; vertical-align: middle;
   }
+  /* CARD-0209: EPA/WHO UV Index risk-band badge -- one shared base class,
+     five color modifiers keyed to the --uv-* tokens above. */
+  .uv-band {
+    display: inline-block; font-size: 0.7rem; font-weight: 700;
+    color: var(--badge-ink); padding: 0.1rem 0.5rem; border-radius: 999px; vertical-align: middle;
+  }
+  .uv-band-low { background: var(--uv-low); }
+  .uv-band-moderate { background: var(--uv-moderate); }
+  .uv-band-high { background: var(--uv-high); }
+  .uv-band-very-high { background: var(--uv-very-high); }
+  .uv-band-extreme { background: var(--uv-extreme); }
+  .uv-range { color: var(--ink-muted); font-size: 0.85em; margin-left: 0.35em; }
   /* CARD-0174: reference-call speaker icon (xeno_canto.render_button_html()) */
   .audio-btn { background: none; border: none; cursor: pointer; font-size: 0.85em; padding: 0 0.2em; vertical-align: middle; line-height: 1; }
   .audio-btn:hover { opacity: 0.65; }
@@ -1119,7 +1196,8 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     if has_env_data:
         env_rows = data_summary_rows(hike_data) + [environmental_data_coverage_row(coverage)]
         summary_rows = "".join(
-            f"<tr><td>{_env_row_label_cell(label)}</td><td>{_esc(value)}</td></tr>" for label, value in env_rows
+            f"<tr><td>{_env_row_label_cell(label)}</td><td>{_env_row_value_cell(label, value)}</td></tr>"
+            for label, value in env_rows
         )
         env_gap_html = "".join(
             f"<p>{_esc(n)}</p>" for n in environmental_data_gap_notes(coverage, offset_delta, offset_str)

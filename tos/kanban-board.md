@@ -40,8 +40,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0212 · [enhancement] [hiking-monitor] Gate the hike-log replay burst behind the existing low-battery cutoff
-**Status:** Backlog
+### CARD-0212 · [enhancement] [hiking-monitor] Gate the hike-log replay burst behind the existing low-battery cutoff — RESOLVED 2026-08-25 17:26 MST
+**Status:** Done
 
 **Raised 2026-08-25 (Joseph), directly from CARD-0211's diagnosis.** hiking-monitor already has a low-battery safety cutoff (`low_battery_shutdown` script, `hiking-monitor.yaml`) that forces deep sleep below **3.4V** — but by design it only applies during field/hiking mode (`slide_switch on, dock_detect off`); it's deliberately skipped while docked so charging can proceed uninterrupted. The replay burst (`mqtt.on_connect:` handler, ~line 221-250 — publishes every buffered reading with a 50ms gap between each, real sustained WiFi/MQTT current draw for several seconds) has no equivalent gate at all. CARD-0211's incident is exactly this gap: device comes home from a hot, long hike already battery-warned, gets plugged in, and the replay burst attempts (and brownout-resets) repeatedly before the battery has recovered enough headroom, rather than waiting.
 
@@ -54,9 +54,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Built and OTA-flashed, 2026-08-25 16:20-16:24 MST.** In the `mqtt.on_connect:` handler, the replay block is now gated on `id(battery_voltage).state >= 3.4f`: below that, the burst is skipped entirely (buffered readings left untouched, nothing lost) and an Alert-category log message is published noting the skip and current voltage; at/above it, the existing Connected → Uploading → Done display sequence and replay logic run unchanged. Compiled clean (`config_hash=0x0d98cd39`), flashed via OTA to `192.168.1.161` (no USB/PC needed) — succeeded in 8.75s, device reconnected cleanly at 16:24:53-57 MST, confirmed via the Pi's log server (`connection_state.online: True`, normal "Upload mode — USB connected, switch off" status).
 
-**Not yet done:** committed to git (compiled/flashed only so far); the actual low-battery-skip code path has not been exercised live yet (this test cycle had a healthy battery, so only the normal/unaffected path was verified) — per this card's own "Done when" criteria below, that still needs a real or reproduced low-battery dock/charge scenario before this can be marked Done.
+**Committed 2026-08-25 16:30 MST** (`7aabd42`).
 
-**Done when:** a real low-battery dock/charge scenario (real device or reproduced on the bench) shows the replay burst deferred rather than attempted while below 3.4V, no reset loop, and resumes automatically once the battery has recovered — verified live, not just code-reviewed.
+**Skip path verified live, 2026-08-25 17:14-17:25 MST — a simulated bench test, not a real battery drain.** Generated real buffered data by taking the device (switch ON) outside JCTnet1's range for ~3 minutes, letting the 2-minute field-mode interval log a genuine reading to SPIFFS. Before bringing it back in range, temporarily flashed a test build (`C:\esphome\hiking-monitor\hiking-monitor.yaml` only — repo copy untouched) with the CARD-0212 threshold literal raised from 3.4f to 4.5f, above the device's real ~4.2V — forces the skip branch deterministically off today's real voltage, no need to actually drain the cell. Walking back through spotty edge-of-range coverage produced four separate MQTT reconnects (17:14:09, 17:17:52, 17:17:54, 17:20:50) — the gate correctly re-evaluated and deferred the replay on every single one (`"Replay deferred - battery 4.1x-4.28V below 4.5V cutoff, waiting for charge"`), confirming the check is a stateless per-connection guard, not something a flaky reconnect sequence could slip past. No reset loop, no Connected→Uploading→Done display sequence attempted, buffered data untouched throughout.
+
+**Normal path re-verified immediately after, 2026-08-25 17:26 MST.** Reverted the test threshold back to 3.4f (diffed clean against the committed repo copy before reflashing), recompiled (`config_hash=0x0d98cd39`, matching the already-committed build), OTA-flashed back. Next reconnect replayed the same buffered data normally: `"Replaying 4 hike readings..."` → `"Hike log replay complete."` — confirms the new gate doesn't interfere with the existing working path.
+
+**Done when:** a real low-battery dock/charge scenario (real device or reproduced on the bench) shows the replay burst deferred rather than attempted while below 3.4V, no reset loop, and resumes automatically once the battery has recovered — verified live, not just code-reviewed. **Met**, 2026-08-25 17:14-17:26 MST (simulated-threshold bench test, both skip and resume paths verified live per above).
 
 **Related:** CARD-0211 (the 2026-08-25 incident this directly follows from), CARD-0026 (measured the boost-converter brownout-reset-loop mechanism this is meant to avoid triggering), CARD-0070 (deferred LDO+gate hardware fix for the same underlying weakness — this card is a firmware mitigation, not a replacement for that hardware fix), `components/hiking-monitor/hiking-monitor.yaml`.
 

@@ -337,7 +337,7 @@ Since 11:55:25, the device has been cycling roughly every 27-30 seconds: connect
 ---
 
 ### CARD-0208 · [enhancement] [hiking-monitor] Spoken mile-marker announcements on the Pixel during a hike
-**Status:** Backlog
+**Status:** Planning
 
 **Raised 2026-08-24 (Joseph)**, via the "Log Idea" Tasker widget (PR #35, "mile notifications"). Interviewed same day: wants a **voice** notification (TTS, spoken aloud) on the Pixel at each whole-mile mark during a hike, not a silent push notification — the original PR title undersold what was actually wanted.
 
@@ -352,20 +352,28 @@ Since 11:55:25, the device has been cycling roughly every 27-30 seconds: connect
 - The CSV already carries a **`distance` column** (`Session.getInstance().getTotalTravelled()`) — GPSLogger's own running cumulative-distance total in meters, recomputed and written fresh on every single row. **No haversine math needed on the Tasker side at all** — just read the number.
 - Full column order (24 fields, `getCSVFileHeaders()`): `time, lat, lon, elevation, accuracy, bearing, speed, satellites, provider, hdop, vdop, pdop, geoidheight, ageofdgpsdata, dgpsid, activity, battery, annotation, timestamp_ms, time_offset, distance, starttimestamp_ms, profile_name, battery_charging` — `distance` is field 21 of 24.
 
+**Delimiter — decided 2026-08-25, checked against the actual source rather than assumed comma.** `CSVFileLogger.java` doesn't hardcode a comma — it reads a `CSVDelimiter` preference (`PreferenceHelper.getCSVDelimiter()`) and writes rows via Apache Commons CSV's `printRecord()`, which applies proper RFC 4180 quoting/escaping automatically when a field needs it. **Chosen: pipe (`|`), not comma.** Reason: `annotation` (index 17, free text) sits *before* `distance` (index 20) in column order — if `annotation` ever contained a literal comma, Apache Commons CSV would quote that field correctly, but Tasker's plain "Variable Split" action isn't CSV-quote-aware and would split inside the quoted field anyway, shifting every later index and silently reading the wrong value as `distance`. A pipe is never typed into a field by accident, so there's nothing to quote and nothing to shift — costs nothing, since this CSV file has exactly one consumer (this Tasker automation), not shared with any tool expecting standard comma-CSV. Set on the same GPSLogger settings screen as the CSV-format checkbox itself (a "CSV Delimiter" field).
+
 **Why this beats the originally-floated alternative (a second, independent Tasker GPS poll running alongside GPSLogger's own):** avoids the extra battery draw of duplicate GPS polling entirely, reuses a number GPSLogger is already computing for its own purposes, and needs no math logic in Tasker beyond unit conversion (meters → miles, `/1609.344`) and a simple "did this cross a new whole number" check.
 
 **This project's own GPSLogger config currently has local file outputs disabled** (`gps-pipeline.md`: "Logging Details → uncheck all local file formats (GPX, KML, CSV) — Google Sheets is the only needed output") — re-enabling CSV output is a real, deliberate config change, not free, but a small one (an app setting, not new code).
 
 **Design sketch, to confirm/adjust at Planning:**
-1. Re-enable CSV local file logging in GPSLogger (alongside the existing custom-URL logging, which stays unchanged — this doesn't touch the Sheets pipeline).
+1. Re-enable CSV local file logging in GPSLogger (alongside the existing custom-URL logging, which stays unchanged — this doesn't touch the Sheets pipeline), and set the CSV Delimiter preference to a pipe (`|`), per the decision above.
 2. New Tasker Profile: **File Modified** trigger on the CSV file, active only while GPSLogger is running (gated the same way CARD-0086's own start/stop-driven profiles already are).
-3. On each fire: read the file's last line, parse the `distance` field (index 20, 0-based) out of the comma-split row, convert to miles.
+3. On each fire: read the file's last line, parse the `distance` field (index 20, 0-based) out of the pipe-split row, convert to miles.
 4. Compare against a stored `%last_announced_mile` variable; if the new value's integer floor is greater, `Say` "\<N\> mile(s)" (Tasker's built-in offline TTS) and update the stored value.
 5. On GPSLogger's `stopped` broadcast (already-used signal): reset `%last_announced_mile` for the next hike.
 
+**Live test procedure, recorded 2026-08-25 evening — Joseph to run steps 2-4 (step 1's re-enable + pipe-delimiter change covered above):**
+1. *(covered above)* Re-enable CSV local file logging in GPSLogger, set CSV Delimiter to `|`. Note whatever save-folder path GPSLogger's Logging Details screen shows.
+2. Start GPSLogger, walk for a couple minutes (enough for 3-4 real logged points at the normal ~30s interval), stop GPSLogger.
+3. Find the CSV file in that folder (file manager, or PC via USB). Open it and check the last couple of rows: is there a real `distance` value (a number) as the 21st pipe-separated field, and does it increase row to row as you walked?
+4. Start a **second** GPSLogger session, walk a bit more, stop. Check the CSV folder again: **new file, or same file appended to?** And in whichever file holds session 2's rows, does `distance` start back near 0 for the new session, or keep counting up from session 1? (Answers the two open questions below.)
+
 **Open questions for Planning/Build — not yet resolved:**
-- Confirm live whether `Session.getInstance().getTotalTravelled()` resets to 0 at the start of each new GPSLogger logging session (expected, given `starttimestamp_ms` is a per-session field written alongside it, but not directly confirmed from the one file read) — trivial to check by starting GPSLogger and reading the CSV's first few real rows.
-- Confirm GPSLogger's actual per-session file-naming/creation behavior (one file per day vs. per logging session) — determines whether Tasker's "watch this file" target needs to be recomputed at each hike start or can stay fixed.
+- Confirm live whether `Session.getInstance().getTotalTravelled()` resets to 0 at the start of each new GPSLogger logging session (expected, given `starttimestamp_ms` is a per-session field written alongside it, but not directly confirmed from the one file read) — answered by test step 4 above.
+- Confirm GPSLogger's actual per-session file-naming/creation behavior (one file per day vs. per logging session) — determines whether Tasker's "watch this file" target needs to be recomputed at each hike start or can stay fixed — answered by test step 4 above.
 - Whether GPSLogger's own `distance` accumulator does any accuracy/noise filtering, or sums every raw fix unfiltered — a real-time convenience feature can tolerate more noise than hike-izer's own precise post-hike mileage stat (CARD-0110's GPS-accuracy-filtering fixes), so this is a "note the discrepancy is possible, don't block on it" item, not a blocker.
 - Whether Tasker's "read last line of a file" is cheap enough at typical hike-length CSV sizes (`gps-pipeline.md`'s own estimate: ~1,200 rows / ~75KB for a 10-hour hike) — almost certainly fine for local phone I/O, but worth a real spot-check once built.
 - Exact Tasker action sequence (File Modified event availability/reliability, string-parsing the CSV line, the math/comparison actions) — Joseph builds and confirms the actual Tasker profile, matching this project's established division of labor for every prior Tasker-side feature (CARD-0007, CARD-0086, CARD-0122, CARD-0156).

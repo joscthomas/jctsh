@@ -1,0 +1,8 @@
+[Unit]
+Description=CARD-0214: daily hike-summary gap-fill pass (Environmental Data / photos that synced since the first pass)
+After=docker.service
+
+[Service]
+Type=oneshot
+User=jct
+ExecStart=/usr/bin/docker exec hike-izer-orchestrator python3 generation.py --daily-refresh

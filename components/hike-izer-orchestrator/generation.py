@@ -12,17 +12,26 @@ Trying to retry/backfill around each of those individually fights the
 actual limitation; publishing what's genuinely available right now and
 enriching later doesn't.
 
-Step 2 (run_step2) is triggered conversationally, whenever Joseph has staged
-what he can (opened Immich, dropped a Gaia embed snippet or BirdNET export
-into that hike's staging directory) and asks for "the rich version" of a
-hike. It reuses step 1's persisted hike_data.json (no re-querying the Apps
-Script), re-fetches photos, reads the staging directory, and runs the one
-narrative-generation call -- with everything actually available, instead of
-one written blind before anything else was ready.
+Step 2 (run_step2) re-fetches everything live -- Environmental Data/Hiking
+Observations from the Apps Script (CARD-0214: no longer just reusing step
+1's persisted hike_data.json, since that's exactly what left the hiking-
+monitor's own late-arriving data stranded off a real published page --
+see CARD-0211/CARD-0214), photos (merging in whatever a prior pass already
+captioned, only paying to caption genuinely new ones), the staging
+directory, and -- if asked -- the one narrative-generation call. It's
+triggered two ways, both calling this identical function so there's one
+gap-filling operation, not two: conversationally, whenever Joseph asks for
+"the rich version" of a hike (with_narrative=True is only ever this path);
+and automatically, once a day (run_daily_refresh_and_log, CARD-0214),
+which re-runs it with_narrative=False for every hike published recently,
+in case something synced since the last pass. Both are safe to call any
+number of times -- run_step2 only pays for what's actually new each time.
 
 Determines "today" from the webhook payload's own local_datetime (never
 Arizona-hardcoded) -- a hike can happen anywhere Joseph is carrying his
-phone.
+phone. CARD-0214's daily refresh pass follows the same discipline: it
+finds hikes to refresh by file recency, not by computing "today" against
+the M8 server's own fixed TZ -- see _stems_recently_published.
 """
 
 import glob
@@ -32,6 +41,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 
 import birdnet
@@ -258,6 +268,40 @@ def latest_file_stem():
     return os.path.basename(latest)[: -len("_hike-summary.html")]
 
 
+# CARD-0214: how far back the daily refresh pass looks for hikes to re-run
+# run_step2 against. Comfortably wider than the ~24h gap between one daily
+# cron firing and the next, so a hike published right before or right after
+# a firing still gets exactly one refresh pass either way.
+DAILY_REFRESH_LOOKBACK_HOURS = 30
+
+
+def _stems_recently_published(within_hours=DAILY_REFRESH_LOOKBACK_HOURS):
+    """CARD-0214: every hike-summary first published within the last
+    `within_hours`, by *meta.json's* mtime -- deliberately not the .html
+    file's. run_step2 rewrites the .html every single pass (its mtime would
+    keep resetting, making a hike look "recently published" forever and
+    never age out of the lookback window); meta.json, by contrast, is
+    written once by step 1 and never touched again by an ordinary
+    run_step2 call (the one exception -- backfilling query_start_iso/
+    query_end_iso into a pre-CARD-0214 file -- only ever fires once per
+    file, so it doesn't reintroduce the same problem), so its mtime is a
+    genuinely stable "first published" signal.
+
+    Deliberately NOT a calendar-date lookup either -- this module's own
+    rule (see the file docstring) is that nothing here assumes the M8
+    server's fixed TZ (America/Phoenix) is Joseph's current one, since a
+    hike can happen anywhere he's carrying his phone. A recency window
+    sidesteps needing to know what "today" even means for any given hike,
+    the same reasoning latest_file_stem() already uses for a single lookup,
+    generalized here to "every recent one." """
+    cutoff = time.time() - within_hours * 3600
+    candidates = glob.glob(os.path.join(SRV_DIR, "*_hike-summary.meta.json"))
+    return sorted(
+        os.path.basename(p)[: -len("_hike-summary.meta.json")]
+        for p in candidates if os.path.getmtime(p) >= cutoff
+    )
+
+
 # CARD-0135: latest_file_stem()'s mtime lookup can only ever resolve to a
 # hike that's already published -- while step 1 (run(), below) is still
 # running, nothing has been published yet for the hike currently in
@@ -322,10 +366,51 @@ def _claim_pending_birdnet(date_str, staging_dir):
         pass  # non-empty (unexpected) or a race with another writer -- leave it, not worth failing generation over
 
 
+def _fetch_hike_data(start_iso, end_iso, hike_data_path):
+    """CARD-0214: extracted so step 1 (run()) and every later gap-filling
+    pass (run_step2()) call the identical query, not step 1's original
+    inline subprocess call duplicated a second time. fetch_hike_data.py is a
+    pure, stateless query against the Apps Script/Sheet for a fixed window
+    -- safe and correct to re-run any number of times; a later call just
+    naturally picks up whatever rows have landed in the Sheet since the
+    previous one, no merge logic needed on this side."""
+    subprocess.run(
+        [
+            sys.executable, FETCH_DATA_SCRIPT,
+            "--start", start_iso, "--end", end_iso,
+            "--url", _env("APPS_SCRIPT_URL"), "--key", _env("APPS_SCRIPT_KEY"),
+            "--out", hike_data_path,
+        ],
+        # CARD-0135: see _detect_session_window's identical comment -- same
+        # retry-latency reasoning applies here.
+        check=True, timeout=240,
+    )
+
+
 def _fetch_photos(hike_data_path, photos_dir):
-    """Shared by step 1 (best-effort attempt) and step 2 (the real fetch,
-    now that Immich has hopefully caught up -- CARD-0111/CARD-0112). Returns
-    a manifest dict with at least one asset, or None."""
+    """Shared by step 1 (best-effort attempt) and every later gap-filling
+    pass (CARD-0111/CARD-0112/CARD-0214). Returns a manifest dict with at
+    least one asset, or None.
+
+    CARD-0214: fetch_hike_photos.py always rewrites manifest.json fresh
+    from Immich's current listing (with no captions of its own) -- so on a
+    second or later call, any caption a prior pass already paid for is
+    recovered from the on-disk manifest before that overwrite and reapplied
+    after, keyed by Immich's own stable asset id. photo_captions.caption_photos()
+    then only processes assets that still have no 'caption' key -- i.e.
+    genuinely new photos -- never redoing an already-paid-for caption."""
+    existing_manifest_path = os.path.join(photos_dir, "manifest.json")
+    prior_captions = {}
+    if os.path.exists(existing_manifest_path):
+        try:
+            with open(existing_manifest_path, "r", encoding="utf-8") as f:
+                prior_manifest = json.load(f)
+            for asset in prior_manifest.get("assets", []):
+                if "caption" in asset:
+                    prior_captions[asset["id"]] = (asset["caption"], asset.get("sign_text", ""))
+        except (OSError, json.JSONDecodeError):
+            pass  # no usable prior manifest -- treat this as a first pass
+
     try:
         subprocess.run(
             [
@@ -336,8 +421,11 @@ def _fetch_photos(hike_data_path, photos_dir):
             ],
             check=True, timeout=180,
         )
-        with open(os.path.join(photos_dir, "manifest.json"), "r", encoding="utf-8") as f:
+        with open(existing_manifest_path, "r", encoding="utf-8") as f:
             manifest = json.load(f)
+        for asset in manifest.get("assets", []):
+            if asset["id"] in prior_captions:
+                asset["caption"], asset["sign_text"] = prior_captions[asset["id"]]
         return manifest if manifest.get("assets") else None
     except subprocess.CalledProcessError as e:
         # Photos are a nice-to-have (CARD-0084) -- never let a photo-fetch
@@ -434,17 +522,7 @@ def run(payload):
         # days later, even across a container restart, without re-querying the
         # Apps Script for data that can't have changed since the hike happened.
         hike_data_path = os.path.join(PRIVATE_DIR, f"{file_stem}_hike_data.json")
-        subprocess.run(
-            [
-                sys.executable, FETCH_DATA_SCRIPT,
-                "--start", start_iso, "--end", end_iso,
-                "--url", _env("APPS_SCRIPT_URL"), "--key", _env("APPS_SCRIPT_KEY"),
-                "--out", hike_data_path,
-            ],
-            # CARD-0135: see _detect_session_window's identical comment --
-            # same retry-latency reasoning applies here.
-            check=True, timeout=240,
-        )
+        _fetch_hike_data(start_iso, end_iso, hike_data_path)
         with open(hike_data_path, "r", encoding="utf-8") as f:
             hike_data = json.load(f)
         _apply_observation_overrides(hike_data, file_stem)
@@ -557,11 +635,19 @@ def run(payload):
         # step 2 (run hours/days later, from just a file stem) doesn't need to
         # re-derive it. start_ts (CARD-0118) is the earliest confirmed session's
         # raw UTC start, so build_calendar_index.py can label this hike's
-        # calendar-cell link with its actual local start time.
+        # calendar-cell link with its actual local start time. query_start_iso/
+        # query_end_iso (CARD-0214) are the exact fixed window _detect_session_window
+        # resolved above -- persisted so a later gap-filling pass (run_step2)
+        # can re-issue the identical Environmental Data/GPS query without
+        # re-running session detection, and so it stays byte-identical to
+        # step 1's own window rather than drifting.
         confirmed_sessions = [s for s in hike_data["coverage"]["gps_track"]["sessions"] if s["is_hike"]]
         start_ts = min((s["start"] for s in confirmed_sessions), default=None)
         with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.meta.json"), "w", encoding="utf-8") as f:
-            json.dump({"hike_confirmed": True, "offset_str": offset_str, "start_ts": start_ts}, f)
+            json.dump({
+                "hike_confirmed": True, "offset_str": offset_str, "start_ts": start_ts,
+                "query_start_iso": start_iso, "query_end_iso": end_iso,
+            }, f)
 
         subprocess.run(
             [sys.executable, BUILD_CALENDAR_SCRIPT, "--srv-dir", SRV_DIR],
@@ -590,26 +676,47 @@ def run(payload):
 
 
 def run_step2(file_stem, with_narrative=False):
-    """Step 2 (CARD-0112): conversationally triggered, once Joseph has
-    staged what he can (opened Immich, dropped a Gaia embed/BirdNET export
-    into the staging directory). Re-fetches photos for real, reads staging,
-    runs place_context (always the free deterministic layers; the research
-    layers + the narrative call only if with_narrative, CARD-0123 -- off by
-    default, since those are the only real cost here beyond photo
-    captioning), and republishes the full page in place of step 1's
-    data-only version."""
+    """The gap-filling operation (CARD-0112, re-scoped by CARD-0214): re-
+    fetches Environmental Data/Hiking Observations/GPS fresh from the Apps
+    Script (not just step 1's persisted hike_data.json -- CARD-0211/CARD-0214
+    found that left the hiking-monitor's own late-arriving buffered readings
+    permanently stranded off an already-published page), re-fetches photos
+    (captioning only ones a prior pass hasn't already captioned), reads
+    staging, runs place_context (always the free deterministic layers; the
+    research layers + the narrative call only if with_narrative, CARD-0123
+    -- off by default), and republishes the full page. Called two ways --
+    conversationally when Joseph asks for "the rich version" of a hike, and
+    automatically once a day (run_daily_refresh_and_log) -- both hit this
+    same function, so there's one idempotent, safely-repeatable operation,
+    not two different ones."""
     tracker = cost_tracking.CostTracker()
     date_str = _date_str_from_stem(file_stem)
-
-    hike_data_path = os.path.join(PRIVATE_DIR, f"{file_stem}_hike_data.json")
-    with open(hike_data_path, "r", encoding="utf-8") as f:
-        hike_data = json.load(f)
-    _apply_observation_overrides(hike_data, file_stem)
 
     meta_path = os.path.join(SRV_DIR, f"{file_stem}_hike-summary.meta.json")
     with open(meta_path, "r", encoding="utf-8") as f:
         meta = json.load(f)
     offset_str = meta["offset_str"]
+
+    hike_data_path = os.path.join(PRIVATE_DIR, f"{file_stem}_hike_data.json")
+    # CARD-0214: re-issue the same query step 1 ran, using its persisted
+    # exact window -- picks up anything that's landed in the Sheet since
+    # (or since the last gap-filling pass). query_start_iso/query_end_iso
+    # won't exist in meta.json for a hike published before this card;
+    # fall back to a full local-day window in that case (wider than the
+    # original session-padded window, but correct), and backfill meta.json
+    # right now so every later pass on this same file uses the tight window.
+    if "query_start_iso" not in meta:
+        start_iso = f"{date_str}T00:00:00{offset_str}"
+        end_iso = f"{date_str}T23:59:59{offset_str}"
+        meta["query_start_iso"], meta["query_end_iso"] = start_iso, end_iso
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+    else:
+        start_iso, end_iso = meta["query_start_iso"], meta["query_end_iso"]
+    _fetch_hike_data(start_iso, end_iso, hike_data_path)
+    with open(hike_data_path, "r", encoding="utf-8") as f:
+        hike_data = json.load(f)
+    _apply_observation_overrides(hike_data, file_stem)
 
     # Real photo fetch this time, not step 1's best-effort attempt.
     photos_dir = os.path.join(SRV_DIR, f"{file_stem}_photos")
@@ -757,6 +864,44 @@ def run_step2_and_log(file_stem, with_narrative=False):
         raise
 
 
+def run_daily_refresh_and_log():
+    """CARD-0214's second, time-triggered pass -- entry point for the daily
+    systemd timer (kanban-pr-selftest-style oneshot; see
+    tos/hike-izer-daily-refresh.service/.timer). Re-runs run_step2 (without
+    narrative -- narrative stays opt-in-only, CARD-0123, never automatic)
+    for every hike published in the last DAILY_REFRESH_LOOKBACK_HOURS, so
+    anything that synced since the GPSLogger-triggered first pass (or since
+    yesterday's refresh) gets picked up without anyone having to ask.
+
+    Deliberately quieter than the conversational path: a routine day with
+    nothing new to add still logs a System line per hike (dashboard/audit
+    visibility), but doesn't push an HA notification on success -- this
+    runs unattended every day and most days are genuinely a no-op, unlike a
+    manually-requested step 2, which Joseph triggered because he expects
+    something changed. A failure on any individual hike still gets a real
+    Alert + push, same as every other unattended job in this codebase --
+    this loops per-hike so one failure doesn't stop the rest from being
+    checked."""
+    stems = _stems_recently_published()
+    if not stems:
+        print("run_daily_refresh: no recently-published hikes -- nothing to do", file=sys.stderr, flush=True)
+        return
+    for file_stem in stems:
+        try:
+            file_stem, tracker = run_step2(file_stem, with_narrative=False)
+            print(f"Daily refresh complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
+            mqtt_log.publish_log(
+                "System",
+                f"Daily refresh pass complete for {file_stem}: "
+                f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
+                f"(API cost: {tracker.summary()}).",
+            )
+        except Exception as e:
+            print(f"Daily refresh failed for {file_stem}: {e}", file=sys.stderr, flush=True)
+            mqtt_log.publish_log("Alert", f"Hike-izer daily refresh failed for {file_stem}: {e}")
+            ha_notify.send_push("Hike-izer", f"Daily hike-summary refresh failed for {file_stem}: {e}")
+
+
 def main():
     import argparse
 
@@ -773,9 +918,19 @@ def main():
              "(Claude + web_search) plus the Claude-written prose paragraphs. Opt-in, "
              "real added cost; off by default leaves only photo-caption cost.",
     )
+    ap.add_argument(
+        "--daily-refresh", action="store_true",
+        help="CARD-0214: run the gap-filling pass (run_step2, no narrative) against every "
+             "hike published in the last DAILY_REFRESH_LOOKBACK_HOURS. Normally fired by the "
+             "daily systemd timer, but safe to run manually any number of times -- it only "
+             "ever processes what's actually new since the last pass.",
+    )
     args = ap.parse_args()
+    if args.daily_refresh:
+        run_daily_refresh_and_log()
+        return
     if not args.step2:
-        ap.error("nothing to do -- pass --step2 <file_stem> (step 1 runs via the webhook, not this CLI)")
+        ap.error("nothing to do -- pass --step2 <file_stem> or --daily-refresh")
     run_step2_and_log(args.step2, with_narrative=args.narrative)
 
 

@@ -80,7 +80,11 @@ def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None):
     raw text transcribed from a sign/plaque in the photo, captured for
     CARD-0108's later search step) to each image asset in photos_manifest
     (mutates and returns it). Videos are skipped -- this is a still-image
-    task.
+    task. CARD-0214: an asset that already carries a 'caption' key (recovered
+    from a prior pass by generation.py's _fetch_photos()) is left untouched
+    -- only genuinely new assets get a real _caption_one() call, so a second
+    or later pass over the same hike never re-pays for a photo it already
+    captioned.
 
     CARD-0117: also writes the captioned manifest back to
     <photos_dir>/manifest.json, overwriting fetch_hike_photos.py's original
@@ -97,6 +101,12 @@ def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None):
     client = anthropic.Anthropic(api_key=api_key)
     for asset in photos_manifest["assets"]:
         if asset.get("type") != "IMAGE":
+            continue
+        # CARD-0214: a 'caption' key already present means generation.py's
+        # _fetch_photos() recovered it from a prior pass (keyed by Immich's
+        # own asset id) -- skip re-captioning something already paid for.
+        # Only assets genuinely new since the last pass reach _caption_one().
+        if "caption" in asset:
             continue
         thumb_path = os.path.join(photos_dir, asset["thumb"])
         try:

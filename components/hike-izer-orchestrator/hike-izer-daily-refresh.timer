@@ -1,0 +1,10 @@
+[Unit]
+Description=CARD-0214: daily hike-summary gap-fill pass, 5:00 PM (M8, hike-izer-orchestrator)
+
+[Timer]
+OnCalendar=*-*-* 17:00:00
+Persistent=true
+Unit=hike-izer-daily-refresh.service
+
+[Install]
+WantedBy=timers.target

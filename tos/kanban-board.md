@@ -9,7 +9,86 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0214 -->
+<!-- next-card-id: CARD-0216 -->
+
+---
+
+### CARD-0215 · [bug] [data-pipeline] Duplicate Environmental Data rows from CARD-0211's reset loop, plus no dedup-on-ingest at all
+**Status:** Planning
+
+**Raised 2026-08-25 (Claude, found while live-testing CARD-0214's gap-fill re-fetch).** The 2026-08-25 hike-summary page's Environmental Data section, after CARD-0214's fresh re-fetch, showed "10196 of 103 expected (9899.0% coverage)" — implausible on its face. Checked directly: the hike has exactly **103 unique `(timestamp, source)` readings** (matching the expected 2-minute-cadence count for a 3h26m hike), but up to **159 duplicate rows per timestamp**, concentrated in the 13:37-13:56Z stretch. Root cause is CARD-0211's reset loop: before the watchdog fix landed, the device repeatedly retried the same buffered-reading replay and crashed partway through each attempt — every failed attempt still published whatever readings it got through before crashing, so early-buffer readings got re-published dozens of times across the repeated attempts (159 → 155 → ... tapering as the crash point drifted).
+
+**Real scope, pulled from a full-sheet export (`action=export&sheet=Environmental%20Data`, all 33,932 rows, not just today's hike) — the same day this was found, not estimated:**
+
+| Date | Duplicated keys | Excess rows |
+|---|---|---|
+| 2026-08-25 | 94 | 10,093 |
+| 2026-08-22 | 14 | 27 |
+| 2026-06-12 | 1 | 2 |
+| 2020-01-01 | 1 | 2 |
+| **Total** | **110** | **10,124** (of 33,932 total rows — ~30%) |
+
+2026-08-25 is CARD-0211's incident and accounts for the overwhelming majority. 2026-06-12 and 2020-01-01 are single-key, single-excess-row artifacts, almost certainly the device's `clock_invalid` fallback timestamp landing on the same placeholder value from more than one real event (matches the `Skipped reading - clock_invalid` category this project already logs elsewhere) — not confirmed, just the obvious read. **2026-08-22's 14 keys / 27 excess rows is a real, separate, not-yet-diagnosed smaller incident three days before CARD-0211** — worth a root-cause pass at Build, not just silent cleanup, in case it's an earlier/lesser instance of the same class of bug (or a different one).
+
+**Decided 2026-08-25 (Joseph), directly rejecting Claude's first-draft "dedupe at read time" proposal:** the Sheet itself is the canonical data store — filtering duplicates only when `fetch_hike_data.py` reads it would leave the bad data sitting there permanently, forcing every future reader to independently know to filter it. **Two-part fix, not one:**
+1. **One-time cleanup** — delete the 10,124 excess rows from the live "Environmental Data" sheet directly, keeping exactly one row per unique `(timestamp, source)` key.
+2. **Dedup-on-ingest, structural** — `environmental-data.gs`'s `doPost()` (the `else` branch, `envSheet.appendRow(...)`, currently appends unconditionally with zero uniqueness check of any kind) gains a check: if a row with the same `(ts, source)` already exists, skip the append rather than creating a duplicate. Closes this whole class of bug at the source — protects against a *future* cause of repeated publishes too, not just re-fixes CARD-0211's already-patched specific bug.
+
+**Open questions for Build:**
+- **Cleanup mechanism.** 10,124 rows is far beyond manual Sheets-UI deletion — needs a one-time Apps Script function (run once via the Apps Script editor, matching this repo's existing manual-paste-and-run deploy convention for `.gs` files — no `clasp`/API-based deploy exists for this file per `CLAUDE.md`). Confirm the exact keep-one-per-key selection rule (e.g. keep the first-seen row, arbitrary but consistent) before running it — this is a real, irreversible-without-Sheets-version-history delete against production data.
+- **Dedup-check performance.** The sheet is already ~24k unique rows and growing; a naive `getDataRange().getValues()` linear scan before every future `doPost()` append (this codebase's existing pattern, e.g. `_gpsLookup`'s identical scan of "GPS Track") may need to be measured against real request latency, not just assumed fine by precedent.
+- **2026-08-22's smaller incident** — diagnose before or alongside the cleanup, don't fold it into "just more CARD-0211 fallout" without checking.
+- **Verify the 2020-01-01/2026-06-12 clock_invalid-artifact hypothesis** rather than treating it as settled.
+
+**Done when:** a fresh full-sheet duplicate scan (the same `(timestamp, source)` grouping used to find this) shows zero duplicate keys remaining; the dedup-on-ingest fix is deployed and verified live (a deliberately-repeated test payload confirmed to NOT create a second row); the 2026-08-25 hike-summary page, regenerated afterward, shows a sane coverage figure (103/103, not 9899%); and 2026-08-22's smaller incident has either been root-caused or explicitly noted as accepted-unexplained, not silently skipped.
+
+**Related:** CARD-0211 (the reset-loop incident that caused the overwhelming majority of this), CARD-0214 (the gap-fill re-fetch that made this visible for the first time — step 2 never used to re-query real Environmental Data at all, so nobody had looked at this hike's true row count until now), `core/data-pipeline/environmental-data.gs` (`doPost()`'s Environmental Data append branch), `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`.
+
+---
+
+### CARD-0214 · [enhancement] [hike-izer] Two-pass hike-summary generation to close the GPSLogger-trigger-vs-late-data race — RESOLVED 2026-08-25 18:47 MST
+**Status:** Done
+
+**Raised 2026-08-25 (Joseph), found while checking whether today's rescued hiking-monitor data (CARD-0211's 111 recovered readings) made it onto the published hike summary.** It didn't — `hikes.jctnet.com/2026-08-25_hike-summary.html` was auto-published at 10:01 AM MST, right after GPSLogger's `stopped` webhook fired at 9:59 AM, but the reset loop that trapped the hiking-monitor's buffered readings wasn't fixed until ~16:04 MST that afternoon. The page has no Environmental Data Tracking section at all — it was generated hours before that data existed anywhere in the pipeline.
+
+**Root cause is structural, not a one-off bug.** The existing pipeline (CARD-0086/CARD-0112) has exactly one trigger — GPSLogger's `stopped` webhook — firing step 1 (GPS + whatever's already in the Sheet) immediately. Step 2 exists ("finish the hike page") but only ever re-fetches **photos** (Immich sync lag) and runs enrichment against the *already-persisted* `hike_data.json` from step 1 — it never re-queries Environmental Data or Hiking Observations, so even running step 2 today wouldn't have picked up the recovered readings. Environmental data, photos, and Gaia/bird data (already referenced in `generation.py`'s own "ask for the rich version once photos/Gaia/bird data are staged" line) are all async sources that can lag the GPS-end trigger by anywhere from minutes (normal case) to hours (today) to indefinitely (device never docked).
+
+**Design decided via interview 2026-08-25 — rejected an initial "trigger off the hiking-monitor's own replay-complete event" idea** (Claude's first proposal) because it wrongly assumes hiking-monitor sync is the *last* thing to finish — photos/Gaia/bird data have no such event either, and could still be the actual laggard. **Chosen instead: two time-based passes, both calling the same idempotent operation, not two different operations:**
+
+1. **Pass 1 — unchanged.** GPSLogger `stopped` webhook fires immediately, generates whatever's available right then (same as today's step 1).
+2. **Pass 2 — new, time-triggered, not event-triggered.** A daily cron (proposed 5pm MST, exact time TBD at Build) re-runs the *same* generation operation for any hike-summary published that day.
+3. **Both passes are the same gap-filling operation, examined-and-fill-in, not blind regeneration.** The second pass looks at what pass 1 (or a prior pass 2) already produced and only adds what's missing — it does not redo processing that's already been done. Concretely:
+   - **Environmental Data / Hiking Observations:** re-query the Sheet for the hike's window and merge in anything new — cheap, safe to always re-pull (Sheet reads have no real cost), but must not duplicate rows already in `hike_data.json`.
+   - **Photo enrichment:** only process photos that are new compared to what pass 1 already enriched — diff the live Immich listing against whatever's already recorded in `hike_data.json` as done, skip anything already-enriched rather than reprocessing it. This is the real cost control (Nominatim/Overpass calls aren't free-as-Sheet-reads) and was Joseph's explicit correction to the first draft of this design.
+   - **Narrative generation stays untouched by this card** — still the existing opt-in-only, ask-explicitly mechanism (CARD-0123), not something either automatic pass triggers on its own.
+4. **Must be safely re-runnable any number of times, on demand, with no side effects — a hard design constraint, not a nice-to-have.** Joseph's own framing: "I could always request the second pass to be run again, this should cause no problems because the process just examines what's been done and fills in the gaps." The manual "ask for step 2" conversational path stays available alongside the new cron trigger, calling the identical operation.
+
+**Explicitly accepted, not solved by this card:** if a data source is still unsynced past the cron's fixed time (e.g., today's outage had run past 5pm), the page stays incomplete until someone asks for another pass manually — the cron narrows the usual gap, it doesn't guarantee zero gap ever.
+
+**Open questions resolved during Build, 2026-08-25:**
+- **Cron time: 5pm MST, as proposed** — `hike-izer-daily-refresh.timer`, `OnCalendar=*-*-* 17:00:00`, `Persistent=true` (catches up on next boot if the M8 was down at 5pm). No per-trip time variation — not worth the complexity given the recency-window design below already tolerates a few days' slop.
+- **"What's already been done" mechanism, decided differently than either original guess:** Environmental Data/Observations/GPS don't need incremental diffing at all — `fetch_hike_data.py` is a pure, stateless query against the Sheet for a fixed window, so simply re-running it with the *same* window (persisted in `meta.json` as `query_start_iso`/`query_end_iso`, set once by step 1) is safe and correct by construction; a later pass naturally picks up whatever's landed since. Only **photo captions** needed real incremental tracking, since that's the only step with genuine per-call cost (Claude API): `generation.py`'s `_fetch_photos()` now recovers any already-captioned asset's caption/sign_text (keyed by Immich's own stable asset id) from the on-disk `manifest.json` *before* `fetch_hike_photos.py` overwrites it with a fresh Immich listing, reapplies them after, and `photo_captions.caption_photos()` skips any asset that already carries a `caption` key — only genuinely new photos reach a real API call.
+- **Per-day/per-session model (CARD-0113) composes cleanly, confirmed by construction, not assumed:** discovery for the daily pass (`_stems_recently_published()`) is **recency-based on file mtime, not calendar-date-based at all** — a real design correction found while implementing, not in the original interview: an earlier draft would have computed "today" on the M8's own fixed TZ to decide what to refresh, which is exactly the location-assumption this project's own standing rule (`[[feedback_no_location_assumptions]]`, and this very file's own docstring: "a hike can happen anywhere Joseph is carrying his phone") forbids. A 30-hour lookback window sidesteps needing to know what "today" means for any given hike at all, and naturally covers every session in a multi-day trip the same way it covers a single day.
+- **Unified, not parallel:** `run_step2()` itself became the one idempotent gap-filling operation, called identically by the conversational "ask for step 2" path and the new automatic daily pass (`run_daily_refresh_and_log()`, `--daily-refresh` CLI flag) — not two different functions that happen to converge.
+
+**A real subtlety caught and fixed during implementation, not in the original design:** the first draft of `_stems_recently_published()` checked the `*_hike-summary.html` file's own mtime — but `run_step2` rewrites that file on *every* pass, so a hike's mtime would keep resetting and it would look "recently published" forever, refreshing every single day indefinitely. Fixed by keying off `*_hike-summary.meta.json`'s mtime instead — written once by step 1 and (after one self-correcting exception, below) never touched again by an ordinary `run_step2` call, so it's a genuinely stable "first published" signal.
+
+**Built and deployed, 2026-08-25 18:30-18:47 MST:**
+- `generation.py`: `_fetch_hike_data()` extracted (shared by step 1 and every gap-fill pass); `run()` now persists `query_start_iso`/`query_end_iso` in `meta.json`; `run_step2()` re-fetches `hike_data.json` fresh every call instead of just reading step 1's stale copy (falls back to a full local-day window and backfills `meta.json` for a hike published before this card, so every later pass on that same file converges to the tight window); `_fetch_photos()` preserves prior captions across re-fetches; new `_stems_recently_published()` + `run_daily_refresh_and_log()` + `--daily-refresh` CLI flag.
+- `photo_captions.py`: `caption_photos()` skips any asset that already carries a `caption` key.
+- New `hike-izer-daily-refresh.service`/`.timer` (M8, `docker exec hike-izer-orchestrator python3 generation.py --daily-refresh`, daily 5pm MST) — installed, `daemon-reload`d, enabled.
+- Deployed via `scp` + `docker compose up -d --build orchestrator` (M8), same pattern as every prior change to this component.
+
+**Verified live against the real 2026-08-25 hike — not a synthetic test, the exact case this card exists to fix:**
+1. **Gap-fill confirmed real**, `--step2 2026-08-25`: environmental fetch went from zero rows at original publish time to 10,196 real hiking-monitor rows found in the Sheet; the published page's Environmental Data Tracking section, previously entirely absent, now renders with real temp/humidity/pressure/UV/battery data across the whole hike.
+2. **Idempotent/safely-repeatable confirmed**, same file re-run immediately after: `$0.0000 (0 API calls, 0 in / 0 out tokens)` — 9 photos found identical to the first run, none re-captioned, confirming the caption-preservation path works, not just that nothing crashed.
+3. **The real systemd-timer path confirmed, not just the manual CLI:** `systemctl start hike-izer-daily-refresh.service` on the live M8 host ran the exact same `docker exec ... --daily-refresh` invocation the 5pm timer will use, `_stems_recently_published()` correctly discovered `2026-08-25` by its `meta.json` mtime, called `run_step2` on it, completed with `$0.0000` (already-refreshed, nothing new) — full trigger-to-completion path proven live, `code=exited, status=0/SUCCESS`.
+
+**One real, separate, and larger finding surfaced by this fix, spun out as its own card rather than folded in here:** the "10,196 rows" figure above turned out to include large-scale duplication — only 103 are genuinely unique readings, the rest are repeated MQTT publishes from CARD-0211's reset loop (a failed replay attempt still publishes whatever it got through before crashing). This card's own job — making the real Environmental Data actually reach the page — is complete and correct; the data itself having duplicates is a separate, now-visible-for-the-first-time data-quality bug. See **CARD-0215**.
+
+**Done when:** the cron-triggered pass is built, deployed, and demonstrated (a real hike or a realistic backfill test) to (1) never duplicate or reprocess anything pass 1 already completed, (2) correctly fill in Environmental Data and any newly-synced photos that weren't available at pass-1 time, and (3) be safely re-invoked multiple times in a row with no side effects — verified live, not just code-reviewed. **Met, 2026-08-25 18:47 MST** — all three verified live against the real stranded 2026-08-25 hike, per above.
+
+**Related:** CARD-0211 (the incident that surfaced this gap), CARD-0215 (the duplicate-row data-quality issue this fix's own re-fetch made visible for the first time), CARD-0086/CARD-0112 (the original webhook-triggered step 1/step 2 automation this extends), CARD-0113 (the per-day/per-session model this stays compatible with by construction, via recency-based discovery), CARD-0156 (the analogous async-arrival race in the hiking-monitor observation-queue pipeline — same "just re-try later, safely, rather than chase a completion event" philosophy), CARD-0123 (the opt-in-narrative-cost precedent this card deliberately doesn't touch), [[feedback_no_location_assumptions]] (the standing rule that shaped the recency-based, not calendar-date-based, discovery design), `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/photo_captions.py`, `.claude/skills/hike-izer/SKILL.md`.
 
 ---
 

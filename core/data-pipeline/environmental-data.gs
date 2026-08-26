@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-08-24.1-correlation-debug';
+var SCRIPT_VERSION = '2026-08-25.1-ingest-validation';
 
 // ---------------------------------------------------------------------------
 // doPost — environmental sensor data (Node-RED → Sheets)
@@ -77,6 +77,55 @@ function doPost(e) {
         var val = payload[field];
         return (val !== undefined && val !== null) ? val : '';
       };
+
+      // CARD-0215: reject a payload with physically implausible sensor
+      // values before it ever reaches the sheet -- found live 2026-08-25,
+      // a mid-crash MQTT publish during CARD-0211's device reset loop
+      // wrote temp_f=370.6/pressure_hpa=-174.9/uv_index=7294.4 straight
+      // into the sheet, 74 times over via repeated failed replay attempts.
+      // Only checked when the field is actually present -- most sources
+      // legitimately leave most fields blank ('').
+      var rangeChecks = [
+        ['temp_f', -20, 130], ['humidity_pct', 0, 100],
+        ['pressure_hpa', 800, 1100], ['uv_index', 0, 20],
+      ];
+      for (var rc = 0; rc < rangeChecks.length; rc++) {
+        var field = rangeChecks[rc][0], lo = rangeChecks[rc][1], hi = rangeChecks[rc][2];
+        var raw = v(field);
+        if (raw === '') continue;
+        var num = Number(raw);
+        if (isNaN(num) || num < lo || num > hi) {
+          return ContentService
+            .createTextOutput(JSON.stringify({
+              status: 'rejected', reason: 'out_of_range', field: field, value: raw,
+            }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+
+      // CARD-0215: reject an exact (ts, source) duplicate -- the canonical
+      // store should never accept the same reading twice, regardless of
+      // why a duplicate publish happened. CARD-0211's own specific cause
+      // (a task-watchdog reset loop) is already fixed at the firmware
+      // level; this guards the sheet itself against any future cause of
+      // a repeated publish, not just that one. Reads only columns A/B
+      // (not the full row) to keep this check cheap as the sheet grows.
+      var tsVal = v('ts');
+      var srcVal = v('source');
+      if (tsVal !== '' && envSheet.getLastRow() > 1) {
+        var keyCols = envSheet.getRange(2, 1, envSheet.getLastRow() - 1, 2).getValues();
+        var tsStr = String(tsVal);
+        for (var i = 0; i < keyCols.length; i++) {
+          var existingTs = keyCols[i][0];
+          existingTs = (existingTs instanceof Date) ? existingTs.toISOString() : String(existingTs);
+          if (existingTs === tsStr && String(keyCols[i][1]) === String(srcVal)) {
+            return ContentService
+              .createTextOutput(JSON.stringify({status: 'duplicate', ts: tsVal, source: srcVal}))
+              .setMimeType(ContentService.MimeType.JSON);
+          }
+        }
+      }
+
       envSheet.appendRow([
         v('ts'),              // A  timestamp
         v('source'),          // B  source
@@ -126,7 +175,78 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('JCTsh')
     .addItem('Refresh Timeline', 'refreshTimeline')
+    .addItem('Cleanup Duplicate Environmental Data (CARD-0215, one-time)', 'cleanupDuplicateEnvironmentalData')
     .addToUi();
+}
+
+// ---------------------------------------------------------------------------
+// cleanupDuplicateEnvironmentalData — CARD-0215 one-time fix
+// ---------------------------------------------------------------------------
+// Run once from the JCTsh menu (or the Apps Script editor's function picker).
+// Rewrites "Environmental Data" keeping exactly one row per unique
+// (timestamp, source) key -- first-seen row wins, arbitrary but consistent.
+// A key whose values are physically implausible (isBadRow, same range
+// checks doPost now applies on ingest) is dropped entirely, not
+// deduplicated down to one -- there's no valid reading to keep for it
+// (CARD-0211's mid-crash corrupted reading, 74 identical copies).
+// Logs a summary (View -> Logs, or Executions) so the result is confirmed
+// against the numbers this card's own investigation already found, not
+// just trusted blind. Safe to remove this function (and its menu item)
+// once run and confirmed -- it's a one-time fix, not a recurring job; the
+// same range/dedup checks now live permanently in doPost to prevent a
+// recurrence.
+
+function cleanupDuplicateEnvironmentalData() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Environmental Data');
+  var data = sheet.getDataRange().getValues();
+  var header = data[0];
+
+  function inRange(val, lo, hi) {
+    if (val === '' || val === null || val === undefined) return true;
+    var n = Number(val);
+    return !isNaN(n) && n >= lo && n <= hi;
+  }
+  function isBadRow(row) {
+    // columns per doPost's own appendRow order: 4 temp_f, 5 humidity_pct,
+    // 6 pressure_hpa, 9 uv_index.
+    return !inRange(row[4], -20, 130) || !inRange(row[5], 0, 100) ||
+           !inRange(row[6], 800, 1100) || !inRange(row[9], 0, 20);
+  }
+  function keyOf(row) {
+    var ts = row[0];
+    ts = (ts instanceof Date) ? ts.toISOString() : String(ts);
+    return ts + '|' + String(row[1]);
+  }
+
+  var seen = {};
+  var kept = [header];
+  var droppedDuplicates = 0;
+  var droppedCorrupted = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (isBadRow(row)) { droppedCorrupted++; continue; }
+    var key = keyOf(row);
+    if (seen[key]) { droppedDuplicates++; continue; }
+    seen[key] = true;
+    kept.push(row);
+  }
+
+  sheet.clearContents();
+  sheet.getRange(1, 1, kept.length, header.length).setValues(kept);
+
+  Logger.log('Original rows: ' + (data.length - 1));
+  Logger.log('Kept rows: ' + (kept.length - 1));
+  Logger.log('Dropped as duplicates: ' + droppedDuplicates);
+  Logger.log('Dropped as corrupted (all copies removed): ' + droppedCorrupted);
+  SpreadsheetApp.getUi().alert(
+    'Cleanup complete.\n' +
+    'Original rows: ' + (data.length - 1) + '\n' +
+    'Kept: ' + (kept.length - 1) + '\n' +
+    'Dropped as duplicates: ' + droppedDuplicates + '\n' +
+    'Dropped as corrupted: ' + droppedCorrupted
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -48,23 +48,30 @@ esphome:
     - priority: 600.0
       then:
         - lambda: 'hike_log_begin();'
-        # CARD-0195: if the device booted into field mode on an abnormal
-        # reset (brownout/panic/watchdog -- not a normal power-on or
-        # deep-sleep wake), record it. Field mode has no WiFi to carry an
-        # MQTT log message, so this rides the same flash-buffer-then-replay
-        # path real readings use. Positive-match on abnormal keywords
-        # (same approach air-quality-monitor's reset-reason LED uses) rather
-        # than trying to enumerate every normal-reason string.
+        # CARD-0195 (original), widened by CARD-0216 to log unconditionally
+        # rather than only on an abnormal-keyword match. CARD-0216 found
+        # zero display_refresh events logged across a real ~6.5hr field
+        # hike despite the firmware's own logic guaranteeing roughly a
+        # dozen -- one live hypothesis is the device silently rebooting
+        # mid-hike on a reset reason that never matched the old
+        # "rownout"/"anic"/"atchdog" substring filter (there are other
+        # valid ESP-IDF reset reasons that filter would have let through
+        # with zero trace), each one resetting field_display_cycle back to
+        # 0 before it could reach the next throttled refresh. Field mode
+        # only has one legitimate entry per hike (the wake that starts it
+        # -- CARD-0201's true-deep-sleep-between-samples rearchitecture
+        # isn't built, so the device stays continuously awake for the rest
+        # of the hike) -- so logging every field-mode boot's reset reason,
+        # not just "abnormal" ones, should show exactly one entry on a
+        # clean hike and reveal a real count if the device is silently
+        # rebooting mid-hike. Field mode has no WiFi to carry an MQTT log
+        # message, so this rides the same flash-buffer-then-replay path
+        # real readings use.
         - if:
             condition:
               and:
                 - binary_sensor.is_on: slide_switch
                 - binary_sensor.is_off: dock_detect
-                - lambda: |-
-                    std::string reason = id(reset_reason_text).state;
-                    return reason.find("rownout") != std::string::npos ||
-                           reason.find("anic") != std::string::npos ||
-                           reason.find("atchdog") != std::string::npos;
             then:
               - lambda: |-
                   char buf[192];

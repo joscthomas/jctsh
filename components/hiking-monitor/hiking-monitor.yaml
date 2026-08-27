@@ -49,24 +49,54 @@ esphome:
       then:
         - lambda: 'hike_log_begin();'
         # CARD-0195 (original), widened by CARD-0216 to log unconditionally
-        # rather than only on an abnormal-keyword match. CARD-0216 found
-        # zero display_refresh events logged across a real ~6.5hr field
-        # hike despite the firmware's own logic guaranteeing roughly a
-        # dozen -- one live hypothesis is the device silently rebooting
-        # mid-hike on a reset reason that never matched the old
-        # "rownout"/"anic"/"atchdog" substring filter (there are other
-        # valid ESP-IDF reset reasons that filter would have let through
-        # with zero trace), each one resetting field_display_cycle back to
-        # 0 before it could reach the next throttled refresh. Field mode
-        # only has one legitimate entry per hike (the wake that starts it
-        # -- CARD-0201's true-deep-sleep-between-samples rearchitecture
-        # isn't built, so the device stays continuously awake for the rest
-        # of the hike) -- so logging every field-mode boot's reset reason,
-        # not just "abnormal" ones, should show exactly one entry on a
-        # clean hike and reveal a real count if the device is silently
-        # rebooting mid-hike. Field mode has no WiFi to carry an MQTT log
-        # message, so this rides the same flash-buffer-then-replay path
-        # real readings use.
+        # rather than only on an abnormal-keyword match -- confirmed
+        # 2026-08-27 (CARD-0217): a real hike hit ~270 reboots in a
+        # ~9-minute window, and every single one logged an EMPTY reset
+        # reason. Root cause, confirmed against ESPHome's own debug
+        # component source: the debug component's reset_reason_ text
+        # sensor is only ever populated inside dump_config() (via
+        # publish_state() in get_device_info_()), not during setup() --
+        # and ESPHome's dump_config() pass for the whole app runs strictly
+        # AFTER every component's setup() completes, which includes every
+        # on_boot trigger regardless of its own priority value (on_boot
+        # triggers are themselves setup_priority-ordered components, not a
+        # separate later phase). So reading id(reset_reason_text).state
+        # from ANY on_boot block, at ANY priority, always sees the
+        # default/empty value -- there's no priority number that fixes
+        # this, the read has to happen after setup()+dump_config() finish
+        # for the whole app, i.e. once loop() is genuinely running.
+        #
+        # Fix: on_boot only sets a pending flag (cheap, no dependency on
+        # reset_reason_text at all) when the field-mode condition is met;
+        # the actual read+log happens at the top of the 2-min interval:
+        # block below, on the FIRST tick after boot -- confirmed via
+        # ESPHome's own interval component source that its default
+        # startup_delay is 0s, so the first tick fires essentially
+        # immediately once loop() starts (not after waiting a full 2min),
+        # which matters here specifically because a rapid reset loop (like
+        # the 270-in-9-minutes incident this fix responds to) needs the
+        # read to happen fast enough to survive to the next crash, not
+        # deferred a full interval period.
+        # CARD-0217 item 2: field mode never actually turned WiFi off --
+        # `in_field_mode` elsewhere in this file is just what gets inferred
+        # when a connection attempt happens to fail (no known network on the
+        # trail), not something that stops the radio from trying. Every
+        # failed attempt still powers up the radio and draws the same
+        # active-boot current spike CARD-0026 found brownout-triggering on
+        # the test rig -- with nothing ever stopping the WiFi component from
+        # retrying continuously across a multi-hour hike, that's the leading
+        # suspect for what actually escalated into the 2026-08-27 reset
+        # storm as battery voltage declined under heat. Setting a pending
+        # flag here (cheap, no WiFi-object dependency) rather than calling
+        # wifi.disable directly -- confirmed via ESPHome's own source that
+        # on_boot triggers are registered as real Components in the normal
+        # setup_priority ordering (default/this file's priority: 600.0),
+        # and WiFi's own setup_priority is 250.0 -- lower priority numbers
+        # run LATER, so this priority-600 block fires before WiFi's own
+        # setup() has even run. Calling wifi.disable here would act on a
+        # not-yet-set-up component. The actual disable happens on the
+        # interval block's first tick below, alongside the reset-reason
+        # read, which is already established safe for the identical reason.
         - if:
             condition:
               and:
@@ -74,11 +104,8 @@ esphome:
                 - binary_sensor.is_off: dock_detect
             then:
               - lambda: |-
-                  char buf[192];
-                  snprintf(buf, sizeof(buf),
-                    "{\"event\":\"reset\",\"reason\":\"%s\"}",
-                    id(reset_reason_text).state.c_str());
-                  hike_log_write(std::string(buf));
+                  id(reset_reason_pending) = true;
+                  id(wifi_disable_pending) = true;
     - priority: -100.0
       then:
         - component.update: hiking_display
@@ -369,6 +396,14 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
+  - id: reset_reason_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: wifi_disable_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
   # Post-hike upload display sequence: 0=normal, 1=Connected, 2=Uploading,
   # 3=Done (upload_duration_ms holds the elapsed replay time for state 3).
   # Cleared on switch-on or dock-removed (see slide_switch/dock_detect
@@ -574,6 +609,33 @@ binary_sensor:
           condition:
             binary_sensor.is_on: dock_detect
           then:
+            # CARD-0217 item 2: docking is the other side of the
+            # field-mode WiFi disable above -- re-enable here, regardless
+            # of switch position, since docking while the switch is still
+            # on (a mid-hike manual offload) is an already-anticipated case
+            # per the log-only-if-switch-off comment right below.
+            #
+            # Gated on App.is_setup_complete(), NOT called unconditionally
+            # -- confirmed against ESPHome's own GPIOBinarySensor source
+            # that a binary_sensor's very first publish_initial_state()
+            # (and therefore this on_state trigger) fires synchronously
+            # inside its OWN setup() at HARDWARE priority, before WiFi's
+            # setup() (priority 250.0) has run -- the device-booted-already
+            # -docked case hits this every time. Calling wifi.enable() that
+            # early would touch WiFiComponent state (pref_, the driver)
+            # that setup() hasn't initialized yet -- and it would also be
+            # pointless, since a boot where dock_detect starts HIGH never
+            # took the field-mode branch above in the first place, so WiFi
+            # was never disabled on this boot to begin with. A real,
+            # later dock-connect transition (the actual mid-hike case this
+            # exists for) can only happen during loop(), well after every
+            # component's setup() -- App.is_setup_complete() is what tells
+            # these two cases apart.
+            - if:
+                condition:
+                  lambda: 'return App.is_setup_complete();'
+                then:
+                  - wifi.enable:
             - if:
                 condition:
                   binary_sensor.is_off: slide_switch   # USB plugged in while running — only log if switch is off
@@ -690,6 +752,41 @@ interval:
   # 2-minute sensor cycle: read sensors, log to SPIFFS or publish to MQTT
   - interval: 2min
     then:
+      # CARD-0217: reset_reason_text is only safely readable once loop() is
+      # running -- see the long on_boot comment above for why. This is the
+      # earliest safe point, and (per ESPHome's own interval component,
+      # default startup_delay: 0s) fires on the first tick essentially
+      # immediately after boot, not after waiting a full 2min -- important
+      # for catching a rapid reset loop before the next crash.
+      - if:
+          condition:
+            lambda: 'return id(reset_reason_pending);'
+          then:
+            - lambda: |-
+                char buf[192];
+                snprintf(buf, sizeof(buf),
+                  "{\"event\":\"reset\",\"reason\":\"%s\"}",
+                  id(reset_reason_text).state.c_str());
+                hike_log_write(std::string(buf));
+                id(reset_reason_pending) = false;
+      # CARD-0217 item 2: turn WiFi off for the rest of field mode, on the
+      # same first-tick timing as the reset-reason read above -- WiFi's own
+      # setup() (priority 250.0) has definitely completed by here (this
+      # tick only fires once loop() is running, after every component's
+      # setup()), unlike the on_boot block above (priority 600.0, runs
+      # before WiFi's setup()) where this action would be unsafe. Stops the
+      # continuous background association-retry current spikes (CARD-0026's
+      # established brownout mechanism) that were very likely the real
+      # driver of the 2026-08-27 reset storm, once nothing is in range to
+      # connect to anyway. Re-enabled by dock_detect's on_state handler
+      # below the moment the device is docked, whether or not the switch
+      # has been turned off yet.
+      - if:
+          condition:
+            lambda: 'return id(wifi_disable_pending);'
+          then:
+            - wifi.disable:
+            - lambda: 'id(wifi_disable_pending) = false;'
       - lambda: |-
           float temp = id(bme_temp).state;
           float hum  = id(bme_humidity).state;

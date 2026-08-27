@@ -32,6 +32,10 @@ Per §2.14 point 9: size the regulator for everything that can plausibly draw cu
 | GND | Common ground |
 | VOUT | Regulated 3.3V out |
 
+**Minimum input voltage — checked against Pololu's own spec page, 2026-08-27, not assumed.** Being a pure buck (step-down-only) topology, this regulator cannot manufacture voltage from nothing — if VIN drops below VOUT, it can't boost to compensate; it just runs out of duty-cycle headroom and the output sags along with the input. Pololu's own documented input range is **3.4V-36V**, with the explicit caveat that "the effective lower limit of VIN is VOUT plus the regulator's dropout voltage" and that dropout *increases* under load — meaning the practical floor under a real current spike (the WiFi-burst scenario this whole redesign exists for) is plausibly higher than the bare 3.4V figure.
+
+**Real tension with §2.14 point 2's existing low-battery cutoff, flagged here rather than assumed fine:** point 2's firmware cutoff threshold (3.4V) was chosen generically — margin above the LiPo cell's own PCM trip point and boost-converter end-of-charge instability — not chosen with this specific regulator's own spec in mind. Since the D24V10F3's documented minimum input is *also* 3.4V, the firmware cutoff and the regulator's own failure floor now sit right on top of each other rather than the cutoff having real margin above it, especially once dropout-under-load is accounted for. **Needs resolving before this is considered done**, either by real bench measurement (does the output actually hold 3.3V clean at 3.4V VIN under a real WiFi-burst load, or has it already started sagging by then?) or by raising this device's own low-battery cutoff threshold above the generic 3.4V standard to give real margin against this specific regulator's dropout behavior. Added to Open Items below.
+
 ## 3. Bulk Capacitance at the Point of Load
 
 Per §2.14 point 9: real capacitance, placed as close to the ESP32's own 3V3/GND pins as physically possible — a complement to the regulator's headroom, not a substitute for it (this project's own 2026-08-24 testing found a bulk cap alone did not reliably fix an undersized regulator).
@@ -77,6 +81,7 @@ Per §2.14 points 2 and 10, already partially in place or tracked elsewhere:
 
 ## 7. Open items before ordering/building
 
-- Confirm the Pololu D24V10F3 (or equivalent ≥1A buck breakout) is genuinely in stock/orderable — not yet purchased.
-- Add a 4.7µF ceramic capacitor to the parts list — not currently in inventory.
+- ~~Confirm the Pololu D24V10F3 (or equivalent ≥1A buck breakout) is genuinely in stock/orderable — not yet purchased.~~ **Received 2026-08-27** — ×2, ordered direct from Pololu, `jctsh-parts-inventory.md` Bag 38.
+- ~~Add a 4.7µF ceramic capacitor to the parts list — not currently in inventory.~~ **Received 2026-08-27** — BOJACK 10-value assortment kit (includes 4.7µF), `jctsh-parts-inventory.md` Bag 39.
+- **New, 2026-08-27:** resolve the low-battery-cutoff-vs-regulator-dropout overlap flagged in §2 above — either bench-confirm the output actually holds clean 3.3V at 3.4V VIN under a real WiFi-burst load, or raise this device's own low-battery cutoff threshold above the generic §2.14 point 2 value (3.4V) to give real margin against this regulator's own documented dropout floor.
 - This design has not been bench-tested. Build and verify per the same reliability bar used throughout CARD-0198 (multiple consecutive clean battery power cycles with SEN55 connected, not just one success) before considering this closed.

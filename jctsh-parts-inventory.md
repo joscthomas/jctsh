@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.27
-**Version description:** Added BOJACK DS18B20 waterproof temperature probes ×2 (Sensors, new Bag 37).
+**Version:** 2.29
+**Version description:** Added BOJACK ceramic capacitor assortment kit (Capacitors, new Bag 39) — includes the 4.7µF ceramic CARD-0198's power-system redesign flagged as missing.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -164,6 +164,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | MCP1700 LDO Voltage Regulator | Microchip MCP1700, LDO linear voltage regulator, fixed 3.3V output, through-hole TO-92. https://www.amazon.com/dp/B0B2S2CT78 | 10 | Bin A1 (was Bag 32) | No project assigned. |
 | BS250 P-Channel MOSFET | TO-92, P-channel, 45V 0.23A 0.7W. https://www.amazon.com/dp/B0FPQKX4H1 | 10 | Bin C1 (was Bag 34) | **Suspected defective/counterfeit batch (2026-07-20, CARD-0070)** — 2 units tested during the LDO/gate prototype both showed abnormal Source-Drain conduction (~15-19kΩ effective) at Vgs=0, where a healthy enhancement-mode P-channel MOSFET should be solidly in cutoff. Wiring, orientation, and Vgs were all directly verified correct, isolating the fault to the parts themselves. Do not use remaining units from this bag for CARD-0070 or any project until/unless individually verified via diode-test (Gate = OL to both legs in both directions; Source-Drain pair shows one clean ~0.5-0.7V diode reading, OL the reverse). Genuine replacements ordered from Jameco (Diodes Incorporated, authorized distributor) — received, see Bag 35 below. |
 | BS250 P-Channel MOSFET | TO-92, P-channel, 45V 0.23A 0.7W. Jameco, Diodes Incorporated (authorized distributor) | 10 | Bin B1 (was Bag 35) | **Genuine replacement stock (received 2026-08-17)** for the suspect Bag 34 batch, CARD-0070. Not yet diode-test verified or used — CARD-0070 itself is Deferred (2026-08-14), so no immediate project consumption planned; kept on hand for a future battery-powered sensor build. |
+| Pololu D24V10F3 | Pololu, 3.3V 1A Step-Down (buck/switching) Voltage Regulator, breakout board, 0.1" pin headers. Ordered direct from Pololu. https://www.pololu.com/product/2830 | 2 | Bag 38 | Allocated: air-quality-monitor power-system redesign (CARD-0198, `components/air-quality-monitor/power-system-redesign.md`) — replaces the MCP1700 LDO (Bin A1), which CARD-0198 found repeatedly marginal against the device's real ~450mA coincident peak load. Received 2026-08-27, not yet built/bench-tested. |
 
 ---
 
@@ -192,6 +193,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
 | Electrolytic Capacitor Assortment Kit | 28 values, 0.1uF–4700uF, 10V/16V/25V/35V/50V, in-line aluminum electrolytic capacitors. https://www.amazon.com/dp/B0G5X62C69 | Assortment | Plastic Box | No project assigned. |
+| Ceramic Capacitor Assortment Kit | BOJACK, 10 values, 300pcs, multilayer monolithic ceramic: 0.1, 0.15, 0.22, 0.33, 0.47, 0.68, 1, 2.2, 4.7, 10 µF. https://www.amazon.com/dp/B085RDTCCV | Assortment | Bag 39 | Includes the 4.7µF ceramic flagged as missing in `components/air-quality-monitor/power-system-redesign.md` (CARD-0198) — satisfies that open item. |
 
 ---
 
@@ -293,3 +295,5 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-08-24 | Stock | 90° USB A male to USB C male adapters ×5 (ASIN B0H1H74Z98) received, added to Cables and Adapters, Bin B5 |
 | 2026-08-24 | Stock | GX16-3 3-pin panel mount aviation connectors ×10 (ASIN B07D3CY5LB) received, added to Prototyping and Build Hardware, new Bag 36 |
 | 2026-08-24 | Stock | BOJACK DS18B20 waterproof temperature probes ×2, 1M cable (ASIN B09NVFJYPS) received, added to Sensors, new Bag 37 |
+| 2026-08-27 | air-quality-monitor | Pololu D24V10F3 3.3V 1A step-down voltage regulator ×2 received (ordered direct from Pololu), added to Discrete Semiconductors, new Bag 38 — allocated to CARD-0198's power-system redesign, replacing the MCP1700 LDO |
+| 2026-08-27 | air-quality-monitor | BOJACK 10-value/300pc ceramic capacitor assortment kit (ASIN B085RDTCCV) received, added to Capacitors, new Bag 39 — satisfies the 4.7µF ceramic CARD-0198's power-system redesign flagged as missing from inventory |

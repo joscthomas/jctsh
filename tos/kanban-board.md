@@ -9,12 +9,37 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0217 -->
+<!-- next-card-id: CARD-0218 -->
 
 ---
 
-### CARD-0216 · [bug] [hiking-monitor] Zero display_refresh events logged during a real multi-hour hike, despite the code's own logic guaranteeing several
-**Status:** Build — diagnostic instrumentation deployed, waiting on the next real hike to actually resolve the mystery
+### CARD-0217 · [bug] [hiking-monitor] Real ~270-reboot reset crisis mid-hike (2026-08-27, ~07:22-07:31 MST) — confirms CARD-0216's hypothesis, exposes a blank reset-reason bug
+**Status:** Backlog
+
+**Raised 2026-08-27 (Claude, found investigating today's hike at Joseph's request).** Joseph asked for a look at hiking-monitor's performance and Mile Announcer (CARD-0208) from today's hike (field mode switched on ~05:30 MST). Checked the Pi's persistent log (`jctsh.log`, not just the rolling `state.json` window) for the whole session.
+
+**What happened, reconstructed from real log data:**
+- `~05:30` — field mode starts (per Joseph).
+- `~05:53` — watchdog correctly notes hiking-monitor silent (expected, no WiFi in field mode).
+- `07:22:36-07:30:56 MST` (~2 hours into the hike) — **a real reset crisis**: buffered `{"event":"reset",...}` records (CARD-0216's just-deployed unconditional reset-reason logging) show roughly **270 reboots inside a ~9-minute window**, with two `nan_sensor` skips (BME280/LTR-390 read failures) interleaved — consistent with the device under real electrical stress, not a one-off glitch.
+- `08:56` — device docked, replayed **745 buffered lines** — a large figure that initially looked like ~24 hours of continuous field mode, but corrected once the date confusion was resolved: it's a normal few-hour hike's worth of real readings **plus** the ~270 reset-event lines **plus** a matching burst of `display_refresh` lines from each of those reboots, all counted together.
+- Outside the 9-minute crisis window, everything else looks normal — clean replay completion, clean reconnect to upload mode, sane heartbeats afterward (battery 4.1-4.25V, no further resets). This was a real, contained crisis, not an ongoing device problem.
+
+**Two distinct things to fix, not one:**
+1. **A real bug in CARD-0216's own new instrumentation, found by its first real use:** every single one of the ~270 reset events logged an **empty reset reason** (`"Field-mode boot, reset reason: "`, blank). The `debug:` component's `reset_reason_text` sensor is read very early in boot (`on_boot` priority 600, right after `hike_log_begin()`) — plausibly before that sensor has actually been populated with a real value for every reset path. This means we now have solid *evidence* the crisis happened, but no evidence of *why* (brownout vs. watchdog vs. something else) — exactly the diagnostic CARD-0216 was built to provide, undermined by reading the value too early.
+2. **The underlying cause of the crisis itself, not yet root-caused.** Leading suspect: heat-driven brownout — later heartbeats the same morning show ambient temps in the 107-116°F range, matching this project's existing pattern (CARD-0198's air-quality-monitor brownout investigation, CARD-0211's hiking-monitor reset loop, CARD-0213's resulting peak-current-headroom standard). hiking-monitor's own hardware-side mitigation (CARD-0070, the LDO+gate swap) was deliberately deferred/not built — this incident is a real, concrete data point arguing for revisiting that decision, not just a firmware-side fix.
+
+**Open questions for Planning:**
+- Fix the reset-reason-text timing bug first (quick, mechanical — read the sensor later in boot, or re-read it if the first attempt comes back empty) so the *next* incident (if the underlying cause isn't fixed) is fully diagnosable, rather than waiting on the harder root-cause work.
+- Whether to reopen/revisit CARD-0070 (the deferred LDO+gate hardware fix) given this is now a second real field incident of the same class, not just a bench-measured risk.
+- Whether ~270 reboots in 9 minutes is even survivable without real risk to the LiPo cell (repeated brownout cycling under heat) — worth a real assessment, not just "it recovered fine this time."
+
+**Related:** CARD-0216 (the reset-reason logging this incident is the first real test of — confirms its own underlying hypothesis about silent mid-hike resets, while exposing a bug in its own implementation), CARD-0211 (the prior reset-loop incident, different context — upload-time watchdog timeout, already fixed), CARD-0198/CARD-0213 (air-quality-monitor's own brownout investigation and the resulting peak-current-headroom standard — the same physics likely applies here), CARD-0070 (the deferred hiking-monitor hardware fix this incident is a real argument for revisiting), `components/hiking-monitor/hiking-monitor.yaml` (the `on_boot` reset-reason check, `debug:` component).
+
+---
+
+### CARD-0216 · [bug] [hiking-monitor] Zero display_refresh events logged during a real multi-hour hike, despite the code's own logic guaranteeing several — RESOLVED 2026-08-27
+**Status:** Done
 
 **Raised 2026-08-25 (Joseph), pointing out that today's 2026-08-25 hike (6:33 AM-9:59 AM confirmed GPS session; device's own field-mode window 05:23-11:55 MST, ~6.5 hours per CARD-0211's timeline) was exactly the real multi-hour field session CARD-0196's own "done when" bar was waiting on — a natural moment to check whether the ~20-minute display-refresh cadence actually held.**
 
@@ -42,9 +67,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 3. Compiled clean, OTA-flashed (`config_hash=0xd7affd19`), confirmed clean reconnect on the log dashboard. Node-RED flow redeployed by Joseph (delete-tab-then-import, per this project's own established method).
 4. **Verified live end-to-end** via two real synthetic MQTT test payloads: a normal reason (`"Power on reset"`) correctly logged as `System`/`"Field-mode boot, reset reason: Power on reset"`; an abnormal reason (`"Task Watchdog got triggered"`) correctly logged as `Alert`/`"Unexpected reset in field mode - ..."`. Confirmed neither leaked into the Environmental Data sheet (`action=export` for that window shows only a real front-porch-temp-sensor row, nothing from either test).
 
-**Done when:** the actual root cause is identified and fixed (or the mechanism is confirmed working via a real future hike showing the expected ~20-minute-spaced refresh events) — not just re-verified against another short test walk, which is too brief to distinguish "working correctly" from "the same gap recurring." The diagnostic instrumentation above is built and live-verified; the underlying mystery itself stays open until the next real hike either shows exactly one reset-reason entry (mechanism healthy, the 2026-08-25 gap was a one-off) or more than one (found it).
+**Resolved 2026-08-27 — found it, on the very next real multi-hour hike.** Today's hike (field mode ~05:30 MST) hit a real crisis at 07:22-07:31 MST: roughly **270 reboots inside a ~9-minute window**, captured directly by the reset-reason logging this card built. That single burst almost certainly explains the 2026-08-25 zero-`display_refresh` mystery too — a device silently rebooting on this scale mid-hike would reset `field_display_cycle` back to 0 over and over, exactly the mechanism this card hypothesized, now with real evidence rather than elimination-by-exclusion. Not a one-off fluke either: the fact it recurred (in a different, more severe form) on the very next real hike this instrumentation saw argues this is a genuine, recurring device-health problem, not a coincidence specific to 2026-08-25.
 
-**Related:** CARD-0196 (the display-refresh-throttle feature this bug is in, and whose own "done when" bar this finding directly fails to satisfy — should not be re-closed on the strength of today's hike), CARD-0211 (same night, same device, a large-scale reset-loop incident later that afternoon — worth checking for any real connection, not assumed coincidental), CARD-0215 (confirmed today's 102 real Environmental Data readings have sane timestamps, ruling out a clock explanation for this bug), CARD-0195 (the original reset-reason detection this widens), `components/hiking-monitor/hiking-monitor.yaml` (the interval block, `field_display_cycle`, the on_boot reset check), `components/hiking-monitor/hiking_logger.h`, `core/data-pipeline/environmental-data.flow.json` (`env-data-route-skip-reset`).
+**One real gap found in the instrumentation itself, by this first real use:** every one of the ~270 reset events logged an empty reset reason — the fix built here correctly proved resets are happening, but not *why*. Follow-on work (fixing the reset-reason-text timing bug, and the deeper heat/brownout root-cause investigation) continues under **CARD-0217**, not reopened here — this card's own scope (get real reset evidence out of a silent mid-hike reboot) is complete.
+
+**Done when:** the actual root cause is identified and fixed (or the mechanism is confirmed working via a real future hike showing the expected ~20-minute-spaced refresh events) — not just re-verified against another short test walk, which is too brief to distinguish "working correctly" from "the same gap recurring." **Met** — the diagnostic instrumentation caught a real, severe reset event on the very next hike, definitively confirming the hypothesis (not the "mechanism healthy" alternative).
+
+**Related:** CARD-0196 (the display-refresh-throttle feature this bug is in — still open, since a device rebooting this severely defeats the throttle regardless of its own logic being correct), CARD-0217 (the 2026-08-27 incident that resolved this card — the reset-reason-text bug and root-cause investigation continue there), CARD-0211 (same class of prior incident, different context — upload-time watchdog timeout, already fixed), CARD-0215 (confirmed today's 102 real Environmental Data readings have sane timestamps, ruling out a clock explanation for this bug), CARD-0195 (the original reset-reason detection this widened), `components/hiking-monitor/hiking-monitor.yaml` (the interval block, `field_display_cycle`, the on_boot reset check), `components/hiking-monitor/hiking_logger.h`, `core/data-pipeline/environmental-data.flow.json` (`env-data-route-skip-reset`).
 
 ---
 
@@ -337,7 +366,7 @@ Since 11:55:25, the device has been cycling roughly every 27-30 seconds: connect
 ---
 
 ### CARD-0208 · [enhancement] [hiking-monitor] Spoken mile-marker announcements on the Pixel during a hike
-**Status:** Planning
+**Status:** Build
 
 **Raised 2026-08-24 (Joseph)**, via the "Log Idea" Tasker widget (PR #35, "mile notifications"). Interviewed same day: wants a **voice** notification (TTS, spoken aloud) on the Pixel at each whole-mile mark during a hike, not a silent push notification — the original PR title undersold what was actually wanted.
 
@@ -365,15 +394,12 @@ Since 11:55:25, the device has been cycling roughly every 27-30 seconds: connect
 4. Compare against a stored `%last_announced_mile` variable; if the new value's integer floor is greater, `Say` "\<N\> mile(s)" (Tasker's built-in offline TTS) and update the stored value.
 5. On GPSLogger's `stopped` broadcast (already-used signal): reset `%last_announced_mile` for the next hike.
 
-**Live test procedure, recorded 2026-08-25 evening — Joseph to run steps 2-4 (step 1's re-enable + pipe-delimiter change covered above):**
-1. *(covered above)* Re-enable CSV local file logging in GPSLogger, set CSV Delimiter to `|`. Note whatever save-folder path GPSLogger's Logging Details screen shows.
-2. Start GPSLogger, walk for a couple minutes (enough for 3-4 real logged points at the normal ~30s interval), stop GPSLogger.
-3. Find the CSV file in that folder (file manager, or PC via USB). Open it and check the last couple of rows: is there a real `distance` value (a number) as the 21st pipe-separated field, and does it increase row to row as you walked?
-4. Start a **second** GPSLogger session, walk a bit more, stop. Check the CSV folder again: **new file, or same file appended to?** And in whichever file holds session 2's rows, does `distance` start back near 0 for the new session, or keep counting up from session 1? (Answers the two open questions below.)
+**Live test run, 2026-08-26 (Joseph) — both real-device open questions answered, confirmed not assumed:**
+- **Delimiter confirmed live:** each row's fields are genuinely pipe (`|`)-separated (the CSV Delimiter setting from the design decision above took effect correctly) — `distance` is a real numeric value (meters) at the expected field position, and it increases row to row while walking, exactly as designed.
+- **File-naming: one file, not one per session.** Starting GPSLogger a second time **appended to the same CSV file** rather than creating a new one — Tasker's "watch this file" target can stay fixed once set, no need to recompute it at each hike start.
+- **Distance accumulator: confirmed resets to 0 per session**, even though the file itself persists across sessions — the second session's rows started back at 0, not continuing from session 1's ending value. Confirms `Session.getInstance().getTotalTravelled()` is scoped to the logging session, not the file, exactly as the design assumed (and needed, for `%last_announced_mile`'s reset-on-`stopped` logic to make sense against a persistent file).
 
-**Open questions for Planning/Build — not yet resolved:**
-- Confirm live whether `Session.getInstance().getTotalTravelled()` resets to 0 at the start of each new GPSLogger logging session (expected, given `starttimestamp_ms` is a per-session field written alongside it, but not directly confirmed from the one file read) — answered by test step 4 above.
-- Confirm GPSLogger's actual per-session file-naming/creation behavior (one file per day vs. per logging session) — determines whether Tasker's "watch this file" target needs to be recomputed at each hike start or can stay fixed — answered by test step 4 above.
+**Open questions for Build — not yet resolved:**
 - Whether GPSLogger's own `distance` accumulator does any accuracy/noise filtering, or sums every raw fix unfiltered — a real-time convenience feature can tolerate more noise than hike-izer's own precise post-hike mileage stat (CARD-0110's GPS-accuracy-filtering fixes), so this is a "note the discrepancy is possible, don't block on it" item, not a blocker.
 - Whether Tasker's "read last line of a file" is cheap enough at typical hike-length CSV sizes (`gps-pipeline.md`'s own estimate: ~1,200 rows / ~75KB for a 10-hour hike) — almost certainly fine for local phone I/O, but worth a real spot-check once built.
 - Exact Tasker action sequence (File Modified event availability/reliability, string-parsing the CSV line, the math/comparison actions) — Joseph builds and confirms the actual Tasker profile, matching this project's established division of labor for every prior Tasker-side feature (CARD-0007, CARD-0086, CARD-0122, CARD-0156).

@@ -642,7 +642,13 @@ All four changes applied to both `templating.py` and `html-template.html` (`.cla
 ---
 
 ### CARD-0201 · [enhancement] [hiking-monitor] True deep-sleep-between-samples in field mode
-**Status:** Backlog
+**Status:** Planning
+
+**Moved to Planning 2026-08-27, explicitly sequenced behind today's other changes.** Joseph's call: real-hike verification of today's CARD-0217 (reset-reason fix, WiFi-disable-during-field-mode fix) and CARD-0045 (switch-off-required-before-WiFi fix) comes first — see those cards' own results on a future hike before starting this one's firmware rearchitecture.
+
+**WiFi is a confirmed non-issue for this card, settled 2026-08-27 — not a design consideration, not even a wrinkle.** Earlier same-day discussion first raised it as something CARD-0201 would need to handle on every wake cycle (deep-sleep wake = full reboot, so WiFi's own setup runs again each time) — Joseph correctly pointed out this doesn't apply: field mode never touches WiFi at all now, regardless of whether the chip is continuously awake (today) or truly deep-sleeping between samples (this card) — that's already fully resolved by CARD-0045/CARD-0217 and applies identically either way. Nothing for this card to design around.
+
+**Pressure-trend buffer / RTC memory, explained in more detail 2026-08-27 (for whoever picks this up at Build):** `pressure_buf` is a 16-slot circular array (`hiking-monitor.yaml`) holding one pressure reading per 2-min cycle, compared against the oldest slot (~32 min back) each cycle to compute the `pressure_trend` indicator ("^"/"v"/"=>") shown on the display. It lives in plain SRAM, which deep sleep wipes on every wake (a wake is architecturally a full reboot) — without a fix, the trend would break every single cycle, not occasionally. The fix is NOT the same mechanism CARD-0199 used (`restore_value: true`, which ESPHome backs with flash/NVS storage — fine for something written once per hike, a poor fit for something rewritten every 2 minutes indefinitely, given flash write-endurance limits). This needs the ESP32's actual RTC memory domain instead — plain SRAM that stays powered through deep sleep specifically (unlike main SRAM), no wear-out concern, but doesn't survive a true power loss (fine, since it only needs to survive deep sleep). ESPHome's own `globals:` YAML doesn't expose RTC placement directly — likely needs a raw C++ global declared with the `RTC_DATA_ATTR` attribute (same general pattern `hiking_logger.h` already uses for its own plain globals), outside ESPHome's declarative `globals:` mechanism.
 
 **Raised 2026-08-23 14:27 MST (Joseph), broken out from CARD-0196 item 1.** CARD-0196 originally bundled four hike-endurance items together; this is the one with real feasibility risk and firmware-rearchitecture scope, split out so the other three (display throttle, solar habit note, LiPo fit check) aren't blocked on it and CARD-0196 can close out once those are verified.
 

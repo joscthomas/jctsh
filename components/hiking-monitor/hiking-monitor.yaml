@@ -609,31 +609,44 @@ binary_sensor:
           condition:
             binary_sensor.is_on: dock_detect
           then:
-            # CARD-0217 item 2: docking is the other side of the
-            # field-mode WiFi disable above -- re-enable here, regardless
-            # of switch position, since docking while the switch is still
-            # on (a mid-hike manual offload) is an already-anticipated case
-            # per the log-only-if-switch-off comment right below.
+            # CARD-0217 item 2 / CARD-0045: re-enable WiFi here, but only
+            # when the switch is genuinely OFF -- a deliberate "hike is
+            # over" signal. Corrected 2026-08-27 (Joseph): dock_detect
+            # going HIGH while the switch is still ON isn't necessarily a
+            # real dock -- it's the same signal the SUNYIMA solar panel
+            # drives (shared IN+/IN- pads, power-system.md), and solar
+            # connecting mid-hike says nothing about network availability
+            # -- if anything it's more likely far from any network, not
+            # closer to one (solar is used for extended field time, not
+            # near-home charging). There's no legitimate reason to attempt
+            # WiFi in that state, so this doesn't retry smarter -- it just
+            # doesn't try at all unless the switch itself says the hike is
+            # done. See CARD-0045 for the original open finding this
+            # resolves (a suspected unbounded-retry risk from exactly this
+            # solar/dock_detect overlap, never fixed until now).
             #
-            # Gated on App.is_setup_complete(), NOT called unconditionally
-            # -- confirmed against ESPHome's own GPIOBinarySensor source
-            # that a binary_sensor's very first publish_initial_state()
-            # (and therefore this on_state trigger) fires synchronously
-            # inside its OWN setup() at HARDWARE priority, before WiFi's
-            # setup() (priority 250.0) has run -- the device-booted-already
-            # -docked case hits this every time. Calling wifi.enable() that
-            # early would touch WiFiComponent state (pref_, the driver)
-            # that setup() hasn't initialized yet -- and it would also be
-            # pointless, since a boot where dock_detect starts HIGH never
-            # took the field-mode branch above in the first place, so WiFi
-            # was never disabled on this boot to begin with. A real,
-            # later dock-connect transition (the actual mid-hike case this
-            # exists for) can only happen during loop(), well after every
-            # component's setup() -- App.is_setup_complete() is what tells
-            # these two cases apart.
+            # Gated on App.is_setup_complete() too, NOT called
+            # unconditionally -- confirmed against ESPHome's own
+            # GPIOBinarySensor source that a binary_sensor's very first
+            # publish_initial_state() (and therefore this on_state
+            # trigger) fires synchronously inside its OWN setup() at
+            # HARDWARE priority, before WiFi's setup() (priority 250.0)
+            # has run -- the device-booted-already-docked case hits this
+            # every time. Calling wifi.enable() that early would touch
+            # WiFiComponent state (pref_, the driver) that setup() hasn't
+            # initialized yet -- and it would also be pointless, since a
+            # boot where dock_detect starts HIGH never took the
+            # field-mode branch above in the first place, so WiFi was
+            # never disabled on this boot to begin with. A real, later
+            # dock-connect transition (switch already off, genuinely
+            # docked) can only happen during loop(), well after every
+            # component's setup() -- App.is_setup_complete() is what
+            # tells these two cases apart.
             - if:
                 condition:
-                  lambda: 'return App.is_setup_complete();'
+                  and:
+                    - lambda: 'return App.is_setup_complete();'
+                    - binary_sensor.is_off: slide_switch
                 then:
                   - wifi.enable:
             - if:

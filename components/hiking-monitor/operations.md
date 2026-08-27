@@ -27,7 +27,7 @@
 - ESP32 power LED lights immediately
 - LTR-390 power LED lights (confirms 3.3V rail)
 - E-ink display refreshes within ~30 seconds showing sensor readings
-- Log dashboard shows `Hiking monitor online` and `MQTT connected` within ~30 seconds
+- **Log dashboard shows `Hiking monitor online` and `MQTT connected` within ~30 seconds — switch must be OFF for this.** With the switch ON, the device is in field mode and never connects to WiFi at all (see Field mode below) — nothing to check on the dashboard in that case, check the e-ink display directly instead.
 
 ---
 
@@ -45,11 +45,10 @@
 
 ### Field (switch ON)
 - Reads sensors every 2 minutes; each reading logged to onboard flash (`/hike_log.jsonl`)
-- Display refreshes every 2 minutes with current readings
-- When either configured WiFi network comes in range, device connects, replays all accumulated log data to Google Sheets, then continues taking live readings
-- Heartbeat published every 5 minutes while WiFi connected
+- Display refreshes every ~20 minutes with current readings (throttled, CARD-0196)
+- **WiFi never connects while the switch is on, full stop — settled 2026-08-27 (CARD-0045/CARD-0217).** Accumulate-only, by design: field mode's whole job is collecting data safely to flash, not syncing it. This holds regardless of whether USB or the SUNYIMA solar panel is connected — both charge the battery (TP4056 handles that independently of the firmware), but neither triggers a WiFi attempt. Data only ever uploads once the switch is turned off (see Upload mode). No live/periodic Google Sheets updates during an ongoing field-mode session — if that's ever needed, it's a real feature to design, not something this firmware does today.
 - Use for hiking, van/camp monitoring, or any outdoor situation
-- Battery charges simultaneously if USB is connected
+- Battery charges simultaneously if USB or solar is connected
 
 ### Upload (switch OFF, USB connected)
 - Device auto-wakes when USB is plugged in (dock detect HIGH on GPIO32)
@@ -58,6 +57,7 @@
 - Battery charges simultaneously
 - Returns to deep sleep when USB is unplugged
 - Intended workflow: post-outing data dump and charge
+- **Switch off alone, on battery with nothing plugged in, does *not* attempt WiFi** — it goes straight to deep sleep with the accumulated data safely preserved in flash. WiFi only comes back on once actually docked/powered (`dock_detect` HIGH) *and* the switch is off, both together — deliberately, so an upload attempt never happens on battery power alone, where a marginal cell and no network in range is exactly the condition that caused CARD-0217's 2026-08-27 reset storm.
 
 ---
 
@@ -70,7 +70,7 @@ The firmware is configured with exactly two SSIDs:
 | JCTnet1 | Home 2.4GHz | 1 (preferred) |
 | JCT Hotspot | Pixel hotspot | 2 (fallback) |
 
-The device will only connect to these two networks. When either comes in range during Field or Upload mode, log replay fires automatically. JCT Hotspot reaches the MQTT broker via DuckDNS over cellular — no home network required.
+The device will only connect to these two networks, and **only in Upload mode (switch off, docked/powered)** — not in Field mode, regardless of range (see Field mode above, corrected 2026-08-27). Log replay fires automatically once connected. JCT Hotspot reaches the MQTT broker via DuckDNS over cellular — no home network required.
 
 ---
 
@@ -83,7 +83,7 @@ The slide switch signals field mode via GPIO27. VOUT+ runs directly to ESP32 VIN
 | — | — | Disconnected | Storage — fully off |
 | OFF | Unplugged | Connected | Sleep (~10μA) |
 | OFF | Plugged in | Connected | Upload — auto-wakes, replays log, charges |
-| ON | Any | Connected | Field — reads sensors, logs, syncs when JCTnet1 or JCT Hotspot in range |
+| ON | Any | Connected | Field — reads sensors, logs to flash; never connects WiFi while switch is on (charges if USB/solar connected, but no syncing) |
 
 **Battery charges regardless of switch position when USB is connected.**
 
@@ -101,10 +101,12 @@ There is no way to charge with the ESP32 sleeping — USB connected always means
 
 ### Checking battery voltage
 
-Turn switch ON → wait for WiFi connect and sensor reading → check Sheets → turn switch OFF.
+**Corrected 2026-08-27 — field mode no longer connects WiFi, so Sheets isn't reachable this way anymore.** Turn switch ON → wait ~30s for the e-ink display to refresh → read the battery voltage directly off the display → turn switch OFF.
 
-- **Google Sheets** — open *JCTsh Environmental Data* → Environmental Data tab; most recent row shows `battery_v`
-- **Log dashboard** — battery voltage does not appear in log messages; use Sheets instead
+To get a value into Sheets instead: dock the device (plug in USB, switch off) — that's Upload mode, which does connect and will log a fresh `battery_v` reading.
+
+- **Google Sheets** — open *JCTsh Environmental Data* → Environmental Data tab; most recent row shows `battery_v` (only populated after an actual Upload-mode sync)
+- **Log dashboard** — battery voltage does not appear in log messages; use the display (field mode) or Sheets (after an upload) instead
 
 | Voltage | Meaning |
 |---|---|
@@ -121,7 +123,7 @@ The ADC voltage divider reads ~0.1V high at full charge (4.2V actual reads ~4.3V
 
 ### Before any outdoor use
 - Confirm LiPo is connected and switch is OFF (device sleeping)
-- To check battery voltage: turn switch ON → wait for WiFi connect → check Sheets → turn switch OFF
+- **To check battery voltage: turn switch ON → wait ~30s for the e-ink display to refresh with a live reading → read it directly off the display → turn switch OFF.** Corrected 2026-08-27 — field mode no longer connects WiFi at all, so there's nothing to check via Sheets while the switch is on; the display itself is the live-reading source now.
 - To charge: plug in USB (switch OFF → upload mode) → red LED → green LED when done → unplug → device returns to sleep
 
 ### Hiking
@@ -139,9 +141,9 @@ start/end step, the automatic Hike-izer pipeline) see `phone-workflow.md`.
 1. Turn switch **ON**
 2. Device enters field mode and begins reading every 2 minutes
 3. GPSLogger not needed — device is stationary
-4. For continuous power: plug in USB (device stays in field mode and charges simultaneously)
-5. When JCT Hotspot is active on the Pixel, data syncs automatically to Google Sheets
-6. At end: turn switch **OFF** (or unplug USB if externally powered)
+4. For continuous power: plug in USB (device stays in field mode and charges simultaneously — but does **not** sync while the switch stays on, corrected 2026-08-27, see Field mode above)
+5. **No live/periodic syncing during an ongoing monitoring session** — data just accumulates in flash the whole time, however long the session runs
+6. At end: turn switch **OFF** while still docked/powered — this is what actually triggers the upload to Google Sheets. Turning the switch off without being plugged in just sleeps with the data preserved; plug in USB first (or make sure it already is) before switching off if you want the sync to happen right away.
 
 ### Uploading Data (post-outing)
 1. Plug in USB charger — no switch action needed

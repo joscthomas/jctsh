@@ -151,6 +151,8 @@ SUNYIMA panel - lead → IN− pad on TP4056 module
 
 **Enclosure note:** The solar JST port must be accessible from outside the enclosure. Account for this in the enclosure design (Step 15).
 
+**Operational rule, settled 2026-08-27 (CARD-0045/CARD-0217) — the solar panel has nothing to do with WiFi.** Solar shares the same `IN+`/`IN-` pads (and therefore the same `dock_detect` signal) as USB — but the two events mean completely different things. USB docking with the switch off is a genuine "hike is over, sync now" signal. Solar connecting mid-hike, switch still on, is a pure power event — it says nothing about network availability, and if anything correlates with being *further* from any network, not closer (solar is only relevant on extended backpacking trips, never near-home charging, per the framing at the top of this section). Firmware reflects this directly: WiFi only ever re-enables when the switch is explicitly turned off, regardless of `dock_detect` state — solar connecting while still hiking correctly does nothing but charge the battery, no WiFi attempt at all.
+
 ---
 
 ## What to Report Back

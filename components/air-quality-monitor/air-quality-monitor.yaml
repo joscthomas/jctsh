@@ -420,6 +420,24 @@ sensor:
       name: "NOx Index"
       id: sen55_nox
       internal: true
+    # CARD-0218: SEN55's own temperature/humidity, kept separate from
+    # hiking-monitor's BME280 (source: air-quality-monitor, not a
+    # duplicate) -- intended as an independent reference to compare
+    # against, given this device's mounting/placement may read more
+    # accurately. temperature_compensation/acceleration_mode left at
+    # default deliberately (Joseph's call) -- tuning either blind, before
+    # any real comparative data exists, would just be a guess.
+    temperature:
+      name: "Temperature"
+      id: sen55_temp
+      internal: true
+      filters:
+        - lambda: return x * 9.0/5.0 + 32.0;   # C -> F, matching this project's °F convention
+      unit_of_measurement: "°F"
+    humidity:
+      name: "Humidity"
+      id: sen55_humidity
+      internal: true
 
   # Battery voltage — voltage divider on GPIO34 (100kΩ + 100kΩ → 2:1 divider).
   # Placeholder reading until Step 7 wires the LiPo — see wiring.md's Battery
@@ -541,14 +559,16 @@ interval:
             float pm10 = id(sen55_pm10).state;
             float voc  = id(sen55_voc).state;
             float nox  = id(sen55_nox).state;
+            float temp = id(sen55_temp).state;      // CARD-0218
+            float hum  = id(sen55_humidity).state;  // CARD-0218
             if (isnan(pm1) || isnan(pm25) || isnan(pm4) || isnan(pm10)) {
               return std::string(
                 "{\"component\":\"air-quality-monitor\",\"category\":\"Sensor\","
                 "\"message\":\"SEN55 initializing - no valid reading yet\"}");
             }
-            char buf[256];
+            char buf[320];
             snprintf(buf, sizeof(buf),
               "{\"component\":\"air-quality-monitor\",\"category\":\"Sensor\","
-              "\"message\":\"PM1.0: %.1f, PM2.5: %.1f, PM4.0: %.1f, PM10: %.1f, VOC: %.0f, NOx: %.0f\"}",
-              pm1, pm25, pm4, pm10, voc, nox);
+              "\"message\":\"PM1.0: %.1f, PM2.5: %.1f, PM4.0: %.1f, PM10: %.1f, VOC: %.0f, NOx: %.0f, Temp: %.1fF, Humidity: %.1f%%\"}",
+              pm1, pm25, pm4, pm10, voc, nox, temp, hum);
             return std::string(buf);

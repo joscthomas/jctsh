@@ -9,7 +9,22 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0219 -->
+<!-- next-card-id: CARD-0220 -->
+
+---
+
+### CARD-0219 · [idea] [back-patio-temp-sensor] Build back patio temp sensor
+**Status:** Backlog
+
+**Raised 2026-08-27 (Joseph).** A duplicate of `front-porch-temp-sensor` (ESP32 + BME280 + BH1750, temperature-threshold notifications for opening/closing doors — see that component's README for the full existing design), monitoring the back patio instead of the front porch.
+
+**Interviewed 2026-08-27 — essence only, per this project's own new-card convention (deep design work is Planning-stage, not captured here):**
+- **Purpose:** same as front-porch-temp-sensor — warm/cool threshold notifications for door open/close decisions, just for the back patio location.
+- **Improvements over the original design:** deliberately left open. Joseph wants to "consider improvements" but has nothing specific in mind yet — a real look at `front-porch-temp-sensor`'s own design/card history (CARD-0165's Google Assistant work, any other lessons learned since it went to production) is worth doing at Planning, not guessed at here.
+
+**Done when:** not yet defined — Planning will need to interview further (back patio's own location/mounting/power specifics, what if any improvements get chosen, notification/automation scope) before real acceptance criteria exist.
+
+**Related:** `components/front-porch-temp-sensor/` (the design this duplicates and the source of whatever improvements get considered), CARD-0165 (front-porch-temp-sensor's own Google Assistant voice-query work, worth checking whether the same pattern should extend here).
 
 ---
 

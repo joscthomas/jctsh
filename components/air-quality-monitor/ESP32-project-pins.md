@@ -8,7 +8,7 @@
 
 | Assignment                      | Left pin | Left                          | Right            | Right pin | Assignment                                         |
 |----------------------------------|---|-------------------------------|------------------|---|----------------------------------------------------|
-| 3.3V rail (from MCP1700 LDO VOUT, not VIN — see wiring.md) | 1 | 3V3                           | GND              | 38 | GND rail black |
+| 3.3V rail (from MCP1700 LDO VOUT, not VIN — see wiring.md; pending swap to Pololu D24V10F3, design decided not yet built — see `power-system-redesign.md`) | 1 | 3V3                           | GND              | 38 | GND rail black |
 |                                 | 2 | EN                            | GPIO23           | 37 | RGB LED module — `B` pin |
 |                                 | 3 | SVP - GPIO36 *(input only)*   | GPIO22           | 36 | SCL (SEN55 via adapter) yellow |
 |                                 | 4 | SVN - GPIO39 *(input only)*   | TX - GPIO1 (TXD) | 35 | |
@@ -18,7 +18,7 @@
 |                                 | 8 | GPIO33                        | GPIO19           | 31 | RGB LED module — `G` pin |
 |                                 | 9 | GPIO25                        | GPIO18           | 30 | RGB LED module — `R` pin |
 |                                 | 10 | GPIO26                        | GPIO5            | 29 | |
-| Reserved — planned debug UART TX (CARD-0205), not yet wired | 11 | GPIO27                        | GPIO17           | 28 | |
+| Intent switch (CARD-0218, 2026-08-27 — repurposed SS12D10 slide switch, design decided, not yet physically wired) | 11 | GPIO27                        | GPIO17           | 28 | Debug UART TX (CARD-0205 — reassigned from GPIO27 2026-08-27 when Intent switch claimed that pin; wired, end-to-end log capture not yet verified) |
 |                                 | 12 | GPIO14                        | GPIO16           | 27 | |
 |                                 | 13 | GPIO12                        | GPIO4            | 26 | |
 |                                 | 14 | GND                           | GPIO0 ⚠️         | 25 | |

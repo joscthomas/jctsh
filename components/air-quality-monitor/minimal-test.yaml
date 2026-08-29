@@ -8,21 +8,145 @@
 # feedback_esphome_flash_path. See CARD-0198 in tos/kanban-board.md for
 # the full narrative, current stage, and results at each stage.
 #
-# CURRENT STAGE (as of 2026-08-24 ~17:30 MST): STAGE 0b — boot + LED blink
-# + debug UART (UART2/GPIO17) + explicit reset-reason log line, so a
-# spontaneous idle-time reset can actually be captured and read, not just
-# inferred from a repeated blink count. NOT YET REACHED: Stage 1 (+WiFi),
-# Stage 2 (+MQTT), Stage 3 (+I2C/SEN55).
+# CORRECTION, 2026-08-29 -- every Stage 1 (+WiFi) trial run so far tested
+# a scenario the real firmware can never actually produce. Per
+# JCTsh-Build-Standards.md §2.14 point 13: WiFi only ever enables when
+# Intent is off AND Power Connected is true (both required) -- but every
+# trial ran on pure battery, USB unplugged from both the ESP32's own port
+# and TP4056's charging port, Power Connected false throughout. This
+# file's wifi: block connects unconditionally with none of that gating
+# logic implemented, so it's a narrower question ("can this power path
+# survive WiFi's current draw at all") than a simulation of real behavior.
+# The brownout finding is probably still valid (the Pololu's VIN taps
+# TP4056 BAT+ directly, not the USB input, so the load side draws from
+# the same battery node either way) -- but simultaneous TP4056 charging
+# current sharing that same BAT+ node with the Pololu's WiFi-load current
+# is a real, untested interaction. ANY FURTHER STAGE 1 TESTING (or Stage
+# 2/3) SHOULD HAVE USB PLUGGED INTO TP4056'S CHARGING PORT THROUGHOUT --
+# not the ESP32's own port, and not unplugged -- to match the only
+# condition the real firmware will ever actually produce.
+#
+# CURRENT STAGE (as of 2026-08-28): STAGE 0b -- debug UART capture WORKING
+# END TO END for the first time in this project's history. Three real
+# firmware/framework bugs found and fixed, none of them wiring:
+#   1. logger.log: actions default to DEBUG level; this file's logger:
+#      level: INFO silently filtered the boot line out entirely, on
+#      whichever UART it was routed to. Fixed with an explicit level: WARN.
+#   2. The debug component's reset_reason_text is only populated during
+#      dump_config() (a pass that runs after every component's setup()),
+#      not during setup()/on_boot -- reading it directly in on_boot always
+#      returns empty, regardless of priority. Same bug CARD-0217 found on
+#      hiking-monitor; same fix: defer the read to the first tick of an
+#      interval instead.
+#   3. The actual root cause of every prior "zero bytes captured" result,
+#      across every session: ESPHome's logger_esp32.cpp calls
+#      uart_param_config()/uart_driver_install() for hardware_uart: UART2
+#      but never uart_set_pin() -- confirmed by reading the installed
+#      esphome package's own source directly. UART1/UART2 have no fixed
+#      IO_MUX pin the way UART0 does; without an explicit uart_set_pin()
+#      call, the peripheral is configured and running but never actually
+#      routed through the GPIO matrix to any physical pin. Fixed with a
+#      manual on_boot lambda: uart_set_pin(UART_NUM_2, GPIO_NUM_17, ...).
+# Confirmed live 2026-08-28: real, clean "BOOT - reset reason: power-on
+# event" text captured over the external adapter on COM7 -- CARD-0205's
+# own "done when" is now met on USB power; battery-power confirmation
+# will happen naturally once Stage 0 is re-run on battery per CARD-0198.
+# NOT YET REACHED: Stage 1 (+WiFi), Stage 2 (+MQTT), Stage 3 (+I2C/SEN55).
+#
+# Added 2026-08-28: GPIO27 Intent-switch binary_sensor (INPUT_PULLUP,
+# inverted, logged on_state via the working UART) -- closes the deferred
+# logic-level check from CARD-0218's physical rewiring (a continuity-only
+# check was done at the bench since no firmware was reading the pin yet).
+# Its own UART capture is unverified (adapter link produced zero bytes
+# across two clean attempts, cause not found -- deferred, not blocking).
+# Hardware also changed under this same firmware as of 2026-08-28: Pololu
+# D24V10F3 replaces the MCP1700, SS12D10 moved to Intent-switch duty, a
+# spare SS12D10 stands in for the Power Switch pending the BK-1208.
+#
+# STAGE 0 / STAGE 0b -- PASS, 2026-08-28. 4 of 4 consecutive clean
+# battery-power cycles, one switch-on each, hands off. The cold-power-on
+# brownout that was 100% reproducible on the MCP1700 did not recur once
+# on the Pololu. Reset-reason logging (Stage 0b) confirmed working in the
+# same 4 cycles (3 clean text, 1 blank -- known intermittent reporting
+# quirk, not a failure). Full writeup: CARD-0198.
+#
+# STAGE 1 (+WiFi) -- NOT YET PASSING. 5 trials, 4 of 5 showed the same
+# signature: reset reason "brownout" occurring right as WiFi scanning
+# starts, then a clean recovery (scan+connect in 2-4s) on the very next
+# boot. One trial (1 of 5) hung 90+s, not yet explained. Real, if usually
+# brief, instability -- doesn't meet Stage 0's 4-consecutive-clean bar.
+#
+# Experiment added 2026-08-28, Joseph's call: delay WiFi's own auto-start
+# past the boot-time inrush window, to see if separating the two
+# transients in time avoids the brownout entirely (Stage 0 alone never
+# brownouts). wifi.disable called at on_boot priority 500.0 -- ABOVE
+# WiFi's own setup_priority (~250) so this runs first and (if it works
+# as hoped) prevents WiFi's setup() from auto-connecting at all -- then
+# wifi.enable called explicitly from the interval once millis() > 3000.
+# CAUTION, genuinely untested pattern: CARD-0217 (hiking-monitor) found
+# calling wifi.enable() BEFORE WiFi's own setup() has run is unsafe (it
+# depends on state setup() initializes) -- our enable() call is safely
+# late (3s+), but calling disable() BEFORE WiFi's setup() has run has no
+# established precedent in this project. Treat as a real experiment, not
+# a known-safe pattern -- watch for a crash/hang distinct from the
+# brownout signature already characterized above.
+# RESULT: negative. WiFi began scanning almost immediately after setup(),
+# before the 3s delay -- wifi.disable()/enable() are runtime controls for
+# an already-initialized radio, not a way to suppress the automatic
+# connection attempt setup() itself unconditionally kicks off. This
+# approach is closed off, not just unresolved.
+#
+# SESSION PAUSED HERE, 2026-08-28 -- an unrelated hardware puzzle, not
+# yet resolved. Tried a 10uF ceramic (up from 4.7uF) to target WiFi's
+# fast-edge current bursts -- real regression, not an improvement: two
+# attempts both failed to reach even the first LED blink (worse than
+# Stage 0's own 4/4-clean 4.7uF behavior), onboard power LED steady
+# (not flickering) suggesting a stall, not a brownout loop. Likely cause:
+# more capacitance needs more charge to reach the same voltage, so this
+# probably increased boot-time inrush and reintroduced the cold-boot
+# problem Stage 0 had already fixed. REVERTED to 4.7uF -- did NOT restore
+# the earlier clean behavior. Continuity good, battery voltage effectively
+# unchanged (3.86V vs 3.88V), a FRESH never-used 4.7uF ceramic also
+# failed the same way -- none of the obvious explanations hold. Working
+# theory, unconfirmed: cumulative contact wear across the whole crowded
+# ESP32-3V3-pin row from this session's very large number of switch
+# cycles and component swaps, not attributable to any single part.
+# DO NOT ASSUME STAGE 0'S PASS STILL HOLDS -- re-verify fresh next
+# session before trusting anything downstream of it. First step: a full
+# re-seat of that entire row (ESP32 pin, Pololu VOUT, SEN55 adapter VIN,
+# both bulk caps), not just the capacitor.
+# NOT YET REACHED: Stage 2 (+MQTT), Stage 3 (+I2C/SEN55).
+
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
 
 esphome:
   name: aqm-minimal-test
   friendly_name: AQM Minimal Test
   on_boot:
+    - priority: 500.0
+      then:
+        # Experiment (2026-08-28): disable WiFi before its own setup()
+        # runs (setup_priority ~250, below this block's 500), so it
+        # doesn't auto-connect at all until explicitly re-enabled from
+        # the interval below, past the boot-time inrush window. See the
+        # file header for the full reasoning and the untested-pattern
+        # caution.
+        - wifi.disable
     - priority: -100.0
       then:
-        - logger.log:
-            format: "BOOT - reset reason: %s"
-            args: ['id(reset_reason_text).state.c_str()']
+        # Workaround (2026-08-28): ESPHome's logger_esp32.cpp never calls
+        # uart_set_pin() for hardware_uart: UART2 -- it configures and
+        # installs the UART2 driver but never routes it through the GPIO
+        # matrix to GPIO17, so nothing physically reaches the pin no
+        # matter what's logged. Confirmed by reading the installed
+        # esphome package's own logger_esp32.cpp source directly (no
+        # uart_set_pin call anywhere in the file). Manually doing the
+        # routing ESPHome's own component skips.
+        - lambda: |-
+            uart_set_pin(UART_NUM_2, GPIO_NUM_17, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
         - repeat:
             count: 3
             then:
@@ -44,9 +168,65 @@ text_sensor:
       id: reset_reason_text
       internal: true
 
+globals:
+  - id: reset_reason_logged
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: wifi_enabled
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+# Reset-reason read deferred to the first interval tick, not on_boot --
+# same fix as CARD-0217 (hiking-monitor): the debug component's
+# reset_reason_text is only populated during dump_config(), a separate
+# pass that runs after every component's setup() -- reading it directly
+# in on_boot always returns empty, regardless of priority.
+interval:
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(reset_reason_logged);'
+          then:
+            - logger.log:
+                format: "BOOT - reset reason: %s"
+                args: ['id(reset_reason_text).state.c_str()']
+                level: WARN
+            - globals.set:
+                id: reset_reason_logged
+                value: 'true'
+      - if:
+          condition:
+            lambda: 'return !id(wifi_enabled) && millis() > 3000;'
+          then:
+            - logger.log:
+                format: "WiFi enabling now, after startup delay"
+                level: WARN
+            - wifi.enable
+            - globals.set:
+                id: wifi_enabled
+                value: 'true'
+
 logger:
   level: INFO
   hardware_uart: UART2
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO27
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Intent Switch"
+    id: intent_switch
+    on_state:
+      then:
+        - logger.log:
+            format: "Intent switch: %s"
+            args: ['x ? "ON (closed)" : "OFF (open)"']
+            level: WARN
 
 output:
   - platform: gpio

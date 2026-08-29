@@ -1,6 +1,6 @@
 # Air Quality Monitor — Breadboard Wiring Reference
 **Component:** air-quality-monitor
-**Purpose:** Complete wiring reference for the ESP32 breadboard prototype.
+**Purpose:** Complete wiring reference for the ESP32 breadboard prototype — target/desired wiring, not a build log. For build history, decisions, and lessons learned, see `tos/kanban-board.md` (CARD-0012, CARD-0198, CARD-0205, CARD-0213, CARD-0218) and `air-quality-monitor-claude-code-instructions.md`'s step-by-step notes.
 
 ---
 
@@ -8,7 +8,7 @@
 
 **ESP32 pin label orientation:** ESP32 DevKit pin labels face **down** when the board is inserted in a breadboard — the text is on the underside. Mark key GPIO rows with masking tape labels on the breadboard before wiring to avoid pin confusion (`JCTsh-Build-Standards.md` §2.6).
 
-Rows to label: GPIO18 (pin 30), GPIO19 (pin 31), GPIO21 (pin 33), GPIO22 (pin 36), GPIO23 (pin 37), GPIO32 (pin 7), GPIO34 (pin 5). GPIO27 (pin 11) is unused — see SEN55 Power Gate section below.
+Rows to label: GPIO18 (pin 30), GPIO19 (pin 31), GPIO21 (pin 33), GPIO22 (pin 36), GPIO23 (pin 37), GPIO27 (pin 11), GPIO32 (pin 7), GPIO34 (pin 5).
 
 GPIO34 (pin 5) note: input-only pin (ADC1) — no pull-up or pull-down; the battery voltage divider provides defined state.
 GPIO32 (pin 7) note: configured as INPUT (no pull-up or pull-down) — the dock detect voltage divider provides defined state.
@@ -23,12 +23,13 @@ Physical pin numbers below are from `ESP32-project-pins.md` — verify against t
 
 | GPIO | Board Pin # | Function | Component |
 |---|---|---|---|
+| GPIO17 | 28 | Debug UART TX (transmit-only, `logger:` UART2) | External USB-TTL adapter |
 | GPIO18 | 30 | RGB LED module — `R` pin (no external resistor — module has its own, see below) | Field indicator |
 | GPIO19 | 31 | RGB LED module — `G` pin (same module, no external resistor) | Field indicator |
 | GPIO21 | 33 | I2C SDA — blue | SEN55 (via Adafruit #5964 adapter) |
 | GPIO22 | 36 | I2C SCL — yellow | SEN55 (via Adafruit #5964 adapter) |
 | GPIO23 | 37 | RGB LED module — `B` pin (same module, no external resistor) | Field indicator |
-| GPIO27 | 11 | **Unused** — previously reserved for the SEN55 power-gate transistor, dropped 2026-08-21 | — |
+| GPIO27 | 11 | Intent switch input (internal pull-up, inverted logic) | SS12D10 slide switch |
 | GPIO32 | 7 | Dock detect (divider midpoint, INPUT) | TP4056 IN+ → 68kΩ → midpoint → 100kΩ → GND |
 | GPIO34 | 5 | Battery ADC (input-only) | Voltage divider midpoint |
 
@@ -36,7 +37,7 @@ Physical pin numbers below are from `ESP32-project-pins.md` — verify against t
 
 ## SEN55 (via Adafruit #5964 Adapter) Wiring
 
-**This sensor connects through two entirely separate interfaces, in series: ESP32 ↔ (bare wires) ↔ Adafruit #5964 adapter ↔ (JST-GH cable) ↔ SEN55.** Don't cross-reference wire colors between the two segments — they're different connection types with nothing in common (see below).
+**This sensor connects through two entirely separate interfaces, in series: ESP32 ↔ (bare wires) ↔ Adafruit #5964 adapter ↔ (JST-GH cable) ↔ SEN55.** Don't cross-reference wire colors between the two segments — they're different connection types with nothing in common (see below). (https://sensirion.com/media/documents/6791EFA0/62A1F68F/Sensirion_Datasheet_Environmental_Node_SEN5x.pdf)
 
 ### Segment 1 — ESP32 to adapter (bare wires, STEMMA QT color convention)
 
@@ -45,7 +46,7 @@ The adapter has a 4-pin **input** header, labeled directly on the Adafruit board
 | Adafruit board pin (labeled on the board) | ESP32 Pin | Board Pin # | Wire Color | Notes |
 |---|---|---|---|---|
 | `VIN` | 3.3V (direct) | 1 | red | Board's own onboard boost converter steps this up to 5V internally, for the SEN55 side only |
-| `GND` | GND | 38 / 32 / 18 / 14 (any GND pin) | black | Direct connection, always-on — no gate transistor in this path (see SEN55 Power Gate section below) |
+| `GND` | GND | 38 / 32 / 18 / 14 (any GND pin) | black | Direct connection — no gate transistor, always-on whenever the device has power |
 | `SDA` | GPIO21 | 33 | blue | I2C data |
 | `SCL` | GPIO22 | 36 | yellow | I2C clock |
 
@@ -59,17 +60,17 @@ I2C address: 0x69 (fixed — no configurable address pin). No other I2C devices 
 
 **Connection: plug the Bag 25 JST-GH cable directly between these two sockets** — one end into the Adafruit adapter's JST-GH socket, the other end into the SEN55's own onboard JST-GH socket.
 
-**This cable is what makes the SEN55 external-mount decision (2026-08-20) work** — the SEN55 module itself lives outside the enclosure, 3M-taped to its smooth exterior surface, while the adapter stays inside with the rest of the perfboard. This 100mm cable is the only connection between them, routed through a small pass-through hole in the enclosure wall. See the Phase 1 doc's Carry and Enclosure section and the Perfboard Footprint Measurement Procedure below.
+**This cable is what makes the SEN55 external-mount design work** — the SEN55 module itself lives outside the enclosure, 3M-taped to its smooth exterior surface, while the adapter stays inside with the rest of the perfboard. This 100mm cable is the only connection between them, routed through a small pass-through hole in the enclosure wall. See the Phase 1 doc's Carry and Enclosure section and the Perfboard Footprint Measurement Procedure below.
 
 - **Do not use the SEN55's bundled Dupont-terminated cable for this build at all** — set it aside. It's a separate breadboard-prototyping accessory, not part of this design.
-- **Do not try to identify or match wire colors on the JST-GH cable.** Both sockets are the same fixed, keyed 6-pin JST-GH standard this sensor family is built around — the connector's physical shape guarantees pin 1 lines up with pin 1 (and so on) on both ends, regardless of what color any individual wire inside the cable happens to be. This was verified at length on 2026-08-19 (see `kanban-board.md` CARD-0012) after a real, confusing false start: the SEN55's bundled Dupont cable and the Bag 25 JST-GH cable use *different, unrelated wire-color conventions* (they're different products from different manufacturers) — comparing their colors against each other looked like a mismatch but was actually a meaningless comparison, since neither cable's colors need to relate to the other's at all.
+- **Do not try to identify or match wire colors on the JST-GH cable.** Both sockets are the same fixed, keyed 6-pin JST-GH standard this sensor family is built around — the connector's physical shape guarantees pin 1 lines up with pin 1 (and so on) on both ends, regardless of what color any individual wire inside the cable happens to be. The SEN55's bundled Dupont cable and the Bag 25 JST-GH cable use *different, unrelated* wire-color conventions from different manufacturers — their colors have no relationship to each other.
 
 Enable `scan: true` in the ESPHome `i2c:` block during initial testing to confirm the device is detected:
 ```
 [I][i2c.arduino:069]: Found i2c device at address 0x69  ← SEN55
 ```
 
-**SEN55's own 6-pin JST-GH connector pinout** (per Sensirion's official datasheet — confirmed 2026-08-21, [SEN5x Datasheet PDF](https://sensirion.com/media/documents/6791EFA0/62A1F68F/Sensirion_Datasheet_Environmental_Node_SEN5x.pdf), corroborated against multiple independent sources including ESPHome's own `sen5x` component docs):
+**SEN55's own 6-pin JST-GH connector pinout** (per Sensirion's official [SEN5x Datasheet PDF](https://sensirion.com/media/documents/6791EFA0/62A1F68F/Sensirion_Datasheet_Environmental_Node_SEN5x.pdf)):
 
 | Pin | Signal | Notes |
 |---|---|---|
@@ -80,136 +81,128 @@ Enable `scan: true` in the ESPHome `i2c:` block during initial testing to confir
 | 5 | SEL | Interface select — pull to GND (pin 2) to select I2C mode |
 | 6 | NC | Do not connect |
 
-**Useful diagnostic test point:** pin 1 (VDD) at the SEN55's own onboard socket is downstream of the entire power delivery chain (adapter's boost converter → JST-GH cable → sensor) — probing here directly confirms whether the sensor is actually receiving its 5V supply, independent of where in that chain a fault might be. A healthy ~5V here rules out the cable/connector/sensor as the problem; a low or absent reading confirms the boost converter isn't delivering power through whatever's currently gating it.
+**Useful diagnostic test point:** pin 1 (VDD) at the SEN55's own onboard socket is downstream of the entire power delivery chain (adapter's boost converter → JST-GH cable → sensor) — probing here directly confirms whether the sensor is actually receiving its 5V supply, independent of where in that chain a fault might be. A healthy ~5V here rules out the cable/connector/sensor as the problem.
 
 ---
 
-## SEN55 Power Gate — DROPPED, 2026-08-21 (was: BC547B NPN Transistor Low-Side Switch, GPIO27 pin 11)
+## Debug UART — External USB-TTL Adapter (GPIO17, pin 28)
 
-**No gate transistor in the current design. SEN55's `GND` return is wired directly to common ground, permanently — the "bypass jumper" used to complete Step 4 during the diagnostic session below is now the actual design, not a workaround.** Duty-cycling the SEN55's ~63mA active draw is handled instead by I2C mode-switching (Measurement ↔ RHT/Gas-Only, per Sensirion's own power-reduction guidance) in firmware at Step 8 — see `air-quality-monitor-claude-code-instructions.md`'s Step 6 entry for the full reasoning. GPIO27 (pin 11) is unused. If a BC547B is still physically in place on the breadboard from earlier bench work, it can be removed — it's not part of the active circuit.
+Serial console for viewing boot/runtime logs while the board is powered from its real LiPo/regulator path, independent of the ESP32's onboard USB-C port.
 
-**Why this is worth knowing even though it's gone:** Step 4's bench work found a real structural weakness in this topology — a marginal low-side (GND-return) connection shifts the load's entire ground reference and silently breaks I2C, rather than just reducing voltage the way a marginal high-side connection would. That fragility, not just "this specific breadboard contact was bad," is part of why the gate was dropped rather than redesigned as a high-side P-FET switch. Kept here for reference in case a future build considers gating a similar 5V-boosted-rail peripheral this way.
+**Cannot use the board's own onboard USB-C port** — powering from USB and the battery regulator simultaneously is not supported (see the Power caution below), and the documented workaround (switch off before flashing) also kills battery power, so the onboard port can never show boot logs under real battery power. Also cannot tap the onboard CP2102's own TX0/RX0 (GPIO1/GPIO3) with a second adapter — those pins are already actively driven by the onboard chip, so a second driver on the same pins risks contention rather than a clean tap.
 
-<details>
-<summary>Historical circuit reference (BC547B low-side gate, as originally built)</summary>
-
-**BC547B transistor TO-92 lead identification** (flat face toward you, legs down — standard EBC pinout):
-
-| Pin | Position | Signal |
-|---|---|---|
-| 1 | Left | Emitter |
-| 2 | Middle | Base |
-| 3 | Right | Collector |
+**Design:** `logger:` runs on a second UART (`hardware_uart: UART2`, `tx_pin: GPIO17`) instead of the default UART0/GPIO1. The logger is transmit-only (device → computer), so only 2 wires are needed:
 
 ```
-Adapter GND return ─────────────────────────► Collector
-                                                   │
-                                            Emitter ── GND (common)
-                                                   │
-GPIO27 (pin 11) ──── R (1kΩ) ──── Base
-                            │
-                        R_pd (10kΩ) ──── GND (base pull-down)
+ESP32 GPIO17 (pin 28) ────────────────────► Adapter RXD
+ESP32 GND (any GND pin) ──────────────────► Adapter GND
+Adapter VCC/3V3 ── NOT CONNECTED — board stays powered exclusively by battery/regulator, that's the whole point
 ```
 
-- **Low-side switch: the transistor sits between the adapter's GND return and common GND**, not between the 3.3V supply and the adapter's VIN. The adapter's VIN stays tied directly to 3.3V; switching the GND return is what actually de-energizes it.
-- **Base resistor: 1kΩ** — targets several mA of base current at 3.3V GPIO drive, comfortably into saturation for the BC547B transistor's typical hFE at the ~70mA collector current this needs to switch.
-- **Base pull-down: 10kΩ**, base to GND — direct lesson from CARD-0070's BS250 floating-gate finding (a floating gate can leave a switch in an unintended state before firmware configures the GPIO, e.g. during the ESP32's reset/boot window).
-- **Active-high:** GPIO27 (pin 11) HIGH → transistor ON → SEN55 GND return connected → powered. GPIO27 (pin 11) LOW (or floating, thanks to the pull-down) → transistor OFF → SEN55 unpowered.
-
-</details>
-
----
-
-## Debug UART — External USB-TTL Adapter (CARD-0205, GPIO27 pin 11) — planned, not yet wired
-
-**Raised 2026-08-24**, after the SEN55 power gate above freed GPIO27 with nothing using it. Purpose: a serial console that works while the board is powered from its real LiPo/LDO path, for diagnosing the "power-on event" resets CARD-0198 partially addressed. **This can't use the board's own onboard USB-C port** — see the LDO section below's caution against powering from USB and the LDO simultaneously; the documented workaround (flip the inline switch off before flashing) also kills LDO/battery power, so the onboard port can never show boot logs under real battery power. It also can't just tap the onboard CP2102's own TX0/RX0 (GPIO1/GPIO3) with a second adapter — those pins are already actively driven by the onboard chip (powered independently of USB, off the same 3.3V rail), so a second driver on the same pins risks contention rather than a clean tap.
-
-**Design:** move ESPHome's `logger:` to a second UART (`hardware_uart: UART2`) with `tx_pin: GPIO27` instead of the default UART0/GPIO1. The logger is transmit-only (device → computer), so only 2 wires are needed:
-
-```
-ESP32 GPIO27 (pin 11) ──────────────────────► Adapter RXD
-ESP32 GND (any GND pin) ─────────────────────► Adapter GND
-Adapter VCC/3V3 ── NOT CONNECTED — board stays powered exclusively by LiPo/LDO, that's the whole point
-```
-
-**Adapter prep, before ever connecting it:** install the CP210x driver if Windows doesn't auto-detect it (same driver referenced in `front-porch-temp-sensor/flashing.md`/`garage-radar/flashing.md`), and **set the adapter's voltage-select jumper to 3.3V, not 5V** — the ESP32's GPIO is a 3.3V logic device, and getting this wrong risks damaging the board.
-
-**Not yet built — waiting on Joseph's go-ahead (CARD-0205, 2026-08-24: "don't change any YAML until we are ready to use it").** GPIO27 remains listed as unused in the GPIO Assignment Summary table below until this is actually wired and flashed.
+**Adapter prep, before ever connecting it:** install the CP210x driver if Windows doesn't auto-detect it (same driver referenced in `front-porch-temp-sensor/flashing.md`/`garage-radar/flashing.md`), and **set the adapter's voltage-select jumper to 3.3V, not 5V** — the ESP32's GPIO is a 3.3V logic device.
 
 ---
 
 ## Inline Power Switch — True Transport/Storage Off
 
-**Decided 2026-08-19, directly from CARD-0181's hiking-monitor finding** — a switch tapped off a GPIO only sets a mode flag, it does not cut power. This switch is wired **directly into the battery+ path**, ahead of both the TP4056 and the LDO tap point, so switching it off isolates the entire board from the battery with zero current draw. It is not connected to any GPIO and does not appear in the GPIO table above.
+Wired **directly into the battery+ path**, ahead of both the TP4056 and the regulator's `VIN` tap, so switching it off isolates the entire board from the battery with zero current draw. It is not connected to any GPIO and does not appear in the GPIO table above.
 
-**Part:** Gebildet SS12D10 slide switch (SPDT, Bag 23, on hand) — used as SPST: battery+ wire to the common (COM) terminal, one throw terminal to the downstream node (TP4056 `BAT+` / LDO `VIN` junction, see Power section below), the other throw terminal left unconnected.
+**Part: BK-1208 latching push button** (2-pin, DC 30V 1A, 12×8×8mm). A simple 2-lead part, not SPDT — wire its two leads directly in the battery+ path:
 
 ```
-LiPo BAT+ ──── SW (COM) ── SW (throw 1) ────┬──── TP4056 BAT+
-                                              └──── MCP1700 VIN
-                            SW (throw 2) ── (not connected)
+LiPo BAT+ ──── SW ────┬──── TP4056 BAT+
+                       └──── Pololu D24V10F3 VIN
 ```
 
-**Verification (Step 7):** with the switch off, confirm zero voltage/current downstream at both the TP4056 `BAT+` pad and the LDO `VIN` pin — not just "the board is unresponsive," which could also be explained by a firmware hang. Measure directly.
+**Verification (Step 7):** with the switch off, confirm zero voltage/current downstream at both the TP4056 `BAT+` pad and the regulator's `VIN` pin — not just "the board is unresponsive," which could also be explained by a firmware hang. Measure directly.
 
-**Operating rule: switch ON for all device operation** — breadboard bench work after Step 7, field mode, home mode (docked and charging via TP4056), everything. **Switch OFF only for storage/transport**, with one narrow exception: briefly OFF while flashing over the ESP32's own USB-C port (see the LDO caution below) — switch back ON immediately after. Switching off for TP4056 charging is *not* this exception and should not be done — the switch sits ahead of TP4056's `BAT+` too, so turning it off disconnects the battery from the charger and charging simply stops.
+**Operating rule: switch ON for all device operation** — breadboard bench work after Step 7, field mode, home mode (docked and charging via TP4056), everything. **Switch OFF only for storage/transport**, with one narrow exception: briefly OFF while flashing over the ESP32's own USB-C port (see the Power caution below) — switch back ON immediately after. Switching off for TP4056 charging is *not* this exception and should not be done — the switch sits ahead of TP4056's `BAT+` too, so turning it off disconnects the battery from the charger and charging simply stops.
+
+---
+
+## Intent Switch Wiring (GPIO27, pin 11)
+
+Signals whether the device is actively collecting field data — a plain GPIO-read digital input, **not in the power path**. Same pin role and wiring pattern as hiking-monitor's own Intent switch (`components/hiking-monitor/wiring.md`'s Slide Switch Wiring section).
+
+**Part: Gebildet SS12D10 slide switch** (SPDT, wired as SPST).
+
+| Switch terminal | Wire color | ESP32 pin | Notes |
+|---|---|---|---|
+| Terminal 1 | Brown | GPIO27 (pin 11) | Switch ON (closed) pulls GPIO27 LOW |
+| Terminal 2 | Black | GND | |
+
+Switch ON (closed): GPIO27 pulled LOW → collecting field data (Intent = actively hiking/logging).
+Switch OFF (open): GPIO27 floats HIGH via internal pull-up → idle/ready-to-upload.
+
+**Breadboard wiring:** brown jumper from one switch terminal to the GPIO27 breadboard row, black jumper from the other terminal to the GND rail.
+
+**Firmware:** `wifi.enable()` gates on this switch being off (session genuinely over) — never on `dock_detect` alone, since `dock_detect` is shared with solar and says nothing about whether data collection has actually stopped. See `air-quality-monitor-claude-code-instructions.md` Step 8 for the full firmware design.
 
 ---
 
 ## TP4056 Module Wiring
 
-Same physical TP4056+boost combined module as hiking-monitor (Bag 8) — see `components/hiking-monitor/wiring.md`'s "TP4056 Perfboard Connector" section for the reference module pinout (pins named `IN+`, `BAT+`, `VOUT−`, `VOUT+` there). On this design, **only the charging half of the module is used** — the boost stage (`VOUT+`) is bypassed in favor of the MCP1700 LDO (see Power — MCP1700 LDO below), so only three of the module's four pads are wired.
+Same physical TP4056+boost combined module as hiking-monitor (Bag 8) — see `components/hiking-monitor/wiring.md`'s "TP4056 Perfboard Connector" section for the reference module pinout (pins named `IN+`, `BAT+`, `VOUT−`, `VOUT+` there). On this design, **only the charging half of the module is used** — the boost stage (`VOUT+`) is bypassed in favor of the Pololu D24V10F3 regulator (see Power section below), so only three of the module's four pads are wired.
 
 | Module Pin | Wire Color | Connects To |
 |---|---|---|
 | `IN+` | green | Dock Detect divider — R3 (68kΩ) top leg, → GPIO32 (pin 7). See Dock Detect Wiring below. **Shared input** — also where the SUNYIMA solar panel's positive lead connects (see Solar Input below); USB and solar are electrically parallel sources into this same node, not separate inputs. |
 | `IN−` | — | Solar panel's negative lead connects here (see Solar Input below) — the module's only exposed ground pad for the solar/USB charge-input side. Not separately wired to anything else; USB-side ground is internal to the module's own micro-USB connector. |
-| `BAT+` | white | Inline power switch throw 1 — same node as `MCP1700 VIN` (pin 2) and the Battery Voltage Divider's top leg. See Inline Power Switch above and Battery Voltage Divider Wiring below. |
-| `VOUT−` (GND) | black | Common GND — ties the module's ground return into the shared ground with the ESP32, LDO, and both dividers. |
+| `BAT+` | white | Inline power switch downstream node — same node as the regulator's `VIN` and the Battery Voltage Divider's top leg. See Inline Power Switch above and Battery Voltage Divider Wiring below. |
+| `VOUT−` (GND) | black | Common GND — ties the module's ground return into the shared ground with the ESP32, regulator, and both dividers. |
 | `VOUT+` | — | **Unused, leave unconnected** — boost stage bypassed on this design. Do not wire to anything (unlike hiking-monitor, which uses this pin as its 5.7V boosted supply). |
 
-**Inferred, not separately confirmed:** hiking-monitor's own reference connector exposes only `IN+`, `BAT+`, `VOUT−`, `VOUT+` (4 signals) for the identical physical module — implying the module's own `BAT−` pad is tied internally to `VOUT−`, with no separate pad broken out for it. `IN−` itself **is** exposed and wired here (unlike on hiking-monitor's connector, which doesn't route it out) specifically because the solar panel's negative lead needs it — hiking-monitor's own solar wiring (`power-system.md`) confirms `IN−` is a real, usable pad on this module, just not one hiking-monitor's 4-pin perfboard harness happened to break out. Confirm both `IN−` and the `BAT−`/`VOUT−` tie internally with a continuity check against the physical module before relying on this at Step 3/7, same as other unverified physical claims in this doc.
+**Note:** hiking-monitor's own reference connector exposes only `IN+`, `BAT+`, `VOUT−`, `VOUT+` for the identical physical module — the module's `BAT−` pad is tied internally to `VOUT−`, with no separate pad broken out for it. `IN−` is exposed and wired here (unlike on hiking-monitor's connector) specifically because the solar panel's negative lead needs it. Confirm both `IN−` and the `BAT−`/`VOUT−` internal tie with a continuity check against the physical module before relying on this.
 
 ### Solar Input (Backpacking Only)
 
-Per the Phase 1 doc's Resolved Decisions (Power), the TP4056+boost module supports solar input natively — no separate charge controller needed. **This connects to the same `IN+`/`IN−` pads as the micro-USB charging input above**, not a distinct input on the module — solar and USB are electrically parallel sources into the same charge-input node. Consequence: since `IN+` is also the Dock Detect tap (GPIO32), connecting the solar panel — or charging via USB in the field, e.g. from a power bank while backpacking — raises `IN+` exactly like docking at home does, and the device reads as docked (GPIO32 HIGH) even out on trail. Same underlying wiring as hiking-monitor, matching its `perfboard-layout.md` note ("IN+ / IN− — solar/USB charging input; IN+ also tapped for dock detect").
+The TP4056+boost module supports solar input natively — no separate charge controller needed. **This connects to the same `IN+`/`IN−` pads as the micro-USB charging input above**, not a distinct input on the module — solar and USB are electrically parallel sources into the same charge-input node. Consequence: since `IN+` is also the Dock Detect tap (GPIO32), connecting the solar panel — or charging via USB in the field, e.g. from a power bank while backpacking — raises `IN+` exactly like docking at home does, and the device reads as docked (GPIO32 HIGH) even out on trail.
 
-**This is now a designed-for path, not just an accepted quirk (2026-08-20 Timeout policy revision, `JCTsh-air-quality-monitor-phase1.md`)** — field-mode duty-cycle logging runs unconditionally regardless of dock-detect state, and dock-detect HIGH only triggers a bounded-window background WiFi attempt against both `JCTnet1` and the Pixel hotspot (added to `secrets.yaml` specifically for this). If neither is reachable, the attempt backs off and retries periodically without ever interrupting logging. See `air-quality-monitor-claude-code-instructions.md` Step 8 for the firmware behavior.
+Field-mode duty-cycle logging runs unconditionally regardless of dock-detect state; dock-detect HIGH only triggers a bounded-window background WiFi attempt against both `JCTnet1` and the Pixel hotspot (`secrets.yaml`), gated on the Intent switch being off (see Intent Switch Wiring above and `air-quality-monitor-claude-code-instructions.md` Step 8 for the full firmware behavior).
 
-**Part:** SUNYIMA solar panel, 5.5V/80mA (Bag 6) — bare-lead panel, no connector attached. Per hiking-monitor's `power-system.md`, solder a JST male plug to the panel's leads and a JST female receptacle wired to the module's `IN+`/`IN−` pads, verifying polarity with a multimeter before connecting (same procedure as LiPo polarity check). **Connector source not yet itemized in this project's own BOM** — the Phase 1 doc's Resolved Decisions row lists the JST solar port without a bag number. The general-purpose JST SM 2-Pin Connectors assortment (Bag 14, `jctsh-parts-inventory.md`) is the likely candidate, matching hiking-monitor's approach, but confirm before use rather than assuming.
+**Part:** SUNYIMA solar panel, 5.5V/80mA (Bag 6) — bare-lead panel, no connector attached. Solder a JST male plug to the panel's leads and a JST female receptacle wired to the module's `IN+`/`IN−` pads, verifying polarity with a multimeter before connecting (same procedure as LiPo polarity check). Likely connector source: the general-purpose JST SM 2-Pin Connectors assortment (Bag 14, `jctsh-parts-inventory.md`) — confirm before use.
 
-Deferred per Phase 1's "Deferred Features" table: solar panel mount/clip design. Only relevant for multi-day backpacking — the 1100mAh LiPo covers day hikes without it.
+Solar panel mount/clip design is deferred — only relevant for multi-day backpacking; the 1100mAh LiPo covers day hikes without it.
 
 ---
 
-## Power — MCP1700 LDO (Direct LiPo-to-3.3V)
+## Power — Pololu D24V10F3 Regulator (Direct LiPo-to-3.3V)
 
-**Decided 2026-08-19** per `JCTsh-Build-Standards.md` §2.14 point 7 — replaces the originally-planned TP4056+boost combined-module path for the ESP32's own supply. TP4056's charging half is unchanged and still used; only its boost stage is bypassed. Same LDO part and wiring pattern already validated on the CARD-0026/CARD-0070 rig.
+**Pololu D24V10F3 — 3.3V, 1A step-down (buck/switching) regulator**, small breakout board with 0.1" pin headers. Sized for the real coincident peak load (WiFi TX burst + SEN55 active + ESP32 baseline, ~450mA design peak, per `JCTsh-Build-Standards.md` §2.14 point 9's 2-3x headroom rule). TP4056's charging half is unchanged and still used; only its boost stage is bypassed.
 
-**MCP1700 TO-92 lead identification** (flat face toward you, legs down — confirmed against Microchip datasheet DS20001826F on the CARD-0070 rig; reordered from the common 78xx VIN-GND-VOUT convention, a known gotcha for this part):
+**Pinout (silkscreen-labeled):**
 
-| Pin | Position | Signal |
-|---|---|---|
-| 1 | Left | GND |
-| 2 | Middle | VIN |
-| 3 | Right | VOUT |
+| Pin | Signal |
+|---|---|
+| VIN | Battery+ (post-switch) |
+| GND | Common ground |
+| VOUT | Regulated 3.3V out |
 
 ```
 LiPo BAT+ (via inline switch) ──┬──── TP4056 BAT+ (charging only — TP4056's boost pads unused)
                                  │
-                                 ├──── MCP1700 VIN
-                                 │     MCP1700 GND ──── common GND
-                                 │     MCP1700 VOUT ──── ESP32 3V3 pin directly
+                                 ├──── Pololu D24V10F3 VIN
+                                 │     D24V10F3 GND ──── common GND
+                                 │     D24V10F3 VOUT ──┬── 470µF electrolytic ──┐
+                                 │                      ├── 4.7µF ceramic ──────┤
+                                 │                      │         (both to GND) │
+                                 │                      └─────────────────────────► ESP32 3V3 pin directly
                                  │
                                  └──── Battery Voltage Divider — R1 (100kΩ) top leg
                                        (see Battery Voltage Divider Wiring below;
                                        same node as VIN, not a separate wire run)
 ```
 
-- **LDO `VIN` taps the battery+ node in parallel with TP4056's `BAT+` input and the Battery Voltage Divider's top leg** — three things sharing one node straight off the raw battery (through the inline switch), not fed from TP4056's boost/`VOUT+` output.
-- **LDO `VOUT` → ESP32 dev board's `3V3` pin directly** (not `VIN`) — `VIN` expects ~5V and routes through the board's own onboard regulator; feeding `3V3` bypasses that second regulation stage, which is the entire point of this change.
-- **Caution: never power the board from USB and the LDO at the same time** — both would drive the `3V3` rail from separate unisolated sources, risking backfeeding either regulator. Disconnect the LDO before flashing over USB, and vice versa. (Breadboard Steps 4-6 below power via USB only — do not connect the LiPo/LDO until Step 7.) **This is scoped specifically to the ESP32's own USB-C port** (the one used for flashing/serial) — the TP4056's separate micro-USB charging port never touches `3V3` at all, it only feeds the LiPo's `BAT+`/`BAT-` via the charge circuit (see Dock Detect Wiring below). Charging via TP4056 while the LDO powers the ESP32 off the battery is normal, expected home-mode operation, not a conflict — no need to switch off for that. **The inline power switch satisfies the ESP32-USB-C case** — switching it off removes the LDO's `VIN` entirely (functionally equivalent to unplugging it), so flashing over the ESP32's USB-C just requires the switch to be off rather than physically disconnecting anything (switch back on immediately after — see the Inline Power Switch operating rule above). Note: with the switch off, `VIN` is floating rather than grounded, so a microamp-scale reverse leakage back onto that node via the LDO's parasitic body diode (`VOUT`→`VIN`) is theoretically possible while `VOUT` is USB-fed — not a real hazard for the MCP1700, not worth acting on.
-- The Adafruit #5964 adapter's own onboard 5V boost for the SEN55 is fed from this same `3V3` rail (`VIN` direct, `GND` also direct — no gate transistor, see SEN55 Power Gate section above) — it never depended on TP4056's boost output, so this change doesn't affect it.
+**Bulk capacitance at the point of load** — both capacitors in parallel, directly across the ESP32's 3V3 pin and an adjacent GND pin, not just "somewhere on the rail":
+- **470µF electrolytic** — from the 28-value 0.1µF-4700µF assortment kit (`jctsh-parts-inventory.md`, Plastic Box); any 10V+ rated value in that kit works on a 3.3V rail.
+- **4.7µF ceramic** — BOJACK 10-value assortment kit (`jctsh-parts-inventory.md`, Bag 39); catches the sub-millisecond edge of a transient the electrolytic's own ESR can't fully absorb.
+
+- **Regulator `VIN` taps the battery+ node in parallel with TP4056's `BAT+` input and the Battery Voltage Divider's top leg** — three things sharing one node straight off the raw battery (through the inline switch), not fed from TP4056's boost/`VOUT+` output.
+- **Regulator `VOUT` → ESP32 dev board's `3V3` pin directly** (not `VIN`) — `VIN` expects ~5V and routes through the board's own onboard regulator; feeding `3V3` bypasses that second regulation stage.
+- **Caution: never power the board from USB and the regulator at the same time** — both would drive the `3V3` rail from separate unisolated sources, risking backfeeding either regulator. Disconnect the battery-side regulator before flashing over USB, and vice versa. (Breadboard Steps 4-6 power via USB only — do not connect the LiPo/regulator until Step 7.) **This is scoped specifically to the ESP32's own USB-C port** — the TP4056's separate micro-USB charging port never touches `3V3` at all, it only feeds the LiPo via the charge circuit (see Dock Detect Wiring below); charging via TP4056 while the regulator powers the ESP32 off the battery is normal, expected home-mode operation, no need to switch off for that. **The inline power switch satisfies the ESP32-USB-C case** — switching it off removes the regulator's `VIN` entirely (functionally equivalent to unplugging it), so flashing over the ESP32's USB-C just requires the switch to be off, switched back on immediately after (see the Inline Power Switch operating rule above).
+- The Adafruit #5964 adapter's own onboard 5V boost for the SEN55 is fed from this same `3V3` rail (`VIN` direct, `GND` also direct — no gate transistor) — unaffected by the regulator choice.
+
+**Minimum input voltage:** being a pure buck (step-down-only) topology, this regulator cannot boost — if VIN drops below VOUT plus dropout, output sags with input. Documented input floor is 3.4V, with dropout increasing under load. This sits close to the standard §2.14 point 2 low-battery firmware cutoff (also 3.4V) — confirm via bench measurement that output holds clean 3.3V at 3.4V VIN under a real WiFi-burst load, or raise this device's own low-battery cutoff threshold to give real margin, before considering the power system final.
 
 ---
 
@@ -226,17 +219,13 @@ TP4056 IN+ ──── R3 (68kΩ) ──┬──── R4 (100kΩ) ───�
 - USB absent: LOW → field mode
 - USB present: HIGH → docked/charging (home mode)
 
-Matches hiking-monitor's measured behavior (0.47V/5.1V raw → ~0.28V/~3.04V after the divider) — same TP4056 module, same divider values, expect the same result. Confirm with a multimeter during Step 3/4 rather than assuming.
-
-**`IN+` is a separate node from the inline power switch entirely, upstream of it — not to be confused with the Battery Voltage Divider below.** `IN+` is TP4056's charging *input* pin, fed directly by whatever's plugged into micro-USB or solar; it senses "is external power present" and is completely unaffected by the inline switch's position (switch off doesn't touch this reading at all). The Battery Voltage Divider below is the opposite — it taps the switch's *output* node, so it only reads correctly when the switch is on.
+**`IN+` is a separate node from the inline power switch entirely, upstream of it — not to be confused with the Battery Voltage Divider below.** `IN+` is TP4056's charging *input* pin, fed directly by whatever's plugged into micro-USB or solar; it senses "is external power present" and is completely unaffected by the inline switch's position. The Battery Voltage Divider below is the opposite — it taps the switch's *output* node, so it only reads correctly when the switch is on.
 
 ---
 
 ## Battery Voltage Divider Wiring (GPIO34, pin 5)
 
-**Corrected 2026-08-19** — the instructions doc's Hardware Context table originally said 68kΩ/68kΩ; hiking-monitor's actual `wiring.md` uses **100kΩ/100kΩ**. Matching the real value here, per Step 0's "match hiking-monitor's pattern, don't re-derive it" instruction. (68kΩ/100kΩ is the *dock-detect* divider above, a different one — not to be confused.)
-
-**This divider taps the switch's output node — the opposite of the dock-detect divider above, which taps `IN+` upstream of the switch.** `LiPo BAT+ (post-switch)` below is the same node as TP4056's `BAT+` and the LDO's `VIN` (see Inline Power Switch and Power — MCP1700 LDO sections). Consequence: this reading is only meaningful with the switch on — with it off, this whole node is unpowered/floating, unlike the dock-detect divider, which keeps working regardless of switch position since `IN+` doesn't depend on it.
+**This divider taps the switch's output node — the opposite of the dock-detect divider above, which taps `IN+` upstream of the switch.** `LiPo BAT+ (post-switch)` below is the same node as TP4056's `BAT+` and the regulator's `VIN` (see Inline Power Switch and Power sections). This reading is only meaningful with the switch on — with it off, this whole node is unpowered/floating.
 
 Divides LiPo voltage (3.5-4.2V) to fit ESP32 ADC range. Two equal 100kΩ resistors → 2:1 divider. Midpoint voltage = Vbatt / 2. ESPHome `filters: - multiply: 2.0` restores actual voltage.
 
@@ -249,14 +238,14 @@ LiPo BAT+ (post-switch) ──── R1 (100kΩ) ──┬── R2 (100kΩ) ─
 **Notes:**
 - During breadboard testing without LiPo connected: wire the divider from the 3.3V rail instead as a placeholder, same as hiking-monitor's own bench-test approach. Replace with actual battery+ (post-switch) when the power system is integrated in Step 7.
 - GPIO34 (pin 5) is an input-only pin — do not drive it as output. ADC use only.
-- High-value resistors (100kΩ) minimize current draw from the divider itself — negligible against the LDO's own budget.
-- **`LiPo BAT+ (post-switch)` is the same electrical node as the MCP1700 LDO's pin 2 (Middle, `VIN`)** — the switch's downstream junction feeds TP4056 `BAT+`, LDO `VIN`, and this divider's top resistor all from one node (see Inline Power Switch and Power — MCP1700 LDO sections above). Tap this divider from that junction, not a separate wire run back to the switch.
+- High-value resistors (100kΩ) minimize current draw from the divider itself — negligible against the regulator's own budget.
+- **`LiPo BAT+ (post-switch)` is the same electrical node as the Pololu D24V10F3's `VIN` pin** — the switch's downstream junction feeds TP4056 `BAT+`, regulator `VIN`, and this divider's top resistor all from one node. Tap this divider from that junction, not a separate wire run back to the switch.
 
 ---
 
 ## RGB LED Wiring (GPIO18 pin 30 / GPIO19 pin 31 / GPIO23 pin 37)
 
-**Confirmed 2026-08-19 against the actual physical module** (Greekcreit/Geekcreit 37-module kit, Plastic Box) — a KY-016: common-cathode, clear 5mm LED, 4-pin header silkscreened `- R G B` in that order, **with three current-limiting resistors already built onto the module's own small PCB.**
+**Greekcreit/Geekcreit 37-module kit (Plastic Box)** — a KY-016: common-cathode, clear 5mm LED, 4-pin header silkscreened `- R G B` in that order, **with three current-limiting resistors already built onto the module's own small PCB.**
 
 | Module Pin | ESP32 Pin | Board Pin # | External resistor? |
 |---|---|---|---|
@@ -271,7 +260,7 @@ This deviates from `JCTsh-Build-Standards.md` §8's default (330Ω external, for
 
 ## Power (Breadboard Phase — Steps 4-6)
 
-Power ESP32 via USB-C cable from PC during breadboard Steps 4-6. Do NOT connect the LiPo/LDO until Step 7 (power system integration with polarity verification) — see the LDO caution above about not powering from USB and the LDO simultaneously.
+Power ESP32 via USB-C cable from PC during breadboard Steps 4-6. Do NOT connect the LiPo/regulator until Step 7 (power system integration with polarity verification) — see the Power caution above about not powering from USB and the battery regulator simultaneously.
 
 Power wiring for Steps 4-6:
 - USB-C → ESP32 USB-C port (powers ESP32 from PC)
@@ -288,10 +277,10 @@ Power wiring for Steps 4-6:
            │                               │                                  │
      ┌─────┴─────┐                         │                                  │
      │           │                         │                                  │
-┌────▼────┐  ┌───▼────┐                    │                                  │
-│ TP4056  │  │ MCP1700│──VOUT──────────────►│ 3V3 (pin 1)                      │
-│(chg only)│  │  LDO   │                    │       │                          │
-└────┬────┘  └────────┘                    │       └──► adapter VIN (direct — GND also direct, no gate transistor) │
+┌────▼────┐  ┌───▼──────┐                  │                                  │
+│ TP4056  │  │ Pololu   │──VOUT──┬─────────►│ 3V3 (pin 1)                      │
+│(chg only)│  │D24V10F3  │        │ (bulk    │       │                          │
+└────┬────┘  └──────────┘        │  caps)   │       └──► adapter VIN (direct — GND also direct, no gate transistor) │
      │ IN+ (green)                          │                                  │
      ├──R3(68kΩ)──┬──R4(100kΩ)──GND         │                                  │
      │            └──────────────► GPIO32 (pin 7) │                            │
@@ -300,7 +289,8 @@ Power wiring for Steps 4-6:
      │             └──────────────► GPIO34 (pin 5) │                           │
      └──────────────────────────────────────┤ GND ◄── adapter GND (direct, always-on) │
                                              │                                  │
-                                             │ GPIO27 (pin 11) — unused         │
+                                             │ GPIO27 (pin 11) — Intent switch (brn) ◄─ SS12D10 (blk)─ GND │
+                                             │ GPIO17 (pin 28) ──► debug UART adapter RXD │
                                              │                                  │
                                              │ GPIO21 (pin 33, SDA, blue) ◄─ SEN55 adapter │
                                              │ GPIO22 (pin 36, SCL, yellow) ◄─ SEN55 adapter │
@@ -312,11 +302,11 @@ Power wiring for Steps 4-6:
 
 ## Perfboard Footprint Measurement Procedure
 
-**Performed at Step 9 (perfboard transfer), not Step 3** (moved 2026-08-20 — measuring before there's a real perfboard layout to size against was premature). Determines the minimum perfboard size. **Scope narrowed 2026-08-20:** the SEN55 module itself is no longer part of this measurement — it mounts externally to the enclosure via 3M tape (see the Phase 1 doc's Carry and Enclosure section), not inside it, so its 59mm × 37mm × 23mm footprint doesn't constrain the internal board layout at all. Only the small **Adafruit #5964 adapter** stays inside, connected to the externally-mounted SEN55 via the JST-GH cable through a pass-through hole. **Working assumption:** the same 5×7cm Chanzon FR4 board hiking-monitor uses (`components/hiking-monitor/perfboard-layout.md`) will probably work here too, likely with more headroom than originally expected now that SEN55 itself is out of the equation — this procedure confirms or corrects that assumption, not a from-scratch sizing exercise.
+Performed at Step 9 (perfboard transfer). Determines the minimum perfboard size. The SEN55 module itself is not part of this measurement — it mounts externally to the enclosure via 3M tape (see the Phase 1 doc's Carry and Enclosure section), not inside it, so its 59mm × 37mm × 23mm footprint doesn't constrain the internal board layout. Only the small **Adafruit #5964 adapter** stays inside, connected to the externally-mounted SEN55 via the JST-GH cable through a pass-through hole. Working assumption: the same 5×7cm Chanzon FR4 board hiking-monitor uses (`components/hiking-monitor/perfboard-layout.md`) should fit — this procedure confirms or corrects that assumption.
 
-1. **Lay out the full component set** on a flat surface in their approximate final relative positions: ESP32 DevKitC-32 (with its two 19-pin female header strips, per `JCTsh-Build-Standards.md` §1.2), the Adafruit #5964 adapter (SEN55 itself is external — see above, not part of this layout), the two voltage dividers (4 resistors total), the RGB LED module, the MCP1700 LDO, and the inline power switch. No gate transistor — dropped 2026-08-21 (see SEN55 Power Gate section above).
+1. **Lay out the full component set** on a flat surface in their approximate final relative positions: ESP32 DevKitC-32 (with its two 19-pin female header strips, per `JCTsh-Build-Standards.md` §1.2), the Adafruit #5964 adapter (SEN55 itself is external — see above, not part of this layout), the two voltage dividers (4 resistors total), the RGB LED module, the Pololu D24V10F3 regulator plus its two bulk capacitors, and the inline power switch. No gate transistor in this design.
 2. **Measure the Adafruit #5964 adapter board** — its footprint plus mounting clearance around the JST GH connector, and clearance for the cable running to the pass-through hole.
 3. **Determine overall bounding footprint** needed for ESP32 + adapter + discrete components with reasonable trace/solder-pad spacing (don't pack components edge-to-edge — leave room for hand-soldered traces).
-4. **Compare against the standard 5×7cm Chanzon FR4 board** (`JCTsh-Build-Standards.md` §1.2 default) — report whether that standard size fits (expected, now that SEN55 is out of the internal footprint).
+4. **Compare against the standard 5×7cm Chanzon FR4 board** (`JCTsh-Build-Standards.md` §1.2 default) — report whether that standard size fits.
 
 **Report back:** the adapter's footprint and whether the standard 5×7cm board is sufficient. (SEN55's own physical dimensions are still worth confirming with calipers when convenient — ~59mm × 37mm × 23mm per spec — but only for planning the external mount point and cable routing, not for perfboard sizing.)

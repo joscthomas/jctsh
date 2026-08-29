@@ -47,7 +47,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0231 · [idea] [tos] Investigate Tasker's task import/export capabilities — get profiles/tasks into a reviewable format
-**Status:** Backlog
+**Status:** Planning
 
 **Raised via idea email (PR #49, joscthomas+kbc@gmail.com), 2026-08-29** — Joseph's own framing: "investigating the import/export capabilities of Tasker. It would be nice to view the code."
 
@@ -55,7 +55,17 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **What to investigate:** Tasker has a native Export action (profiles/tasks/projects to `.xml` — `.prj.xml`/`.tsk.xml`) via long-press → Export, or via a Task action. Worth checking: whether an exported XML is actually human/Claude-readable enough to be useful for review (vs. just a backup blob), whether it could be committed to the repo the same way Node-RED flows are (giving Claude real visibility into existing Tasker logic when debugging or extending it, instead of relying on Joseph's own transcription in kanban card write-ups), and whether re-import after an edit is reliable enough to make this a two-way sync rather than read-only documentation.
 
-**Done when:** not yet scoped — needs a real interview (is the goal read-only documentation for Claude's benefit, or an actual edit/import workflow; which existing Tasker profiles are in scope first) before this moves to Planning.
+**Research done 2026-08-29 — Tasker's actual export/import mechanics, checked against this card's three open questions:**
+
+**Mechanics:** long-press any Task, Profile, or Project in Tasker's UI → Export → writes an XML file (`<name>.tsk.xml` for a Task, `.prf.xml` for a Profile, `.prj.xml` for a whole Project), either to device storage or shared out through another app. Import is the reverse — open the XML with Tasker (or its own Import menu), which offers to add/merge/overwrite the matching-named object.
+
+1. **Is the exported XML actually human/Claude-readable? Partially, not fully.** Literal content is readable — variable names (`%obs_ts`), string literals (URLs, file paths), and the overall action sequence/nesting (if/then blocks, loop boundaries) all show up as plain text, greppable/diffable. But each `<Action>` element identifies its *type* by an opaque numeric `code` attribute (Tasker's internal action-ID, not a name) — telling "HTTP Request" from "Variable Set" apart from the raw XML needs either a community-maintained code→name lookup table or opening it back in Tasker's own UI. Useful as a secondary, diffable ground-truth artifact — not a replacement for this project's existing prose write-ups (`observations-pipeline.md`-style) as the primary human-readable reference.
+2. **Committable to the repo like Node-RED flows? Yes, no structural blocker.** Same shape as committing Node-RED's flow JSON. The only real gap is getting the file off the phone — Tasker's Export target can be a shared folder, email, or pulled via USB/adb; no blocker, just a step to establish (same category of thing BirdNET exports already do via AutoShare).
+3. **Is re-import reliable enough for real two-way sync? Yes, and this is the strongest finding.** Export/import use Tasker's own native persistence format for that exact object type — not a lossy converter, it's literally how Tasker saves things internally, so round-trip fidelity should be solid. In practice, though, nobody hand-edits the XML directly — the natural workflow mirrors Node-RED's exactly: edit on-device in Tasker's own UI (unchanged from today's division of labor), then export and commit, not "edit the XML then re-import."
+
+**Recommendation, not yet decided by Joseph:** adopt the exact Node-RED pattern (`Node-RED-workflow.md`) — Joseph keeps editing Tasker profiles/tasks on the phone as he does today, but after a change, exports and commits the XML to the repo (e.g. a new `components/hiking-monitor/tasker/` directory) so it's version-controlled and Claude has real ground-truth to read during debugging, alongside the prose docs that stay the primary explanation.
+
+**Done when:** not yet scoped — still needs a real interview (does Joseph want to adopt the recommendation above; which existing Tasker profiles are in scope first — Log Observation/Flush Queue seem like the natural starting pair given they're already the most-documented-in-prose today) before a concrete build plan is written.
 
 **Related:** `Node-RED-workflow.md` (the analogous export/version-control pattern already working for Node-RED), CARD-0156/`components/hiking-monitor/observations-pipeline.md` (an example of a Tasker profile currently undocumented except in prose), `tos/README.md` (the Tasker-originated webhook entry points into this project's automation).
 

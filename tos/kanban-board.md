@@ -1245,8 +1245,8 @@ hiking-monitor's design is simpler because it has no high-current peripheral to 
 
 ---
 
-### CARD-0197 · [idea] [data-pipeline] Instrument GPS correlation lookup to confirm the suspected Node-RED/Apps Script timing race
-**Status:** Build
+### CARD-0197 · [idea] [data-pipeline] Instrument GPS correlation lookup to confirm the suspected Node-RED/Apps Script timing race — RESOLVED 2026-08-29
+**Status:** Done
 
 **Built and deployed, verified live 2026-08-24 00:21 MST.** Implemented as designed, with one refinement: rather than duplicating the get-or-create-sheet + appendRow logic at both call sites, added a shared helper `_logCorrelationDebug(ss, eventType, targetTs, bestDiffSec)` (`environmental-data.gs`, right above `_gpsLookup`) that gets or creates the "Correlation Debug" tab (writing a header row on first creation: `logged_at, event_type, target_ts, best_diff_sec`) and appends one row. `_gpsLookup()` calls it with `'lookup_miss'` on a miss (before its final `return`); the `action=gps` handler calls it with `'gps_append'` right after its existing `gpsSheet.appendRow(...)`.
 
@@ -1277,7 +1277,9 @@ hiking-monitor's design is simpler because it has no high-current peripheral to 
 
 **Scope is diagnostic only — no fix implied or required.** This card is done once the instrumentation is deployed and has captured at least one real blank-lat/lon occurrence on a future hike with enough data to make the T1-vs-T2 comparison — confirming or refuting the theory either way counts as done. Whether to act on a confirmed race (vs. continue accepting it) is a separate future decision, not part of this card.
 
-**Related:** the 2026-08-22 hike's blank-lat/lon investigation (this conversation), the declined "fix the correlation timing" discussion (same conversation, Joseph's call not to pursue a fix — this card only pursues *confirmation*), `core/data-pipeline/environmental-data.gs`, `.claude/skills/hike-izer/SKILL.md` ("Notes on the data" section, which already documents this as a known gap).
+**Resolved 2026-08-29 — theory refuted, via CARD-0222, not the literal T1-vs-T2 comparison this card originally envisioned.** The 2026-08-29 hike produced exactly the real blank-lat/lon occurrence this card's instrumentation was waiting for: 46 of 55 Environmental Data readings came back with no lat/lon (CARD-0222). Cross-checked each of the 46 readings' own timestamps directly against this card's own Correlation Debug sheet — **zero matching `lookup_miss` rows for any of them.** That's a direct answer, not an absence of data: if this card's race theory were correct, a failing lookup would still have *fired* and logged a `lookup_miss` row (with `_gpsLookup()` reaching its own final `return`) before losing the race against a GPS point that landed moments later. Instead, `_gpsLookup()` was never even invoked for these 46 — the correlation call itself never completed, most likely because the device was mid-reboot-loop during buffered-reading replay at the time (CARD-0221/CARD-0222's real, separately-diagnosed cause). **This structurally rules out the race hypothesis for this occurrence** — the instrumentation this card built is exactly what made that determination possible, even though the actual failure mode turned out to be a different bug than the one this card set out to catch. Per this card's own bar ("confirming or refuting the theory either way counts as done"), that's satisfied. Follow-on work (finding and fixing the reboot loop itself) continues under CARD-0221/CARD-0222, not here.
+
+**Related:** the 2026-08-22 hike's blank-lat/lon investigation (this conversation), the declined "fix the correlation timing" discussion (same conversation, Joseph's call not to pursue a fix — this card only pursues *confirmation*), `core/data-pipeline/environmental-data.gs`, `.claude/skills/hike-izer/SKILL.md` ("Notes on the data" section, which already documents this as a known gap), CARD-0221/CARD-0222 (the real 2026-08-29 blank-lat/lon occurrence this card's instrumentation resolved against, and the actual root cause it pointed to instead).
 
 ---
 

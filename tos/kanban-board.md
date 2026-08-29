@@ -9,7 +9,47 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0227 -->
+<!-- next-card-id: CARD-0229 -->
+
+---
+
+### CARD-0228 · [bug] [tos] email-idea-check.py failures are invisible to the log dashboard — only successful PR-opens get logged
+**Status:** Backlog
+
+**Raised 2026-08-29 (Joseph), during the same conversation that produced CARD-0225/CARD-0227** — checking whether `email-idea-check.py` (the `joscthomas+kbc@gmail.com` intake pipeline, CARD-0151) had the same MQTT-dashboard-invisibility problem CARD-0225 raised for three other phone-based pipelines. It doesn't, not fully — this is a narrower, partial version of that same class of gap, not the same card.
+
+**What's already working:** the success path publishes to MQTT today — `_publish_log("System", 'Email idea -> kanban PR: "..." -- {pr_url}')` on `jctsh/core/log-server/log`, component `jctsh-core` — so a successfully-opened PR already shows up on the dashboard. This is why the pipeline wasn't included in CARD-0225's list of pipelines with zero MQTT presence.
+
+**The real gap: the failure path has no equivalent.** In the main loop's `try/except` around `open_finding_pr()` and the Gmail "mark read" call, a caught exception only does `print(f"Failed to open PR for '{subject}': {e} -- leaving unread for retry")` — stdout/journal only, on the Pi. Nothing reaches MQTT, nothing reaches the dashboard. A silently-failing idea email (expired OAuth token, GitHub API hiccup, etc.) leaves no trace anywhere Joseph would normally look — the same shape of "looks fine, actually failed silently" problem CARD-0156 found and fixed for the Tasker observation queue, not yet caught here.
+
+**Done when:** a deliberately-forced failure in this script (e.g. a bad GitHub PAT) produces a real, visible log entry on the live dashboard describing the failure, verified live — not just code review — same bar as every other pipeline fix in this project.
+
+**Related:** `tos/email-idea-check.py` (`_publish_log`, the `try/except` around `open_finding_pr()`), CARD-0151 (original build), CARD-0225 (the sibling card for the three pipelines with *no* MQTT presence at all — this card is deliberately kept separate since the mechanism and the fix are narrower), CARD-0156 (the analogous silent-failure fix on the Tasker side).
+
+---
+
+### CARD-0227 · [enhancement] [tos] Support an image attachment on `jctsh-idea` emails, surfaced in the resulting PR
+**Status:** Backlog
+
+**Raised 2026-08-29 (Joseph), during a conversation about the email-idea-check.py intake pipeline** (`joscthomas+kbc@gmail.com`, CARD-0151) — wanting to attach a photo to an idea email and have it show up logged with the auto-opened PR, not just the text.
+
+**Current gap, confirmed against the real code:** `email-idea-check.py`'s `_plain_body()` only ever walks the payload for a `text/plain` part — it never looks at attachment parts at all. Any image on a `jctsh-idea` email today is silently dropped; only the subject/body text reaches `open_finding_pr()`.
+
+**What fetching it requires:** walk `msg["payload"]["parts"]` for a part with a `filename` and `mimeType` starting `image/`; if the data isn't inlined (`body.data`), a second Gmail API call against `body.attachmentId` (`GET .../messages/{id}/attachments/{attachmentId}`) to get the base64 bytes.
+
+**Real wrinkle found in `open_kanban_pr.py`'s existing design:** `open_finding_pr()`'s PR body wraps the whole finding in a fenced code block (`` Finding:\n```\n{message}\n```\n\n ``), specifically so the raw finding renders verbatim. A markdown image reference (`![...](url)`) placed inside that fence does **not** render as an image — GitHub shows it as literal text. Making the image actually visible in the PR means restructuring the body template to place an image link *outside* the fence, not just appending it to `message`.
+
+**The real open design question: where does the image get hosted?** A PR body can only carry a URL, not inline binary data, and that URL has to be fetchable by GitHub's renderer (i.e., reachable from the public internet). Options discussed, none decided:
+- **Google Drive** — reuses the exact Google account/OAuth this pipeline already has, and the same Drive-folder pattern already used for Hiking Observations Path A. Upload via the Drive API, set link-sharing, embed the direct-content URL (`drive.google.com/uc?export=view&id=...`). Caveat: this hotlink format is a known-fragile, unofficial pattern — Google has changed/broken it before without notice.
+- **Self-host on the M8** — already runs several Docker services (photo-server, Immich, NetAlertX) with an extensible serving pattern. Requires a new internet-facing exposure for GitHub's renderer to reach it — the same category of decision as the existing MQTT port-forward (`CLAUDE.md`'s "MQTT broker internet exposure" section), worth the same level of care.
+- **Commit the image into the repo** — conflicts directly with CARD-0190's deliberate zero-file-diff PR design, and a direct write to `main` would likely be blocked by the same branch-protection rule that keeps this whole pipeline off `main` except through a reviewed PR.
+- **A third-party image host** (e.g. Imgur) — new external account/dependency this project doesn't otherwise have.
+
+**Claude's lean, not yet decided:** Google Drive — no new exposure, no new account, reuses infra already trusted for a similar purpose — but the hotlink fragility is real and worth weighing against self-hosting on the M8 for something more durable.
+
+**Done when (expect refinement at Planning):** a `jctsh-idea` email with an image attachment produces a PR whose body shows the image actually rendered (not just linked as raw text inside the finding's code fence), verified live against a real sent email — not just code review.
+
+**Related:** `tos/email-idea-check.py` (`_plain_body`, the Gmail polling loop), `tos/open_kanban_pr.py` (`open_finding_pr()`'s PR body template, `_render_stub()`), CARD-0151 (original email-idea pipeline build), CARD-0190 (the zero-file-diff PR design this must not break), `components/hiking-monitor/observations-pipeline.md` (the Drive-folder precedent for Hiking Observations Path A).
 
 ---
 

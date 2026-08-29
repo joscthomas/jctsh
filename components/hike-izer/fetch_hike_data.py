@@ -315,6 +315,22 @@ DAYLIGHT_ELEVATION_DEG = -6.0     # civil twilight
 WALKING_SPEED_MIN_MPS = 0.15      # below this: effectively stationary (camp/parked), not hiking
 WALKING_SPEED_MAX_MPS = 3.0       # above this (~6.7 mph sustained): too fast for walking, likely a vehicle
 
+# CARD-0222: a GPSLogger on/off/on toggle (testing, or a false start) can
+# produce a real GPS cluster that trivially satisfies the daylight + walking-
+# pace checks above -- e.g. a real 2026-08-29 incident: 5 points over 2.0
+# minutes, 0.03 mi, median 0.9 mph, all in daylight, correctly classified
+# is_hike: true by every check that existed before this one, then auto-
+# published as a real hike summary. Neither daylight nor pace has any
+# concept of "long enough to plausibly be a walk someone set out on," so a
+# floor on session duration is the fix -- distance isn't used for the same
+# purpose since a real, deliberate stop (photographing wildlife, catching a
+# breath) can have near-zero distance over several real minutes, but no
+# genuine hike is this brief. Tuned against real data, not guessed: every
+# real hike in this project's history is well above this value (the
+# shortest on record is ~12.8 min), and today's incident (2.0 min) is well
+# below it -- 10 min sits with real margin on both sides.
+MIN_HIKE_DURATION_MIN = 10.0
+
 # CARD-0101: a session with no 10-min gap (e.g. hike -> straight into a car,
 # no stop) blends walking- and vehicle-pace points into one cluster. These
 # control _truncate_trailing_fast_activity()'s detection of a real, sustained
@@ -347,11 +363,20 @@ def _accuracy_ok(r):
 
 def _classify_hike(points):
     """Given one candidate GPS cluster, decide whether it plausibly represents a
-    hike (per Joseph's rule: hikes happen in daylight, at walking pace -- not at
-    night, not stationary, not vehicle speed). Returns (is_hike, reasons,
-    details) -- reasons is a list of human-readable strings explaining any
-    rejection; empty if is_hike is True. Never silently drops a cluster --
-    every rejection carries its reason for the narrative to report."""
+    hike (per Joseph's rule: hikes happen in daylight, at walking pace, and
+    last long enough to be a real walk someone set out on -- not at night, not
+    stationary, not vehicle speed, not GPSLogger on/off/on toggle noise).
+    Returns (is_hike, reasons, details) -- reasons is a list of human-readable
+    strings explaining any rejection; empty if is_hike is True. Never silently
+    drops a cluster -- every rejection carries its reason for the narrative to
+    report."""
+    start_ts = parse_ts(points[0].get('timestamp')) if points else None
+    end_ts = parse_ts(points[-1].get('timestamp')) if points else None
+    duration_min = (
+        (end_ts - start_ts).total_seconds() / 60
+        if start_ts is not None and end_ts is not None else None
+    )
+
     elevations = []
     for r in points:
         ts = parse_ts(r.get('timestamp'))
@@ -384,6 +409,13 @@ def _classify_hike(points):
     median_speed_mps = speeds_mps[len(speeds_mps) // 2] if have_speed_data else None
 
     reasons = []
+    if duration_min is not None and duration_min <= MIN_HIKE_DURATION_MIN:
+        reasons.append(
+            f"session lasted only {duration_min:.1f} min -- shorter than the "
+            f"{MIN_HIKE_DURATION_MIN:.0f} min minimum for a real hike, most likely "
+            f"GPSLogger start/stop noise (e.g. testing, or a false start) rather "
+            f"than an actual walk"
+        )
     if daylight_fraction < DAYLIGHT_MIN_FRACTION:
         reasons.append(
             f"only {daylight_fraction * 100:.0f}% of GPS points occurred in daylight "
@@ -409,6 +441,7 @@ def _classify_hike(points):
         )
 
     details = {
+        'duration_min': round(duration_min, 1) if duration_min is not None else None,
         'daylight_fraction': round(daylight_fraction, 2),
         'median_speed_mps': round(median_speed_mps, 2) if median_speed_mps is not None else None,
         'median_speed_mph': round(median_speed_mps * 2.23694, 1) if median_speed_mps is not None else None,

@@ -9,7 +9,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0225 -->
+<!-- next-card-id: CARD-0226 -->
+
+---
+
+### CARD-0225 · [bug] [infrastructure] MQTT architecture docs are inaccurate/stale, and phone-based intake pipelines are invisible to the log dashboard
+**Status:** Backlog
+
+**Raised 2026-08-29 (Joseph), during a conversation correcting/refining Claude's understanding of JCTsh's MQTT usage.** Two related but distinct problems surfaced, bundled into one card at Joseph's request rather than split.
+
+**Part 1 — docs are wrong, not just incomplete:**
+- `CLAUDE.md`'s architecture table (Mosquitto row) states "Nothing talks directly to anything else — everything publishes to a topic and subscribes to topics." False: both phone-based intake pipelines (Hiking Observations, GPS Track) talk directly to the Google Apps Script HTTP endpoint, no broker involved.
+- `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`'s "Path B" still describes Tasker "publishing transcript text and recording timestamp directly to MQTT" for Hiking Observations — stale; the pipeline actually built (`components/hiking-monitor/observations-pipeline.md`, CARD-0156) posts straight to Apps Script over HTTP, no MQTT step at all. The two docs were never reconciled after the real build diverged from this plan.
+- **No document states the actual governing principle** distinguishing when JCTsh uses MQTT vs. direct HTTP: a broker earns its place when a message needs fan-out to multiple (or future unknown) consumers — the ESP32 sensor pattern, one message consumed by Node-RED for Sheets + Weather Underground + HA/SmartThings. Direct HTTP is used where there's a fixed one-producer-one-consumer relationship — every phone-based pipeline talking to its one Apps Script/webhook endpoint. This is only inferable by comparing docs side-by-side today, not written down anywhere.
+
+**Part 2 — real observability gap, not just a docs issue.** `core/logging/log_server.py` only ingests via MQTT subscribe (`jctsh/+/+/log`) — it has no HTTP ingest path at all, so anything not published to MQTT is invisible to the log dashboard that's supposed to be "persistent history of what every component has reported." Three phone-originated intake pipelines currently have no MQTT account and publish nothing to that topic space, confirmed against `CLAUDE.md`'s MQTT accounts table (no `hiking-observations`, no GPS-track, no orchestrator-webhook-idea entry beyond the orchestrator's existing unrelated account):
+1. **Hiking Observations** (Tasker voice note → Apps Script `doPost`, `observations-pipeline.md`)
+2. **GPS Track** (GPSLogger → Apps Script `action=gps`, `gps-pipeline.md`)
+3. **Idea Tasker** (Tasker "Log Idea" widget → `/webhook/idea` → `hike-izer-orchestrator` → `open_finding_pr()`, `tos/README.md`)
+
+**Real platform constraint discovered, not just a design choice:** Google Apps Script has no MQTT client capability at all — it only has `UrlFetchApp` (HTTP/HTTPS request-response), no raw TCP sockets. So pipelines 1 and 2 (both Apps-Script-backed) cannot publish to MQTT directly under any circumstance; they need something reachable over plain HTTP that relays onward to MQTT on their behalf.
+
+**Proposed mechanism, discussed but explicitly not locked in — Joseph wants to examine this further at Planning:**
+- **Pipelines 1 & 2 (Apps Script-backed):** a small new Node-RED flow (HTTP-in → MQTT-out) that Apps Script calls once per successful `doPost()`/`doGet()`, publishing a confirmation to the pipeline's own log topic. Reuses Node-RED's existing MQTT connection and mirrors the pattern it already runs for the ESP32 environmental data flow (`data-pipeline.md`: "Node-RED also publishes a log message to MQTT confirming each row appended").
+- **Pipeline 3 (hike-izer-orchestrator):** no bridge needed — the orchestrator is a long-running Docker container that **already has its own MQTT account** (publishes to `jctsh/hike-izer/publish/log` for a separate purpose per `CLAUDE.md`). Adding a publish call inside the existing `/webhook/idea` route handler is a direct addition to code that's already MQTT-connected.
+
+**Done when (expect this to be refined at Planning):** the two doc inaccuracies are corrected and the fan-out-vs-fixed-pair principle is written down somewhere durable; all three phone-based pipelines produce a real log line visible on the live dashboard when exercised, verified against actual traffic (not just code review) — same "Joseph confirms live" bar as every other pipeline change in this project.
+
+**Related:** `CLAUDE.md` (architecture table, MQTT accounts table), `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` (stale Path B), `components/hiking-monitor/observations-pipeline.md`, `components/hiking-monitor/gps-pipeline.md`, `tos/README.md` (auto-PR intake pipeline diagram), `core/logging/log_server.py` (MQTT-subscribe-only ingest, no HTTP path), CARD-0156 (the build that made Path B's doc description stale).
 
 ---
 
@@ -90,11 +117,13 @@ Once wired, the module's own onboard LED indicates charge status (charging vs. d
 
 **Every reading that day was field-mode** (buffered on-device to flash, replayed via MQTT once reconnected -- confirmed via `field_mode_readings: 55` in the fetched `hike_data.json`), so these gaps reflect real missed/skipped *local* readings on the device itself, not an upload or Sheets-write problem -- the device's own 2-min interval tick genuinely didn't produce (or didn't buffer) a reading during those windows.
 
-**Not yet investigated:** whether this correlates with anything else happening on the device at those moments -- a WiFi/GPS contention event, a reset, a sensor-read failure, or something in the interval-tick logic itself. `hiking-monitor.yaml`'s own field-mode logging path hasn't been checked against this incident yet.
+**Real cause found, 2026-08-29, via the log dashboard's own state (`/mnt/jctsh-logs/state.json` on the Pi) -- a genuine reboot loop during replay, not a missed-reading problem during the hike itself.** The device reconnected at 08:45:23 MST (15:45:23 UTC, right at the hike's own end) and logged `"Replaying 116 hike readings..."` -- but only 55 of those 116 buffered readings ever landed in the Environmental Data sheet, a 52% shortfall. Between 08:45:32 and 08:46:07 MST (35 seconds), the device shows **10 separate `Field-mode boot` log lines** -- the first `reset reason: exiting deep sleep mode`, every one after that `reset reason: Reboot request from mqtt`, each immediately followed by exactly one `Display refreshed (field mode) at <timestamp>` line before the next reboot. This is a real, repeating reboot-mid-replay loop, not a brownout (contrast CARD-0217's earlier ~270-reboot storm, which logged empty reset reasons -- this one is cleanly labeled MQTT-triggered restarts throughout).
 
-**Done when:** the root cause of the four gaps is identified (device-side log/reset-reason evidence, not just inferred from the missing Sheet rows), and either fixed or confirmed as expected/acceptable behavior with a documented reason.
+**Not yet confirmed: what's actually sending the repeated MQTT restart command.** `"Reboot request from mqtt"` is the reset-reason string ESPHome logs when `App.safe_reboot()` is called via its MQTT-triggered restart path -- CARD-0180 built exactly one such trigger (`hiking_monitor_restart`, a template button exposed to Home Assistant). Whether HA itself, some automation, or a stuck/retained MQTT command is what's actually firing this repeatedly hasn't been pinned down -- a live `mosquitto_sub` sweep of the device's full topic tree after the fact found no currently-retained restart-command message, which argues against a permanently-stuck retained payload but doesn't rule out a transient one that self-cleared. `esphome`'s own `safe_mode` component (running on its default config, no explicit block in `hiking-monitor.yaml`) also logged `"Boot seems successful; resetting boot loop counter"` on the eventual clean boot -- confirms ESPHome's own boot-loop detection recognized this as an abnormal rapid-reboot episode, consistent with the 10-boots-in-35s reading.
 
-**Related:** CARD-0220 (the false-positive-hike fix whose regeneration surfaced this), CARD-0222 (a second, related finding from the same review -- GPS correlation failure on the same hike's readings), `components/hiking-monitor/hiking-monitor.yaml`.
+**Done when:** the actual source of the repeated MQTT restart command is identified (HA automation, a stuck client, a retry loop, or something else) and either fixed or the replay path is made resilient to a mid-replay reboot without losing buffered readings (currently: at least 61 of 116 buffered readings never made it to the sheet across this one incident).
+
+**Related:** CARD-0220 (the false-positive-hike fix whose regeneration surfaced this), CARD-0222 (a second, related finding from the same review -- GPS correlation failure on the same hike's readings, very plausibly caused by the same reboot loop disrupting Node-RED's per-reading GPS lookup mid-burst), CARD-0217 (the earlier, larger ~270-reboot brownout storm -- same symptom shape, different reset-reason signature), CARD-0180 (the MQTT-triggered restart button this reset reason most likely traces back to), `components/hiking-monitor/hiking-monitor.yaml`.
 
 ---
 
@@ -107,11 +136,13 @@ Once wired, the module's own onboard LED indicates charge status (charging vs. d
 
 **Working theory, not yet confirmed:** Node-RED's wildcard data handler calls the Apps Script `action=lookup&ts=<reading's own real timestamp>` per reading (confirmed via `environmental-data.flow.json` -- it correctly uses the reading's own embedded event time, not "now," so this isn't a naive timestamp bug). Since `_gpsLookup()` was never even invoked (no miss logged means the function never ran to completion), the HTTP call itself most likely never completed for these 46 -- plausibly Node-RED's handler getting overwhelmed, erroring, or silently dropping requests when all 55 buffered field-mode readings arrive in one rapid replay burst at hike-end, rather than trickling in near-real-time the way CARD-0197's design assumed.
 
-**Not yet investigated:** Node-RED's own execution/debug log around the replay-burst window (to see whether the `action=lookup` HTTP requests errored, timed out, or were never sent at all), and whether this correlates with the field-mode reading gaps in CARD-0221.
+**Strongly correlates with CARD-0221's real cause, found the same session: a genuine reboot loop during replay.** The device reconnected and began replaying 116 buffered readings at 08:45:23 MST, then rebooted 10 times in the next 35 seconds (9 of them with reset reason `"Reboot request from mqtt"`, a real MQTT-triggered restart loop -- not a brownout, see CARD-0221 for the full log evidence). A device that's mid-reboot when a buffered reading's MQTT message is meant to trigger Node-RED's `action=lookup` call would very plausibly drop or never send that HTTP request cleanly -- exactly the shape of failure this card already inferred (`_gpsLookup()` never even invoked, no miss logged, because the call never completed) but couldn't previously explain a *cause* for. This isn't confirmed as the definite mechanism yet -- it's a strong, evidence-backed correlation, not a proven causal chain -- but it reframes the "Node-RED overwhelmed by a rapid burst" theory from a guess into something with a real, observed trigger event to point at.
 
-**Done when:** the actual failure point (Node-RED-side HTTP error, a rate/concurrency limit, or something else) is identified with real evidence -- not just this hypothesis -- and either fixed or the gap is documented as an accepted limitation of the bulk-replay pattern.
+**Not yet investigated:** Node-RED's own execution/debug log around the exact 08:45:23-08:46:07 MST reboot-loop window (to see whether the `action=lookup` HTTP requests errored, timed out, or were never sent at all during that specific 35-second span), and whether the 46 GPS-correlation misses line up timestamp-for-timestamp with readings replayed during vs. between reboot cycles.
 
-**Related:** CARD-0197 (the correlation-debug instrumentation this diagnosis relies on, and the *different*, already-addressed race it was built to catch), CARD-0220 (the false-positive-hike fix whose regeneration surfaced this), CARD-0221 (the sibling Environmental Data gap finding from the same review), `core/data-pipeline/environmental-data.gs` (`_gpsLookup`), `core/data-pipeline/environmental-data.flow.json` (the Node-RED lookup call).
+**Done when:** the actual failure point (Node-RED-side HTTP error, a rate/concurrency limit, or the reboot loop itself interrupting mid-publish) is identified with real evidence -- not just this correlation -- and either fixed or the gap is documented as an accepted limitation of the bulk-replay pattern. Likely resolves together with CARD-0221 once that card's reboot-loop source is found and fixed, rather than needing an independent fix.
+
+**Related:** CARD-0197 (the correlation-debug instrumentation this diagnosis relies on, and the *different*, already-addressed race it was built to catch), CARD-0220 (the false-positive-hike fix whose regeneration surfaced this), CARD-0221 (the sibling Environmental Data gap finding from the same review -- now believed to share the same root cause, the MQTT reboot loop during replay), `core/data-pipeline/environmental-data.gs` (`_gpsLookup`), `core/data-pipeline/environmental-data.flow.json` (the Node-RED lookup call).
 
 ---
 

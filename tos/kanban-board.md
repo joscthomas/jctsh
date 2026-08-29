@@ -9,7 +9,85 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0229 -->
+<!-- next-card-id: CARD-0234 -->
+
+---
+
+### CARD-0233 · [enhancement] [homeassistant] Home Assistant container update available: 2026.8.2 → 2026.8.3
+**Status:** Planning
+
+**Raised via automated maintenance finding (PR #44, jctsh-core), 2026-08-29** — routine container-version-bump finding from the scheduled maintenance check.
+
+**Interviewed 2026-08-29.** Joseph's call on scope: **evaluate first, decide whether to update** — this card's "done" is the decision + reasoning, not necessarily the update itself (that may follow as a separate step once decided). No particular concern flagged for this specific bump — routine patch update, not prompted by any known issue.
+
+**Standard care warranted regardless of "no particular concern":** HA is the sole bridge to SmartThings → Google Home/Pixels/voice control per `CLAUDE.md` ("there is no other path") — any HA update carries real downstream blast radius if it breaks that integration, even a routine-looking patch bump.
+
+**Plan:**
+1. Read 2026.8.3's release notes (Home Assistant's own release blog / changelog) for breaking changes, deprecations, or anything touching MQTT, the SmartThings/Google integration, or the recorder — the pieces this instance actually depends on.
+2. Decide: update now, or hold and note why (e.g. a flagged breaking change, or simply "nothing notable, safe to update on next convenient window").
+3. If updating: bump the image tag in `core/homeassistant/docker-compose.yml`, `docker compose pull && docker compose up -d`, verify live — HA reachable, SmartThings-bridged entities still responding, no new recorder/MQTT errors in `docker logs`.
+
+**Done when:** the release notes have been read and a decision (update or hold, with reasoning) is recorded here — and if updating, it's verified live per step 3 above, not just deployed.
+
+**Related:** `CLAUDE.md` (Home Assistant Docker Setup section, `core/homeassistant/docker-compose.yml`; "Home Assistant is the bridge to SmartThings — there is no other path"), CARD-0153 (a separate, unrelated HA-infrastructure discussion — recorder database engine — surfaced around the same general area, not a dependency of this card).
+
+---
+
+### CARD-0232 · [idea] [hiking-monitor] Investigate photo-based plant identification alternatives
+**Status:** Backlog
+
+**Raised via idea email (PR #46, joscthomas+kbc@gmail.com), 2026-08-29** — raw finding text was just "plant identification"; not yet interviewed for what triggered it or what "done" would look like.
+
+**Likely context, not yet confirmed with Joseph:** Hiking Observations already has a `vegetation` category in its keyword taxonomy (saguaro, bloom, cactus, tree, shrub, flower, plant, grass, palo verde, ocotillo — `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`), and BirdNET already gives the hiking pipeline an audio-based wildlife-ID precedent (CARD-0080/`birdnet-pipeline.md`). Photo-based plant ID would be the natural flora counterpart — but whether that's actually the intent here (an addition to the phone/hike workflow) versus something unrelated hasn't been confirmed.
+
+**Done when:** not yet scoped — needs a real interview (what triggered this idea, phone-app vs. API-based identification, whether it's meant to integrate with the existing Hiking Observations pipeline or stand alone) before this moves to Planning.
+
+**Related:** `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` (Hiking Observations `vegetation` category), `components/hike-izer-orchestrator/birdnet-pipeline.md` (the audio-ID precedent this may be paralleling).
+
+---
+
+### CARD-0231 · [idea] [tos] Investigate Tasker's task import/export capabilities — get profiles/tasks into a reviewable format
+**Status:** Backlog
+
+**Raised via idea email (PR #49, joscthomas+kbc@gmail.com), 2026-08-29** — Joseph's own framing: "investigating the import/export capabilities of Tasker. It would be nice to view the code."
+
+**Why this is a real gap, not just curiosity:** every Tasker-side feature in this project (Log Observation queue/flush, GPSLogger flush, the Idea widget, etc.) is built and maintained entirely by hand on the phone — "Joseph builds and confirms the actual Tasker profile... matching this project's established division of labor for every prior Tasker-side feature" (per CARD-0156's own build notes). Unlike Node-RED, whose flows export to JSON and live in the repo (`core/node-red/*.flow.json`, `Node-RED-workflow.md`), no Tasker profile or task is ever captured anywhere Claude (or a future Joseph) can read it — every one of them is opaque outside the phone's own UI.
+
+**What to investigate:** Tasker has a native Export action (profiles/tasks/projects to `.xml` — `.prj.xml`/`.tsk.xml`) via long-press → Export, or via a Task action. Worth checking: whether an exported XML is actually human/Claude-readable enough to be useful for review (vs. just a backup blob), whether it could be committed to the repo the same way Node-RED flows are (giving Claude real visibility into existing Tasker logic when debugging or extending it, instead of relying on Joseph's own transcription in kanban card write-ups), and whether re-import after an edit is reliable enough to make this a two-way sync rather than read-only documentation.
+
+**Done when:** not yet scoped — needs a real interview (is the goal read-only documentation for Claude's benefit, or an actual edit/import workflow; which existing Tasker profiles are in scope first) before this moves to Planning.
+
+**Related:** `Node-RED-workflow.md` (the analogous export/version-control pattern already working for Node-RED), CARD-0156/`components/hiking-monitor/observations-pipeline.md` (an example of a Tasker profile currently undocumented except in prose), `tos/README.md` (the Tasker-originated webhook entry points into this project's automation).
+
+---
+
+### CARD-0229 · [idea] [hike-izer] Review BirdNET data architecture — storage and MQTT messaging
+**Status:** Backlog
+
+**Raised via idea email (PR #47, joscthomas+kbc@gmail.com), 2026-08-29** — voice-to-text mangled the original finding text to "where does the birthday to get stored" ("BirdNET" misheard). Confirmed with Joseph: the actual ask is a data-architecture review of BirdNET, same lens as CARD-0225's MQTT/docs-accuracy pass — where the data is stored, and how (or whether) it's represented in MQTT messaging — not a one-line factual answer. Deliberately not dug into in depth yet ("we'll deal with these later") — this card captures what's already been found so a later session doesn't re-derive it, plus the actual open question.
+
+**Pipeline as it exists today**, per `components/hike-izer-orchestrator/birdnet-pipeline.md`:
+```
+BirdNET Live app (phone) → AutoShare → Tasker
+    → POST /webhook/stage-file?kind=birdnet&key=<SECRET>
+    → app.py _handle_stage_file()  →  <file_stem>_staging/
+    → birdnet.py (generation time): parse_detections(), parse_occurrences()
+    → templating.py: "Wildlife Heard" table + Route Map bird markers (baked into that hike's own published page)
+    → wildlife_life_list.update_from_hike()
+    → /srv/hike-izer-private/wildlife_life_list.json  (persisted cross-hike aggregate, on the M8)
+    → components/hike-izer/build_wildlife_index.py → wildlife.html (standalone cross-hike index page)
+```
+Another instance of the "Tasker → direct HTTP webhook" family (like the Idea Tasker → `/webhook/idea` path from CARD-0225's discussion) — not MQTT, not Google Apps Script.
+
+**Real difference from CARD-0225's three pipelines, found while reading `app.py`: this one already has MQTT log visibility, at least partially.** `_handle_stage_file()` calls `_log_mqtt_async(...)` (via `mqtt_log.py`, `jctsh/hike-izer/publish/log`) on both success (`"Staged {kind} file for {file_stem}."`) and every rejection path (missing key, invalid kind, empty body, no matching hike, write failure) — so this pipeline isn't blind on the dashboard the way Hiking Observations/GPS Track/email-idea-check.py were. Whether that existing logging is actually *sufficient* for a real architecture review (does it cover the per-hike parse step and the life-list JSON update, or only the webhook receipt itself?) is exactly what's still open — not yet checked.
+
+**Open for the actual review, not yet done:**
+1. Does anything log the outcome of `birdnet.py`'s parse step itself (species found, parse failures) — or only the webhook receipt?
+2. Does `wildlife_life_list.update_from_hike()` (the JSON write) have any visibility, or is a failure there silent?
+3. Should BirdNET data ever appear in the `jctsh/<type>/<component>/data` topic namespace the way ESP32 environmental sensors do, or is "baked into the static hike page + a persisted JSON file, no live topic" the correct shape for this kind of data (parsed once, after the fact, not a live stream)?
+4. Is `/srv/hike-izer-private/wildlife_life_list.json` the right long-term store, or does it have the same durability/backup questions raised elsewhere in this project for non-Sheets, non-repo persisted state?
+
+**Related:** `components/hike-izer-orchestrator/birdnet-pipeline.md`, `components/hike-izer-orchestrator/app.py` (`_handle_stage_file`, `_log_mqtt_async`), `components/hike-izer-orchestrator/mqtt_log.py`, `components/hike-izer-orchestrator/wildlife_life_list.py`, `components/hike-izer/build_wildlife_index.py`, CARD-0225 (the sibling architecture-review card this generalizes the same lens from), CARD-0080 (original BirdNET integration), CARD-0182 (Live Mode → Survey Mode switch), CARD-0133 (interpolated-GPS occurrence markers), CARD-0147 (life-list "NEW species" badge). PR #47 (original idea-email finding, closed as covered by this card).
 
 ---
 

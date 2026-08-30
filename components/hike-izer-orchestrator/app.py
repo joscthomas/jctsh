@@ -41,6 +41,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
 
+import backstop_check  # CARD-0121: daily missed-hike recovery
 import generation
 import mqtt_log
 import open_kanban_pr  # CARD-0173: /webhook/idea
@@ -501,6 +502,7 @@ def main():
     # today's investigation (2026-07-28) spent a long time on SSH forensics
     # specifically because a container churn was invisible from here.
     _log_mqtt_async("System", "Orchestrator webhook receiver started.")
+    backstop_check.start_background_thread()  # CARD-0121
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     server.serve_forever()
 

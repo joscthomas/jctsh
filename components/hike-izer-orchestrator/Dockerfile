@@ -35,9 +35,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # trend page) -- same "deployed copy from components/hike-izer/" pattern
 # as build_calendar_index.py/build_wildlife_index.py, computation lives in
 # fetch_hike_data.py's compute_stats()/_battery_window_crossing_min().
+# backstop_check.py added CARD-0121 (daily missed-hike recovery, in case
+# GPSLogger's own 'stopped' webhook never fires) -- this component's own
+# source, not a deployed copy; runs as a background thread app.py starts.
 COPY app.py generation.py narrative.py templating.py mqtt_log.py ha_notify.py \
      photo_captions.py place_context.py cost_tracking.py birdnet.py \
-     wildlife_life_list.py \
+     wildlife_life_list.py backstop_check.py \
      fetch_hike_data.py fetch_hike_photos.py build_calendar_index.py \
      build_hike_map.py build_hike_chart.py build_wildlife_index.py \
      build_battery_trend_index.py \

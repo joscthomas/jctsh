@@ -164,28 +164,38 @@ def _title_line(message, limit):
     return first_line if len(first_line) <= limit else first_line[:limit - 3] + "…"
 
 
-def _render_stub(card_id, component, message, now):
+def _render_stub(card_id, component, message, now, image_url=None):
+    """CARD-0227: `image_url`, when given, is rendered right after the raw
+    finding -- unlike open_finding_pr()'s PR body, this stub has no code
+    fence to dodge, so the markdown image line can just be appended
+    directly."""
     ts = now.strftime("%Y-%m-%d %H:%M %Z") or now.strftime("%Y-%m-%d %H:%M UTC")
     title = _title_line(message, 80)
+    image_line = f"\n\n![idea image]({image_url})" if image_url else ""
     return (
         f"### {card_id} · [enhancement] [infrastructure] {title} — auto-opened from {component}\n"
         f"**Status:** Backlog\n\n"
         f"**Auto-generated {ts} from {component}'s maintenance check.** "
         f"Raw finding: {message}. Needs a human/Claude interview pass to scope "
         f"real acceptance criteria — this stub only captures that something "
-        f"was found, not what \"done\" looks like.\n\n"
+        f"was found, not what \"done\" looks like.{image_line}\n\n"
         f"**Related:** live dashboard entry at time of generation.\n\n---\n\n"
     )
 
 
-def open_finding_pr(component, message, fingerprint, token, state):
+def open_finding_pr(component, message, fingerprint, token, state, image_url=None):
     """Idempotent per fingerprint. `state` is the caller's own persisted
     throttle-state dict (already fingerprint-keyed for the Alert
     notification) -- this reads/extends it with pr_fingerprint/pr_number,
     caller is responsible for persisting the returned dict same as it
     already persists its own state. Returns (state, pr_url_or_None) --
     pr_url is None when an existing open PR already covers this finding,
-    so the caller can tell "nothing new happened" from "opened one"."""
+    so the caller can tell "nothing new happened" from "opened one".
+
+    CARD-0227: `image_url`, when given, is rendered as a markdown image
+    line in the PR body -- deliberately placed *outside* the "Finding:"
+    fenced code block below, since a markdown image reference inside a
+    fence renders as literal text, not an image."""
     if (state.get("pr_fingerprint") == fingerprint
             and state.get("pr_number")
             and _pr_still_open(state["pr_number"], token)):
@@ -219,18 +229,26 @@ def open_finding_pr(component, message, fingerprint, token, state):
         "ref": f"refs/heads/{branch}", "sha": empty_commit["sha"],
     })
 
+    body = (
+        f"Auto-opened by {component}'s maintenance check (CARD-0128).\n\n"
+        f"Finding:\n```\n{message}\n```\n\n"
+    )
+    if image_url:
+        body += f"![idea image]({image_url})\n\n"
+    body += (
+        f"Card number is a placeholder (`CARD-XXX`) -- real numbering, and the "
+        f"actual kanban-board.md insertion, both happen at merge time (CARD-0190), "
+        f"not here, to avoid a race between concurrent findings from different "
+        f"hosts and to sidestep kanban-board.md's size on every single open. "
+        f"See resolve_and_merge(). This PR intentionally shows no file changes "
+        f"until then."
+    )
+
     pr = _api("POST", f"/repos/{REPO}/pulls", token, {
         "title": f"CARD-XXX: {_title_line(message, 72)}",
         "head": branch,
         "base": BRANCH_BASE,
-        "body": f"Auto-opened by {component}'s maintenance check (CARD-0128).\n\n"
-                f"Finding:\n```\n{message}\n```\n\n"
-                f"Card number is a placeholder (`CARD-XXX`) -- real numbering, and the "
-                f"actual kanban-board.md insertion, both happen at merge time (CARD-0190), "
-                f"not here, to avoid a race between concurrent findings from different "
-                f"hosts and to sidestep kanban-board.md's size on every single open. "
-                f"See resolve_and_merge(). This PR intentionally shows no file changes "
-                f"until then.",
+        "body": body,
     })
 
     new_state = dict(state)
@@ -241,7 +259,11 @@ def open_finding_pr(component, message, fingerprint, token, state):
 
 _FINDING_BODY_RE = re.compile(
     r"Auto-opened by (?P<component>.+?)'s maintenance check.*?"
-    r"Finding:\n```\n(?P<message>.*?)\n```\n\n",
+    r"Finding:\n```\n(?P<message>.*?)\n```\n\n"
+    # CARD-0227: optional -- present only when open_finding_pr() was called
+    # with image_url, matching the exact line it appends right after the
+    # fence closes.
+    r"(?:!\[idea image\]\((?P<image_url>[^)]+)\)\n\n)?",
     re.DOTALL,
 )
 _BRANCH_TS_RE = re.compile(r"-(\d{4}-\d{2}-\d{2}-\d{6})$")
@@ -274,6 +296,7 @@ def resolve_and_merge(pr_number, token, merge_method="squash"):
         raise ValueError(f"PR #{pr_number}: could not parse component/finding from its body")
     component = body_match.group("component")
     message = body_match.group("message")
+    image_url = body_match.group("image_url")
 
     # Recover the original raised-at time from the branch name's own
     # "-YYYY-MM-DD-HHMMSS" suffix (already embedded there since
@@ -291,7 +314,7 @@ def resolve_and_merge(pr_number, token, merge_method="squash"):
     card_id = m.group(1)
     next_marker = f"CARD-{int(card_id[5:]) + 1:04d}"
 
-    stub = _render_stub(card_id, component, message, now)
+    stub = _render_stub(card_id, component, message, now, image_url=image_url)
 
     new_main_text = main_text.replace(
         f"<!-- next-card-id: {card_id} -->", f"<!-- next-card-id: {next_marker} -->", 1,

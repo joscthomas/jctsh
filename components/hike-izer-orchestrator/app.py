@@ -61,6 +61,12 @@ EDIT_PIN = os.environ.get("EDIT_PIN", "")
 # var, same "one credential, read from wherever it's needed" pattern
 # already used for HA_TOKEN across this repo.
 GITHUB_PAT = os.environ.get("GITHUB_PAT", "")
+# CARD-0227: base URL for images written to generation.SRV_DIR/idea-images/,
+# which Caddy's catch-all file_server block already serves publicly --
+# components/hike-izer-web/Caddyfile's `handle {}` block roots at
+# /srv/hike-izer, the same directory generation.SRV_DIR points at inside
+# this container (shared volume with the `web` service).
+PUBLIC_SRV_BASE_URL = "https://hikes.jctnet.com"
 
 
 def log(message):
@@ -104,6 +110,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parts.path == "/webhook/stage-file":
             self._handle_stage_file(parts)
+            return
+        if parts.path == "/webhook/idea-image":
+            self._handle_idea_image(parts)
             return
         if parts.path == "/webhook/idea":
             self._handle_idea(parts)
@@ -262,6 +271,66 @@ class Handler(BaseHTTPRequestHandler):
             log(f"Staged {kind} file for {file_stem}: {dest}")
             _log_mqtt_async("System", f"Staged {kind} file for {file_stem}.")
             self._respond(200, {"status": "ok", "file_stem": file_stem})
+
+    def _handle_idea_image(self, parts):
+        """CARD-0227: receives an image attached to a jctsh-idea email,
+        relayed here by email-idea-check.py (running on the Pi -- Google
+        Apps Script can't hold a raw socket/MQTT connection, and this
+        pipeline doesn't use MQTT anyway, it's a plain HTTP relay to
+        wherever the image can actually be hosted). Writes it into
+        generation.SRV_DIR/idea-images/, the same directory Caddy's
+        catch-all file_server block already serves publicly at
+        hikes.jctnet.com (components/hike-izer-web/Caddyfile) -- no new
+        Caddy route, no new Cloudflare config, this just reuses the
+        existing /webhook/* proxy rule. Returns the resulting public URL
+        so the caller can embed it in the PR body (open_kanban_pr.py's
+        image_url param)."""
+        if not self._authorized(parts):
+            log("Rejected idea-image POST: missing or incorrect key")
+            _log_mqtt_async("Alert", "Idea-image webhook POST rejected: missing or incorrect key.")
+            self._respond(401, {"status": "error", "message": "unauthorized"})
+            return
+
+        qs = parse_qs(parts.query)
+        ext = qs.get("ext", ["jpg"])[0].lower()
+        if ext not in ("jpg", "jpeg", "png", "gif", "webp"):
+            log(f"Rejected idea-image POST: invalid ext (got {ext!r})")
+            _log_mqtt_async("Alert", f"Idea-image webhook POST rejected: invalid ext (got {ext!r}).")
+            self._respond(400, {"status": "error", "message": f"invalid ext (got {ext!r})"})
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length) if length else b""
+        if not body:
+            log("Rejected idea-image POST: empty body")
+            _log_mqtt_async("Alert", "Idea-image webhook POST rejected: empty body.")
+            self._respond(400, {"status": "error", "message": "empty body"})
+            return
+
+        images_dir = os.path.join(generation.SRV_DIR, "idea-images")
+        # CARD-0119's own reasoning applies here too: chmod explicitly so
+        # anything else that later needs to touch this directory (not
+        # just this root-running container) isn't blocked by a masked-down
+        # umask default.
+        os.makedirs(images_dir, exist_ok=True)
+        os.chmod(images_dir, 0o777)
+
+        filename = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%f')}.{ext}"
+        dest = os.path.join(images_dir, filename)
+
+        try:
+            with open(dest, "wb") as f:
+                f.write(body)
+        except OSError as e:
+            log(f"Failed to write idea image {filename}: {e}")
+            _log_mqtt_async("Alert", f"Idea-image webhook failed to write {filename}: {e}")
+            self._respond(500, {"status": "error", "message": "write failed"})
+            return
+
+        url = f"{PUBLIC_SRV_BASE_URL}/idea-images/{filename}"
+        log(f"Staged idea image: {dest} -> {url}")
+        _log_mqtt_async("System", f"Staged idea image {filename}.")
+        self._respond(200, {"status": "ok", "url": url})
 
     def _handle_idea(self, parts):
         """CARD-0173: Tasker voice-capture -> straight to a placeholder

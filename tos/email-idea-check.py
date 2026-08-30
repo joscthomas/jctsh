@@ -41,6 +41,7 @@ than silently losing the idea.
 """
 import base64
 import json
+import mimetypes
 import os
 import subprocess
 import sys
@@ -57,12 +58,20 @@ COMPONENT = "jctsh-core"
 LOG_TOPIC = "jctsh/core/log-server/log"
 
 GITHUB_ENV = "/etc/jctsh/github.env"            # GITHUB_PAT=...
-EMAIL_ENV  = "/etc/jctsh/email-idea-check.env"  # GOOGLE_CLIENT_ID=..., GOOGLE_CLIENT_SECRET=..., GOOGLE_REFRESH_TOKEN=...
+EMAIL_ENV  = "/etc/jctsh/email-idea-check.env"  # GOOGLE_CLIENT_ID=..., GOOGLE_CLIENT_SECRET=..., GOOGLE_REFRESH_TOKEN=..., WEBHOOK_SECRET=...
 LOG_ENV    = "/etc/jctsh/log-server.env"        # MQTT_USER=..., MQTT_PASS=...
 
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 PLUS_TAG  = "kbc"
+
+# CARD-0227: same hike-izer-orchestrator WEBHOOK_SECRET already used by the
+# Tasker "Log Idea" widget's /webhook/idea (credentials.local.md) -- this
+# script needs its own copy via EMAIL_ENV since it runs on a separate host
+# (the Pi, not the M8), same "one credential, read from wherever it's
+# needed" pattern GITHUB_PAT already uses here.
+IDEA_IMAGE_URL = "https://hikes.jctnet.com/webhook/idea-image"
+_IMAGE_EXTS = {"jpg", "jpeg", "png", "gif", "webp"}
 
 
 def _load_env(path):
@@ -119,6 +128,67 @@ def _header(headers, name):
     return ""
 
 
+def _find_image_part(payload):
+    """CARD-0227: first image attachment found, depth-first -- same
+    recursive-walk shape as _plain_body() above. Only the first match is
+    used; a jctsh-idea email with multiple images isn't a case worth
+    handling yet (no card has asked for it)."""
+    if payload.get("mimeType", "").startswith("image/") and payload.get("filename"):
+        return payload
+    for part in payload.get("parts", []) or []:
+        found = _find_image_part(part)
+        if found:
+            return found
+    return None
+
+
+def _ext_for_part(part):
+    filename = part.get("filename", "")
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext in _IMAGE_EXTS:
+        return ext
+    guessed = (mimetypes.guess_extension(part.get("mimeType", "")) or ".jpg").lstrip(".").lower()
+    return guessed if guessed in _IMAGE_EXTS else "jpg"
+
+
+def _fetch_attachment_bytes(message_id, part, access_token):
+    body = part.get("body", {})
+    if body.get("data"):
+        data_b64url = body["data"]
+    else:
+        # Larger attachments aren't inlined in the message payload -- a
+        # second call against the attachment's own id is required.
+        resp = _api(
+            "GET",
+            f"{GMAIL_API}/messages/{message_id}/attachments/{body['attachmentId']}",
+            access_token,
+        )
+        data_b64url = resp["data"]
+    padded = data_b64url + "=" * (-len(data_b64url) % 4)
+    return base64.urlsafe_b64decode(padded)
+
+
+def _upload_idea_image(image_bytes, ext, webhook_secret):
+    """POSTs the raw bytes to hike-izer-orchestrator's /webhook/idea-image
+    (app.py, CARD-0227) and returns the public hikes.jctnet.com URL it
+    responds with, for embedding in the PR body.
+
+    CARD-0227, found live: urllib's default User-Agent ("Python-urllib/x.y")
+    trips Cloudflare's bot-signature block in front of hikes.jctnet.com --
+    403 with body "error code: 1010". curl isn't flagged the same way,
+    which is why the earlier direct-curl test of this same endpoint passed
+    clean while the real script's first live run against a real forwarded
+    email failed here specifically. A non-default User-Agent is enough to
+    clear it -- confirmed live, not just theorized."""
+    url = IDEA_IMAGE_URL + "?" + urllib.parse.urlencode({"key": webhook_secret, "ext": ext})
+    req = urllib.request.Request(
+        url, method="POST", data=image_bytes,
+        headers={"Content-Type": "application/octet-stream", "User-Agent": "jctsh-email-idea-check/1.0"},
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return json.loads(resp.read())["url"]
+
+
 def _publish_log(category, message):
     log_env = _load_env(LOG_ENV)
     payload = json.dumps({"component": COMPONENT, "category": category, "message": message})
@@ -152,12 +222,26 @@ for m in messages:
 
     full_message = subject if not body else f"{subject}\n\n{body}"
 
+    # CARD-0227: an image attachment is best-effort, not required -- a
+    # failed fetch/upload logs a warning and the PR still opens text-only
+    # rather than losing the whole idea over an optional field, same
+    # "don't lose data over an optional field" judgment call app.py's own
+    # _handle_stage_file already makes for local_datetime.
+    image_url = None
+    image_part = _find_image_part(msg["payload"])
+    if image_part:
+        try:
+            image_bytes = _fetch_attachment_bytes(m["id"], image_part, access_token)
+            image_url = _upload_idea_image(image_bytes, _ext_for_part(image_part), email_env["WEBHOOK_SECRET"])
+        except Exception as e:
+            print(f"Image attachment on '{subject}' found but failed to upload: {e} -- opening PR text-only")
+
     try:
         # Fresh state={} every call -- dedup is the Gmail UNREAD label,
         # not open_finding_pr()'s own single-fingerprint memory, which
         # is built for "same finding repeated across polls", not "many
         # distinct one-off emails". See module docstring.
-        _, pr_url = open_finding_pr(COMPONENT, full_message, message_id, gh_env["GITHUB_PAT"], {})
+        _, pr_url = open_finding_pr(COMPONENT, full_message, message_id, gh_env["GITHUB_PAT"], {}, image_url=image_url)
         _api("POST", f"{GMAIL_API}/messages/{m['id']}/modify", access_token, {"removeLabelIds": ["UNREAD"]})
         opened.append((subject, pr_url))
     except Exception as e:

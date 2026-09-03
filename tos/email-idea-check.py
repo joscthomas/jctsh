@@ -246,6 +246,15 @@ for m in messages:
         opened.append((subject, pr_url))
     except Exception as e:
         print(f"Failed to open PR for '{subject}': {e} -- leaving unread for retry")
+        # CARD-0228: this failure path previously left no trace anywhere
+        # but stdout/journal on the Pi -- the same "looks fine, actually
+        # failed silently" shape CARD-0156 already found and fixed for
+        # the Tasker observation queue. Best-effort itself: a broken MQTT
+        # publish here must never mask the real failure by raising over it.
+        try:
+            _publish_log("Alert", f"Email idea -> kanban PR failed for \"{subject}\": {e}")
+        except Exception as log_e:
+            print(f"(also failed to publish the Alert log line: {log_e})")
 
 for subject, pr_url in opened:
     _publish_log("System", f'Email idea -> kanban PR: "{subject}" -- {pr_url}')

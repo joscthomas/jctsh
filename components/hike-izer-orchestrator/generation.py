@@ -122,6 +122,11 @@ def _post_wildlife_detection(row, file_stem):
         "scientific_name": row["scientific_name"],
         "count": row["count"],
         "best_confidence": row["best_confidence"],
+        # CARD-0235: birdnet.py's own per-detection GPS (when the export
+        # has it) -- None on older exports, same as every other optional
+        # field this pipeline already sends.
+        "lat": row.get("lat"),
+        "lon": row.get("lon"),
     }
     url = _env("APPS_SCRIPT_URL") + "?key=" + _env("APPS_SCRIPT_KEY")
     req = urllib.request.Request(

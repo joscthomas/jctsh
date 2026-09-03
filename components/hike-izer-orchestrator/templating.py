@@ -425,20 +425,31 @@ def _build_event_markers(hike_data, photos_manifest, photos_dir, offset_delta, c
         })
 
     # Bird occurrences -- only present once step 2 has run and staged a real
-    # BirdNET export (same as the existing Wildlife Heard table). Unlike
-    # Photos/Observations, BirdNET never carries any GPS of its own -- each
-    # occurrence's own representative_timestamp gets interpolated against the
-    # GPS track; occurrences too far from any session (interpolate_position()
-    # returning None) are skipped rather than guessed.
+    # BirdNET export (same as the existing Wildlife Heard table). CARD-0235:
+    # newer Survey Mode exports carry a real per-detection lat/lon
+    # (birdnet.py's _occurrence_row() picks the raw detection nearest each
+    # occurrence's own representative_timestamp) -- use that directly when
+    # present, since it's a real GPS fix at the actual moment of detection,
+    # not an estimate. Older exports still have no per-detection GPS at all
+    # (occ["lat"]/occ["lon"] come back None), so this falls back to
+    # interpolating representative_timestamp against the GPS track exactly
+    # as before; occurrences too far from any session either way
+    # (interpolate_position() returning None) are skipped rather than
+    # guessed.
     for occ in (birdnet_occurrences or []):
-        pos = build_hike_map.interpolate_position(chart_series, occ["representative_timestamp"])
-        if pos is None:
-            continue
-        lat, lon = pos
+        if occ.get("lat") is not None and occ.get("lon") is not None:
+            lat, lon = occ["lat"], occ["lon"]
+            location_note = "BirdNET GPS"
+        else:
+            pos = build_hike_map.interpolate_position(chart_series, occ["representative_timestamp"])
+            if pos is None:
+                continue
+            lat, lon = pos
+            location_note = "approximate location"
         tooltip = (
             f'<strong>{_esc(occ["common_name"])}</strong> <em>({_esc(occ["scientific_name"])})</em>'
             f'<br><span class="map-marker-tooltip-meta">{round(occ["best_confidence"] * 100)}% confidence '
-            f'&middot; heard {occ["count"]}x &middot; approximate location</span>'
+            f'&middot; heard {occ["count"]}x &middot; {location_note}</span>'
         )
         markers.append({
             "type": "bird", "lat": lat, "lon": lon,

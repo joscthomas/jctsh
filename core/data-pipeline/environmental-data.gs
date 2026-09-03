@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-02.4-pipeline-log-relay';
+var SCRIPT_VERSION = '2026-09-02.6-wildlife-file-stem-fix';
 
 // ---------------------------------------------------------------------------
 // _relayLog -- CARD-0225: MQTT-dashboard visibility for GPS Track/Hiking
@@ -137,12 +137,33 @@ function doPost(e) {
           wildlifeSheet = ss.insertSheet('Wildlife Detections');
           wildlifeSheet.appendRow([
             'timestamp', 'hike_file_stem', 'common_name', 'scientific_name',
-            'count', 'best_confidence'
+            'count', 'best_confidence', 'lat', 'lon'
           ]);
         }
+        // CARD-0235: lat/lon appended at the end, not inserted mid-schema --
+        // _exportSheet() builds objects by header name, so this is additive
+        // and every existing reader (rebuild_from_sheets(), etc.) is
+        // unaffected. The live sheet predates this change and still has
+        // the old 6-column header -- Joseph adds 'lat'/'lon' to G1/H1
+        // manually once, same as every other no-migration-endpoint sheet
+        // edit this project already relies on him for.
+
+        // CARD-0235: found live -- every bare-date hike_file_stem ("2026-08-29")
+        // was silently getting reinterpreted by Sheets as a real Date cell
+        // (column B has no explicit format, and Sheets auto-detects
+        // date-like text), re-exporting as "2026-08-29T07:00:00.000Z" and
+        // breaking wildlife_life_list.py's rebuild_from_sheets() (groups by
+        // this exact string). Same bug class _maybeCaptureHikeStartForecast()
+        // already guards against for its own date_local column -- same
+        // double defense here: force column B to Plain Text (belt) and
+        // prefix the value with a literal apostrophe (suspenders, in case
+        // this cell was already Date-typed from a prior write and the
+        // format change alone doesn't retroactively fix it).
+        wildlifeSheet.getRange('B:B').setNumberFormat('@');
         wildlifeSheet.appendRow([
-          payload.ts, payload.hike_file_stem, payload.common_name,
-          payload.scientific_name, payload.count, payload.best_confidence
+          payload.ts, "'" + payload.hike_file_stem, payload.common_name,
+          payload.scientific_name, payload.count, payload.best_confidence,
+          payload.lat, payload.lon
         ]);
         // See the comment above this branch -- flush() was chasing the
         // same false write-loss theory as the LockService above. Harmless,

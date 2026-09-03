@@ -12,17 +12,25 @@ nothing here for Claude to identify -- BirdNET Live already did the
 classification on-device).
 
 Real exports (2026-07-29, two actual hikes, Live Mode -- see CARD-0182)
-confirmed the shape: each
-`detections[]` entry has a precise UTC `timestamp`, `commonName`,
-`scientificName`, and `confidence` -- but GPS is session-level only (one
-lat/lon for the whole survey, not per-detection). `parse_detections()`
-still deliberately does no location correlation (Joseph's call, CARD-0080:
-table only, Time column is enough). `parse_occurrences()` (CARD-0133) is
-different -- built for the Route Map's bird markers, which do need a real
-position per sighting: it groups the same raw per-detection timestamps into
-per-occurrence rows, each with a `representative_timestamp` the caller
-interpolates against the GPS track (build_hike_map.interpolate_position())
-to get an approximate location. The model (BirdNET+) classifies
+originally confirmed the shape: each `detections[]` entry had a precise UTC
+`timestamp`, `commonName`, `scientificName`, and `confidence` -- GPS was
+session-level only (one lat/lon for the whole survey, not per-detection).
+That's no longer accurate -- CARD-0235 found a real per-detection
+`latitude`/`longitude` on every detection in a 2026-08-29 Survey Mode
+export (29 distinct coordinate pairs across 39 detections), added by a
+BirdNET Live app update sometime between those two dates. `parse_detections()`
+still deliberately does no location correlation for the per-hike Wildlife
+Heard *table* (Joseph's call, CARD-0080: table only, Time column is
+enough -- that decision stands), but now carries a representative `lat`/`lon`
+per species for the Wildlife Detections *sheet* archive (CARD-0235).
+`parse_occurrences()` (CARD-0133) is built for the Route Map's bird
+markers, which do need a real position per sighting: it groups the same
+raw per-detection timestamps into per-occurrence rows, each now carrying
+its own representative `lat`/`lon` (from the nearest raw detection to
+`representative_timestamp`) when the export has it, falling back to the
+caller interpolating against the GPS track
+(build_hike_map.interpolate_position()) when it doesn't -- older exports
+still have no per-detection GPS at all. The model (BirdNET+) classifies
 amphibians/mammals/insects alongside birds in the same unified taxonomy --
 nothing here filters by taxon (Joseph's call: report everything the model
 reports).
@@ -111,10 +119,16 @@ def parse_detections(staging_dir):
     first-detection time:
 
         {"common_name": ..., "scientific_name": ..., "count": ...,
-         "best_confidence": ..., "first_timestamp": <raw UTC ISO string>}
+         "best_confidence": ..., "first_timestamp": <raw UTC ISO string>,
+         "lat": ..., "lon": ...}
 
-    Output shape unchanged by CARD-0133's refactor -- still consumed by
-    templating.py's birdnet_table_rows() exactly as before."""
+    Output shape extended by CARD-0235 -- lat/lon are the first detection's
+    own coordinates (tracked alongside first_timestamp, same "earlier
+    detection found -> update together" logic), None on older exports that
+    never carried per-detection GPS. templating.py's birdnet_table_rows()
+    still only reads the pre-existing fields (CARD-0080: no location in
+    the Wildlife Heard table) -- lat/lon here exist for the Wildlife
+    Detections sheet archive (generation.py's _post_wildlife_detection())."""
     species = {}  # (common_name, scientific_name) -> accumulator dict
     for det in _load_all_detections(staging_dir):
         key = (det.get("commonName"), det.get("scientificName"))
@@ -125,6 +139,8 @@ def parse_detections(staging_dir):
                 "count": 0,
                 "best_confidence": 0.0,
                 "first_timestamp": det.get("timestamp"),
+                "lat": det.get("latitude"),
+                "lon": det.get("longitude"),
             }
         row = species[key]
         row["count"] += 1
@@ -133,6 +149,8 @@ def parse_detections(staging_dir):
             not row["first_timestamp"] or det["timestamp"] < row["first_timestamp"]
         ):
             row["first_timestamp"] = det["timestamp"]
+            row["lat"] = det.get("latitude")
+            row["lon"] = det.get("longitude")
 
     return sorted(species.values(), key=lambda r: r["first_timestamp"] or "")
 
@@ -147,12 +165,23 @@ def _parse_ts(iso_ts):
 def _occurrence_row(common_name, scientific_name, dets):
     start, end = _parse_ts(dets[0]["timestamp"]), _parse_ts(dets[-1]["timestamp"])
     midpoint = start + (end - start) / 2
+
+    # CARD-0235: lat/lon come from whichever raw detection in this run is
+    # closest in time to the same midpoint already used for
+    # representative_timestamp -- one real, traceable fix, not a synthetic
+    # average. None on older exports with no per-detection GPS at all;
+    # templating.py falls back to interpolate_position() in that case,
+    # exactly as it always has.
+    nearest = min(dets, key=lambda d: abs(_parse_ts(d["timestamp"]) - midpoint))
+
     return {
         "common_name": common_name,
         "scientific_name": scientific_name,
         "count": len(dets),
         "best_confidence": max(d.get("confidence", 0.0) for d in dets),
         "representative_timestamp": midpoint.isoformat().replace("+00:00", "Z"),
+        "lat": nearest.get("latitude"),
+        "lon": nearest.get("longitude"),
     }
 
 

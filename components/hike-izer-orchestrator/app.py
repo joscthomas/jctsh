@@ -75,7 +75,7 @@ def log(message):
     print(f"[{ts}] {message}", flush=True)
 
 
-def _log_mqtt_async(category, message):
+def _log_mqtt_async(category, message, component=None):
     # Fire-and-forget, off the request-handling thread -- an MQTT publish
     # takes up to 5s (mqtt_log.py's own wait_for_publish timeout) and must
     # never add latency to a webhook response or delay server startup.
@@ -87,7 +87,7 @@ def _log_mqtt_async(category, message):
     # lifecycle.
     def _send():
         try:
-            mqtt_log.publish_log(category, message)
+            mqtt_log.publish_log(category, message, component=component)
         except Exception as e:
             log(f"mqtt_log publish failed: {e}")
 
@@ -120,6 +120,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parts.path == "/webhook/edit-observation":
             self._handle_edit_observation(parts)
+            return
+        if parts.path == "/webhook/pipeline-log":
+            self._handle_pipeline_log(parts)
             return
         self._respond(404, {"status": "error", "message": "not found"})
 
@@ -483,6 +486,46 @@ class Handler(BaseHTTPRequestHandler):
             f'Observation edited on {file_stem}: "{text}"' + ("" if patched else " (overrides saved, but the live page's matching row wasn't found to patch)"),
         )
         self._respond(200, {"status": "ok", "patched_live_page": patched})
+
+    def _handle_pipeline_log(self, parts):
+        """CARD-0225: relay for pipelines Apps Script runs that can't reach
+        MQTT directly -- Google Apps Script has no MQTT client capability
+        at all (UrlFetchApp only, no raw sockets), and Node-RED's own
+        HTTP-in port (1880) has no public path in either -- only MQTT port
+        1883 is forwarded to the internet (CLAUDE.md's "MQTT broker
+        internet exposure" section). This orchestrator already has both a
+        public HTTPS surface (hikes.jctnet.com) and its own working MQTT
+        connection, so it relays instead of this project standing up new
+        public exposure just for Node-RED. Pure pass-through -- component
+        is caller-supplied (not always "hike-izer-orchestrator" like every
+        other _log_mqtt_async call here), so GPS Track/Hiking Observations/
+        Hike Start Forecast show up on the dashboard as their own pipeline,
+        not lumped under this container's identity."""
+        if not self._authorized(parts):
+            log("Rejected pipeline-log POST: missing or incorrect key")
+            _log_mqtt_async("Alert", "Pipeline-log webhook POST rejected: missing or incorrect key.")
+            self._respond(401, {"status": "error", "message": "unauthorized"})
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length else b""
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            log(f"Rejected pipeline-log POST: invalid JSON body ({raw!r})")
+            self._respond(400, {"status": "error", "message": "invalid JSON"})
+            return
+
+        component = (payload.get("component") or "").strip()
+        category = (payload.get("category") or "").strip()
+        message = (payload.get("message") or "").strip()
+        if not component or category not in ("System", "Alert") or not message:
+            log(f"Rejected pipeline-log POST: missing/invalid fields (payload={payload!r})")
+            self._respond(400, {"status": "error", "message": "component, category (System/Alert), and message are required"})
+            return
+
+        _log_mqtt_async(category, message, component=component)
+        self._respond(200, {"status": "ok"})
 
     def _respond(self, status, body):
         data = json.dumps(body).encode()

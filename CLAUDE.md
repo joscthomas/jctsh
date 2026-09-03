@@ -62,7 +62,7 @@ jctsh/
 | Component | Role |
 |---|---|
 | **ESP32 / ESPHome** | Edge sensor. Reads physical hardware (distance, temperature, contact, etc.) and publishes readings to MQTT. No logic beyond "take a reading and report it." |
-| **Mosquitto MQTT broker** | Message bus. Decouples every component from every other. Nothing talks directly to anything else — everything publishes to a topic and subscribes to topics. |
+| **Mosquitto MQTT broker** | Message bus for components that need it — decouples a publisher from an unknown/multiple set of consumers. Not every component talks through it: see "MQTT vs. Direct HTTP" below. |
 | **Node-RED** | The brain. Subscribes to MQTT topics, applies logic (thresholds, timing, transformations), triggers actions, and publishes results. Also routes sensor log messages to the Python log server. |
 | **Python log server** | The record keeper. Receives log messages and makes them browsable at `http://pi1.local/`. Provides persistent history of what every component has reported. |
 | **Home Assistant** | Integration layer only — not logic. Bridges the local JCTsh ecosystem to SmartThings → Google Home, Pixels, and voice control. |
@@ -97,6 +97,14 @@ Physical world
 Every component produces two message streams:
 - **Data flow** — `jctsh/<type>/<component>/<message-type>` — sensor readings and state that drive automations.
 - **Log flow** — `jctsh/<type>/<component>/log` — diagnostic and status messages routed by Node-RED to the Python log server for visibility and troubleshooting.
+
+### MQTT vs. Direct HTTP
+
+**CARD-0225, 2026-09-02 — the governing principle, written down here for the first time.** MQTT earns its place when a message needs fan-out to multiple (or future unknown) consumers — the ESP32 sensor pattern above, one message consumed by Node-RED for Sheets + Weather Underground + HA/SmartThings all at once. Direct HTTP is used where there's a fixed one-producer-one-consumer relationship — every phone-based intake pipeline talking straight to its one Google Apps Script/webhook endpoint, no broker involved:
+- **Hiking Observations** (Tasker voice note → Apps Script `doPost`) and **GPS Track** (GPSLogger → Apps Script `action=gps`) — both Apps-Script-backed. Google Apps Script has no MQTT client capability at all (`UrlFetchApp` only, no raw sockets), so these can never publish to MQTT directly under any circumstance.
+- **Idea Tasker** (Tasker "Log Idea" widget → `hike-izer-orchestrator`'s `/webhook/idea`) — the orchestrator is a long-running Docker container with its own MQTT account, so this one *could* use MQTT, but there's still only one producer and one consumer — direct HTTP is simpler and was already built that way.
+
+Since Apps Script can't reach MQTT, and Node-RED's own HTTP-in port (1880) has no public path in (only MQTT port 1883 is forwarded to the internet — see "MQTT broker internet exposure" below), GPS Track/Hiking Observations/Hike Start Forecast get MQTT-dashboard visibility via a relay instead: they POST to `hike-izer-orchestrator`'s `/webhook/pipeline-log` (already has a public HTTPS surface via the Cloudflare Tunnel, `hikes.jctnet.com`, and its own MQTT connection), which republishes to the log topic on their behalf.
 
 ## Environmental Data Architecture
 

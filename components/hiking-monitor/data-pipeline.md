@@ -29,7 +29,7 @@ Google Sheets "JCTsh Environmental Data"
     └── Hiking Observations sheet (future)
 ```
 
-Node-RED also publishes a log message to MQTT confirming each row appended.
+Node-RED publishes a log message to MQTT on error only, not on every successful append — corrected 2026-09-02 (CARD-0225) after checking the actual deployed flow (`core/data-pipeline/environmental-data.flow.json`, `Check response` function): it returns null (no log) whenever the Apps Script write succeeds, and only builds a message for the two failure paths (`resp.status !== 'ok'`, or the sheet URL being unreachable).
 
 ---
 

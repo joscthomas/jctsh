@@ -228,7 +228,7 @@ Observations publish to `jctsh/components/hiking-observations/data` using this s
 | `lat`, `lon` | Always null — timestamp correlation to GaiaGPS track used for position |
 | `observation` | Full transcript text with keyword prefix stripped |
 | `categories` | Array of matched categories — computed by Apps Script keyword scan, not entered manually |
-| `source` | Always `voice` for Google Recorder; reserved for future observation types |
+| `source` | Always `voice` (Tasker's on-device "Get Voice" transcription); reserved for future observation types |
 
 ### Keyword Trigger
 
@@ -270,43 +270,16 @@ The `timestamp` column is the join key across all three data streams:
 - **GaiaGPS track:** GPX trackpoint timestamps correlated manually or via export tool
 - All three streams together give: where you were + what conditions were + what you observed
 
-### Implementation Paths
+### Implementation (as actually built, CARD-0156 — corrected 2026-09-02, CARD-0225)
 
-**Path A — Manual share to Google Docs (starting point)**
+The two-path Google Recorder/Drive-folder design below was the original plan; it was never built. What actually shipped is simpler and has no MQTT step at all:
 
-1. Make observation recordings on the trail beginning with "observation"
-2. After the hike, in Google Recorder, share each relevant transcript to Google Docs (one tap per recording)
-3. Shared Docs land in a designated Drive folder (`JCTsh Hiking Observations`)
-4. Google Apps Script runs on a schedule (every 15 minutes or triggered by new file in folder)
-5. Script checks each new Doc for keyword prefix, extracts text, strips prefix, captures creation timestamp, assigns categories, appends row to Hiking Observations sheet, publishes to MQTT
-6. Node-RED wildcard handler receives and logs
+1. Tap the "Log Observation" widget on the Pixel — Tasker's **Get Voice** action transcribes on-device, no manual share step, no Drive folder, no keyword prefix required (the widget tap itself is the intent signal).
+2. The transcript is written to a small on-device queue file (resilient to connectivity gaps, CARD-0156) and flushed via a direct **HTTP POST** to the Apps Script endpoint (`doPost`, `component: "hiking-observations"`) — as soon as the phone is online, no polling, no scheduled trigger.
+3. `doPost` itself does the keyword-taxonomy category scan, builds the row, and appends directly to the Hiking Observations sheet — there is no separate "Apps Script processor" triggered by a Drive file or an MQTT message; it's one function, one write.
+4. Google Apps Script has no MQTT client capability at all (`UrlFetchApp` only, no raw sockets) — this pipeline is direct HTTP end to end, matching GPS Track's own shape. See `CLAUDE.md`'s "MQTT vs. Direct HTTP" section for why that's the correct shape, not a gap.
 
-Path A is the correct starting point — reliable, no Tasker dependency, no undocumented API access. The manual share step is a deliberate review moment before observations enter the permanent record.
-
-**Path B — Tasker automation on WiFi reconnect (future enhancement)**
-
-1. Make observation recordings on the trail — no manual action needed
-2. Tasker profile fires when phone reconnects to JCTnet1 WiFi after a hike
-3. Tasker scans Google Recorder transcripts via Android content provider
-4. Filters new recordings since last sync time beginning with "observation"
-5. Publishes transcript text and recording timestamp directly to MQTT
-6. Same downstream processing as Path A — Node-RED routes to Apps Script → Sheets
-
-Path B eliminates the manual share step entirely. It depends on Tasker's ability to access Google Recorder's content provider on the Pixel 10 Pro — this requires testing before committing. Build Path A first; upgrade to Path B once Path A is proven.
-
-### Apps Script Processor Responsibilities
-
-The Apps Script processor (separate from the Sheets archive endpoint) handles observation processing:
-
-1. Triggered by new file in `JCTsh Hiking Observations` Drive folder (Path A) or by MQTT message (Path B)
-2. Reads transcript text
-3. Checks for "observation" keyword prefix — ignores if absent
-4. Strips keyword prefix from observation text
-5. Captures creation timestamp from file metadata (Path A) or MQTT payload (Path B)
-6. Scans text against category taxonomy — assigns all matching categories
-7. Builds JSON payload
-8. Appends row to Hiking Observations sheet
-9. Publishes to `jctsh/components/hiking-observations/data` via MQTT (Path A only — Path B publishes before Apps Script)
+Full build detail — every real-device quirk, the offline-queue design, the two auto-flush triggers — is `components/hiking-monitor/observations-pipeline.md`, the authoritative current-state reference. (The original "Path A: manual Drive-folder share" / "Path B: Tasker → MQTT" two-phase plan this section used to describe was superseded before either was built — CARD-0156 built the direct-HTTP design above instead.)
 
 ---
 

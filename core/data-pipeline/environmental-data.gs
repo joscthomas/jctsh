@@ -14,7 +14,42 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-02.3-wildlife-detections-flush';
+var SCRIPT_VERSION = '2026-09-02.4-pipeline-log-relay';
+
+// ---------------------------------------------------------------------------
+// _relayLog -- CARD-0225: MQTT-dashboard visibility for GPS Track/Hiking
+// Observations/Hike Start Forecast, none of which can reach a broker
+// directly. Apps Script runs on Google's own servers and has no MQTT
+// client capability at all (UrlFetchApp only, no raw sockets) -- and
+// Node-RED's own HTTP-in port (1880) has no public path in either, only
+// MQTT port 1883 is forwarded to the internet (CLAUDE.md's "MQTT broker
+// internet exposure" section). hike-izer-orchestrator already has both a
+// public HTTPS surface (hikes.jctnet.com, Cloudflare Tunnel) and its own
+// working MQTT connection, so it relays on these pipelines' behalf
+// instead of this project standing up new public exposure just for
+// Node-RED. ORCHESTRATOR_WEBHOOK_KEY is a Script Property (Project
+// Settings), same value as the orchestrator's own WEBHOOK_SECRET
+// (credentials.local.md) -- not hardcoded here for the same reason API_KEY
+// isn't. Fire-and-forget and self-contained: every failure mode (not yet
+// configured, network error, non-200) is swallowed internally so a relay
+// hiccup can never break the actual GPS/observation/forecast write --
+// callers don't need their own try/catch around this.
+var ORCHESTRATOR_PIPELINE_LOG_URL = 'https://hikes.jctnet.com/webhook/pipeline-log';
+
+function _relayLog(component, category, message) {
+  try {
+    var key = PropertiesService.getScriptProperties().getProperty('ORCHESTRATOR_WEBHOOK_KEY');
+    if (!key) return; // not configured yet -- silently skip, never block the caller
+    UrlFetchApp.fetch(ORCHESTRATOR_PIPELINE_LOG_URL + '?key=' + encodeURIComponent(key), {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({component: component, category: category, message: message}),
+      muteHttpExceptions: true
+    });
+  } catch (err) {
+    console.error('_relayLog failed: ' + err.toString());
+  }
+}
 
 // ---------------------------------------------------------------------------
 // doPost — environmental sensor data (Node-RED → Sheets)
@@ -70,6 +105,9 @@ function doPost(e) {
 
       var obsCoords = _gpsLookup(ss, ts);
       obsSheet.appendRow([ts, obsText, JSON.stringify(categories), payload.source || 'voice', obsCoords.lat, obsCoords.lon]);
+      // CARD-0225: this pipeline has no MQTT presence otherwise -- see
+      // _relayLog's own comment for why a relay is needed at all.
+      _relayLog('hiking-observations', 'System', 'Logged hiking observation.');
 
     } else if (payload.component === 'wildlife-detection') {
       // CARD-0229: one row per species per hike -- generation.py posts one
@@ -522,7 +560,16 @@ var SESSION_GAP_MIN = 10;
 
 function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
   try {
-    if (coords.lat === null || coords.lon === null) return;
+    // CARD-0225: per this function's own header comment, a real GPS Track
+    // point always has resolved coordinates -- reaching this branch means
+    // something malformed got through, worth flagging distinctly from the
+    // ordinary "continuing an existing session" skip just below (which
+    // fires on nearly every GPS point and would flood the dashboard if
+    // logged at all).
+    if (coords.lat === null || coords.lon === null) {
+      _relayLog('hike-start-forecast', 'Alert', 'Forecast capture skipped: missing coordinates.');
+      return;
+    }
 
     // CARD-0115: session-gap check first, before any sheet writes or the
     // Open-Meteo call -- cheap way to avoid both wasted API calls and (the
@@ -539,6 +586,14 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
       var gapMin = (new Date(tsISO).getTime() - new Date(prevTs).getTime()) / 60000;
       if (gapMin <= SESSION_GAP_MIN) return; // continuing an existing session
     }
+
+    // CARD-0225: GPS Track's own success confirmation piggybacks on this
+    // exact session-gap check rather than logging every single point (one
+    // lands every ~30s for a hike's whole duration -- logging each would
+    // flood the dashboard for zero benefit). This is the only place that
+    // already knows "a new session just started" without re-reading the
+    // sheet a second time.
+    _relayLog('gps-track', 'System', 'New GPS session started.');
 
     var forecastSheet = ss.getSheetByName('Hike Start Forecast');
     if (!forecastSheet) {
@@ -560,12 +615,16 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
     var resp = UrlFetchApp.fetch(url, {muteHttpExceptions: true});
     if (resp.getResponseCode() !== 200) {
       console.error('Open-Meteo request failed: HTTP ' + resp.getResponseCode());
+      _relayLog('hike-start-forecast', 'Alert', 'Forecast capture failed: Open-Meteo HTTP ' + resp.getResponseCode() + '.');
       return;
     }
 
     var body = JSON.parse(resp.getContentText());
     var hourly = body.hourly;
-    if (!hourly || !hourly.time || hourly.time.length === 0) return;
+    if (!hourly || !hourly.time || hourly.time.length === 0) {
+      _relayLog('hike-start-forecast', 'Alert', 'Forecast capture failed: Open-Meteo response had no hourly data.');
+      return;
+    }
 
     // Real UTC offset (seconds) for the hike's own coordinates, as resolved
     // by Open-Meteo's `timezone=auto` -- replaces the old fixed -07:00.
@@ -596,9 +655,11 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
       hourly.uv_index[idx],
       'open-meteo'
     ]);
+    _relayLog('hike-start-forecast', 'System', 'Captured hike-start forecast for ' + dateLocal + '.');
   } catch (err) {
     // Never let a forecast-capture failure break observation logging.
     console.error('Forecast capture failed: ' + err.toString());
+    _relayLog('hike-start-forecast', 'Alert', 'Forecast capture failed: ' + err.toString());
   }
 }
 

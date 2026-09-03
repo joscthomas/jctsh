@@ -20,14 +20,20 @@ COMPONENT = "hike-izer-orchestrator"
 TOPIC = "jctsh/hike-izer/publish/log"
 
 
-def publish_log(category, message):
+def publish_log(category, message, component=None):
+    """CARD-0225: component defaults to this container's own identity
+    (every existing call site) but can be overridden -- the new
+    /webhook/pipeline-log relay forwards GPS Track/Hiking Observations/
+    Hike Start Forecast log lines through this same MQTT connection, and
+    those should show up on the dashboard tagged as their own pipeline,
+    not lumped under "hike-izer-orchestrator"."""
     username = os.environ.get("MQTT_USERNAME")
     password = os.environ.get("MQTT_PASSWORD")
     if not username or not password:
         print(f"[mqtt_log] MQTT_USERNAME/MQTT_PASSWORD not set -- skipping publish: {message}", flush=True)
         return
 
-    payload = json.dumps({"component": COMPONENT, "category": category, "message": message})
+    payload = json.dumps({"component": component or COMPONENT, "category": category, "message": message})
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.username_pw_set(username, password)

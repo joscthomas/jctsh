@@ -9,7 +9,83 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0236 -->
+<!-- next-card-id: CARD-0239 -->
+
+---
+
+### CARD-0238 · [enhancement] [infrastructure] M8 OS maintenance: 25 routine updates, 10 flagged for review — includes Docker itself and linux-firmware — RESOLVED 2026-09-02
+**Status:** Done
+
+**Raised via automated maintenance finding (PR #57, photo-server), 2026-09-01** — the M8's monthly OS/firmware maintenance check (CARD-0095). Full finding: *"M8 maintenance: 25 routine update(s) pending. 10 package(s) need review: containerd.io, docker-buildx-plugin, docker-ce, docker-ce-cli, docker-ce-rootless-extras, docker-compose-plugin, linux-firmware-intel-misc, linux-firmware-mediatek, linux-firmware-misc, linux-firmware-qualcomm-wireless."*
+
+**Why the 10 are flagged, not just noise:** CARD-0095's own risk-tiering (`hosts/m8/maintenance-check.py`, `REVIEW_PATTERNS`) pulls out exactly two categories for deliberate human review rather than auto-lumping with the routine 25 — Docker-stack packages (a daemon restart touches every running container on the host) and kernel/firmware packages (why a reboot becomes required). This finding hits **both** categories at once, on a host that's currently running a lot of this session's own new/recently-touched infrastructure: `hike-izer-orchestrator` (CARD-0121's new backstop check, CARD-0227's new webhook route), `photo-server`/Immich, `netalertx`, `ring-mqtt`, and `cloudflared` (the tunnel CARD-0227's image hosting now depends on).
+
+**Not a routine "just apply it" case, unlike CARD-0233/netalertx/cloudflared siblings raised the same week.** A Docker engine/CLI/compose-plugin update means every container on the M8 gets touched by the daemon restart, not just one — real blast radius across this host's whole stack, not an isolated per-service bump. `linux-firmware` updates typically require a reboot to actually take effect (dead firmware blobs otherwise), which is its own separate, deliberate step per `jctsh-network.md`'s Scheduled Maintenance Windows convention (M8's own reboot is already a tracked weekly Monday 4am job).
+
+**Interviewed 2026-09-02 — decision: batch with the M8's next regular Monday reboot (2026-09-07), not a separate window.** Joseph's call: no known CVE flagged in this finding (just routine version availability), so there's no urgency pushing toward sooner — one combined disruption beats two.
+
+**Real finding that narrows the actual action needed, checked directly rather than assumed:** the M8's own `unattended-upgrades` config (`/etc/apt/apt.conf.d/50unattended-upgrades`) only covers `Allowed-Origins` for the OS's own default archive + security repos (`${distro_id}:${distro_codename}[-security]`) — **Docker's packages (`docker-ce`, `containerd.io`, `docker-buildx-plugin`, `docker-ce-cli`, `docker-ce-rootless-extras`, `docker-compose-plugin`) come from Docker's own separate third-party APT origin, not in that list**, so they genuinely won't apply themselves; a deliberate `apt upgrade` is required. `linux-firmware-*`, by contrast, ships from the standard OS archive and isn't blacklisted (`Package-Blacklist`'s own `linux-` entry is commented out, i.e. disabled) — it's very likely already being auto-applied by `unattended-upgrades` on its own schedule and just sitting "pending, needs reboot" until Monday, no separate action needed for that half. **So the real remaining action is narrower than the original finding suggested: just the six Docker-stack packages**, applied manually.
+
+**Plan for 2026-09-07:** shortly before (or immediately as part of) the scheduled 4:00 AM reboot window, run `apt upgrade` for the six Docker-stack packages on the M8 — this will restart the Docker daemon (and every container with it) once, immediately followed by the already-scheduled OS reboot moments later, functionally one combined maintenance window rather than two disruptions on different days. Verify live afterward: every container on the M8 (Immich's four, NetAlertX, hike-izer-web, hike-izer-orchestrator, ring-mqtt, cloudflared) confirmed healthy post-restart via `docker ps`, not just "the commands exited 0."
+
+**Superseded same day — Joseph's call: don't wait for Monday, do the combined window today (2026-09-02) instead.** Same rationale as the original plan (one combined disruption beats two), just moved up rather than waiting five days. CARD-0236 (NetAlertX) and CARD-0237 (cloudflared) were folded into this same window at Joseph's request too, since it was already a deliberate M8-wide maintenance pass.
+
+**Sequence actually run, in order:**
+1. Published a manual pre-maintenance MQTT notice (`jctsh/server/photo-server/log`, same mechanism `scheduled-reboot.service` uses) so it's visible on the dashboard the same way the automatic weekly one is.
+2. Ran `apt-get update && apt-get upgrade -y` for **all 35 pending packages** (not just the 6 Docker-stack ones the original plan scoped) — detached via `nohup`, since CARD-0233's earlier same-day attempt had already shown a plain inline `ssh host "long command"` can die silently if the connection drops mid-run. Completed clean, exit 0.
+3. Updated `cloudflared` (CARD-0237) and `netalertx` (CARD-0236) via their own `docker compose pull/up`.
+4. Rebooted the M8.
+
+**Real process gap, caught by Joseph, not self-caught — worth being honest about.** Step 2 ran as a blanket `apt-get upgrade -y` without first reading release notes for the specific packages flagged for review (Docker Engine, `linux-firmware-*`) — skipping exactly the "check before applying" discipline this card's own plan called for and CARD-0233 had already established for Home Assistant. Caught only when Joseph asked directly: *"Did you do the research on all these upgrades to confirm risk level?"* Answered honestly (no, not for these), then did the check **retroactively**, after the fact:
+- **Docker Engine: 29.7.1 → 29.7.2** (confirmed via `docker version` + the actual install log) — a single patch release. Checked Docker's own changelog: purely bugfixes (two regressions from 29.7.0 fixed — image pulls with absolute hardlink targets, `docker cp`/permission handling on older kernels — plus a `docker service create/update` panic fix, a BuildKit bump, an nftables compatibility tweak). No breaking changes.
+- **`linux-firmware-*` (all four flagged packages):** confirmed via the install log that all four moved from the same firmware snapshot date (`20260319.git217ca6e4`) to a `.2`/`.1.2` *packaging* revision only — not a new firmware snapshot. Confirmed via Ubuntu's own `apt-get changelog`: the revision bump added one missing firmware blob for HP ISH on Intel Panther Lake systems (not this M8's hardware) plus a copyright-file cleanup. No functional firmware content changed.
+- Both checks came back clean, but this was luck confirmed after the fact, not diligence applied before acting — a real gap, not a non-issue just because it worked out. Noted for next time: don't let "it's bundled into a broader apt upgrade" be a reason to skip checking the specific packages a risk-tiering system already flagged for review.
+
+**Verified live, post-reboot:** all 9 M8 containers (`netalertx`, `hike-izer-cloudflared`, `hike-izer-web`, `hike-izer-orchestrator`, `ring-mqtt`, `immich_server`, `immich_machine_learning`, `immich_postgres`, `immich_redis`) confirmed `Up`/`healthy` via `docker ps`. `https://hikes.jctnet.com/` returned 200 both before and after. Dashboard shows the full expected sequence: pre-reboot notice → `"Boot complete."` → a transient `Alert` for Immich/hike-izer services `:starting` during the boot window (expected, resolved within the same check) → all healthy.
+
+**Done when:** the flagged packages are upgraded, verified live post-reboot — **met**, moved up to 2026-09-02 rather than 2026-09-07.
+
+**Related:** `hosts/m8/maintenance-check.py` (`REVIEW_PATTERNS`, CARD-0095's own risk-tiering reasoning), `jctsh-network.md` (Scheduled Maintenance Windows — M8's existing weekly reboot slot), `hosts/m8/operations.md` (the scheduled-reboot mechanism this borrowed its MQTT-notice convention from), CARD-0233 (the Home Assistant update this session, same evaluate-then-update discipline — the one this card's own execution fell short of, then corrected), CARD-0236/CARD-0237 (folded into this same window).
+
+---
+
+### CARD-0237 · [enhancement] [infrastructure] cloudflared container update available: 2026.8.2 → 2026.8.3 — RESOLVED 2026-09-02
+**Status:** Done
+
+**Raised via automated maintenance finding (PR #55, photo-server), 2026-09-01** — routine container-version-bump finding, same shape as CARD-0233's Home Assistant finding.
+
+**Checked before deciding, not assumed safe:** `cloudflared`'s own GitHub release notes for 2026.8.3 (`cloudflare/cloudflared`, automated `cloudflare-warp-bot` release) — no changelog body, just build checksums, consistent with how this project's routine automated releases normally look (no flagged breaking changes or notable fixes called out).
+
+**Real reason to still be a little careful, unlike a fully isolated bump:** this is the Cloudflare Tunnel client that `hikes.jctnet.com` runs through — the same tunnel CARD-0227 built its whole idea-image hosting feature on this session (`/webhook/idea-image`, served from the same `srv/` directory Caddy roots at). A tunnel restart is brief but real — anything hitting `hikes.jctnet.com` (Tasker's `/webhook/idea`, the idea-image upload path, the public hike pages themselves) would see a short interruption during the restart, not silent risk otherwise.
+
+**Plan:** `docker compose pull cloudflared && docker compose up -d cloudflared` in `~/hike-izer-web-app/` on the M8 (same compose project as `web`/`orchestrator`, per `components/hike-izer-web/README.md`), verify live afterward — `docker logs` shows "Registered tunnel connection" with no errors, and `curl https://hikes.jctnet.com/` still returns 200.
+
+**Folded into the same 2026-09-02 M8 maintenance window as CARD-0238, at Joseph's request, rather than waiting.** Pulled and recreated cleanly — `docker compose up -d cloudflared` also recreated `hike-izer-web` (same compose project, expected). Verified live: `curl https://hikes.jctnet.com/` returned 200 both immediately after the update and again after the M8's reboot; `hike-izer-cloudflared` shows healthy/running in `docker ps` post-reboot alongside all 8 other containers.
+
+**Done when:** updated and verified live (tunnel reconnects cleanly, site still reachable) — **met**.
+
+**Related:** `components/hike-izer-web/README.md` (the Cloudflare Tunnel setup this updates), CARD-0227 (the idea-image feature this tunnel now also serves), CARD-0233/CARD-0236/CARD-0238 (the same 2026-09-02 M8 maintenance window this was folded into).
+
+---
+
+### CARD-0236 · [enhancement] [infrastructure] NetAlertX container update available: 26.8.5 → v26.9.0 — RESOLVED 2026-09-02
+**Status:** Done
+
+**Raised via automated maintenance finding (PR #59, photo-server), 2026-09-02** — routine container-version-bump finding, same shape as CARD-0233/CARD-0237.
+
+**Checked before deciding, not assumed safe — a real breaking change found, but confirmed not applicable here.** v26.9.0's own release notes (`netalertx/NetAlertX` on GitHub) flag one breaking change: the plugins directory moved from `/front/plugins` to `/server/plugins` — "if you use custom plugin mappings in your docker-compose files, you will need to update them." Checked JCTsh's actual `components/netalertx/docker-compose.yml` directly: only two volume mounts exist (`./data:/data`, `/etc/localtime:/etc/localtime:ro`) — **no custom plugin path mapping at all**, so this breaking change doesn't apply to this deployment.
+
+**Also checked, given a "NetAlertX v26.9.0 exploit" forum thread surfaced in the same search:** the referenced CVEs (CVE-2024-46506 unauthenticated RCE, CVE-2024-48766 file read, CVE-2025-32440/CVE-2025-48952 auth bypass) are all old, already fixed well before the currently-running 26.8.5 (fixed versions: 24.10.12, 25.4.14, 25.6.7) — not new to v26.9.0, not a live concern either way.
+
+**Other changes in this release:** a versioning-scheme shift (CalVer, cosmetic), new multi-instance Pi-hole/AdGuard/UniFi features (not used by this deployment), network-map visual updates, several notification/timezone/theme bugfixes — nothing else flagged as breaking.
+
+**Plan:** `docker compose pull netalertx && docker compose up -d netalertx` in `components/netalertx/` on the M8, verify live — dashboard reachable, device list intact, no new errors in `docker logs`.
+
+**Folded into the same 2026-09-02 M8 maintenance window as CARD-0238, at Joseph's request, rather than waiting.** `docker compose pull netalertx && docker compose up -d netalertx` run in `~/netalertx-app/` (the actual deploy path, not the repo path in the plan above), pulled cleanly, container recreated. Verified live post-reboot: `netalertx` shows `Up ... (healthy)` in `docker ps` alongside all 8 other M8 containers.
+
+**Done when:** updated and verified live — **met**.
+
+**Related:** `components/netalertx/docker-compose.yml` (confirmed no custom plugin mapping), CARD-0233/CARD-0237/CARD-0238 (the same 2026-09-02 M8 maintenance window this was folded into).
 
 ---
 
@@ -117,7 +193,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0229 · [idea] [hike-izer] Review BirdNET data architecture — storage and MQTT messaging
-**Status:** Backlog
+**Status:** Planning
 
 **Raised via idea email (PR #47, joscthomas+kbc@gmail.com), 2026-08-29** — voice-to-text mangled the original finding text to "where does the birthday to get stored" ("BirdNET" misheard). Confirmed with Joseph: the actual ask is a data-architecture review of BirdNET, same lens as CARD-0225's MQTT/docs-accuracy pass — where the data is stored, and how (or whether) it's represented in MQTT messaging — not a one-line factual answer. Deliberately not dug into in depth yet ("we'll deal with these later") — this card captures what's already been found so a later session doesn't re-derive it, plus the actual open question.
 
@@ -136,11 +212,30 @@ Another instance of the "Tasker → direct HTTP webhook" family (like the Idea T
 
 **Real difference from CARD-0225's three pipelines, found while reading `app.py`: this one already has MQTT log visibility, at least partially.** `_handle_stage_file()` calls `_log_mqtt_async(...)` (via `mqtt_log.py`, `jctsh/hike-izer/publish/log`) on both success (`"Staged {kind} file for {file_stem}."`) and every rejection path (missing key, invalid kind, empty body, no matching hike, write failure) — so this pipeline isn't blind on the dashboard the way Hiking Observations/GPS Track/email-idea-check.py were. Whether that existing logging is actually *sufficient* for a real architecture review (does it cover the per-hike parse step and the life-list JSON update, or only the webhook receipt itself?) is exactly what's still open — not yet checked.
 
-**Open for the actual review, not yet done:**
-1. Does anything log the outcome of `birdnet.py`'s parse step itself (species found, parse failures) — or only the webhook receipt?
-2. Does `wildlife_life_list.update_from_hike()` (the JSON write) have any visibility, or is a failure there silent?
-3. Should BirdNET data ever appear in the `jctsh/<type>/<component>/data` topic namespace the way ESP32 environmental sensors do, or is "baked into the static hike page + a persisted JSON file, no live topic" the correct shape for this kind of data (parsed once, after the fact, not a live stream)?
-4. Is `/srv/hike-izer-private/wildlife_life_list.json` the right long-term store, or does it have the same durability/backup questions raised elsewhere in this project for non-Sheets, non-repo persisted state?
+**Review done 2026-09-02 — all four questions answered by reading the actual code, not inferred:**
+
+**1. Parse-step outcome: not logged at all, confirmed.** `birdnet.py`'s `_load_export()` silently swallows `OSError`/`json.JSONDecodeError`/`zipfile.BadZipFile` and returns `None` on any corrupted or unreadable export — `_load_all_detections()` just `continue`s past it, no logging anywhere. `_load_all_detections()` itself also silently returns `[]` if the staging directory doesn't exist or nothing staged is a real BirdNET export. **Real, confirmed gap:** a genuinely corrupted BirdNET export (a truncated zip from a bad phone upload, say) produces an empty "Wildlife Heard" table on the published page — byte-for-byte indistinguishable from a hike where no birds were actually heard. No trace on the dashboard, no way to tell the two cases apart after the fact.
+
+**2. `wildlife_life_list.update_from_hike()`: not logged either, and this one is a real data-loss risk, not just an observability gap.** `wildlife_life_list.load()` catches `FileNotFoundError` *and* `json.JSONDecodeError`, both silently returning `{}`. The write side (`update_from_hike()`) is **not atomic** — `open(path, "w")` truncates the file immediately, then `json.dump()` writes fresh content directly, no temp-file-plus-rename. If the orchestrator process dies mid-write (a real scenario — this container gets rebuilt/restarted routinely, including several times this session), the file is left truncated. The *next* hike's `update_from_hike()` call would then hit that truncated file, `load()`'s own fallback would silently treat it as an empty life list, and the entire cross-hike history (every species' first-heard date, every hike it's been heard on) would silently start over from zero — no error, no warning, nowhere.
+
+**3. Should BirdNET data appear in the `jctsh/<type>/<component>/data` topic namespace? No — the current shape is actually correct, not a gap.** Unlike ESP32 environmental sensors (a live 30-second-interval stream Node-RED's wildcard handler consumes for Sheets/WU/HA in near-real-time), BirdNET data is parsed once, after the fact, from a batch export file staged well after the hike ends — there's no "live" moment for it to stream into, and nothing downstream would benefit from a topic that only ever fires once per hike. "Baked into the static page + the persisted life-list JSON, no live topic" matches the nature of this data. This is a judgment call, not a certainty — flagging for confirmation rather than closing outright.
+
+**4. Is `/srv/hike-izer-private/wildlife_life_list.json` (and the private dir generally) durable? No — confirmed, and worse than just this one file.** Checked the M8's actual backup coverage (`components/photo-server/backup.md`): the weekly rsync backup only covers `/mnt/photo-library/` (Immich's library). **`/srv/hike-izer-private/` — the wildlife life list *and* every hike's own persisted `hike_data.json` — has zero backup coverage of any kind.** Combined with finding #2's non-atomic write, this is the real headline finding of this review: a single ill-timed container restart could silently wipe the entire cross-hike wildlife history, with no backup to recover from and no log line marking that it happened.
+
+**Recommendation revised 2026-09-02, after Joseph pushed back on the first draft — the original "patch the local file's durability" framing didn't survive scrutiny.** First draft proposed an atomic write + bespoke backup coverage for `wildlife_life_list.json` in place. Challenged directly: why does this pipeline use a local JSON file at all instead of Google Sheets, like every other JCTsh data type? The two reasons originally given for that ("different data shape," "purpose-built consumer") don't actually hold up:
+
+- **"Different data shape" was a conflation.** The *raw* per-hike detections (`parse_detections()`/`parse_occurrences()`'s own output — species, confidence, timestamp per detection/occurrence) are the exact same append-only shape as every other Sheets-backed data type (environmental readings, lightning strikes, hiking observations) — nothing structurally prevents a new "Wildlife Detections" sheet in the same "JCTsh Environmental Data" workbook, appended to the same way. Only the *cross-hike aggregate* genuinely needs update/merge semantics, and even that could be a **derived view** computed over the append-only Sheets data (a query/pivot, or `build_wildlife_index.py` computing "first heard" from raw Sheets rows) rather than requiring its own separately-maintained local store at all.
+- **"Purpose-built consumer" doesn't distinguish BirdNET from anything else.** Environmental data already proves "Sheets archive + tailored webpage" isn't a contradiction — hike pages render environmental tables/charts by querying Sheets via Apps Script *at generation time* (`fetch_hike_data.py`'s `_fetch_hike_data()`). BirdNET's per-hike page could do the same.
+- **"Avoids a network round-trip" doesn't hold either** — the generation pass already makes live Apps Script calls for environmental/GPS/observation data on every single hike; one more POST for BirdNET detections isn't new complexity, just more of what it already does.
+
+**Honest conclusion: there's no real technical justification found for the local-JSON design — it looks like how BirdNET support simply got built (CARD-0080), not a deliberate architecture decision**, and it likely should have followed the same Sheets-archive pattern as everything else from the start. That reframes the fix: **the real problem isn't "the local file needs a backup," it's "this data shouldn't have a local file as its sole source of truth in the first place."** Sheets is already the durable, Google-backed archive every other data type relies on — routing BirdNET through it solves the durability question for free, instead of bolting on bespoke local-file backup handling for one pipeline.
+
+**Not done as part of this review — this is now a real architecture-change proposal, not a docs pass, and needs its own scoping before becoming a build plan:**
+- Whether to actually migrate BirdNET detections to a new Sheets tab (Apps Script `doPost` extension, a call added to `birdnet.py`/generation.py) and derive the cross-hike life list from that data, versus keeping the local JSON but explicitly demoting it to a rebuildable cache (regenerable from Sheets, not irreplaceable).
+- If migrated: what triggers the Sheets write — at webhook-staging time (like GPS Track) or at generation-parse time (when `birdnet.py` actually runs) — and whether the per-hike page should read back from Sheets or keep using the local staging file for its own render (avoiding a query round-trip for data the same process just wrote).
+- Finding #1 (silent parse failures on a corrupted export) stays a real, independent fix regardless of which direction this goes — it's about the export-file-parsing step itself, not where the result ends up stored.
+
+**Done when:** the four original review questions all have real, code-verified answers — **met**. The durability finding's actual fix (Sheets migration vs. cache-ify the local file) is not yet decided — that's real follow-on Planning work, not assumed here.
 
 **Related:** `components/hike-izer-orchestrator/birdnet-pipeline.md`, `components/hike-izer-orchestrator/app.py` (`_handle_stage_file`, `_log_mqtt_async`), `components/hike-izer-orchestrator/mqtt_log.py`, `components/hike-izer-orchestrator/wildlife_life_list.py`, `components/hike-izer/build_wildlife_index.py`, CARD-0225 (the sibling architecture-review card this generalizes the same lens from), CARD-0080 (original BirdNET integration), CARD-0182 (Live Mode → Survey Mode switch), CARD-0133 (interpolated-GPS occurrence markers), CARD-0147 (life-list "NEW species" badge). PR #47 (original idea-email finding, closed as covered by this card).
 

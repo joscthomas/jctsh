@@ -27,6 +27,9 @@ one, not add to it.
 
 import json
 import os
+import sys
+import urllib.parse
+import urllib.request
 
 LIFE_LIST_PATH = "/srv/hike-izer-private/wildlife_life_list.json"
 
@@ -76,3 +79,57 @@ def update_from_hike(file_stem, date_str, birdnet_rows, path=LIFE_LIST_PATH):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(life_list, f, indent=2)
+
+
+def rebuild_from_sheets(export_url, export_key, path=LIFE_LIST_PATH):
+    """CARD-0229: recovery tool, not part of the regular generation flow --
+    reconstructs the local life-list cache from scratch from the "Wildlife
+    Detections" sheet's full history (the sheet is now the durable source
+    of truth; this file is a rebuildable cache of it, per that card's own
+    decision). Replays every hike's rows through update_from_hike() in
+    chronological order, reusing its existing merge/idempotency logic
+    rather than duplicating it -- the only new part here is fetching and
+    grouping the Sheets data. Overwrites `path` unconditionally; caller's
+    job to back it up first if that matters."""
+    url = export_url + "?" + urllib.parse.urlencode({"key": export_key, "action": "export", "sheet": "Wildlife Detections"})
+    with urllib.request.urlopen(url, timeout=60) as resp:
+        result = json.loads(resp.read())
+    if result.get("status") != "ok":
+        raise RuntimeError(f"Apps Script export failed: {result}")
+
+    by_hike = {}
+    for row in result.get("rows", []):
+        file_stem = row.get("hike_file_stem")
+        if not file_stem:
+            continue
+        by_hike.setdefault(file_stem, []).append({
+            "common_name": row.get("common_name"),
+            "scientific_name": row.get("scientific_name"),
+            "count": row.get("count"),
+            "best_confidence": row.get("best_confidence"),
+            "first_timestamp": row.get("timestamp"),
+        })
+
+    if os.path.exists(path):
+        os.remove(path)  # start from empty -- update_from_hike() below re-`load()`s each call
+
+    for file_stem in sorted(by_hike.keys()):
+        date_str = file_stem[:10]
+        update_from_hike(file_stem, date_str, by_hike[file_stem], path=path)
+
+    return len(by_hike)
+
+
+if __name__ == "__main__":
+    # CARD-0229: manual recovery only -- e.g.
+    #   docker exec hike-izer-orchestrator python3 -c "
+    #     import wildlife_life_list, os
+    #     wildlife_life_list.rebuild_from_sheets(os.environ['APPS_SCRIPT_URL'], os.environ['APPS_SCRIPT_KEY'])"
+    # or run this file directly with APPS_SCRIPT_URL/APPS_SCRIPT_KEY already in the environment.
+    url = os.environ.get("APPS_SCRIPT_URL")
+    key = os.environ.get("APPS_SCRIPT_KEY")
+    if not url or not key:
+        print("APPS_SCRIPT_URL and APPS_SCRIPT_KEY must be set in the environment.", file=sys.stderr)
+        raise SystemExit(1)
+    n = rebuild_from_sheets(url, key)
+    print(f"Rebuilt {LIFE_LIST_PATH} from {n} hike(s) in the Wildlife Detections sheet.")

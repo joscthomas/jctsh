@@ -61,6 +61,22 @@ def _load_export(path):
     return data
 
 
+def has_staged_export(staging_dir):
+    """CARD-0229: distinguishes "no BirdNET file was ever staged" (the
+    common, unremarkable case in step 1 -- nothing to report) from "a file
+    was staged but parsing it produced zero detections" (worth a human
+    flag -- could be a genuinely birdless hike, or could be a corrupted/
+    truncated export silently swallowed by _load_export()'s own broad
+    except clause). Same candidate-globbing _load_all_detections() uses,
+    but only checks existence -- doesn't open/parse anything."""
+    if not os.path.isdir(staging_dir):
+        return False
+    return bool(
+        glob.glob(os.path.join(staging_dir, "*.zip"))
+        + glob.glob(os.path.join(staging_dir, "*.json"))
+    )
+
+
 def _load_all_detections(staging_dir):
     """Scans `staging_dir` for BirdNET Live export(s) (`.zip` and/or `.json`
     -- supports more than one, e.g. multiple survey sessions staged for the

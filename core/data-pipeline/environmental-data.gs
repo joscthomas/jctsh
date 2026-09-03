@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-08-25.1-ingest-validation';
+var SCRIPT_VERSION = '2026-09-02.3-wildlife-detections-flush';
 
 // ---------------------------------------------------------------------------
 // doPost — environmental sensor data (Node-RED → Sheets)
@@ -70,6 +70,49 @@ function doPost(e) {
 
       var obsCoords = _gpsLookup(ss, ts);
       obsSheet.appendRow([ts, obsText, JSON.stringify(categories), payload.source || 'voice', obsCoords.lat, obsCoords.lon]);
+
+    } else if (payload.component === 'wildlife-detection') {
+      // CARD-0229: one row per species per hike -- generation.py posts one
+      // call per birdnet.py parse_detections() row (same "one call, one
+      // row" convention every other component in this doPost already
+      // uses; a hike-izer batch of many rows would be a new protocol,
+      // this reuses the existing one instead). Self-provisioning, same
+      // pattern _maybeCaptureHikeStartForecast already uses below.
+      //
+      // LockService/flush() below: added while chasing a "rows vanish
+      // during a rapid-fire backfill" theory that turned out to be wrong.
+      // appendRow() never lost a row. What looked like data loss was
+      // action=export's own read path (_exportSheet, `if (!tsRaw)
+      // continue`) silently filtering out every row with a blank
+      // timestamp -- and the backfill script was sending payload.ts=null
+      // for all of them (the local cache it read from never stored
+      // per-hike timestamps). The rows were on the sheet the entire time;
+      // a direct look at the sheet in the browser is what caught it, not
+      // the API reads. Left in place since it's harmless and matches the
+      // locking convention other write-heavy branches could reasonably
+      // want too, but it was not the actual fix for anything.
+      var lock = LockService.getScriptLock();
+      lock.waitLock(30000);
+      try {
+        var wildlifeSheet = ss.getSheetByName('Wildlife Detections');
+        if (!wildlifeSheet) {
+          wildlifeSheet = ss.insertSheet('Wildlife Detections');
+          wildlifeSheet.appendRow([
+            'timestamp', 'hike_file_stem', 'common_name', 'scientific_name',
+            'count', 'best_confidence'
+          ]);
+        }
+        wildlifeSheet.appendRow([
+          payload.ts, payload.hike_file_stem, payload.common_name,
+          payload.scientific_name, payload.count, payload.best_confidence
+        ]);
+        // See the comment above this branch -- flush() was chasing the
+        // same false write-loss theory as the LockService above. Harmless,
+        // left in place.
+        SpreadsheetApp.flush();
+      } finally {
+        lock.releaseLock();
+      }
 
     } else {
       var envSheet = ss.getSheetByName('Environmental Data');

@@ -42,6 +42,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 from datetime import datetime, timedelta, timezone
 
 import birdnet
@@ -104,6 +105,94 @@ def _env(name):
     if not value:
         raise RuntimeError(f"{name} not set in environment")
     return value
+
+
+def _post_wildlife_detection(row, file_stem):
+    """CARD-0229: archives one species-per-hike row to the "Wildlife
+    Detections" sheet, via the same Apps Script doPost every other
+    component already posts to. Direct HTTP, not MQTT -- no fan-out
+    need, same fixed one-producer-one-consumer shape GPS Track/Hiking
+    Observations already use. Raises on failure; caller decides how to
+    handle it."""
+    payload = {
+        "component": "wildlife-detection",
+        "ts": row["first_timestamp"],
+        "hike_file_stem": file_stem,
+        "common_name": row["common_name"],
+        "scientific_name": row["scientific_name"],
+        "count": row["count"],
+        "best_confidence": row["best_confidence"],
+    }
+    url = _env("APPS_SCRIPT_URL") + "?key=" + _env("APPS_SCRIPT_KEY")
+    req = urllib.request.Request(
+        url, method="POST", data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        result = json.loads(resp.read())
+    if result.get("status") != "ok":
+        raise RuntimeError(f"Apps Script rejected wildlife-detection POST: {result}")
+
+
+def _archive_new_wildlife_detections(file_stem, birdnet_rows):
+    """CARD-0229: best-effort archive of this hike's species to Sheets --
+    never blocks page publication (an Apps Script outage shouldn't break
+    basic hike-page generation), logged both ways (a System confirmation
+    on success, matching Node-RED's own convention of confirming every
+    successful Sheets append, not just an Alert on failure).
+
+    Only archives species not already recorded for this file_stem,
+    checked against the local life-list cache *before*
+    wildlife_life_list.update_from_hike() (called right after this, by
+    both callers) mutates it -- run_step2() can re-run for the same hike
+    on every CARD-0214 daily refresh pass, and a plain unconditional
+    appendRow would duplicate rows on each one. The local cache already
+    tracks "which species were recorded on which hikes" for exactly this
+    idempotency reason, so this reuses it rather than adding a second,
+    separate dedup scan on the Apps Script side."""
+    if not birdnet_rows:
+        return
+
+    life_list = wildlife_life_list.load()
+    new_rows = [
+        row for row in birdnet_rows
+        if not any(
+            h["file_stem"] == file_stem
+            for h in life_list.get(row["scientific_name"], {}).get("hikes", [])
+        )
+    ]
+    if not new_rows:
+        return
+
+    try:
+        for row in new_rows:
+            _post_wildlife_detection(row, file_stem)
+        mqtt_log.publish_log(
+            "System",
+            f"Archived {len(new_rows)} species detection(s) for {file_stem} to Wildlife Detections.",
+        )
+    except Exception as e:
+        mqtt_log.publish_log(
+            "Alert",
+            f"Failed to archive wildlife detections for {file_stem} to Sheets: {e}",
+        )
+
+
+def _log_birdnet_parse_outcome(staging_dir, file_stem, birdnet_rows):
+    """CARD-0229 (Finding #1): birdnet.py's own parse functions silently
+    swallow a corrupted/unreadable export (_load_export()'s broad except
+    clause) and just return no detections -- indistinguishable on the
+    published page from a hike where no birds were genuinely heard. Logs
+    only the case actually worth a human's attention: a file WAS staged
+    but produced zero detections. No staged file at all is the common,
+    unremarkable case in step 1 and stays quiet, same as today."""
+    if birdnet_rows or not birdnet.has_staged_export(staging_dir):
+        return
+    mqtt_log.publish_log(
+        "Alert",
+        f"BirdNET export staged for {file_stem} but parsing produced zero detections -- "
+        f"possibly a corrupted/truncated export, possibly a genuinely birdless hike.",
+    )
 
 
 def _wildlife_index_cmd():
@@ -586,6 +675,10 @@ def run(payload):
         # empty when the staging dir has no BirdNET export in it.
         birdnet_rows = birdnet.parse_detections(_staging_dir)
         birdnet_occurrences = birdnet.parse_occurrences(_staging_dir)
+        _log_birdnet_parse_outcome(_staging_dir, file_stem, birdnet_rows)
+        # CARD-0229: must run before update_from_hike() below mutates the
+        # local cache -- see that function's own docstring for why.
+        _archive_new_wildlife_detections(file_stem, birdnet_rows)
 
         # CARD-0112: no place_context, no narrative call in step 1 -- mechanical
         # rendering only. templating.render_html omits the whole narrative
@@ -738,6 +831,10 @@ def run_step2(file_stem, with_narrative=False):
     # above. Only ever populated here in step 2, same as birdnet_rows itself
     # -- step 1 never has a staged BirdNET export to read yet.
     birdnet_occurrences = birdnet.parse_occurrences(staging_dir)
+    _log_birdnet_parse_outcome(staging_dir, file_stem, birdnet_rows)
+    # CARD-0229: must run before update_from_hike() below mutates the
+    # local cache -- see that function's own docstring for why.
+    _archive_new_wildlife_detections(file_stem, birdnet_rows)
 
     # CARD-0108/CARD-0112: runs after photo captioning so sign_text (if any)
     # is already on the manifest, and now with real photo locations

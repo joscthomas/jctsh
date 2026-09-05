@@ -9,7 +9,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0240 -->
+<!-- next-card-id: CARD-0241 -->
+
+---
+
+### CARD-0240 · [enhancement] [homeassistant] Home Assistant container update available: 2026.9.0 → 2026.9.1
+
+**Status:** Build
+
+**Raised via automated maintenance finding (PR #64, jctsh-core), 2026-09-05** — routine container-version-bump finding from the scheduled maintenance check.
+
+**Interviewed 2026-09-05.** Same scope as CARD-0233/CARD-0236 through CARD-0238: evaluate first, decide whether to update, then apply and verify live in this same card — not a bare decision-only record.
+
+**2026.9.1's own release notes checked** (`gh release view 2026.9.1 --repo home-assistant/core`) — 28 items, entirely small per-integration bug fixes and dependency bumps for integrations this instance doesn't use (SMTP, backup, Miele, Roborock, Vizio, Amber Electric, UniFi Protect, device registry, Daikin, Besen, orjson, Flo, serial, Environment Canada, Hot Spring, KNX, MotionEye, Tradfri, frontend, Reolink, LitterRobot). Nothing touching MQTT, SmartThings, Google, or the recorder — the pieces this instance actually depends on per `CLAUDE.md` ("Home Assistant is the bridge to SmartThings — there is no other path"). **Decision: safe to update.**
+
+**Plan:**
+1. Bump the image tag in `core/homeassistant/docker-compose.yml` (or confirm it already tracks `:stable` and just pull fresh).
+2. `docker compose pull && docker compose up -d` on the Pi.
+3. Verify live: `/api/config` reports `2026.9.1`, Docker health check `healthy`, SmartThings-domain entities still present/responding, no new MQTT/recorder errors in `docker logs`.
+
+**Done when:** the update is applied and all three verification points above are confirmed live — not just that the container restarted.
+
+**Related:** `CLAUDE.md` (Home Assistant Docker Setup section, `core/homeassistant/docker-compose.yml`), CARD-0233/CARD-0236/CARD-0237/CARD-0238 (the identical routine-update pattern this repeats).
 
 ---
 

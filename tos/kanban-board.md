@@ -9,7 +9,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0239 -->
+<!-- next-card-id: CARD-0240 -->
+
+---
+
+### CARD-0239 · [enhancement] [hike-izer] Remote, phone-only trigger for hike-izer's step-2 gap-fill pass — no SSH required
+
+**Status:** Planning
+
+**Raised via PR #62 (auto-opened maintenance-alert finding), 2026-09-04.** Raw finding: *"how can I remotely issue the second pass of hikiser."*
+
+**Context.** CARD-0214 built the step-2 gap-fill pass (`generation.py --step2 <file_stem>`, idempotent, safe to re-run any number of times) with three existing ways to invoke it: the daily 5pm MST systemd timer, a manual SSH command on the M8, or asking Claude to run it during a session. None of those work when Joseph is away from a computer and just wants to nudge a specific hike's page to catch up on data that synced late.
+
+**Interviewed 2026-09-05.** Real need is a home-screen tap on the phone, no SSH/computer required — same shape as the existing `Log Idea` Tasker widget (CARD-0173). Always targets the current/latest published hike (no date picker) — same `generation.current_or_latest_file_stem()` helper `/webhook/stage-file` already uses. Gap-fill only, no narrative — matches the daily cron's own behavior exactly; narrative stays the separate opt-in ask (CARD-0123), untouched by this.
+
+**Design — reuses the existing webhook-receiver pattern, no new infrastructure:**
+- New `POST /webhook/step2` route on `hike-izer-orchestrator` (`components/hike-izer-orchestrator/app.py`), auth via the existing `WEBHOOK_SECRET` `?key=` pattern shared by every other machine-triggered route (`hike-end`, `stage-file`, `idea`) — not `EDIT_PIN`, since this is a Tasker-fired request, not something Joseph types by hand.
+- Resolves the target hike via `generation.current_or_latest_file_stem()`. If no published hike exists yet, responds `409` (matches `stage-file`'s existing behavior for the same case).
+- Runs `generation.run_step2_and_log(file_stem, with_narrative=False)` in a background thread, same reasoning as `hike-end` — the underlying Sheet/Nominatim/Overpass/Immich calls aren't fast enough to hold the HTTP response open, and Tasker has its own request timeout.
+- Responds `200` immediately once the background run is kicked off; failure visibility goes through the same MQTT `Alert`/`System` logging every other route already uses (`_log_mqtt_async`), not just `docker logs`.
+- `README.md` gets a new webhook-contract entry plus a "Building the Tasker task (Joseph)" section mirroring `Log Idea`'s exact structure: one Task (`HTTP Post` to `https://hikes.jctnet.com/webhook/step2?key=<WEBHOOK_SECRET>`) added to the home screen via the Tasks tab's **Add to Launcher** (the route that actually works on this Tasker version, per CARD-0173's own finding — not the Widgets flow).
+
+**Deploy:** `scp` the updated `app.py` (plus this component's other `.py` files per the existing deploy-copy list) to `jct@m8.local:~/hike-izer-web-app/orchestrator/`, then `docker compose up -d --build orchestrator` — per this component's own README deploy section.
+
+**Done when:**
+- The new `/webhook/step2` route is live on the M8, verified with a real `curl`/test hit (wrong key → 401; no published hike → 409; a real request → 200 and a real `run_step2` execution visible in `docker logs` and the MQTT dashboard).
+- Joseph has built the Tasker task and home-screen icon, and a real tap on the icon (not just a desk-side `curl` test) produces a real step-2 run against the actual current hike.
+
+**Related:** CARD-0214 (the two-pass design and `run_step2`/`run_step2_and_log` this reuses unchanged), CARD-0173 (the `Log Idea` Tasker task this mirrors, including the Add-to-Launcher home-screen-icon gotcha), `components/hike-izer-orchestrator/app.py`, `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/README.md`.
 
 ---
 

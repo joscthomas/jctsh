@@ -9,7 +9,27 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0248 -->
+<!-- next-card-id: CARD-0249 -->
+
+---
+
+### CARD-0248 · [bug] [logging] Pre-reboot journal snapshot only covers the scheduled reboot, not an unplanned one
+
+**Status:** Build
+
+**Raised 2026-09-06**, found investigating why `homeassistant` restarted unexpectedly at 20:04:20 local — turned out to be a full, unplanned Pi reboot (`journalctl --list-boots` showed only one boot, starting at that exact moment), not the Monday 3 AM scheduled job. `docker logs homeassistant` (which survived the reboot, stored separately from journald) showed a real cluster of connectivity failures from 20:01:45-20:04:04 — Nabu Casa tunnel error, SmartThings API timeout, a Ring push exception, repeated `samsungtv` connection resets, and finally `"Error returned from MQTT server: The connection was lost"` at 20:04:04, ~16 seconds before the kernel's own boot sequence starts. Consistent with the Pi's own network/system stack having a genuine brief outage right before the reboot — and very likely the same mechanism behind today's earlier Samsung TV re-pairing dialog (CARD-0246/CARD-0247's own context).
+
+**The actual reboot trigger is unrecoverable — a real gap, not just "would be nice to know."** journald's own history for the prior boot is gone (still volatile-only, CARD-0246's root cause). CARD-0246's persistent snapshot (`journal-snapshot.service`/`.timer`, `/mnt/jctsh-logs/journal-snapshot.log`) exists specifically to survive this, but its pre-reboot hook (`scheduled-reboot-pi.service`'s `ExecStartPre=`) only fires for the *scheduled* Monday reboot — an unplanned reboot like tonight's bypasses it entirely, and the periodic 15-min timer's own cadence wasn't guaranteed to have caught the final seconds either. Confirmed directly: the persistent snapshot file's first line was literally `kernel: Booting Linux on physical CPU...` from *this* boot — nothing from before it survived.
+
+**Fix: a generic shutdown-target hook, not tied to any specific caller.** New `core/logging/journal-snapshot-onshutdown.service` — `DefaultDependencies=no`, `Before=`/`WantedBy=shutdown.target reboot.target halt.target poweroff.target`, the standard systemd pattern for "run this before any shutdown/reboot, regardless of who or what initiated it." Runs the identical `journalctl --cursor-file=...` snapshot command CARD-0246 already proved works (same cursor file, same log file — genuinely incremental, no duplication risk from having two triggers). This covers `sudo reboot`, `systemctl reboot`, the scheduled-reboot service's own `/sbin/reboot` call, and any other graceful reboot/shutdown path — anything that goes through systemd's normal shutdown sequence, which a `/sbin/reboot` call (even from inside a script) does. **Honest limit, not fixable in software:** a true hardware watchdog reset, kernel panic, or power loss bypasses systemd's shutdown sequence entirely — no hook can catch those. This fix maximizes coverage for every *graceful* reboot path, which is the realistic majority of cases (including, plausibly, tonight's own, though that can't be confirmed after the fact).
+
+**`scheduled-reboot-pi.service`'s existing specific `ExecStartPre=` hook is left in place, not removed** — redundant now that the generic hook covers the same case, but harmless (the cursor file makes a second snapshot run a no-op if nothing new accumulated) and a reasonable belt-and-suspenders given this is being deployed without a live end-to-end reboot test available to confirm the generic hook's ordering guarantees perfectly replace the explicit blocking call.
+
+**Deployed and verified live, 2026-09-06.** Installed to `/etc/systemd/system/journal-snapshot-onshutdown.service`, `daemon-reload`, `enable`d — confirmed correctly pulled in as a dependency of all four targets (`systemctl show` confirms `Before=`/`WantedBy=` covering `shutdown.target reboot.target halt.target poweroff.target`, `DefaultDependencies=no`). Manually triggered once (`systemctl start`) to confirm the unit itself runs clean without waiting for a real reboot: `Result=success`, `ExecMainStatus=0`, and fresh entries genuinely appended to `/mnt/jctsh-logs/journal-snapshot.log` (confirmed via `tail`) — same cursor file as the periodic timer, no duplication.
+
+**Done when:** deployed and enabled on the Pi — **met**, confirmed present via `systemctl is-enabled` and a real manual run. Still to be confirmed **passively, at the next real reboot** (scheduled or otherwise): that the persistent snapshot's tail reaches all the way up to the actual shutdown sequence, not just the following boot's own startup lines — this is the one piece that genuinely requires a real reboot to observe, not just a manual unit invocation.
+
+**Related:** CARD-0246 (the underlying journald volatile-storage bug and the snapshot mechanism this extends), CARD-0247 (the HA entity-availability check — same investigation session, adjacent finding), `core/maintenance/scheduled-reboot-pi.service` (the narrower, still-present specific hook this generalizes), `core/logging/journal-snapshot.service`/`.timer` (the periodic mechanism sharing the same cursor/log file).
 
 ---
 

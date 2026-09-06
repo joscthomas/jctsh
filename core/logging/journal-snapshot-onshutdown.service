@@ -1,0 +1,13 @@
+[Unit]
+Description=Snapshot journald to persistent storage before any shutdown/reboot (CARD-0248)
+DefaultDependencies=no
+Before=shutdown.target reboot.target halt.target poweroff.target
+RequiresMountsFor=/mnt/jctsh-logs
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/journalctl --no-pager --cursor-file=/mnt/jctsh-logs/journal-snapshot.cursor
+StandardOutput=append:/mnt/jctsh-logs/journal-snapshot.log
+
+[Install]
+WantedBy=shutdown.target reboot.target halt.target poweroff.target

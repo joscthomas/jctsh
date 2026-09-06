@@ -91,9 +91,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0239 · [enhancement] [hike-izer] Remote, phone-only trigger for hike-izer's step-2 gap-fill pass — no SSH required
+### CARD-0239 · [enhancement] [hike-izer] Remote, phone-only trigger for hike-izer's step-2 gap-fill pass — no SSH required — RESOLVED 2026-09-06
 
-**Status:** Planning
+**Status:** Done
 
 **Raised via PR #62 (auto-opened maintenance-alert finding), 2026-09-04.** Raw finding: *"how can I remotely issue the second pass of hikiser."*
 
@@ -112,11 +112,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Deploy:** `scp` the updated `app.py` (plus this component's other `.py` files per the existing deploy-copy list) to `jct@m8.local:~/hike-izer-web-app/orchestrator/`, then `docker compose up -d --build orchestrator` — per this component's own README deploy section.
 
-**Done when:**
-- The new `/webhook/step2` route is live on the M8, verified with a real `curl`/test hit (wrong key → 401; no published hike → 409; a real request → 200 and a real `run_step2` execution visible in `docker logs` and the MQTT dashboard).
-- Joseph has built the `JCTsh Menu` Tasker task and home-screen icon (with "Run Step 2" as its entry) and a real tap through the menu (not just a desk-side `curl` test) produces a real step-2 run against the actual current hike.
+**Built, deployed, and verified live, 2026-09-05/06 — both criteria fully met, plus real bugs found and fixed along the way (not a clean first pass):**
+- `/webhook/step2` deployed to the M8 (`docker compose up -d --build orchestrator`) and verified live: wrong key → 401 confirmed, a real request → 200 with the correct hike resolved (`2026-09-03`, via `current_or_latest_file_stem()`), and the actual gap-fill pipeline ran to completion (`Step 2 complete for 2026-09-03`) — confirmed via `docker logs` and, on the real Tasker-triggered run, the MQTT dashboard too. `409` (no published hike) was never exercised live — the M8 always had at least one published hike during testing — but the code path is identical to `stage-file`'s already-proven behavior for the same case.
+- `JCTsh Menu` built on-device (entry renamed from the design's working name "Run Step 2" to **"Hike-izer Step 2"** during Build — cosmetic, no functional change). **Real bug found and fixed live 2026-09-06:** the menu item's `Variable Set` value (`step-2`) and the `If` condition's comparison value (`step_2`, hyphen vs. underscore) didn't match, so the `If` never passed — found by reading the exported Tasker XML side-by-side (CARD-0231's pattern), not by UI inspection. Fixed, matched, re-tested. **Real end-to-end test, confirmed 2026-09-06:** a tap on the home-screen icon → pick "Hike-izer Step 2" → real webhook receipt in `docker logs` → full `Step 2 complete for 2026-09-03` pipeline run.
 
-**Related:** CARD-0214 (the two-pass design and `run_step2`/`run_step2_and_log` this reuses unchanged), CARD-0173 (the `Log Idea` Tasker task this mirrors, including the Add-to-Launcher home-screen-icon gotcha), `components/hike-izer-orchestrator/app.py`, `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/README.md`.
+**Reflection (per `JCTsh-Operating-System.md`'s Build → Done requirement):** the durable knowledge from this card — the `JCTsh Menu` general-purpose pattern itself, its build procedure, and the real Tasker UI quirks found along the way (per-item `Variable Set` actions rather than a single Menu output variable, single-field `HTTP Request` URLs, the `Variable Clear`-before-Menu cancel-safety pattern) — lives in `components/jctsh-menu/README.md` and `tasker-setup.md`, not just in this card's own history, so future menu entries have a real reference to build from.
+
+**Related:** CARD-0214 (the two-pass design and `run_step2`/`run_step2_and_log` this reuses unchanged), CARD-0173 (the `Log Idea` Tasker task this mirrors, including the Add-to-Launcher home-screen-icon gotcha), CARD-0231 (the Tasker-export-to-repo pattern that caught the `step-2`/`step_2` bug), CARD-0241 (the doc reorg that gave this card's Tasker build guide its final home), `components/hike-izer-orchestrator/app.py`, `components/hike-izer-orchestrator/generation.py`, `components/hike-izer-orchestrator/README.md`, `components/jctsh-menu/README.md`, `components/jctsh-menu/tasker-setup.md`, `components/jctsh-menu/JCTsh-Menu.tsk.xml`.
 
 ---
 

@@ -9,13 +9,35 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0244 -->
+<!-- next-card-id: CARD-0245 -->
 
 ---
 
-### CARD-0243 · [bug] [data-pipeline] GPS Track ingest (`doGet`, `action=gps`) has no de-duplication — 29.5% of the 2026-09-03 hike's trackpoints are exact duplicates
+### CARD-0244 · [bug] [data-pipeline] Hiking Observations ingest (`doPost`, `component=hiking-observations`) has no de-duplication — same class of gap as CARD-0243's GPS Track fix
 
-**Status:** Backlog
+**Status:** Build
+
+**Raised 2026-09-06**, found while auditing every `appendRow` call site in `environmental-data.gs` for the same missing-dedup pattern CARD-0243 just fixed for GPS Track. **Confirmed real gap, not yet exploited:** `doPost`'s `hiking-observations` branch appends unconditionally with no timestamp check — checked the full live sheet (all 69 rows, entire project history) and found **zero existing duplicates**, unlike GPS Track's real 29.5%. The gap is latent, not yet manifested — worth fixing proactively rather than waiting for it to bite.
+
+**Why the exposure exists despite the device-side design already guarding against it:** `Flush Observation Queue` (`observations-pipeline.md`, CARD-0156) only deletes a queued voice-note file after a *confirmed* HTTP success (`Continue Task After Error: off` on the HTTP Request action). That protects against the common case (no response at all). It does **not** protect against the row being genuinely written server-side while the success response itself is lost or delayed before reaching the phone — Tasker would see that as a failure, leave the file queued, and resend the identical observation on the next flush trigger, with nothing on the server side to catch it. Same failure shape as GPS Track's real-world exposure, just a narrower window (a single HTTP Request's response going missing, vs. GPSLogger's own more trigger-happy retry behavior against a slow endpoint) and a much smaller dataset (69 rows vs. thousands of GPS points) — which is almost certainly why this hasn't actually happened yet.
+
+**Dedup key: `ts` alone**, same reasoning as CARD-0243 — confirmed via a full repo grep that every real caller of `component: "hiking-observations"` sends `"source":"voice"` (there is exactly one producer, the phone's voice-note pipeline); no `(ts, source)` compound key needed the way Environmental Data's multi-source sheet requires.
+
+**Built, 2026-09-06 — mirrors CARD-0243's exact pattern, no design deviation:** `core/data-pipeline/environmental-data.gs`'s `doPost` `hiking-observations` branch now checks `obsSheet`'s column A (timestamps only, cheap read) for an existing match immediately after `ts` is normalized and before the `_gpsLookup` call — placed before the lookup specifically to skip that extra sheet-read work on a duplicate, not just before the final `appendRow`. Returns `{"status": "duplicate", "ts": ...}` on a match, matching CARD-0243's response shape exactly. `SCRIPT_VERSION` bumped to `2026-09-06.2-hiking-obs-dedup`.
+
+**No cleanup function needed** — zero existing duplicates confirmed live, so there's nothing for a `cleanupDuplicateHikingObservations()` to do. If this changes before deploy (unlikely, small/infrequent dataset), re-check before assuming this holds.
+
+**Deployment note — same manual path every change to this file uses; Claude cannot deploy it.** Needs Joseph to: paste the updated `environmental-data.gs` into the Apps Script editor, **Deploy → Manage deployments → pencil → Version: New version → Save**, then confirm `?action=version` returns `2026-09-06.2-hiking-obs-dedup`.
+
+**Done when:** the `hiking-observations` branch rejects a duplicate-timestamp resubmission instead of appending it (verified via a real repeated test POST, same "send twice, confirm second is rejected" pattern CARD-0243 used, with the resulting synthetic test row deleted afterward) and `?action=version` confirms the redeploy took effect.
+
+**Related:** CARD-0243 (the identical fix, one hop earlier — this card is its Hiking Observations sibling), CARD-0215 (the original dedup pattern both cards descend from), CARD-0156 (the Flush Observation Queue design whose "confirmed success" gap this card closes), `components/hiking-monitor/observations-pipeline.md`, `core/data-pipeline/environmental-data.gs` (`doPost()`'s `hiking-observations` branch).
+
+---
+
+### CARD-0243 · [bug] [data-pipeline] GPS Track ingest (`doGet`, `action=gps`) has no de-duplication — 29.5% of the 2026-09-03 hike's trackpoints are exact duplicates — RESOLVED 2026-09-06
+
+**Status:** Done
 
 **Raised 2026-09-06**, found while analyzing the 2026-09-03 hike's full dataset for anomalies. Of 685 raw GPS Track rows for that hike, **202 (29.5%) are byte-identical duplicates** — same ISO timestamp, same lat/lon, same accuracy, same altitude, same direction. Duplicate-group sizes ranged from 2 up to **6 copies of a single point**. This is a genuinely new finding, not previously tracked.
 
@@ -25,9 +47,84 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Real but limited impact — confirmed, not assumed:** does **not** corrupt the actual hike statistics. `hike_data.json`'s reported distance (6.79 mi), pace, and elevation gain all matched the chart series' own post-processed 80-point series exactly — a duplicate point at zero distance from itself doesn't add spurious mileage. The concrete costs are: (1) wasted Sheet storage/bloat, same category of problem CARD-0211/CARD-0215 already treated as worth fixing for Environmental Data; (2) a misleading `coverage_pct` metric in the hike page's own GPS-session reporting (this hike showed "139%"/"128.6%" coverage — more points than the 30s cadence should produce — which is really duplication inflating the raw count, not denser-than-expected real tracking).
 
-**Proposed fix, mirroring CARD-0215's own pattern:** before `appendRow()` in `doGet`'s `action=gps` branch, check whether a row with the same `tsISO` already exists (a cheap check against a recent window of column A, same "don't read the full row, just enough to dedup key" approach CARD-0215 used for Environmental Data) and skip the append if so. Needs a `SCRIPT_VERSION` bump and redeploy, same as every other change to this script.
+**Plan for Build, written 2026-09-06 — the exact change, adapted from CARD-0215's own committed pattern (`doPost`'s Environmental Data branch, lines ~208-229) rather than reinvented:**
 
-**Done when:** `doGet`'s `action=gps` branch rejects a duplicate-timestamp resubmission instead of appending it (verified via a real repeated test GET, same "send twice, confirm second is rejected" pattern CARD-0215 used), a real hike's GPS Track data shows zero duplicate timestamps post-fix, and the hike page's own `coverage_pct` metric reports a sane value (not >100%) against real data.
+1. **Dedup key: `ts` alone, not `(ts, source)`.** Environmental Data dedups on `(ts, source)` because multiple sensor sources feed that sheet. GPS Track has exactly one producer (GPSLogger's custom-URL POST) and no `source` column at all — `tsISO` alone is a sufficient and correct key here; a real duplicate submission always carries the identical timestamp (confirmed directly: all 134 duplicate-timestamp groups found in the 2026-09-03 data had byte-identical coordinates too, zero cases of two different real points sharing one timestamp).
+2. **Insert point:** in `doGet()`'s `action === 'gps'` branch (`environmental-data.gs`, currently around line 777-802), immediately before the existing `gpsSheet.appendRow([tsISO, lat, lon, acc, alt, direction])` call — after `tsISO` is computed (needed as the dedup key) but before the row is written.
+3. **Cheap column-only read, same discipline CARD-0215 used:** `gpsSheet.getRange(2, 1, gpsSheet.getLastRow() - 1, 1).getValues()` — column A only (timestamps), not the full row — so the check stays cheap as the sheet grows, same reasoning as Environmental Data's own dedup check.
+4. **Concrete code:**
+   ```javascript
+   if (gpsSheet.getLastRow() > 1) {
+     var existingTs = gpsSheet.getRange(2, 1, gpsSheet.getLastRow() - 1, 1).getValues();
+     for (var i = 0; i < existingTs.length; i++) {
+       var val = existingTs[i][0];
+       val = (val instanceof Date) ? val.toISOString() : String(val);
+       if (val === tsISO) {
+         return ContentService
+           .createTextOutput(JSON.stringify({status: 'duplicate', ts: tsISO}))
+           .setMimeType(ContentService.MimeType.JSON);
+       }
+     }
+   }
+   ```
+   **Decided 2026-09-06 (Joseph):** placed *before* the `_maybeCaptureHikeStartForecast(...)` call — a rejected duplicate returns immediately and does not reach that call, so a resent first point can't risk a second forecast-capture attempt even if that function's own internal logic turns out to already be idempotent (not separately checked, since it no longer matters once dedup short-circuits first).
+5. **`SCRIPT_VERSION` bump** (currently `2026-09-02.6-wildlife-file-stem-fix`) — mandatory per this script's own established convention, so `?action=version` can confirm a redeploy actually took effect.
+6. **Deployment — same manual path every other change to this file uses; Claude cannot deploy it.** Paste the updated `environmental-data.gs` into the Apps Script editor, **Deploy → Manage deployments → pencil → Version: New version → Save**.
+
+**No range/plausibility validation added here** — deliberately out of scope. This card is about the missing dedup guard specifically (mirroring CARD-0215's dedup half only, not its range-check half); GPS lat/lon/accuracy range validation, if ever wanted, would be its own separate card rather than scope creep onto this one.
+
+**One-time cleanup — decided 2026-09-06 (Joseph): yes, add it, same pattern as CARD-0215's `cleanupDuplicateEnvironmentalData()`.** New `cleanupDuplicateGpsTrack()`, added to the JCTsh custom menu (`Cleanup Duplicate GPS Track (CARD-0243, one-time)`), run once after the ingest fix is deployed:
+```javascript
+function cleanupDuplicateGpsTrack() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('GPS Track');
+  var data = sheet.getDataRange().getValues();
+  var header = data[0];
+
+  function keyOf(row) {
+    var ts = row[0];
+    return (ts instanceof Date) ? ts.toISOString() : String(ts);
+  }
+
+  var seen = {};
+  var kept = [header];
+  var droppedDuplicates = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var key = keyOf(row);
+    if (seen[key]) { droppedDuplicates++; continue; }
+    seen[key] = true;
+    kept.push(row);
+  }
+
+  sheet.clearContents();
+  sheet.getRange(1, 1, kept.length, header.length).setValues(kept);
+
+  Logger.log('Original rows: ' + (data.length - 1));
+  Logger.log('Kept rows: ' + (kept.length - 1));
+  Logger.log('Dropped as duplicates: ' + droppedDuplicates);
+  SpreadsheetApp.getUi().alert(
+    'Cleanup complete.\n' +
+    'Original rows: ' + (data.length - 1) + '\n' +
+    'Kept: ' + (kept.length - 1) + '\n' +
+    'Dropped as duplicates: ' + droppedDuplicates
+  );
+}
+```
+Simpler than Environmental Data's own cleanup — no `isBadRow`/corrupted-row-dropping half, since this card carries no range-validation scope (see above); first-seen-wins dedup only. Same "run once, safe to remove afterward" lifecycle as CARD-0215's version — the permanent protection lives in the ingest-side fix (steps 1-4), not in this menu function.
+
+**Built, 2026-09-06 — code written exactly per the plan above, not yet deployed.** `core/data-pipeline/environmental-data.gs` updated: the dedup check inserted in `doGet`'s `action=gps` branch (before `appendRow`, before `_maybeCaptureHikeStartForecast`, per the decided ordering), `cleanupDuplicateGpsTrack()` added alongside `cleanupDuplicateEnvironmentalData()` with a matching new JCTsh menu item, `SCRIPT_VERSION` bumped to `2026-09-06.1-gps-track-dedup`. Reviewed by eye for balanced braces/correct scoping (no `node`/syntax-checker available in this environment, unlike CARD-0215's own `node --check` verification) — one `var i` loop variable in the new dedup check, confirmed not colliding with any other `var i` elsewhere in `doGet`.
+
+**Deployment note — this is Apps Script, deployed by pasting into the Apps Script editor (no `clasp`/API tooling in this repo) — Claude can't deploy or run it.** Needs Joseph to: paste the updated `environmental-data.gs` into the Apps Script editor, **Deploy → Manage deployments → pencil → Version: New version → Save**, confirm `?action=version` returns `2026-09-06.1-gps-track-dedup`, then run **JCTsh menu → Cleanup Duplicate GPS Track (CARD-0243, one-time)** once.
+
+**Verified live end-to-end, 2026-09-06 — all four criteria met against real data, not synthetic-only:**
+- **Dedup rejection confirmed live:** a real test GPS point sent twice — first `{"status":"ok"}`, second (identical `ts`) `{"status":"duplicate","ts":"..."}`, never appended a second time. The one real synthetic row this created was manually deleted afterward, confirmed gone via `action=export`.
+- **Cleanup run and internally consistent:** `cleanupDuplicateGpsTrack()` reported **Original: 5328 · Kept: 4934 · Dropped as duplicates: 394** (4934 + 394 = 5328, exact).
+- **2026-09-03 hike re-checked post-cleanup:** GPS Track export for that hike's window now returns **483 rows, zero duplicate timestamps** (was 685 rows / 202 duplicates before the fix) — exactly matching the 483 unique timestamps the original investigation found.
+- **`coverage_pct` re-verified against a real regeneration**, not just the raw row count: re-ran `--step2`/`/webhook/step2` against the now-deduplicated data — the hike session's own `coverage_pct` dropped from a nonsensical **139.0%** to a sane **97.1%** (the trailing driving-session's own 128.6% → 100.0%).
+
+**Done when:** `doGet`'s `action=gps` branch rejects a duplicate-timestamp resubmission instead of appending it (verified via a real repeated test GET, same "send twice, confirm second is rejected" pattern CARD-0215 used); `cleanupDuplicateGpsTrack()` has been run once against the live sheet and its reported before/after counts are internally consistent (kept + dropped = original); a real hike's GPS Track data shows zero duplicate timestamps post-fix; and the hike page's own `coverage_pct` metric reports a sane value (not >100%) against real data. **Met.**
 
 **Related:** CARD-0215 (the identical dedup pattern already built for Environmental Data — this card is its GPS Track sibling), CARD-0211 (the reset-loop incident that originally motivated CARD-0215's dedup work), CARD-0226 (a separate, unrelated finding from this same 2026-09-03 investigation — a hiking-monitor reboot-loop recurrence), `core/data-pipeline/environmental-data.gs` (`doGet()`'s `action=gps` branch), `components/hike-izer/fetch_hike_data.py` (the consumer that surfaced this via `hike_data.json`'s raw `gps_track` array).
 

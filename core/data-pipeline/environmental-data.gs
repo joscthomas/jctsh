@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-02.6-wildlife-file-stem-fix';
+var SCRIPT_VERSION = '2026-09-06.2-hiking-obs-dedup';
 
 // ---------------------------------------------------------------------------
 // _relayLog -- CARD-0225: MQTT-dashboard visibility for GPS Track/Hiking
@@ -101,6 +101,31 @@ function doPost(e) {
       var ts = payload.ts;
       if (typeof ts === 'number' || /^\d{1,10}$/.test(String(ts))) {
         ts = new Date(Number(ts) * 1000).toISOString();
+      }
+
+      // CARD-0244: reject an exact-timestamp duplicate before doing any
+      // further work (GPS lookup, sheet write) -- same class of gap
+      // CARD-0243 already fixed for GPS Track. Hiking Observations has
+      // exactly one producer (the phone's voice-note pipeline,
+      // observations-pipeline.md), so ts alone is a sufficient dedup
+      // key. Not yet observed live in this sheet's real data (checked
+      // 2026-09-06, zero duplicates in all 69 rows) -- fixed proactively
+      // because the same ambiguous-failure retry risk exists here too:
+      // Flush Observation Queue only deletes a queued file on confirmed
+      // HTTP success, but if the row is written and the response is lost
+      // before reaching the phone, Tasker retries with nothing here to
+      // catch it.
+      if (obsSheet.getLastRow() > 1) {
+        var existingObsTs = obsSheet.getRange(2, 1, obsSheet.getLastRow() - 1, 1).getValues();
+        for (var oi = 0; oi < existingObsTs.length; oi++) {
+          var oval = existingObsTs[oi][0];
+          oval = (oval instanceof Date) ? oval.toISOString() : String(oval);
+          if (oval === ts) {
+            return ContentService
+              .createTextOutput(JSON.stringify({status: 'duplicate', ts: ts}))
+              .setMimeType(ContentService.MimeType.JSON);
+          }
+        }
       }
 
       var obsCoords = _gpsLookup(ss, ts);
@@ -278,6 +303,7 @@ function onOpen() {
     .createMenu('JCTsh')
     .addItem('Refresh Timeline', 'refreshTimeline')
     .addItem('Cleanup Duplicate Environmental Data (CARD-0215, one-time)', 'cleanupDuplicateEnvironmentalData')
+    .addItem('Cleanup Duplicate GPS Track (CARD-0243, one-time)', 'cleanupDuplicateGpsTrack')
     .addToUi();
 }
 
@@ -348,6 +374,57 @@ function cleanupDuplicateEnvironmentalData() {
     'Kept: ' + (kept.length - 1) + '\n' +
     'Dropped as duplicates: ' + droppedDuplicates + '\n' +
     'Dropped as corrupted: ' + droppedCorrupted
+  );
+}
+
+// ---------------------------------------------------------------------------
+// cleanupDuplicateGpsTrack — CARD-0243 one-time fix
+// ---------------------------------------------------------------------------
+// Run once from the JCTsh menu (or the Apps Script editor's function picker),
+// after the ingest-side dedup fix in doGet's action=gps branch is deployed.
+// Rewrites "GPS Track" keeping exactly one row per unique timestamp --
+// first-seen row wins, arbitrary but consistent. Simpler than
+// cleanupDuplicateEnvironmentalData: GPS Track has one producer (GPSLogger)
+// and no range-validation scope on this card, so there's no corrupted-row
+// concept here, just exact-timestamp duplicates (found live 2026-09-06,
+// 29.5% of one real hike's rows). Safe to remove this function (and its
+// menu item) once run and confirmed -- it's a one-time fix, not a
+// recurring job; the permanent protection lives in doGet itself.
+
+function cleanupDuplicateGpsTrack() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('GPS Track');
+  var data = sheet.getDataRange().getValues();
+  var header = data[0];
+
+  function keyOf(row) {
+    var ts = row[0];
+    return (ts instanceof Date) ? ts.toISOString() : String(ts);
+  }
+
+  var seen = {};
+  var kept = [header];
+  var droppedDuplicates = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var key = keyOf(row);
+    if (seen[key]) { droppedDuplicates++; continue; }
+    seen[key] = true;
+    kept.push(row);
+  }
+
+  sheet.clearContents();
+  sheet.getRange(1, 1, kept.length, header.length).setValues(kept);
+
+  Logger.log('Original rows: ' + (data.length - 1));
+  Logger.log('Kept rows: ' + (kept.length - 1));
+  Logger.log('Dropped as duplicates: ' + droppedDuplicates);
+  SpreadsheetApp.getUi().alert(
+    'Cleanup complete.\n' +
+    'Original rows: ' + (data.length - 1) + '\n' +
+    'Kept: ' + (kept.length - 1) + '\n' +
+    'Dropped as duplicates: ' + droppedDuplicates
   );
 }
 
@@ -799,6 +876,30 @@ function doGet(e) {
 
       var ss = SpreadsheetApp.getActiveSpreadsheet();
       var gpsSheet = ss.getSheetByName('GPS Track');
+
+      // CARD-0243: reject an exact-timestamp duplicate before it ever
+      // reaches the sheet -- GPS Track has exactly one producer
+      // (GPSLogger's custom-URL POST), so ts alone is a sufficient dedup
+      // key (unlike Environmental Data's (ts, source) key, CARD-0215 --
+      // multiple sensor sources feed that sheet, this one has only one).
+      // Found live 2026-09-06: a real hike's GPS Track data was 29.5%
+      // exact-duplicate rows (one point resubmitted up to 6 times),
+      // almost certainly GPSLogger retrying a slow/unconfirmed Apps
+      // Script response. Reads only column A (not the full row) to keep
+      // this cheap as the sheet grows, same discipline CARD-0215 used.
+      if (gpsSheet.getLastRow() > 1) {
+        var existingTs = gpsSheet.getRange(2, 1, gpsSheet.getLastRow() - 1, 1).getValues();
+        for (var i = 0; i < existingTs.length; i++) {
+          var val = existingTs[i][0];
+          val = (val instanceof Date) ? val.toISOString() : String(val);
+          if (val === tsISO) {
+            return ContentService
+              .createTextOutput(JSON.stringify({status: 'duplicate', ts: tsISO}))
+              .setMimeType(ContentService.MimeType.JSON);
+          }
+        }
+      }
+
       gpsSheet.appendRow([tsISO, lat, lon, acc, alt, direction]);
       // CARD-0197: log every GPS point landing, for cross-referencing
       // against _gpsLookup's 'lookup_miss' rows (see that function).

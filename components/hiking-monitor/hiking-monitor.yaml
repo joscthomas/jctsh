@@ -249,89 +249,13 @@ mqtt:
     - mqtt.publish:
         topic: jctsh/components/hiking-monitor/log
         payload: '{"component":"hiking-monitor","category":"MQTT","message":"MQTT connected"}'
-    - lambda: |-
-        if (hike_log_has_data()) {
-          int count = hike_log_count();
-          if (count > 0) {
-            // CARD-0212: don't attempt the replay burst on a critically low
-            // battery -- real sustained WiFi/MQTT current draw, same physics
-            // as CARD-0198's air-quality-monitor investigation. Reuses the
-            // same 3.4V threshold as low_battery_shutdown below (per
-            // JCTsh-Build-Standards.md Sec2.14 point 2, amended 2026-08-25 to
-            // require this for any WiFi-burst operation, not just continuous
-            // field logging -- low_battery_shutdown itself is deliberately
-            // skipped while docked so charging can proceed, which left this
-            // gap). Skips only this connection cycle -- data stays buffered,
-            // the next reconnect (once charging brings voltage back up)
-            // tries again naturally, no separate retry timer needed.
-            if (!isnan(id(battery_voltage).state) && id(battery_voltage).state < 3.4f) {
-              char skip_buf[176];
-              snprintf(skip_buf, sizeof(skip_buf),
-                "{\"component\":\"hiking-monitor\",\"category\":\"Alert\","
-                "\"message\":\"Replay deferred - battery %.2fV below 3.4V cutoff, waiting for charge\"}",
-                id(battery_voltage).state);
-              id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
-                                      std::string(skip_buf), 0, false);
-            } else {
-
-            // CARD-0199: Connected -> Uploading -> Done(elapsed) display
-            // sequence, shown only when there's real buffered hike data to
-            // replay -- a plain reconnect with nothing queued leaves the
-            // display on its normal state, untouched.
-            id(upload_display_state) = 1;  // Connected
-            id(hiking_display).update();
-            delay(1500);  // let "Connected" be visible before Uploading replaces it
-
-            char log_buf[128];
-            snprintf(log_buf, sizeof(log_buf),
-              "{\"component\":\"hiking-monitor\",\"category\":\"System\","
-              "\"message\":\"Replaying %d hike readings...\"}",
-              count);
-            id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
-                                    std::string(log_buf), 0, false);
-
-            // Display-refresh removal theory (2026-08-25) tested and ruled
-            // out -- the "Timeout while displaying image!" error only ever
-            // showed up while accidentally testing with dock_detect reading
-            // OFF (USB was on the ESP32's own flashing port, not the
-            // TP4056's charging port), which triggers an unrelated early
-            // deep_sleep.enter() abruptly interrupting an in-flight display
-            // update. With dock_detect genuinely asserted, the display works
-            // correctly and this update is restored to its original spot.
-            id(upload_display_state) = 2;  // Uploading
-            id(upload_start_ms) = millis();
-            id(hiking_display).update();
-
-            // CARD-0211 real fix (2026-08-25): found via an actual crash
-            // backtrace, not guesswork -- a genuine ESP32 task watchdog
-            // timeout (`Task watchdog got triggered ... loopTask (CPU 1) did
-            // not reset the watchdog in time`), firing ~5-6s after MQTT
-            // connects, matching this loop's minimum runtime (111 readings x
-            // 50ms = 5.55s of explicit delay alone, before real per-message
-            // MQTT/TLS overhead -- a live capture showed one publish taking
-            // 113ms against ESPHome's own 30ms expectation). delay(50) yields
-            // the CPU to other tasks, but the watchdog specifically needs
-            // loopTask itself to return/make progress, which it never does
-            // across all 111 iterations inside one continuous lambda call.
-            // Explicit feed_wdt() on every iteration satisfies it regardless
-            // of how long the real publish/TLS overhead ends up taking.
-            hike_log_replay_stream([](const std::string& line) {
-              id(mqtt_client).publish("jctsh/components/hiking-monitor/data",
-                                      line, 0, false);
-              App.feed_wdt();
-              delay(50);
-            });
-            id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
-              std::string("{\"component\":\"hiking-monitor\",\"category\":\"System\","
-                         "\"message\":\"Hike log replay complete.\"}"), 0, false);
-            hike_log_clear();
-
-            id(upload_duration_ms) = millis() - id(upload_start_ms);
-            id(upload_display_state) = 3;  // Done -- stays until switch-on or dock-removed
-            id(hiking_display).update();
-            }
-          }
-        }
+    # CARD-0224 (2026-09-06): the full replay sequence -- including the
+    # CARD-0212 low-battery defer check -- now lives in the shared
+    # attempt_hike_replay script (see script: block above) so the periodic
+    # 2-min interval recheck below can call the identical logic rather than
+    # duplicating it. This on_connect call is what covers the original,
+    # already-proven "replay right away on a fresh connection" case.
+    - script.execute: attempt_hike_replay
     - if:
         condition:
           binary_sensor.is_off: slide_switch
@@ -404,6 +328,15 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
+  # CARD-0224: set when attempt_hike_replay defers because battery was below
+  # the 3.4V cutoff, cleared once a replay actually completes. Lets the
+  # periodic 2-min interval retry the replay once voltage recovers while
+  # charging, instead of depending on another on_connect event that may
+  # never come if the MQTT link just stays up.
+  - id: replay_deferred_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
   # Post-hike upload display sequence: 0=normal, 1=Connected, 2=Uploading,
   # 3=Done (upload_duration_ms holds the elapsed replay time for state 3).
   # Cleared on switch-on or dock-removed (see slide_switch/dock_detect
@@ -459,6 +392,69 @@ script:
       - delay: 2s   # allow e-ink full refresh to complete before power cut
       - deep_sleep.allow: deep_sleep_control
       - deep_sleep.enter: deep_sleep_control
+
+  # CARD-0224 (extracted from on_connect, 2026-09-06, so both the initial
+  # connect and the periodic recheck below share one implementation instead
+  # of duplicating this ~50-line replay sequence): attempt to replay any
+  # buffered hike-log data. Defers (and records replay_deferred_pending) if
+  # battery is still below the same 3.4V cutoff CARD-0212 established for
+  # this WiFi-burst operation; otherwise replays and clears the flag.
+  - id: attempt_hike_replay
+    then:
+      - lambda: |-
+          if (hike_log_has_data()) {
+            int count = hike_log_count();
+            if (count > 0) {
+              if (!isnan(id(battery_voltage).state) && id(battery_voltage).state < 3.4f) {
+                id(replay_deferred_pending) = true;
+                char skip_buf[176];
+                snprintf(skip_buf, sizeof(skip_buf),
+                  "{\"component\":\"hiking-monitor\",\"category\":\"Alert\","
+                  "\"message\":\"Replay deferred - battery %.2fV below 3.4V cutoff, waiting for charge\"}",
+                  id(battery_voltage).state);
+                id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
+                                        std::string(skip_buf), 0, false);
+              } else {
+                // CARD-0199: Connected -> Uploading -> Done(elapsed) display
+                // sequence, shown only when there's real buffered hike data
+                // to replay.
+                id(upload_display_state) = 1;  // Connected
+                id(hiking_display).update();
+                delay(1500);  // let "Connected" be visible before Uploading replaces it
+
+                char log_buf[128];
+                snprintf(log_buf, sizeof(log_buf),
+                  "{\"component\":\"hiking-monitor\",\"category\":\"System\","
+                  "\"message\":\"Replaying %d hike readings...\"}",
+                  count);
+                id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
+                                        std::string(log_buf), 0, false);
+
+                id(upload_display_state) = 2;  // Uploading
+                id(upload_start_ms) = millis();
+                id(hiking_display).update();
+
+                // CARD-0211: explicit feed_wdt() on every iteration -- see
+                // on_connect's original comment history for the full
+                // watchdog-timeout backtrace this fixed.
+                hike_log_replay_stream([](const std::string& line) {
+                  id(mqtt_client).publish("jctsh/components/hiking-monitor/data",
+                                          line, 0, false);
+                  App.feed_wdt();
+                  delay(50);
+                });
+                id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
+                  std::string("{\"component\":\"hiking-monitor\",\"category\":\"System\","
+                             "\"message\":\"Hike log replay complete.\"}"), 0, false);
+                hike_log_clear();
+
+                id(upload_duration_ms) = millis() - id(upload_start_ms);
+                id(upload_display_state) = 3;  // Done -- stays until switch-on or dock-removed
+                id(hiking_display).update();
+                id(replay_deferred_pending) = false;
+              }
+            }
+          }
 
 # ── Remote Reboot (CARD-0180) ───────────────────────────────────────────────────
 # On-demand reboot triggered from Home Assistant, without disassembling the
@@ -800,6 +796,22 @@ interval:
           then:
             - wifi.disable:
             - lambda: 'id(wifi_disable_pending) = false;'
+      # CARD-0224: on_connect only fires once per connection event -- if the
+      # MQTT link stays persistently up after a replay was deferred for low
+      # battery (realistic while docked on stable home WiFi), nothing else
+      # re-triggers a retry once voltage recovers while charging. This tick
+      # already runs every 2min regardless of mode, so it's the natural
+      # place to re-check and retry rather than a separate timer.
+      - if:
+          condition:
+            lambda: |-
+              return id(mqtt_client).is_connected()
+                  && id(replay_deferred_pending)
+                  && !isnan(id(battery_voltage).state)
+                  && id(battery_voltage).state >= 3.4f
+                  && hike_log_has_data();
+          then:
+            - script.execute: attempt_hike_replay
       - lambda: |-
           float temp = id(bme_temp).state;
           float hum  = id(bme_humidity).state;

@@ -119,10 +119,10 @@ Two Tasker **Profiles** (State → Net), both pointing at `Flush Observation
 Queue` — this Tasker version has no single unified "any connectivity"
 option:
 
-| Trigger | Covers |
-|---|---|
-| Wifi Connected | Returning to home WiFi |
-| Mobile Network | Regaining cellular signal (the realistic mid-hike case) |
+| Trigger | Covers | Export |
+|---|---|---|
+| Wifi Connected | Returning to home WiFi | `tasker/Wifi-Connected.prf.xml` |
+| Mobile Network | Regaining cellular signal (the realistic mid-hike case) | `tasker/Mobile-Network.prf.xml` |
 
 Plus the always-on opportunistic path: every `Log Observation` run also calls
 Flush immediately (Section 1, Action 4), so if the phone is already online

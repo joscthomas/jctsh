@@ -308,8 +308,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0231 · [idea] [tos] Investigate Tasker's task import/export capabilities — get profiles/tasks into a reviewable format
-**Status:** Planning
+### CARD-0231 · [idea] [tos] Investigate Tasker's task import/export capabilities — get profiles/tasks into a reviewable format — RESOLVED 2026-09-06
+**Status:** Done
 
 **Raised via idea email (PR #49, joscthomas+kbc@gmail.com), 2026-08-29** — Joseph's own framing: "investigating the import/export capabilities of Tasker. It would be nice to view the code."
 
@@ -339,10 +339,17 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - `components/hiking-monitor/tasker/GPS-Active.prf.xml` — the `GPS Active` Profile counterpart, same missing-Extra-filter pattern as `Hike-izer Done` but genuinely harmless here, since `GPS Active Flag`'s own first action is already an internal `If %gpsloggerevent Eq started` gate. No card needed — a real, useful negative-control comparison against CARD-0242, confirmed by checking rather than assumed safe by pattern-matching.
 - `tos/Log-Idea.tsk.xml` — matches its documentation with zero discrepancies, unlike three of the five other Tasks/Profiles checked so far. Worth noting as the control case: this export-and-diff pattern isn't just a bug-finder, it's equally capable of confirming a doc is already correct.
 - `components/hiking-monitor/tasker/Flush-Observation-Queue.tsk.xml` — another clean match, action-for-action against `observations-pipeline.md` Section 2. Made one previously-implicit detail explicit: the outgoing JSON body carries `lat: null, lon: null, categories: [], source: "voice"` alongside `ts`/`observation` — no GPS ever attached to a voice observation, consistent with CARD-0156's original scope.
+- `components/hiking-monitor/tasker/Wifi-Connected.prf.xml` and `Mobile-Network.prf.xml` — the two State→Net connectivity Profiles, both matching `observations-pipeline.md` Section 3 exactly, pointing at `Flush Observation Queue`. **This closes the full retrofit list.**
 
-**Done when:** every Tasker Task/Profile named in the hiking/BirdNET/TOS pipelines (`Log Observation`, `Hike-izer Webhook`/`Hike-izer Done`, `GPS Active Flag`/`GPS Active`, `Mile Announcement`/`Mile Announcer`, `Share BirdNET`, `Log Idea`, `Flush Observation Queue` — done; its two State→Net connectivity Profiles — outstanding) has a committed `.tsk.xml`/`.prf.xml` alongside its existing prose doc.
+**Closed 2026-09-06 — every Tasker Task/Profile named in this project's hiking/BirdNET/TOS/menu automation is now committed and diffed against its prose doc:** `Log Observation`, `Hike-izer Webhook`/`Hike-izer Done`, `GPS Active Flag`/`GPS Active`, `Mile Announcement`/`Mile Announcer`, `Share BirdNET`, `Log Idea`, `Flush Observation Queue`, `Wifi Connected`, `Mobile Network`, and `JCTsh Menu` — 13 files across four component directories (`components/hike-izer-orchestrator/tasker/`, `components/hiking-monitor/tasker/`, `components/jctsh-menu/`, `tos/`).
 
-**Related:** `Node-RED-workflow.md` (the analogous export/version-control pattern already working for Node-RED), CARD-0156/`components/hiking-monitor/observations-pipeline.md` (an example of a Tasker profile currently undocumented except in prose), `tos/README.md` (the Tasker-originated webhook entry points into this project's automation), CARD-0239/CARD-0241 (`components/jctsh-menu/JCTsh-Menu.tsk.xml`, this pattern's first real applied instance, including the real bug it helped catch).
+**Real, quantified outcome — not just "we did the exports":** of the 10 Tasks/Profiles checked against their existing prose docs, **4 had real discrepancies** (a live bug fixed on the spot — `JCTsh Menu`'s `step-2`/`step_2` mismatch; a doc correction plus a new low-priority card — `Hike-izer Done`'s missing Extra filter, CARD-0242; two previously-undocumented actions found — `Hike-izer Webhook`'s mile/GPS-flag resets; one open verification question on a different card fully resolved without a live test — CARD-0208 (b)/(c), via three chained exports) and **6 matched their documentation with zero discrepancies** (`Log Observation`, `Log Idea`, `Flush Observation Queue`, `GPS Active`/`GPS Active Flag`, `Share BirdNET`, the two connectivity Profiles) — confirming the docs were already accurate, not just failing to find bugs. Both outcomes are real value from the same mechanism.
+
+**Done when:** every Tasker Task/Profile named in the hiking/BirdNET/TOS pipelines has a committed `.tsk.xml`/`.prf.xml` alongside its existing prose doc. **Met.**
+
+**Reflection (per `JCTsh-Operating-System.md`'s Build → Done requirement):** the durable takeaway isn't just "these files now exist" — it's that **diffing a hand-maintained doc against the actual on-device artifact is worth doing even when nothing is suspected to be wrong.** 6 of 10 exports found nothing, and that's not a wasted check — it's the same value a passing test suite provides. This is now the default expectation for Tasker-side work going forward, not a one-off investigation: any new Tasker Task/Profile gets exported and committed as part of its own build (see `components/jctsh-menu/README.md`/`tasker-setup.md` for the template this established), and an existing one worth re-verifying can be re-exported any time doubt arises about whether its doc is still accurate.
+
+**Related:** `Node-RED-workflow.md` (the analogous export/version-control pattern already working for Node-RED), CARD-0156/`components/hiking-monitor/observations-pipeline.md`, `tos/README.md`, CARD-0208 (two open verification questions resolved by this card's exports), CARD-0239/CARD-0241 (`components/jctsh-menu/`, this pattern's first real applied instance), CARD-0242 (the one real bug still needing a phone-side fix, found via this card's own method).
 
 ---
 

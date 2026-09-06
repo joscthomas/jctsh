@@ -124,6 +124,9 @@ class Handler(BaseHTTPRequestHandler):
         if parts.path == "/webhook/pipeline-log":
             self._handle_pipeline_log(parts)
             return
+        if parts.path == "/webhook/step2":
+            self._handle_step2(parts)
+            return
         self._respond(404, {"status": "error", "message": "not found"})
 
     def _authorized(self, parts):
@@ -526,6 +529,37 @@ class Handler(BaseHTTPRequestHandler):
 
         _log_mqtt_async(category, message, component=component)
         self._respond(200, {"status": "ok"})
+
+    def _handle_step2(self, parts):
+        """CARD-0239: a phone-only, no-SSH way to re-run CARD-0214's step-2
+        gap-fill pass against the current hike -- fired from the `Run Step
+        2` entry in the `JCTsh Menu` Tasker task, no request body needed.
+        Same auth/backgrounding shape as `hike-end` (WEBHOOK_SECRET, since
+        this is Tasker-fired rather than Joseph typing a PIN; background
+        thread, since the Sheet/Nominatim/Overpass/Immich calls inside
+        run_step2 aren't fast enough to hold the HTTP response open).
+        generation.run_step2_and_log() already publishes its own
+        System/Alert MQTT line and HA push on completion/failure -- this
+        handler only needs to log the webhook's own receipt, same
+        "durable proof the request even arrived" reasoning _handle_hike_end
+        already established."""
+        if not self._authorized(parts):
+            log("Rejected step2 webhook POST: missing or incorrect key")
+            _log_mqtt_async("Alert", "Step2 webhook POST rejected: missing or incorrect key.")
+            self._respond(401, {"status": "error", "message": "unauthorized"})
+            return
+
+        file_stem = generation.current_or_latest_file_stem()
+        if file_stem is None:
+            log("Rejected step2 webhook POST: no published hike found to run against")
+            _log_mqtt_async("Alert", "Step2 webhook POST rejected: no published hike found.")
+            self._respond(409, {"status": "error", "message": "no published hike found"})
+            return
+
+        log(f"Step2 webhook received -- starting gap-fill pass for {file_stem}")
+        _log_mqtt_async("System", f"Step2 webhook received for {file_stem} -- running gap-fill pass.")
+        threading.Thread(target=generation.run_step2_and_log, args=(file_stem,), daemon=True).start()
+        self._respond(200, {"status": "ok", "file_stem": file_stem, "message": "step2 started"})
 
     def _respond(self, status, body):
         data = json.dumps(body).encode()

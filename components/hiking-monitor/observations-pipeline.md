@@ -9,6 +9,8 @@ history* — what was tried, what didn't work on this Tasker version, and why
 each design decision landed where it did — see
 `hiking-monitor-claude-code-instructions.md` Steps 24–27. This file is the
 current-state reference; that one is the record of how it got here.
+`tasker/Log-Observation.tsk.xml` (this directory) is the real exported
+Task — diffable ground truth alongside this prose, per CARD-0231.
 
 ---
 
@@ -100,6 +102,14 @@ current, confirmed-working state:
 **Failure behavior:** the file is never deleted, `%sent_count` is never
 incremented, and no flash fires unless the POST genuinely succeeds. A failed
 attempt leaves the queue exactly as it was, ready for the next trigger.
+
+**`tasker/Flush-Observation-Queue.tsk.xml`** (this directory) is the real
+exported Task, per CARD-0231 — matches this section action-for-action,
+no discrepancies. One detail worth stating precisely since the export
+made it visible: the outgoing JSON body also carries `lat: null, lon:
+null, categories: [], source: "voice"` alongside `ts`/`observation` —
+this pipeline has never attached a GPS location to a voice observation,
+consistent with CARD-0156's original scope, not a gap introduced later.
 
 ---
 

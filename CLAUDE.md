@@ -148,6 +148,13 @@ docker logs -f homeassistant
 
 DNS is explicitly pinned to `8.8.8.8` / `8.8.4.4` in both `docker-compose.yml` and `/etc/docker/daemon.json` (tracked at `core/docker/daemon.json`). This prevents a recurrence of the June 2026 outage where HA lost all cloud connectivity because the container had a stale DHCP-assigned DNS server (`192.168.1.222`) baked in at creation time. `daemon.json` also pins Docker's `data-root` to the USB drive (`/mnt/jctsh-logs/docker`, CARD-0159) — containerd's own `root` setting does the same for its separate snapshot store (`/etc/containerd/config.toml`, tracked at `core/docker/containerd-config.toml`), which is where the actual bulk of image/container-layer data lives on this Docker install, not under `/var/lib/docker` itself.
 
+**Post-update entity-availability check (CARD-0240):** after any `docker compose up -d`/recreate, check `/api/states` for unavailable entities. If SmartThings- or Ring-domain entities are unavailable, don't assume real device failure first — reload those integrations via the HA REST API before investigating further:
+```bash
+curl -s -X POST http://pi1.local:8123/api/config/config_entries/entry/<entry_id>/reload \
+  -H "Authorization: Bearer $HA_TOKEN"
+```
+Find entry IDs via `GET /api/config/config_entries/entry`, filtered by `domain` (`smartthings`/`ring`). Confirmed 2026-09-05: after a routine HA update, 150 of 203 unavailable entities were Ring/SmartThings entities that needed exactly this reload — the config entry itself reported `state: loaded` the whole time, so `loaded` doesn't guarantee actually synced.
+
 ## Remote Access
 Tailscale is installed on the Pi. Connect any device to the same Tailscale account
 to access all local services remotely — no port forwarding, no public IP exposure.

@@ -18,7 +18,8 @@ BirdNET Live app (phone, Live Mode through 2026-08-19 -- see CARD-0182;
 switching to Survey Mode going forward, see Section 4)
     │  session export (.zip, or .json pulled from it)
     ▼
-AutoShare app → Tasker → POST /webhook/stage-file?kind=birdnet&key=<SECRET>
+AutoShare app → Tasker ("Share BirdNET" Profile/Task,
+    │   tasker/Share-BirdNET.prf.xml) → POST /webhook/stage-file?kind=birdnet&key=<SECRET>
     │  (+ local_datetime param, CARD-0136 — same Joda-Time pattern the
     │   hike-end webhook uses, lets the race case below resolve correctly)
     ▼

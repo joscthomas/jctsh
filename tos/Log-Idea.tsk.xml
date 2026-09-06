@@ -1,0 +1,96 @@
+<TaskerData sr="" dvi="1" tv="6.6.20">
+<Task sr="task11">
+<cdate>1786934345974</cdate>
+<edate>1787072286285</edate>
+<id>11</id>
+<nme>Log Idea</nme>
+<pri>7</pri>
+<Action sr="act0" ve="7">
+<code>903</code>
+<Str sr="arg0" ve="3">Speak Your Idea</Str>
+<Int sr="arg1" val="0"/>
+<Str sr="arg2" ve="3"/>
+<Int sr="arg3" val="1"/>
+<Int sr="arg4" val="30"/>
+<Int sr="arg5" val="0"/>
+<Bundle sr="arg6">
+<pref>idea_text</pref>
+<Vals sr="val">
+<net.dinglisch.android.tasker.RELEVANT_VARIABLES>&lt;StringArray sr=""&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0&gt;%gv_confidence
+Confidence
+Value from 0 to 100 showing the confidence of the detected value&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES1&gt;%gv_heard
+Heard
+List of possible variations of what was heard&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES1&gt;&lt;/StringArray&gt;</net.dinglisch.android.tasker.RELEVANT_VARIABLES>
+<net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>[Ljava.lang.String;</net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>
+</Vals>
+</Bundle>
+</Action>
+<Action sr="act1" ve="7">
+<code>137</code>
+<Int sr="arg0" val="0"/>
+<Str sr="arg1" ve="3"/>
+<ConditionList sr="if">
+<Condition sr="c0" ve="3">
+<lhs>%VOICE</lhs>
+<op>13</op>
+<rhs></rhs>
+</Condition>
+</ConditionList>
+</Action>
+<Action sr="act2" ve="7">
+<code>339</code>
+<Bundle sr="arg0">
+<Vals sr="val">
+<net.dinglisch.android.tasker.RELEVANT_VARIABLES>&lt;StringArray sr=""&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0&gt;%http_cookies
+Cookies
+The cookies the server sent in the response in the Cookie:COOKIE_VALUE format. You can use this directly in the 'Headers' field of the HTTP Request action&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES1&gt;%http_data
+Data
+Data that the server responded from the HTTP request.&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES1&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES2&gt;%http_file_output
+File Output
+Will always contain the file's full path even if you specified a directory as the File to save.&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES2&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES3&gt;%http_response_code
+Response Code
+The HTTP Code the server responded&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES3&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES4&gt;%http_headers()
+Response Headers
+The HTTP Headers the server sent in the response. Each header is in the 'key:value' format&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES4&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES5&gt;%http_response_length
+Response Length
+The size of the response in bytes&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES5&gt;&lt;/StringArray&gt;</net.dinglisch.android.tasker.RELEVANT_VARIABLES>
+<net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>[Ljava.lang.String;</net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>
+</Vals>
+</Bundle>
+<Int sr="arg1" val="1"/>
+<Int sr="arg10" val="0"/>
+<Int sr="arg11" val="0"/>
+<Int sr="arg12" val="1"/>
+<Str sr="arg2" ve="3">https://hikes.jctnet.com/webhook/idea?key=G3sOgsf6Ly5N9XwYN2cb1r0qokkHkmug</Str>
+<Str sr="arg3" ve="3">Content-Type: application/json</Str>
+<Str sr="arg4" ve="3"/>
+<Str sr="arg5" ve="3">{"text":"%VOICE"} </Str>
+<Str sr="arg6" ve="3"/>
+<Str sr="arg7" ve="3"/>
+<Int sr="arg8" val="30"/>
+<Int sr="arg9" val="0"/>
+</Action>
+<Action sr="act3" ve="7">
+<code>548</code>
+<Str sr="arg0" ve="3">Idea logged</Str>
+<Int sr="arg1" val="0"/>
+<Str sr="arg10" ve="3"/>
+<Int sr="arg11" val="1"/>
+<Int sr="arg12" val="0"/>
+<Str sr="arg13" ve="3"/>
+<Int sr="arg14" val="0"/>
+<Str sr="arg15" ve="3"/>
+<Int sr="arg2" val="0"/>
+<Str sr="arg3" ve="3"/>
+<Str sr="arg4" ve="3"/>
+<Str sr="arg5" ve="3"/>
+<Str sr="arg6" ve="3"/>
+<Str sr="arg7" ve="3"/>
+<Str sr="arg8" ve="3"/>
+<Int sr="arg9" val="1"/>
+</Action>
+<Img sr="icn" ve="2">
+<nme>hl_aaa_ext_bulb</nme>
+</Img>
+</Task>
+</TaskerData>

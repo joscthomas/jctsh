@@ -1,0 +1,68 @@
+<TaskerData sr="" dvi="1" tv="6.6.20">
+<Task sr="task2">
+<cdate>1781377903149</cdate>
+<edate>1787072438556</edate>
+<id>2</id>
+<nme>Log Observation</nme>
+<pri>7</pri>
+<Action sr="act0" ve="7">
+<code>903</code>
+<Str sr="arg0" ve="3">Speak Your Observation </Str>
+<Int sr="arg1" val="0"/>
+<Str sr="arg2" ve="3"/>
+<Int sr="arg3" val="1"/>
+<Int sr="arg4" val="30"/>
+<Int sr="arg5" val="0"/>
+<Bundle sr="arg6">
+<pref>obs_text</pref>
+<Vals sr="val">
+<net.dinglisch.android.tasker.RELEVANT_VARIABLES>&lt;StringArray sr=""&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0&gt;%gv_confidence
+Confidence
+Value from 0 to 100 showing the confidence of the detected value&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES0&gt;&lt;_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES1&gt;%gv_heard
+Heard
+List of possible variations of what was heard&lt;/_array_net.dinglisch.android.tasker.RELEVANT_VARIABLES1&gt;&lt;/StringArray&gt;</net.dinglisch.android.tasker.RELEVANT_VARIABLES>
+<net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>[Ljava.lang.String;</net.dinglisch.android.tasker.RELEVANT_VARIABLES-type>
+</Vals>
+</Bundle>
+</Action>
+<Action sr="act1" ve="7">
+<code>137</code>
+<Int sr="arg0" val="0"/>
+<Str sr="arg1" ve="3"/>
+<ConditionList sr="if">
+<Condition sr="c0" ve="3">
+<lhs>%VOICE</lhs>
+<op>13</op>
+<rhs></rhs>
+</Condition>
+</ConditionList>
+</Action>
+<Action sr="act2" ve="7">
+<code>410</code>
+<se>false</se>
+<Str sr="arg0" ve="3">Tasker/obs_queue/%TIMES</Str>
+<Str sr="arg1" ve="3">%VOICE</Str>
+<Int sr="arg2" val="0"/>
+<Int sr="arg3" val="0"/>
+</Action>
+<Action sr="act3" ve="7">
+<code>130</code>
+<Str sr="arg0" ve="3">Flush Observation Queue</Str>
+<Int sr="arg1">
+<var>%priority</var>
+</Int>
+<Int sr="arg10" val="0"/>
+<Str sr="arg2" ve="3"/>
+<Str sr="arg3" ve="3"/>
+<Str sr="arg4" ve="3"/>
+<Int sr="arg5" val="0"/>
+<Int sr="arg6" val="0"/>
+<Str sr="arg7" ve="3"/>
+<Int sr="arg8" val="0"/>
+<Int sr="arg9" val="0"/>
+</Action>
+<Img sr="icn" ve="2">
+<nme>mw_action_announcement</nme>
+</Img>
+</Task>
+</TaskerData>

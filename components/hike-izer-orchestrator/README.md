@@ -122,128 +122,32 @@ a GitHub API failure gets a 502 — all three are real, Tasker-visible
 failures, not a silent drop. On success: `{"status": "ok", "pr_url":
 "..."}`.
 
-## Building the Tasker profile (Joseph)
+`POST https://hikes.jctnet.com/webhook/step2?key=<WEBHOOK_SECRET>`
 
-Mirrors the existing "Log Observation" task's HTTP POST pattern
-(`components/hiking-monitor/hiking-monitor-claude-code-instructions.md`,
-Step 24), but as an event-triggered Profile instead of a manually-tapped
-Task, since this has to fire itself the instant GPSLogger stops.
+CARD-0239: a phone-only, no-SSH way to re-run CARD-0214's step-2 gap-fill
+pass against the current hike. No request body. Resolves the target hike
+via `generation.current_or_latest_file_stem()` (same helper `stage-file`
+uses) and runs `run_step2_and_log(file_stem, with_narrative=False)` in a
+background thread — same reasoning as `hike-end`, the Sheet/Nominatim/
+Overpass/Immich calls inside step 2 aren't fast enough to hold the HTTP
+response open. Wrong/missing `key` gets a 401; no published hike yet gets
+a 409; a real request gets an immediate `{"status": "ok", "file_stem":
+"...", "message": "step2 started"}` — the actual gap-fill result (success
+or failure) shows up afterward via `run_step2_and_log`'s own MQTT
+System/Alert line and HA push, not in this response.
 
-**1. Create the Task first** — Tasker → Tasks tab → **+** → name it
-`Hike-izer Webhook`:
+## Building the Tasker tasks/profiles (Joseph)
 
-1. **Action 1 — Date Time Format** (search "Format" or "Date Time" in the
-   action picker; the action that formats the current or a given date/time):
-   - Input Type: `Now`
-   - Output Format Type: `Custom`
-   - Custom Format: `yyyy-MM-dd'T'HH:mm:ssZZ`
-   - Output Variable: `local_datetime` (no `%` — Tasker adds it)
-   - This gets the phone's *current* local date/time with UTC offset — e.g.
-     `2026-07-24T14:32:10-07:00` — never a hardcoded timezone.
+CARD-0241: full step-by-step build guides moved out of this reference
+doc into dedicated procedure docs, organized by which feature each one
+conceptually belongs to rather than by which container happens to host
+its webhook:
 
-2. **Action 2 — HTTP Post** (older Tasker versions may only offer "HTTP Post"
-   rather than "HTTP Request" — same purpose, but it splits the URL into two
-   separate fields instead of one):
-   - Method: `POST`
-   - Server:Port: `https://hikes.jctnet.com`
-   - Path: `/webhook/hike-end?key=G3sOgsf6Ly5N9XwYN2cb1r0qokkHkmug`
-     *(`WEBHOOK_SECRET` from `credentials.local.md`. **Both fields matter** —
-     a Server:Port-only URL with the path/key crammed in wrong silently fails
-     to reach the receiver at all, with no Tasker-visible error; confirmed via
-     live `docker logs` debugging 2026-07-28.)*
-   - Headers: `Content-Type: application/json`
-   - Body:
-     ```
-     {"gpsloggerevent":"%gpsloggerevent","filename":"%filename","startedtimestamp":"%startedtimestamp","duration":"%duration","distance":"%distance","local_datetime":"%local_datetime"}
-     ```
-     Tasker's "Intent Received" context (below) exposes each broadcast extra
-     as a same-named local variable automatically — `%gpsloggerevent`,
-     `%filename`, etc. need no separate assignment.
-
-3. **Action 3 — Flash (optional):**
-   - Text: `Hike-izer: publish triggered`
-
-**Test the task manually before wiring the trigger:** tap the play button
-next to `Hike-izer Webhook` in the Tasks list. `%gpsloggerevent` etc. will
-be unset outside a real broadcast, so the JSON body will have empty
-strings for those fields — that's fine for this step, it's only testing
-that the HTTP POST itself reaches the receiver. Check
-`docker logs hike-izer-orchestrator` on the M8 for a matching log line.
-
-**2. Create the Profile** — Tasker → Profiles tab → **+** → **Event** →
-**System** → **Intent Received**:
-
-- Action: `com.mendhak.gpslogger.EVENT`
-- Extra: `gpsloggerevent:stopped` — filters so this Profile only fires on
-  the stop broadcast, not `started`/`fileuploaded` (the receiver also
-  checks this server-side as a backup, but filtering here means Tasker
-  never even POSTs for the events we don't care about)
-- Assign Task: `Hike-izer Webhook` (created above)
-
-**Real end-to-end test:** start GPSLogger logging, let it run briefly, stop
-it. Confirm `docker logs hike-izer-orchestrator` on the M8 shows a real
-`stopped` event with real `filename`/`local_datetime` values — not the
-empty-field manual test above. This is the one verification step that
-can't be done from a desk (CARD-0086's stage 1 verification, step 3).
-
-## Building the voice-idea Tasker task (Joseph)
-
-CARD-0173. Mirrors "Log Observation"'s original design exactly
-(`components/hiking-monitor/hiking-monitor-claude-code-instructions.md`,
-Step 24) — a manually-tapped home-screen widget, not an event-triggered
-Profile like `hike-end` above (there's no external event to fire on here,
-this only ever starts because you tapped it).
-
-**1. Create the Task** — Tasker → Tasks tab → **+** → name it `Log Idea`:
-
-1. **Action 1 — Get Voice:**
-   - Title: `Speak your idea`
-   - Output Variable: `idea_text` (Get Voice actually stores its result in
-     `%VOICE` regardless of this field — same quirk Step 24 already
-     documented for "Log Observation")
-
-2. **Action 2 — Stop if no input (user cancelled):**
-   - Search for **Stop**
-   - Condition: `%VOICE` **Is Not Set**
-   - Error checkbox: **unchecked**
-
-3. **Action 3 — HTTP Post:**
-   - Method: `POST`
-   - Server:Port: `https://hikes.jctnet.com`
-   - Path: `/webhook/idea?key=G3sOgsf6Ly5N9XwYN2cb1r0qokkHkmug`
-     (`WEBHOOK_SECRET` from `credentials.local.md` — same key `hike-end`
-     already uses, one shared secret across every route on this webhook
-     receiver, not a separate one per endpoint)
-   - Headers: `Content-Type: application/json`
-   - Body: `{"text":"%VOICE"}`
-
-4. **Action 4 — Flash:**
-   - Text: `Idea logged`
-   - The HTTP Post action's own response code is available as
-     `%HTTP_RESPONSE_CODE` if you want a real success/failure distinction
-     here instead of an unconditional Flash — optional, confirm what's
-     actually available in your Tasker version when building this live.
-
-**Test the task manually before adding the widget:** tap the play button
-next to `Log Idea` in the Tasks list, speak a test idea, then check
-`docker logs hike-izer-orchestrator` on the M8 for a matching `Idea
-webhook: opened ... for '...'` line, and confirm a new `CARD-XXX:` PR
-actually appeared (`gh pr list` or the GitHub web UI).
-
-**2. Add the home screen icon.** **Correction, found live 2026-08-16:** the
-Widgets → Task Shortcut route documented for "Log Observation" Step 25
-led to a widget-configuration preview screen with no visible way to
-confirm/save it on this Tasker version (no checkmark, and the back arrow
-didn't place it either) — a real UI difference from whatever Tasker
-version Step 25 was originally built against, not a mistake in following
-those steps. **What actually works:** in Tasker's **Tasks** tab, tap
-**Log Idea** to select it, open its **3-dot overflow menu**, and choose
-**Add to Launcher** — this places a launcher icon directly on the home
-screen without going through the Android widget-placement flow at all.
-
-**Real end-to-end test:** tap the icon from the home screen (not the
-Tasks list), speak a real idea, confirm the PR appears. This is the one
-verification step that can't be done from a desk.
+| Tasker item | Calls | Build guide |
+|---|---|---|
+| `Hike-izer Webhook` (event Profile) | `/webhook/hike-end` | `tasker-setup.md` (this component — genuinely hike-izer-specific) |
+| `Log Idea` (manual task) | `/webhook/idea` | `tos/tasker-setup.md` (a TOS feature hosted here for the free endpoint) |
+| `JCTsh Menu` → `Run Step 2` (manual task) | `/webhook/step2` | `components/jctsh-menu/README.md` (a cross-cutting, growable menu, not owned by this component) |
 
 ## Checking it's up
 

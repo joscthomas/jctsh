@@ -9,7 +9,33 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0245 -->
+<!-- next-card-id: CARD-0246 -->
+
+---
+
+### CARD-0245 · [bug] [data-pipeline] Hike Start Forecast session-gap check compares against the wrong row — 48 spurious forecast captures on one real hike — RESOLVED 2026-09-06
+
+**Status:** Done
+
+**Raised 2026-09-06**, found while auditing every sheet tab in "JCTsh Environmental Data" for inappropriate duplicates, following the CARD-0243/CARD-0244 dedup fixes. Not a byte-identical-duplicate issue like those two — this is a different shape: **48 spurious forecast rows for a single continuous hike (2026-08-13)**, each just 30 seconds to a few minutes apart, when every other hike in the sheet's history correctly produced exactly 1-2 forecast rows (2 only when a calendar day genuinely contained two separate real hikes, hours apart).
+
+**Root cause, confirmed directly:** `_maybeCaptureHikeStartForecast`'s session-gap check (`environmental-data.gs`, CARD-0115) compares the new GPS point's timestamp against `gpsSheet.getRange(lastRow - 1, 1)` — whichever row is *physically* second-to-last in GPS Track — not the truly closest-preceding point in time. This assumes GPS Track's insertion order matches chronological order, which CARD-0243 already disproved for 2026-09-03 (182/684 rows out of order) and which is **even worse** for 2026-08-13: exporting that hike's raw GPS Track data and checking insertion order found **242 of 242 consecutive rows (100%) out of chronological sequence**. With insertion order this scrambled, the "gap" computed is effectively comparing against a near-random other point, repeatedly producing an apparent gap > `SESSION_GAP_MIN` (10 min) for points that were really only seconds apart from their true predecessor — misfiring "new session" 48 times.
+
+**Distinct from, and not fixed by, CARD-0243/CARD-0244.** Those fixed exact-*duplicate* insertion (rejecting a resend of the same point). This bug is about insertion *order* — a genuinely new, non-duplicate point can still land out of chronological sequence under network jitter/retries even with dedup in place, and this check would misfire again the next time that happens on a flaky-connectivity hike. Both root causes trace back to the same underlying reality (GPSLogger's retries against a slow endpoint don't arrive in the order they were captured), but this is a separate bug needing its own fix.
+
+**Real, quantified cost:** 48 wasted Open-Meteo API calls and 48 near-duplicate rows cluttering Hike Start Forecast for what should have been 1 row, on the 2026-08-13 hike specifically (already independently known as a bad-connectivity day, per CARD-0156's own investigation of that same hike's voice-observation losses).
+
+**Fix:** replace the physically-adjacent-row comparison with a true chronological scan — find the maximum timestamp *strictly less than* the current point's `tsISO` across all of GPS Track's column A (same full-column-read cost class `_gpsLookup` and CARD-0243's own dedup check already accept, not a new performance tier), and compute the gap against that value instead of `getRange(lastRow - 1, 1)`. If no such prior timestamp exists (this point is chronologically the earliest on record, or the very first point ever), fall through to capturing a new forecast — same conservative default the current code already has for the "first point ever" case.
+
+**Built, 2026-09-06.** `_maybeCaptureHikeStartForecast` in `core/data-pipeline/environmental-data.gs` updated: reads column A once (`getRange(2, 1, lastRow - 1, 1)`), scans for the maximum value strictly less than the target timestamp, uses that as the true "previous point" for the gap calculation. `SCRIPT_VERSION` bumped to `2026-09-06.3-forecast-session-gap-fix`.
+
+**No cleanup of existing spurious rows planned as part of this card** — the 47 extra 2026-08-13 rows are harmless clutter (each is a real, valid Open-Meteo response, just redundant), not corrupted data; removing them is a separate, optional manual Sheet edit Joseph can do at his discretion, not gated on this fix.
+
+**Deployed and verified live, 2026-09-06 — a real test constructed to reproduce the exact failure mode, not just re-checked the fix by inspection.** `?action=version` confirmed `2026-09-06.3-forecast-session-gap-fix`. Test sequence: inserted point A (`20:00:00Z`), then point Z (`19:00:00Z` — chronologically *before* A, but inserted *after* it, deliberately setting the "physically previous row" trap), then point B (`20:03:00Z` — only 3 minutes after A, should continue A's session). Result: **A and Z each correctly got their own forecast row** (both genuinely isolated when inserted); **B got no forecast row at all** — correctly recognized as continuing A's session via the true 3-minute gap, despite sitting physically right after Z. Under the old code, B would have been compared against Z (the physically-previous row) — a 63-minute gap, exceeding `SESSION_GAP_MIN` — and spuriously fired a third forecast row, exactly reproducing the 2026-08-13 failure shape. All 3 synthetic GPS Track rows and 2 synthetic Hike Start Forecast rows confirmed deleted afterward (`action=export` on that window returns `count: 0` for both sheets).
+
+**Done when:** a real or simulated GPS point arriving out of physical-row-order (e.g., inserted after a point with a later timestamp) no longer triggers a false new-session forecast capture when a truly-recent prior point exists elsewhere in the sheet, verified via a real test rather than assumed from the fix alone; `?action=version` confirms the redeploy took effect. **Met.**
+
+**Related:** CARD-0243 (the GPS Track dedup fix that first found the out-of-order-insertion pattern this bug depends on), CARD-0244 (Hiking Observations' sibling dedup fix), CARD-0115 (the original session-gap design this corrects), CARD-0156 (the 2026-08-13 hike's independently-known connectivity problems, now also explaining this bug's worst occurrence), `core/data-pipeline/environmental-data.gs` (`_maybeCaptureHikeStartForecast`).
 
 ---
 

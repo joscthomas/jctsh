@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-06.2-hiking-obs-dedup';
+var SCRIPT_VERSION = '2026-09-06.3-forecast-session-gap-fix';
 
 // ---------------------------------------------------------------------------
 // _relayLog -- CARD-0225: MQTT-dashboard visibility for GPS Track/Hiking
@@ -672,17 +672,35 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
     // CARD-0115: session-gap check first, before any sheet writes or the
     // Open-Meteo call -- cheap way to avoid both wasted API calls and (the
     // actual bug) skipping every session after the first one each day.
-    // GPS Track's current point was already appended by the caller just
-    // before this runs, so the *second-to-last* row is the true "previous"
-    // point to gap-check against. Fewer than 2 real rows (header + this
-    // point only) means this is the first GPS point ever recorded --
-    // trivially a new session.
+    // Fewer than 2 real rows (header + this point only) means this is the
+    // first GPS point ever recorded -- trivially a new session.
+    //
+    // CARD-0245: the "previous point" is found by scanning for the true
+    // maximum timestamp strictly before this one, not by reading whichever
+    // row is physically second-to-last. GPS Track's insertion order does
+    // not reliably match chronological order -- confirmed live 2026-09-06,
+    // 100% of consecutive rows were out-of-order on a real flaky-
+    // connectivity hike (2026-08-13) -- so trusting row position produced
+    // an effectively-random comparison point and misfired "new session"
+    // 48 times for what was one continuous hike. Same full-column-scan
+    // cost class _gpsLookup and CARD-0243's own dedup check already use,
+    // not a new performance tier.
     var gpsSheet = ss.getSheetByName('GPS Track');
     var lastRow = gpsSheet.getLastRow();
     if (lastRow > 2) {
-      var prevTs = gpsSheet.getRange(lastRow - 1, 1).getValue();
-      var gapMin = (new Date(tsISO).getTime() - new Date(prevTs).getTime()) / 60000;
-      if (gapMin <= SESSION_GAP_MIN) return; // continuing an existing session
+      var targetMsForGap = new Date(tsISO).getTime();
+      var allGpsTs = gpsSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+      var mostRecentPriorMs = -Infinity;
+      for (var g = 0; g < allGpsTs.length; g++) {
+        var candMs = new Date(allGpsTs[g][0]).getTime();
+        if (candMs < targetMsForGap && candMs > mostRecentPriorMs) {
+          mostRecentPriorMs = candMs;
+        }
+      }
+      if (mostRecentPriorMs !== -Infinity) {
+        var gapMin = (targetMsForGap - mostRecentPriorMs) / 60000;
+        if (gapMin <= SESSION_GAP_MIN) return; // continuing an existing session
+      }
     }
 
     // CARD-0225: GPS Track's own success confirmation piggybacks on this

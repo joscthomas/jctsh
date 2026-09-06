@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically snapshot new journald entries to persistent storage (CARD-0246)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Persistent=true
+Unit=journal-snapshot.service
+
+[Install]
+WantedBy=timers.target

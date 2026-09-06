@@ -4,5 +4,12 @@ Description=Weekly scheduled maintenance reboot (Pi)
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/jctsh/log-server.env
+# CARD-0246: snapshot journald's own volatile-storage content to persistent
+# storage immediately before rebooting -- guarantees the log lines right up
+# to the moment of reboot are captured, not just whatever the last periodic
+# (up to 15-minute-stale) journal-snapshot.timer run happened to catch.
+# `systemctl start` on a Type=oneshot service blocks until it completes, so
+# this genuinely finishes before the reboot proceeds, not a fire-and-forget.
+ExecStartPre=/usr/bin/systemctl start journal-snapshot.service
 ExecStart=/usr/bin/mosquitto_pub -h 127.0.0.1 -p 1883 -u ${MQTT_USER} -P ${MQTT_PASS} -t jctsh/core/log-server/log -m '{"component":"jctsh-core","category":"System","message":"Scheduled reboot about to occur."}'
 ExecStart=/sbin/reboot

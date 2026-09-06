@@ -1,0 +1,8 @@
+[Unit]
+Description=Snapshot new journald entries to persistent storage (CARD-0246 workaround)
+RequiresMountsFor=/mnt/jctsh-logs
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/journalctl --no-pager --cursor-file=/mnt/jctsh-logs/journal-snapshot.cursor
+StandardOutput=append:/mnt/jctsh-logs/journal-snapshot.log

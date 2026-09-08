@@ -312,6 +312,24 @@ binary_sensor:
             format: "Intent switch: %s"
             args: ['x ? "ON (closed)" : "OFF (open)"']
             level: WARN
+  # CARD-0012 Step 7 raw check, added 2026-09-08 -- dock-detect divider
+  # (TP4056 IN+ -> R3 68k -> midpoint -> R4 100k -> GND), matching the
+  # real component's wiring.md exactly. No pull needed, the divider
+  # itself sets the logic level. USB absent = LOW (field), USB present
+  # in TP4056 = HIGH (docked). Tested here independent of any WiFi-gating
+  # behavior, which is Step 8's concern, not this check's.
+  - platform: gpio
+    pin:
+      number: GPIO32
+      mode: INPUT
+    name: "Dock Detect"
+    id: dock_detect
+    on_state:
+      then:
+        - logger.log:
+            format: "Dock detect: %s"
+            args: ['x ? "HIGH (docked/charging)" : "LOW (field mode)"']
+            level: WARN
 
 output:
   - platform: gpio

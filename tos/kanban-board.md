@@ -9,7 +9,29 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0249 -->
+<!-- next-card-id: CARD-0250 -->
+
+---
+
+### CARD-0249 · [enhancement] [infrastructure] Distinguish post-reboot container "starting" alerts from real Docker-degraded alerts
+
+**Status:** Build
+
+**Raised 2026-09-07**, from investigating two alerts that landed on the dashboard within an hour of each other: `jctsh-core` ("Docker degraded - homeassistant:starting", 03:02:45 MST) and `photo-server` ("Immich degraded - immich_server:starting, immich_postgres:starting, immich_machine_learning:starting, immich_redis:starting, hike-izer-web:starting, hike-izer-orchestrator:starting", 04:02:52 MST). Both turned out to be routine — the Pi's `scheduled-reboot.timer` fired at 03:00:44 and the M8's fired at 04:00:43, and every container was simply mid-restart when that cycle's heartbeat happened to catch it — but nothing in the alert text says so. Confirming this required SSHing into both hosts and manually cross-checking `uptime -s` against `systemctl list-timers | grep reboot`. Asked directly: "looking at the alerts, how would i know they are routine?" — currently, there's no way to, from the alert alone.
+
+**Scope, decided via interview 2026-09-07:**
+- **Both heartbeat scripts get the fix**: `core/homeassistant/pi-heartbeat.py` (jctsh-core, checks `homeassistant`) and `components/photo-server/photo-server-heartbeat.py` (photo-server, checks the Immich stack + hike-izer-web/orchestrator).
+- **Grace window: 10 minutes since boot.** Read `/proc/uptime` (already done in `photo-server-heartbeat.py`; needs adding to `pi-heartbeat.py`) — if system uptime is under 10 minutes, the run is "post-reboot."
+- **Label, don't suppress.** Every run still publishes a log line — nothing goes silent. Within the 10-minute post-reboot window, a container reporting `starting` (not `unhealthy`, `not found`, or any other non-transient state — those still alert normally even during the window) gets folded into a distinct `System`-category message instead of an `Alert`, e.g. `"Docker containers starting after scheduled reboot - homeassistant:starting"` / `"Immich containers starting after scheduled reboot - immich_server:starting, ..."`. Once outside the 10-minute window, any `starting`/non-healthy state reports as a normal `Alert`, same as today — a container still stuck starting 10+ minutes after boot is a real problem, not routine.
+- **`photo-server-heartbeat.py` interaction with CARD-0124's existing `recovered`-vs-`unhealthy` split:** this is a separate, additive check — CARD-0124's logic only demotes `immich_server:starting` when *this script itself* just triggered a mount-recovery restart; it says nothing about a full host reboot, which is what produced today's alert (all 6 containers "starting" at once, not just `immich_server`). The new post-reboot check should run as its own classification pass alongside (not replacing) CARD-0124's existing one — a container already captured as `recovered` shouldn't also get double-counted into the new post-reboot bucket.
+
+**Built and deployed 2026-09-07 21:49 MST.** Both scripts updated: `pi-heartbeat.py` now reads `/proc/uptime` and classifies a `starting` `homeassistant` within `POST_REBOOT_GRACE_SECS` (600) as `System`/"Docker containers starting after scheduled reboot" instead of `Alert`; `photo-server-heartbeat.py` gets the same classification for its container list, layered alongside (not replacing) CARD-0124's existing `immich_server`-restart-recovery case — an if/elif chain, so a container already captured as CARD-0124 `recovered` is never double-counted into the new post-reboot bucket. Deployed to both hosts' actual runtime paths (`/usr/local/bin/pi-heartbeat.py` on the Pi, `/usr/local/bin/photo-server-heartbeat.py` on the M8 — not the repo path, which is a snapshot only) and run manually on each: both produced clean, unflagged heartbeats (`Heartbeat - Docker containers healthy.` / `Heartbeat - online.`, confirmed on the dashboard), since both hosts' real reboots this morning (03:00/04:00 MST) are hours outside the 10-minute window by now — no regression.
+
+**Auto verify: 2026-09-14 04:15 MST** — check the dashboard `/log` for `jctsh-core`/`photo-server` lines reading "...starting after scheduled reboot" (category `System`) instead of a plain `Alert`, once past both hosts' next scheduled reboot (Pi 03:00, M8 04:00). If present, that half of Done-when is met. (A `/schedule` cloud agent can't do this check itself, since the log dashboard has no public URL — needs a local session with LAN/SSH access.)
+
+**Done when:** both scripts read boot uptime and relabel `starting`-only findings within the first 10 minutes post-boot as `System`/post-reboot instead of `Alert` — **built and deployed, confirmed not to regress the normal case.** Still open: an actual post-reboot window hasn't been observed live yet (today's real reboots already happened before this landed) — see "Auto verify" above — plus confirming a container still unhealthy past the 10-minute window still alerts normally (simulated by stopping a container and running the heartbeat script manually well after a real boot).
+
+**Related:** `core/homeassistant/pi-heartbeat.py`, `components/photo-server/photo-server-heartbeat.py`, CARD-0124 (existing recovered/unhealthy split in the photo-server script, which this extends alongside rather than replaces), `core/maintenance/scheduled-reboot.timer` (the weekly job on both hosts that triggers this scenario).
 
 ---
 

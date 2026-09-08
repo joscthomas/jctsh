@@ -864,6 +864,13 @@ def _parse_kanban_board(text):
         }
         if re.search(r"(?m)^\*\*Blocked", body):
             card["flag"] = "blocked"
+        # CARD-0249: a standalone "**Auto verify: <date>**" line marks a check that
+        # couldn't be done live at write time (waiting on a future scheduled event) --
+        # surfaced on the card header so it isn't missed the way a plain in-body
+        # mention would be. Independent of the `flag` field above, not a replacement.
+        av_m = re.search(r"(?m)^\*\*Auto verify:\s*([^\n*]+?)\*\*", body)
+        if av_m:
+            card["auto_verify"] = av_m.group(1).strip()
         cards.append(card)
     return cards
 
@@ -1144,6 +1151,7 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   .card .cmeta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.1rem; }
   .flag { font-family: var(--mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 2px; padding: 0.08rem 0.4rem; border: 1px solid transparent; }
   .flag[data-flag="blocked"] { color: var(--danger); border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+  .flag[data-flag="auto-verify"] { color: var(--warning); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
   .chevron { color: var(--ink-faint); transition: transform 0.15s ease; flex: none; }
   .card[open] > summary .chevron { transform: rotate(90deg); }
   .card__detail { padding: 0 0.75rem 0.8rem 0.95rem; border-top: 1px dashed var(--line); margin-top: 0.1rem; padding-top: 0.6rem; }
@@ -1259,6 +1267,9 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     var flags = '';
     if (card.flag && flagLabels[card.flag]) {
       flags += '<span class="flag" data-flag="' + card.flag + '">' + flagLabels[card.flag] + '</span>';
+    }
+    if (card.auto_verify) {
+      flags += '<span class="flag" data-flag="auto-verify" title="Needs a live check once this date has passed (CARD-0249)">Auto verify: ' + escapeHtml(card.auto_verify) + '</span>';
     }
     var archiveMatch = ARCHIVE_NOTE_RE.exec(card.notes);
     // Link + empty target only -- nothing is fetched until the link is

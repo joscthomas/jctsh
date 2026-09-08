@@ -46,6 +46,14 @@ CAPACITY_THRESHOLD_PCT = 90
 BACKUP_STAMP = "/home/jct/photo-library-backup-success.stamp"
 BACKUP_STALE_DAYS = 9
 
+# CARD-0249: a container reporting "starting" within this many seconds of boot is a
+# scheduled-reboot.timer artifact (this host reboots weekly too), not a real problem --
+# distinct from CARD-0124's own narrower case below (immich_server briefly "starting"
+# right after *this script* restarts it following a mount recovery). See the card for
+# the incident that prompted this: a normal weekly reboot logged as a plain Alert with
+# no way to tell it apart from a real crash-loop without SSHing in and checking uptime.
+POST_REBOOT_GRACE_SECS = 600
+
 env = {}
 with open("/etc/jctsh/heartbeat.env") as f:
     for line in f:
@@ -128,6 +136,7 @@ if _primary_remounted:
 # keep this cycle flagged as still-degraded for a transient state CARD-0032's
 # own live test already showed clears within about a minute).
 _just_restarted_primary = "immich_server:auto-restarted-after-remount" in recovered
+starting_post_reboot = []
 for name in CONTAINERS:
     try:
         result = subprocess.run(
@@ -140,6 +149,8 @@ for name in CONTAINERS:
         elif status != "healthy":
             if name == "immich_server" and _just_restarted_primary and status == "starting":
                 recovered.append(f"immich_server:{status}-after-restart")
+            elif status == "starting" and secs < POST_REBOOT_GRACE_SECS:
+                starting_post_reboot.append(f"{name}:{status}")
             else:
                 unhealthy.append(f"{name}:{status}")
     except Exception as e:
@@ -209,6 +220,8 @@ if unhealthy:
     log_message = f"Immich degraded - {', '.join(unhealthy)}"
     if recovered:
         log_message += f" (also auto-recovered this cycle: {', '.join(recovered)})"
+    if starting_post_reboot:
+        log_message += f" (also starting after scheduled reboot: {', '.join(starting_post_reboot)})"
 elif recovered:
     # CARD-0124: everything that broke this cycle already fixed itself —
     # genuinely healthy right now, so System/"online" (not Alert/"degraded"),
@@ -218,6 +231,15 @@ elif recovered:
     status = "online"
     category = "System"
     log_message = f"Immich recovered - {', '.join(recovered)}"
+    if starting_post_reboot:
+        log_message += f" (also starting after scheduled reboot: {', '.join(starting_post_reboot)})"
+elif starting_post_reboot:
+    # CARD-0249: nothing else wrong, just mid-restart from the weekly scheduled
+    # reboot — System, not Alert, so it doesn't read as alarming, but still its
+    # own distinct message so it doesn't collapse into "nothing happened."
+    status = "online"
+    category = "System"
+    log_message = f"Immich containers starting after scheduled reboot - {', '.join(starting_post_reboot)}"
 else:
     status = "online"
     category = "System"

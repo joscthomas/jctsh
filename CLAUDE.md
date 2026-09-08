@@ -18,10 +18,20 @@ At the start of every Claude Code session in this repo, before doing anything el
    `CARD-XXX` placeholder title, not yet merged into `tos/kanban-board.md`. Summarize what's
    open and ask Joseph what he wants to do with them — don't merge or close any without
    his go-ahead.
-4. `tos/JCTsh-Operating-System.md` — the process definition governing how work moves through
+4. **Check for any card carrying an `Auto verify: <date>` marker whose date has already
+   passed (CARD-0249).** These mark a verification step that couldn't be done live at
+   write time — usually because it depends on a future external event (a scheduled reboot,
+   a timer firing, etc.) — and exist specifically because step 2's 7-day recently-updated
+   window isn't enough: a card can sit untouched for longer than 7 days while still waiting
+   on its marked date, and would otherwise never resurface. `grep -n "Auto verify:"
+   tos/kanban-board.md`; for any hit whose date has passed, follow through on that card's
+   own stated check (SSH/API/dashboard, etc.) and update the card with the result before
+   moving on to other work. This check runs every session regardless of the 7-day window
+   above — a card can sit for months past its date and must still be caught.
+5. `tos/JCTsh-Operating-System.md` — the process definition governing how work moves through
    the board (columns, state-transition triggers, the Build → Done Reflection requirement).
    Read this once per session alongside the board itself, not just the first time.
-5. **Check whether `tos/kanban-board.md` needs archiving (CARD-0193).** `archive_cards.py` is
+6. **Check whether `tos/kanban-board.md` needs archiving (CARD-0193).** `archive_cards.py` is
    deliberately manual, not on a timer — so nothing else will notice if the file has grown
    large again. If it's been a few weeks since the last archiving pass, or the file feels
    noticeably large/slow to work with, run `python tos/archive_cards.py` (dry run) and offer

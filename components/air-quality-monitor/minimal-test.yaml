@@ -76,65 +76,152 @@
 # boot. One trial (1 of 5) hung 90+s, not yet explained. Real, if usually
 # brief, instability -- doesn't meet Stage 0's 4-consecutive-clean bar.
 #
-# Experiment added 2026-08-28, Joseph's call: delay WiFi's own auto-start
-# past the boot-time inrush window, to see if separating the two
-# transients in time avoids the brownout entirely (Stage 0 alone never
-# brownouts). wifi.disable called at on_boot priority 500.0 -- ABOVE
-# WiFi's own setup_priority (~250) so this runs first and (if it works
-# as hoped) prevents WiFi's setup() from auto-connecting at all -- then
-# wifi.enable called explicitly from the interval once millis() > 3000.
-# CAUTION, genuinely untested pattern: CARD-0217 (hiking-monitor) found
-# calling wifi.enable() BEFORE WiFi's own setup() has run is unsafe (it
-# depends on state setup() initializes) -- our enable() call is safely
-# late (3s+), but calling disable() BEFORE WiFi's setup() has run has no
-# established precedent in this project. Treat as a real experiment, not
-# a known-safe pattern -- watch for a crash/hang distinct from the
-# brownout signature already characterized above.
-# RESULT: negative. WiFi began scanning almost immediately after setup(),
-# before the 3s delay -- wifi.disable()/enable() are runtime controls for
-# an already-initialized radio, not a way to suppress the automatic
-# connection attempt setup() itself unconditionally kicks off. This
-# approach is closed off, not just unresolved.
+# Experiment tried 2026-08-28 (delay WiFi's own auto-start past the
+# boot-time inrush window via wifi.disable/wifi.enable) -- CLOSED OFF,
+# not pursued further: WiFi began scanning almost immediately after
+# setup(), before the delay ever elapsed. wifi.disable()/enable() are
+# runtime controls for an already-initialized radio, not a way to
+# suppress the automatic connection attempt setup() itself
+# unconditionally kicks off. Removed from this file 2026-09-08 --
+# on_boot and the interval are back to the plain shape that produced
+# the original 5-trial Stage 1 characterization below.
 #
-# SESSION PAUSED HERE, 2026-08-28 -- an unrelated hardware puzzle, not
-# yet resolved. Tried a 10uF ceramic (up from 4.7uF) to target WiFi's
-# fast-edge current bursts -- real regression, not an improvement: two
-# attempts both failed to reach even the first LED blink (worse than
-# Stage 0's own 4/4-clean 4.7uF behavior), onboard power LED steady
-# (not flickering) suggesting a stall, not a brownout loop. Likely cause:
-# more capacitance needs more charge to reach the same voltage, so this
-# probably increased boot-time inrush and reintroduced the cold-boot
-# problem Stage 0 had already fixed. REVERTED to 4.7uF -- did NOT restore
-# the earlier clean behavior. Continuity good, battery voltage effectively
-# unchanged (3.86V vs 3.88V), a FRESH never-used 4.7uF ceramic also
-# failed the same way -- none of the obvious explanations hold. Working
-# theory, unconfirmed: cumulative contact wear across the whole crowded
-# ESP32-3V3-pin row from this session's very large number of switch
-# cycles and component swaps, not attributable to any single part.
-# DO NOT ASSUME STAGE 0'S PASS STILL HOLDS -- re-verify fresh next
-# session before trusting anything downstream of it. First step: a full
-# re-seat of that entire row (ESP32 pin, Pololu VOUT, SEN55 adapter VIN,
-# both bulk caps), not just the capacitor.
-# NOT YET REACHED: Stage 2 (+MQTT), Stage 3 (+I2C/SEN55).
+# SESSION PAUSED 2026-08-28 on an unrelated, unresolved hardware puzzle
+# (10uF ceramic regression, then reverting to 4.7uF failed to restore
+# Stage 0's previously-clean behavior -- suspected breadboard-row wear,
+# unconfirmed). Recommended first step next session: fully re-seat the
+# entire ESP32-3V3-pin row (ESP32 pin, Pololu VOUT, SEN55 adapter VIN,
+# both bulk caps), not just the capacitor, and re-verify Stage 0 clean
+# before trusting anything downstream of it.
+#
+# STAGE 1 RETEST, 2026-09-08 -- revised power protocol (see
+# tos/kanban-board.md CARD-0198, "Revised power protocol" note). Every
+# trial above ran on pure battery, USB unplugged everywhere -- a state
+# the real gated firmware can never reach, since WiFi only ever enables
+# with Intent off AND Power Connected true. This file's wifi: block
+# still connects unconditionally (no gating logic here, deliberately --
+# this is a component-level power-path question, not a firmware-gating
+# simulation), so what changes for this retest is physical: USB must be
+# plugged into TP4056's charging port throughout every trial, not the
+# ESP32's own port and not unplugged. The prior 5-trial characterization
+# (single brownout at WiFi scan start, usually recovers in one retry)
+# stays as a real data point but doesn't count as Stage 1 passing or
+# failing until re-run under this condition.
+#
+# STAGE 1 RETEST RESULT -- PASS, 2026-09-08. Real finding before any
+# trial even started: the inline Power Switch does NOT isolate the
+# shared VIN/BAT+ node from TP4056's own USB-fed charge output --
+# measured directly, Pololu VIN reads ~4V with the switch OFF whenever
+# USB is in TP4056, identical to switch ON (0V only with BOTH switch
+# off AND USB unplugged). Per wiring.md's topology the switch only ever
+# cuts the physical LiPo cell's own leg of that node, never TP4056's
+# internal charge-FET path onto the same pad -- wiring.md corrected to
+# say so. Revised trial mechanism adopted (carried into Stage 2/3):
+# switch left OFF for the whole session (isolates the LiPo entirely --
+# not drawn down by repeated trials), USB plug/unplug into TP4056 is
+# the trial trigger instead. This tests the HARDER case, not an easier
+# one -- Pololu powered purely by TP4056's own output, zero battery
+# contribution; real docked operation (switch on too) can only be
+# easier. Result: 4 of 4 consecutive clean cycles -- boot (reset reason
+# power-on event on 3/4, blank on 1/4, same known intermittent quirk
+# since Stage 0) -> single WiFi scan -> connect in 1-4s -> stable 90+s,
+# zero brownouts, zero retries, all 4 trials. Verified via CARD-0205's
+# debug UART (COM9, 115200, captured to a timestamped log file). Full
+# writeup: CARD-0198.
+#
+# STAGE 2 (+MQTT) -- PASS, 2026-09-08. Same trial mechanism as Stage
+# 1's retest (switch off, USB plug/unplug into TP4056). Reuses the real
+# air-quality-monitor MQTT account/broker (secrets.yaml) with a
+# distinct topic_prefix (aqm-minimal-test, not air-quality-monitor) so
+# this diagnostic build's traffic can't be confused with the real
+# component's -- safe to share the account since the real device isn't
+# deployed/running yet (CARD-0012 Step 7 still open). 4 of 4 consecutive
+# clean cycles: boot -> WiFi connect (1-3s) -> MQTT connect, zero
+# reboots across all 4. One consistent, unrelated finding: MQTT hit
+# "Couldn't resolve IP address for 'jctsh.duckdns.org'" on the FIRST
+# attempt every single trial, retrying successfully ~4s later -- a real,
+# repeatable DNS pattern, not power/brownout-related, not investigated
+# further here (worth a look separately sometime). Full writeup:
+# CARD-0198.
+#
+# STAGE 3 (+I2C/SEN55) -- PASS for the docked/upload path, 2026-09-08;
+# field/battery path still needed (real gap caught right after, see
+# below). Deliberately NOT replicating the real component's
+# SEN55-idle-override on_boot dance here -- the goal per CARD-0198's
+# own plan is to provoke the coincident-load scenario the Pololu
+# redesign was sized for (WiFi association while SEN55 is actively in
+# Measurement mode), not protect against it. SEN55's sen5x platform
+# auto-starts full Measurement mode (~63mA) at its own setup() (~
+# priority 600), which runs before WiFi's setup() (~priority 250) even
+# begins -- so with no idle override, SEN55 is already drawing its full
+# current by the time WiFi starts scanning moments later, the exact
+# overlap this stage needs, with zero extra scripting required to force
+# it. 4 of 4 consecutive clean cycles (switch off, USB plug/unplug into
+# TP4056, same as Stages 1-2) -- boot -> SEN55 init clean -> WiFi
+# connect -> MQTT connect, zero brownouts. One SEN55 I2C error
+# ("Failed to write data ready status command") seen once during the
+# flash/reset transition, not in any of the 4 counted trials -- not yet
+# explained, watch for recurrence.
+#
+# REAL GAP CAUGHT RIGHT AFTER (Joseph's catch, not found during Build):
+# this trial proves the DOCKED/upload path (TP4056 only, LiPo isolated)
+# -- it does NOT test the actual field scenario that matters most for
+# this device: SEN55 running continuously off the BATTERY ALONE,
+# collecting air-quality data untethered, no USB at all. That's a
+# genuinely separate condition, never exercised by this stage.
+#
+# FIELD/BATTERY-ONLY VARIANT, 2026-09-08 -- wifi:/mqtt: removed entirely
+# for this round (not gated off, just absent), per Joseph's point: real
+# field operation on battery alone should attempt neither -- the real
+# gated firmware's dock-detect logic (Step 8) is out of scope to
+# replicate here. Tests exactly what matters: does SEN55 (+ sensors)
+# boot and start collecting cleanly on battery alone, zero networking
+# overhead. Trigger: switch off/on (USB fully unplugged throughout --
+# no TP4056 backfeed complication with no USB present at all), same
+# 4-consecutive-clean bar. wifi:/mqtt: blocks kept below in a comment
+# for easy restoration if the docked-path stages need re-testing later.
+#
+# wifi:
+#   networks:
+#     - ssid: !secret wifi_ssid
+#       password: !secret wifi_password
+#
+# mqtt:
+#   id: mqtt_client
+#   broker: !secret mqtt_broker
+#   port: 8883
+#   certificate_authority: !secret mqtt_ca_cert
+#   idf_send_async: false
+#   username: !secret mqtt_username
+#   password: !secret mqtt_password
+#   topic_prefix: jctsh/components/aqm-minimal-test
+#   discovery: false
 
-wifi:
-  networks:
-    - ssid: !secret wifi_ssid
-      password: !secret wifi_password
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+
+sensor:
+  # SEN55 -- native sen5x platform, same address/pattern as the real
+  # component. Auto-starts full Measurement mode (~63mA) at its own
+  # setup(), no idle override here -- see the file header's Stage 3
+  # note for why that's deliberate. Just enough fields exposed to
+  # confirm real, sane readings; the real component's RGB threshold
+  # logic isn't relevant to this power-path test.
+  - platform: sen5x
+    id: sen55
+    address: 0x69
+    update_interval: 10s
+    pm_2_5:
+      name: "PM 2.5"
+      id: sen55_pm25
+      internal: true
 
 esphome:
   name: aqm-minimal-test
   friendly_name: AQM Minimal Test
   on_boot:
-    - priority: 500.0
-      then:
-        # Experiment (2026-08-28): disable WiFi before its own setup()
-        # runs (setup_priority ~250, below this block's 500), so it
-        # doesn't auto-connect at all until explicitly re-enabled from
-        # the interval below, past the boot-time inrush window. See the
-        # file header for the full reasoning and the untested-pattern
-        # caution.
-        - wifi.disable
     - priority: -100.0
       then:
         # Workaround (2026-08-28): ESPHome's logger_esp32.cpp never calls
@@ -173,10 +260,6 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
-  - id: wifi_enabled
-    type: bool
-    restore_value: false
-    initial_value: 'false'
 
 # Reset-reason read deferred to the first interval tick, not on_boot --
 # same fix as CARD-0217 (hiking-monitor): the debug component's
@@ -196,17 +279,6 @@ interval:
                 level: WARN
             - globals.set:
                 id: reset_reason_logged
-                value: 'true'
-      - if:
-          condition:
-            lambda: 'return !id(wifi_enabled) && millis() > 3000;'
-          then:
-            - logger.log:
-                format: "WiFi enabling now, after startup delay"
-                level: WARN
-            - wifi.enable
-            - globals.set:
-                id: wifi_enabled
                 value: 'true'
 
 logger:

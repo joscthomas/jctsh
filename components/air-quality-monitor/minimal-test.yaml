@@ -170,16 +170,29 @@
 # collecting air-quality data untethered, no USB at all. That's a
 # genuinely separate condition, never exercised by this stage.
 #
-# FIELD/BATTERY-ONLY VARIANT, 2026-09-08 -- wifi:/mqtt: removed entirely
-# for this round (not gated off, just absent), per Joseph's point: real
-# field operation on battery alone should attempt neither -- the real
-# gated firmware's dock-detect logic (Step 8) is out of scope to
-# replicate here. Tests exactly what matters: does SEN55 (+ sensors)
-# boot and start collecting cleanly on battery alone, zero networking
-# overhead. Trigger: switch off/on (USB fully unplugged throughout --
-# no TP4056 backfeed complication with no USB present at all), same
-# 4-consecutive-clean bar. wifi:/mqtt: blocks kept below in a comment
-# for easy restoration if the docked-path stages need re-testing later.
+# FIELD/BATTERY-ONLY VARIANT -- PASS, 2026-09-08. wifi:/mqtt: removed
+# entirely for this round (not gated off, just absent), per Joseph's
+# point: real field operation on battery alone should attempt neither
+# -- the real gated firmware's dock-detect logic (Step 8) is out of
+# scope to replicate here. Tests exactly what matters: does SEN55 (+
+# sensors) boot and start collecting cleanly on battery alone, zero
+# networking overhead. Trigger: switch off/on (USB fully unplugged
+# throughout -- no TP4056 backfeed complication with no USB present at
+# all). Run at a recharged, healthy battery voltage (3.8V+) after the
+# earlier WiFi+MQTT+SEN55 battery trial drained the cell to its 3.4V
+# critical floor (see CARD-0198). 4 of 4 trials held 3+ minutes each
+# (extended from the usual ~90s window specifically to cover where the
+# WiFi+MQTT case broke down) -- boot -> SEN55 init clean -> steady LED,
+# no further activity (expected for this minimal a build), confirmed
+# stable each time. ONE UNEXPLAINED ANOMALY: trial 4's initial reset
+# reason was "other watchdogs", not "power-on event" like trials 1-3 --
+# a genuine ESP32 task/watchdog signature that shouldn't be possible
+# for a true cold boot from confirmed 0V. Matches an identical,
+# equally-unresolved occurrence from this file's own 2026-08-24
+# session. Device recovered and ran stably 3.5+ min after it regardless
+# -- real, recurring, but still not root-caused. Full writeup: CARD-0198.
+# wifi:/mqtt: blocks kept below in a comment for easy restoration if
+# the docked-path stages need re-testing later.
 #
 # wifi:
 #   networks:

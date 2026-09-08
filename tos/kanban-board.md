@@ -3601,6 +3601,14 @@ All decisions written into `air-quality-monitor-claude-code-instructions.md` (bu
 
 Step 7 (hardware rewiring + raw-signal checks) is next.
 
+**Power switch rewired and verified, 2026-09-08.** Physically rewired to the new topology (LiPo `BAT+`/TP4056 `BAT+` tied together on the switch's input side; switch output feeds only the Pololu `VIN`). All key checks passed:
+- Switch off, USB unplugged: 0V at Pololu `VIN` (baseline, unchanged).
+- Switch off, USB in TP4056: **0V at Pololu `VIN`** — the actual fix, confirmed working (this read ~4V under the old wiring).
+- Switch off, USB in TP4056: TP4056's charge LED lit, confirming charging now works independent of switch position (the side benefit).
+- Switch on, USB in TP4056: Pololu `VOUT` = 3.3V, clean.
+- Switch on, USB unplugged: `VOUT` initially read 3.18V — not a wiring problem, traced to the battery itself needing a real charge. **Real, useful finding along the way:** the earlier "3.9V" reading was taken while TP4056 was actively charging, which reads artificially high (charging current elevates terminal voltage against the battery's own internal resistance) — the battery's true, load-bearing voltage was well below that. Written into Step 8's bench-sweep instructions above: any future voltage check (bench sweep or runtime firmware) must be taken with the charger disconnected, not mid-charge. Battery back on the charger; `VOUT`-on-battery-alone re-check pending a real charge before this specific item is fully closed.
+- Remaining for Step 7: battery-divider R1 move (3.3V placeholder → real post-switch node), dock-detect raw check, Intent-switch raw check.
+
 ---
 
 ### CARD-0013 · [idea] [van-sensors] Van sensors (indoor + outdoor)

@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.30
-**Version description:** Corrected physical locations — Pololu D24V10F3 moved from Bag 38 to Bin C5; BOJACK ceramic capacitor kit moved from Bag 39 to the Plastic Box (alongside the other small assortment kits stored there).
+**Version:** 2.31
+**Version description:** Added BK-1208 latching mini on/off switch ×50 (Bin D5), satisfying the part `components/air-quality-monitor/wiring.md` already called for but that was never logged as stocked.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -128,6 +128,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | M3 Heat Set Threaded Inserts | 300 pcs, M3 × D5 × L4, brass, knurled, for melting into 3D-printed plastic. https://www.amazon.com/dp/B0DG59PW2R | 300 | Plastic Box | No project assigned. |
 | M3 Screw Assortment | 600 pcs, M3 hex button head cap screws, bolts, nuts, washers, 8 sizes: 6/8/10/12/16/20/25/30mm, 304 stainless steel. https://www.amazon.com/dp/B0D1457XQ3 | 600 | Plastic Box | No project assigned. Verify selection before build. |
 | GX16-3 Panel Mount Aviation Connector | 3-pin, circular metal aviation connector, panel/metal mount, male/female plug/socket pairs. https://www.amazon.com/dp/B07D3CY5LB | 10 | Bag 36 | No project assigned. |
+| Latching Mini On/Off Switch (BK-1208) | 50pcs, black, self-lock micro push button switch, DC 30V 1A, SMD flashlight type. https://www.amazon.com/dp/B086L2GPGX | 50 | Bin D5 | Satisfies the BK-1208 latching push-button called for in `components/air-quality-monitor/wiring.md`. |
 
 ---
 
@@ -298,3 +299,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-08-27 | air-quality-monitor | Pololu D24V10F3 3.3V 1A step-down voltage regulator ×2 received (ordered direct from Pololu), added to Discrete Semiconductors, new Bag 38 — allocated to CARD-0198's power-system redesign, replacing the MCP1700 LDO |
 | 2026-08-27 | air-quality-monitor | BOJACK 10-value/300pc ceramic capacitor assortment kit (ASIN B085RDTCCV) received, added to Capacitors, new Bag 39 — satisfies the 4.7µF ceramic CARD-0198's power-system redesign flagged as missing from inventory |
 | 2026-08-28 | Stock | Corrected physical locations: Pololu D24V10F3 moved Bag 38 → Bin C5; BOJACK ceramic capacitor kit moved Bag 39 → Plastic Box (with the other small assortment kits) |
+| 2026-09-08 | air-quality-monitor | Latching mini on/off switch BK-1208 ×50 (ASIN B086L2GPGX) received, added to Prototyping and Build Hardware, Bin D5 — satisfies the BK-1208 called for in `components/air-quality-monitor/wiring.md`, previously specified but not stocked |

@@ -315,6 +315,23 @@ DAYLIGHT_ELEVATION_DEG = -6.0     # civil twilight
 WALKING_SPEED_MIN_MPS = 0.15      # below this: effectively stationary (camp/parked), not hiking
 WALKING_SPEED_MAX_MPS = 3.0       # above this (~6.7 mph sustained): too fast for walking, likely a vehicle
 
+# CARD-0250: the whole-session median-speed check above has a real false-
+# negative case -- a real hike with a long rest stop in the middle (e.g. a
+# lunch break, a long view from an overlook) drags the *whole-session*
+# median below WALKING_SPEED_MIN_MPS even though real, directed walking-pace
+# movement clearly happened at both ends. Confirmed on a real 2026-09-08
+# session: median 0.10 m/s (correctly failing the plain check), but the raw
+# trace shows a genuine out-and-back shape -- walked ~800m out, sat for
+# ~78 min, walked back to within a few meters of the start. Before rejecting
+# on "too slow," check whether the session nonetheless contains a real,
+# sufficient walking-pace stretch via the already-existing
+# _moving_stopped_time_min() windowed-speed classifier (same anti-noise
+# windowing SPEED_WINDOW_MIN_SEC already applies, so ordinary GPS jitter
+# while genuinely parked doesn't accidentally clear this bar) -- rescue only
+# if that stretch is both long enough and covers real distance, not just
+# noise around one point.
+RESCUE_MIN_SPREAD_M = 150.0       # CARD-0140 found real drift-while-parked tops out ~20m; well clear of that
+
 # CARD-0222: a GPSLogger on/off/on toggle (testing, or a false start) can
 # produce a real GPS cluster that trivially satisfies the daylight + walking-
 # pace checks above -- e.g. a real 2026-08-29 incident: 5 points over 2.0
@@ -330,6 +347,11 @@ WALKING_SPEED_MAX_MPS = 3.0       # above this (~6.7 mph sustained): too fast fo
 # shortest on record is ~12.8 min), and today's incident (2.0 min) is well
 # below it -- 10 min sits with real margin on both sides.
 MIN_HIKE_DURATION_MIN = 10.0
+
+# CARD-0250: same bar as MIN_HIKE_DURATION_MIN -- a rescued "too slow"
+# session needs at least this much genuine walking-pace time to count,
+# same reasoning as the whole-session minimum-duration floor above.
+RESCUE_MIN_MOVING_MIN = MIN_HIKE_DURATION_MIN
 
 # CARD-0101: a session with no 10-min gap (e.g. hike -> straight into a car,
 # no stop) blends walking- and vehicle-pace points into one cluster. These
@@ -428,11 +450,29 @@ def _classify_hike(points):
             f"determine a movement pattern"
         )
     elif median_speed_mps < WALKING_SPEED_MIN_MPS:
-        reasons.append(
-            f"median movement speed {median_speed_mps:.2f} m/s "
-            f"({median_speed_mps * 2.23694:.1f} mph) is too slow to be walking -- "
-            f"likely stationary (camp, parked) rather than a hike"
-        )
+        # CARD-0250: the whole-session median can be dragged below walking
+        # pace by a long rest stop even when real walking-pace movement
+        # happened at both ends -- check for that before rejecting outright.
+        rescue_series = _hike_point_series(points)
+        moving_min = 0.0
+        max_spread_m = 0.0
+        if rescue_series:
+            moving_min, _ = _moving_stopped_time_min(rescue_series, WALKING_SPEED_MIN_MPS)
+            base = rescue_series[0]
+            max_spread_m = max(
+                _haversine_m(base['lat'], base['lon'], p['lat'], p['lon'])
+                for p in rescue_series
+            )
+        rescued = moving_min >= RESCUE_MIN_MOVING_MIN and max_spread_m >= RESCUE_MIN_SPREAD_M
+        if not rescued:
+            reasons.append(
+                f"median movement speed {median_speed_mps:.2f} m/s "
+                f"({median_speed_mps * 2.23694:.1f} mph) is too slow to be walking -- "
+                f"likely stationary (camp, parked) rather than a hike "
+                f"(checked for a real walking-pace stretch inside the session: "
+                f"{moving_min:.1f} min moving, {max_spread_m:.0f} m max distance from "
+                f"the start -- not enough to count as a hike with a long rest stop)"
+            )
     elif median_speed_mps > WALKING_SPEED_MAX_MPS:
         reasons.append(
             f"median movement speed {median_speed_mps:.2f} m/s "
@@ -446,6 +486,13 @@ def _classify_hike(points):
         'median_speed_mps': round(median_speed_mps, 2) if median_speed_mps is not None else None,
         'median_speed_mph': round(median_speed_mps * 2.23694, 1) if median_speed_mps is not None else None,
     }
+    # CARD-0250: only present when the whole-session-median-too-slow branch
+    # actually ran the rescue check above -- absent otherwise, not a
+    # meaningless 0.0/0.0 for every other rejection/acceptance path.
+    if have_speed_data and median_speed_mps < WALKING_SPEED_MIN_MPS:
+        details['rescue_moving_time_min'] = round(moving_min, 1)
+        details['rescue_max_spread_m'] = round(max_spread_m, 0)
+        details['rescued_by_moving_stretch'] = rescued
     return len(reasons) == 0, reasons, details
 
 

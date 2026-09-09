@@ -23,7 +23,13 @@
 # STEP 8 (2026-09-09): field/home mode duty-cycle + WiFi replay firmware.
 # Three independent signals gate any WiFi attempt (JCTsh-Build-Standards.md
 # §2.14 points 11-13) — Intent off AND Power Connected AND battery >= the
-# upload-safe margin (3.8V, provisional — see CARD-0012). None of these
+# upload-safe margin (3.5V, revised 2026-09-09 from an original 3.8V --
+# see CARD-0012: CARD-0198's brownout finding came from a deliberate
+# battery-ALONE stress trial, a scenario the other two conditions already
+# prevent; the well-tested docked case (TP4056 supplying the burst current,
+# not the battery) was clean at every voltage tried, so only a small
+# margin above the confirmed-catastrophic 3.4V floor is kept, for the
+# untested weak/solar-charger case). None of these
 # signals ever stand in for another. Field-mode duty-cycle logging (SEN55
 # I2C mode-switching, Measurement <-> RHT/Gas-Only) runs UNCONDITIONALLY,
 # independent of dock-detect state — a deliberate deviation from
@@ -97,7 +103,7 @@ esphome:
               # otherwise mean "try WiFi." Battery is the deciding factor.
               - if:
                   condition:
-                    lambda: 'return isnan(id(battery_voltage).state) || id(battery_voltage).state < 3.8f;'
+                    lambda: 'return isnan(id(battery_voltage).state) || id(battery_voltage).state < 3.5f;'
                   then:
                     # Voltage-blocked: the one new LED diagnostic worth the
                     # cost of a boot-time blink (2026-09-09 design decision)
@@ -323,7 +329,7 @@ globals:
     restore_value: false
     initial_value: '0'
   # STEP 8 / CARD-0224 pattern: set when attempt_aqm_replay defers because
-  # battery was below the 3.8V upload-safe threshold, cleared once a replay
+  # battery was below the 3.5V upload-safe threshold, cleared once a replay
   # actually completes. Lets the periodic interval retry once voltage
   # recovers while charging, instead of depending on another on_connect
   # event that may never come if the MQTT link just stays up.
@@ -440,6 +446,17 @@ mqtt:
   # its cert's CN/SAN only covers jctsh.duckdns.org, so a straight hostname
   # swap would fail cert validation without this:
   skip_cert_cn_check: true
+  # Bug found live 2026-09-09: ESPHome's mqtt component has its own built-in
+  # reboot_timeout (default 15min) that force-reboots the device if it can't
+  # connect within that window -- confirmed via mqtt_client.cpp's loop(),
+  # "Can't connect; restarting". This directly fights our own Step 8 bounded-
+  # attempt/15min-backoff state machine (the interval's wifi_gate_ok logic),
+  # which deliberately keeps MQTT disconnected during a backoff -- ESPHome's
+  # own watchdog was rebooting the device right as our backoff neared
+  # completion, since nothing in our design ever calls the MQTT component's
+  # own enable() again to reset its last_connected_ timer. Disabled here
+  # since our own state machine already owns this responsibility.
+  reboot_timeout: 0s
   idf_send_async: false  # ESPHome-recommended stability setting for MQTT+TLS on esp-idf
   username: !secret mqtt_username
   password: !secret mqtt_password
@@ -494,7 +511,7 @@ output:
 
 # ── Replay script (STEP 8 / CARD-0224 pattern) ─────────────────────────────────
 # Attempt to replay any buffered field-mode data. Defers (and records
-# replay_deferred_pending) if battery is still below the 3.8V upload-safe
+# replay_deferred_pending) if battery is still below the 3.5V upload-safe
 # threshold -- the same gate that decides whether WiFi is even allowed to try
 # in the first place, checked again here as defense-in-depth since voltage
 # could in principle sag between the gate passing and this actually running.
@@ -505,12 +522,12 @@ script:
           if (aqm_log_has_data()) {
             int count = aqm_log_count();
             if (count > 0) {
-              if (!isnan(id(battery_voltage).state) && id(battery_voltage).state < 3.8f) {
+              if (!isnan(id(battery_voltage).state) && id(battery_voltage).state < 3.5f) {
                 id(replay_deferred_pending) = true;
                 char skip_buf[176];
                 snprintf(skip_buf, sizeof(skip_buf),
                   "{\"component\":\"air-quality-monitor\",\"category\":\"Alert\","
-                  "\"message\":\"Replay deferred - battery %.2fV below 3.8V upload threshold, waiting for charge\"}",
+                  "\"message\":\"Replay deferred - battery %.2fV below 3.5V upload threshold, waiting for charge\"}",
                   id(battery_voltage).state);
                 id(mqtt_client).publish("jctsh/components/air-quality-monitor/log",
                                         std::string(skip_buf), 0, false);
@@ -696,8 +713,13 @@ interval:
       - lambda: |-
           bool intent_off = !id(intent_switch).state;
           bool power_connected = id(dock_detect).state;
-          bool voltage_ok = !isnan(id(battery_voltage).state) && id(battery_voltage).state >= 3.8f;
+          bool voltage_ok = !isnan(id(battery_voltage).state) && id(battery_voltage).state >= 3.5f;
           id(wifi_gate_ok) = intent_off && power_connected && voltage_ok;
+          ESP_LOGW("WifiState", "gate=%d in_progress=%d connected=%d elapsed_ms=%u batt=%.2f",
+                   id(wifi_gate_ok), id(wifi_attempt_in_progress),
+                   id(mqtt_client).is_connected(),
+                   (unsigned)(millis() - id(wifi_attempt_start_ms)),
+                   id(battery_voltage).state);
 
           if (!id(wifi_gate_ok)) {
             id(wifi_attempt_in_progress) = false;
@@ -718,9 +740,21 @@ interval:
             }
           }
           // Gate true + MQTT already connected: nothing to do here, on_connect owns it.
+          ESP_LOGW("WifiState", "AFTER: in_progress=%d start_ms=%u last_end_ms=%u",
+                   id(wifi_attempt_in_progress), (unsigned)id(wifi_attempt_start_ms),
+                   (unsigned)id(wifi_last_attempt_end_ms));
+      # Bug found live 2026-09-09: the original version here only disabled WiFi
+      # when the gate itself went false, so the 15-min quiet/backoff state
+      # (gate true, attempt just timed out, not yet reconnected) fell through
+      # to the else branch and did nothing -- WiFi stayed enabled and kept
+      # silently retrying the AP forever via ESPHome's own built-in reconnect
+      # logic, defeating the bounded-attempt design entirely. Fixed by also
+      # disabling whenever not actively attempting and not connected.
       - if:
           condition:
-            lambda: 'return !id(wifi_gate_ok);'
+            lambda: |-
+              return !id(wifi_gate_ok) ||
+                     (!id(wifi_attempt_in_progress) && !id(mqtt_client).is_connected());
           then:
             - wifi.disable:
           else:
@@ -741,7 +775,7 @@ interval:
               return id(mqtt_client).is_connected()
                   && id(replay_deferred_pending)
                   && !isnan(id(battery_voltage).state)
-                  && id(battery_voltage).state >= 3.8f
+                  && id(battery_voltage).state >= 3.5f
                   && aqm_log_has_data();
           then:
             - script.execute: attempt_aqm_replay

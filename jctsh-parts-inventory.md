@@ -151,6 +151,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | STEMMA QT / Qwiic Cable | Adafruit #4209, JST SH 4-pin to premium male headers, 150mm long. https://www.adafruit.com/product/4209 | 2 | Bin A2 (was Bag 31) | 1 used: hiking-monitor (LTR-390 sensor-side rewiring, CARD-0009). 1 spare. |
 | AreMe 90° USB-C Male to Female Adapter | 2-pack, 90-degree angled, USB-C male to USB-C female, metallic purple. https://www.amazon.com/dp/B0B2NJ3P3L | 2 | Bin D1 (was Bag 33) | No project assigned. |
 | HiLetgo CP2102 USB to TTL Module | USB 2.0 to TTL serial converter adapter, with jumper wires. https://www.amazon.com/dp/B00LODGRV8 | 1 | Bin D4 | No project assigned. |
+| SEN55 Connector Cable (Dupont) | Cable that came bundled with the SparkFun SEN-23715 (SEN55) sensor, terminated with Dupont connectors. | 1 | Bin D4 | No project assigned — air-quality-monitor's build uses the JST GH 1.25mm cable (Bag 25) instead. |
 | 90 Degree USB A Male to USB C Male Adapter | Various angles/orientations. https://www.amazon.com/dp/B0H1H74Z98 | 5 | Bin B5 | No project assigned. |
 
 ---
@@ -300,3 +301,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-08-27 | air-quality-monitor | BOJACK 10-value/300pc ceramic capacitor assortment kit (ASIN B085RDTCCV) received, added to Capacitors, new Bag 39 — satisfies the 4.7µF ceramic CARD-0198's power-system redesign flagged as missing from inventory |
 | 2026-08-28 | Stock | Corrected physical locations: Pololu D24V10F3 moved Bag 38 → Bin C5; BOJACK ceramic capacitor kit moved Bag 39 → Plastic Box (with the other small assortment kits) |
 | 2026-09-08 | air-quality-monitor | Latching mini on/off switch BK-1208 ×50 (ASIN B086L2GPGX) received, added to Prototyping and Build Hardware, Bin D5 — satisfies the BK-1208 called for in `components/air-quality-monitor/wiring.md`, previously specified but not stocked |
+| 2026-09-09 | Stock | SEN55 connector cable (Dupont-terminated, bundled with the SparkFun SEN-23715 sensor) added to Cables and Adapters, Bin D4 — not used in the air-quality-monitor build, which uses the JST GH 1.25mm cable instead |

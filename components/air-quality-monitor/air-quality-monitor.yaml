@@ -31,11 +31,15 @@
 # margin above the confirmed-catastrophic 3.4V floor is kept, for the
 # untested weak/solar-charger case). None of these
 # signals ever stand in for another. Field-mode duty-cycle logging (SEN55
-# I2C mode-switching, Measurement <-> RHT/Gas-Only) runs UNCONDITIONALLY,
-# independent of dock-detect state — a deliberate deviation from
-# hiking-monitor's pattern (which stops field logging the instant dock-detect
-# goes HIGH), because solar/field-USB charging can happen mid-collection on
-# this device just as easily as at home.
+# I2C mode-switching, Measurement <-> RHT/Gas-Only) runs independent of
+# dock-detect state — a deliberate deviation from hiking-monitor's pattern
+# (which stops field logging the instant dock-detect goes HIGH), because
+# solar/field-USB charging can happen mid-collection on this device just as
+# easily as at home. It IS gated on the Intent switch (bug found and fixed
+# live 2026-09-09 — this block previously ran regardless of Intent too,
+# contradicting wiring.md's documented design): Intent ON means "actively
+# collecting field data," matching hiking-monitor's own Intent-switch
+# semantics (see wiring.md's Intent Switch Wiring section).
 #
 # STEP 6 DECISION (2026-08-21): no dedicated SEN55 power-gate transistor.
 # Sensirion's own "Reduced Power Operation for SEN5x" doc recommends I2C
@@ -715,6 +719,13 @@ interval:
           bool power_connected = id(dock_detect).state;
           bool voltage_ok = !isnan(id(battery_voltage).state) && id(battery_voltage).state >= 3.5f;
           id(wifi_gate_ok) = intent_off && power_connected && voltage_ok;
+          // Diagnostic logging (2026-09-09) -- added to debug the retry-cycle
+          // state machine, since proven useful for several other findings
+          // this session too (reboot_timeout conflict, hysteresis fix's
+          // boot-interference issue). Kept intentionally for now per Joseph
+          // (2026-09-09) -- candidate for removal once Step 8 has run
+          // unattended long enough that this level of visibility isn't
+          // needed anymore. Fires every 2min at WARN level.
           ESP_LOGW("WifiState", "gate=%d in_progress=%d connected=%d elapsed_ms=%u batt=%.2f",
                    id(wifi_gate_ok), id(wifi_attempt_in_progress),
                    id(mqtt_client).is_connected(),
@@ -750,11 +761,31 @@ interval:
       # silently retrying the AP forever via ESPHome's own built-in reconnect
       # logic, defeating the bounded-attempt design entirely. Fixed by also
       # disabling whenever not actively attempting and not connected.
+      #
+      # Second bug found live 2026-09-09, field-simulation test: a single
+      # momentary ADC sample dipping below the 3.5V voltage_ok threshold
+      # (real LiPo-under-load noise, per JCTsh-Build-Standards.md §2.14 point
+      # 9 -- recovered to a normal reading 40s later) forced wifi_gate_ok
+      # false for one tick, which tore down an already-connected, working
+      # MQTT link (confirmed live: "Disconnected ssid='JCTnet1' ... reason=
+      # 'Association Leave'") even though nothing was actually wrong -- the
+      # device was docked and charging the whole time. The voltage condition
+      # exists to decide whether it's safe to START a new connection attempt
+      # (the upload current spike), not to justify severing one already
+      # established; the existing 3.4V general low-battery cutoff and the
+      # replay-defer check already protect the actually-risky operations.
+      # Fixed: while already connected, only intent/power (a real session-end
+      # or undock, not a voltage blip) forces a disable.
       - if:
           condition:
             lambda: |-
-              return !id(wifi_gate_ok) ||
-                     (!id(wifi_attempt_in_progress) && !id(mqtt_client).is_connected());
+              bool intent_off = !id(intent_switch).state;
+              bool power_connected = id(dock_detect).state;
+              bool hard_stop = !intent_off || !power_connected;
+              if (id(mqtt_client).is_connected()) {
+                return hard_stop;
+              }
+              return !id(wifi_gate_ok) || !id(wifi_attempt_in_progress);
           then:
             - wifi.disable:
           else:
@@ -828,7 +859,9 @@ interval:
                   - lambda: 'id(critical_battery_alerted) = false;'
             - if:
                 condition:
-                  lambda: 'return isnan(id(battery_voltage).state) || id(battery_voltage).state >= 3.4f;'
+                  lambda: |-
+                    return (isnan(id(battery_voltage).state) || id(battery_voltage).state >= 3.4f)
+                        && id(intent_switch).state;
                 then:
                   # Idle in RHT/Gas-Only mode between cycles (set at the end
                   # of on_boot and again at the end of this block). ~40s
@@ -845,6 +878,17 @@ interval:
                   # battery gate, defeating the cutoff entirely except for
                   # the mode-switch command itself. Everything through the
                   # final RHT-only revert now lives inside this one gate.
+                  #
+                  # Bug found live 2026-09-09, wiring.md vs. firmware mismatch:
+                  # wiring.md's Intent Switch Wiring section documents the
+                  # switch as signaling "actively collecting field data" when
+                  # ON -- but this block never actually checked it, so the
+                  # device duty-cycled and buffered data unconditionally
+                  # regardless of Intent, contradicting the documented design
+                  # (a device sitting idle with Intent off would still burn
+                  # battery running the full Measurement-mode cycle). Added
+                  # id(intent_switch).state here so data collection now
+                  # genuinely requires Intent ON, matching wiring.md.
                   - logger.log:
                       format: "DUTY CYCLE: switching to Measurement mode, 40s warm-up starting"
                       level: WARN

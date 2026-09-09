@@ -1285,7 +1285,11 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       flags += '<span class="flag" data-flag="auto-verify" title="Needs a live check once this date has passed (CARD-0249)">Auto verify: ' + escapeHtml(card.auto_verify) + '</span>';
     }
     if (card.watch_for) {
-      flags += '<span class="flag" data-flag="watch-for" title="No known due date -- check the durable log for this pattern every session (CARD-0224)">Watch for: ' + escapeHtml(card.watch_for) + '</span>';
+      // CARD-0251: unlike Auto verify's short date, a Watch for description can run
+      // to a paragraph (the full log pattern/context the card body needs for the
+      // actual grep) -- too long for the badge itself. Full text goes in the title
+      // tooltip (hover to read); the badge stays a short, fixed label.
+      flags += '<span class="flag" data-flag="watch-for" title="No known due date -- check the durable log for this pattern every session (CARD-0224). ' + escapeHtml(card.watch_for) + '">Watch for</span>';
     }
     var archiveMatch = ARCHIVE_NOTE_RE.exec(card.notes);
     // Link + empty target only -- nothing is fetched until the link is

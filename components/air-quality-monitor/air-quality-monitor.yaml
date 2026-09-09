@@ -349,6 +349,20 @@ globals:
     type: uint32_t
     restore_value: false
     initial_value: '0'
+  # STEP 8 fix (2026-09-09, real gap found bench-testing on battery alone):
+  # this device had NO general low-battery cutoff at all -- unlike
+  # hiking-monitor's deep-sleep-based low_battery_shutdown, required
+  # regardless of mode by JCTsh-Build-Standards.md §2.14 point 2. This
+  # device has no deep-sleep/wake-source architecture, so the equivalent
+  # protective action is skipping the ~63mA Measurement-mode burst entirely
+  # below 3.4V (the same documented catastrophic floor as hiking-monitor and
+  # this device's own Pololu regulator) -- RHT-only idle current is much
+  # lower and safe to leave running. Logged once per dip (not every 2-min
+  # cycle) via this flag, reset once voltage recovers above the floor.
+  - id: critical_battery_alerted
+    type: bool
+    restore_value: false
+    initial_value: 'false'
 
 # ── WiFi ──────────────────────────────────────────────────────────────────────
 # Multi-network (portable component): home WiFi first, Pixel hotspot second.
@@ -750,120 +764,163 @@ interval:
           condition:
             lambda: 'return id(boot_sequence_done);'
           then:
-            # Idle in RHT/Gas-Only mode between cycles (set at the end of
-            # on_boot and again at the end of this block). ~40s warm-up
-            # before reading, within Sensirion's recommended 30-60s window
-            # for good PM accuracy -- implemented as a feed_wdt()-safe
-            # chunked wait, never one long blocking delay (CARD-0211's
-            # watchdog-timeout lesson).
-            - logger.log:
-                format: "DUTY CYCLE: switching to Measurement mode, 40s warm-up starting"
-                level: WARN
-            - lambda: 'id(sen55).write_command((uint16_t) 0x0021);'  # SEN5X_CMD_START_MEASUREMENTS
-            - repeat:
-                count: 40
-                then:
-                  - delay: 1s
-                  - lambda: 'App.feed_wdt();'
-            # STEP 8 fix: stamp BEFORE requesting the read, so the freshness
-            # check below can prove a real publish happened after this point
-            # -- a CRC failure leaves sen55_pm25.state at its last
-            # successful value, which a plain isnan() check can't
-            # distinguish from a genuine fresh read.
-            - lambda: 'id(duty_cycle_read_start_ms) = millis();'
-            - component.update: sen55
-            # Short bounded settle wait -- waits for a genuinely fresh
-            # publish (see fix above), not just "state is currently
-            # non-NaN."
-            - lambda: 'id(pm25_wait_start) = millis();'
-            - while:
-                condition:
-                  lambda: |-
-                    return id(sen55_last_update_ms) < id(duty_cycle_read_start_ms) &&
-                           (millis() - id(pm25_wait_start)) < 5000;
-                then:
-                  - delay: 250ms
+            # STEP 8 fix (2026-09-09): general low-battery cutoff, required
+            # by JCTsh-Build-Standards.md §2.14 point 2 regardless of mode --
+            # this device had none at all until a real bench test on battery
+            # alone surfaced the gap. No deep-sleep architecture exists here
+            # (unlike hiking-monitor), so the equivalent protective action is
+            # skipping the ~63mA Measurement-mode burst entirely below 3.4V
+            # -- RHT-only idle current is much lower and safe to leave
+            # running (voltage keeps being monitored via the existing 30s
+            # ADC poll). Logged once per dip, not every 2-min cycle.
             - component.update: battery_voltage
-            - lambda: |-
-                float pm1  = id(sen55_pm1).state;
-                float pm25 = id(sen55_pm25).state;
-                float pm4  = id(sen55_pm4).state;
-                float pm10 = id(sen55_pm10).state;
-                float voc  = id(sen55_voc).state;
-                float nox  = id(sen55_nox).state;
-                float temp = id(sen55_temp).state;
-                float hum  = id(sen55_humidity).state;
-                float batt = id(battery_voltage).state;
+            - if:
+                condition:
+                  lambda: 'return !isnan(id(battery_voltage).state) && id(battery_voltage).state < 3.4f;'
+                then:
+                  - if:
+                      condition:
+                        lambda: 'return !id(critical_battery_alerted);'
+                      then:
+                        - lambda: |-
+                            id(critical_battery_alerted) = true;
+                            char buf[128];
+                            snprintf(buf, sizeof(buf),
+                              "{\"component\":\"air-quality-monitor\",\"category\":\"Alert\","
+                              "\"message\":\"Critical battery %.2fV - Measurement mode suspended until charge recovers\"}",
+                              id(battery_voltage).state);
+                            aqm_log_write(std::string(buf));
+                else:
+                  - lambda: 'id(critical_battery_alerted) = false;'
+            - if:
+                condition:
+                  lambda: 'return isnan(id(battery_voltage).state) || id(battery_voltage).state >= 3.4f;'
+                then:
+                  # Idle in RHT/Gas-Only mode between cycles (set at the end
+                  # of on_boot and again at the end of this block). ~40s
+                  # warm-up before reading, within Sensirion's recommended
+                  # 30-60s window for good PM accuracy -- implemented as a
+                  # feed_wdt()-safe chunked wait, never one long blocking
+                  # delay (CARD-0211's watchdog-timeout lesson).
+                  #
+                  # STEP 8 fix (2026-09-09, real bug found bench-testing on
+                  # battery alone): the whole warm-up/read/publish sequence
+                  # below used to sit as a SIBLING of this if-block (same
+                  # indentation), not nested inside its then: -- meaning it
+                  # ran unconditionally every cycle regardless of the
+                  # battery gate, defeating the cutoff entirely except for
+                  # the mode-switch command itself. Everything through the
+                  # final RHT-only revert now lives inside this one gate.
+                  - logger.log:
+                      format: "DUTY CYCLE: switching to Measurement mode, 40s warm-up starting"
+                      level: WARN
+                  - lambda: 'id(sen55).write_command((uint16_t) 0x0021);'  # SEN5X_CMD_START_MEASUREMENTS
+                  - repeat:
+                      count: 40
+                      then:
+                        - delay: 1s
+                        - lambda: 'App.feed_wdt();'
+                  # STEP 8 fix: stamp BEFORE requesting the read, so the
+                  # freshness check below can prove a real publish happened
+                  # after this point -- a CRC failure leaves
+                  # sen55_pm25.state at its last successful value, which a
+                  # plain isnan() check can't distinguish from a genuine
+                  # fresh read.
+                  - lambda: 'id(duty_cycle_read_start_ms) = millis();'
+                  - component.update: sen55
+                  # Short bounded settle wait -- waits for a genuinely
+                  # fresh publish (see fix above), not just "state is
+                  # currently non-NaN."
+                  - lambda: 'id(pm25_wait_start) = millis();'
+                  - while:
+                      condition:
+                        lambda: |-
+                          return id(sen55_last_update_ms) < id(duty_cycle_read_start_ms) &&
+                                 (millis() - id(pm25_wait_start)) < 5000;
+                      then:
+                        - delay: 250ms
+                  - component.update: battery_voltage
+                  - lambda: |-
+                      float pm1  = id(sen55_pm1).state;
+                      float pm25 = id(sen55_pm25).state;
+                      float pm4  = id(sen55_pm4).state;
+                      float pm10 = id(sen55_pm10).state;
+                      float voc  = id(sen55_voc).state;
+                      float nox  = id(sen55_nox).state;
+                      float temp = id(sen55_temp).state;
+                      float hum  = id(sen55_humidity).state;
+                      float batt = id(battery_voltage).state;
 
-                // Build ISO 8601 UTC timestamp from the NTP-synced clock,
-                // same pattern as hiking-monitor -- skip (buffered) if not
-                // yet synced.
-                ESPTime now = id(sntp_time).now();
-                bool reading_is_fresh = id(sen55_last_update_ms) >= id(duty_cycle_read_start_ms);
+                      // Build ISO 8601 UTC timestamp from the NTP-synced
+                      // clock, same pattern as hiking-monitor -- skip
+                      // (buffered) if not yet synced.
+                      ESPTime now = id(sntp_time).now();
+                      bool reading_is_fresh = id(sen55_last_update_ms) >= id(duty_cycle_read_start_ms);
 
-                if (!now.is_valid()) {
-                  aqm_log_write("{\"event\":\"skip\",\"reason\":\"clock_invalid\"}");
-                  ESP_LOGW("DutyCycle", "Skipped -- clock not yet synced (expected with WiFi off)");
-                } else if (!reading_is_fresh) {
-                  // STEP 8 fix: the read attempt never produced a genuine
-                  // new publish this cycle (most likely a CRC failure) --
-                  // pm25/temp/hum below may be non-NaN but are stale
-                  // leftovers from an earlier successful cycle.
-                  aqm_log_write("{\"event\":\"skip\",\"reason\":\"sensor_stale\"}");
-                  ESP_LOGW("DutyCycle", "Skipped -- no fresh SEN55 publish this cycle (stale/CRC failure)");
-                } else if (isnan(pm25) || isnan(temp) || isnan(hum)) {
-                  aqm_log_write("{\"event\":\"skip\",\"reason\":\"nan_sensor\"}");
-                  ESP_LOGW("DutyCycle", "Skipped -- pm25=%.1f temp=%.1f hum=%.1f (NaN present)", pm25, temp, hum);
-                } else {
-                  time_t epoch = (time_t)now.timestamp;
-                  struct tm utc_tm;
-                  gmtime_r(&epoch, &utc_tm);
-                  char ts[25];
-                  strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
+                      if (!now.is_valid()) {
+                        aqm_log_write("{\"event\":\"skip\",\"reason\":\"clock_invalid\"}");
+                        ESP_LOGW("DutyCycle", "Skipped -- clock not yet synced (expected with WiFi off)");
+                      } else if (!reading_is_fresh) {
+                        // STEP 8 fix: the read attempt never produced a
+                        // genuine new publish this cycle (most likely a
+                        // CRC failure) -- pm25/temp/hum below may be
+                        // non-NaN but are stale leftovers from an earlier
+                        // successful cycle.
+                        aqm_log_write("{\"event\":\"skip\",\"reason\":\"sensor_stale\"}");
+                        ESP_LOGW("DutyCycle", "Skipped -- no fresh SEN55 publish this cycle (stale/CRC failure)");
+                      } else if (isnan(pm25) || isnan(temp) || isnan(hum)) {
+                        aqm_log_write("{\"event\":\"skip\",\"reason\":\"nan_sensor\"}");
+                        ESP_LOGW("DutyCycle", "Skipped -- pm25=%.1f temp=%.1f hum=%.1f (NaN present)", pm25, temp, hum);
+                      } else {
+                        time_t epoch = (time_t)now.timestamp;
+                        struct tm utc_tm;
+                        gmtime_r(&epoch, &utc_tm);
+                        char ts[25];
+                        strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
 
-                  char pm1_s[16], pm25_s[16], pm4_s[16], pm10_s[16], voc_s[16], nox_s[16];
-                  if (isnan(pm1))  strcpy(pm1_s, "null");  else snprintf(pm1_s, sizeof(pm1_s), "%.1f", pm1);
-                  snprintf(pm25_s, sizeof(pm25_s), "%.1f", pm25);
-                  if (isnan(pm4))  strcpy(pm4_s, "null");  else snprintf(pm4_s, sizeof(pm4_s), "%.1f", pm4);
-                  if (isnan(pm10)) strcpy(pm10_s, "null"); else snprintf(pm10_s, sizeof(pm10_s), "%.1f", pm10);
-                  if (isnan(voc))  strcpy(voc_s, "null");  else snprintf(voc_s, sizeof(voc_s), "%.0f", voc);
-                  if (isnan(nox))  strcpy(nox_s, "null");  else snprintf(nox_s, sizeof(nox_s), "%.0f", nox);
+                        char pm1_s[16], pm25_s[16], pm4_s[16], pm10_s[16], voc_s[16], nox_s[16];
+                        if (isnan(pm1))  strcpy(pm1_s, "null");  else snprintf(pm1_s, sizeof(pm1_s), "%.1f", pm1);
+                        snprintf(pm25_s, sizeof(pm25_s), "%.1f", pm25);
+                        if (isnan(pm4))  strcpy(pm4_s, "null");  else snprintf(pm4_s, sizeof(pm4_s), "%.1f", pm4);
+                        if (isnan(pm10)) strcpy(pm10_s, "null"); else snprintf(pm10_s, sizeof(pm10_s), "%.1f", pm10);
+                        if (isnan(voc))  strcpy(voc_s, "null");  else snprintf(voc_s, sizeof(voc_s), "%.0f", voc);
+                        if (isnan(nox))  strcpy(nox_s, "null");  else snprintf(nox_s, sizeof(nox_s), "%.0f", nox);
 
-                  int rssi = id(mqtt_client).is_connected() ? (int)id(wifi_rssi).state : 0;
-                  char batt_s[16];
-                  if (isnan(batt)) strcpy(batt_s, "null"); else snprintf(batt_s, sizeof(batt_s), "%.2f", batt);
+                        int rssi = id(mqtt_client).is_connected() ? (int)id(wifi_rssi).state : 0;
+                        char batt_s[16];
+                        if (isnan(batt)) strcpy(batt_s, "null"); else snprintf(batt_s, sizeof(batt_s), "%.2f", batt);
 
-                  char payload[400];
-                  snprintf(payload, sizeof(payload),
-                    "{\"component\":\"air-quality-monitor\","
-                    "\"ts\":\"%s\","
-                    "\"lat\":null,\"lon\":null,"
-                    "\"temp_f\":%.1f,"
-                    "\"humidity_pct\":%.1f,"
-                    "\"pm1_ug_m3\":%s,"
-                    "\"pm25_ug_m3\":%s,"
-                    "\"pm4_ug_m3\":%s,"
-                    "\"pm10_ug_m3\":%s,"
-                    "\"voc_index\":%s,"
-                    "\"nox_index\":%s,"
-                    "\"battery_v\":%s,"
-                    "\"rssi_dbm\":%d}",
-                    ts, temp, hum, pm1_s, pm25_s, pm4_s, pm10_s, voc_s, nox_s, batt_s, rssi);
+                        char payload[400];
+                        snprintf(payload, sizeof(payload),
+                          "{\"component\":\"air-quality-monitor\","
+                          "\"ts\":\"%s\","
+                          "\"lat\":null,\"lon\":null,"
+                          "\"temp_f\":%.1f,"
+                          "\"humidity_pct\":%.1f,"
+                          "\"pm1_ug_m3\":%s,"
+                          "\"pm25_ug_m3\":%s,"
+                          "\"pm4_ug_m3\":%s,"
+                          "\"pm10_ug_m3\":%s,"
+                          "\"voc_index\":%s,"
+                          "\"nox_index\":%s,"
+                          "\"battery_v\":%s,"
+                          "\"rssi_dbm\":%d}",
+                          ts, temp, hum, pm1_s, pm25_s, pm4_s, pm10_s, voc_s, nox_s, batt_s, rssi);
 
-                  if (id(mqtt_client).is_connected()) {
-                    id(mqtt_client).publish("jctsh/components/air-quality-monitor/data",
-                                            std::string(payload), 0, false);
-                    ESP_LOGW("DutyCycle", "Published live: %s", payload);
-                  } else {
-                    aqm_log_write(std::string(payload));
-                    ESP_LOGW("DutyCycle", "Buffered to flash: %s", payload);
-                  }
-                }
-            # Back to RHT/Gas-Only until the next cycle.
-            - lambda: 'id(sen55).write_command((uint16_t) 0x0037);'  # SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY
-            - logger.log:
-                format: "DUTY CYCLE: back to RHT-only mode until next tick"
-                level: WARN
+                        if (id(mqtt_client).is_connected()) {
+                          id(mqtt_client).publish("jctsh/components/air-quality-monitor/data",
+                                                  std::string(payload), 0, false);
+                          ESP_LOGW("DutyCycle", "Published live: %s", payload);
+                        } else {
+                          aqm_log_write(std::string(payload));
+                          ESP_LOGW("DutyCycle", "Buffered to flash: %s", payload);
+                        }
+                      }
+                  # Back to RHT/Gas-Only until the next cycle.
+                  - lambda: 'id(sen55).write_command((uint16_t) 0x0037);'  # SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY
+                  - logger.log:
+                      format: "DUTY CYCLE: back to RHT-only mode until next tick"
+                      level: WARN
 
   # 5-minute heartbeat — matches hiking-monitor's established deviation from
   # the generic 30-min standard. Home mode only (mqtt_client.is_connected()).

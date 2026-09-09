@@ -864,13 +864,25 @@ def _parse_kanban_board(text):
         }
         if re.search(r"(?m)^\*\*Blocked", body):
             card["flag"] = "blocked"
-        # CARD-0249: a standalone "**Auto verify: <date>**" line marks a check that
-        # couldn't be done live at write time (waiting on a future scheduled event) --
-        # surfaced on the card header so it isn't missed the way a plain in-body
-        # mention would be. Independent of the `flag` field above, not a replacement.
+        # Auto verify markers (CARD-0251) -- one family, two flavors, deliberately
+        # kept as distinct literal wording rather than one shared keyword (each reads
+        # naturally in its own card prose). Both surfaced on the card header so a
+        # pending check isn't missed the way a plain in-body mention would be.
+        # Independent of the `flag` field above, not a replacement.
+        #
+        # Date-based (CARD-0249): a standalone "**Auto verify: <date>**" line marks a
+        # check that couldn't be done live at write time (waiting on a future
+        # scheduled event).
         av_m = re.search(r"(?m)^\*\*Auto verify:\s*([^\n*]+?)\*\*", body)
         if av_m:
             card["auto_verify"] = av_m.group(1).strip()
+        # Event-based (CARD-0224): a standalone "**Watch for:** <description>" line
+        # marks a check tied to an event of unknown future timing (not a date -- see
+        # Auto verify above for that case) -- e.g. a specific log message that will
+        # only appear if/when a real-world condition occurs.
+        wf_m = re.search(r"(?m)^\*\*Watch for:\*\*\s*(.+)", body)
+        if wf_m:
+            card["watch_for"] = wf_m.group(1).strip()
         cards.append(card)
     return cards
 
@@ -1152,6 +1164,7 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   .flag { font-family: var(--mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 2px; padding: 0.08rem 0.4rem; border: 1px solid transparent; }
   .flag[data-flag="blocked"] { color: var(--danger); border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
   .flag[data-flag="auto-verify"] { color: var(--warning); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
+  .flag[data-flag="watch-for"] { color: var(--accent, var(--warning)); border-color: var(--accent, var(--warning)); background: color-mix(in srgb, var(--accent, var(--warning)) 12%, transparent); }
   .chevron { color: var(--ink-faint); transition: transform 0.15s ease; flex: none; }
   .card[open] > summary .chevron { transform: rotate(90deg); }
   .card__detail { padding: 0 0.75rem 0.8rem 0.95rem; border-top: 1px dashed var(--line); margin-top: 0.1rem; padding-top: 0.6rem; }
@@ -1271,6 +1284,9 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     if (card.auto_verify) {
       flags += '<span class="flag" data-flag="auto-verify" title="Needs a live check once this date has passed (CARD-0249)">Auto verify: ' + escapeHtml(card.auto_verify) + '</span>';
     }
+    if (card.watch_for) {
+      flags += '<span class="flag" data-flag="watch-for" title="No known due date -- check the durable log for this pattern every session (CARD-0224)">Watch for: ' + escapeHtml(card.watch_for) + '</span>';
+    }
     var archiveMatch = ARCHIVE_NOTE_RE.exec(card.notes);
     // Link + empty target only -- nothing is fetched until the link is
     // actually clicked (see the click handler in render()), so an archived
@@ -1310,7 +1326,16 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     });
     var scrollY = window.scrollY;
     board.innerHTML = COLUMNS.map(function (col) {
-      var cards = visible.filter(function (c) { return c.column === col.key; });
+      // CARD-0251: a card carrying either Auto-verify-marker flavor (date-based
+      // `auto_verify` or event-based `watch_for`) is passively waiting on something
+      // outside this session's control -- it doesn't need attention right now, so it
+      // sorts after every other card in its column instead of competing for the top
+      // of the list on file-order alone. Array.sort is stable (ES2019+, every browser
+      // this page targets), so within each of the two groups the original file order
+      // -- which is what every other column already relies on -- is preserved.
+      var hasMarker = function (c) { return !!(c.auto_verify || c.watch_for); };
+      var cards = visible.filter(function (c) { return c.column === col.key; })
+        .sort(function (a, b) { return (hasMarker(a) ? 1 : 0) - (hasMarker(b) ? 1 : 0); });
       var total = CARDS.filter(function (c) { return c.column === col.key; }).length;
       var collapsed = !!state.collapsed[col.key];
       var body = cards.length

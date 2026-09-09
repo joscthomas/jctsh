@@ -53,6 +53,33 @@ why (`kanban-board.md` crossed GitHub's 1MB Contents API content-size limit
 in August 2026; every read of it now uses the `application/vnd.github.raw`
 media type instead of the size-limited JSON `content` field).
 
+## Auto verify markers
+
+A separate mechanism from the intake pipeline above — this one's about not
+forgetting a follow-up on a card that's already on the board, when the thing
+being waited on won't happen until later. Two flavors, one literal keyword
+kept deliberately distinct per flavor so each reads naturally in its own
+card's prose (CARD-0251):
+
+| Flavor | Marker syntax | For a check that depends on... | Checked how |
+|---|---|---|---|
+| Date-based | `**Auto verify: <date>**` | a known future date/event (a scheduled reboot, a timer firing) | `CLAUDE.md` Session Start step 4 greps `kanban-board.md`, follows through once the date has passed |
+| Event-based | `**Watch for:** <description>` | a real-world condition of unknown future timing (typically a specific log message) | `CLAUDE.md` Session Start step 5 greps `kanban-board.md`, then greps the Pi's durable log (`/mnt/jctsh-logs/jctsh.log*`, including rotated backups) for the stated pattern |
+
+Both flavors exist because the board's own 7-day recently-updated Session
+Start check (see `CLAUDE.md`) isn't enough — a card can sit untouched far
+longer than that while still genuinely waiting on its marker, and would
+otherwise never resurface on its own.
+
+Implemented entirely in `core/logging/log_server.py` (not this directory) —
+`_parse_kanban_board()` extracts either marker into the card dict
+(`auto_verify`/`watch_for`), `cardHtml()` renders it as a badge on the
+card's `/kanban` header, and `render()`'s per-column sort pushes any
+marker-carrying card to the end of its column, since it's passively waiting
+and doesn't need attention right now. See `kanban-board.md` CARD-0251 for
+the full build history, and CARD-0249/CARD-0224 for each flavor's origin
+case.
+
 ## Deploy
 
 `open_kanban_pr.py` has **no single canonical deployed location** — it's a
@@ -85,3 +112,4 @@ the timer's next tick).
 - `kanban-board.md` CARD-0190 — the 1MB Contents API bug this whole pipeline had to be redesigned around.
 - `kanban-board.md` CARD-0192 — proposed watchdog self-test for this pipeline (not yet built).
 - `kanban-board.md` CARD-0193 — kanban board scaling/archival strategy, including why a database was considered and ruled out.
+- `kanban-board.md` CARD-0251 — Auto verify markers (date-based + event-based), the follow-up-reminder mechanism described above.

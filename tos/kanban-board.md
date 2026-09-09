@@ -13,9 +13,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0250 · [bug] [hike-izer] A real hike with a long rest stop can be misclassified as "not a hike" by the whole-session median-speed check
-
-**Status:** Build
+### CARD-0250 · [bug] [hike-izer] A real hike with a long rest stop can be misclassified as "not a hike" by the whole-session median-speed check — RESOLVED 2026-09-08
+**Status:** Done
 
 **Raised 2026-09-08**, found analyzing that day's hike data for anomalies. `_classify_hike()` (`components/hike-izer/fetch_hike_data.py`) rejected a genuine 2h10m outing as `is_hike: false` ("median movement speed 0.10 m/s (0.2 mph) is too slow to be walking -- likely stationary (camp, parked) rather than a hike"), even though the raw GPS trace shows real, directed movement: walked ~800m out from the start over ~24 min, took a confirmed ~78-minute rest break (Joseph deliberately powered off `hiking-monitor` to conserve battery during it, unrelated to this bug), then walked back to within a few meters of the start over the final ~14 min. Confirmed by hand from the raw `gps_track` points (distance-from-start at 15/23/31/109/117/124/130-minute marks: 777m → 808m → 557m → 561m → 488m → 224m → 6m) — a real out-and-back shape, not GPS drift while parked (drift while stationary would stay within a few meters of one point the whole time; this session's own points span up to 513m from centroid).
 
@@ -36,9 +35,9 @@ Verified three ways before and after deploying:
 
 **Deployed to the M8's orchestrator** (`~/hike-izer-web-app/orchestrator/fetch_hike_data.py`, `docker compose up -d --build`, confirmed `healthy`) — re-ran the real fetch against the live Apps Script endpoint from inside the running container and confirmed the deployed copy independently reproduces the same `is_hike: True` result for 2026-09-08, not just the local test.
 
-**Not yet done:** the already-published `2026-09-08_hike-summary.html` page (auto-generated with the old `hike_confirmed: false` result) hasn't been regenerated — that's a live-content change, holding for Joseph's go-ahead rather than assumed.
+**Page regenerated same day** — the original `stopped` webhook was replayed against the live endpoint once the fix was deployed; `2026-09-08_hike-summary.html` republished showing the real, confirmed hike (2.2 mi, correctly no longer "not available").
 
-**Done when:** today's real 2026-09-08 session (2h10m, out to ~800m and back, ~78min stationary rest in the middle) reclassifies as `is_hike: true` with the rest period correctly reflected in `stopped_time_min`, not `moving_time_min` — **met**, confirmed via `classification_details` above (full moving/stopped split not yet separately re-verified post-rescue, since that's computed downstream by the already-existing, unmodified `compute_hike_detail_stats()` once a session is `is_hike: true`); a synthetic or real all-stationary/GPS-drift-while-parked session (CARD-0100's precedent case) still correctly rejects — **met**; and a synthetic all-vehicle-speed session still correctly rejects on the existing "too fast" branch (untouched by this fix) — **met**.
+**Closed 2026-09-08 — full moving/stopped split confirmed, the one loose end from this card's own Done-when.** Read `stats` directly from the persisted `hike_data.json` on the M8: `moving_time_min: 42.8`, `stopped_time_min: 87.3` (summing to the session's full 130.1-minute duration) — the rest period lands entirely in stopped time, not moving time, exactly as intended. All three Done-when criteria fully met: (1) real session reclassifies as `is_hike: true` with the rest correctly attributed to stopped time — **met**; (2) synthetic/real all-stationary/GPS-drift session still rejects — **met**; (3) synthetic all-vehicle-speed session still rejects, unaffected — **met**.
 
 **Related:** `components/hike-izer/fetch_hike_data.py` (`_classify_hike`, `_moving_stopped_time_min`), CARD-0101 (trailing-fast-activity truncation — same root problem class, opposite direction), CARD-0140 (GPS accuracy/speed-windowing fixes to the same classification path), CARD-0100 (the all-drive/all-stationary rejection precedent this fix must not regress), CARD-0226 (unrelated finding from the same day's anomaly review — hiking-monitor's own "Reboot request from mqtt" signature, third recurrence).
 

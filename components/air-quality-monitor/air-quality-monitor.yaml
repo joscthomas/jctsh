@@ -3,48 +3,53 @@
 #           + Sensirion SEN55 (I2C 0x69, via Adafruit #5964 adapter) — PM1.0/2.5/4.0/10, VOC, NOx
 #             SEN55 is hard-wired always-on whenever the device has power (see
 #             Step 6 decision below) — no dedicated power-gate transistor.
-#           + RGB LED (KY-016) — GPIO18/19/23 (pins 30/31/37), PM2.5 threshold
-#             indicator, boot self-test/init sequence, then brief per-reading
-#             blink instead of continuous-on (Step 5, power-savings follow-up)
+#           + RGB LED (KY-016) — GPIO18/19/23 (pins 30/31/37). PM2.5 threshold
+#             indicator (Red/Green combos) + boot self-test/init sequence +
+#             brief per-reading blink (Step 5). Blue is dedicated entirely to
+#             networking-status diagnostics (Step 8) — see the WiFi Gate
+#             Diagnostics section below.
 #           + Dock detect: TP4056 IN+ (or solar) → 68kΩ+100kΩ divider → GPIO32 (pin 7)
 #           + Battery voltage divider → GPIO34 (pin 5, input-only)
-#           + EEMB 1100mAh LiPo + TP4056 (charging only) + MCP1700 LDO + inline power switch
+#           + Intent switch: repurposed SS12D10 slide switch → GPIO27 (pin 11),
+#             INPUT_PULLUP + inverted (CARD-0218, Step 8) — state TRUE = switch
+#             closed = actively collecting field data, same semantic as
+#             hiking-monitor's own slide_switch.
+#           + EEMB 1100mAh LiPo + TP4056 (charging only) + Pololu D24V10F3 buck-
+#             boost regulator (CARD-0198, replaces the original MCP1700 LDO) +
+#             inline power switch (BK-1208, gates only the Pololu's VIN — see
+#             wiring.md's "Inline Power Switch" section for the shared-node
+#             topology and why it does NOT isolate TP4056's own charge path)
+#
+# STEP 8 (2026-09-09): field/home mode duty-cycle + WiFi replay firmware.
+# Three independent signals gate any WiFi attempt (JCTsh-Build-Standards.md
+# §2.14 points 11-13) — Intent off AND Power Connected AND battery >= the
+# upload-safe margin (3.8V, provisional — see CARD-0012). None of these
+# signals ever stand in for another. Field-mode duty-cycle logging (SEN55
+# I2C mode-switching, Measurement <-> RHT/Gas-Only) runs UNCONDITIONALLY,
+# independent of dock-detect state — a deliberate deviation from
+# hiking-monitor's pattern (which stops field logging the instant dock-detect
+# goes HIGH), because solar/field-USB charging can happen mid-collection on
+# this device just as easily as at home.
 #
 # STEP 6 DECISION (2026-08-21): no dedicated SEN55 power-gate transistor.
 # Sensirion's own "Reduced Power Operation for SEN5x" doc recommends I2C
 # mode-switching (Measurement ↔ RHT/Gas-Only) as the primary duty-cycle
 # power-saving mechanism, not physically cutting power — and the existing
 # inline power switch (battery+ path, Step 1) already covers true full-off
-# for storage/transport. That leaves no real use case for a GPIO27 gate,
-# which also eliminates the low-side/high-side reliability question Step 4's
-# diagnostic session surfaced. SEN55 stays hard-wired to the common ground
-# rail (the former "bypass jumper" is now the permanent design, not a
-# workaround). Step 8 implements the I2C mode-switching duty-cycle logic.
-#
-# STEP 4 SCOPE — SEN55 base validation only. Powered via USB during breadboard
-# Steps 4-6 (wiring.md) — LiPo/LDO not connected until Step 7, so no battery-
-# voltage-driven low-battery cutoff is wired in yet either (Build-Standards
-# §2.14 point 2 requires this once a battery is actually in the circuit — add
-# it starting Step 7/8, not deferred past that point). Field/home mode
-# duty-cycle logging, SPIFFS storage, WiFi replay, and the
-# bounded-attempt-window/backoff WiFi retry logic are NOT implemented
-# in this file — those are Step 8 firmware deliverables, built on top of this
-# base config, not re-derived from scratch here. RGB LED threshold logic
-# (Step 5) IS implemented below.
+# for storage/transport. SEN55 stays hard-wired to the common ground rail.
 #
 # GPIO assignments (ESP32-project-pins.md has the full 38-pin table):
 #   GPIO21  I2C SDA (SEN55 via Adafruit adapter) — blue
 #   GPIO22  I2C SCL — yellow
-#   GPIO27  Unused — previously reserved for the SEN55 power-gate transistor,
-#           dropped 2026-08-21 (see STEP 6 DECISION above)
+#   GPIO27  Intent switch (pin 11, CARD-0218/Step 8) — INPUT_PULLUP, inverted
 #   GPIO17  Debug UART2 TX (CARD-0205, 2026-08-24) — external CP2102 adapter,
 #           transmit-only. ESP32's fixed UART2 TX pin (not remappable via
 #           ESPHome's logger component — see logger: block below)
 #   GPIO32  Dock detect (TP4056 IN+ or solar → divider, HIGH = docked/charging)
-#   GPIO34  Battery voltage ADC (input-only; placeholder reading until Step 7 wires the LiPo)
+#   GPIO34  Battery voltage ADC (100kΩ/100kΩ divider, post-switch node — wiring.md)
 #
 # MQTT topics (prefix: jctsh/components/air-quality-monitor):
-#   .../data       — sensor readings (JSON payload per JCTsh-Environmental-Data-Architecture.md) — Step 8
+#   .../data       — sensor readings, Environmental Data schema (Step 8)
 #   .../log        — diagnostic messages (JSON, wildcard routed to Python log server)
 #   .../heartbeat  — 5-min heartbeat when MQTT connected (matches hiking-monitor's
 #                    established deviation from the generic 30-min standard, Step 0)
@@ -52,43 +57,98 @@
 esphome:
   name: air-quality-monitor
   friendly_name: Air Quality Monitor
+  includes:
+    - aqm_logger.h
   on_boot:
     - priority: -100.0
       then:
-        # Force SEN55 into Idle mode (~2.6mA) as the very first on_boot
-        # action — moved ahead of the reset-reason LED block below,
-        # 2026-08-24, after live testing showed the original ordering still
-        # left SEN55 running full ~63mA Measurement mode (auto-started by
-        # its own sen5x platform setup(), priority ~600, well before this
-        # script's priority -100.0) through the entire reset-reason LED
-        # delay (up to 1-3s) before ever being told to idle down. With SEN55
-        # actually connected, that extra second-plus of sustained ~63mA
-        # stacked on WiFi's own connection-spike current reproduced the same
-        # brownout reset-loop signature seen before the bulk capacitor was
-        # added (pulsing onboard red LED) — even with the capacitor in
-        # place. This reorder minimizes that exposure window to whatever
-        # component setup() itself takes (fast, no delays), not however long
-        # the LED signal chooses to hold. SEN55 stays in Idle through the
-        # self-test LED animation and the WiFi connection window below, then
-        # resumes Measurement mode once that window should be past.
-        # ESPHome's native sen5x platform has no built-in idle-mode option
-        # (esphome/feature-requests#3041) — this sends the raw I2C command
-        # directly via the SensirionI2CDevice base class's public
-        # write_command(), which the sen5x platform doesn't otherwise
-        # expose in YAML.
+        # Workaround for a confirmed ESPHome bug (found in minimal-test.yaml,
+        # 2026-08-28): logger_esp32.cpp calls uart_param_config()/
+        # uart_driver_install() for hardware_uart: UART2 but never
+        # uart_set_pin() -- the peripheral runs but is never actually routed
+        # through the GPIO matrix to GPIO17, so nothing reaches the external
+        # debug adapter without this manual call. Must run before anything
+        # else logs, so as much of the boot sequence as possible is captured.
+        - lambda: |-
+            uart_set_pin(UART_NUM_2, GPIO_NUM_17, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+        # ── STEP 8: WiFi attempt gate, checked FIRST — before anything else ──
+        # ESPHome's wifi: component tries to associate automatically and
+        # unconditionally during its own setup() -- nothing stops it by
+        # default (the exact latent gap CARD-0217 found and fixed on
+        # hiking-monitor). This device's on_boot block is priority -100,
+        # which is LOWER than WiFi's fixed setup_priority of 250 -- lower
+        # priority numbers run LATER, so WiFi's setup() has *already
+        # completed* by the time this block runs (confirmed by checking the
+        # actual ordering, not copied from hiking-monitor blind -- that
+        # device's equivalent block is priority 600, which runs BEFORE
+        # WiFi's setup, forcing it to defer the disable call to the first
+        # interval tick instead). Because of that difference, this device
+        # can call wifi.disable() directly, right here, within milliseconds
+        # of boot -- not after the ~60-80s the SEN55/LED sequence below
+        # would otherwise take if the gate check waited until after it.
+        - component.update: battery_voltage
+        - if:
+            condition:
+              and:
+                - binary_sensor.is_off: intent_switch
+                - binary_sensor.is_on: dock_detect
+            then:
+              # Intent off + Power Connected -- the two conditions that would
+              # otherwise mean "try WiFi." Battery is the deciding factor.
+              - if:
+                  condition:
+                    lambda: 'return isnan(id(battery_voltage).state) || id(battery_voltage).state < 3.8f;'
+                  then:
+                    # Voltage-blocked: the one new LED diagnostic worth the
+                    # cost of a boot-time blink (2026-09-09 design decision)
+                    # -- distinguishes "docked and ready, but deliberately
+                    # not trying" from "no network in range," which look
+                    # identical without this. ~1.8s total.
+                    - repeat:
+                        count: 3
+                        then:
+                          - output.turn_on: rgb_led_blue
+                          - output.turn_on: rgb_led_red
+                          - delay: 300ms
+                          - output.turn_off: rgb_led_blue
+                          - output.turn_off: rgb_led_red
+                          - delay: 300ms
+                    - wifi.disable:
+                    - lambda: |-
+                        id(wifi_attempt_in_progress) = false;
+                        char buf[128];
+                        snprintf(buf, sizeof(buf),
+                          "{\"event\":\"wifi_attempt_blocked\",\"battery_v\":%.2f}",
+                          id(battery_voltage).state);
+                        aqm_log_write(std::string(buf));
+                  else:
+                    # Gate fully true -- WiFi's own already-running boot
+                    # attempt is left alone; adopt it into our own tracking
+                    # rather than calling wifi.enable() again (harmless but
+                    # redundant, since ESPHome's own setup() already started
+                    # it before we could intervene).
+                    - lambda: |-
+                        id(wifi_attempt_in_progress) = true;
+                        id(wifi_attempt_start_ms) = millis();
+                        aqm_log_write("{\"event\":\"wifi_attempt_start\"}");
+            else:
+              # Intent on, or Power not connected -- the common/expected
+              # case (actively out collecting, or just sitting unplugged).
+              # No LED for this one (2026-09-09 decision: low diagnostic
+              # value against a blink on every single boot).
+              - wifi.disable:
+              - lambda: 'id(wifi_attempt_in_progress) = false;'
+        # ── Existing SEN55/reset-reason/self-test sequence (Steps 4-6), unchanged ──
+        # Force SEN55 into Idle mode (~2.6mA) — moved ahead of the
+        # reset-reason LED block, 2026-08-24, after live testing showed the
+        # original ordering still left SEN55 running full ~63mA Measurement
+        # mode (auto-started by its own sen5x platform setup(), priority
+        # ~600, well before this script's priority -100.0) through the
+        # entire reset-reason LED delay before ever being told to idle down.
         - lambda: 'id(sen55).write_command((uint16_t) 0x3f86);'  # SEN5X_CMD_STOP_MEASUREMENTS -> Idle mode
-        # Reset-reason LED signal — added 2026-08-21 during the battery/LDO
-        # brownout investigation, now second (see reorder note above). Live
-        # serial isn't safe to watch on battery power (same dual-regulator
-        # conflict as USB+LDO), and MQTT-based reporting (the on_connect log
-        # message, below) only works if the device actually gets far enough
-        # to connect — no good on a hard boot-loop. The LED has no such
-        # dependency, so it reports every single boot's own reset reason
-        # directly: solid Red (3s) = brownout or power-glitch detected,
-        # solid Blue (1s) = anything else (normal power-on, sw reset, etc.).
-        # ESP32 string values per ESPHome's debug component:
-        # esphome.io/components/debug — "brownout" / "power glitch detected"
-        # are the ones we're watching for here.
+        # Reset-reason LED signal — added 2026-08-21. Live serial isn't safe
+        # on battery power; MQTT-based reporting only works if the device
+        # gets far enough to connect. The LED has no such dependency.
         - if:
             condition:
               lambda: |-
@@ -104,12 +164,8 @@ esphome:
               - delay: 1s
               - output.turn_off: rgb_led_blue
         # Boot self-test LED sequence: two quick blinks per color (Blue, Red,
-        # Yellow, Green) exercise all three channels, then blink Green with NO
-        # timeout until SEN55 produces a first valid PM2.5 reading — Step 4's
-        # diagnostic saga showed a "looks fine" power connection can still
-        # produce zero valid readings for minutes, so a timeout here would
-        # falsely declare success. Solid Green briefly = all is well, then
-        # hand off to the operational blink-mode handler on pm_2_5's on_value.
+        # Yellow, Green), then blink Green with NO timeout until SEN55
+        # produces a first valid PM2.5 reading.
         - repeat:
             count: 2
             then:
@@ -141,44 +197,55 @@ esphome:
               - output.turn_off: rgb_led_green
               - delay: 300ms
         - delay: 1s
-        # CARD-0198 (2026-08-23): replaced a blind fixed-~10s delay with an
-        # actual wait on MQTT (the real "the highest-current boot window is
-        # over" signal), bounded to 30s so a device with no reachable network
-        # doesn't idle SEN55 forever. The fixed delay this replaced was a
-        # guess that WiFi association would always finish inside that window
-        # -- log evidence from the 2026-08-21 bench session (repeated "power-
-        # on event" resets, some under 2 minutes apart) is consistent with
-        # that guess being wrong under real conditions (weak signal, AP
-        # retry, TLS handshake) and SEN55's ~63mA Measurement-mode draw
-        # landing back on top of an still-in-progress WiFi/MQTT current
-        # spike -- the exact collision this whole idle-mode mechanism exists
-        # to prevent.
-        - lambda: 'id(boot_wait_start) = millis();'
-        - while:
+        # STEP 8: this bounded wait only runs when a WiFi attempt is
+        # genuinely in progress (gate was true above) -- when the gate is
+        # false, WiFi has already been disabled and will never connect, so
+        # waiting the full 30s here would be pure waste. Also drives the
+        # "actively attempting" LED pattern (slow blue blink) for the same
+        # duration -- starts here, roughly 7-10s after power-on, once the
+        # reset-reason + self-test sequence above has run.
+        - if:
             condition:
-              lambda: |-
-                return !id(mqtt_client).is_connected() &&
-                       (millis() - id(boot_wait_start)) < 30000;
+              lambda: 'return id(wifi_attempt_in_progress);'
             then:
-              - delay: 250ms
-        # Resume full Measurement mode now that MQTT is connected (or the
-        # 30s bound was hit -- either way, WiFi's own association attempt is
-        # no longer freshly ramping up).
+              - lambda: 'id(boot_wait_start) = millis();'
+              - while:
+                  condition:
+                    lambda: |-
+                      return !id(mqtt_client).is_connected() &&
+                             (millis() - id(boot_wait_start)) < 30000;
+                  then:
+                    - output.turn_on: rgb_led_blue
+                    - delay: 500ms
+                    - output.turn_off: rgb_led_blue
+                    - delay: 500ms
+              # Window is over -- either connected (on_connect will fire its
+              # own "connected" log/LED separately) or it timed out.
+              - if:
+                  condition:
+                    lambda: 'return !id(mqtt_client).is_connected();'
+                  then:
+                    - repeat:
+                        count: 2
+                        then:
+                          - output.turn_on: rgb_led_blue
+                          - delay: 200ms
+                          - output.turn_off: rgb_led_blue
+                          - delay: 200ms
+                    - wifi.disable:
+                    - lambda: |-
+                        id(wifi_attempt_in_progress) = false;
+                        id(wifi_last_attempt_end_ms) = millis();
+                        aqm_log_write("{\"event\":\"wifi_attempt_timeout\"}");
+        # Resume full Measurement mode for one real boot-time reading (proves
+        # the sensor works, drives the self-test's "wait for first valid
+        # reading" below) -- the ongoing duty-cycle interval takes over from
+        # here once this boot sequence hands off (see the RHT-only command
+        # at the very end of this block).
         - lambda: 'id(sen55).write_command((uint16_t) 0x0021);'  # SEN5X_CMD_START_MEASUREMENTS
         - delay: 2s   # let the SEN55 fan/sensor settle before forcing a first read
         - component.update: sen55
         - component.update: battery_voltage
-        # CARD-0198 (2026-08-24): bounded to 30s, same pattern as the MQTT-connect
-        # wait above. Originally unbounded on the assumption that a "looks fine"
-        # power connection could still take minutes to produce a first valid
-        # reading (Step 4's diagnostic saga) -- true for a connected sensor, but
-        # if SEN55 is disconnected or genuinely faulty, pm_2_5 never leaves NaN
-        # and this would hang forever, permanently blocking boot_sequence_done
-        # and the operational LED handoff. A real sensor fault in the field
-        # shouldn't be able to hang the device any more than a real network
-        # fault should (which is exactly why the MQTT wait above got the same
-        # treatment). 30s bound is well past the ~12s first-reading time observed
-        # in Step 4's own working-config bench test.
         - lambda: 'id(pm25_wait_start) = millis();'
         - while:
             condition:
@@ -194,11 +261,7 @@ esphome:
         - delay: 2s
         - output.turn_off: rgb_led_green
         - lambda: 'id(boot_sequence_done) = true;'
-        # Threshold-color confirmation: hold solid Yellow then solid Red for 3s
-        # each, matching the exact colors/combinations the operational
-        # blink-mode handler uses on pm_2_5's on_value. Lets Yellow/Red be
-        # visually confirmed correct on every boot without needing an actual
-        # particulate source in range — not test-only, deliberately permanent.
+        # Threshold-color confirmation: hold solid Yellow then solid Red for 3s each.
         - delay: 1s
         - output.turn_on: rgb_led_red
         - output.turn_on: rgb_led_green
@@ -209,6 +272,11 @@ esphome:
         - output.turn_on: rgb_led_red
         - delay: 3s
         - output.turn_off: rgb_led_red
+        # STEP 8: hand off to the ongoing duty cycle -- drop to RHT/Gas-Only
+        # mode now; the 2-min interval below brings it back to Measurement
+        # mode briefly each cycle.
+        - lambda: 'id(sen55).write_command((uint16_t) 0x0037);'  # SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY
+        - lambda: 'aqm_log_begin();'
 
 esp32:
   board: esp32dev
@@ -216,46 +284,79 @@ esp32:
     type: arduino
 
 # ── Debug / reset reason ──────────────────────────────────────────────────────
-# Added 2026-08-21 to diagnose a suspected LDO current-limit brownout: the
-# device fails to boot/connect on battery+LDO power but works fine on USB.
-# Live serial monitoring isn't safe on battery power (the ESP32 DevKitC's
-# onboard USB regulator would back-feed 3V3 alongside the external LDO), so
-# this reports the reset reason over MQTT instead, once a connection succeeds.
 debug:
 
 # ── Globals ───────────────────────────────────────────────────────────────────
-# Gates the pm_2_5 on_value LED handler below so it doesn't fight the boot
-# self-test animation above over the same GPIO outputs.
 globals:
+  # Gates the pm_2_5 on_value LED handler below so it doesn't fight the boot
+  # self-test animation above over the same GPIO outputs.
   - id: boot_sequence_done
     type: bool
     restore_value: false
     initial_value: 'false'
-  # CARD-0198: start-of-wait timestamp for the bounded MQTT-connect wait
-  # before SEN55 resumes Measurement mode (see esphome.on_boot above).
   - id: boot_wait_start
     type: uint32_t
     restore_value: false
     initial_value: '0'
-  # CARD-0198: start-of-wait timestamp for the bounded first-PM2.5-reading
-  # wait (see esphome.on_boot above) -- separate from boot_wait_start since
-  # the two waits happen at different points in the same script.
   - id: pm25_wait_start
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  # STEP 8: WiFi attempt-window/retry state machine (JCTsh-Build-Standards.md
+  # §2.14 point 13, Step 2). Checked every 2-min interval tick, not a
+  # separate timer -- same precedent as CARD-0224's periodic recheck on
+  # hiking-monitor.
+  - id: wifi_gate_ok
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: wifi_attempt_in_progress
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: wifi_attempt_start_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: wifi_last_attempt_end_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  # STEP 8 / CARD-0224 pattern: set when attempt_aqm_replay defers because
+  # battery was below the 3.8V upload-safe threshold, cleared once a replay
+  # actually completes. Lets the periodic interval retry once voltage
+  # recovers while charging, instead of depending on another on_connect
+  # event that may never come if the MQTT link just stays up.
+  - id: replay_deferred_pending
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  # STEP 8 fix (2026-09-09, real bug found on first bench test): a CRC
+  # failure on the SEN55 I2C read leaves sensor.state at its last
+  # successfully-published value rather than NaN -- an isnan() check alone
+  # can't tell "genuinely fresh reading" from "stale leftover from an
+  # earlier successful cycle." sen55_last_update_ms is stamped inside
+  # pm_2_5's own on_value handler (fires only on an actual successful
+  # publish, i.e. only when the CRC check passed); the duty-cycle interval
+  # stamps duty_cycle_read_start_ms right before asking for a new read, and
+  # only trusts the reading if the former is >= the latter -- proof a real
+  # publish happened *after* this cycle's own read request, not before it.
+  - id: sen55_last_update_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+  - id: duty_cycle_read_start_ms
     type: uint32_t
     restore_value: false
     initial_value: '0'
 
 # ── WiFi ──────────────────────────────────────────────────────────────────────
-# Multi-network (portable component): home WiFi first, Pixel hotspot second —
-# added 2026-08-20 now that solar/field-USB charging can trigger dock-detect
-# away from home (see JCTsh-air-quality-monitor-phase1.md's superseded
-# Timeout/timer logic decision). `ap:` fallback included here (standard
-# default per JCTsh-Build-Standards.md §2.8) — the earlier Step 1 note about
-# not blindly inheriting hiking-monitor's `wifi.ap:` + `reboot_timeout`
-# interaction (CARD-0045) still applies today (this file doesn't yet
-# implement the bounded-attempt-window/wifi.disable() logic that would make
-# it moot — that's Step 8), so this device carries the same low-priority,
-# accepted risk hiking-monitor already does until Step 8 ships.
+# Multi-network (portable component): home WiFi first, Pixel hotspot second.
+# `ap:` fallback included (standard default per JCTsh-Build-Standards.md
+# §2.8) -- the known ESPHome #7222 reboot_timeout/wifi.ap: interaction
+# (CARD-0045) is moot here: this firmware manages WiFi enable/disable itself
+# via the gate/attempt-window state machine above and never relies on
+# ESPHome's own built-in reboot-on-disconnect mechanism.
 wifi:
   networks:
     - ssid: !secret wifi_ssid
@@ -265,32 +366,27 @@ wifi:
   ap:
     ssid: "air-quality-monitor-fallback"
     password: !secret ap_password
+  # CARD-0253 (2026-09-09): use the LAN-local broker whenever actually on
+  # the home network, DuckDNS only otherwise (field/hotspot) -- avoids
+  # needlessly routing a same-LAN connection out to the internet and back,
+  # which real testing found causes sustained DNS-resolution failures.
+  # Hardcoded "JCTnet1" (not !secret wifi_ssid -- a compile-time secret
+  # can't be referenced inside a lambda string literal) must match the
+  # wifi_ssid secret's actual value.
+  on_connect:
+    - lambda: |-
+        if (id(wifi_ssid_sensor).state == "JCTnet1") {
+          id(mqtt_client).set_broker_address("pi1.local");
+        } else {
+          id(mqtt_client).set_broker_address("jctsh.duckdns.org");
+        }
 
 captive_portal:
 
 # ── Logging ───────────────────────────────────────────────────────────────────
-# CARD-0205 (2026-08-24): moved to UART2 for a secondary debug UART via an
-# external HiLetgo CP2102 adapter. Corrected same day: ESPHome's logger
-# component has no tx_pin option at all (confirmed against the installed
-# esphome package's own logger/__init__.py config schema) -- hardware_uart
-# only selects which of the ESP32's fixed UART peripherals to use; its pins
-# are not remappable through this component. On the original ESP32
-# (Arduino framework), UART2's fixed pins are TX=GPIO17/RX=GPIO16, not the
-# originally-planned GPIO27 -- GPIO17 was confirmed unused on this board
-# (ESP32-project-pins.md) and is what's actually wired: GPIO17 -> adapter
-# RXD, ESP32 GND -> adapter GND. Adapter's own VCC/3V3/5V power pins stay
-# disconnected so the board stays powered exclusively by its LDO/battery
-# (the whole point: the onboard USB-C port can't show boot logs while
-# genuinely running on battery, per wiring.md's LDO/USB-power-conflict
-# warning). Transmit-only (logger doesn't receive), so RX/GPIO16 is unused.
 logger:
   level: INFO
-  # TEMPORARY (2026-08-24): hardware_uart: UART2 disabled again to reconfirm
-  # the base platform (no SEN55) is still reliable on the new board with
-  # UART2/GPIO16-17 fully out of the picture -- closing the loop on whether
-  # UART2 itself is the toggle for boot reliability, isolated on the same
-  # physical hardware as the UART2-enabled test. Restore once evaluated.
-  # hardware_uart: UART2
+  hardware_uart: UART2  # CARD-0205 secondary debug UART -- external CP2102 adapter, GPIO17
 
 # ── OTA updates ───────────────────────────────────────────────────────────────
 # First flash: USB from C:\esphome\air-quality-monitor\
@@ -299,15 +395,37 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
+# ── NTP time sync ─────────────────────────────────────────────────────────────
+# No RTC hardware. Timestamps for buffered field-mode readings are built from
+# this clock — matches hiking-monitor's exact pattern (`sntp_time`, same
+# timezone/servers).
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: America/Phoenix
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+
 # ── MQTT ──────────────────────────────────────────────────────────────────────
-# TLS on 8883 against jctsh.duckdns.org — matches hiking-monitor's current
-# config (CARD-0003), corrected 2026-08-20 from the originally-planned
-# LAN-only pi1.local:1883 now that field connections are a real path.
 mqtt:
   id: mqtt_client
   broker: !secret mqtt_broker
   port: 8883
   certificate_authority: !secret mqtt_ca_cert
+  # CARD-0253 (2026-09-09): TLS stays on for both the home-LAN and field
+  # paths -- ESPHome's MQTT backend only decides TLS-vs-plaintext transport
+  # once, at the client's first initialize_() call (confirmed by reading the
+  # installed esphome package's own mqtt_backend_esp32.cpp source), so
+  # switching that at runtime isn't safely supported. Switching only the
+  # broker *hostname* at runtime (see wifi: on_connect: below) is well-
+  # supported (mqtt_client.cpp's start_connect_() reads credentials_.address
+  # fresh on every connection attempt). Mosquitto's 8883 TLS listener has no
+  # bind-address restriction (confirmed directly in mosquitto.conf), so it's
+  # reachable via pi1.local on the LAN too, not just jctsh.duckdns.org -- but
+  # its cert's CN/SAN only covers jctsh.duckdns.org, so a straight hostname
+  # swap would fail cert validation without this:
+  skip_cert_cn_check: true
   idf_send_async: false  # ESPHome-recommended stability setting for MQTT+TLS on esp-idf
   username: !secret mqtt_username
   password: !secret mqtt_password
@@ -332,6 +450,15 @@ mqtt:
     - mqtt.publish:
         topic: jctsh/components/air-quality-monitor/log
         payload: '{"component":"air-quality-monitor","category":"MQTT","message":"MQTT connected"}'
+    # STEP 8: "connected" LED (solid blue ~1s) -- the one networking-status
+    # state that CAN log live, since MQTT is up by definition at this point.
+    - output.turn_on: rgb_led_blue
+    - delay: 1s
+    - output.turn_off: rgb_led_blue
+    - lambda: |-
+        id(wifi_attempt_in_progress) = false;
+        id(wifi_last_attempt_end_ms) = 0;  // clear backoff -- a real connection succeeded
+    - script.execute: attempt_aqm_replay
 
 # ── I2C ───────────────────────────────────────────────────────────────────────
 i2c:
@@ -339,19 +466,7 @@ i2c:
   scl: GPIO22
   scan: true
 
-# ── RGB LED (PM2.5 threshold indicator) ─────────────────────────────────────
-# KY-016 module, common cathode, onboard current-limiting resistors — no
-# external resistors, direct GPIO drive (wiring.md). Simple on/off per
-# channel (no PWM/dimming needed) — three colors, per Phase 1's EPA-style
-# thresholds: Green <12 µg/m³ (Good), Yellow 12-35 (Moderate, Red+Green
-# combined), Red >35 (Unhealthy). Driven from the pm_2_5 sensor's own
-# on_value trigger below, not a separate interval — updates exactly when a
-# new reading arrives, no extra polling. Gated by the boot_sequence_done
-# global (see esphome.on_boot above) so it doesn't run during the boot
-# self-test animation. Once gated on, each reading gets a brief ~1s flash
-# rather than staying continuously lit — same visual information, most of
-# the LED's power draw eliminated (see CARD-0012 kanban notes for the
-# blink-vs-continuous power comparison this was chosen from).
+# ── RGB LED ───────────────────────────────────────────────────────────────────
 output:
   - platform: gpio
     pin: GPIO18
@@ -363,15 +478,61 @@ output:
     pin: GPIO23
     id: rgb_led_blue
 
+# ── Replay script (STEP 8 / CARD-0224 pattern) ─────────────────────────────────
+# Attempt to replay any buffered field-mode data. Defers (and records
+# replay_deferred_pending) if battery is still below the 3.8V upload-safe
+# threshold -- the same gate that decides whether WiFi is even allowed to try
+# in the first place, checked again here as defense-in-depth since voltage
+# could in principle sag between the gate passing and this actually running.
+script:
+  - id: attempt_aqm_replay
+    then:
+      - lambda: |-
+          if (aqm_log_has_data()) {
+            int count = aqm_log_count();
+            if (count > 0) {
+              if (!isnan(id(battery_voltage).state) && id(battery_voltage).state < 3.8f) {
+                id(replay_deferred_pending) = true;
+                char skip_buf[176];
+                snprintf(skip_buf, sizeof(skip_buf),
+                  "{\"component\":\"air-quality-monitor\",\"category\":\"Alert\","
+                  "\"message\":\"Replay deferred - battery %.2fV below 3.8V upload threshold, waiting for charge\"}",
+                  id(battery_voltage).state);
+                id(mqtt_client).publish("jctsh/components/air-quality-monitor/log",
+                                        std::string(skip_buf), 0, false);
+              } else {
+                char log_buf[128];
+                snprintf(log_buf, sizeof(log_buf),
+                  "{\"component\":\"air-quality-monitor\",\"category\":\"System\","
+                  "\"message\":\"Replaying %d buffered readings...\"}",
+                  count);
+                id(mqtt_client).publish("jctsh/components/air-quality-monitor/log",
+                                        std::string(log_buf), 0, false);
+                aqm_log_replay_stream([](const std::string& line) {
+                  id(mqtt_client).publish("jctsh/components/air-quality-monitor/data",
+                                          line, 0, false);
+                  App.feed_wdt();
+                  delay(50);
+                });
+                id(mqtt_client).publish("jctsh/components/air-quality-monitor/log",
+                  std::string("{\"component\":\"air-quality-monitor\",\"category\":\"System\","
+                             "\"message\":\"Buffered-data replay complete.\"}"), 0, false);
+                aqm_log_clear();
+                id(replay_deferred_pending) = false;
+              }
+            }
+          }
+
 # ── Sensors ───────────────────────────────────────────────────────────────────
 sensor:
-  # SEN55 — native sen5x platform (esphome.io/components/sensor/sen5x/)
-  # Temperature/humidity sub-sensors intentionally omitted — Phase 1 decision:
-  # those fields come from hiking-monitor, not this device's payload.
+  # SEN55 — native sen5x platform. update_interval matches the 2-min duty-
+  # cycle tick below; the actual mode-switching (RHT-only <-> Measurement)
+  # and read timing is driven explicitly from the interval, not from this
+  # platform's own independent polling.
   - platform: sen5x
     id: sen55
     address: 0x69
-    update_interval: 10s  # fast for bench validation; Step 8 changes this to the duty-cycle pattern
+    update_interval: 2min
     pm_1_0:
       name: "PM 1.0"
       id: sen55_pm1
@@ -382,6 +543,13 @@ sensor:
       internal: true
       on_value:
         then:
+          # STEP 8 fix: stamps on every genuine successful publish (fires
+          # regardless of boot_sequence_done, unlike the LED handler below)
+          # -- see sen55_last_update_ms's own comment in the globals block.
+          - lambda: |-
+              if (!isnan(x)) {
+                id(sen55_last_update_ms) = millis();
+              }
           - if:
               condition:
                 lambda: 'return id(boot_sequence_done) && !isnan(x);'
@@ -425,8 +593,7 @@ sensor:
     # duplicate) -- intended as an independent reference to compare
     # against, given this device's mounting/placement may read more
     # accurately. temperature_compensation/acceleration_mode left at
-    # default deliberately (Joseph's call) -- tuning either blind, before
-    # any real comparative data exists, would just be a guess.
+    # default deliberately (Joseph's call).
     temperature:
       name: "Temperature"
       id: sen55_temp
@@ -439,9 +606,8 @@ sensor:
       id: sen55_humidity
       internal: true
 
-  # Battery voltage — voltage divider on GPIO34 (100kΩ + 100kΩ → 2:1 divider).
-  # Placeholder reading until Step 7 wires the LiPo — see wiring.md's Battery
-  # Voltage Divider Wiring notes (breadboard-tested from the 3.3V rail for now).
+  # Battery voltage — voltage divider on GPIO34 (100kΩ + 100kΩ → 2:1 divider),
+  # post-switch node (wiring.md, verified 2026-09-08).
   - platform: adc
     pin: GPIO34
     name: "Battery Voltage"
@@ -470,18 +636,32 @@ text_sensor:
     ip_address:
       id: wifi_ip
       internal: true
+    ssid:
+      id: wifi_ssid_sensor
+      internal: true
   - platform: debug
     reset_reason:
       id: reset_reason_text
       internal: true
 
-# ── Dock detect ───────────────────────────────────────────────────────────────
-# TP4056 IN+ (USB VBUS) or solar → 68kΩ → midpoint → 100kΩ → GND; midpoint to
-# GPIO32. HIGH = docked/charging (home mode) or solar connected. No
-# mode-switching logic wired to this yet — Step 8 adds the
-# field/home duty-cycle behavior and the bounded WiFi-attempt/backoff logic
-# described in JCTsh-air-quality-monitor-phase1.md's Timeout/timer decision.
+# ── Binary sensors ────────────────────────────────────────────────────────────
 binary_sensor:
+  # Intent switch — repurposed SS12D10 slide switch (CARD-0218, Step 8),
+  # GPIO27 (pin 11), same pin/pattern as hiking-monitor's own slide_switch.
+  # State TRUE = switch closed = actively collecting field data.
+  - platform: gpio
+    pin:
+      number: GPIO27
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "Intent Switch"
+    id: intent_switch
+    internal: true
+
+  # Dock detect: TP4056 IN+ (or solar) -> 68kΩ -> midpoint -> 100kΩ -> GND;
+  # midpoint to GPIO32. HIGH = docked/charging or solar connected.
   - platform: gpio
     pin:
       number: GPIO32
@@ -490,11 +670,203 @@ binary_sensor:
     id: dock_detect
     internal: true
 
-# ── Heartbeat ─────────────────────────────────────────────────────────────────
-# 5-minute interval — matches hiking-monitor's established deviation from the
-# generic 30-min standard (JCTsh-Build-Standards.md §4.1), not re-derived here.
-# Guarded by mqtt_client.is_connected() per §2.7's home-mode-only pattern.
+# ── Duty-cycle / field logging / WiFi gate interval ────────────────────────────
 interval:
+  - interval: 2min
+    then:
+      # ── STEP 8: WiFi attempt-gate state machine ──
+      # Ongoing re-check of the three-condition gate, and the bounded-
+      # attempt-window/15min-retry backoff (JCTsh-Build-Standards.md §2.14
+      # point 13, Step 2). Runs every tick regardless of mode, same as
+      # hiking-monitor's own CARD-0224 periodic recheck.
+      - lambda: |-
+          bool intent_off = !id(intent_switch).state;
+          bool power_connected = id(dock_detect).state;
+          bool voltage_ok = !isnan(id(battery_voltage).state) && id(battery_voltage).state >= 3.8f;
+          id(wifi_gate_ok) = intent_off && power_connected && voltage_ok;
+
+          if (!id(wifi_gate_ok)) {
+            id(wifi_attempt_in_progress) = false;
+          } else if (!id(mqtt_client).is_connected()) {
+            if (!id(wifi_attempt_in_progress)) {
+              bool never_attempted = (id(wifi_last_attempt_end_ms) == 0);
+              uint32_t since_last = millis() - id(wifi_last_attempt_end_ms);
+              if (never_attempted || since_last >= (15UL * 60UL * 1000UL)) {
+                id(wifi_attempt_in_progress) = true;
+                id(wifi_attempt_start_ms) = millis();
+                aqm_log_write("{\"event\":\"wifi_attempt_start\"}");
+              }
+            } else if (millis() - id(wifi_attempt_start_ms) >= (2UL * 60UL * 1000UL)) {
+              // Attempt window elapsed with no connection -- give up for now.
+              id(wifi_attempt_in_progress) = false;
+              id(wifi_last_attempt_end_ms) = millis();
+              aqm_log_write("{\"event\":\"wifi_attempt_timeout\"}");
+            }
+          }
+          // Gate true + MQTT already connected: nothing to do here, on_connect owns it.
+      - if:
+          condition:
+            lambda: 'return !id(wifi_gate_ok);'
+          then:
+            - wifi.disable:
+          else:
+            - if:
+                condition:
+                  and:
+                    - lambda: 'return id(wifi_attempt_in_progress);'
+                    - lambda: 'return !id(mqtt_client).is_connected();'
+                then:
+                  - wifi.enable:
+      # CARD-0224 pattern: on_connect only fires once per connection event --
+      # if the MQTT link stays persistently up after a replay was deferred
+      # for low battery, nothing else re-triggers a retry once voltage
+      # recovers while charging.
+      - if:
+          condition:
+            lambda: |-
+              return id(mqtt_client).is_connected()
+                  && id(replay_deferred_pending)
+                  && !isnan(id(battery_voltage).state)
+                  && id(battery_voltage).state >= 3.8f
+                  && aqm_log_has_data();
+          then:
+            - script.execute: attempt_aqm_replay
+
+      # ── STEP 8: SEN55 duty-cycle -- warm up, read, drop back to RHT-only ──
+      # STEP 8 fix (2026-09-09, real race condition found on first bench
+      # test): on_boot's own YAML-level delay:/while: actions are
+      # non-blocking automations, not a single blocking script -- loop()
+      # (and therefore this interval) can start running *while on_boot is
+      # still mid-sequence*. Without this gate, on_boot's own SEN55
+      # write_command calls (Idle -> Measurement -> RHT-only) and this
+      # block's calls can genuinely race on the same I2C bus -- almost
+      # certainly the real cause of CARD-0252's CRC failures, not a hardware
+      # flake as first assumed. Confirmed directly: the very first tick fired
+      # only 4.5s after "setup() finished successfully," far too early for
+      # on_boot's reset-reason-check + 8-blink self-test + bounded MQTT wait
+      # to have actually completed. Skip this whole block entirely until
+      # on_boot's own sequence has genuinely finished.
+      - if:
+          condition:
+            lambda: 'return id(boot_sequence_done);'
+          then:
+            # Idle in RHT/Gas-Only mode between cycles (set at the end of
+            # on_boot and again at the end of this block). ~40s warm-up
+            # before reading, within Sensirion's recommended 30-60s window
+            # for good PM accuracy -- implemented as a feed_wdt()-safe
+            # chunked wait, never one long blocking delay (CARD-0211's
+            # watchdog-timeout lesson).
+            - logger.log:
+                format: "DUTY CYCLE: switching to Measurement mode, 40s warm-up starting"
+                level: WARN
+            - lambda: 'id(sen55).write_command((uint16_t) 0x0021);'  # SEN5X_CMD_START_MEASUREMENTS
+            - repeat:
+                count: 40
+                then:
+                  - delay: 1s
+                  - lambda: 'App.feed_wdt();'
+            # STEP 8 fix: stamp BEFORE requesting the read, so the freshness
+            # check below can prove a real publish happened after this point
+            # -- a CRC failure leaves sen55_pm25.state at its last
+            # successful value, which a plain isnan() check can't
+            # distinguish from a genuine fresh read.
+            - lambda: 'id(duty_cycle_read_start_ms) = millis();'
+            - component.update: sen55
+            # Short bounded settle wait -- waits for a genuinely fresh
+            # publish (see fix above), not just "state is currently
+            # non-NaN."
+            - lambda: 'id(pm25_wait_start) = millis();'
+            - while:
+                condition:
+                  lambda: |-
+                    return id(sen55_last_update_ms) < id(duty_cycle_read_start_ms) &&
+                           (millis() - id(pm25_wait_start)) < 5000;
+                then:
+                  - delay: 250ms
+            - component.update: battery_voltage
+            - lambda: |-
+                float pm1  = id(sen55_pm1).state;
+                float pm25 = id(sen55_pm25).state;
+                float pm4  = id(sen55_pm4).state;
+                float pm10 = id(sen55_pm10).state;
+                float voc  = id(sen55_voc).state;
+                float nox  = id(sen55_nox).state;
+                float temp = id(sen55_temp).state;
+                float hum  = id(sen55_humidity).state;
+                float batt = id(battery_voltage).state;
+
+                // Build ISO 8601 UTC timestamp from the NTP-synced clock,
+                // same pattern as hiking-monitor -- skip (buffered) if not
+                // yet synced.
+                ESPTime now = id(sntp_time).now();
+                bool reading_is_fresh = id(sen55_last_update_ms) >= id(duty_cycle_read_start_ms);
+
+                if (!now.is_valid()) {
+                  aqm_log_write("{\"event\":\"skip\",\"reason\":\"clock_invalid\"}");
+                  ESP_LOGW("DutyCycle", "Skipped -- clock not yet synced (expected with WiFi off)");
+                } else if (!reading_is_fresh) {
+                  // STEP 8 fix: the read attempt never produced a genuine
+                  // new publish this cycle (most likely a CRC failure) --
+                  // pm25/temp/hum below may be non-NaN but are stale
+                  // leftovers from an earlier successful cycle.
+                  aqm_log_write("{\"event\":\"skip\",\"reason\":\"sensor_stale\"}");
+                  ESP_LOGW("DutyCycle", "Skipped -- no fresh SEN55 publish this cycle (stale/CRC failure)");
+                } else if (isnan(pm25) || isnan(temp) || isnan(hum)) {
+                  aqm_log_write("{\"event\":\"skip\",\"reason\":\"nan_sensor\"}");
+                  ESP_LOGW("DutyCycle", "Skipped -- pm25=%.1f temp=%.1f hum=%.1f (NaN present)", pm25, temp, hum);
+                } else {
+                  time_t epoch = (time_t)now.timestamp;
+                  struct tm utc_tm;
+                  gmtime_r(&epoch, &utc_tm);
+                  char ts[25];
+                  strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
+
+                  char pm1_s[16], pm25_s[16], pm4_s[16], pm10_s[16], voc_s[16], nox_s[16];
+                  if (isnan(pm1))  strcpy(pm1_s, "null");  else snprintf(pm1_s, sizeof(pm1_s), "%.1f", pm1);
+                  snprintf(pm25_s, sizeof(pm25_s), "%.1f", pm25);
+                  if (isnan(pm4))  strcpy(pm4_s, "null");  else snprintf(pm4_s, sizeof(pm4_s), "%.1f", pm4);
+                  if (isnan(pm10)) strcpy(pm10_s, "null"); else snprintf(pm10_s, sizeof(pm10_s), "%.1f", pm10);
+                  if (isnan(voc))  strcpy(voc_s, "null");  else snprintf(voc_s, sizeof(voc_s), "%.0f", voc);
+                  if (isnan(nox))  strcpy(nox_s, "null");  else snprintf(nox_s, sizeof(nox_s), "%.0f", nox);
+
+                  int rssi = id(mqtt_client).is_connected() ? (int)id(wifi_rssi).state : 0;
+                  char batt_s[16];
+                  if (isnan(batt)) strcpy(batt_s, "null"); else snprintf(batt_s, sizeof(batt_s), "%.2f", batt);
+
+                  char payload[400];
+                  snprintf(payload, sizeof(payload),
+                    "{\"component\":\"air-quality-monitor\","
+                    "\"ts\":\"%s\","
+                    "\"lat\":null,\"lon\":null,"
+                    "\"temp_f\":%.1f,"
+                    "\"humidity_pct\":%.1f,"
+                    "\"pm1_ug_m3\":%s,"
+                    "\"pm25_ug_m3\":%s,"
+                    "\"pm4_ug_m3\":%s,"
+                    "\"pm10_ug_m3\":%s,"
+                    "\"voc_index\":%s,"
+                    "\"nox_index\":%s,"
+                    "\"battery_v\":%s,"
+                    "\"rssi_dbm\":%d}",
+                    ts, temp, hum, pm1_s, pm25_s, pm4_s, pm10_s, voc_s, nox_s, batt_s, rssi);
+
+                  if (id(mqtt_client).is_connected()) {
+                    id(mqtt_client).publish("jctsh/components/air-quality-monitor/data",
+                                            std::string(payload), 0, false);
+                    ESP_LOGW("DutyCycle", "Published live: %s", payload);
+                  } else {
+                    aqm_log_write(std::string(payload));
+                    ESP_LOGW("DutyCycle", "Buffered to flash: %s", payload);
+                  }
+                }
+            # Back to RHT/Gas-Only until the next cycle.
+            - lambda: 'id(sen55).write_command((uint16_t) 0x0037);'  # SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY
+            - logger.log:
+                format: "DUTY CYCLE: back to RHT-only mode until next tick"
+                level: WARN
+
+  # 5-minute heartbeat — matches hiking-monitor's established deviation from
+  # the generic 30-min standard. Home mode only (mqtt_client.is_connected()).
   - interval: 5min
     then:
       - if:
@@ -543,32 +915,3 @@ interval:
                     "{\"component\":\"air-quality-monitor\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"battery_v\":%s}",
                     h, m, rssi, batt_json);
                   return std::string(buf);
-
-  # Bench-validation log — every 30s, so PM/VOC/NOx readings show up on the log
-  # dashboard quickly for Step 4's "confirm plausible values" check, independent
-  # of the 5-min heartbeat above. Remove or fold into Step 8's duty-cycle
-  # lambda once field/home mode logic replaces this.
-  - interval: 30s
-    then:
-      - mqtt.publish:
-          topic: jctsh/components/air-quality-monitor/log
-          payload: !lambda |-
-            float pm1  = id(sen55_pm1).state;
-            float pm25 = id(sen55_pm25).state;
-            float pm4  = id(sen55_pm4).state;
-            float pm10 = id(sen55_pm10).state;
-            float voc  = id(sen55_voc).state;
-            float nox  = id(sen55_nox).state;
-            float temp = id(sen55_temp).state;      // CARD-0218
-            float hum  = id(sen55_humidity).state;  // CARD-0218
-            if (isnan(pm1) || isnan(pm25) || isnan(pm4) || isnan(pm10)) {
-              return std::string(
-                "{\"component\":\"air-quality-monitor\",\"category\":\"Sensor\","
-                "\"message\":\"SEN55 initializing - no valid reading yet\"}");
-            }
-            char buf[320];
-            snprintf(buf, sizeof(buf),
-              "{\"component\":\"air-quality-monitor\",\"category\":\"Sensor\","
-              "\"message\":\"PM1.0: %.1f, PM2.5: %.1f, PM4.0: %.1f, PM10: %.1f, VOC: %.0f, NOx: %.0f, Temp: %.1fF, Humidity: %.1f%%\"}",
-              pm1, pm25, pm4, pm10, voc, nox, temp, hum);
-            return std::string(buf);

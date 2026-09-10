@@ -9,7 +9,39 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0257 -->
+<!-- next-card-id: CARD-0259 -->
+
+---
+
+### CARD-0258 · [bug] [hike-izer] Step 1 generation (session-window probe) hit the full 240s timeout fetching GPS Track — 2026-09-10, cause not yet identified
+**Status:** Backlog
+
+**Raised via PR #72 (Log Idea capture, jctsh-core), 2026-09-10 07:26 MST.** Captured as a phone-notification screenshot ("Hike-izer: Hike summary generation failed...") rather than a written idea — traced to a real failure in `hike-izer-orchestrator`'s own logs, not an accidental capture.
+
+**Confirmed via container logs.** Today's hike-end webhook (2026-09-10T14:20:50Z, `gpsloggerevent=stopped`, `local_datetime=2026-09-10T07:20:51-07:00`) triggered Step 1 generation — `_detect_session_window()` in `generation.py`, the whole-day `fetch_hike_data.py` probe (all 4 sheets) used to derive the real hike window from the GPS trace itself rather than trusting GPSLogger's own timestamps (CARD-0120). The probe hung while fetching the GPS Track sheet and hit the full 240s timeout ceiling (raised from 120s by CARD-0135 specifically to cover a day where every sheet needs an internal retry) at 2026-09-10T14:24:50Z. First time this specific probe has hit its ceiling in at least the preceding 7 days (checked via log grep — no prior "timed out" hits). Not a uniformly slow Apps Script day: an earlier same-day probe (`backstop_probe`, ~05:00 MST) completed cleanly in 16 seconds.
+
+**Possibly related, not established — tracked separately per Joseph's call.** The same ~14:20-14:25 UTC window is when hiking-monitor reconnected after today's hike and relayed a batch of buffered readings, which is also CARD-0226's 4th watch-for recurrence (logged this same session). Same hike, same reconnect window, loosely the same kind of "load right at reconnect" shape — but the actual mechanisms are different (a device-side reboot loop vs. a server-side HTTP fetch stall) and no shared root cause is confirmed. Worth revisiting together if a fifth CARD-0226 recurrence and a second occurrence of this timeout ever line up on the same hike again.
+
+**Retried and recovered same session, 2026-09-10 16:47 UTC.** Re-POSTed the exact original `hike-end` webhook payload. This time the whole-day probe completed cleanly and fast (no timeout) — 7 env rows, 148 GPS points, 1 hike-start forecast row — and the full Step 1 pipeline ran through to completion (calendar pages, `wildlife.html`, `battery-trend.html` regenerated, MQTT log published). Today's hike summary is no longer missing. This confirms the stall was transient, not a persistent breakage of the probe/pipeline itself — consistent with a one-off Apps Script slowdown rather than a code bug, though the actual cause is still unconfirmed.
+
+**Done when:** the actual cause of the GPS Track fetch stall is identified (Apps Script-side slowness/quota, sheet size growth, or something else). With only one occurrence so far there's nothing more to investigate right now — this is a watch-and-log card, not an active Build item.
+
+**Watch for:** a second occurrence of `fetch_hike_data.py`/the session-probe hitting its 240s timeout ceiling (or any `Step 1 generation failed: ... timed out` line) in `hike-izer-orchestrator`'s logs. One occurrence isn't a pattern yet; if it recurs, compare conditions against this one (was hiking-monitor also mid-reconnect? was Apps Script slow generally that day or just this one call? which sheet was it stuck on?) to start narrowing the cause.
+
+**Related:** CARD-0226 (hiking-monitor reboot-loop recurrence, same hike/window, tracked separately), CARD-0135 (raised the timeout ceiling from 120s to 240s after a similarly-shaped slow-Apps-Script day), CARD-0120 (why session bounds are derived from the GPS trace rather than trusted from GPSLogger), `components/hike-izer-orchestrator/generation.py` (`_detect_session_window`), CARD-0173 (the Log Idea capture path that surfaced this).
+
+---
+
+### CARD-0257 · [enhancement] [infrastructure] cloudflared container update available: 2026.8.3 → 2026.9.0 — deliberately deferred pending tunnel-failure reports
+**Status:** Backlog
+
+**Raised via automated maintenance finding (PR #71, photo-server), 2026-09-10.** Routine container-version-bump finding from the scheduled maintenance check (CARD-0126): cloudflared 2026.9.0 available, running 2026.8.3.
+
+**Held rather than applied, 2026-09-10 — researched before landing, per this repo's standing PR-landing process.** A Cloudflare Community post from the last ~24h ("Issue with 2026.9.0 release of cloudflared") reports tunnel failures (origin unreachable, error 1033) after upgrading, resolved for that user by rolling back to 2026.8.3. One unconfirmed report — not corroborated by other community posts or GitHub issues at the time of this check, and no official Cloudflare acknowledgment found. But cloudflared is what backs the public `hikes.jctnet.com` Cloudflare Tunnel (`hike-izer-orchestrator`'s only public HTTPS surface — `hike-end`, `idea`, `step2`, `pipeline-log` webhooks, `birdnet-live` staging all go through it, per CARD-0227), so an outage here would be immediately felt on a live hike, not just a background service hiccup. Joseph's call: hold rather than apply now.
+
+**Done when:** revisit in 1-2 weeks — check for further community reports or GitHub issues corroborating or refuting the tunnel-failure claim, and check whether a newer patch release has since shipped. If the risk turns out to be unconfirmed or already fixed upstream, apply the update then via the normal `docker compose pull && docker compose up -d` cycle on the M8.
+
+**Related:** CARD-0126 (container-image update-visibility check that raised this), CARD-0227 (the Cloudflare Tunnel setup for `hikes.jctnet.com` this update would touch), CARD-0128 (the auto-PR intake pipeline).
 
 ---
 

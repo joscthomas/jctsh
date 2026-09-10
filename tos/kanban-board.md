@@ -9,7 +9,20 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0257 -->
+<!-- next-card-id: CARD-0258 -->
+
+---
+
+### CARD-0257 · [enhancement] [infrastructure] cloudflared container update available: 2026.8.3 → 2026.9.0 — deliberately deferred pending tunnel-failure reports
+**Status:** Backlog
+
+**Raised via automated maintenance finding (PR #71, photo-server), 2026-09-10.** Routine container-version-bump finding from the scheduled maintenance check (CARD-0126): cloudflared 2026.9.0 available, running 2026.8.3.
+
+**Held rather than applied, 2026-09-10 — researched before landing, per this repo's standing PR-landing process.** A Cloudflare Community post from the last ~24h ("Issue with 2026.9.0 release of cloudflared") reports tunnel failures (origin unreachable, error 1033) after upgrading, resolved for that user by rolling back to 2026.8.3. One unconfirmed report — not corroborated by other community posts or GitHub issues at the time of this check, and no official Cloudflare acknowledgment found. But cloudflared is what backs the public `hikes.jctnet.com` Cloudflare Tunnel (`hike-izer-orchestrator`'s only public HTTPS surface — `hike-end`, `idea`, `step2`, `pipeline-log` webhooks, `birdnet-live` staging all go through it, per CARD-0227), so an outage here would be immediately felt on a live hike, not just a background service hiccup. Joseph's call: hold rather than apply now.
+
+**Done when:** revisit in 1-2 weeks — check for further community reports or GitHub issues corroborating or refuting the tunnel-failure claim, and check whether a newer patch release has since shipped. If the risk turns out to be unconfirmed or already fixed upstream, apply the update then via the normal `docker compose pull && docker compose up -d` cycle on the M8.
+
+**Related:** CARD-0126 (container-image update-visibility check that raised this), CARD-0227 (the Cloudflare Tunnel setup for `hikes.jctnet.com` this update would touch), CARD-0128 (the auto-PR intake pipeline).
 
 ---
 

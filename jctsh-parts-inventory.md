@@ -92,7 +92,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
 | 18650 Battery Charger Module + Holder | AEDIKO 5-pack (charger + holder pairs), fast charge boost, PCB protection | 10 | Bag 4 | No project assigned. |
-| EVE 3.3V 18650 Cell | 18650BatteryStore.com, 3200mAh, 10A, flat top | 5 | Bag 5 | No project assigned. |
+| EVE INR18650/33V Cell | 18650BatteryStore.com, standard Li-ion (INR/NMC chemistry, corrected 2026-09-09 — was mislabeled "3.3V", confirmed via manufacturer specs 3.6V nominal/4.2V peak, not LiFePO4; "33V" is a model-code suffix, not the actual voltage), 3200mAh, 10A, flat top. https://www.18650batterystore.com/products/eve-18650-33v | 5 | Bag 5 | No project assigned. Candidate cell for CARD-0256 (robust solar+swappable-battery pattern) — standard TP4056 charging applies, no LiFePO4-specific charger needed. |
 | Mini Solar Panel | SUNYIMA, 5.5V 80mA, 2.36"×2.36", DIY photovoltaic | 10 | Bag 6 | No project assigned. |
 | LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 3 | Bag 7 | 1 in service: hiking-monitor. Hiking-monitor's original cell failed in the field (2026-07-03) and was replaced from this stock — physical recount confirmed 2 still remaining in Bag 7 afterward; trust this physical count over prior used/remaining math. |
 | TP4056 Battery Charger Modules | USB TP4056, 3.7V–4.2V to 9V/5V, 2A, charge/discharge integrated step-up. https://www.amazon.com/dp/B098989NRZ | 5 | Bin A4 (was Bag 8) | 1 used: hiking-monitor. |
@@ -302,3 +302,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-08-28 | Stock | Corrected physical locations: Pololu D24V10F3 moved Bag 38 → Bin C5; BOJACK ceramic capacitor kit moved Bag 39 → Plastic Box (with the other small assortment kits) |
 | 2026-09-08 | air-quality-monitor | Latching mini on/off switch BK-1208 ×50 (ASIN B086L2GPGX) received, added to Prototyping and Build Hardware, Bin D5 — satisfies the BK-1208 called for in `components/air-quality-monitor/wiring.md`, previously specified but not stocked |
 | 2026-09-09 | Stock | SEN55 connector cable (Dupont-terminated, bundled with the SparkFun SEN-23715 sensor) added to Cables and Adapters, Bin D4 — not used in the air-quality-monitor build, which uses the JST GH 1.25mm cable instead |
+| 2026-09-09 | Stock | Corrected EVE 18650 cell entry (Bag 5): mislabeled "3.3V" corrected to the real EVE INR18650/33V spec (3.6V nominal/4.2V peak, standard Li-ion, not LiFePO4) — confirmed via manufacturer/retailer listings, resolving CARD-0256's open chemistry question |

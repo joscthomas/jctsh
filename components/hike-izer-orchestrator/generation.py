@@ -80,6 +80,17 @@ BUILD_BATTERY_TREND_SCRIPT = "/app/build_battery_trend_index.py"
 # first (cache mostly warm) finish in a few seconds.
 WILDLIFE_INDEX_TIMEOUT = 300
 
+# CARD-0258: a transient failure (e.g. the whole-day session probe hanging
+# on a slow Apps Script call) used to go straight to an Alert + push
+# notification on the very first failure -- confirmed 2026-09-10 to be a
+# one-off, since an identical retry an hour later succeeded cleanly with no
+# code change. Retrying automatically before bothering Joseph avoids that
+# false alarm; the cap still surfaces a real, persistent failure rather than
+# retrying forever silently. 5 total attempts (1 initial + 4 retries) at
+# 15-minute spacing = a 1-hour window before giving up.
+GENERATION_MAX_ATTEMPTS = 5
+GENERATION_RETRY_INTERVAL_SEC = 15 * 60
+
 # CARD-0113: the automatic path's own webhook payload already carries the
 # session's exact start/end (startedtimestamp + duration), unlike the
 # interactive Skill flow which only ever knows which calendar day to
@@ -918,52 +929,94 @@ def run_step2(file_stem, with_narrative=False):
 
 
 def run_and_log(payload):
-    """Step 1's entry point -- called by app.py on every real webhook."""
-    try:
-        file_stem, tracker = run(payload)
-        if file_stem is None:
-            # CARD-0100: no hike confirmed -- run() already published its own
-            # quiet skip log, nothing more to do here.
+    """Step 1's entry point -- called by app.py on every real webhook.
+
+    CARD-0258: retries a failure up to GENERATION_MAX_ATTEMPTS times,
+    GENERATION_RETRY_INTERVAL_SEC apart, before alerting -- runs in its own
+    daemon thread (app.py's _handle_hike_end), so blocking here on
+    time.sleep() for up to an hour costs nothing else."""
+    for attempt in range(1, GENERATION_MAX_ATTEMPTS + 1):
+        try:
+            file_stem, tracker = run(payload)
+            if file_stem is None:
+                # CARD-0100: no hike confirmed -- run() already published its own
+                # quiet skip log, nothing more to do here.
+                return
+            print(f"Publishing MQTT log line for {file_stem}...", file=sys.stderr, flush=True)
+            mqtt_log.publish_log(
+                "System",
+                f"Published data-only hike summary for {file_stem}: "
+                f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
+                f"(API cost: {tracker.summary()}). Ask for the rich version once photos/Gaia/bird data are staged.",
+            )
+            ha_notify.send_push(
+                "Hike-izer",
+                f"Hike summary published: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
+                url=f"https://hikes.jctnet.com/{file_stem}_hike-summary.html",
+            )
             return
-        print(f"Publishing MQTT log line for {file_stem}...", file=sys.stderr, flush=True)
-        mqtt_log.publish_log(
-            "System",
-            f"Published data-only hike summary for {file_stem}: "
-            f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
-            f"(API cost: {tracker.summary()}). Ask for the rich version once photos/Gaia/bird data are staged.",
-        )
-        ha_notify.send_push(
-            "Hike-izer",
-            f"Hike summary published: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
-            url=f"https://hikes.jctnet.com/{file_stem}_hike-summary.html",
-        )
-    except Exception as e:
-        print(f"Step 1 generation failed: {e}", file=sys.stderr)
-        mqtt_log.publish_log("Alert", f"Hike summary step 1 generation failed: {e}")
-        ha_notify.send_push("Hike-izer", f"Hike summary generation failed: {e}")
+        except Exception as e:
+            print(f"Step 1 generation failed (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}): {e}", file=sys.stderr)
+            if attempt < GENERATION_MAX_ATTEMPTS:
+                mqtt_log.publish_log(
+                    "System",
+                    f"Hike summary step 1 generation failed (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}), "
+                    f"retrying in 15 min: {e}",
+                )
+                time.sleep(GENERATION_RETRY_INTERVAL_SEC)
+            else:
+                mqtt_log.publish_log(
+                    "Alert",
+                    f"Hike summary step 1 generation failed after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
+                )
+                ha_notify.send_push(
+                    "Hike-izer", f"Hike summary generation failed after {GENERATION_MAX_ATTEMPTS} attempts: {e}"
+                )
 
 
 def run_step2_and_log(file_stem, with_narrative=False):
     """Step 2's entry point -- called from the CLI (see main()) when Joseph
-    asks, conversationally, for the rich version of a specific hike."""
-    try:
-        file_stem, tracker = run_step2(file_stem, with_narrative=with_narrative)
-        mqtt_log.publish_log(
-            "System",
-            f"Published enriched hike summary for {file_stem}: "
-            f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
-            f"(API cost: {tracker.summary()}).",
-        )
-        ha_notify.send_push(
-            "Hike-izer",
-            f"Enriched hike summary published: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
-            url=f"https://hikes.jctnet.com/{file_stem}_hike-summary.html",
-        )
-    except Exception as e:
-        print(f"Step 2 generation failed: {e}", file=sys.stderr)
-        mqtt_log.publish_log("Alert", f"Hike summary step 2 generation failed for {file_stem}: {e}")
-        ha_notify.send_push("Hike-izer", f"Hike summary generation failed for {file_stem}: {e}")
-        raise
+    asks, conversationally, for the rich version of a specific hike, and
+    from app.py's /webhook/step2 background thread.
+
+    CARD-0258: same retry-before-alert treatment as run_and_log -- see its
+    docstring. Still re-raises after the final failed attempt so a direct
+    CLI invocation exits non-zero."""
+    for attempt in range(1, GENERATION_MAX_ATTEMPTS + 1):
+        try:
+            file_stem, tracker = run_step2(file_stem, with_narrative=with_narrative)
+            mqtt_log.publish_log(
+                "System",
+                f"Published enriched hike summary for {file_stem}: "
+                f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
+                f"(API cost: {tracker.summary()}).",
+            )
+            ha_notify.send_push(
+                "Hike-izer",
+                f"Enriched hike summary published: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
+                url=f"https://hikes.jctnet.com/{file_stem}_hike-summary.html",
+            )
+            return
+        except Exception as e:
+            print(f"Step 2 generation failed for {file_stem} (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}): {e}", file=sys.stderr)
+            if attempt < GENERATION_MAX_ATTEMPTS:
+                mqtt_log.publish_log(
+                    "System",
+                    f"Hike summary step 2 generation failed for {file_stem} "
+                    f"(attempt {attempt}/{GENERATION_MAX_ATTEMPTS}), retrying in 15 min: {e}",
+                )
+                time.sleep(GENERATION_RETRY_INTERVAL_SEC)
+            else:
+                mqtt_log.publish_log(
+                    "Alert",
+                    f"Hike summary step 2 generation failed for {file_stem} "
+                    f"after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
+                )
+                ha_notify.send_push(
+                    "Hike-izer",
+                    f"Hike summary generation failed for {file_stem} after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
+                )
+                raise
 
 
 def run_daily_refresh_and_log():
@@ -983,25 +1036,53 @@ def run_daily_refresh_and_log():
     something changed. A failure on any individual hike still gets a real
     Alert + push, same as every other unattended job in this codebase --
     this loops per-hike so one failure doesn't stop the rest from being
-    checked."""
+    checked.
+
+    CARD-0258: unlike run_and_log/run_step2_and_log's own per-call retry,
+    this runs every hike due for a check in one pass first, then retries
+    only the ones that failed as a group, GENERATION_RETRY_INTERVAL_SEC
+    apart, up to GENERATION_MAX_ATTEMPTS each -- so one persistently-failing
+    hike's retries don't delay checking the others on this run (Joseph's
+    call, since this job already loops over multiple independent hikes,
+    unlike the single-hike paths above)."""
     stems = _stems_recently_published()
     if not stems:
         print("run_daily_refresh: no recently-published hikes -- nothing to do", file=sys.stderr, flush=True)
         return
-    for file_stem in stems:
-        try:
-            file_stem, tracker = run_step2(file_stem, with_narrative=False)
-            print(f"Daily refresh complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
-            mqtt_log.publish_log(
-                "System",
-                f"Daily refresh pass complete for {file_stem}: "
-                f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
-                f"(API cost: {tracker.summary()}).",
+
+    pending = {file_stem: 1 for file_stem in stems}  # file_stem -> attempt about to run
+    while pending:
+        still_failing = {}
+        for file_stem, attempt in pending.items():
+            try:
+                file_stem, tracker = run_step2(file_stem, with_narrative=False)
+                print(f"Daily refresh complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
+                mqtt_log.publish_log(
+                    "System",
+                    f"Daily refresh pass complete for {file_stem}: "
+                    f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
+                    f"(API cost: {tracker.summary()}).",
+                )
+            except Exception as e:
+                print(f"Daily refresh failed for {file_stem} (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}): {e}", file=sys.stderr, flush=True)
+                if attempt < GENERATION_MAX_ATTEMPTS:
+                    still_failing[file_stem] = attempt + 1
+                else:
+                    mqtt_log.publish_log(
+                        "Alert",
+                        f"Hike-izer daily refresh failed for {file_stem} after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
+                    )
+                    ha_notify.send_push(
+                        "Hike-izer",
+                        f"Daily hike-summary refresh failed for {file_stem} after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
+                    )
+        pending = still_failing
+        if pending:
+            print(
+                f"run_daily_refresh: {len(pending)} hike(s) still failing, retrying in 15 min: {sorted(pending)}",
+                file=sys.stderr, flush=True,
             )
-        except Exception as e:
-            print(f"Daily refresh failed for {file_stem}: {e}", file=sys.stderr, flush=True)
-            mqtt_log.publish_log("Alert", f"Hike-izer daily refresh failed for {file_stem}: {e}")
-            ha_notify.send_push("Hike-izer", f"Daily hike-summary refresh failed for {file_stem}: {e}")
+            time.sleep(GENERATION_RETRY_INTERVAL_SEC)
 
 
 def main():

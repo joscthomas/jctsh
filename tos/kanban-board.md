@@ -9,7 +9,22 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0256 -->
+<!-- next-card-id: CARD-0257 -->
+
+---
+
+### CARD-0256 · [idea] [infrastructure] Standard robust solar+swappable-battery power pattern for backyard devices
+**Status:** Backlog
+
+**Raised 2026-09-09**, from a battery-inventory discussion prompted by CARD-0255's bird-bath BirdNET idea. Joseph wants a general power pattern for backyard/outdoor devices (not tied to one specific build): solar charging as the primary source, with the ability to swap batteries by hand if solar can't keep up (shading, winter, extended cloudy stretches) — a step up in robustness from this project's existing single-LiPo-pouch, solder/JST-connector pattern (hiking-monitor, air-quality-monitor).
+
+**Candidate battery: EVE 18650 cells already in stock** (`jctsh-parts-inventory.md`, Bag 5, 3200mAh, 10A discharge, 5 on hand, unallocated) — nearly 3x the capacity of the EEMB LiPo pouches already used elsewhere (1100mAh), and the cylindrical form factor fits a cheap 18650 holder much better for actual hand-swapping than a soldered/JST LiPo pack.
+
+**Open question, not yet resolved — the listed 3.3V nominal voltage suggests these may be LiFePO4, not standard Li-ion (3.7V nominal), and that needs verifying off the cell's actual label/datasheet before any charging circuit is designed.** If genuinely LiFePO4: real upsides for this exact use case (no fireproof-bag charging protocol required per this project's own LiPo-specific standard, better cycle life, more tolerant of outdoor temperature swings) — but a standard TP4056 (built for LiPo's 4.2V termination) can't safely charge a LiFePO4 cell's ~3.6V profile, so a different charge-controller IC/module would be needed if this is the direction taken.
+
+**Not yet interviewed for a done-when or full acceptance criteria** — essence-only per this project's Backlog scoping convention. Real design work (confirm cell chemistry, pick a matching solar charge controller, holder/enclosure for hand-swappable access, whether this becomes a documented `JCTsh-Build-Standards.md` pattern like the existing LiPo guidance) belongs in Planning.
+
+**Related:** CARD-0255 (the bird-bath idea that prompted this), `jctsh-parts-inventory.md` (EVE 18650 cell stock, Bag 5).
 
 ---
 

@@ -1,8 +1,8 @@
 # JCT Smart Home (JCTsh) Team Operating System (TOS)
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines how the JCTsh team works — the conceptual process governing all work.
-**Version:** 1.0
-**Version description:** Initial version — defines the kanban board, its columns (states) and state-transition triggers; Team Members; where work happens (Claude chat for informal pre-card thinking, Claude Code for Planning through Done); Notes on Planning (single or multi-phase/multi-document) and Build (per-step manual work/confirmation by Joseph, plus a required closing Reflection step); applying TOS to pre-existing work; and the relationship between board state and the commit/push workflow.
+**Version:** 1.1
+**Version description:** Added a Priority section — four levels (Critical/High/Medium/Low), independent of column/state, defining how urgently a card needs attention rather than how far along it is. Used whenever prioritization is asked for.
 
 ---
 
@@ -41,6 +41,21 @@ If files start changing for something not already covered by an open card, a car
 | **Build** | Going through Claude Code instructions, including testing |
 | **Done** | Complete |
 | **Defer** | A deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); reachable from any other state |
+
+---
+
+## Priority
+
+Independent of column/state — priority describes how urgently a card needs attention, not how far along it is. A card can be Critical and still sit in Backlog (just captured, not yet started) or Low and sit in Build (in progress, but nobody's in a hurry). Four levels:
+
+| Priority | Definition |
+|---|---|
+| **Critical** | Must be done as soon as possible — something is actively broken, actively at risk, or a real deadline is bearing down. |
+| **High** | Must be done, but there's time to schedule the work — not urgent today, not optional either. |
+| **Medium** | Cool to do — worth it if the opportunity or energy is there, not load-bearing. |
+| **Low** | Probably will never get to — captured so the idea isn't lost, not a real commitment. |
+
+Use this scale whenever asked to prioritize — cards, backlog review, or otherwise. Not every card needs an explicit priority tag; assign one when it's actually asked for or genuinely load-bearing to the work (e.g. a real deadline like CARD-0164's), not retroactively swept across the whole board.
 
 ---
 

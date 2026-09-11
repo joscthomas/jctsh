@@ -9,7 +9,38 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0259 -->
+<!-- next-card-id: CARD-0260 -->
+
+---
+
+### CARD-0259 · [idea] [hiking-monitor] Hiking Monitor v2 — rebuild on air-quality-monitor's power architecture, retire the current unit
+**Status:** Backlog
+
+**Raised 2026-09-10, from a musing conversation about display legibility that turned into a real reliability question.** Started as "the field display only needs temp/humidity/battery, docked mode needs battery + upload status/times" — a much smaller display footprint than today's full stat block — but the actual driver, once named directly, is battery/power reliability, not the display.
+
+**Why now, not just "eventually":** CARD-0226's reboot loop has recurred four times over two weeks (2026-08-29, 09-03, 09-08, 09-10) with the root cause still unconfirmed — every attempt has been about catching it live on the *existing* hardware (a still-blocked debug UART capture). air-quality-monitor's own power redesign (Pololu buck regulator, BK-1208 latching Power Switch, the three-signal Intent/Power-Connected/Power-Switch model, the bounded WiFi-attempt/retry state machine) has already resolved a comparable class of brownout failures there without needing to explain every individual incident first. A v2 rebuild sidesteps CARD-0226's mystery rather than requiring it to be solved on hardware that may simply be undersized.
+
+**Real tension worth naming, not resolved by this card alone:** CARD-0070 (the boost-converter swap) has stayed Deferred specifically because hiking-monitor is a working, field-proven device, and opening it up risks breaking something that currently works, for a fix only partially validated on a separate rig. CARD-0226's persistence is the argument that "working" is less true than it was when CARD-0070 was first deferred — but this is still the real field hardware, not a bench prototype. Decided anyway: **eventually build v2, retire the current unit** — not a patch to the existing device.
+
+**What carries over from air-quality-monitor's now-proven design, discussed 2026-09-10:**
+- Pololu D24V10F3 buck regulator in place of the boost converter (resolves CARD-0070's original quiescent-current concern).
+- BK-1208 latching Power Switch, separate from the Intent switch (resolves CARD-0181's missing true power-off).
+- The three-signal model (Intent / Power Connected / Power Switch) and the bounded-attempt/15-min-retry WiFi state machine, in place of hiking-monitor's own accumulated patches (CARD-0217, CARD-0045).
+- The SSID-based `pi1.local`/DuckDNS broker switch (CARD-0254 already scoped this as a port from air-quality-monitor).
+
+**Display redesign, discussed 2026-09-10 — not yet a concrete layout:**
+- Field mode: temp, humidity, battery — the three values actually read mid-hike, large enough for a quick glance, not the full current stat block.
+- Docked/upload mode: battery plus upload status/timing (Connected → Uploading → Done, per CARD-0199's existing sequence) — battery matters in both modes, not field-only.
+- Panel size itself (2.13" vs. 1.54" vs. staying put) is a secondary question — genuinely bottlenecked by what content each mode actually shows, not fixed until that's settled. A 1.54" panel (200×200, ~184 DPI vs. the current 2.13"'s 250×122, ~131 DPI) is higher pixel density, so it only helps if the field layout is narrowed to just a few large values — it would hurt legibility if asked to show today's full stat block.
+
+**Not yet scoped:** a concrete BOM, wiring plan, enclosure design, or firmware rewrite — this card captures the decision to eventually rebuild and the design basis, not an implementation plan. Real Planning-stage work starts once this is actually picked up.
+
+**Related open cards reviewed and dispositioned, 2026-09-10 (Joseph's call on each):**
+- **Folded in and closed:** CARD-0070 (boost-converter/LDO swap — superseded by air-quality-monitor's Pololu regulator), CARD-0181 (missing true power-off — superseded by the BK-1208 Power Switch), CARD-0217 (heat/brownout incident — its own residual hardware-margin question resolves here), CARD-0202 (real solar_v sensing — rolls into v2's power redesign), CARD-0201 (true deep-sleep-between-samples — a from-scratch v2 build is the cleaner place for this rearchitecture risk than the current firmware). CARD-0027 (superseded by CARD-0070) updated to point here.
+- **Kept open, cross-referenced, not folded:** CARD-0226 (the recurring reboot loop motivating this card — still worth chasing root cause on current hardware in parallel, in case it's fixable without a rebuild), CARD-0254 (broker-switch port — worth doing on the current unit regardless of v2's timeline).
+- **Kept open, unrelated:** CARD-0203 (longer LiPo cell fit), CARD-0025 (test a retired cell) — independent of this card.
+
+**Related:** CARD-0012 (air-quality-monitor's own build — the design basis), CARD-0199 (the docked-mode status sequence the new display reuses).
 
 ---
 
@@ -102,7 +133,9 @@ Deployed via the standard scp + `docker compose up -d --build orchestrator` cycl
 
 **Not yet interviewed for a done-when or full acceptance criteria** — this is essence-only for now (what/why), per this project's own Backlog-card scoping convention. Real design/porting work belongs in Planning/Build.
 
-**Related:** CARD-0012 (air-quality-monitor's Step 8, where this pattern was built and proven), CARD-0253 (the original DNS-reliability finding, folded into CARD-0012). Tangentially: CARD-0045 (hiking-monitor's own known, low-priority `reboot_timeout`/`wifi.ap:` interaction issue, archived) — CARD-0012's Step 8 independently confirmed with hard evidence that ESPHome's `mqtt: reboot_timeout` is a real, live mechanism that can force an unwanted reboot; worth a note on that archived card sometime, but out of this card's scope.
+**Kept open independent of CARD-0259 (hiking-monitor v2), 2026-09-10 — Joseph's call.** Worth porting to the current unit regardless of a future v2 rebuild's own timeline, not deferred to wait for it.
+
+**Related:** CARD-0012 (air-quality-monitor's Step 8, where this pattern was built and proven), CARD-0253 (the original DNS-reliability finding, folded into CARD-0012), CARD-0259 (hiking-monitor v2 — this same pattern would come built-in there, but that's no reason to hold off applying it to the current unit first). Tangentially: CARD-0045 (hiking-monitor's own known, low-priority `reboot_timeout`/`wifi.ap:` interaction issue, archived) — CARD-0012's Step 8 independently confirmed with hard evidence that ESPHome's `mqtt: reboot_timeout` is a real, live mechanism that can force an unwanted reboot; worth a note on that archived card sometime, but out of this card's scope.
 
 ---
 
@@ -474,7 +507,9 @@ All log lines were relayed together at 07:20 MST when the device reconnected, bu
 
 **Watch for:** hiking-monitor's durable log showing a `"Reboot request from mqtt"` (or any blank/empty) field-mode reset-reason line from a hike **after 2026-09-10** — a fifth recurrence beyond the four already logged above. Four occurrences in 12 days suggests this happens often enough that the next one is likely soon; if it shows up, log it the same way as the prior four (exact reset-reason text, real event timestamps via "Display refreshed" lines, which shape it matches) — CARD-0205's debug UART setup is now flagged to run on the next hike regardless, so the next occurrence has a real chance of being caught live.
 
-**Related:** CARD-0221 (Environmental Data coverage gap this reboot loop most likely caused), CARD-0222 (GPS correlation failure, very plausibly the same root cause), CARD-0205 (the debug UART this needs to actually catch the trigger live), CARD-0211 (the earlier, already-fixed task-watchdog crash during this same replay loop -- confirmed not a recurrence, but the closest prior precedent), CARD-0217 (the earlier ~270-reboot brownout storm -- same symptom shape, different and already-distinguished reset-reason signature), CARD-0180 (the restart button ruled out as this incident's trigger), CARD-0215 (the duplicate-reading rejection guard relevant to disentangling real loss vs. deduped resends), `components/hiking-monitor/hiking-monitor.yaml`.
+**Kept open independent of CARD-0259 (hiking-monitor v2), 2026-09-10 — Joseph's call.** This is the actual motivating problem behind v2, but worth continuing to chase root cause on the current hardware in parallel, in case it turns out fixable without a full rebuild — not automatically superseded by v2's longer timeline.
+
+**Related:** CARD-0221 (Environmental Data coverage gap this reboot loop most likely caused), CARD-0222 (GPS correlation failure, very plausibly the same root cause), CARD-0205 (the debug UART this needs to actually catch the trigger live), CARD-0211 (the earlier, already-fixed task-watchdog crash during this same replay loop -- confirmed not a recurrence, but the closest prior precedent), CARD-0217 (the earlier ~270-reboot brownout storm -- same symptom shape, different and already-distinguished reset-reason signature; folded into CARD-0259), CARD-0180 (the restart button ruled out as this incident's trigger), CARD-0215 (the duplicate-reading rejection guard relevant to disentangling real loss vs. deduped resends), CARD-0259 (hiking-monitor v2 — the eventual resolution path if this never gets root-caused on current hardware), `components/hiking-monitor/hiking-monitor.yaml`.
 
 ---
 
@@ -681,8 +716,8 @@ Once wired, the module's own onboard LED indicates charge status (charging vs. d
 
 ---
 
-### CARD-0217 · [bug] [hiking-monitor] Progressive heat/brownout degradation mid-hike (2026-08-27) — a real reset crisis followed by an ~85-minute total device blackout, not a contained 9-minute event
-**Status:** Build
+### CARD-0217 · [bug] [hiking-monitor] Progressive heat/brownout degradation mid-hike (2026-08-27) — a real reset crisis followed by an ~85-minute total device blackout, not a contained 9-minute event — RESOLVED 2026-09-10
+**Status:** Done
 
 **Raised 2026-08-27 (Claude, found investigating today's hike at Joseph's request).** Joseph asked for a look at hiking-monitor's performance and Mile Announcer (CARD-0208) from today's hike (field mode switched on ~05:30 MST). Checked the Pi's persistent log (`jctsh.log`, not just the rolling `state.json` window) for the whole session.
 
@@ -728,11 +763,11 @@ Compiled clean (`config_hash=0xde781d15`, `build_time_str=2026-08-27 11:55:04 -0
 
 **Watch for:** the next real multi-hour field hike's log entries for hiking-monitor. Two things this card is still waiting to confirm, both visible on the durable log (`/mnt/jctsh-logs/jctsh.log*`): (1) a genuine `System`-category `"Field-mode boot, reset reason: <text>"` line with a real, non-blank `<text>` — confirms item 1's deferred-read fix actually captures a reason now, rather than the old blank `"Field-mode boot, reset reason: "`; (2) the *absence* of any `Alert`-category `"Unexpected reset in field mode - ..."` line for the whole hike — confirms the WiFi-disable fix (item 2) actually stopped the opportunistic-reconnect-driven reset cascade. If an Alert does appear, that's a real recurrence, not a clean pass — check its `<text>` reason too. Also feeds CARD-0070's still-open hardware-margin question: a clean hike here is the evidence needed to retire it as a live concern (or, if resets still occur, an argument to reopen it).
 
-**Hardware-side margin (CARD-0070) — still an open question, not resolved by the WiFi fix above.** Whether to also revisit the deferred LDO+gate swap remains on the table — the WiFi fix should remove the specific trigger this incident's evidence points to, but doesn't address the underlying boost-converter quiescent-current/margin issue CARD-0070 was raised for in the first place, and doesn't fully retire it as a live concern until a real field hike confirms resets are actually gone.
+**Hardware-side margin (CARD-0070) — folded into CARD-0259, closed 2026-09-10, found stale during a kanban sweep.** This card's own firmware fixes (WiFi-disable, reset-reason-text timing) shipped and are done; the one thing left genuinely open was whether to also revisit the boost-converter quiescent-current/margin issue CARD-0070 was raised for. Rather than retrofit that onto the current field-proven unit, Joseph's call 2026-09-10: fold it into CARD-0259 (hiking-monitor v2 — a rebuild on air-quality-monitor's now-proven Pololu regulator + BK-1208 power switch + three-signal model), which resolves this same hardware-margin question by design rather than by further patching. CARD-0226's own continued recurrences are the live evidence that this hardware question is still real; that card stays open and tracked separately, not folded here.
 
 **Item 3 (hike-izer's "1 of 106" undercount) — resolved same day**, see the "related, separate finding" note above. No code change — CARD-0211/CARD-0214's existing `run_step2` gap-fill mechanism already handles this class of problem; just needed triggering.
 
-**Related:** CARD-0216 (the reset-reason logging this incident is the first real test of — confirms its own underlying hypothesis about silent mid-hike resets, while exposing a bug in its own implementation), CARD-0211 (the prior reset-loop incident, different context — upload-time watchdog timeout, already fixed), CARD-0198/CARD-0213 (air-quality-monitor's own brownout investigation and the resulting peak-current-headroom standard — the same physics likely applies here), CARD-0070 (the deferred hiking-monitor hardware fix this incident is a real argument for revisiting), CARD-0196 (its own still-open zero-display-refresh mystery may share this card's reset root cause — see this card's Watch for), `components/hiking-monitor/hiking-monitor.yaml` (the `on_boot` reset-reason-pending flag, the `interval:` block's deferred read, `debug:` component).
+**Related:** CARD-0216 (the reset-reason logging this incident is the first real test of — confirms its own underlying hypothesis about silent mid-hike resets, while exposing a bug in its own implementation), CARD-0211 (the prior reset-loop incident, different context — upload-time watchdog timeout, already fixed), CARD-0198/CARD-0213 (air-quality-monitor's own brownout investigation and the resulting peak-current-headroom standard — the same physics likely applies here), CARD-0070 (the deferred hiking-monitor hardware fix this incident argued for revisiting — folded into CARD-0259 alongside this card), CARD-0259 (hiking-monitor v2 — where this card's residual hardware-margin question actually gets resolved), CARD-0226 (the still-open, currently-recurring reboot loop that's the live evidence this hardware question remains real), CARD-0196 (its own still-open zero-display-refresh mystery may share this card's reset root cause — see this card's Watch for), `components/hiking-monitor/hiking-monitor.yaml` (the `on_boot` reset-reason-pending flag, the `interval:` block's deferred read, `debug:` component).
 
 ---
 
@@ -952,8 +987,8 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 17031
 
 ---
 
-### CARD-0202 · [idea] [hiking-monitor] Real solar_v sensing — wire up the ADC divider CARD-0017 designed but never built
-**Status:** Defer
+### CARD-0202 · [idea] [hiking-monitor] Real solar_v sensing — wire up the ADC divider CARD-0017 designed but never built — RESOLVED 2026-09-10
+**Status:** Done
 
 **Raised 2026-08-23 14:27 MST (Joseph), broken out from CARD-0200's "proper fix" note.** CARD-0200 fixed the low-battery cutoff's immediate bug (gating it on `dock_detect`, which solar shares with USB, rather than real charging state) with a cheap firmware-only patch. The properly-designed fix — a real `solar_v` ADC reading compared against `battery_v` (`solar_v > battery_v + ~0.3V` = actually charging) — was already fully specified by **CARD-0017** (marked Done, 2026-06-15), but only the Sheets/Apps Script half of that card was ever built. Confirmed by grep: no `solar_v` sensor exists anywhere in `hiking-monitor.yaml`, and `power-system.md` documents no voltage divider on the solar panel's own output — only `battery_v` (via `BAT+`) and the digital-ish `dock_detect` divider exist today.
 
@@ -961,12 +996,14 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 17031
 
 **Scope, if/when revisited:** design and add a new resistor-divider circuit from the solar panel's `IN+` line to a spare ADC GPIO (GPIO33 or another unused pin — check `ESP32-project-pins.md` for what's actually free), add a corresponding `sensor: platform: adc` block in `hiking-monitor.yaml` publishing `solar_v`, and replace CARD-0200's `in_field_mode`-gated cutoff condition with the real `solar_v > battery_v + 0.3V` check CARD-0017 already designed. Natural pairing with CARD-0070 and/or CARD-0201 if either of those also ends up requiring the perfboard opened — one physical rework session covering all pending hardware changes, rather than three separate teardowns.
 
-**Related:** CARD-0200 (the cheap patch this would properly replace), CARD-0017 (the schema/comparison-logic design this reuses, marked Done but only half-built), CARD-0070 (the existing "v2 rebuild" precedent this follows), CARD-0201 (possible pairing if it also needs rewiring), `components/hiking-monitor/power-system.md`, `components/hiking-monitor/ESP32-project-pins.md`.
+**Folded into CARD-0259 (hiking-monitor v2), closed 2026-09-10 — this card's own "version-2/perfboard-rewiring item" framing turned out to name the actual eventual card before it existed.** No longer a deferred hypothetical pairing with CARD-0070 — CARD-0259 is that v2 rebuild, now formally opened, and this design (the `solar_v` divider + real `solar_v > battery_v + 0.3V` comparison) rolls into its power redesign directly.
+
+**Related:** CARD-0200 (the cheap patch this would properly replace), CARD-0017 (the schema/comparison-logic design this reuses, marked Done but only half-built), CARD-0070 (the "v2 rebuild" precedent this named before CARD-0259 existed — both folded together), CARD-0201 (folded into CARD-0259 alongside this), CARD-0259 (hiking-monitor v2 — where this actually gets built), `components/hiking-monitor/power-system.md`, `components/hiking-monitor/ESP32-project-pins.md`.
 
 ---
 
-### CARD-0201 · [enhancement] [hiking-monitor] True deep-sleep-between-samples in field mode
-**Status:** Planning
+### CARD-0201 · [enhancement] [hiking-monitor] True deep-sleep-between-samples in field mode — RESOLVED 2026-09-10
+**Status:** Done
 
 **Moved to Planning 2026-08-27, explicitly sequenced behind today's other changes.** Joseph's call: real-hike verification of today's CARD-0217 (reset-reason fix, WiFi-disable-during-field-mode fix) and CARD-0045 (switch-off-required-before-WiFi fix) comes first — see those cards' own results on a future hike before starting this one's firmware rearchitecture.
 
@@ -989,7 +1026,9 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 17031
 
 **Done when:** built and bench-measured to show a real reduction in average current during a simulated multi-cycle field-mode run, and sensor data integrity is confirmed intact across wake/sleep transitions using CARD-0195's skip-reason logging (not just inspection).
 
-**Related:** CARD-0196 (the parent card this was broken out of, now covering the lower-risk items), CARD-0070 and CARD-0202 (the two other "v2 hardware pass" items this could potentially share a perfboard-opening session with, if it turns out to need one), CARD-0026 (bench measurement methodology), CARD-0195 (diagnostic prerequisite for verification), `components/hiking-monitor/hiking-monitor.yaml`, `components/hiking-monitor/hiking_logger.h`.
+**Folded into CARD-0259 (hiking-monitor v2), closed 2026-09-10 — Joseph's call, worth noting this one was scoped differently than CARD-0070/CARD-0202 above.** This card was explicitly designed as a firmware-only change, deliberately kept separate from the "v2 hardware pass" items specifically because it doesn't need the perfboard opened (line 1018 above: "Joseph explicitly does not want the perfboard disturbed for this, unlike CARD-0070 and CARD-0202"). Folded into CARD-0259 anyway — a from-scratch v2 build is a cleaner place to take on this real rearchitecture risk (RTC memory for the pressure-trend buffer, SPIFFS remount-on-wake, wake-source changes) than layering it onto the current, working, field-proven firmware.
+
+**Related:** CARD-0196 (the parent card this was broken out of, now covering the lower-risk items), CARD-0070 and CARD-0202 (the two other cards folded alongside this one), CARD-0259 (hiking-monitor v2 — where this actually gets built), CARD-0026 (bench measurement methodology), CARD-0195 (diagnostic prerequisite for verification), `components/hiking-monitor/hiking-monitor.yaml`, `components/hiking-monitor/hiking_logger.h`.
 
 ---
 
@@ -1290,10 +1329,46 @@ Archived to `components/outdoor-presence-detection/CLAUDE.md` on 2026-08-22 (CAR
 
 ---
 
-### CARD-0181 · [bug] [hiking-monitor] No way to cut real power without disassembling the enclosure
-**Status:** Defer
+### CARD-0181 · [bug] [hiking-monitor] No way to cut real power without disassembling the enclosure — RESOLVED 2026-09-10
+**Status:** Done
 
-Archived to `components/hiking-monitor/CLAUDE.md` on 2026-09-10 (CARD-0193) — 8492B, over the 5000B size threshold.
+**Moved back from `components/hiking-monitor/CLAUDE.md` on 2026-09-10** — this card needed a real update (folding into CARD-0259), so per this repo's own un-archiving convention it moves back to the live file rather than being edited in place in the archive.
+
+**Raised 2026-08-17 18:04 MST (Joseph), called a "major design failure."** Discovered while reassembling the enclosure post-CARD-0009: the only true hard-off state for this device is disconnecting the LiPo's JST connector from the TP4056 (per `operations.md`'s Power Switch Behavior table — "Storage — fully off" requires "Disconnected" battery, no other row reaches true off). That connector is inside the sealed enclosure with no external access, so once assembled, there is no way to actually cut power without taking it apart again.
+
+**Compounding issue:** the device's slide switch reads as a power switch but isn't one — `operations.md` line 79: "VOUT+ runs directly to ESP32 VIN — the switch is not in the power path." It only sets a GPIO-read mode flag (field vs. upload mode); the lowest-power reachable state via the switch is deep sleep (~10µA), not true off. For most purposes (avoiding activity while handling the device) that's sufficient, but it is not the same guarantee as no power draw at all, and the UI/labeling (a slide switch on the outside of the case) actively implies otherwise.
+
+**Not yet decided — fix approach deferred to Planning, Joseph's call 2026-08-17:** candidates raised but not chosen: (1) an accessible inline power switch, wired directly into the battery path (not the existing mode-select switch), reachable from outside the enclosure — true hard off on demand; (2) a JST pigtail extended from the battery connector to an external access cutout, so the existing connector can be reached and unplugged without disassembly, no new switch hardware. Neither confirmed; revisit at Planning.
+
+**Deferred 2026-08-19 (Joseph), clarified 2026-08-27 — same reasoning as CARD-0070's "v2 rebuild" precedent, not just "not started yet."** No fix approach chosen, no work started. This is the real, already-built, field-proven hiking-monitor perfboard — adding a new inline switch means physically opening and reworking hardware that currently works, the same risk-of-disturbing-a-working-device reasoning that's kept CARD-0070 (LDO swap) parked too. Revisit at Planning when the enclosure is next opened for some other reason anyway (CARD-0180's remote-reboot work covers the reboot half of the accessible-control need in the meantime; this card is only about true power-off) — not a standalone teardown just for this.
+
+**Standard raised from this, 2026-08-18 14:35 MST:** `JCTsh-Build-Standards.md` §1.7 (Accessible Power Control for Enclosed Devices, v1.19) now makes this a required decision for every future enclosed build, made before the enclosure is sealed — this card and CARD-0180 are its origin case. §1.7 lists both candidate approaches above as acceptable patterns for requirement 1 (true hard off); whichever gets chosen here should also be reflected there if it changes/refines the general pattern.
+
+**Reframed 2026-08-27 under §2.14 point 12's three-signal model (Intent / Power Connected / Power Switch), added the same day.** This card is specifically hiking-monitor's missing **Power Switch** — a real, coarse-grained inline cutoff in the power path (not readable by firmware in its off state, by definition — no power means no code running to read anything). It's a genuinely different control than the existing slide switch, which is correctly the device's **Intent** signal (GPIO27, readable while powered on, field vs. idle) — the two can't be the same physical switch, since Power Switch's own off state structurally can't be GPIO-read. Whichever fix gets picked here (inline switch, or a JST pigtail) should be wired as a true cutoff *in addition to* the existing slide switch, not a replacement for it.
+
+**Switch design decided, 2026-08-27 — interviewed through several candidates before landing here.** Requirement, refined through discussion: must feel unmistakably different from the existing slide Intent switch (never confusable by feel), must be protected from accidental actuation given it achieves *true* zero-draw off (a real consequence, unlike an Intent mode change), and must not need bulk hardware or enclosure complexity to get that protection.
+
+Candidates considered and set aside, for the record:
+- **Guarded/recessed toggle switch** — a spring-loaded flip guard or a recessed mount both genuinely protect against accidental actuation, but add real bulk (the guard hardware) or enclosure complexity (a recessed well/cutout) — ruled out on Joseph's explicit constraint.
+- **Mini rotary switch** (Adafruit #2925 or similar) — twist action is genuinely distinct from a slide and inherently resists accidental actuation (a bump/brush applies lateral force, not rotational torque), low-profile, no guard needed. A solid option, but superseded by the choice below.
+
+**Chosen: BK-1208, a mechanically-latching (self-lock) micro push button — 2-pin, DC 30V 1A, 12×8×8mm.** Confirmed as a genuine, real, widely-available part (verified against actual listings, not assumed): [Walmart, 50pcs black](https://www.walmart.com/ip/50Pcs-Black-Latching-Mini-ON-Off-Switch-Self-Lock-Micro-Push-Button-Switch-DC-30V-1A-for-Light-Lamp-Wall-Outlet-DIY-SMD-Flashlight-Type-BK-1208/17583453246), [Amazon, 10pcs black](https://us.amazon.com/Latching-Switch-Self-Lock-Flashlight-BK-1208/dp/B0F6LKBQ4Y), [Amazon, 50pcs mixed white/black (WBK-1208 variant)](https://www.amazon.com/mxuteuk-Self-Lock-flashlight-Latching-white%EF%BC%88can/dp/B0D3ZFGJPX). Same category commonly used in flashlight builds — press to latch closed, press again to release, purely mechanical, no supporting circuit needed.
+
+Why this satisfies every constraint at once:
+- **Genuinely different from the slide switch** — a firm press-and-release action, not a lateral slide.
+- **True zero-draw off, no circuit** — mechanically bistable (latches on its own), unlike a plain momentary button (which would need an added latch circuit that itself draws standby current — defeating this whole card's purpose).
+- **Naturally resistant to accidental actuation, with zero added bulk or enclosure work** — actuating it needs a firm *axial* press; a bump, brushing against something, or a pack strap catching would apply lateral force, which this switch simply doesn't respond to. No guard, no recess, no enclosure redesign.
+- **Tiny** — 12×8×8mm, mounts through a simple hole, same practical footprint as the momentary push buttons already used elsewhere in this project (Bin C2).
+
+**Wiring plan:** inline in the battery-positive path, upstream of everything else (the regulator included) — this is the actual hard cutoff, wired in addition to the existing slide switch (Intent), never replacing it. **Free bonus, no new part needed:** both hiking-monitor and air-quality-monitor's ESP32 dev boards already have their own onboard power LED (`operations.md`: "ESP32 power LED lights immediately" on boot) — wiring this switch upstream means that existing LED naturally goes dark whenever the switch is truly open and lights whenever closed, a free "is it really off" visual confirmation with no dedicated indicator LED to add.
+
+**Ordered 2026-08-28** — one order, covers this card's own BK-1208 (latching push-button power switch) and air-quality-monitor's identical need (CARD-0218, folded into CARD-0198's near-term hardware-swap plan). Not yet arrived/on hand. Stays in Defer per the 2026-08-19 decision (revisit at Planning when the enclosure is next opened) — ordering ahead of that trigger was worth doing since CARD-0218 needed it sooner, but doesn't change this card's own sequencing; build/install here still waits for the enclosure to be reopened for some other reason.
+
+**Done when:** the real hiking-monitor can be put into a genuine zero-draw off state without opening the enclosure, verified live (not just wired correctly) — and the chosen mechanism is documented in `operations.md`'s Power Switch Behavior table alongside the existing modes.
+
+**Folded into CARD-0259 (hiking-monitor v2), closed 2026-09-10.** The BK-1208 part choice and wiring design above are already exactly what CARD-0259 adopts wholesale from air-quality-monitor's own proven build — no new design work needed, just built into v2 from the start instead of retrofitted into the current sealed enclosure. This also resolves the "revisit when the enclosure is next opened for some other reason" condition above: v2 is that reason.
+
+**Related:** CARD-0009 (the final-assembly work this surfaced during), CARD-0180 (on-demand remote reboot — a related but distinct need; that card is about forcing a *restart*, this one is about achieving true *power-off*), `JCTsh-Build-Standards.md` §2.14 point 12 (the three-signal framework this fills the Power Switch gap for), CARD-0218 (air-quality-monitor's mirror-image gap — missing Intent instead of Power Switch, closed 2026-09-10), CARD-0259 (hiking-monitor v2 — where this actually gets built).
 
 ---
 
@@ -2702,10 +2777,91 @@ Archived to `components/hiking-monitor/CLAUDE.md` on 2026-08-22 (CARD-0193) — 
 
 ---
 
-### CARD-0070 · [enhancement] [hiking-monitor] Replace boost converter with LDO + gate peripheral power for lower standby draw — DEFERRED 2026-08-14
-**Status:** Defer
+### CARD-0070 · [enhancement] [hiking-monitor] Replace boost converter with LDO + gate peripheral power for lower standby draw — RESOLVED 2026-09-10
+**Status:** Done
 
-Archived to `components/hiking-monitor/CLAUDE.md` on 2026-08-22 (CARD-0193) — 15751B, over the 10000B size threshold.
+**Moved back from `components/hiking-monitor/CLAUDE.md` on 2026-09-10** — this card needed a real update (folding into CARD-0259), so per this repo's own un-archiving convention it moves back to the live file rather than being edited in place in the archive.
+
+**Deferred 2026-08-14, Joseph's call.** Not pursuing the rewiring on the real field device's perfboard. **Neither fix was ever ported to the real hiking-monitor** — per this card's own Sequencing plan, both the LDO and the peripheral gate were only ever built and tested on the CARD-0026 rig prototype (spare ESP32 + spare TP4056), with porting to the real device explicitly planned as the step *after* the rig proved out. The rig confirmed the LDO half works (fixes CARD-0026's ~22.6mA boost-converter quiescent draw); the gate half turned into a real parts-quality debugging saga on the rig (a persistent ~2.78-2.9V leak traced to likely-counterfeit BS250 stock, replacement genuine units ordered but never re-tested) and was never fully proven even there. Given that, opening up the real field device's hand-soldered perfboard for a fix that's only partially validated on a separate rig isn't worth it — **the real hiking-monitor keeps running its original, unmodified boost converter**, exactly as it always has. Living with it as-is.
+
+**Not lost, though — lessons carry forward to future builds:** the MCP1700/BS250 TO-92 pinout identifications, the LDO wiring pattern (`VOUT` → ESP32's `3V3` pin directly, never power from USB and the LDO simultaneously), the gate pull-up requirement (a floating BS250 gate can stay conductive through deep sleep without one), and the counterfeit-parts gotcha (empirically diode-test incoming MOSFET stock, don't trust the datasheet pinout alone against unverified suppliers) are all real, validated findings worth applying the next time this project does a battery-powered sensor build, even though they're not being retrofitted here.
+
+**Notes:** Raised 2026-07-16, directly motivated by CARD-0026's measurement — the test rig's TP4056+boost module draws 22.6mA steady in deep sleep, dominated by the boost stage's always-on quiescent current (est. ~48.7hr / ~2 day runtime on a 1100mAh cell). This matches the existing recommendation in `JCTsh-Build-Standards.md` §2.14 point 7 (prefer direct LiPo→LDO over boost-then-buck) — this card is the concrete follow-through on that recommendation.
+
+**Expanded 2026-07-17 to absorb CARD-0027** (GPIO-controlled peripheral power gating, moved to Defer as superseded — see that card for the original writeup and P-FET/high-side-switch background). CARD-0026's closing note flagged why these two fixes belong together: once the LDO removes the boost stage's ~22.6mA quiescent draw, BME280 + LTR-390's own ungated idle current (previously negligible next to the boost module, estimated tens to a few hundred µA) becomes the largest remaining contributor to sleep current. Doing the LDO swap without also gating the peripherals would leave real savings on the table.
+
+**Part 1 — LDO:** MCP1700-3302E/TO, TO-92 through-hole (3 legs: VIN, GND, VOUT), ~1.6µA quiescent current, 250mA max output. Chosen over AP2112K-3.3 (lower quiescent current margin isn't the issue — package is: SOT-23-5 SMD, impractical for this project's hand-solder/perfboard build convention without a breakout board) and over AMS1117-3.3 (5-10mA quiescent — same problem class as the boost module it's replacing, the wrong part family for a battery/sleep application). **On order, arrives 2026-07-17.**
+
+**MCP1700 TO-92 lead identification** (confirmed against Microchip datasheet DS20001826F, cross-checked via two independent sources 2026-07-20 — this part's pinout is a known gotcha, reordered from the common 78xx VIN-GND-VOUT convention):
+
+| Pin | Position (flat face toward you, legs down) | Signal |
+|---|---|---|
+| 1 | Left | GND |
+| 2 | Middle | VIN |
+| 3 | Right | VOUT |
+
+**Part 2 — peripheral gate switch:** BS250 P-channel MOSFET, TO-92 through-hole. Vgs(th) typically ~-2.1V (worst case -3.5V), adequate for a 3.3V GPIO gate drive at the tiny currents involved (a few mA for BME280 + LTR-390, maybe tens of mA momentary for an e-ink refresh) — Rds(on) won't be fully enhanced at only 3.3V Vgs, but that's irrelevant at these current levels. **Ordered 2026-07-17.**
+
+**BS250 TO-92 lead identification** (confirmed via two independent datasheet-sourced references, 2026-07-20):
+
+| Pin | Position (flat face toward you, legs down) | Signal |
+|---|---|---|
+| 1 | Left | Source |
+| 2 | Middle | Gate |
+| 3 | Right | Drain |
+
+**Sequencing:** prototype both changes together on the CARD-0026 test rig first (spare ESP32 + spare TP4056, Bag 8) — validates the LDO fix (including whether CARD-0026's brownout-reset-loop finding recurs with the LDO in place) and the peripheral-gating firmware logic together, before touching the real device. Once proven on the rig, port the identical changes to the real field-deployed hiking-monitor.
+
+**Wiring plan — LDO:**
+- TP4056 stays exactly as-is — continues managing battery charging (and solar input) unchanged. Only the boost stage is removed from the power path; the boost module's `OUT+`/`OUT-` pads go unused once the LDO is wired in.
+- LDO `VIN` taps the same battery+ node as TP4056's `BAT+` input — a parallel connection straight off the raw battery, not fed from the boost module's output.
+- LDO `GND` ties to common ground (same ground plane as TP4056/ESP32/battery−).
+- LDO `VOUT` → ESP32 dev board's **3V3 pin directly** (not `VIN`) — `VIN` expects ~5V and routes through the board's own onboard regulator; feeding `3V3` bypasses that second regulation stage, which is the point of this change. This same `3V3` pin is now the peripheral supply rail the P-FET switches (see below) — previously it was the ESP32 board's own onboard-regulator output, now it's the LDO's output directly.
+- **Caution:** never power the board from USB and the LDO at the same time — both would drive the `3V3` rail from separate unisolated sources, risking backfeeding either regulator. Disconnect the LDO before flashing over USB, and vice versa.
+
+**Wiring plan — peripheral gate (BS250):**
+```
+3.3V rail (LDO VOUT / ESP32 3V3 pin) ──┬──► P-FET source ──► P-FET drain ──► Sensors (BME280, LTR-390)
+                                        │            │
+                                    R (100kΩ)         │
+                                        │             │
+GPIO pin ───────────────────────────────┴─────────────┘ (controls the gate only)
+```
+- P-FET sits **between the shared 3.3V rail and the sensors** — not between the LDO and the ESP32 itself. The ESP32 must stay powered continuously (straight off the LDO) so it can still control the gate; only the downstream sensor branch gets switched.
+- GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V reaches the sensors. GPIO drives the gate high → P-FET turns off → sensors fully de-powered. Use a spare GPIO not already claimed by GPIO32 (dock detect) or GPIO27 (slide switch). Rig prototype uses GPIO33.
+- **Gate-to-source pull-up resistor required (100kΩ, from the Bag 17 resistor assortment) — found missing 2026-07-20, see Progress note below.** Without it, the gate has nothing holding it off except the ESP32 actively driving GPIO high; once deep sleep halts the CPU, the GPIO output isn't guaranteed to hold its driven state, the gate floats, and a floating BS250 gate can sit past its ~-2.1V to -3.5V Vgs(th) and keep the FET on through the whole sleep period. The pull-up guarantees gate defaults HIGH (FET off) whenever GPIO33 isn't actively pulling it low — covering both deep sleep and the brief pre-boot window before the pin is configured. 100kΩ keeps the added leakage while sensors are on (~33µA) negligible against the LDO's own current budget.
+- Firmware: drive the gate on before an I2C read, allow a brief settle time for the sensors to power up and initialize, then read; drive the gate off again before entering deep sleep.
+
+**Progress (2026-07-20):** LDO and BS250 gate wired on the CARD-0026 breadboard rig (bare ESP32 only — no sensors attached for this phase, per the "done when" full-stack I2C check being a later step, not this one). Firmware updated (`C:\esphome\hiking-monitor-test\hiking-monitor-test.yaml`): `sensor_power` GPIO switch on GPIO33, active-low to match the BS250 gate, turns on with a 50ms settle delay before each wake's sensor-read block and turns off immediately before all three `deep_sleep.enter` call sites (normal sleep, low-battery cutoff, slide-switch-off). Reflashed via OTA using a temporary trick — briefly moved the GPIO32 dock-detect jumper from GND to 3.3V to hold the rig awake (defeating the immediate-sleep branch) long enough for a reliable OTA push, avoiding the USB/LDO dual-power conflict — then moved the jumper back to GND to restore the CARD-0026 sleep-forcing condition and reset the board.
+
+**Result:** gate turns on correctly, rail holds steady 3.3V, no brownout/reset-looping under the WiFi-connect spike — LDO risk flagged above did not materialize. **But the gate does not turn off during sleep** — confirmed the board actually entered deep sleep (mDNS/ping stopped resolving), yet the gated rail stayed at a steady 3.3V throughout. Root-caused to the missing gate pull-up documented above. Fix identified, not yet installed/retested as of this note.
+
+**Progress (2026-07-20, continued) — pull-up installed, then a second unrelated firmware bug found and fixed:** After wiring the 100kΩ gate pull-up, the rail still didn't drop during sleep. Traced to an unrelated pre-existing bug in `hiking-monitor-test.yaml`'s `slide_switch` binary_sensor: its `on_state` handler fires on ESPHome's initial state publish at every boot (not just on real transitions), and since the slide switch always reads "off" on this rig (GPIO27 unconnected, floats via internal pull-up), that handler ran unconditionally on every boot — calling its own independent `switch.turn_off` + `deep_sleep.enter`, regardless of `dock_detect`, racing against the separate (correctly dock-aware) decision in the `on_boot priority: -200` block. Fixed by adding `binary_sensor.is_off: dock_detect` to that handler's condition, matching the guard already used elsewhere. Reflashed via OTA (added a temporary `api:` component to `hiking-monitor-test.yaml` to pull live logs over WiFi mid-session — still present in the file, harmless to leave, remove before this config is considered final). Also found and fixed during this session: the gate pull-up's non-Gate leg and the BS250's Source leg had been wired to the *raw battery/LDO-input* tap instead of the LDO's regulated *output* — corrected to both land on the LDO output rail, per the wiring plan above.
+
+**Progress (2026-07-20, continued) — systematic diagnosis of a persistent partial-conduction leak:** Even with all of the above fixed, the gated rail still wouldn't drop below ~2.78-2.9V during the "off" condition (against a 100kΩ Drain pull-down added specifically to give Drain a defined reference — it had no load/sensors attached to define this state otherwise). Ruled out, in order, each with a direct test rather than assumption:
+- **Ground rail continuity** — checked with battery disconnected, confirmed continuous, not a rail split.
+- **FET orientation** — user identified and corrected a Source/Drain swap (had been reading the TO-92 package from the wrong face).
+- **GPIO33/firmware involvement** — disconnected GPIO33 from Gate entirely; leak persisted identically, so not a firmware or GPIO drive issue.
+- **The resistor/wiring network itself** — pulled the FET out of the breadboard completely (pull-up, pull-down, and all other wiring left in place); Drain cleanly read 0V with no FET installed, confirming the passive network has no bridge or short of its own.
+- **A second, physically different BS250** (still Bag 34 stock) substituted in — identical ~2.78V leak reproduced.
+- **Empirical lead identification** (diode-test mode, battery disconnected, all 3 leg-pairs both polarities) on the second unit: the pin reading OL against both others in every direction is Gate; the Source/Drain pair showed a real ~0.56V diode drop in one direction only. Anode (current-sourcing/positive-probe leg) = Drain, cathode = Source, per the P-channel body-diode rule. Result confirmed Left=Source, Mid=Gate, Right=Drain — the original standard TO-92 convention from earlier in this card — and confirmed as matching the actual current wiring.
+- **Vgs directly measured** (not assumed) in the passive "should be off" state (GPIO33 disconnected, Gate floating via the pull-up only): Source and Gate both read 3.2V — Vgs = 0 exactly, which should put a healthy enhancement-mode P-channel MOSFET solidly into cutoff (off-state resistance normally megaohms+, leakage in the nanoamp-to-low-µA range).
+
+**Conclusion:** with wiring, orientation, GPIO/firmware, the resistor network, and Vgs all directly verified correct, the remaining ~15-19kΩ effective Source-Drain conduction at Vgs=0 (reproduced identically across two physically different units from Bag 34) is far too conductive to be normal MOSFET subthreshold leakage. This points to a **parts/batch quality issue** with the Bag 34 BS250 stock — possibly mismarked or counterfeit units not behaving as genuine enhancement-mode P-channel devices — rather than any remaining circuit fault. (This project has hit exactly this class of problem before: see the counterfeit Podazz BMP280 sensors in `jctsh-parts-inventory.md`.) **Next step: source/verify BS250 units from a different supplier or batch before re-attempting the gate-off verification** — not more rewiring of the current stock.
+
+**Replacement parts ordered (2026-07-20):** genuine BS250P (Diodes Incorporated) from Jameco — an authorized distributor, sourced directly from the manufacturer, unlike the suspect Bag 34 stock's original source. Same part, same datasheet, same pinout convention already confirmed empirically this session (Source-Gate-Drain, standard TO-92). Plan on arrival: run the same diode-test lead/health check used tonight (Gate = OL to both other legs in both directions; Source-Drain pair shows one clean ~0.5-0.7V diode reading, OL the reverse) as an incoming-inspection step before wiring any unit in, then re-attempt the gate-off verification this card is still blocked on.
+
+**Known risk (LDO):** MCP1700's 250mA max is a tighter margin than AP2112K's 600mA against the ESP32's active-WiFi current bursts (109-154mA observed on this same rig during CARD-0026, USB-powered). If the LDO can't sustain those bursts, the same class of brownout-reset loop CARD-0026 diagnosed on the boost module could reappear on the new LDO path — this is exactly what the rig-first prototype step is meant to catch before committing to the real device.
+
+**Standards cross-reference:** inherited from CARD-0027 — logged as a candidate pattern in `JCTsh-Build-Standards.md` §2.14 point 8 (v1.11), flagged `[CANDIDATE — not yet required, pending validation]`. Promote to a real required standard once this card is built and both fixes are measured working.
+
+**Done when:** LDO and P-FET gate both installed and wired per this plan on both the test rig and the real hiking-monitor; each boots cleanly and reaches deep sleep normally on battery power alone (no brownout-reset loop); and the peripheral gate demonstrably cuts sensor power during sleep and restores clean I2C communication (BME280/LTR-390 both respond) on wake.
+
+**Moved to Build (2026-07-20)** — starting the rig-first prototype (LDO + BS250 gate) per the Sequencing note above.
+
+**Folded into CARD-0259 (hiking-monitor v2), closed 2026-09-10.** This card's own real, hard-won findings — the MCP1700/BS250 pinouts, the LDO wiring pattern, the gate pull-up requirement, the counterfeit-parts gotcha — don't need to be re-derived for v2, since v2 adopts air-quality-monitor's already-further-along power redesign (Pololu buck regulator, no P-FET gate needed at all) rather than finishing this card's own LDO+BS250 approach. The core motivating problem (the boost converter's ~22.6mA quiescent draw, CARD-0026) is what v2's regulator swap actually resolves.
+
+**Related:** CARD-0026 (the original quiescent-current measurement motivating this card), CARD-0027 (superseded by this card, now also folded into CARD-0259), CARD-0198/CARD-0213 (air-quality-monitor's own power investigation and the resulting peak-current-headroom standard, the design basis CARD-0259 uses instead), CARD-0259 (hiking-monitor v2 — where this actually gets resolved), `JCTsh-Build-Standards.md` §2.14 (points 7-10, the standards this card's own findings helped establish).
 
 ---
 
@@ -3608,10 +3764,10 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 
 ---
 
-### CARD-0027 · [idea] [hiking-monitor] GPIO-controlled power gating for I2C peripherals during sleep — SUPERSEDED by CARD-0070
+### CARD-0027 · [idea] [hiking-monitor] GPIO-controlled power gating for I2C peripherals during sleep — SUPERSEDED by CARD-0259
 **Status:** Defer
 
-**Superseded 2026-07-17:** folded into CARD-0070 (LDO swap), which now covers both the boost-to-LDO replacement and this card's peripheral power-gating idea as one combined power redesign — see CARD-0070 for the current part choice (BS250), wiring plan, and status. Kept here for the original observation and P-FET background reference.
+**Superseded 2026-07-17 by CARD-0070, then again 2026-09-10 by CARD-0259** — folded into CARD-0070 (LDO swap) first, which covered both the boost-to-LDO replacement and this card's peripheral power-gating idea as one combined power redesign; CARD-0070 itself has now closed and folded into CARD-0259 (hiking-monitor v2), which adopts air-quality-monitor's own power architecture (no P-FET gate needed at all — see that card). Kept here for the original observation and P-FET background reference.
 
 **Notes:** Observed 2026-07-03: after putting the device to sleep (display correctly shows "Hiking monitor asleep"), the ESP32's and LTR-390's onboard power-indicator LEDs stayed lit. These are hardwired to their respective 3.3V rails, not GPIO-controlled — ESP32 deep sleep only stops the CPU from executing, it does not cut power to anything downstream. Since `VOUT+` runs directly to ESP32 `VIN` (switch not in the power path) and nothing gates the I2C peripherals' power, BME280 and LTR-390 stay fully powered and drawing their own operating current for the entire "sleep" duration, in addition to the boost module's own quiescent draw (see CARD-0026).
 

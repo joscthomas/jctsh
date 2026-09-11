@@ -545,8 +545,8 @@ Archived to `tos/kanban-archive.md` on 2026-09-10 (CARD-0193) — 11530B, over t
 
 ---
 
-### CARD-0223 · [enhancement] [infrastructure] Standalone LiPo battery charging station (TP4056)
-**Status:** Planning
+### CARD-0223 · [enhancement] [infrastructure] Standalone LiPo battery charging station (TP4056) — RESOLVED 2026-09-10
+**Status:** Done
 
 **Raised 2026-08-28 (Joseph), during CARD-0198's extended air-quality-monitor bench session** — needed a way to charge/top-off spare LiPo cells without disturbing whatever device's circuit a cell happens to be wired into at the time.
 
@@ -566,9 +566,11 @@ Everything else stays unconnected:
 
 Once wired, the module's own onboard LED indicates charge status (charging vs. done) — standard TP4056 behavior, no additional components needed for that.
 
-**Open item before Build:** confirm whether the EEMB cell(s) this gets used with already have a JST connector or bare leads — affects exactly how the battery-side connection is made.
+**Open item before Build, resolved:** the EEMB cell used has a JST connector, matching the original wiring plan — no bare-lead handling needed.
 
-**Done when:** a standalone TP4056 charging circuit is built (perfboard/breadboard, USB-powered, JST connector for the battery), and verified live by actually charging a real EEMB 1100mAh cell from a partial charge to full (TP4056's own onboard LED indicates charge status/completion, per its standard behavior) — not just wired and assumed to work.
+**Built and verified live, 2026-09-10.** Standalone TP4056 charging station wired per the plan above (battery on `BAT+`/`BAT-` via JST, USB power into the module's onboard port, `IN+`/`IN-` and `OUT+`/`OUT-` left unconnected). A real EEMB 1100mAh cell was charged start to finish on it, confirmed via the module's own onboard LED going from charging to done.
+
+**Done when:** a standalone TP4056 charging circuit is built (perfboard/breadboard, USB-powered, JST connector for the battery), and verified live by actually charging a real EEMB 1100mAh cell from a partial charge to full (TP4056's own onboard LED indicates charge status/completion, per its standard behavior) — not just wired and assumed to work. **Met.**
 
 **Related:** `jctsh-parts-inventory.md` (TP4056 modules, Bin A4; EEMB LiPo cells, Bag 7), CARD-0198 (the session this need surfaced during).
 
@@ -651,8 +653,8 @@ Once wired, the module's own onboard LED indicates charge status (charging vs. d
 
 ---
 
-### CARD-0218 · [enhancement] [air-quality-monitor] Expose SEN55's own temperature/humidity readings
-**Status:** Build
+### CARD-0218 · [enhancement] [air-quality-monitor] Expose SEN55's own temperature/humidity readings — RESOLVED 2026-09-10
+**Status:** Done
 
 **Raised 2026-08-27 (Joseph), during a conversation about SEN55's full sensor capabilities.** The SEN55 physically measures temperature and humidity alongside its main particulate/VOC/NOx readings, but `air-quality-monitor.yaml` deliberately left those two fields unconfigured in Phase 1 — documented reason (`sensor:` block comment): "those fields come from hiking-monitor, not this device's payload," avoiding two devices reporting redundant temp/humidity into the same Environmental Data schema.
 
@@ -669,9 +671,9 @@ Once wired, the module's own onboard LED indicates charge status (charging vs. d
 
 **Real, bigger finding surfaced while making sure Step 8's own design accounts for these fields (Joseph's follow-up ask, same session) — this device is missing a whole signal category, not just two sensor readings.** Step 8's design already planned a bounded-WiFi-retry-while-charging mechanism for this device — the exact same design mistake CARD-0045/CARD-0217 just found and fixed on hiking-monitor (using a charging/dock signal as a proxy for "safe to try networking," when it isn't one). Corrected Step 8's text to match the new standard (`JCTsh-Build-Standards.md` §2.14 point 11) — but doing so surfaced that air-quality-monitor has **no Intent signal at all**: its 2026-08-19 design decision was "dock-detect-only for firmware mode-switching... no GPIO-based manual mode switch," meaning `dock_detect` (Power Connected) has been standing in for Intent from the start, with nothing to actually distinguish them. Formalized as the three-signal model in §2.14 point 12 (Intent / Power Connected / Power Switch, each required independently) — this device has Power Switch (its inline battery-path cutoff) and Power Connected (`dock_detect`), but genuinely lacks Intent. **Resolved same session, 2026-08-27 — a real design decision, not just a flagged gap.** Confirmed via the actual instructions doc that the device is still breadboard-stage (battery/LDO wired per Step 7, perfboard transfer not yet reached) — the right moment to fix this before anything's soldered permanently. Decided: swap the existing Gebildet SS12D10 slide switch (currently wired as the inline Power Switch, no GPIO) onto **GPIO27** (previously unused) as a real, GPIO-readable **Intent switch**, matching hiking-monitor's own pin/pattern exactly — and give Power Switch its own distinct part instead, a **BK-1208 latching push button** (same part chosen for hiking-monitor's CARD-0181; one order covers both devices). Per §2.14 point 12, Power Switch and Intent can't safely share a physical control, and per the earlier switch-design discussion (CARD-0181), Power Switch specifically needs to feel different from whatever's doing Intent duty — since this device's *existing* switch was already a slide type, the fix here is the mirror image of hiking-monitor's: give Power Switch the new part, not Intent. `air-quality-monitor-claude-code-instructions.md`'s Hardware Context, GPIO table, Step 1, and Step 8 all updated to reflect this as the current wiring plan — not yet physically rewired on the breadboard, not yet ordered.
 
-**Done when:** `temperature`/`humidity` are configured on the SEN55 sensor block (met), firmware compiles clean (met), deploys to the real device via OTA, and both fields are confirmed reporting live, sane, non-NaN values on the `/log` dashboard — verified against real data, not just a clean compile.
+**Done when:** `temperature`/`humidity` are configured on the SEN55 sensor block (met), firmware compiles clean (met), deploys to the real device via OTA, and both fields are confirmed reporting live, sane, non-NaN values on the `/log` dashboard — verified against real data, not just a clean compile. **Met, closed 2026-09-10** — citing CARD-0012's own Step 8 live verification rather than a dedicated retest: the duty-cycle publish lambda (`air-quality-monitor.yaml`) gates the entire publish on `isnan(pm25) || isnan(temp) || isnan(hum)`, so every one of Step 8's confirmed-live buffered-reading replays (e.g. 2026-09-09's "Replaying 50 buffered readings... Buffered-data replay complete.," confirmed on the Pi's dashboard) necessarily carried real, sane, non-NaN `temp_f`/`humidity_pct` values through to the real `jctsh/components/air-quality-monitor/data` topic. No separate re-test needed.
 
-**Physical rewiring sequencing, 2026-08-28 — folded into CARD-0198 rather than scheduled separately.** CARD-0198 is about to rebuild this device's power wiring anyway (regulator swap), so this card's own SS12D10→GPIO27 move and the new BK-1208 (latching push-button power switch) installation happen as one physical pass under that card's plan, not as a separate teardown. **Not blocked on delivery** — BK-1208 ordered but not yet on hand; a spare SS12D10 (slide switch, Bin A3 assortment) fills the Power Switch role on the breadboard in the meantime, same wiring/node, swapped for the real part once it arrives.
+**Physical rewiring sequencing, 2026-08-28 — folded into CARD-0198 rather than scheduled separately.** CARD-0198 rebuilt this device's power wiring anyway (regulator swap), so this card's own SS12D10→GPIO27 move (Intent switch) happened as one physical pass under that card's plan. Verified live via CARD-0012's own Step 8 testing, 2026-09-09: Intent-switch gating confirmed both directions (Intent off → no duty-cycle tick; Intent on → real reading buffered).
 
 **Related:** `components/air-quality-monitor/air-quality-monitor.yaml` (the `sensor: platform: sen5x` block, the `/log` payload), CARD-0198 (this device's own boot-sequence/reliability work, same firmware file — now also where this card's physical rewiring happens), `components/hiking-monitor/hiking-monitor.yaml` (the BME280 this will eventually be compared against), `air-quality-monitor-claude-code-instructions.md` (Step 8, corrected to match §2.14 point 11 and flagged for the Intent-signal gap), CARD-0045/CARD-0217 (the hiking-monitor fix this all traces back to), CARD-0181 (hiking-monitor's mirror-image gap — missing Power Switch instead of Intent, same BK-1208 ordering blocker), `JCTsh-Build-Standards.md` §2.14 points 11-12 (the standards this raised).
 

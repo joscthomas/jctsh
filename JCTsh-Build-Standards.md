@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.25
-**Version description:** Added §2.14 point 13 — the complete data-flow model for a field-and-later-upload device as three distinct steps (attempt gate, bounded attempt, actual upload), correcting a real conversational error along the way: Power Connected is genuinely required (an AND with Intent-off), not optional, and "docked" undersells how broad the Power Connected signal actually is (home dock, solar, or field USB all count identically).
+**Version:** 1.26
+**Version description:** Extended §2.3 UART with a secondary debug-UART standard for battery-powered builds — a design-time GPIO17/UART2 reservation requirement, the ESPHome `uart_set_pin()` gap that silently produces zero output on UART2 without a manual on_boot call, the adapter-VCC-must-stay-disconnected rule, the loose-GND silent-failure gotcha, and a cheapest-first troubleshooting isolation order. Harvested from air-quality-monitor's CARD-0205.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -104,6 +104,23 @@ Hardware UART only. Never use software UART (SoftwareSerial). On ESP32 DevKitC-3
 - UART0 (GPIO1/GPIO3) — used for USB, do not use for peripherals
 - UART1 — may conflict with flash on some boards, avoid unless confirmed safe
 - UART2 (GPIO16 RX / GPIO17 TX) — recommended for peripheral use
+
+**Design provision for a secondary debug UART, required for any battery-powered build where the device's own onboard USB-C port can't safely double as a debug console while running on battery.** This is the case whenever USB and the battery/regulator path can't be powered simultaneously (backfeed risk between the two regulators) — the onboard port then can only show logs while running on USB power, never while running on the actual battery path a real boot-time or field issue happens on. Reserve GPIO17 (UART2 TX) for this at design time — free of other duty, not claimed by a sensor or switch — so a debug adapter can be added later with a two-wire jumper addition, not a rework. TX-only is sufficient (`logger:` only ever transmits); RX/GPIO16 doesn't need to be reserved.
+
+**A real ESPHome gap, not a wiring mistake, if UART2 produces zero bytes despite correct wiring:** `logger: hardware_uart: UART2` configures and starts the peripheral but never calls `uart_set_pin()` to actually route it through the GPIO matrix to GPIO17 — confirmed directly in ESPHome's own `logger_esp32.cpp`. Fix with a manual call in `esphome.on_boot`, as early as possible so it captures as much of the boot sequence as it can:
+```yaml
+- lambda: |-
+    uart_set_pin(UART_NUM_2, GPIO_NUM_17, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+```
+
+**Adapter wiring:** `GPIO17 → adapter RXD`, `ESP32 GND → adapter GND` only. Leave the adapter's own VCC/3V3 output disconnected — connecting it would introduce a second, unisolated power source onto the board at the exact moment the whole point is testing the board's real battery/regulator path in isolation.
+
+**The single most time-consuming failure mode: a disconnected GND wire produces total silence, not an error.** No garbled bytes, no exception, nothing — UART has no way to decode a signal with no shared ground reference, so it just looks identical to "nothing is being sent." This is a genuine, silent single point of failure on any breadboard build using a jumper for this connection — worth a continuity check first, before assuming a firmware regression, any time capture that previously worked suddenly stops.
+
+**Isolation order when troubleshooting a non-working capture**, cheapest and most conclusive first:
+1. **Loopback the adapter to itself** (its own TX jumpered to its own RX, disconnected from the board) and confirm known bytes sent to the COM port read back correctly — rules out the adapter, its driver, and the COM port as a group before touching the board at all.
+2. **Confirm the actual GPIO is toggling** with a multimeter (a temporary plain digital-output test, since a UART pin can't share duty with `logger:` at the same time) before trusting anything about the signal's content.
+3. Only then suspect the firmware/library layer itself.
 
 ### 2.4 Credentials
 
@@ -992,6 +1009,7 @@ On the Windows dev machine, the private key (`~/.ssh/id_ed25519`) must be restri
 
 | Version | Change |
 |---|---|
+| 1.26 | Extended §2.3 UART with a secondary debug-UART standard for battery-powered builds: a design-time requirement to reserve GPIO17/UART2 for debug logging whenever the board's own onboard USB-C can't safely double as a console while running on battery; the ESPHome `uart_set_pin()` gap (`hardware_uart: UART2` starts the peripheral but never routes it through the GPIO matrix without a manual `on_boot` lambda call); the adapter-VCC-must-stay-disconnected rule (avoids a second unisolated power source); the loose-GND silent-failure gotcha (zero bytes, no error, easy to mistake for a firmware regression); and a cheapest-first troubleshooting order (loopback the adapter, then verify the raw GPIO toggle, before suspecting firmware). Harvested from air-quality-monitor's CARD-0205, whose own long troubleshooting arc hit every one of these in turn. |
 | 1.25 | Added §2.14 point 13: the complete data-flow model for a field-and-later-upload device as three distinct steps — the attempt gate (Intent off AND Power Connected, both genuinely required, not either alone), a bounded attempt with periodic retry (not indefinite, not one-shot), and the actual upload only beginning once WiFi and MQTT both succeed. Also documents that "Power Connected" is deliberately broader than the word "docked" implies (fires identically for home dock, solar, or field USB), and that whether field logging itself pauses on Power Connected is a per-device design choice (hiking-monitor stops, air-quality-monitor doesn't), not dictated by this point. Prompted by a real back-and-forth where Claude initially mis-stated Power Connected as not required — corrected directly by Joseph. |
 | 1.24 | Added §2.14 point 12: the three-signal hardware framework required for any field-and-later-upload device -- Intent (deliberate, user-set "am I collecting or idle" declaration), Power Connected (pure charging-current fact, USB or solar), and Power Switch (genuine zero-draw off) -- each orthogonal, never one inferred from another. A real audit of both existing field devices found neither has all three independently: hiking-monitor has Intent + Power Connected cleanly separated but no real Power Switch (the slide switch isn't in the power path; true off requires disconnecting the LiPo JST, CARD-0181, Defer); air-quality-monitor has a real Power Switch + Power Connected but no Intent signal at all (its 2026-08-19 design used dock-detect for mode-switching, conflating Power Connected with Intent from the start -- surfaced 2026-08-27, CARD-0218). Point 11 is this framework's firmware-behavior consequence. |
 | 1.23 | Added §2.14 point 11: a field device that buffers data for later upload must never attempt WiFi while actively collecting, only once its own session-over signal fires -- never just because a charging/dock signal went high, since power and network availability are unrelated (solar in particular correlates with worse connectivity, not better). Harvested from hiking-monitor's real 2026-08-27 reset storm (CARD-0217) and the related CARD-0045 fix (dock_detect-triggered WiFi re-enable now also requires the field-mode switch to be off). Checking this against air-quality-monitor's own not-yet-built Step 8 duty-cycle design (CARD-0218) -- which had already planned the same bounded-retry-with-cooldown mistake this point rules out -- surfaced a real, unresolved gap: that device has no GPIO-readable mode signal at all to hook the rule to, a design question for Step 8 to actually resolve, not something this standards update settles by itself. |

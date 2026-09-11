@@ -9,7 +9,60 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0260 -->
+<!-- next-card-id: CARD-0262 -->
+
+---
+
+### CARD-0261 · [enhancement] [salt-sensor] Replace SmartThings-synced switches with HA-native helpers + HA's own Google Assistant bridge
+**Status:** Backlog
+
+**Raised 2026-09-11, from CARD-0164's decided direction** (deprecate the paid SmartThings API dependency, per that card). One of two concrete migration cards scoped from the full-repo sweep that day — the clean one, no real hardware dependency.
+
+**Current state:** `switch.salt_low_alert`, `switch.salt_critical_alert`, `switch.salt_test_mode`, `switch.salt_full_reset` are SmartThings virtual switches, created via the developer API and mirrored into HA — per `components/salt-sensor/README.md`, used purely for Google Home app/voice visibility and manual control (turn on `salt_test_mode` in the app to run a test sequence, `salt_full_reset` after refilling). **No SmartThings Routine reacts to any of them** — confirmed via a full-repo grep, this is bookkeeping/visibility only, not automation logic. Their actual state is computed entirely from MQTT sensor data already inside Node-RED (`fn_threshold` function node) — no real hardware or SmartThings-side data involved anywhere in this chain.
+
+**Why this one's straightforward, unlike CARD-0260's garage case:** every input (the salt-level MQTT reading) and every consumer (Node-RED, Robin via voice) is already fully within JCTsh/HA's own control. The only thing SmartThings currently provides is the relay to Google Home — directly replaceable by HA's own native Google Assistant integration (Nabu Casa, already active). Not blocked on CARD-0164's Oct 2 Auto-verify finding — buildable now.
+
+**Scope:**
+1. Create four HA-native helper entities (`input_boolean` or `switch` template entities) replacing the four SmartThings-synced switches, same names/semantics.
+2. Wire Node-RED's existing threshold logic (`fn_threshold`) to set these HA-native entities directly via the HA REST API, instead of (or in addition to, during transition) the SmartThings-synced ones.
+3. Expose the four new entities to Google Home via HA's native Google Assistant Smart Home integration (Settings → Home Assistant Cloud → Google Assistant, entity exposure) — replacing the SmartThings-mediated path.
+4. Verify live: Robin can ask Google the salt state and it reflects the same real value; toggling `salt_test_mode`/`salt_full_reset` from the Google Home app (or voice) reaches Node-RED and produces the same behavior as today's SmartThings-mediated path.
+5. Once confirmed working end-to-end, remove the four SmartThings-side virtual switches (the actual entities in the SmartThings app), and update `components/salt-sensor/README.md`'s "HA Virtual Switches (synced to SmartThings)" section to reflect the new HA-native/Google-direct architecture.
+
+**Done when:** all four switches are HA-native, reachable and voice-controllable via Google Home through HA's own Google Assistant integration with zero SmartThings involvement, verified live (not just wired), and the SmartThings-side virtual switches are confirmed removed with no functional loss.
+
+**Related:** CARD-0164 (the decision this implements), CARD-0260 (the sibling garage-routine card — more complicated, has a real hardware dependency this card doesn't), `components/salt-sensor/README.md`, `JCTsh-Build-Standards.md` §6.4 (the new-device policy this follows retroactively).
+
+---
+
+### CARD-0260 · [enhancement] [infrastructure] Rebuild garage SmartThings Routines as HA automations — real sensor/actuator dependency remains, sequenced after CARD-0164's Oct 2 check
+**Status:** Backlog
+
+**Raised 2026-09-11, from CARD-0164's decided direction.** The second of two concrete migration cards scoped from that day's full-repo sweep — genuinely more complicated than CARD-0261's salt-sensor case, not a clean parallel.
+
+**What's actually pure bookkeeping (unconditionally replaceable):**
+- `switch.garage_door_auto_close_enable_vswitch` (`automatic-garage-door-opener-closer`) — a manual on/off master-enable flag, pure software state.
+- `switch.garage_door_open_vswitch` (`automatic-garage-door-opener-closer`) — mirrors the door's open/closed state for the Routine's own trigger condition; the state itself could be tracked HA-natively instead.
+
+**What is genuinely NOT bookkeeping — real hardware this card cannot route around:**
+- `switch.open_close_garage_door` — the actual actuator. A real **Zigbee switch**, physically paired to the SmartThings hub's own radio (per `components/automatic-garage-door-opener-closer/CLAUDE.md`'s architecture diagram: SmartThings/Google Home → Zigbee switch → CreaCity remote circuit → RF → LiftMaster). Not a virtual device — genuine hardware CARD-0164 already decided *not* to migrate off the SmartThings hub.
+- `binary_sensor.garage_motion_motion`, `binary_sensor.back_door_door`, `binary_sensor.garage_cam_motion` — `garage-presence`'s real trigger sensors (two PIR motion sensors, one door sensor), also real SmartThings-bridged hardware, also not being migrated.
+- The garage lights the Presence-Off routine turns off — also real SmartThings-bridged hardware (exact entities not yet confirmed).
+
+**The actual blocker, not solved by moving the "if/then" logic to HA:** whether the automation's if/then runs as a SmartThings Routine or an HA automation makes no difference to whether it can still *read* those three real sensors or *write* to the real Zigbee switch/lights — both paths go through the same HA↔SmartThings integration either way. Converting the Routine to HA only removes the two pure-bookkeeping vswitches from the picture; it does not remove the underlying real-hardware dependency, unlike CARD-0261's salt-sensor case where every input/output was already fully JCTsh-owned.
+
+**Sequencing decision, 2026-09-11 (Joseph's call):** scope this card now, but don't build until CARD-0164's 2026-10-02 Auto-verify check reports back. If HA retains basic read/write access to real SmartThings-synced entities post-cutoff (not just Routines specifically), this card proceeds as scoped below. If HA loses that access entirely, rebuilding the Routine as an HA automation accomplishes nothing — the automation would be exactly as broken as the Routine, unable to read the real sensors or actuate the real switch either way — and this card's scope would need rethinking against CARD-0164's original "migrate" option (a real Zigbee coordinator) instead.
+
+**Scope, if CARD-0164's Oct 2 check comes back favorable:**
+1. Replace `garage_door_auto_close_enable_vswitch` and `garage_door_open_vswitch` with HA-native helper entities.
+2. Rebuild the Auto-Close Routine (`automatic-garage-door-opener-closer`) as an HA automation: trigger on the door-open state (HA-native now), condition on `garage_presence_vswitch` off (already HA-owned per that component's own "Architecture Decision — HA Owns Presence") and the new HA-native enable helper, action calls `switch.open_close_garage_door` via HA's still-functioning (per the Oct 2 finding) SmartThings-bridged entity.
+3. Rebuild the Presence-Off Routine (`garage-presence`) as an HA automation the same way — trigger on `garage_presence_vswitch` (or its HA-native replacement) turning off, actions call the real Zigbee switch and the real garage lights via HA.
+4. Live-test each against a real door-open event and a real presence timeout, matching this project's own verification bar — not just "looks right on paper."
+5. Update both components' `CLAUDE.md`/`README.md` to reflect the new HA-native architecture, and confirm the SmartThings-side Routines are actually deleted (not just superseded and left dangling).
+
+**Done when:** both Routines' logic runs entirely as HA automations, verified live against real trigger events, with the SmartThings-side Routines confirmed removed — contingent on CARD-0164's Oct 2 finding confirming this is even achievable without a real hardware migration.
+
+**Related:** CARD-0164 (the decision this implements, and the Oct 2 Auto-verify this is blocked on), CARD-0261 (the sibling salt-sensor card — clean, no real hardware dependency, not blocked the same way), `components/automatic-garage-door-opener-closer/CLAUDE.md`, `components/garage-presence/CLAUDE.md`, `JCTsh-Build-Standards.md` §6.4 (the new-device policy this follows retroactively).
 
 ---
 
@@ -1673,7 +1726,7 @@ Archived to `components/front-porch-temp-sensor/CLAUDE.md` on 2026-08-22 (CARD-0
 ---
 
 ### CARD-0164 · [enhancement] [infrastructure] Samsung ending free SmartThings API access October 2026 — decide pay vs. migrate before then
-**Status:** Backlog
+**Status:** Planning
 
 **Raised 2026-08-14 08:35 MST**, found while researching CARD-0146's Ring-live-view question (checking whether SmartThings could expose Ring camera entities to HA — it can't, but that research surfaced this instead). Confirmed directly against HA's own official integration docs (`home-assistant.io/integrations/smartthings/`), not a secondhand summary:
 
@@ -1702,9 +1755,21 @@ Archived to `components/front-porch-temp-sensor/CLAUDE.md` on 2026-08-22 (CARD-0
 
 **Timeline:** deadline is October 2026 — roughly 2 months out from when this card was raised. Worth revisiting well before then, not at the last minute, given the entity count involved if migration ends up being the direction.
 
-**Done when:** a direction is chosen (pay, migrate, or hybrid) and, if migrating any devices, each migrated device is confirmed still working via its new integration path before its SmartThings entity is retired — never cut over blind.
+**Decided 2026-09-11 — a fourth direction, distinct from the three originally scoped above: deprecate the paid API dependency, leave the physical hub alone.** Prompted by installing the household's first Matter devices (3 Cync under-cabinet lights, added via SmartThings) and a real conversation about whether SmartThings is still earning its place in JCTsh's own architecture. Neither pure "pay" nor full "migrate":
 
-**Related:** CARD-0146 (the investigation that surfaced this), `ENVIRONMENT.md` (SmartThings device inventory), CLAUDE.md's SmartThings Integration section.
+- **Don't pay, don't renew the developer Personal Plan.** Confirmed via Samsung's own blog language already quoted above ("does not affect the millions of SmartThings users who use the SmartThings App") that this only prices *third-party API consumption* — the SmartThings app, hub, and its own native Google Home account-link (the actual mechanism behind "shared with Google Home" for any device, JCTsh-built or not) all keep working exactly as today, for free, indefinitely.
+- **Don't migrate the existing hardware off SmartThings.** Most lights/sensors/the front door lock are genuine Zigbee/Z-Wave hardware paired to the SmartThings hub's own radio — moving them would mean a USB coordinator, re-pairing every device, and rebuilding every scene. Real, already-scoped work above, deliberately **not** pursued now — no deadline forces it (the hub keeps running free regardless), so it stays an optional, no-timeline project for someday, not part of this card's own scope.
+- **Accept that HA loses live visibility into non-JCTsh SmartThings entities.** The ~100+ entities from the original blast-radius count (real lights, sensors, the lock, Ring, scenes) will very likely stop syncing into HA once the paid tier lapses — but since Robin's actual voice control of that hardware goes through SmartThings' own native Google Home link, not HA, this is a **Joseph-side dashboard/automation-visibility cost only, not a Robin-facing outage.** Ring specifically already has its own separate native HA integration in live use (`outdoor-presence-detection`), unaffected either way.
+- **Scope narrows to exactly two real dependencies**, found via a full-repo sweep 2026-09-11 (grepped every file mentioning SmartThings — everything else is historical/incidental, no other live functional dependency exists): the two SmartThings Routines that use JCTsh-created virtual switches, and salt-sensor's four Google-visibility switches. Both scoped as their own cards, not built here:
+  - **CARD-0260** — rebuild the Auto-Close (`automatic-garage-door-opener-closer`) and Presence-Off (`garage-presence`) SmartThings Routines as native HA automations, replacing their SmartThings-backed vswitches (`garage_door_auto_close_enable_vswitch`, `garage_door_open_vswitch`, `garage_presence_vswitch`) with genuine HA-native helper entities.
+  - **CARD-0261** — replace salt-sensor's SmartThings-synced switches (`salt_low_alert`, `salt_critical_alert`, `salt_test_mode`, `salt_full_reset`) with HA-native helpers, exposed to Google Home via HA's own native Google Assistant integration (Nabu Casa) instead of the SmartThings relay.
+- **New-device policy, going forward:** written into `JCTsh-Build-Standards.md` (see Related) — every future smart-home device defaults to Matter-direct-to-HA/Google or a native HA integration, SmartThings only by deliberate exception. The 3 Cync lights (confirmed Matter-over-WiFi, no Thread Border Router needed) are the concrete case that prompted this — they never needed SmartThings at all, they just happened to get set up there.
+
+**Auto verify: 2026-10-02 09:00 MST** — the one open item from the 2026-09-11 planning session with no way to confirm live yet: exactly what happens to HA's SmartThings-synced entities once the free API tier actually lapses (Samsung hasn't published rate limits or enforcement mechanics as of this writing — "genuinely still evolving" per the note above). Check directly: do non-JCTsh SmartThings entities in HA go fully unavailable, or degrade more gracefully (stale-but-present, partial)? Does CARD-0260/CARD-0261's rebuilt HA-native logic keep working cleanly once the integration itself starts failing/erroring, or does a broken SmartThings config entry cause any wider HA disruption worth guarding against? Confirms whether the "Joseph-side visibility cost only" assumption above actually holds.
+
+**Done when:** CARD-0260 and CARD-0261 are both built, deployed, and verified live; the Personal Plan subscription is never created (or is confirmed already lapsed with no ill effect on JCTsh's own components); the Auto verify above is checked and its findings folded back in here.
+
+**Related:** CARD-0146 (the investigation that surfaced this), CARD-0260 (garage Routines rebuild), CARD-0261 (salt-sensor switches rebuild), `JCTsh-Build-Standards.md` (the new-device policy this decision produced), `ENVIRONMENT.md` (SmartThings device inventory), CLAUDE.md's SmartThings Integration section, `components/outdoor-presence-detection/CLAUDE.md` (the precedent that already chose HA-native over SmartThings-Routine for this exact reason), `core/maintenance/reboot-health-check.py` (its `AUTO_RELOAD_DOMAINS` tuple still names `smartthings` — harmless to leave for now, worth dropping once the integration itself is actually removed).
 
 ---
 

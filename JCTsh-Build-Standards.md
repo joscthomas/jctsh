@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.27
-**Version description:** Broadened v1.26's §2.3 debug-UART design provision — not just battery-powered builds. Any component losing convenient onboard-USB debug access (enclosed, physically inconvenient once deployed, or debugging a WiFi/MQTT issue where OTA log visibility can't be trusted) now warrants the same GPIO17/UART2 reservation; the battery-regulator backfeed conflict is one trigger among several, not the sole justification.
+**Version:** 1.28
+**Version description:** Added §6.4 New Smart-Home Devices Default to SmartThings-Free — a native HA integration, then Matter direct to HA/Google, then SmartThings only as a last resort, plus HA's own native Google Assistant integration (not a SmartThings virtual-switch bridge) as the standard path to Google Home voice control. Harvested from CARD-0164's decided direction, prompted by the household's first Matter devices.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -823,6 +823,18 @@ When both a short smoothing timeout (ESPHome) and a longer presence timeout (HA 
 
 Before writing any integration code that touches an existing process (logging, presence automation, HA-SmartThings bridge, Node-RED flows), Claude Code must examine the existing implementation first. Never assume — always verify. Read the relevant flow JSON, YAML, or source file before writing new code.
 
+### 6.4 New Smart-Home Devices Default to SmartThings-Free
+
+Decided 2026-09-11 (CARD-0164), prompted by the household's first Matter devices. A new commercial smart-home device (a light, sensor, lock, plug — anything outside this repo's own ESP32/ESPHome components) defaults to whichever of these fits, in order of preference, **never SmartThings unless none of the others apply:**
+
+1. **A native Home Assistant integration** (Ecobee, Ring, and most established brands have one) — no intermediary platform at all.
+2. **Matter, commissioned directly into HA or Google Home** — most new devices ship Matter-capable. Check whether it's Matter-over-WiFi (joins the LAN directly, no extra hardware) or Matter-over-Thread (needs a Thread Border Router somewhere on the network — several existing devices, including SmartThings' own hub, can serve this role without the device itself needing to live in SmartThings).
+3. **SmartThings, only if neither above applies** — e.g. genuine Zigbee/Z-Wave hardware with no other bridge available.
+
+**Why:** SmartThings' developer API access ends its free tier October 2026 (CARD-0164) — every device added there is a device that would need migrating later if the API dependency is ever fully dropped. The existing Zigbee/Z-Wave hardware already paired to the SmartThings hub is deliberately *not* being migrated (real, disruptive work with no forcing deadline, since the hub/app itself stays free indefinitely) — this standard exists so that installed base stops growing, not to retroactively fix it.
+
+**For anything that needs to reach Google Home for voice control** (the actual reason JCTsh components have historically used SmartThings virtual switches): use **HA's own native Google Assistant Smart Home integration** (via Nabu Casa, already active for other reasons) instead of a SmartThings-virtual-switch bridge. See `components/outdoor-presence-detection/CLAUDE.md` for a real, already-built precedent that chose this path over the SmartThings-virtual-switch-and-Routine pattern for exactly this reason.
+
 ---
 
 ## 7. Documentation Standards
@@ -1015,6 +1027,7 @@ On the Windows dev machine, the private key (`~/.ssh/id_ed25519`) must be restri
 
 | Version | Change |
 |---|---|
+| 1.28 | Added §6.4 New Smart-Home Devices Default to SmartThings-Free — a preference order (native HA integration, then Matter direct to HA/Google, then SmartThings only as a last resort) for any future commercial smart-home device, plus HA's own native Google Assistant integration as the standard path to Google Home voice control rather than a SmartThings virtual-switch bridge. Harvested from CARD-0164's decided direction (drop the paid SmartThings API dependency, leave the existing Zigbee/Z-Wave hardware on the hub alone), prompted by installing the household's first Matter devices (3 Cync under-cabinet lights, confirmed Matter-over-WiFi). |
 | 1.27 | Broadened v1.26's §2.3 debug-UART design provision beyond battery-powered builds — the design-time GPIO17/UART2 reservation now applies to any component that will lose convenient onboard-USB debug access: battery-powered with a separate regulator (backfeed risk), going into an enclosure, deployed somewhere physically inconvenient, or where a WiFi/MQTT problem being debugged is itself the transport OTA logging would depend on. Raised directly by Joseph questioning why the v1.26 scoping was battery-specific — correct: that was the narrowest justification, not the whole one. |
 | 1.26 | Extended §2.3 UART with a secondary debug-UART standard for battery-powered builds: a design-time requirement to reserve GPIO17/UART2 for debug logging whenever the board's own onboard USB-C can't safely double as a console while running on battery; the ESPHome `uart_set_pin()` gap (`hardware_uart: UART2` starts the peripheral but never routes it through the GPIO matrix without a manual `on_boot` lambda call); the adapter-VCC-must-stay-disconnected rule (avoids a second unisolated power source); the loose-GND silent-failure gotcha (zero bytes, no error, easy to mistake for a firmware regression); and a cheapest-first troubleshooting order (loopback the adapter, then verify the raw GPIO toggle, before suspecting firmware). Harvested from air-quality-monitor's CARD-0205, whose own long troubleshooting arc hit every one of these in turn. |
 | 1.25 | Added §2.14 point 13: the complete data-flow model for a field-and-later-upload device as three distinct steps — the attempt gate (Intent off AND Power Connected, both genuinely required, not either alone), a bounded attempt with periodic retry (not indefinite, not one-shot), and the actual upload only beginning once WiFi and MQTT both succeed. Also documents that "Power Connected" is deliberately broader than the word "docked" implies (fires identically for home dock, solar, or field USB), and that whether field logging itself pauses on Power Connected is a per-device design choice (hiking-monitor stops, air-quality-monitor doesn't), not dictated by this point. Prompted by a real back-and-forth where Claude initially mis-stated Power Connected as not required — corrected directly by Joseph. |

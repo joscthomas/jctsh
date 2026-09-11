@@ -85,7 +85,7 @@ Enable `scan: true` in the ESPHome `i2c:` block during initial testing to confir
 
 ---
 
-## Debug UART — External USB-TTL Adapter (GPIO17, pin 28)
+## Debug UART — External USB-TTL Adapter (GPIO17, pin 28) (pins 8-9 of 10 pin header marked yellow)
 
 Serial console for viewing boot/runtime logs while the board is powered from its real LiPo/regulator path, independent of the ESP32's onboard USB-C port.
 
@@ -94,8 +94,8 @@ Serial console for viewing boot/runtime logs while the board is powered from its
 **Design:** `logger:` runs on a second UART (`hardware_uart: UART2`, `tx_pin: GPIO17`) instead of the default UART0/GPIO1. The logger is transmit-only (device → computer), so only 2 wires are needed:
 
 ```
-ESP32 GPIO17 (pin 28) ────────────────────► Adapter RXD
-ESP32 GND (any GND pin) ──────────────────► Adapter GND
+ESP32 GPIO17 (pin 28) ────────────────────► Adapter RXD (yellow wire)
+ESP32 GND (any GND pin) ──────────────────► Adapter GND (orange wire)
 Adapter VCC/3V3 ── NOT CONNECTED — board stays powered exclusively by battery/regulator, that's the whole point
 ```
 
@@ -103,47 +103,40 @@ Adapter VCC/3V3 ── NOT CONNECTED — board stays powered exclusively by batt
 
 ---
 
-## Inline Power Switch — Forced Cold Restart (Storage/Transport Off is a Bonus)
+## Inline Power Switch — Forced Cold Restart (Storage/Transport Off is a Bonus) (pins 1-2 of 10 pin header marked red, red wire)
 
-**Redesigned 2026-09-08, CARD-0012 Step 7, following CARD-0198's testing.** The switch's real job is to let a person force a full cold restart of the device on demand — the thing you'd reach for if it ever hangs or loops (both of which happened during CARD-0198's own bench testing: a sustained brownout-reset loop, and a separate unexplained watchdog hang). True transport/storage off is a real, welcome side benefit, not the primary purpose the original wiring was designed around.
+The switch's job is to let a person force a full cold restart of the device on demand — the thing to reach for if it ever hangs or loops. True transport/storage off is a real, welcome side benefit, not the primary purpose.
 
-**Original wiring (through 2026-09-08) failed at exactly that job.** The switch sat in the LiPo's own leg only, upstream of a node TP4056 could also feed from USB:
-```
-LiPo BAT+ ──── SW ────┬──── TP4056 BAT+
-                       └──── Pololu D24V10F3 VIN
-```
-Measured directly (CARD-0198): with USB in TP4056, Pololu `VIN` read ~4V with the switch OFF — identical to switch ON. TP4056's own USB-fed charge output backfeeds that shared node regardless of switch position, since the switch was never in series with TP4056's own charge path. The one moment you'd most want a forced restart — device hung or looping while docked — was exactly the moment the switch did nothing.
-
-**New wiring: the switch gates only the Pololu's `VIN`, not the shared charge node.** LiPo `BAT+` and TP4056 `BAT+` are now tied together directly, with the switch downstream of that tie-point, in series with the Pololu alone:
+**The switch gates only the Pololu's `VIN`, not the shared charge node.** LiPo `BAT+` and TP4056 `BAT+` are tied together directly, with the switch downstream of that tie-point, in series with the Pololu alone:
 
 ```
 LiPo BAT+ ──┬──── TP4056 BAT+ (charging, always active regardless of switch position)
             │
             └──── SW ──┬──── Pololu D24V10F3 VIN
-                        └──── Battery Voltage Divider — R1 (100kΩ) top leg
+                        └──── Battery Voltage Divider (green dot) — R1 (100kΩ) top leg
 ```
 
-**Part: BK-1208 latching push button** (2-pin, DC 30V 1A, 12×8×8mm). A simple 2-lead part, not SPDT — its two leads now sit between the shared LiPo/TP4056 node and the Pololu's `VIN`, not directly in the raw battery+ path.
+**Part: BK-1208 latching push button** (2-pin, DC 30V 1A, 12×8×8mm). A simple 2-lead part, not SPDT — its two leads sit between the shared LiPo/TP4056 node and the Pololu's `VIN`, not directly in the raw battery+ path.
 
-**What this fixes and what it changes:**
-- **A cold restart now actually works regardless of dock/USB state** — the switch is the sole gate to the Pololu's `VIN` (and therefore the ESP32), so switching off removes power from the device every time, docked or not.
-- **Genuine side benefit: charging now keeps working even with the device switched off** — TP4056's `BAT+` no longer routes through the switch at all, so a device left off in storage still charges normally if plugged in. (The prior wiring stopped LiPo charging whenever the switch was off, since the LiPo's own leg to the shared node was cut.)
-- **Verification (Step 7), corrected:** with the switch off, confirm zero voltage/current at the Pololu's `VIN` pin — **check this both with USB unplugged from TP4056 and with USB plugged in**. The old verification instruction ("measure for zero voltage/current downstream when off") would have passed with USB unplugged and silently failed with it plugged in under the old wiring — that gap is exactly what CARD-0198 found the hard way. Also confirm TP4056's own charge LED still indicates charging with the switch off and USB connected — direct proof the charging path no longer depends on switch position.
+**Behavior:**
+- Switching off removes power from the Pololu's `VIN` (and therefore the ESP32) every time, docked or not — the switch is the sole gate to that node.
+- Charging keeps working with the device switched off — TP4056's `BAT+` never routes through the switch, so a device left off in storage still charges normally if plugged in.
+- **Verification:** with the switch off, confirm zero voltage/current at the Pololu's `VIN` pin — check this both with USB unplugged from TP4056 and with USB plugged in. Also confirm TP4056's own charge LED still indicates charging with the switch off and USB connected.
 
-**Operating rule, updated:** switch ON for all device operation (field, docked, bench work) — same as before. Switch OFF is now safe and complete for either storage *or* a forced restart, in every power condition, not just battery-only.
+**Operating rule:** switch ON for all device operation (field, docked, bench work). Switch OFF is safe and complete for either storage or a forced restart, in every power condition.
 
 ---
 
-## Intent Switch Wiring (GPIO27, pin 11)
+## Intent Switch Wiring (GPIO27, pin 11) (pins 6-7 of 10 pin header marked blue, purple wire)
 
 Signals whether the device is actively collecting field data — a plain GPIO-read digital input, **not in the power path**. Same pin role and wiring pattern as hiking-monitor's own Intent switch (`components/hiking-monitor/wiring.md`'s Slide Switch Wiring section).
 
 **Part: Gebildet SS12D10 slide switch** (SPDT, wired as SPST).
 
 | Switch terminal | Wire color | ESP32 pin | Notes |
-|---|---|---|---|
-| Terminal 1 | Brown | GPIO27 (pin 11) | Switch ON (closed) pulls GPIO27 LOW |
-| Terminal 2 | Black | GND | |
+|---|------------|---|---|
+| Terminal 1 | Blue       | GPIO27 (pin 11) | Switch ON (closed) pulls GPIO27 LOW |
+| Terminal 2 | Black      | GND | |
 
 Switch ON (closed): GPIO27 pulled LOW → collecting field data (Intent = actively hiking/logging).
 Switch OFF (open): GPIO27 floats HIGH via internal pull-up → idle/ready-to-upload.
@@ -154,7 +147,7 @@ Switch OFF (open): GPIO27 floats HIGH via internal pull-up → idle/ready-to-upl
 
 ---
 
-## TP4056 Module Wiring
+## TP4056 Module Wiring (pins 3-5 of 10 pin header marked green)
 
 Same physical TP4056+boost combined module as hiking-monitor (Bag 8) — see `components/hiking-monitor/wiring.md`'s "TP4056 Perfboard Connector" section for the reference module pinout (pins named `IN+`, `BAT+`, `VOUT−`, `VOUT+` there). On this design, **only the charging half of the module is used** — the boost stage (`VOUT+`) is bypassed in favor of the Pololu D24V10F3 regulator (see Power section below), so only three of the module's four pads are wired.
 
@@ -162,13 +155,13 @@ Same physical TP4056+boost combined module as hiking-monitor (Bag 8) — see `co
 |---|---|---|
 | `IN+` | green | Dock Detect divider — R3 (68kΩ) top leg, → GPIO32 (pin 7). See Dock Detect Wiring below. **Shared input** — also where the SUNYIMA solar panel's positive lead connects (see Solar Input below); USB and solar are electrically parallel sources into this same node, not separate inputs. |
 | `IN−` | — | Solar panel's negative lead connects here (see Solar Input below) — the module's only exposed ground pad for the solar/USB charge-input side. Not separately wired to anything else; USB-side ground is internal to the module's own micro-USB connector. |
-| `BAT+` | white | Tied directly to LiPo `BAT+` — **upstream of the inline power switch** as of the 2026-09-08 redesign (CARD-0198), so charging works regardless of switch position. Not the same node as the regulator's `VIN` anymore — see Inline Power Switch above. |
+| `BAT+` | white | Tied directly to LiPo `BAT+` — **upstream of the inline power switch**, so charging works regardless of switch position. Not the same node as the regulator's `VIN` — see Inline Power Switch above. |
 | `VOUT−` (GND) | black | Common GND — ties the module's ground return into the shared ground with the ESP32, regulator, and both dividers. |
 | `VOUT+` | — | **Unused, leave unconnected** — boost stage bypassed on this design. Do not wire to anything (unlike hiking-monitor, which uses this pin as its 5.7V boosted supply). |
 
 **Note:** hiking-monitor's own reference connector exposes only `IN+`, `BAT+`, `VOUT−`, `VOUT+` for the identical physical module — the module's `BAT−` pad is tied internally to `VOUT−`, with no separate pad broken out for it. `IN−` is exposed and wired here (unlike on hiking-monitor's connector) specifically because the solar panel's negative lead needs it. Confirm both `IN−` and the `BAT−`/`VOUT−` internal tie with a continuity check against the physical module before relying on this.
 
-### Solar Input (Backpacking Only)
+### Solar Input (Backpacking Only) (IN- black wire, IN+ white wire direct from TP4056 board)
 
 The TP4056+boost module supports solar input natively — no separate charge controller needed. **This connects to the same `IN+`/`IN−` pads as the micro-USB charging input above**, not a distinct input on the module — solar and USB are electrically parallel sources into the same charge-input node. Consequence: since `IN+` is also the Dock Detect tap (GPIO32), connecting the solar panel — or charging via USB in the field, e.g. from a power bank while backpacking — raises `IN+` exactly like docking at home does, and the device reads as docked (GPIO32 HIGH) even out on trail.
 
@@ -188,12 +181,12 @@ Solar panel mount/clip design is deferred — only relevant for multi-day backpa
 
 | Pin | Signal |
 |---|---|
-| VIN | Battery+ (post-switch — see the 2026-09-08 redesign, Inline Power Switch above) |
+| VIN | Battery+ (post-switch — see Inline Power Switch above) |
 | GND | Common ground |
 | VOUT | Regulated 3.3V out |
 
 ```
-LiPo BAT+ ──┬──── TP4056 BAT+ (charging, always active regardless of switch — see redesign above)
+LiPo BAT+ ──┬──── TP4056 BAT+ (charging, always active regardless of switch — see Inline Power Switch above)
             │
             └──── SW ──┬──── Pololu D24V10F3 VIN
                         │     D24V10F3 GND ──── common GND
@@ -211,23 +204,23 @@ LiPo BAT+ ──┬──── TP4056 BAT+ (charging, always active regardless 
 - **470µF electrolytic** — from the 28-value 0.1µF-4700µF assortment kit (`jctsh-parts-inventory.md`, Plastic Box); any 10V+ rated value in that kit works on a 3.3V rail.
 - **4.7µF ceramic** — BOJACK 10-value assortment kit (`jctsh-parts-inventory.md`, Bag 39); catches the sub-millisecond edge of a transient the electrolytic's own ESR can't fully absorb.
 
-- **Regulator `VIN` taps the post-switch node in parallel with the Battery Voltage Divider's top leg** — fed from the shared LiPo/TP4056 node through the inline switch (as of the 2026-09-08 redesign, the switch's whole purpose), not fed from TP4056's boost/`VOUT+` output. TP4056's own `BAT+` is upstream of the switch now — see Inline Power Switch above for why.
+- **Regulator `VIN` taps the post-switch node in parallel with the Battery Voltage Divider's top leg** — fed from the shared LiPo/TP4056 node through the inline switch, not fed from TP4056's boost/`VOUT+` output. TP4056's own `BAT+` is upstream of the switch — see Inline Power Switch above for why.
 - **Regulator `VOUT` → ESP32 dev board's `3V3` pin directly** (not `VIN`) — `VIN` expects ~5V and routes through the board's own onboard regulator; feeding `3V3` bypasses that second regulation stage.
 - **Caution: never power the board from USB and the regulator at the same time** — both would drive the `3V3` rail from separate unisolated sources, risking backfeeding either regulator. Disconnect the battery-side regulator before flashing over USB, and vice versa. (Breadboard Steps 4-6 power via USB only — do not connect the LiPo/regulator until Step 7.) **This is scoped specifically to the ESP32's own USB-C port** — the TP4056's separate micro-USB charging port never touches `3V3` at all, it only feeds the LiPo via the charge circuit (see Dock Detect Wiring below); charging via TP4056 while the regulator powers the ESP32 off the battery is normal, expected home-mode operation, no need to switch off for that. **The inline power switch satisfies the ESP32-USB-C case** — switching it off removes the regulator's `VIN` entirely (functionally equivalent to unplugging it), so flashing over the ESP32's USB-C just requires the switch to be off, switched back on immediately after (see the Inline Power Switch operating rule above).
 - The Adafruit #5964 adapter's own onboard 5V boost for the SEN55 is fed from this same `3V3` rail (`VIN` direct, `GND` also direct — no gate transistor) — unaffected by the regulator choice.
 
-**Minimum input voltage:** being a pure buck (step-down-only) topology, this regulator cannot boost — if VIN drops below VOUT plus dropout, output sags with input. Documented input floor is 3.4V, with dropout increasing under load. This sits close to the standard §2.14 point 2 low-battery firmware cutoff (also 3.4V). **Confirmed live (CARD-0198, 2026-09-08): it does not hold.** A battery-only bench trial (`minimal-test.yaml`, WiFi + MQTT + SEN55 running together) fell into a real, self-sustaining brownout-reset loop that never recovered on its own; battery voltage measured mid-loop was 3.4V exactly. At that voltage the regulator has essentially zero headroom, so WiFi's/SEN55's current draw sags VIN below what's needed and brownouts — and with no charging source present, the battery can't recover between boot attempts, so every retry's own inrush re-triggers the same brownout. This device's low-battery cutoff needs real margin above 3.4V, not the same number as the regulator's own floor, before the power system can be considered final.
+**Minimum input voltage:** being a pure buck (step-down-only) topology, this regulator cannot boost — if VIN drops below VOUT plus dropout, output sags with input. Documented input floor is 3.4V, with dropout increasing under load. At or near that floor the regulator has essentially no headroom against WiFi/SEN55 current draw, and on battery alone (no charging source to recover between attempts) a brownout there can become self-sustaining rather than a one-off reset. Firmware's low-battery cutoffs keep real margin above this floor rather than matching it exactly — see `operations.md`'s Battery & Charging section for the actual thresholds.
 
 ---
 
-## Dock Detect Wiring (GPIO32, pin 7)
+## Dock Detect Wiring (GPIO32, pin 7) (Blue dot)
 
 Same divider values and pin as hiking-monitor's `IN+` divider — TP4056 IN+ (USB VBUS) divided down to a safe GPIO level.
 
 ```
 TP4056 IN+ ──── R3 (68kΩ) ──┬──── R4 (100kΩ) ──── GND
                              │
-                      GPIO32 (pin 7, INPUT, no pull)
+                      GPIO32 (pin 7, INPUT, no pull, blue wire)
 ```
 
 - USB absent: LOW → field mode
@@ -237,16 +230,16 @@ TP4056 IN+ ──── R3 (68kΩ) ──┬──── R4 (100kΩ) ───�
 
 ---
 
-## Battery Voltage Divider Wiring (GPIO34, pin 5)
+## Battery Voltage Divider Wiring (GPIO34, pin 5) (Green dot)
 
-**This divider taps the switch's output node — the opposite of the dock-detect divider above, which taps `IN+` upstream of the switch.** `LiPo BAT+ (post-switch)` below is the same node as the regulator's `VIN` (see Inline Power Switch and Power sections) — **no longer the same node as TP4056's `BAT+`** as of the 2026-09-08 redesign, which moved TP4056 upstream of the switch so charging works regardless of switch position. This reading is only meaningful with the switch on — with it off, this whole node is unpowered/floating (which is fine in practice, since the ESP32 has to be running to take the ADC reading anyway).
+**This divider taps the switch's output node — the opposite of the dock-detect divider above, which taps `IN+` upstream of the switch.** `LiPo BAT+ (post-switch)` below is the same node as the regulator's `VIN` (see Inline Power Switch and Power sections) — not the same node as TP4056's `BAT+`, which taps the battery upstream of the switch (see TP4056 Module Wiring above). This reading is only meaningful with the switch on — with it off, this whole node is unpowered/floating (which is fine in practice, since the ESP32 has to be running to take the ADC reading anyway).
 
 Divides LiPo voltage (3.5-4.2V) to fit ESP32 ADC range. Two equal 100kΩ resistors → 2:1 divider. Midpoint voltage = Vbatt / 2. ESPHome `filters: - multiply: 2.0` restores actual voltage.
 
 ```
 LiPo BAT+ (post-switch) ──── R1 (100kΩ) ──┬── R2 (100kΩ) ──── GND
                                             │
-                                     GPIO34 (pin 5, ADC input)
+                                     GPIO34 (pin 5, ADC input, green wire)
 ```
 
 **Notes:**
@@ -261,12 +254,12 @@ LiPo BAT+ (post-switch) ──── R1 (100kΩ) ──┬── R2 (100kΩ) ─
 
 **Greekcreit/Geekcreit 37-module kit (Plastic Box)** — a KY-016: common-cathode, clear 5mm LED, 4-pin header silkscreened `- R G B` in that order, **with three current-limiting resistors already built onto the module's own small PCB.**
 
-| Module Pin | ESP32 Pin | Board Pin # | External resistor? |
-|---|---|---|---|
-| `-` (common cathode) | GND | 38 / 32 / 18 / 14 (any GND pin) | — |
-| `R` | GPIO18 | 30 | **None** — module has its own onboard resistor per channel; do not add an external one in series, it would only dim the LED further |
-| `G` | GPIO19 | 31 | None (see above) |
-| `B` | GPIO23 | 37 | None (see above) |
+| Module Pin                        | ESP32 Pin | Board Pin # | External resistor? |
+|-----------------------------------|---|---|---|
+| `-` (common cathode) (black wire) | GND | 38 / 32 / 18 / 14 (any GND pin) | — |
+| `R` (red wire)                    | GPIO18 | 30 | **None** — module has its own onboard resistor per channel; do not add an external one in series, it would only dim the LED further |
+| `G` (green wire)                  | GPIO19 | 31 | None (see above) |
+| `B` (blue wire)                   | GPIO23 | 37 | None (see above) |
 
 This deviates from `JCTsh-Build-Standards.md` §8's default (330Ω external, for a bare LED with no onboard resistor) — that default assumes a bare LED, not a pre-resistored module like this one. Wire the module's 4 pins straight to GND/GPIO18 (pin 30)/GPIO19 (pin 31)/GPIO23 (pin 37), no discrete resistors in the RGB LED's signal path.
 

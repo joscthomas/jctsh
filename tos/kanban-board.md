@@ -9,7 +9,27 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0263 -->
+<!-- next-card-id: CARD-0264 -->
+
+---
+
+### CARD-0263 · [enhancement] [infrastructure] Switch the Pi from graphical boot target to headless
+**Status:** Backlog
+**Priority:** Medium
+
+**Raised 2026-09-12, from a discussion about whether the Pi's hardware is still adequate for its assigned role** (MQTT broker, Node-RED, HA, log server). Conclusion of that discussion: no evidence of the Pi actually straining — no performance complaints anywhere in this project's history, the real write-heavy state is already routed to the USB drive (CARD-0159), and CARD-0164's own direction reduces HA's SmartThings-entity load going forward rather than growing it. This card is the one concrete, already-identified inefficiency worth fixing regardless — not evidence the hardware needs replacing.
+
+**Current state, per `project_jctsh.md`'s own note (2026-07-12):** the Pi boots into `graphical.target` with a full desktop session running (X11/Wayland, desktop panel widgets, `rpi-connect`, etc. — confirmed as installed cruft during CARD-0125's own apt-upgradable audit). Day-to-day access is SSH-only — the physical desktop GUI was used exactly once, during initial setup, never since. Pure overhead for a host whose real job has nothing to do with a local display.
+
+**Scope:**
+1. `sudo systemctl set-default multi-user.target` on the Pi.
+2. Reboot and verify every Pi-native service comes back clean: Mosquitto, Node-RED, the `homeassistant` Docker container (reaching its own `healthy` state, not just "container exists" — same bar CARD-0158's reboot-health-check already applies), `jctsh-logging`.
+3. Confirm nothing actually depended on the desktop session running (unlikely, per the "used once during setup" history, but verify rather than assume).
+4. If a local display/desktop is ever needed again for troubleshooting, `sudo systemctl start graphical.target` (or `startx`) works on demand without needing to boot into it every time — document this in `SOFTWARE-ENVIRONMENT.md` or similar as the "how to get a desktop back if you ever need one" note.
+
+**Done when:** the Pi boots headless by default, verified via a real reboot test (not just a manual `systemctl isolate`) — matching this project's own standing convention (CARD-0158, CARD-0129) of confirming a boot-time change against an actual cold boot, not a simulated one — with every service listed in step 2 confirmed healthy afterward.
+
+**Related:** `project_jctsh.md` (the original 2026-07-12 observation), CARD-0125 (the apt-upgradable audit that found the desktop-environment packages), CARD-0158 (the reboot-health-check this reuses for post-reboot verification), `SOFTWARE-ENVIRONMENT.md`.
 
 ---
 

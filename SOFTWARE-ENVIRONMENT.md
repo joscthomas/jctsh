@@ -13,6 +13,34 @@ Reference for what is installed and running on the home Pi. Useful for rebuildin
 | Kernel | Linux 6.12 |
 | Timezone | `America/Phoenix` (MST, UTC-7, no DST) |
 
+## Boot Target
+
+The Pi boots headless (`multi-user.target`, no desktop session) — confirmed via
+`systemctl get-default` (CARD-0263, 2026-09-12). Day-to-day access is SSH-only; the
+desktop-environment packages (`lightdm`, `xserver-xorg-core`, etc.) are still installed as
+leftover cruft (CARD-0125's apt-upgradable audit) but aren't used at boot.
+
+**Getting a real, usable desktop on demand — verified working end-to-end, 2026-09-12.** The
+Pi has no monitor attached (shelf-mounted in the laundry room), so starting
+`graphical.target` alone isn't enough by itself — nothing is there to view it. **Raspberry
+Pi Connect** (`rpi-connect`, already installed, signed in and configured 2026-09-12) gives
+real browser-based remote desktop + remote shell from anywhere via
+`connect.raspberrypi.com`, no monitor needed:
+
+1. `sudo systemctl start graphical.target` — starts the local desktop session `rpi-connect`'s
+   screen-sharing needs something to capture from (confirmed necessary — a screen-sharing
+   attempt fails with "Failed to connect to screen sharing server" if this isn't running).
+2. Open `connect.raspberrypi.com` in a browser, sign in, click into this Pi, start a screen
+   share — this now works and shows a real, interactive desktop.
+3. When done: `sudo systemctl isolate multi-user.target` (or just reboot) to return to
+   headless — the persistent boot default stays headless regardless.
+
+Check current status any time with `rpi-connect status` (shows signed-in state and whether
+screen sharing/remote shell are allowed). If ever signed out, re-authenticate with
+`rpi-connect signin` (prints a `connect.raspberrypi.com/verify/...` link to approve in a
+browser) — run detached (`nohup ... &`) if using SSH, since the wait-for-approval process
+dies if the SSH command itself times out first.
+
 ## Services
 
 All services start automatically at boot. None require manual intervention under normal operation.

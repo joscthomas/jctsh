@@ -9,7 +9,30 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0262 -->
+<!-- next-card-id: CARD-0263 -->
+
+---
+
+### CARD-0262 · [enhancement] [infrastructure] Set up HA's native Matter integration; re-register the 3 Cync lights through HA instead of directly in Google Home
+**Status:** Backlog
+
+**Raised 2026-09-12, from a real gap found the same day.** The household's first Matter devices (3 Cync under-cabinet lights, confirmed Matter-over-WiFi, CARD-0259/§6.4's original case study) were registered directly in Google Home. Checked live: all three return `404 Entity not found` in HA — registering in Google Home doesn't sync back to HA the way SmartThings did, so HA has zero visibility or control. Decided direction: commission into HA first, then expose to Google Home through HA's own native Google Assistant integration — written into `JCTsh-Build-Standards.md` §6.4 as the standing order for every future Matter device, not just these three.
+
+**Real infrastructure gap found while scoping this, not assumed:** HA's Matter integration doesn't exist in this install at all — confirmed live, zero `matter`-domain config entries, no Matter Server container running anywhere on the Pi, nothing in `core/homeassistant/docker-compose.yml`. This isn't a simple "Add Integration" click: this HA instance runs as a plain **Docker Container** install, not Home Assistant OS — Matter support depends on a separate companion process (`python-matter-server`) that HA OS provides as a one-click add-on, but a Container install has to run as its own explicit Docker service that HA's Matter integration then connects to over a WebSocket.
+
+**Commissioning mechanics confirmed via research, not assumed:** the official HA Companion app on Android (Play Store build, not F-Droid) has an "Add Matter Device" flow — hands off to Android's own system-level Google Matter commissioning UI to do the actual BLE/WiFi pairing handshake, then relays the result back to HA in the background. Requires the Companion app's Location permission set to "Allow all the time." This is a front-end only — it still needs HA's Matter integration and backend Matter Server already configured to hand the device off to; it does not replace the infrastructure work below.
+
+**Scope:**
+1. Add `python-matter-server` (`ghcr.io/home-assistant-libs/python-matter-server:stable`) as a new service in `core/homeassistant/docker-compose.yml` — `network_mode: host` (Matter's commissioning/mDNS traffic doesn't work reliably through Docker's default bridge networking), persistent volume on `/mnt/jctsh-logs/matter-server` (the USB drive, not the SD card, per this repo's standing SD-card-avoidance convention — CARD-0159's own precedent).
+2. Add HA's Matter integration (Settings → Devices & Services → Add Integration → Matter), pointing at the new server's WebSocket (`ws://localhost:5580/ws` with host networking).
+3. **Fully remove the 3 Cync lights from Google Home first** — not just re-share. Confirm each is back to an unpaired/factory-reset state (Cync's own app, or a physical reset per the fixture's manual) before attempting to commission it elsewhere; a device still commissioned into Google's fabric may not hand over cleanly to a second commissioning attempt.
+4. Commission each light into HA via the Android Companion app's "Add Matter Device" flow.
+5. Expose the new HA light entities to Google Assistant via Settings → Home Assistant Cloud → Google Assistant → manage entities — restoring Robin's voice control, now routed through HA instead of a direct Google registration.
+6. Verify live: all three lights appear as real HA entities (replacing the old `404`s), controllable from HA/Node-RED, and voice-controllable via Google Home through the new HA-mediated path.
+
+**Done when:** the Matter Server container is running, HA's Matter integration is configured and connected to it, all three Cync lights are commissioned into HA and confirmed as live HA entities (not `404`), exposed to and voice-controllable via Google Home through HA's own Google Assistant integration, and the direct Google Home registration is confirmed fully removed — not just duplicated.
+
+**Related:** CARD-0164 (the SmartThings-deprecation decision this is a direct extension of), CARD-0259 (hiking-monitor v2's own case-study reference to these same lights), `JCTsh-Build-Standards.md` §6.4 (the Matter registration order this establishes), `core/homeassistant/docker-compose.yml` (where the new service gets added).
 
 ---
 

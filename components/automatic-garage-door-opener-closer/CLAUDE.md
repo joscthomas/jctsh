@@ -1,5 +1,9 @@
 # Automatic Garage Door Opener/Closer — Component Context
 
+**See `auto-garage-door-system.md` in this directory for the full cross-component
+picture** (garage-radar + garage-presence + this component's ST routine, as one system) —
+this file only covers this component's own piece of it.
+
 Hardware + SmartThings component. No ESP32, no Node-RED, no HA automations.
 Fully implemented through hardware modification, Zigbee pairing, and a SmartThings routine.
 See `jctsh/CLAUDE.md` for monorepo-wide conventions.

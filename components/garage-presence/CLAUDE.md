@@ -1,5 +1,9 @@
 # Garage Presence — Component Context
 
+**See `../automatic-garage-door-opener-closer/auto-garage-door-system.md` for the full
+cross-component picture** (garage-radar + this component + the SmartThings auto-close
+routine, as one system) — this file only covers this component's own piece of it.
+
 HA-only component. No ESP32, no Node-RED. Tracks presence in the garage by running
 a countdown timer that resets on any activity. The timer expiry signal is available
 to other automations via `timer.garage_presence_timer` — what happens on expiry is

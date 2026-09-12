@@ -14,7 +14,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0261 · [enhancement] [salt-sensor] Replace SmartThings-synced switches with HA-native helpers + HA's own Google Assistant bridge
-**Status:** Backlog
+**Status:** Planning
 
 **Raised 2026-09-11, from CARD-0164's decided direction** (deprecate the paid SmartThings API dependency, per that card). One of two concrete migration cards scoped from the full-repo sweep that day — the clean one, no real hardware dependency.
 
@@ -22,14 +22,17 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Why this one's straightforward, unlike CARD-0260's garage case:** every input (the salt-level MQTT reading) and every consumer (Node-RED, Robin via voice) is already fully within JCTsh/HA's own control. The only thing SmartThings currently provides is the relay to Google Home — directly replaceable by HA's own native Google Assistant integration (Nabu Casa, already active). Not blocked on CARD-0164's Oct 2 Auto-verify finding — buildable now.
 
-**Scope:**
-1. Create four HA-native helper entities (`input_boolean` or `switch` template entities) replacing the four SmartThings-synced switches, same names/semantics.
-2. Wire Node-RED's existing threshold logic (`fn_threshold`) to set these HA-native entities directly via the HA REST API, instead of (or in addition to, during transition) the SmartThings-synced ones.
-3. Expose the four new entities to Google Home via HA's native Google Assistant Smart Home integration (Settings → Home Assistant Cloud → Google Assistant, entity exposure) — replacing the SmartThings-mediated path.
-4. Verify live: Robin can ask Google the salt state and it reflects the same real value; toggling `salt_test_mode`/`salt_full_reset` from the Google Home app (or voice) reaches Node-RED and produces the same behavior as today's SmartThings-mediated path.
-5. Once confirmed working end-to-end, remove the four SmartThings-side virtual switches (the actual entities in the SmartThings app), and update `components/salt-sensor/README.md`'s "HA Virtual Switches (synced to SmartThings)" section to reflect the new HA-native/Google-direct architecture.
+**Planned, 2026-09-11 — grounded directly in `components/salt-sensor/salt-sensor.flow.json`, not assumed.** Node-RED touches these four switches in exactly three places, all through HA's plain generic `switch` domain services/states (`/api/services/switch/turn_on|turn_off`, `/api/states/switch.*`) — nothing SmartThings-specific in the code at all: the threshold-alert function (`haCommands.push({entity: 'switch.salt_critical_alert', ...})`), the reset function (three `turn_off` calls), and the polling-read function (`GET /api/states/switch.salt_test_mode` / `switch.salt_full_reset`). This means the migration can be done with **zero Node-RED code changes**, provided the new entities keep the exact same `switch.*` entity_ids.
 
-**Done when:** all four switches are HA-native, reachable and voice-controllable via Google Home through HA's own Google Assistant integration with zero SmartThings involvement, verified live (not just wired), and the SmartThings-side virtual switches are confirmed removed with no functional loss.
+**Scope:**
+1. **Create four HA-native Template Switch helpers** (Settings → Helpers → + Create Helper → Template → Switch) — not `input_boolean`, specifically so the entity domain stays `switch.*` and Node-RED's hardcoded entity_id references need no changes: `switch.salt_low_alert`, `switch.salt_critical_alert`, `switch.salt_test_mode`, `switch.salt_full_reset`.
+2. **Sequencing matters:** delete the four SmartThings-side virtual switches in the SmartThings app *first*, confirm they disappear from HA, *then* create the new Template Switch helpers with the identical entity_ids. If the SmartThings-backed entities still exist when the new ones are created, HA will suffix the new ones (`_2`) to avoid a collision, silently breaking Node-RED's hardcoded references.
+3. Confirm Node-RED needs no changes — re-read the flow after the swap to make sure nothing else references these entities in a way not already accounted for above.
+4. **Expose the four new entities to Google Assistant** — Settings → Home Assistant Cloud → Google Assistant → entity exposure, replacing the SmartThings-mediated path.
+5. **Verify live, in this order:** force a real threshold crossing (or a manual `switch.turn_on`/`off` via Developer Tools) and confirm `salt_low_alert`/`salt_critical_alert` toggle with Node-RED's notify messages still firing; ask Google the salt state via voice and confirm it reflects the real entity; toggle `salt_test_mode` and `salt_full_reset` from the Google Home app and confirm Node-RED's polling read picks it up and behaves the same as before (test sequence runs, alerts clear).
+6. Update `components/salt-sensor/README.md`'s "HA Virtual Switches (synced to SmartThings)" section to reflect the new HA-native architecture.
+
+**Done when:** all four switches are HA-native Template Switch helpers, reachable and voice-controllable via Google Home through HA's own Google Assistant integration with zero SmartThings involvement, verified live per step 5 above (not just wired), Node-RED confirmed unchanged and working, and the SmartThings-side virtual switches confirmed removed with no functional loss.
 
 **Related:** CARD-0164 (the decision this implements), CARD-0260 (the sibling garage-routine card — more complicated, has a real hardware dependency this card doesn't), `components/salt-sensor/README.md`, `JCTsh-Build-Standards.md` §6.4 (the new-device policy this follows retroactively).
 

@@ -39,7 +39,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0260 · [enhancement] [infrastructure] Rebuild garage SmartThings Routines as HA automations — real sensor/actuator dependency remains, sequenced after CARD-0164's Oct 2 check
-**Status:** Backlog
+**Status:** Planning
 
 **Raised 2026-09-11, from CARD-0164's decided direction.** The second of two concrete migration cards scoped from that day's full-repo sweep — genuinely more complicated than CARD-0261's salt-sensor case, not a clean parallel.
 
@@ -56,14 +56,19 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Sequencing decision, 2026-09-11 (Joseph's call):** scope this card now, but don't build until CARD-0164's 2026-10-02 Auto-verify check reports back. If HA retains basic read/write access to real SmartThings-synced entities post-cutoff (not just Routines specifically), this card proceeds as scoped below. If HA loses that access entirely, rebuilding the Routine as an HA automation accomplishes nothing — the automation would be exactly as broken as the Routine, unable to read the real sensors or actuate the real switch either way — and this card's scope would need rethinking against CARD-0164's original "migrate" option (a real Zigbee coordinator) instead.
 
-**Scope, if CARD-0164's Oct 2 check comes back favorable:**
-1. Replace `garage_door_auto_close_enable_vswitch` and `garage_door_open_vswitch` with HA-native helper entities.
-2. Rebuild the Auto-Close Routine (`automatic-garage-door-opener-closer`) as an HA automation: trigger on the door-open state (HA-native now), condition on `garage_presence_vswitch` off (already HA-owned per that component's own "Architecture Decision — HA Owns Presence") and the new HA-native enable helper, action calls `switch.open_close_garage_door` via HA's still-functioning (per the Oct 2 finding) SmartThings-bridged entity.
-3. Rebuild the Presence-Off Routine (`garage-presence`) as an HA automation the same way — trigger on `garage_presence_vswitch` (or its HA-native replacement) turning off, actions call the real Zigbee switch and the real garage lights via HA.
-4. Live-test each against a real door-open event and a real presence timeout, matching this project's own verification bar — not just "looks right on paper."
-5. Update both components' `CLAUDE.md`/`README.md` to reflect the new HA-native architecture, and confirm the SmartThings-side Routines are actually deleted (not just superseded and left dangling).
+**Planned, 2026-09-11 — grounded directly in `garage-presence/CLAUDE.md`'s actual deployed automations, not assumed.** Good news found while grounding this: `switch.garage_presence_vswitch` is **already** toggled entirely by HA's own existing automations ("Restart timer on activity," "Timer expired," "Radar keepalive" — all call `switch.turn_on`/`switch.turn_off` directly, no SmartThings-specific code anywhere) — the exact same pattern as CARD-0261's salt-sensor switches. That conversion is clean.
 
-**Done when:** both Routines' logic runs entirely as HA automations, verified live against real trigger events, with the SmartThings-side Routines confirmed removed — contingent on CARD-0164's Oct 2 finding confirming this is even achievable without a real hardware migration.
+**Real open question found, not yet resolved:** nothing in the repo documents what actually *sets* `switch.garage_door_open_vswitch`'s state today — no automation, no sensor mapping exists anywhere in `automatic-garage-door-opener-closer`'s docs or code. Before this card can be fully planned, need to confirm (check the SmartThings app directly, or ask Joseph) whether it's a manual toggle, or reacts to some SmartThings-side rule not visible from this repo. This determines whether the new HA automation needs a real door-position trigger of its own, and whether one physically exists at all.
+
+**Scope, if CARD-0164's Oct 2 check comes back favorable:**
+1. Resolve the open question above — what actually sets `garage_door_open_vswitch` — before building anything that depends on it.
+2. Convert the two pure-bookkeeping vswitches to HA-native Template Switch helpers (Settings → Helpers → Template → Switch, preserving the `switch.*` domain and identical entity_ids, same approach as CARD-0261): `garage_door_auto_close_enable_vswitch` and `garage_door_open_vswitch`. Same sequencing gotcha as CARD-0261 — delete the SmartThings-side ones first, so HA doesn't suffix the new ones (`_2`) and silently orphan whatever references the old entity_id.
+3. **Add a new "Presence Off" HA automation** (`garage-presence` doesn't have this reaction yet — it only owns the vswitch itself, the SmartThings Routine supplied the reaction): trigger on `garage_presence_vswitch` turning off → actions: turn off the real garage lights, turn on `switch.open_close_garage_door` (the real Zigbee actuator, contingent on the Oct 2 finding confirming HA can still write to it).
+4. **Add a new "Auto-Close" HA automation** (`automatic-garage-door-opener-closer`): trigger on `garage_door_open_vswitch` turning on → condition on `garage_presence_vswitch` off and the new HA-native enable helper on → action: turn on `switch.open_close_garage_door`.
+5. Live-test both against real events — a real door-open, a real presence timeout — not just a Developer Tools simulation, matching this project's own verification bar.
+6. Delete both SmartThings Routines, and update `automatic-garage-door-opener-closer/CLAUDE.md` and `garage-presence/CLAUDE.md` to describe the new HA-native architecture.
+
+**Done when:** both Routines' logic runs entirely as HA automations, verified live against real trigger events, with the SmartThings-side Routines confirmed removed — contingent on CARD-0164's Oct 2 finding confirming this is even achievable without a real hardware migration, and on resolving the open `garage_door_open_vswitch` question above.
 
 **Related:** CARD-0164 (the decision this implements, and the Oct 2 Auto-verify this is blocked on), CARD-0261 (the sibling salt-sensor card — clean, no real hardware dependency, not blocked the same way), `components/automatic-garage-door-opener-closer/CLAUDE.md`, `components/garage-presence/CLAUDE.md`, `JCTsh-Build-Standards.md` §6.4 (the new-device policy this follows retroactively).
 

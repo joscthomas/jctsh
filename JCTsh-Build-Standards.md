@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.31
-**Version description:** Extended §6.4 with the `--primary-interface` gotcha for `python-matter-server` on a dual-homed host (wired + WiFi) — an unpinned primary interface breaks link-local commissioning of WiFi-only Matter devices with a `PASESession timed out`/`Secure Pairing Failed` error. Harvested from CARD-0262's real first commissioning failure and its fix.
+**Version:** 1.32
+**Version description:** Extended §5.4 with a Node-RED Function-node gotcha — a single-output node returning a flat array of multiple messages silently drops everything but the first one; needs `return [[...]]`, not `return [...]`. Harvested from CARD-0261: a pre-existing, invisible bug in salt-sensor's polling flow that had silently dropped 3 of 4 checked entities since the flow was first written.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -736,6 +736,8 @@ Lessons from the hiking-monitor environmental data pipeline (2026-06-04):
 **Apps Script API keys must be alphanumeric.** Special characters (`&`, `@`, `*`) in URL query parameters break parsing even with `encodeURIComponent`. Generate keys using only `[a-zA-Z0-9]`.
 
 **Node-RED env vars via systemd EnvironmentFile.** The Node-RED service on the Pi reads `/home/pi/.node-red/environment` via `EnvironmentFile=` in the systemd unit. Add `KEY=value` lines to this file for secrets passed to function nodes via `env.get('KEY')`. Restart Node-RED after editing.
+
+**A single-output Function node returning multiple messages needs a doubly-nested array — a flat array silently drops everything but the first message.** `return [msg1, msg2, msg3]` from a node with **one** output tells Node-RED "route `msg1` to output 1, `msg2` to output 2, `msg3` to output 3" — with only one real output wired, `msg2`/`msg3` are sent to output ports that don't exist and are silently discarded, no error anywhere. To send multiple messages out a single output, nest one more level: `return [[msg1, msg2, msg3]]`. Found in CARD-0261 (2026-09-12): `salt-sensor.flow.json`'s "Build HA poll requests" node had exactly this bug since it was originally written — only the first of its 4 polled entities (`salt_test_mode`) was ever actually checked; the other 3 (`salt_full_reset`, and the two calibration `input_number`s) were silently dropped every single poll, for the life of the component, until a live end-to-end test of the reset path finally surfaced it. Both the failure mode and its correctness are invisible from the outside — check a Function node's actual configured output count (visible on the canvas as the number of connector dots on its right edge) before writing `return [...]` with more than one message, whenever there's only one wire out.
 
 ---
 

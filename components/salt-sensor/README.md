@@ -112,14 +112,42 @@ To calibrate: mount the sensor at the top of the tank facing down. Fill to norma
 and note the distance in the log dashboard. Measure from sensor face to tank floor for
 the empty value.
 
-### HA Virtual Switches (synced to SmartThings)
+### HA-Native Switches (CARD-0261, 2026-09-12 — replaced SmartThings-synced virtual switches)
+
+Four HA-native Template Switch helpers (backed by hidden `input_boolean` helpers for
+persistence), each exposed to Google Assistant via HA's own native integration except
+`salt_test_mode` (deliberately HA-only — a diagnostic action, not something Robin needs;
+see `JCTsh-Build-Standards.md` §6.5's exposure test).
+
+| Entity | Purpose | Exposed to Google Home? |
+|---|---|---|
+| `switch.salt_low_alert` | ON at warning level (< 33%) | Yes |
+| `switch.salt_critical_alert` | ON at critical level (< 15%) | Yes |
+| `switch.salt_test_mode` | Turn ON in HA to run test sequence | No — HA-only |
+| `switch.salt_full_reset` | Turn ON after refilling to clear alerts | Yes |
+
+### Live Salt Level (percent), added 2026-09-12
+
+Two entities, since Google Assistant can't voice-expose an arbitrary numeric percent:
 
 | Entity | Purpose |
 |---|---|
-| `switch.salt_low_alert` | ON at warning level (< 33%) |
-| `switch.salt_critical_alert` | ON at critical level (< 15%) |
-| `switch.salt_test_mode` | Turn ON in SmartThings to run test sequence |
-| `switch.salt_full_reset` | Turn ON in SmartThings after refilling to clear alerts |
+| `input_number.salt_level_percent` | Written by Node-RED every reading — the real value, HA-only, not exposed |
+| `sensor.softener_salt_level` | Template Sensor mirroring the above, `device_class: humidity` set deliberately (the closest Google-supported class) purely to make it voice-exposable — genuinely mislabeled, not a real humidity reading |
+
+Google's Smart Home API only supports voice-query for a fixed list of sensor `device_class`es
+(temperature, humidity, CO2, AQI, PM2.5, VOCs) — a generic percent has no supported class,
+so this mislabel is the only way to get the live value voice-accessible at all. Ask
+"what's the humidity of Softener Salt Level" to hear it.
+
+**A single combined voice answer ("salt is 26%, no alert") is not achievable** — Google
+Home's automation builder cannot insert a live sensor value into a spoken "Assistant says"
+response (confirmed 2026-09-12, current platform limitation), and there's no supported way
+to route a Google Home speaker's voice query into HA's own Assist pipeline (which *can* do
+this natively via a templated custom-sentence response, but only through the HA Companion
+app/voice hardware, not a Google Home speaker). Practical options: ask the humidity-labeled
+sensor for the percent and a separate custom Google Home automation for alert status
+(static text per branch), or use HA Assist for the full combined sentence via the phone app.
 
 ### Alert Thresholds
 

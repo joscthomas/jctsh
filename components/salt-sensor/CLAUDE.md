@@ -8,8 +8,9 @@ See `jctsh/CLAUDE.md` for monorepo-wide conventions.
   messages to MQTT every 12 hours, plus a heartbeat every 30 minutes
 - **Mosquitto** broker runs on Raspberry Pi (`pi1.local`)
 - **Node-RED** applies threshold logic, controls HA switches via REST API
-- **Home Assistant** bridges to SmartThings for alerts and switch control
-- **SmartThings** — primary control surface for alert switches
+- **Home Assistant** — alert/control switches are HA-native (Template Switch helpers,
+  CARD-0261, 2026-09-12), exposed to Google Assistant via HA's own native integration
+  (not SmartThings — that dependency was removed, see `JCTsh-Build-Standards.md` §6.4)
 - **Log dashboard** — `http://pi1.local/` (Python log server on Pi)
 
 ## ESPHome Migration (CARD-0004)

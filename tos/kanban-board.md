@@ -9,7 +9,23 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0264 -->
+<!-- next-card-id: CARD-0265 -->
+
+---
+
+### CARD-0264 · [idea] [infrastructure] Decision criteria: when (if ever) to add a Zigbee2MQTT/Z-Wave USB coordinator to bring legacy hardware under HA
+
+**Status:** Backlog
+
+**Raised 2026-09-12 MST, from a discussion following CARD-0164's SmartThings-deprecation plan.** That plan deliberately leaves the existing Zigbee/Z-Wave device population (most lights, sensors, the lock) SmartThings-hosted and invisible to HA once the API access lapses — the only way to bring a specific one of those devices back under HA visibility/control is to physically move it off the SmartThings hub onto radio hardware HA can talk to directly (a Zigbee2MQTT or Z-Wave JS UI USB coordinator, ~$20-60 one-time hardware, no subscription — see chat discussion 2026-09-12 for product options/costs).
+
+**Not a plan to do this — a decision rule for if it ever comes up.** There's no reason to buy this hardware or migrate anything speculatively. The trigger is wanting real HA capability (dashboard, automation, Node-RED logic) over one *specific* device that's currently ST-hosted. When that happens, check in this order before reaching for a USB coordinator:
+1. Does that specific device have a Matter path — native Matter support, or a manufacturer bridge/firmware update to Matter? If yes, that's the preferred route (matches the already-established HA-first Matter registration order, `JCTsh-Build-Standards.md` §6.4/CARD-0262) — no new radio hardware, no per-device re-pairing onto a coordinator.
+2. Only if no Matter path exists for that device does a USB Zigbee/Z-Wave coordinator become the actual option — and even then, it's a per-device re-pairing job (leave the SmartThings network, join the new coordinator's network), not a bulk migration.
+
+**Done when:** N/A as scoped — this card exists to hold the decision criteria above so it isn't re-derived from scratch next time a specific device's HA-visibility gap actually matters. Revisit/close or convert to real work only when a concrete device triggers it.
+
+**Related:** CARD-0164 (the deprecation plan this is the fallback option for), `JCTsh-Build-Standards.md` §6.4 (Matter registration order), CARD-0262 (Matter Server infrastructure, needed either way for the Matter-first check in step 1).
 
 ---
 

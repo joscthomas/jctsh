@@ -20,3 +20,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
+
+  matter-server:
+    container_name: matter-server
+    image: ghcr.io/home-assistant-libs/python-matter-server:stable
+    network_mode: host
+    volumes:
+      - /mnt/jctsh-logs/matter-server:/data
+    restart: unless-stopped
+    security_opt:
+      - apparmor:unconfined
+    command: ["--storage-path", "/data", "--paa-root-cert-dir", "/data/credentials", "--primary-interface", "wlan0"]

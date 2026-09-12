@@ -9,7 +9,31 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0265 -->
+<!-- next-card-id: CARD-0266 -->
+
+---
+
+### CARD-0265 · [bug] [logging] Dashboard still unreadably dark after the earlier brightness fix — RESOLVED 2026-09-12 MST (transient tab state, not a persistent cause)
+
+**Status:** Done
+
+**Raised 2026-09-12 MST (Joseph), reopening the legibility complaint** — the brightness-only CSS fix (deployed as `daefc73`, "Improve legibility of / and /status dashboard pages") did not resolve it. New evidence this time, ruling out what was previously suspected: it's the **only** browser tab/window on the laptop with this problem (every other site renders normally), and the dashboard **was fine until recently** — not a longstanding Windows/HDR condition, and not a global browser dark-mode toggle (already checked off, per the earlier session's troubleshooting).
+
+**Real finding, checked directly against `core/logging/log_server.py`, not assumed:** none of the three served pages (`/`, `/status`, `/kanban`) declare a `color-scheme` anywhere — no `<meta name="color-scheme">` tag, no CSS `color-scheme` property on `:root`/`html`/`body`. All three use hardcoded dark palettes (`background:#1a1a1a`, etc. on `/`/`/status`; CSS-variable light/dark on `/kanban`) but never tell the browser "this page already implements its own theme."
+
+**Why this plausibly explains every symptom that ruled out the earlier hypotheses:** Chrome's "Automatically darken web content" (force-dark) feature decides **per page** whether a site already has its own dark theme; a page with no `color-scheme` declaration can get misjudged and have Chrome's own darkening/inversion filter applied on top of the page's already-dark palette — producing exactly this symptom (isolated to one specific site, since the heuristic runs per-origin; explains why the earlier brightness bump did nothing, since that filter operates on the *rendered* colors, not the source values; and is consistent with "recently," since a Chrome update changing the heuristic, or the feature getting toggled at some point, would explain the timing without anything in JCTsh's own code changing).
+
+**Fix:** add an explicit `color-scheme` declaration to all three pages so Chrome (and any browser implementing the same standard) knows not to second-guess the theme — `<meta name="color-scheme" content="dark">` for `/` and `/status` (always-dark, no light variant), `content="light dark"` for `/kanban` (which already supports both via its own `@media (prefers-color-scheme: dark)` block).
+
+**`color-scheme` fix built and deployed, 2026-09-12 — did not resolve it.** Added `<meta name="color-scheme" content="dark">` (`/`, `/status`) / `content="light dark"` (`/kanban`), deployed to the Pi, confirmed present in the served source. Joseph's browser still showed the dashboard too dark after a hard refresh (Ctrl+Shift+R).
+
+**Narrowed decisively away from server-side, 2026-09-12.** Joseph opened the dashboard in a Brave **private window** and it rendered fine — ruling out JCTsh's code and the missing `color-scheme` declaration (real, worth having, but not the actual cause here) as the source. Checked `brave://extensions` (no dark-mode/reader extension present) and the site-info permissions panel for `pi1.local` (no dark-mode-related entry exposed there) in a normal window — both came back clean, ruling out the two most likely persistent culprits before a Brave-specific global setting (`brave://settings/appearance`'s "Automatically darken web content") could even be checked.
+
+**Resolved itself, 2026-09-12, before that last check completed — closing the affected tab and opening a fresh one fixed it.** No persistent setting or extension was ever confirmed as the cause. Best-supported explanation given everything ruled out: a **transient per-tab rendering glitch** in that specific Brave tab/renderer process, not a persistent extension, site setting, browser-wide setting, or JCTsh code issue.
+
+**Done when:** the dashboard renders correctly — **met**, confirmed in a fresh tab. Root cause not conclusively identified (ruled out: JCTsh's own CSS, missing `color-scheme`, extensions, per-site permissions) — if this recurs, check `brave://settings/appearance`'s "Automatically darken web content" toggle next, the one remaining unchecked hypothesis. The `color-scheme` meta tag addition stays regardless — correct practice, harmless, and worth having even though it wasn't the actual fix here.
+
+**Related:** the earlier (insufficient) brightness fix, `core/logging/log_server.py`.
 
 ---
 
@@ -22,6 +46,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 **Not a plan to do this — a decision rule for if it ever comes up.** There's no reason to buy this hardware or migrate anything speculatively. The trigger is wanting real HA capability (dashboard, automation, Node-RED logic) over one *specific* device that's currently ST-hosted. When that happens, check in this order before reaching for a USB coordinator:
 1. Does that specific device have a Matter path — native Matter support, or a manufacturer bridge/firmware update to Matter? If yes, that's the preferred route (matches the already-established HA-first Matter registration order, `JCTsh-Build-Standards.md` §6.4/CARD-0262) — no new radio hardware, no per-device re-pairing onto a coordinator.
 2. Only if no Matter path exists for that device does a USB Zigbee/Z-Wave coordinator become the actual option — and even then, it's a per-device re-pairing job (leave the SmartThings network, join the new coordinator's network), not a bulk migration.
+
+**USB port availability, checked 2026-09-12 — not a blocker, but a real caveat if step 2 is ever reached.** The Pi is a Raspberry Pi 3B+: 4 USB 2.0 ports total, only 1 currently used (the `jctsh-logs` drive, `/dev/sda1` — CARD-0159). The CARD-0060 cooling fan on the same shelf draws from its own wall adapter, not a Pi port, so it doesn't count against this. 3 ports free — enough for a Zigbee coordinator, or even both a Zigbee and a Z-Wave stick. Caveat: all 4 ports share a single internal USB 2.0 hub with the onboard Ethernet controller (no USB 3.0 on this board) — a new coordinator's traffic and the `jctsh-logs` drive's I/O would compete on that same shared bus under heavy load, unlike a Pi 4/5's independent USB 3.0 lanes. Not a reason to avoid this, just worth remembering if a coordinator is ever added and something on that bus seems slower than expected.
 
 **Done when:** N/A as scoped — this card exists to hold the decision criteria above so it isn't re-derived from scratch next time a specific device's HA-visibility gap actually matters. Revisit/close or convert to real work only when a concrete device triggers it.
 

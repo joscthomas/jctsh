@@ -449,19 +449,20 @@ _HTML_TEMPLATE = """\
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjMWExYTFhIi8+PHRleHQgeD0iMTYiIHk9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMDBjYzk5IiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjIyIiBmb250LXdlaWdodD0iYm9sZCI+SjwvdGV4dD48L3N2Zz4=">
   <style>
     html, body { height:100%; }
-    body { background:#1a1a1a; color:#e0e0e0; font-family:monospace;
-           font-size:13px; margin:0; display:flex; flex-direction:column; overflow:hidden; }
+    body { background:#1a1a1a; color:#e0e0e0;
+           font-family:ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+           font-size:14px; margin:0; display:flex; flex-direction:column; overflow:hidden; }
     h2   { color:#00cc99; margin-bottom:4px; }
-    .sub { color:#b0b0b0; font-size:11px; margin-bottom:16px; }
+    .sub { color:#c8c8c8; font-size:11px; margin-bottom:16px; }
     .headerblock { flex:none; padding:20px 20px 0; }
     .controls { margin-bottom:12px; }
-    .controls label  { color:#c0c0c0; margin-right:4px; }
+    .controls label  { color:#c8c8c8; margin-right:4px; }
     .controls select { background:#111; color:#e0e0e0; border:1px solid #333;
-                       padding:3px 8px; font-family:monospace; margin-right:16px;
+                       padding:3px 8px; font-family:inherit; margin-right:16px;
                        cursor:pointer; }
     .tablewrap { flex:1; overflow-y:auto; padding:0 20px 20px; }
     table { border-collapse:collapse; width:100%; }
-    th    { color:#aaa; font-size:11px; text-align:left; padding:4px 8px;
+    th    { color:#c0c0c0; font-size:11px; text-align:left; padding:4px 8px;
             border-bottom:1px solid #2a2a2a; background:#1a1a1a;
             position:sticky; top:0; z-index:1; }
     td    { padding:3px 8px; vertical-align:top; cursor:text; }
@@ -593,23 +594,24 @@ _STATUS_TEMPLATE = """\
   <title>JCTsh Device Status</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjMWExYTFhIi8+PHRleHQgeD0iMTYiIHk9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMDBjYzk5IiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjIyIiBmb250LXdlaWdodD0iYm9sZCI+SjwvdGV4dD48L3N2Zz4=">
   <style>
-    body    { background:#1a1a1a; color:#e0e0e0; font-family:monospace;
-              font-size:13px; margin:20px; }
+    body    { background:#1a1a1a; color:#e0e0e0;
+              font-family:ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+              font-size:14px; margin:20px; }
     h2      { color:#00cc99; margin-bottom:4px; }
-    h3      { color:#aaa; font-size:11px; margin-top:24px; margin-bottom:8px;
+    h3      { color:#c0c0c0; font-size:11px; margin-top:24px; margin-bottom:8px;
               text-transform:uppercase; letter-spacing:2px; }
-    .sub    { color:#b0b0b0; font-size:11px; margin-bottom:16px; }
+    .sub    { color:#c8c8c8; font-size:11px; margin-bottom:16px; }
     table   { border-collapse:collapse; width:100%; margin-bottom:8px; }
-    th      { color:#aaa; font-size:11px; text-align:left; padding:4px 8px;
+    th      { color:#c0c0c0; font-size:11px; text-align:left; padding:4px 8px;
               border-bottom:1px solid #2a2a2a; }
     td      { padding:3px 8px; vertical-align:top; }
     tr:hover td { background:#1f1f1f; }
     .online  { color:#00cc99; }
     .offline { color:#ff4444; }
-    .unknown { color:#aaa; }
-    .dim     { color:#666; }
-    .ts      { color:#b0b0b0; white-space:nowrap; }
-    .msg     { color:#d0d0d0; }
+    .unknown { color:#c0c0c0; }
+    .dim     { color:#888; }
+    .ts      { color:#c8c8c8; white-space:nowrap; }
+    .msg     { color:#e0e0e0; }
   </style>
 </head>
 <body>

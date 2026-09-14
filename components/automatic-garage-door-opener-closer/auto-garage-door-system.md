@@ -51,11 +51,9 @@ Real ST-paired garage door position sensor ──▶ garage_door_open_vswitch (O
                                             SmartThings Auto-Close Routine (lives in ST, not HA)
                      IF garage_door_auto_close_enable_vswitch = ON
                         AND (garage_door_open_vswitch = ON AND garage_presence_vswitch = OFF)
-                     THEN garage_door_trigger_auto_open_close_vswitch = ON
+                     THEN turn on the real relay device directly (no intermediate vswitch)
                                                                     ▼
-                                    (this vswitch turning on triggers the Zigbee relay —
-                                     exact ST-internal hop to switch.open_close_garage_door
-                                     not fully detailed; see note under Component 3)
+              "Garage Door Trigger Auto Open/Close" — real Zigbee relay (eWeLink ZB-SW01)
                                                                     ▼
                                           Zigbee low-voltage switch relay closes momentarily
                                                                     ▼
@@ -146,11 +144,27 @@ undocumented anywhere until now.
 
 - **No ESP32, no Node-RED, no HA automation of its own** — purely hardware + a SmartThings
   Routine.
-- **The physical chain:** SmartThings/Google Home command → Zigbee low-voltage switch
-  (relay closes momentarily) → CreaCity universal remote's PCB (button contacts bridged
-  directly to the relay's output terminals) → standard Security+ 2.0 RF signal → LiftMaster
-  opener. The LiftMaster is never modified and never knows this isn't a real remote button
-  press.
+- **Real hardware, confirmed 2026-09-13 via SmartThings device info screens:**
+  - **The relay:** SmartThings app name **"Garage Door Trigger Auto Open/Close"** — model
+    `ZB-SW01`, manufacturer **eWeLink** (the Sonoff/ITEAD ecosystem brand), Zigbee,
+    uncertified with SmartThings (a generic third-party device, works fine anyway). This is
+    the actual physical relay — **not a virtual switch**; earlier drafts of this doc modeled
+    a separate "trigger vswitch" between the routine's condition and the relay, which turned
+    out to be the same real device, just referred to loosely — confirmed 2026-09-13. `switch.
+    open_close_garage_door`/"Open/Close Garage Door" (`automatic-garage-door-opener-closer/
+    CLAUDE.md`'s own naming) is almost certainly this same physical device under an
+    earlier/alternate label, not a second relay.
+  - **The door position sensor:** SmartThings app name **"Garage Door Sensor"** — model
+    `0004-0003`, manufacturer code `014A-0004-0003` (`014A` is Samsung's own manufacturer ID
+    in the Z-Wave registry — this is Samsung's official SmartThings-branded Z-Wave sensor,
+    likely the SmartThings Multipurpose Sensor, which pairs a magnetic contact with a
+    built-in accelerometer — commonly run in tilt mode on garage doors specifically because
+    a moving door has no fixed frame gap for a plain two-part contact sensor, matching the
+    "slide/mercury switch" behavior already described).
+- **The physical chain:** SmartThings/Google Home command → the eWeLink Zigbee relay closes
+  momentarily → CreaCity universal remote's PCB (button contacts bridged directly to the
+  relay's output terminals) → standard Security+ 2.0 RF signal → LiftMaster opener. The
+  LiftMaster is never modified and never knows this isn't a real remote button press.
 - **Critical property: the command is a toggle, not an open/close command.** The Zigbee
   switch firing always just makes the LiftMaster reverse whatever it's currently doing —
   the same signal opens a closed door and closes an open one. This is *why* the system needs
@@ -168,18 +182,17 @@ undocumented anywhere until now.
   bookkeeping... could be tracked HA-natively instead" — it's driven by real hardware, so a
   future HA-native rebuild needs to account for that sensor directly, not just recreate a
   software flag.
-- **The actual trigger chain, confirmed 2026-09-12:** the SmartThings Auto-Close Routine's
-  logic is `IF garage_door_auto_close_enable_vswitch = ON AND (garage_door_open_vswitch =
-  ON AND garage_presence_vswitch = OFF) THEN garage_door_trigger_auto_open_close_vswitch =
-  ON` — a **fourth vswitch**, not previously documented anywhere in this repo, distinct from
-  `switch.open_close_garage_door`. Turning this trigger vswitch on is what fires the Zigbee
-  relay. Being an `IF...AND(...)` condition rather than a single-event trigger resolves the
-  original concern about the everyday case (door already open, presence drops out later) —
-  the condition is presumably re-evaluated whenever either `garage_door_open_vswitch` or
-  `garage_presence_vswitch` changes, not only when the door first opens. The exact internal
-  hop from this trigger vswitch to `switch.open_close_garage_door` firing the real relay
-  (same automation's second action, vs. a second chained ST Routine) is still unconfirmed —
-  minor detail, doesn't change the overall picture.
+- **The actual trigger chain, confirmed 2026-09-12/13:** the SmartThings Auto-Close
+  Routine's logic is `IF garage_door_auto_close_enable_vswitch = ON AND
+  (garage_door_open_vswitch = ON AND garage_presence_vswitch = OFF) THEN turn on the real
+  eWeLink relay` — one hop, no intermediate vswitch (see the real-hardware note above; an
+  earlier draft of this doc modeled a separate "trigger vswitch" here that turned out to be
+  the same physical relay device, just loosely named). Turning the relay on is what SmartThings
+  sends directly to the Zigbee device, which throws it as a momentary switch. Being an
+  `IF...AND(...)` condition rather than a single-event trigger resolves the original concern
+  about the everyday case (door already open, presence drops out later) — the condition is
+  presumably re-evaluated whenever either `garage_door_open_vswitch` or
+  `garage_presence_vswitch` changes, not only when the door first opens.
 - **Voice control:** the Zigbee switch itself is exposed to Google Home via SmartThings,
   so "Hey Google, turn on the garage door opener" fires the same relay/toggle path directly,
   independent of the auto-close logic.
@@ -207,17 +220,21 @@ Four questions were open when this doc was first written; three are now fully re
 1. ~~What sets `switch.garage_door_open_vswitch`?~~ **Resolved** — a real ST-paired door
    position sensor, not bookkeeping (see Component 3 above; corrects CARD-0260).
 2. ~~Does the routine trigger on presence-off or only door-open?~~ **Resolved** — it's an
-   `IF...AND(...)` condition over the enable/door/presence vswitches via a fourth
-   intermediary trigger vswitch, not a single door-open edge trigger (see Component 3).
+   `IF...AND(...)` condition over the enable/door/presence vswitches, directly turning on
+   the real relay — not a single door-open edge trigger, and no intermediate vswitch (see
+   Component 3, corrected 2026-09-13).
 3. ~~What does "garage lights" cover?~~ **Resolved, broader than lights** — lights, a fan,
    a soldering iron, and potentially other garage devices (see "The Goal" above).
 4. ~~Is the HA timer the only delay?~~ **Confirmed yes** — `input_number.garage_timer_duration`
    is the one adjustable "how long with no presence" parameter in the whole system.
 
-**Last detail confirmed 2026-09-12:** `garage_door_trigger_auto_open_close_vswitch` turning
-on causes SmartThings to send the signal directly to the Zigbee device, which throws the
-relay as a momentary switch — one hop, no second chained Routine. The door-position sensor
-itself is a mechanical slide/tilt switch (mercury-switch-style), not magnetic reed.
+**Last details confirmed 2026-09-12/13:** the routine's condition turns on the real eWeLink
+relay directly — SmartThings sends the signal straight to the Zigbee device, which throws
+the relay as a momentary switch, one hop, no vswitch and no second chained Routine. The
+door-position sensor is Samsung's own official Z-Wave sensor (likely the SmartThings
+Multipurpose Sensor), run in tilt/accelerometer mode rather than plain magnetic contact —
+matching the "slide/mercury switch" behavior, with real model/manufacturer IDs now on file
+(see Component 3).
 
 Every piece of this system is now fully documented — no open questions remain.
 

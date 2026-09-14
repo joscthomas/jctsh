@@ -2,7 +2,40 @@
 Description=Snapshot journald to persistent storage before any shutdown/reboot (CARD-0248)
 DefaultDependencies=no
 Before=shutdown.target reboot.target halt.target poweroff.target
-RequiresMountsFor=/mnt/jctsh-logs
+# CARD-0248 follow-up: Before=shutdown.target alone only guarantees we finish
+# sometime before shutdown.target's own completion -- it races in parallel
+# with every other service's stop job, with no guarantee we run *after* them.
+# Confirmed live 2026-09-14: a real reboot's snapshot stopped at "Starting
+# journal-snapshot.service", missing the ~30s of actual "Stopping <unit>..."
+# sequence that followed. final.target (systemd.special(7): "pull in late
+# services after all normal services are already terminated") is NOT the
+# fix here -- it also runs after all mounts are unmounted, and this unit
+# needs /mnt/jctsh-logs to still be writable. Explicit After= on the specific
+# services whose shutdown-time log lines actually matter (docker's container
+# stop sequence, mosquitto's connection-loss lines, Node-RED) is the correct,
+# narrower fix: still Before=shutdown.target (proven safe -- mount is present
+# then), but now provably after these three instead of racing them.
+After=docker.service mosquitto.service nodered.service
+# CARD-0248 follow-up, second real bug found 2026-09-14: RequiresMountsFor
+# below (present since the original 2026-09-06 build) turned out to be why
+# this unit had *never once* actually fired during a real reboot -- confirmed
+# by isolated live testing (a minimal unit with no RequiresMountsFor fired
+# correctly across 3 real reboots; adding RequiresMountsFor=/mnt/jctsh-logs
+# to an otherwise-identical unit made it silently never run, every time).
+# RequiresMountsFor adds a hard Requires= on the mount unit, not just
+# ordering -- during a real shutdown, that mount unit is itself a normal
+# default-dependencies unit slated to be torn down before shutdown.target
+# completes, same as everything else. A unit that both demands the mount
+# stay active (Requires=) and is itself ordered Before=shutdown.target
+# creates a genuine ordering conflict, which systemd resolves by silently
+# dropping our job -- no visible error, since journald's own volatile
+# storage (CARD-0246) loses whatever it logged about the decision before we
+# could read it. Fix: dropped entirely, relying instead on the
+# DefaultDependencies=no + Before=shutdown.target timing already proven live
+# (3/3 successful runs, always well before the mount is ever torn down --
+# local-fs unmounting only happens after shutdown.target completes, via
+# final.target, strictly after this unit's own Before=shutdown.target
+# ordering is satisfied).
 
 [Service]
 Type=oneshot

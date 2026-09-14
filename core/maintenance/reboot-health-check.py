@@ -201,7 +201,7 @@ if ha_status == "healthy" and env.get("HA_TOKEN") and env.get("HA_URL"):
             "auto_reloaded": auto_reloaded,
             "watch_domains": watch_domains,
         }
-    except (urllib.error.URLError, KeyError, ValueError) as exc:
+    except (urllib.error.URLError, KeyError, ValueError, subprocess.SubprocessError, OSError) as exc:
         entity_check = {"error": str(exc)}
 
 payload = json.dumps({

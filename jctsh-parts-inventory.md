@@ -152,7 +152,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | JST GH 1.25mm Pitch 6-Pin Cable | 100mm long. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
 | STEMMA QT / Qwiic Cable | Adafruit #4209, JST SH 4-pin to premium male headers, 150mm long. https://www.adafruit.com/product/4209 | 2 | Bin A2 (was Bag 31) | 1 used: hiking-monitor (LTR-390 sensor-side rewiring, CARD-0009). 1 spare. |
 | AreMe 90° USB-C Male to Female Adapter | 90-degree right angle, USB-C male to USB-C female, 100W. Originally a 2-pack, metallic purple (https://www.amazon.com/dp/B0B2NJ3P3L); 8 more received as a 4-pack, "100W Type-C Adapter Extender for Steam Deck, ROG Ally, Switch 2, Notebook Computers, Thunderbolt 4, Tablet and Mobile Phones" (https://www.amazon.com/dp/B0H3JNGX1D) | 10 | Bin D1 (was Bag 33) | No project assigned. |
-| HiLetgo CP2102 USB to TTL Module | USB 2.0 to TTL serial converter adapter, with jumper wires. https://www.amazon.com/dp/B00LODGRV8 | 1 | Bin D4 | No project assigned. |
+| HiLetgo CP2102 USB to TTL Module | USB 2.0 to TTL serial converter adapter, with jumper wires. https://www.amazon.com/dp/B00LODGRV8 | 1 | Bin C6 | No project assigned. |
 | SEN55 Connector Cable (Dupont) | Cable that came bundled with the SparkFun SEN-23715 (SEN55) sensor, terminated with Dupont connectors. | 1 | Bin D4 | No project assigned — air-quality-monitor's build uses the JST GH 1.25mm cable (Bag 25) instead. |
 | 90 Degree USB A Male to USB C Male Adapter | Various angles/orientations. https://www.amazon.com/dp/B0H1H74Z98 | 5 | Bin B5 | No project assigned. |
 
@@ -307,4 +307,5 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-09-09 | Stock | Corrected EVE 18650 cell entry (Bag 5): mislabeled "3.3V" corrected to the real EVE INR18650/33V spec (3.6V nominal/4.2V peak, standard Li-ion, not LiFePO4) — confirmed via manufacturer/retailer listings, resolving CARD-0256's open chemistry question |
 | 2026-09-14 | Stock | 40-pin breakaway headers ×10 strips, 0.1"/2.54mm pitch, equal length (ASIN B015KA0RRU) added to Prototyping and Build Hardware, Plastic Box — same location as the Taiss pin headers |
 | 2026-09-14 | Stock | AreMe 90° USB-C M-F adapter ×8 received as a 4-pack (ASIN B0H3JNGX1D, same item as the existing 2-pack B0B2NJ3P3L), Cables and Adapters, Bin D1 — qty 2 → 10 |
+| 2026-09-14 | Stock | Corrected HiLetgo CP2102 USB to TTL module physical location: Bin D4 → Bin C6 |
 | 2026-09-14 | Stock | Adhesive wall mount bracket for Ring Indoor Cam ×2 (ASIN B0DLB9YQ2J) received, added to Prototyping and Build Hardware, new Bag 40 |

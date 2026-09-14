@@ -50,8 +50,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0268 · [bug] [infrastructure] Docker pulls on the Pi can starve HA's own I/O on the shared USB 2.0 bus — real, not hypothetical
-**Status:** Backlog
+### CARD-0268 · [bug] [infrastructure] Docker pulls on the Pi can starve HA's own I/O on the shared USB 2.0 bus — real, not hypothetical — RESOLVED 2026-09-14 10:05 MST via CARD-0269
+**Status:** Done
 
 **Referrers-hang bug fully resolved 2026-09-14, via CARD-0266's actual apply.** The digest-pull workaround (fix option 5, "pull by exact manifest digest instead of the floating `:stable` tag") was tried and **failed identically** — `docker pull ghcr.io/home-assistant/home-assistant@sha256:a1bc133af84e...` hung the same way, ruling out tag-resolution as the trigger. **The real workaround: containerd's own lower-level CLI, `sudo ctr -n moby images pull ghcr.io/home-assistant/home-assistant:stable`, bypasses the hang entirely.** `ctr` doesn't go through dockerd's own pull orchestration (the code path that gets stuck after the referrers 404 + manifest 404 double-miss) — it talks to containerd directly, correctly recognized all already-downloaded content as "already exists," and proceeded to genuinely extract the one missing layer. Ran for ~50 minutes total (mostly slow extraction off the USB 2.0 bus, not stuck) and completed cleanly — `docker images` picked up the new digest immediately afterward with no further intervention needed.
 
@@ -72,7 +72,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 4. **The real architectural fix: move HA off the Pi onto the M8** (NVMe storage, 2.5GbE, no bus-sharing limitation at all) — removes the root cause rather than working around it, but a genuinely bigger change given HA's current tight coupling to Mosquitto/Node-RED (both Pi-native) for low-latency local automation.
 5. **For the separate referrers-404-hang bug specifically:** try pulling by exact manifest digest instead of the floating `:stable` tag (untried); or check whether a newer Docker Engine version is available for this Debian/Pi that fixes the underlying bug — this doesn't overlap with fix options 1-4 above, which only address the I/O-contention symptom, not this distinct hang.
 
-**Done when:** N/A as scoped — captured so the incident and options aren't lost, not yet decided which (if any) to pursue. Revisit if this recurs enough to justify picking one.
+**Closed 2026-09-14 10:05 MST — both confirmed real problems this card exists to track are now root-caused *and* mitigated, not just documented.** CARD-0269 built `pi-image-pull.py`, delivering fix option 1 (`ionice`, live-verified) and the `ctr`-based workaround for the referrers-hang bug (fix option 5) as the actual default pull mechanism on this host, plus fix option 2 (`--schedule`) as an available, verified flag — not yet used unattended by choice, but built and proven, not just theoretical. **Fix options 3 (split Docker's data-root) and 4 (move HA to the M8) remain undone, deliberately** — both are heavier architectural changes this card always framed as "revisit if this recurs enough to justify picking one," not pending commitments. With the actual pain point (a hung/contending pull) now addressed by a working, reusable tool, there's nothing this card needs a human decision on right now. If contention or a similar bug resurfaces despite `pi-image-pull.py`, reopen or reference this card rather than starting the investigation over — the root-cause analysis above still holds.
 
 **Related:** CARD-0264 (the shared-bus caveat this confirms live), CARD-0159 (why Docker's data-root is on the USB drive in the first place), CARD-0233 (the earlier ~67-minute slow-pull precedent), CARD-0266 (the update attempt that surfaced this).
 

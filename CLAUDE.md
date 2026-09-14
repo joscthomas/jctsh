@@ -159,16 +159,26 @@ To manage the container:
 # Restart HA (e.g. after config change)
 docker restart homeassistant
 
-# Recreate from compose file (e.g. after image update or docker-compose.yml change)
-cd /home/pi && docker compose up -d
-
 # View live logs
 docker logs -f homeassistant
 ```
 
+**Pulling a new image (CARD-0266/CARD-0268/CARD-0269, 2026-09-14) — never `docker pull`/`docker compose pull` on this host.** Both hang indefinitely on this Pi's Docker version (29.6.1) via a confirmed, reproducible bug (an OCI "referrers" 404 + manifest 404 double-miss makes dockerd's own pull orchestration go silent for 5+ minutes; survives a full reboot). Pulling also risks starving the live container's own I/O, since the Pi 3B+'s USB ports and Ethernet all share one internal USB 2.0 hub. Use the dedicated script instead, which wraps `ctr` (bypasses the hung code path) in `ionice` (protects the live container's I/O) and handles the container-recreate step's own known rough edges (a stale stop-event race, compose leaving the container under a temporary name):
+```bash
+sudo pi-image-pull.py ghcr.io/home-assistant/home-assistant:stable --recreate homeassistant
+```
+Deployed at `/usr/local/bin/pi-image-pull.py` on the Pi (source: `core/maintenance/pi-image-pull.py`). Takes any `image:tag`, not HA-specific — same command for any other Pi-hosted container.
+
+**Can also be scheduled instead of run immediately** — add `--schedule "<time>"` (systemd `OnCalendar` syntax, e.g. `"2026-09-21 03:30:00"`) to defer the pull to a one-shot transient systemd unit rather than running it in the foreground now:
+```bash
+sudo pi-image-pull.py ghcr.io/home-assistant/home-assistant:stable \
+  --recreate homeassistant --schedule "2026-09-21 03:30:00"
+```
+No timer file is left installed — it's transient and self-removes once it fires. Useful for landing a pull ahead of the Pi's existing Mon 3 AM reboot window (CARD-0268's original I/O-contention rationale) without needing to be awake for it. The deliberate default, though, is still to run it in the foreground and watch it — schedule it unattended only once it's been proven reliable over a few real updates.
+
 DNS is explicitly pinned to `8.8.8.8` / `8.8.4.4` in both `docker-compose.yml` and `/etc/docker/daemon.json` (tracked at `core/docker/daemon.json`). This prevents a recurrence of the June 2026 outage where HA lost all cloud connectivity because the container had a stale DHCP-assigned DNS server (`192.168.1.222`) baked in at creation time. `daemon.json` also pins Docker's `data-root` to the USB drive (`/mnt/jctsh-logs/docker`, CARD-0159) — containerd's own `root` setting does the same for its separate snapshot store (`/etc/containerd/config.toml`, tracked at `core/docker/containerd-config.toml`), which is where the actual bulk of image/container-layer data lives on this Docker install, not under `/var/lib/docker` itself.
 
-**Post-update entity-availability check (CARD-0240, generalized 2026-09-06):** after any `docker compose up -d`/recreate, check `/api/states` for unavailable entities, and check the container's own startup logs (`docker logs homeassistant`) for the `homeassistant.bootstrap` "Waiting for integrations to complete setup" line — **any integration named there is a candidate for this same fix, not just SmartThings/Ring specifically.** Confirmed on two separate integrations so far (`smartthings`/`ring` on 2026-09-05; `samsungtv` checked and confirmed the same reload mechanism applies on 2026-09-06, though it happened to be healthy at check time) — this is a generic Home Assistant behavior (a config entry can report `state: loaded` without having actually re-synced its entities after a restart), not specific to any one integration. Don't assume real device failure first — reload the affected integration's config entry via the HA REST API before investigating further:
+**Post-update entity-availability check (CARD-0240, generalized 2026-09-06):** after any recreate (via `pi-image-pull.py --recreate` or a plain `docker compose up -d`), check `/api/states` for unavailable entities, and check the container's own startup logs (`docker logs homeassistant`) for the `homeassistant.bootstrap` "Waiting for integrations to complete setup" line — **any integration named there is a candidate for this same fix, not just SmartThings/Ring specifically.** Confirmed on two separate integrations so far (`smartthings`/`ring` on 2026-09-05; `samsungtv` checked and confirmed the same reload mechanism applies on 2026-09-06, though it happened to be healthy at check time) — this is a generic Home Assistant behavior (a config entry can report `state: loaded` without having actually re-synced its entities after a restart), not specific to any one integration. Don't assume real device failure first — reload the affected integration's config entry via the HA REST API before investigating further:
 ```bash
 curl -s -X POST http://pi1.local:8123/api/config/config_entries/entry/<entry_id>/reload \
   -H "Authorization: Bearer $HA_TOKEN"

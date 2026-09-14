@@ -117,6 +117,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Pin Header JST Plug Connectors | QTEATAK, 2P/3P/4P/5P, right angle, 2.54mm pitch. https://www.amazon.com/dp/B0CH8G2XN9 | Assortment | Plastic Box       | Verify selection before build. |
 | Dupont Female Connectors (Taiss kit) | Female housings + female crimp pins, 1–7 pin, 2.54mm pitch, from the Taiss 600pc kit. https://www.amazon.com/dp/B0B11SX39B | Assortment | Bag 9             | Use with SN-28B crimping tool. Moved from Plastic Box, 2026-08-21. Verify selection before build. |
 | Single Row PCB Pin Header (Taiss kit) | Break-away male pin header strips, 2.54mm pitch, remainder of the Taiss 600pc kit. https://www.amazon.com/dp/B0B11SX39B | Assortment | Plastic Box       | Female connectors from this same kit moved to Bag 9, 2026-08-21 — this is what's left. Verify selection before build. |
+| 40-Pin Breakaway Headers | Male, 0.1"/2.54mm pitch, equal length, pack of 10. https://www.amazon.com/dp/B015KA0RRU | 10 strips | Plastic Box       | Same location as the Taiss pin headers above. Verify selection before build. |
 | Slide Switch Assortment | Gebildet 40pcs, SS12D10 (SPDT 1P2T 3-pin, 250V/3A) and SS12F15 (mini panel SPDT 3-pin, 50V/0.5A). https://www.amazon.com/dp/B0D55ZSH8Y | Assortment | Bin A3 (was Bag 23) | Verify rating before build. |
 | Wire Lever Connectors | 32Pcs Lever Wire Connectors, DIY Mini Compact Splicing Assortment Quick Electrical Connector Kit for 24-12 AWG https://www.amazon.com/dp/B0B28GQVVG | Assortment | Plastic Box       | Verify selection before build. |
 | Jumper Wires | Jumper Wire Kit - 840 Piece Breadboard Jumper Wire Set, 22ga 14 Assorted Lengths for Prototyping https://www.amazon.com/dp/B07WLPN929 | Assortment | Plastic Box       | Suitable for perfboard use, but not breadboards. |
@@ -129,6 +130,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | M3 Screw Assortment | 600 pcs, M3 hex button head cap screws, bolts, nuts, washers, 8 sizes: 6/8/10/12/16/20/25/30mm, 304 stainless steel. https://www.amazon.com/dp/B0D1457XQ3 | 600 | Plastic Box | No project assigned. Verify selection before build. |
 | GX16-3 Panel Mount Aviation Connector | 3-pin, circular metal aviation connector, panel/metal mount, male/female plug/socket pairs. https://www.amazon.com/dp/B07D3CY5LB | 10 | Bag 36 | No project assigned. |
 | Latching Mini On/Off Switch (BK-1208) | 50pcs, black, self-lock micro push button switch, DC 30V 1A, SMD flashlight type. https://www.amazon.com/dp/B086L2GPGX | 50 | Bin D5 | Satisfies the BK-1208 latching push-button called for in `components/air-quality-monitor/wiring.md`. |
+| Adhesive Wall Mount Bracket for Ring Indoor Cam | 2-pack, strong VHB stick-on, no-drilling camera mount, two ways installation with tape and screws. https://www.amazon.com/dp/B0DLB9YQ2J | 2 | Bag 40 | No project assigned. |
 
 ---
 
@@ -149,7 +151,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 3M Mini-Clamp Connectors | 3M, 4-conductor. Pinout for p-w-firefly CAN bus: Red=12V+ (leave unconnected), White=CAN-H, Green/Blue=CAN-L, Black=GND. | 3 | Bin D3 (was Bag 24) | Allocated: p-w-firefly project. Do not connect Red (12V+) to PiCAN2. |
 | JST GH 1.25mm Pitch 6-Pin Cable | 100mm long. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
 | STEMMA QT / Qwiic Cable | Adafruit #4209, JST SH 4-pin to premium male headers, 150mm long. https://www.adafruit.com/product/4209 | 2 | Bin A2 (was Bag 31) | 1 used: hiking-monitor (LTR-390 sensor-side rewiring, CARD-0009). 1 spare. |
-| AreMe 90° USB-C Male to Female Adapter | 2-pack, 90-degree angled, USB-C male to USB-C female, metallic purple. https://www.amazon.com/dp/B0B2NJ3P3L | 2 | Bin D1 (was Bag 33) | No project assigned. |
+| AreMe 90° USB-C Male to Female Adapter | 90-degree right angle, USB-C male to USB-C female, 100W. Originally a 2-pack, metallic purple (https://www.amazon.com/dp/B0B2NJ3P3L); 8 more received as a 4-pack, "100W Type-C Adapter Extender for Steam Deck, ROG Ally, Switch 2, Notebook Computers, Thunderbolt 4, Tablet and Mobile Phones" (https://www.amazon.com/dp/B0H3JNGX1D) | 10 | Bin D1 (was Bag 33) | No project assigned. |
 | HiLetgo CP2102 USB to TTL Module | USB 2.0 to TTL serial converter adapter, with jumper wires. https://www.amazon.com/dp/B00LODGRV8 | 1 | Bin D4 | No project assigned. |
 | SEN55 Connector Cable (Dupont) | Cable that came bundled with the SparkFun SEN-23715 (SEN55) sensor, terminated with Dupont connectors. | 1 | Bin D4 | No project assigned — air-quality-monitor's build uses the JST GH 1.25mm cable (Bag 25) instead. |
 | 90 Degree USB A Male to USB C Male Adapter | Various angles/orientations. https://www.amazon.com/dp/B0H1H74Z98 | 5 | Bin B5 | No project assigned. |
@@ -303,3 +305,6 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-09-08 | air-quality-monitor | Latching mini on/off switch BK-1208 ×50 (ASIN B086L2GPGX) received, added to Prototyping and Build Hardware, Bin D5 — satisfies the BK-1208 called for in `components/air-quality-monitor/wiring.md`, previously specified but not stocked |
 | 2026-09-09 | Stock | SEN55 connector cable (Dupont-terminated, bundled with the SparkFun SEN-23715 sensor) added to Cables and Adapters, Bin D4 — not used in the air-quality-monitor build, which uses the JST GH 1.25mm cable instead |
 | 2026-09-09 | Stock | Corrected EVE 18650 cell entry (Bag 5): mislabeled "3.3V" corrected to the real EVE INR18650/33V spec (3.6V nominal/4.2V peak, standard Li-ion, not LiFePO4) — confirmed via manufacturer/retailer listings, resolving CARD-0256's open chemistry question |
+| 2026-09-14 | Stock | 40-pin breakaway headers ×10 strips, 0.1"/2.54mm pitch, equal length (ASIN B015KA0RRU) added to Prototyping and Build Hardware, Plastic Box — same location as the Taiss pin headers |
+| 2026-09-14 | Stock | AreMe 90° USB-C M-F adapter ×8 received as a 4-pack (ASIN B0H3JNGX1D, same item as the existing 2-pack B0B2NJ3P3L), Cables and Adapters, Bin D1 — qty 2 → 10 |
+| 2026-09-14 | Stock | Adhesive wall mount bracket for Ring Indoor Cam ×2 (ASIN B0DLB9YQ2J) received, added to Prototyping and Build Hardware, new Bag 40 |

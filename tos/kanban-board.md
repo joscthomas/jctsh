@@ -9,7 +9,44 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0269 -->
+<!-- next-card-id: CARD-0270 -->
+
+---
+
+### CARD-0269 · [enhancement] [infrastructure] Scriptable, ionice-wrapped `ctr`-based image-pull for the Pi — schedulable, first real use run manually — RESOLVED 2026-09-14 09:50 MST
+**Status:** Done
+
+**Raised 2026-09-14 (Joseph), directly from CARD-0266/CARD-0268's HA update pain.** Build the pull mechanism CARD-0268's fix options 1-2 (ionice + scheduled window) and the `ctr`-workaround finding both pointed at, as a real reusable script — not just documented options on a card.
+
+**Scope, per Joseph's answers 2026-09-14:**
+- **Generic, not HA-specific** — takes an `image:tag` (and the Docker Compose service name to recreate) as arguments, so it's reusable for any Pi-hosted container update (HA today, whatever else lands on the Pi later), not hardcoded to `homeassistant`.
+- **Must support being scheduled** (e.g. a one-shot systemd unit or `at` job targeting ~3:30 AM Monday, ahead of the Pi's 3 AM / M8's 4 AM reboot window) — this is the actual point of the card, since CARD-0268's whole rationale was avoiding I/O contention with anything live on the shared USB 2.0 bus.
+- **Stays a deliberate, manually-triggered step, not a background automatic job** — matches the standing constraint from CARD-0268's discussion: applying an update is never unattended, only the pull-scheduling mechanism itself is infrastructure. The script gets invoked when a human/Claude has already decided to apply a specific update.
+- **First real use will be run immediately/manually, not scheduled** — Joseph's explicit call, given how much went wrong during CARD-0266's update (a genuine Docker 29.6.1 hang bug plus a real I/O-contention incident, both root-caused on CARD-0268): stability of the process itself is the priority right now, so the next real HA update runs the script live and watched, not unattended overnight, even though the script must be *built* to support scheduling for later use once it's proven reliable.
+
+**Mechanism, per CARD-0268's already-confirmed findings:** wrap `sudo ctr -n moby images pull <image>` (not `docker pull`/`docker compose pull` — confirmed to hang reproducibly on this host's Docker 29.6.1 via an OCI referrers-404 + manifest-404 double-miss) with `ionice` (idle I/O class) so it can't starve a live container's reads even if run while something's up. On completion, run `docker compose up -d <service>` to recreate the container on the now-present image.
+
+**Open questions for Build, not yet resolved:**
+- Exact scheduling mechanism — a one-shot `systemd-run --on-calendar`, a static `.timer` unit, or plain `at`? Whichever is simplest to invoke ad hoc without leaving a permanently-installed unit lying around when it's not in use.
+- Whether the script itself also handles the `docker compose up -d` recreation step and the post-update entity-availability check invocation, or just the pull — leaning toward pull-only (composable, matches "deliberate step" framing) but worth deciding explicitly before Build.
+- How to surface completion/failure back to Joseph when run scheduled/unattended (MQTT log line, per the Durable Logging convention, rather than relying on stdout that vanishes with the shell) — not needed for the first manual run, but needed before this is ever actually scheduled for real.
+
+**Built and verified live 2026-09-14 09:50 MST.** New `core/maintenance/pi-image-pull.py`, deployed to `/usr/local/bin/pi-image-pull.py` on the Pi (matching every other maintenance script's deploy location). Resolved the two open questions from Planning:
+- **Scheduling mechanism: `systemd-run --on-calendar=<time>`**, invoked ad hoc — a transient unit that self-removes after running, no permanently-installed timer file. Confirmed this was the right call: nothing left behind to clean up or forget about.
+- **Script handles the pull only by default**; an optional `--recreate <service> [--compose-dir <dir>]` also runs `docker compose up -d <service>` afterward and polls for a healthy/running state — composable, matches the "deliberate step" framing (you can pull now and recreate later, or do both in one invocation).
+- Also folded in, beyond the original scope: a retry-once-then-fail path for `docker compose up -d` (the exact stale "did not receive an exit event" race hit live during CARD-0266), and automatic detection/correction of a container left under compose's temporary auto-generated name (the second real rough edge from that same incident) — both discovered live during CARD-0266 and built straight into the script rather than left as tribal knowledge.
+- MQTT logging (component `jctsh-core`, topic `jctsh/core/log-server/log`, matching `pi-maintenance-check.py`'s established pattern) built in from the start rather than deferred — start/success/failure all publish, so a scheduled unattended run has the same visibility on the dashboard a manual run gets watching the terminal.
+
+**Verified live, both paths, using a harmless test image (`docker.io/library/hello-world:latest`) — not a synthetic/dry-run test:**
+- Immediate path: `sudo pi-image-pull.py docker.io/library/hello-world:latest` — real `ionice -c3 ctr -n moby images pull`, confirmed the image landed in containerd's content store (`ctr images ls`) afterward.
+- Scheduled path: `sudo pi-image-pull.py docker.io/library/hello-world:latest --schedule "2026-09-14 09:47:00"` — confirmed via `systemctl show` that the transient `.timer`/`.service` pair correctly computed `NextElapseUSecRealtime=... 09:47:00`, sat waiting, then genuinely fired at that exact time and completed with `Result=success`/`ExecMainStatus=0`. (First status check was a false negative from an over-eager wait-loop condition that matched the pre-fire "waiting" state — corrected by re-checking after the actual scheduled time passed; the real result above is from that corrected check.) Both transient units self-removed after completion, confirmed via `systemctl list-units` showing nothing left.
+- Test image removed from containerd afterward — no residue on the Pi from this verification pass.
+
+**Not built, deliberately out of scope per the Planning-stage decision:** no timer/schedule was armed for a real update — per Joseph's explicit call, the next actual HA (or any) update on the Pi will invoke this script manually and be watched closely, not scheduled unattended, given how much went wrong during CARD-0266.
+
+**Done when:** the script exists, correctly does an `ionice`-wrapped `ctr` pull for an arbitrary image, can be invoked either immediately or scheduled for a future one-shot time, and has been run for real at least once (manually, watched) on the next actual Pi container update — not just tested synthetically. **First two conditions met and verified live above; the third (a real production update run) is still pending — will be exercised the next time an update is applied.**
+
+**Related:** CARD-0266 (the update that surfaced the need), CARD-0268 (the root-cause investigation and fix options this formalizes), CARD-0264 (the shared-bus caveat), `feedback_durable_logging` memory (why completion logs to MQTT, not just stdout).
 
 ---
 

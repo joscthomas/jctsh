@@ -9,7 +9,33 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0266 -->
+<!-- next-card-id: CARD-0268 -->
+
+---
+
+### CARD-0267 · [enhancement] [photo-server] Immich update available: v3.1.0 → v3.2.0 — evaluated, not yet applied
+**Status:** Planning
+
+**Raised via automated maintenance finding (PR #75, photo-server), 2026-09-11.** Routine version-bump finding: Immich v3.2.0 available, running v3.1.0.
+
+**Evaluated 2026-09-13 — release notes checked, looks safe, not applied yet (Joseph's call — evaluate first, decide separately whether/when to apply).** v3.2.0 is a minor release: docker compose builder, revamped search UI/API, cross-user people clustering, workflow tags, a dedicated memories page, tag renaming, map viewport asset view. No "Breaking Changes" section in the release notes; the only migration-adjacent item is a new hint logged when a DB migration is missing on downgrade — a safety improvement, not something requiring action on upgrade. Nothing found that touches this instance's own setup (storage paths, auth, `immich-go` import tooling) in a way that would need pre-upgrade prep.
+
+**Not yet applied.** Plan when ready: `docker compose pull && docker compose up -d` on the M8 (per `components/photo-server/README.md`'s own deploy convention), then verify the container comes back healthy and a spot-check of recent uploads/thumbnails still renders correctly.
+
+**Related:** CARD-0128 (the auto-PR intake pipeline this came through), `components/photo-server/README.md`.
+
+---
+
+### CARD-0266 · [enhancement] [homeassistant] Home Assistant update available: 2026.9.1 → 2026.9.2 — evaluated, not yet applied
+**Status:** Planning
+
+**Raised via automated maintenance finding (PR #77, jctsh-core), 2026-09-12.** Routine version-bump finding: Home Assistant 2026.9.2 available, running 2026.9.1.
+
+**Evaluated 2026-09-13 — release notes checked, looks safe, not applied yet (Joseph's call — evaluate first, decide separately whether/when to apply).** 2026.9.2 is a patch release, entirely small per-integration bug fixes and dependency bumps (Hive, Roomba, Openhome, WebOS TV, Vizio, Tesla Fleet, Nest, ViCare, UniFi, Reolink, Weheat, MELCloud, Enphase, ZHA, ESPHome-setup robustness, frontend bump). Nothing touching MQTT, the SmartThings integration, the Matter integration/Matter Server (CARD-0262), Google Assistant, or the recorder — the pieces this instance actually depends on.
+
+**Not yet applied.** Plan when ready: same pattern as every prior HA update this project has done (CARD-0233/0236-0240) — `docker compose pull homeassistant && docker compose up -d homeassistant` on the Pi, then run the standing "Post-update entity-availability check" (root `CLAUDE.md`'s Home Assistant Docker Setup section) before calling it done — check `/api/states` for unavailable entities and reload any SmartThings/Ring/Matter config entries that report `loaded` without having actually resynced.
+
+**Related:** CARD-0128 (the auto-PR intake pipeline this came through), root `CLAUDE.md` (Home Assistant Docker Setup, the post-update check to run).
 
 ---
 
@@ -276,7 +302,9 @@ Deployed via the standard scp + `docker compose up -d --build orchestrator` cycl
 
 **Held rather than applied, 2026-09-10 — researched before landing, per this repo's standing PR-landing process.** A Cloudflare Community post from the last ~24h ("Issue with 2026.9.0 release of cloudflared") reports tunnel failures (origin unreachable, error 1033) after upgrading, resolved for that user by rolling back to 2026.8.3. One unconfirmed report — not corroborated by other community posts or GitHub issues at the time of this check, and no official Cloudflare acknowledgment found. But cloudflared is what backs the public `hikes.jctnet.com` Cloudflare Tunnel (`hike-izer-orchestrator`'s only public HTTPS surface — `hike-end`, `idea`, `step2`, `pipeline-log` webhooks, `birdnet-live` staging all go through it, per CARD-0227), so an outage here would be immediately felt on a live hike, not just a background service hiccup. Joseph's call: hold rather than apply now.
 
-**Done when:** revisit in 1-2 weeks — check for further community reports or GitHub issues corroborating or refuting the tunnel-failure claim, and check whether a newer patch release has since shipped. If the risk turns out to be unconfirmed or already fixed upstream, apply the update then via the normal `docker compose pull && docker compose up -d` cycle on the M8.
+**Re-checked 2026-09-13 (PR #78, superseded/closed as duplicate) — still holding, not enough new evidence yet.** A newer patch, 2026.9.1, has shipped — but its own release notes only mention an unrelated transport log-level revert, no tunnel-connectivity fix. No further corroboration or refutation of the original single Cloudflare Community report was found either. The "revisit in 1-2 weeks" window hasn't fully elapsed (3 days in). Still holding; re-check again closer to the full window, targeting whatever version is current then.
+
+**Done when:** revisit again nearer the full 1-2 week window — check for further community reports or GitHub issues corroborating or refuting the tunnel-failure claim, and check whether a newer patch release has since shipped and fixed it. If the risk turns out to be unconfirmed or already fixed upstream, apply the update then via the normal `docker compose pull && docker compose up -d` cycle on the M8.
 
 **Related:** CARD-0126 (container-image update-visibility check that raised this), CARD-0227 (the Cloudflare Tunnel setup for `hikes.jctnet.com` this update would touch), CARD-0128 (the auto-PR intake pipeline).
 

@@ -32,8 +32,18 @@ from datetime import datetime, timezone
 # failure succeeded cleanly. Retrying a couple times costs nothing on the
 # happy path and rides out that class of transient failure instead of
 # killing the whole run over it.
-FETCH_RETRY_ATTEMPTS = 3
-FETCH_RETRY_BACKOFF_SEC = (2, 4)
+#
+# CARD-0275, 2026-09-15: widened from 3 attempts/~6s total to 5 attempts/~45s
+# total. A real incident showed Google's own transient error state can last
+# 45+ minutes -- a single-shot caller (the backstop probe) drew three bad
+# attempts in a row within the old ~6s window and failed outright, while a
+# caller making many fetch_sheet() calls across a longer real span (a full
+# generation run) rode out four more recurrences of the same error and
+# still completed, purely because each individual call's own retry window
+# happened to be wide enough. Widening gives every caller, not just the
+# lucky ones, real headroom against an outage of that duration.
+FETCH_RETRY_ATTEMPTS = 5
+FETCH_RETRY_BACKOFF_SEC = (3, 6, 12, 24)
 
 
 def fetch_sheet(base_url, api_key, sheet, start, end):

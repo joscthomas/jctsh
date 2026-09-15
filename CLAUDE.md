@@ -17,7 +17,10 @@ At the start of every Claude Code session in this repo, before doing anything el
    auto-opened maintenance findings (container-image updates, firmware, etc.) with a
    `CARD-XXX` placeholder title, not yet merged into `tos/kanban-board.md`. Summarize what's
    open and ask Joseph what he wants to do with them — don't merge or close any without
-   his go-ahead.
+   his go-ahead. **Exception: never surface the `jctsh-pr-selftest` PR** (CARD-0192's daily
+   self-test of this same intake pipeline) — a PR from that component existing at all is a
+   successful test result, not a finding needing a decision, and it closes itself
+   automatically on the next day's run. Skip it from the summary entirely.
 4. **Auto verify markers (date-based) — check for any card carrying an `Auto verify: <date>`
    marker whose date has already passed (CARD-0249, CARD-0251).** These mark a verification
    step that couldn't be done live at write time — usually because it depends on a future
@@ -47,6 +50,13 @@ At the start of every Claude Code session in this repo, before doing anything el
    noticeably large/slow to work with, run `python tos/archive_cards.py` (dry run) and offer
    to `--apply` if it finds a meaningful number of eligible cards. Don't run this every single
    session reflexively — it's a periodic check, not a per-session action.
+8. **Examine the JCTsh Log Dashboard (`http://pi1.local/`, Basic Auth user `jctsh`) for system
+   problems or data issues.** Scan recent entries across components for `Alert`-category
+   messages, error-shaped `System`/`MQTT` messages, or anything that otherwise looks wrong
+   (missing/gappy data, an unexpected reboot, a component gone silent) that isn't already
+   covered by steps 4/5's targeted marker checks above. Summarize anything notable to Joseph
+   rather than acting on it unprompted — this step is a general health scan, not a substitute
+   for the specific Auto verify/Watch for lookups.
 
 **Every timestamp written into `tos/kanban-board.md` (`Raised`, `RESOLVED`, `verified`, `Built`,
 `Decided`, status-line dates, anywhere else a date gets stamped) MUST include a time of day,

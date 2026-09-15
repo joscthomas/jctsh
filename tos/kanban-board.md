@@ -9,7 +9,98 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0270 -->
+<!-- next-card-id: CARD-0274 -->
+
+---
+
+### CARD-0273 · [enhancement] [infrastructure] hike-izer-orchestrator: replace ad hoc print() with leveled logging (stdlib `logging`)
+**Status:** Planning
+
+**Raised 2026-09-14 (Joseph), a direct follow-on from CARD-0270/CARD-0272's investigation.** Once container stdout is durable and queryable (CARD-0272's journald switch), the value of that durability depends on the output actually being distinguishable by kind — today every diagnostic message in the orchestrator is a bare `print(..., file=sys.stderr)` with no severity, so a future "how often is Nominatim actually failing" query means grepping free text, not filtering by level.
+
+**Real categories found, 2026-09-14 (Claude), grepping every print() call site in the deployed orchestrator:**
+- **Progress narration** (`"Fetching Environmental Data..."`, `"Searching Immich for assets..."`) — useful only while watching live, disposable after → `INFO`.
+- **Recoverable/degraded failures** (`"Caption failed for X: e"` → falls back to empty caption, `"fetch_hike_photos.py failed -- continuing without photos"`) — code already handles these gracefully, but worth surfacing if a pattern emerges → `WARNING`.
+- **Retry-attempt failures** (`"Step 1 generation failed (attempt 1/3)"`) — only the *final* attempt's failure currently reaches the durable MQTT/Alert path (`mqtt_log.publish_log`); intermediate attempts are stdout-only today → `WARNING`.
+- **Final/unrecoverable failures** — already correctly durable via `mqtt_log.publish_log("Alert", ...)` + `ha_notify.send_push(...)` — no gap here, but the local `logging` call alongside it should use `ERROR` for consistency.
+
+**Decided 2026-09-14 (Joseph's call, via AskUserQuestion):**
+1. **Independent of CARD-0272** — proceed regardless of whether the journald switch has landed yet; the level distinction is useful under plain `docker logs` too, not contingent on that card.
+2. **Scope: all of hike-izer-orchestrator's scripts**, not just the ones with recoverable-failure/retry prints found so far — every file in `/home/jct/hike-izer-web-app/orchestrator/` on the M8: `app.py`, `backfill_wildlife_counts.py`, `backstop_check.py`, `birdnet.py`, `build_battery_trend_index.py`, `build_calendar_index.py`, `build_hike_chart.py`, `build_hike_map.py`, `build_wildlife_index.py`, `cost_tracking.py`, `fetch_hike_data.py`, `fetch_hike_photos.py`, `generation.py`, `ha_notify.py`, `mqtt_log.py`, `narrative.py`, `open_kanban_pr.py`, `photo_captions.py`, `place_context.py`, `templating.py`, `wildlife_life_list.py`, `xeno_canto.py`.
+
+**Not yet scoped:** whether each script gets its own `logging.getLogger(__name__)` or one shared logger for the whole container; whether to add a `systemd.journal.JournalHandler` explicitly (maps Python levels to real syslog priority fields once CARD-0272's journald driver is in place) or just rely on plain formatted stderr output being level-tagged in text (works either way, but the former makes `journalctl -p warning` actually filter correctly rather than just text-matching a "WARNING" substring).
+
+**Done when:** every current `print(..., file=sys.stderr)` call site across the listed files is replaced with an appropriately-leveled `logging` call, a real orchestrator run (webhook-triggered, not synthetic) is confirmed to still produce correct, readable output via `docker logs`, and at least one real recoverable-failure case (e.g. a deliberately-broken Nominatim call, same test-injection style CARD-0244/CARD-0107 already used) is confirmed to log at `WARNING` and be filterable as such.
+
+**Related:** CARD-0272 (the journald durability this makes actually useful, though not a hard dependency), CARD-0270 (the cost-data investigation that started this whole thread), `components/hike-izer-orchestrator/*.py` (every file listed above).
+
+---
+
+### CARD-0272 · [enhancement] [infrastructure] M8-wide: switch Docker's logging driver to journald, reusing the M8's already-persistent journal
+**Status:** Planning
+
+**Raised 2026-09-14 (Joseph), as a general follow-on from CARD-0270's investigation.** CARD-0270 fixed cost data specifically (a dedicated Sheet), deliberately leaving the broader class of gap unfixed: hike-izer-orchestrator's other diagnostic-only messages (retry/failure notes in `fetch_hike_data.py`, `fetch_hike_photos.py`, `place_context.py`'s Nominatim/Overpass failures, `backstop_check.py`/`generation.py`'s per-attempt failures) still only exist in Docker's default `json-file` container logs, whose content didn't survive today's M8 reboot (root cause not fully isolated, per CARD-0270's notes) — and the same exposure applies to any future container/script on this host that logs to stdout without a dedicated durable store.
+
+**Grounded in CARD-0246's own finding, not a new investigation.** CARD-0246 (Pi journald volatile-storage bug) explicitly checked the M8 at the time and found its journald **healthy and persistent**: `/var/log/journal` populated with a real machine-id directory, `journalctl --list-boots` showing 5 boots spanning back to 2026-08-17, 302.9M of retained data. That's real, already-proven-durable storage on this exact host, sitting unused by Docker's containers, which default to the separate `json-file` driver instead.
+
+**Decided 2026-09-14 (Joseph's call, via AskUserQuestion):**
+1. **Driver: switch to `journald`**, not a new log-shipping aggregator (fluentd/syslog/etc.) — reuses proven-durable storage already on this host, no new infrastructure.
+2. **Scope: all 9 M8 containers** (`immich_server`, `immich_postgres`, `immich_machine_learning`, `immich_redis`, `hike-izer-orchestrator`, `netalertx`, `hike-izer-cloudflared`, `hike-izer-web`, `ring-mqtt`), applied globally via `/etc/docker/daemon.json`'s `log-driver` key (currently only sets `"dns": [...]`, confirmed by reading the file directly) rather than editing each container's compose config individually.
+
+**Real blast radius to plan around, not just a config edit:** `/etc/docker/daemon.json` changes require `systemctl restart docker` to take effect, which restarts **every container on the host** at once — same category of disruption CARD-0238 planned a deliberate maintenance window around for the Docker engine upgrade. Should be batched into a scheduled M8 maintenance window (per `jctsh-network.md`'s existing convention), not run ad hoc, and verified live afterward the same way CARD-0238 did (`docker ps` healthy for all 9 containers, `https://hikes.jctnet.com/` reachable).
+
+**Real behavior to confirm during Build, not assumed:** `docker logs <container>` should keep working transparently against the journald driver (Docker reads back through it), and existing tooling (`docker logs hike-izer-orchestrator | grep ...`, used throughout this session's own investigation) shouldn't need to change to `journalctl CONTAINER_NAME=...` — worth a real check before considering this done, not just trusting the docs.
+
+**Not yet scoped:** exact maintenance-window timing (next scheduled Monday 4am, or a dedicated pass like CARD-0238's Docker-upgrade window), whether journald's own retention/vacuum settings need adjusting given 9 containers' worth of additional log volume landing there.
+
+**Done when:** `/etc/docker/daemon.json` sets `journald` as the log driver, applied across a real Docker-daemon restart with all 9 containers confirmed healthy afterward, and a real container's stdout output (a fresh hike-izer-orchestrator run is the natural test, given CARD-0270's own investigation already established what its output looks like) is confirmed queryable via journald and survives a subsequent real M8 reboot — not just a synthetic test.
+
+**Related:** CARD-0246 (the Pi's journald fix — this card reuses the M8's own already-confirmed-healthy journald from that investigation, doesn't re-solve the Pi's problem), CARD-0270 (the narrower, already-decided cost-specific fix this generalizes), CARD-0238 (the M8-wide Docker-engine-upgrade precedent for planning a whole-host restart's blast radius and verification).
+
+---
+
+### CARD-0271 · [enhancement] [hiking-monitor] Experiment: benchmark Pl@ntNet against Claude's existing photo-caption plant IDs
+**Status:** Planning
+
+**Raised 2026-09-14 (Joseph), as a follow-on from CARD-0232's real finding** that CARD-0107's existing `photo_captions.py` pipeline already does species-level plant ID via `claude-opus-4-8` — the open design question is whether a dedicated plant-ID API (Pl@ntNet, per CARD-0232's research) actually beats that existing baseline enough to be worth integrating, or whether CARD-0232 should just extend `photo_captions.py` directly.
+
+**Interviewed 2026-09-14 (Joseph), via AskUserQuestion:**
+1. **Scope: the 64 real desert-hike plant photos already identified** (CARD-0232's own hand-classified count, hikes 2026-08-13 onward) — reuses photos Claude has already captioned, so those captions serve as a free, real comparison baseline. Deliberately excludes the Meijer Gardens cultivated-garden photos (not representative of Pl@ntNet's wild-plant training strength) and the 16 wildlife-primary/28 non-plant captions (out of scope for a plant-ID benchmark).
+2. **Cost: ~$0.51** (64 photos × Pl@ntNet's ~$8/1,000 pay-per-event pricing) — confirmed trivial, no budget concern.
+3. **Done when: a real comparison table + a go/no-go recommendation** — not just confirming the API works. Send each of the 64 photos to Pl@ntNet, record its returned species + confidence score, compare against Claude's existing caption for that same photo (agreement rate, cases where one names a species the other missed or got wrong, cases where Pl@ntNet's confidence is notably low/high), and conclude with a clear recommendation on CARD-0232's two design directions: extend `photo_captions.py` alone, or add Pl@ntNet as a second-opinion/confidence layer.
+
+**Scope for Build:** a throwaway script (not part of the deployed pipeline) that reads the 64 photos' thumb files from the M8 (`/home/jct/hike-izer-web-app/srv/*_photos/`), calls Pl@ntNet's API for each, and produces the comparison table. Needs a Pl@ntNet account/API key obtained first (per CARD-0232's research, no key needed for very light basic use, but confirm the real limit before running 64 calls).
+
+**Not yet scoped:** whether this script becomes throwaway (run once, findings folded into CARD-0232, script discarded) or worth keeping around for future re-benchmarking (e.g. if Plant.id is tried later) — decide at Build once the comparison is in hand.
+
+**Related:** CARD-0232 (the design question this experiment resolves), `components/hike-izer-orchestrator/photo_captions.py` (the existing baseline this benchmarks against).
+
+---
+
+### CARD-0270 · [enhancement] [infrastructure] Structured, queryable per-hike API cost data — a dedicated Sheet, not a substring in a notification message
+**Status:** Planning
+
+**Raised 2026-09-14 (Joseph)**, after asking for the real total API cost of all hike-photo captioning to date and finding the number effectively unavailable.
+
+**Original framing corrected same day, 2026-09-14 (Joseph caught it) — this is not a lost-data bug, CARD-0246 already covers durability.** First pass at this card assumed `docker logs hike-izer-orchestrator` (which only went back to today's M8 reboot) was the *only* record of `CostTracker.summary()`, and proposed a new durable file to fix it. Wrong — `generation.py` already calls `mqtt_log.publish_log("System", f"...(API cost: {tracker.summary()})")` on every publish, a real MQTT publish (not stdout) to the Pi's broker, persisted by `log_server.py` into `/mnt/jctsh-logs/jctsh.log` (CARD-0246's own durable, journald-independent log). Confirmed live by reading that file directly: real historical cost figures already exist there, e.g. `2026-09-05 19:35:22 MST | hike-izer-orchestrator | System | Published enriched hike summary for 2026-09-03: ... (API cost: $0.1984 (9 API calls, 38,052 in / 326 out tokens)).` So today's M8 Docker-log gap, while real, never actually put this data at risk — it was durably captured elsewhere the whole time. No M8-side persistence fix needed; this card is retitled and rescoped to the two real, narrower gaps found while checking that:
+
+1. **Not structured.** The cost figure is a substring inside a free-text notification message — getting "total spent to date" means grepping and regex-parsing log lines, not querying a field.
+2. **The Pi's `jctsh.log` itself only goes back to 2026-09-03** (5,611 lines total, all components, checked live) — so cost data for most of the 20 real hikes this session found (2026-06-18 through 2026-08-29) is already gone from this channel too, for an unrelated reason (log retention window, not the M8 reboot). A structural fix needs to store cost data somewhere with its own real retention, not depend on the general log's window.
+
+**Decided 2026-09-14 (Joseph's call) — a dedicated Google Sheet, matching this project's existing data architecture.** Every other structured JCTsh data type (Environmental Data, Hiking Observations, GPS Track, Wildlife Detections, Hike Start Forecast) already lives in a named Sheet, written via `core/data-pipeline/environmental-data.gs`'s `doPost` dispatching on `payload.component`, with an auto-provisioned sheet, an `appendRow`, and (per the `wildlife-detection` branch's existing convention) a `_relayLog(...)` call for dashboard visibility alongside the sheet write. A "Hike-izer Costs" sheet follows this exact pattern rather than introducing a new mechanism.
+
+**Scope, grounded in the real existing code (`environmental-data.gs`, `generation.py`, `cost_tracking.py`):**
+1. `environmental-data.gs`: new `doPost` branch, `payload.component === 'hike-izer-cost'` — auto-provisions a `Hike-izer Costs` sheet (columns: `ts`, `file_stem`, `run_type` [step1/step2/daily-refresh], `dollars`, `calls`, `input_tokens`, `output_tokens`, `web_searches`), dedup-checked before `appendRow` (decided below), then `_relayLog('hike-izer-cost', 'System', ...)` matching the `wildlife-detection` branch's own pattern.
+2. `cost_tracking.py` or `generation.py`: alongside the existing `mqtt_log.publish_log(...)` call (kept as-is for dashboard visibility), POST the same `CostTracker` fields to the Apps Script endpoint as `component: 'hike-izer-cost'`.
+3. **Backfill the ~9 real cost figures still recoverable from `jctsh.log`** (2026-09-03 onward) into the new sheet once it exists, decided 2026-09-14 (Joseph) — grep them out of the log and add them manually rather than starting the sheet's history from scratch.
+
+**Decided 2026-09-14 (Joseph) — dedup like GPS Track/Hiking Observations.** Same pattern CARD-0243/CARD-0244 established: check for an existing `(file_stem, run_type)` match before `appendRow`, return `{"status": "duplicate", ...}` on a match — protects against a retried generation run (`GENERATION_MAX_ATTEMPTS`) double-posting the same run's cost.
+
+**Not yet scoped:** whether `run_type` needs finer granularity than step1/step2/daily-refresh.
+
+**Done when:** a real hike-izer generation run writes a real row to the `Hike-izer Costs` sheet with correct fields, confirmed via the Sheet directly (not just "the POST returned 200"), and a "total cost to date" figure can be computed with a plain Sheets formula (e.g. `SUM`) rather than log-parsing.
+
+**Related:** CARD-0246 (the Pi log durability this card initially, incorrectly, thought needed re-solving — it doesn't), `core/data-pipeline/environmental-data.gs` (`doPost`, the `wildlife-detection` branch this new branch mirrors), `components/hike-izer-orchestrator/cost_tracking.py`, `components/hike-izer-orchestrator/generation.py` (`mqtt_log.publish_log` call sites this adds a Sheet POST alongside), CARD-0232 (the investigation that surfaced this gap while trying to answer "how much has captioning cost so far").
 
 ---
 
@@ -739,6 +830,8 @@ Archived to `core/homeassistant/CLAUDE.md` on 2026-09-10 (CARD-0193) — 5684B, 
 - **Pl@ntNet — leading candidate to try first.** No account/API key needed for basic use; pay-per-event pricing, roughly $8 per 1,000 identifications. Trained specifically on crowdsourced *wild* plant photos (not houseplants/nursery stock) across 81,693 species — a good match for desert trail flora (saguaro/ocotillo/palo verde already in the `vegetation` taxonomy). Returns a structured species + confidence score, which is far easier to feed into a pipeline automatically than parsing Claude's freeform text.
 - **Plant.id (Kindwise)** — a real, credible alternative. Independent academic studies found it outperformed PlantNet, iNaturalist, and Google Lens for British flora and for alien street-tree ID specifically. Also does plant health/disease detection (not needed here). Pricing tiers weren't confirmed by the search — would need to check `admin.kindwise.com` directly before committing.
 - **iNaturalist — ruled out.** Its full species-classification computer vision model is kept private (IP reasons); only small ~500-taxon on-device research models are public, not a general hosted identification API. Extra work to make usable, no clear win over Pl@ntNet/Plant.id.
+- **Real photo/cost data pulled from the M8, 2026-09-14 (Claude, `ssh jct@m8.local`, reading the actual manifest files under `/home/jct/hike-izer-web-app/srv/`)** — across 20 real hikes (2026-06-18 through 2026-09-10): **139 total photos, 116 actually captioned** (23 sat on hikes where only the data-only "step 1" page was ever published). Of 108 non-empty captions, hand-classified: **64 are genuine plant-species identifications**, 16 are wildlife-primary captions naming a plant substrate (e.g. "Carpenter bee foraging on white hydrangea blossoms"), 28 are non-plant subjects (mostly Chihuly glass sculptures from one Meijer Gardens hike, plus a scarecrow, a car, a trail marker, coyote scat). **Caveat:** the July 29 Meijer Gardens hike is a cultivated botanical garden, not wild desert trail flora — its plant IDs (dahlias, hardy hibiscus cultivars) are a different test case than Pl@ntNet's wild-plant training strength; the desert hikes (Aug 13 onward) are the representative sample for this card's actual use case.
+- **Real cost figure not available — a genuine gap, now tracked separately as CARD-0270.** The orchestrator container's stdout (the only place `CostTracker.summary()` ever printed) was wiped by an M8 reboot/container-log reset before this could be pulled. Estimated from real token math instead (opus-4-8, high-res tier, ~1440px thumbs, ~1500-2000 image tokens + ~300 prompt tokens/call, $5/$25 per 1M): **roughly $1-$2 total spent captioning all 116 photos to date** — genuinely trivial regardless of the exact figure.
 - **Generic vision APIs (Google Cloud Vision, etc.) — ruled out.** Object/label detection only, not species-level plant ID — a step backward from what Claude already does today.
 - **Recommendation, not yet confirmed with Joseph:** try Pl@ntNet first against a batch of real desert hike photos (including ones Claude got wrong or missed) as a real accuracy/cost check before committing; benchmark Plant.id only if Pl@ntNet's accuracy disappoints on local species.
 

@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.33
-**Version description:** Added §9.8, stdout/stderr Stream Discipline for Docker-Based Components — a plain, no-dependency print()-routing convention (routine on stdout, worth-a-look on stderr), harvested from CARD-0273's audit of hike-izer-orchestrator.
+**Version:** 1.35
+**Version description:** Added §9.10, SD-Card Hosts: Route Every Write-Heavy Path Off the SD Card — harvested from CARD-0159/CARD-0006 (previously only captured in CLAUDE.md's project-specific Infrastructure section, never in this reusable standards doc). Also added §9.9, `journald` as the Docker Logging Driver — the M8-wide switch (CARD-0272), why a per-service `logging:` options block breaks under it (found live via netalertx), and why a `daemon.json` driver change needs every container recreated, not just a daemon restart.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -1015,6 +1015,32 @@ def log(message, err=False):
 
 **Reference implementation:** `components/hike-izer-orchestrator/app.py`'s `log()` helper and every `print()` call site across that component (CARD-0273) — 39 call sites classified by hand (29 routed to stderr, 10 left on stdout), not applied in bulk.
 
+### 9.9 `journald` as the Docker Logging Driver — a New Compose Service Never Sets `logging:` Options
+
+Every JCTsh Docker host sets `"log-driver": "journald"` in `/etc/docker/daemon.json` (CARD-0272) — container stdout/stderr lands in the host's own already-durable, already-managed journal instead of an unbounded/ephemeral per-container `json-file` log. Applies host-wide; a new component's compose file does not opt in or out per-service.
+
+**Never add a per-service `logging:` block with `options: {max-size, max-file}` (or any other json-file-specific option) to a compose file on a JCTsh host.** Those options are meaningless under `journald` — Docker rejects the container outright at creation/recreation with `unknown log opt 'max-file' for journald log driver`. Retention is a `journald`/host-level concern (`journalctl --vacuum-size`/`SystemMaxUse=`), not a per-container setting. Found live, 2026-09-14, deploying CARD-0272: `netalertx`'s compose file carried exactly this leftover block from before the journald switch — recreate failed until the block was removed entirely, not adjusted.
+
+**A `daemon.json` `log-driver` change only takes effect on container *creation*, not a plain restart.** `systemctl restart docker` alone leaves every already-existing container on whatever driver it was created with (`docker inspect <container> --format '{{.HostConfig.LogConfig.Type}}'` to check) — confirmed live the same day: a full `systemctl restart docker` came back clean with all 9 containers healthy, but every one was still `json-file`. Applying a driver change requires recreating each container (`docker compose up -d --force-recreate`, once per compose project) — real, if brief, downtime for every container on the host, not just a daemon-level blip.
+
+**Reference implementation:** `/etc/docker/daemon.json` on the M8, `components/netalertx/docker-compose.yml` (the corrected, options-free version).
+
+### 9.10 SD-Card Hosts: Route Every Write-Heavy Path Off the SD Card, Not Just Docker's Own Data
+
+On any Linux host that boots from an SD card (the Pi — never a consideration on the M8, which boots from onboard storage), **every write-heavy path must be relocated onto a mounted USB drive** (§9.2's UUID/`nofail` pattern) — not just Docker's own `data-root`. SD card write endurance degrades under frequent writes in a way USB flash/SSD tolerates far better; capacity is rarely the real constraint (checked live each time — log/data volume was consistently negligible relative to the drive).
+
+**What actually needs moving, found in practice one piece at a time rather than all planned upfront (each is a real, separate write-heavy path, not automatically covered by fixing the others):**
+- Docker's `data-root` **and** containerd's separate `root` (`/etc/containerd/config.toml`) — on a containerd-backed Docker install, the actual bulk of image/container-layer data lives under containerd's own path, not `/var/lib/docker`; moving only the Docker-visible path accomplishes almost nothing.
+- Any container's own persistent state that would otherwise sit in its bind-mounted config directory (e.g. Home Assistant's `/config`, including its recorder database — writes on nearly every entity state change, likely a bigger ongoing wear contributor than Docker itself).
+- Any native (non-Docker) service's persistence directory (e.g. Mosquitto's `persistence_location`).
+- `/var/log` as a whole, or the whole directory bind-mounted rather than special-casing individual services' log paths one at a time (keeps every consumer, e.g. `fail2ban`'s watched path, textually unchanged).
+
+**The mount-ordering race this must guard against, hit repeatedly before becoming a checked step (CARD-0032/CARD-0048/CARD-0006):** a service starting before the USB drive is mounted doesn't fail loudly — it silently recreates its data directory back on the SD card underneath the intended mount point, and won't self-correct once the mount does arrive. Any systemd unit reading from a USB-mounted path needs an explicit mount-ordering dependency (`RequiresMountsFor=<mount>` or equivalent) — check whether it's already present rather than assuming (it usually isn't, by default).
+
+**Verification standard: a real reboot test, not a live-state check.** Confirm the mount reattaches automatically, nothing silently falls back to the SD card, and every affected service comes back with its actual prior data intact (an entity count, a retained-message round trip, a real health-check script) — not just "the container started."
+
+**Reference implementation:** CARD-0159 (Pi: Docker `data-root`, containerd `root`, Home Assistant `/config`, Mosquitto persistence, and all of `/var/log` — four separate write-heavy paths found and moved in one build, each verified independently, all four confirmed surviving two real reboot tests), CARD-0006 (the log-directory precedent this generalizes).
+
 ---
 
 ## 10. Security Standards
@@ -1063,6 +1089,8 @@ On the Windows dev machine, the private key (`~/.ssh/id_ed25519`) must be restri
 
 | Version | Change |
 |---|---|
+| 1.35 | Added §9.10, SD-Card Hosts: Route Every Write-Heavy Path Off the SD Card — harvested from CARD-0159/CARD-0006 (previously only captured in CLAUDE.md's project-specific Infrastructure section, never in this reusable standards doc). Covers Docker `data-root` + containerd `root` (two separate paths), container/native-service persistent state, and `/var/log` as a whole, plus the mount-ordering-race gotcha (`RequiresMountsFor`) hit three separate times (CARD-0032/CARD-0048/CARD-0006) before becoming a checked step. |
+| 1.34 | Added §9.9, `journald` as the Docker Logging Driver — the M8-wide switch (CARD-0272), why a per-service `logging:` options block breaks under it (found live via netalertx), and why a `daemon.json` driver change needs every container recreated, not just a daemon restart. |
 | 1.30 | Extended §6.4 with a Matter device registration order (HA first, then expose to Google Home through HA — never register in Google Home directly or into both independently) after the household's first 3 Matter devices were registered directly in Google Home and left HA with zero visibility (`404 Entity not found` on every one). Documents the Android HA Companion app's "Add Matter Device" commissioning flow (hands off to Android's system Google Matter UI, relays to HA) and that it still needs HA's own Matter Server backend already configured — which a Docker Container HA install (not Home Assistant OS) doesn't have by default. See CARD-0262. |
 | 1.29 | Added §6.5 New Automations: HA vs. Google Home, Never a New SmartThings Routine — extends §6.4's device-level policy to automations. A single test decides between the two remaining engines (does Robin need to see/trigger/adjust it herself → Google Home Routines; otherwise → HA/Node-RED, the established brain), with SmartThings Routines no longer a destination for new automation logic either way (existing native ones, untouched by HA, stay as-is — this governs new work only). Documents the real gotcha found while scoping CARD-0260/CARD-0261: migrating a device off SmartThings makes Google treat it as a brand-new device, silently orphaning any existing Google Home Routine that referenced the old one by name. |
 | 1.28 | Added §6.4 New Smart-Home Devices Default to SmartThings-Free — a preference order (native HA integration, then Matter direct to HA/Google, then SmartThings only as a last resort) for any future commercial smart-home device, plus HA's own native Google Assistant integration as the standard path to Google Home voice control rather than a SmartThings virtual-switch bridge. Harvested from CARD-0164's decided direction (drop the paid SmartThings API dependency, leave the existing Zigbee/Z-Wave hardware on the hub alone), prompted by installing the household's first Matter devices (3 Cync under-cabinet lights, confirmed Matter-over-WiFi). |

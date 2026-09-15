@@ -33,8 +33,4 @@ services:
     mem_reservation: 1024m
     cpu_shares: 512
     pids_limit: 512
-    logging:
-      options:
-        max-size: "10m"
-        max-file: "3"
     restart: unless-stopped

@@ -117,7 +117,7 @@ def main():
 
     windows = hike_time_windows(hike_data)
     if not windows:
-        print('No confirmed hike session -- writing empty manifest.', file=sys.stderr)
+        print('No confirmed hike session -- writing empty manifest.')
         with open(manifest_path, 'w', encoding='utf-8') as f:
             json.dump({'assets': []}, f, indent=2)
         return
@@ -125,7 +125,7 @@ def main():
     assets_by_id = {}
     try:
         for taken_after, taken_before in windows:
-            print(f'Searching Immich for assets {taken_after} .. {taken_before}...', file=sys.stderr)
+            print(f'Searching Immich for assets {taken_after} .. {taken_before}...')
             for a in search_assets(args.immich_url, args.immich_key, taken_after, taken_before):
                 assets_by_id[a['id']] = a  # dedupe -- a photo can't belong to two sessions, but be safe
     except (urllib.error.URLError, urllib.error.HTTPError) as e:
@@ -139,7 +139,7 @@ def main():
     # photo grid in an arbitrary sequence rather than matching the hike's
     # actual progression.
     assets = sorted(assets_by_id.values(), key=lambda a: a.get('fileCreatedAt') or '')
-    print(f'  {len(assets)} matching asset(s) across {len(windows)} session(s)', file=sys.stderr)
+    print(f'  {len(assets)} matching asset(s) across {len(windows)} session(s)')
 
     manifest_assets = []
     for a in assets:
@@ -170,7 +170,7 @@ def main():
     with open(manifest_path, 'w', encoding='utf-8') as f:
         json.dump({'assets': manifest_assets}, f, indent=2)
 
-    print(f'Wrote {manifest_path}: {len(manifest_assets)} asset(s) downloaded to {args.out_dir}', file=sys.stderr)
+    print(f'Wrote {manifest_path}: {len(manifest_assets)} asset(s) downloaded to {args.out_dir}')
 
 
 if __name__ == '__main__':

@@ -587,7 +587,7 @@ def _apply_observation_overrides(hike_data, file_stem):
             o["observation"] = overrides[ts]
             applied += 1
     if applied:
-        print(f"Applied {applied} observation override(s) for {file_stem}", file=sys.stderr, flush=True)
+        print(f"Applied {applied} observation override(s) for {file_stem}", flush=True)
 
 
 def run(payload):
@@ -640,7 +640,7 @@ def run(payload):
         # interactive Skill correctly still reports "no hike" when Joseph
         # explicitly asks, since that's a wanted answer, not a bug.
         if not hike_data["coverage"]["gps_track"]["hike_confirmed"]:
-            print(f"No hike confirmed for {file_stem} -- skipping generation", file=sys.stderr, flush=True)
+            print(f"No hike confirmed for {file_stem} -- skipping generation", flush=True)
             mqtt_log.publish_log(
                 "System",
                 f"GPSLogger stopped, no hike confirmed for {file_stem} -- skipped generation.",
@@ -778,7 +778,7 @@ def run(payload):
             check=True, timeout=30,
         )
 
-        print(f"Step 1 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
+        print(f"Step 1 complete for {file_stem} -- {tracker.summary()}", flush=True)
         return file_stem, tracker
     finally:
         _clear_in_progress_stem()
@@ -924,7 +924,7 @@ def run_step2(file_stem, with_narrative=False):
         check=True, timeout=30,
     )
 
-    print(f"Step 2 complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
+    print(f"Step 2 complete for {file_stem} -- {tracker.summary()}", flush=True)
     return file_stem, tracker
 
 
@@ -942,7 +942,7 @@ def run_and_log(payload):
                 # CARD-0100: no hike confirmed -- run() already published its own
                 # quiet skip log, nothing more to do here.
                 return
-            print(f"Publishing MQTT log line for {file_stem}...", file=sys.stderr, flush=True)
+            print(f"Publishing MQTT log line for {file_stem}...", flush=True)
             mqtt_log.publish_log(
                 "System",
                 f"Published data-only hike summary for {file_stem}: "
@@ -1047,7 +1047,7 @@ def run_daily_refresh_and_log():
     unlike the single-hike paths above)."""
     stems = _stems_recently_published()
     if not stems:
-        print("run_daily_refresh: no recently-published hikes -- nothing to do", file=sys.stderr, flush=True)
+        print("run_daily_refresh: no recently-published hikes -- nothing to do", flush=True)
         return
 
     pending = {file_stem: 1 for file_stem in stems}  # file_stem -> attempt about to run
@@ -1056,7 +1056,7 @@ def run_daily_refresh_and_log():
         for file_stem, attempt in pending.items():
             try:
                 file_stem, tracker = run_step2(file_stem, with_narrative=False)
-                print(f"Daily refresh complete for {file_stem} -- {tracker.summary()}", file=sys.stderr, flush=True)
+                print(f"Daily refresh complete for {file_stem} -- {tracker.summary()}", flush=True)
                 mqtt_log.publish_log(
                     "System",
                     f"Daily refresh pass complete for {file_stem}: "

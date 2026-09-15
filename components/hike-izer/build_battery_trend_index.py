@@ -45,7 +45,6 @@ convention.
 import argparse
 import json
 import re
-import sys
 from html import escape as _esc_attr
 from pathlib import Path
 
@@ -311,7 +310,7 @@ def main():
     out_path.write_text(_render_page(rows), encoding="utf-8")
 
     with_data = sum(1 for _, c in rows if c is not None)
-    print(f"Wrote {out_path}: {len(rows)} hikes indexed, {with_data} with a computable rate.", file=sys.stderr)
+    print(f"Wrote {out_path}: {len(rows)} hikes indexed, {with_data} with a computable rate.")
 
 
 if __name__ == "__main__":

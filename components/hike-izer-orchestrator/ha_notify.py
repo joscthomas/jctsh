@@ -13,6 +13,7 @@ successfully from this same container, not a new cross-host path.
 
 import json
 import os
+import sys
 import urllib.request
 
 NOTIFY_SERVICE = "mobile_app_pixel_10_pro_xl"
@@ -22,7 +23,7 @@ def send_push(title, message, url=None):
     ha_url = os.environ.get("HA_URL")
     ha_token = os.environ.get("HA_TOKEN")
     if not ha_url or not ha_token:
-        print(f"[ha_notify] HA_URL/HA_TOKEN not set -- skipping push: {message}", flush=True)
+        print(f"[ha_notify] HA_URL/HA_TOKEN not set -- skipping push: {message}", file=sys.stderr, flush=True)
         return
 
     payload = {"title": title, "message": message}
@@ -44,4 +45,4 @@ def send_push(title, message, url=None):
     try:
         urllib.request.urlopen(req, timeout=10)
     except Exception as e:
-        print(f"[ha_notify] push notification failed: {e}", flush=True)
+        print(f"[ha_notify] push notification failed: {e}", file=sys.stderr, flush=True)

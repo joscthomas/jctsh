@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.32
-**Version description:** Extended §5.4 with a Node-RED Function-node gotcha — a single-output node returning a flat array of multiple messages silently drops everything but the first one; needs `return [[...]]`, not `return [...]`. Harvested from CARD-0261: a pre-existing, invisible bug in salt-sensor's polling flow that had silently dropped 3 of 4 checked entities since the flow was first written.
+**Version:** 1.33
+**Version description:** Added §9.8, stdout/stderr Stream Discipline for Docker-Based Components — a plain, no-dependency print()-routing convention (routine on stdout, worth-a-look on stderr), harvested from CARD-0273's audit of hike-izer-orchestrator.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
 
@@ -998,6 +998,22 @@ For any Docker-based component running an open-source image (not project-specifi
 **Reference implementation:** `core/maintenance/container_update_check.py` (shared, generic — takes a `SERVICES` list per host) plus a thin per-host wrapper (`hosts/m8/container-update-check.py`, `core/homeassistant/container-update-check.py`) that just declares which containers to check and how each one exposes its current version. Established covering NetAlertX, Caddy, cloudflared, and Home Assistant (CARD-0126) — a fourth confirms the pattern generalizes, not a one-off.
 
 **Not this pattern:** a component with its own real version-check API (Immich exposes `/api/server/version-check` directly) should keep using that — it's more authoritative than a GitHub tag, and `immich-update-check.py` predates this standard. This section is for the common case where a project's only public "what's current" signal is its GitHub Releases page.
+
+### 9.8 stdout/stderr Stream Discipline for Docker-Based Components
+
+Route every `print()` call by a plain two-tier rule, with no logging-framework dependency:
+
+- **stdout** (plain `print()`, no `file=` arg) — routine progress narration, success/completion messages, and expected no-op skips.
+- **stderr** (`print(..., file=sys.stderr)`) — recoverable/degraded failures, retry-attempt failures, rejected requests, and anything else worth a human glancing at later.
+
+**Root cause this prevents:** Docker's `journald` logging driver (§9.1's sibling — see CARD-0272) maps container output to real syslog priority by stream alone — stdout always lands at priority 6 (info), stderr always lands at priority 3 (error) — regardless of what any in-process logging level thinks it is. A component that dumps everything to one stream (or splits inconsistently) makes that native priority split useless: `journalctl -p err` either shows nothing or shows everything. **Do not reach for Python's `logging` module or a `systemd.journal.JournalHandler` to get finer-grained levels** — that needs the host's journal socket bind-mounted into the container just to recover a distinction Docker's own binary split already gives for free, and true unrecoverable failures should reach a separate, durable, dashboard-visible channel (this project's `mqtt_log.publish_log("Alert", ...)` pattern, §4/§9.4) regardless of what any local stream says. A plain stdout/stderr split is the entire fix; a shared per-file `log(message, err=False)` helper (writing to `sys.stderr` only when `err=True`) is enough for a component with many call sites — no per-call-site stream juggling needed.
+
+```python
+def log(message, err=False):
+    print(message, file=sys.stderr if err else None, flush=True)
+```
+
+**Reference implementation:** `components/hike-izer-orchestrator/app.py`'s `log()` helper and every `print()` call site across that component (CARD-0273) — 39 call sites classified by hand (29 routed to stderr, 10 left on stdout), not applied in bulk.
 
 ---
 

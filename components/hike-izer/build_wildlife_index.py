@@ -26,7 +26,6 @@ convention.
 
 import argparse
 import json
-import sys
 from html import escape as _esc_attr
 from pathlib import Path
 from urllib.parse import quote
@@ -365,7 +364,7 @@ def main():
     out_path = Path(args.srv_dir) / "wildlife.html"
     out_path.write_text(_render_page(life_list, args.xeno_canto_key), encoding="utf-8")
 
-    print(f"Wrote {out_path}: {len(life_list)} species indexed.", file=sys.stderr)
+    print(f"Wrote {out_path}: {len(life_list)} species indexed.")
 
 
 if __name__ == "__main__":

@@ -30,7 +30,6 @@ so re-running just reproduces the same correct result.
 import glob
 import json
 import os
-import sys
 
 import birdnet
 import wildlife_life_list
@@ -62,14 +61,12 @@ def main():
         total_detections += sum(r["count"] for r in rows)
         print(
             f"{file_stem}: {len(rows)} species, {sum(r['count'] for r in rows)} detections",
-            file=sys.stderr,
         )
 
     life_list = wildlife_life_list.load()
     print(
         f"\nBackfill complete: {processed} hikes with BirdNET data, "
         f"{len(life_list)} species total, {total_detections} total detections recorded.",
-        file=sys.stderr,
     )
 
 

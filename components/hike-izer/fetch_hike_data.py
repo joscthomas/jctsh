@@ -1213,22 +1213,22 @@ def main():
     if start_dt is None or end_dt is None:
         sys.exit('ERROR: --start/--end must be ISO 8601, e.g. 2026-06-15T00:00:00Z')
 
-    print('Fetching Environmental Data...', file=sys.stderr)
+    print('Fetching Environmental Data...')
     env_rows_all = fetch_sheet(args.url, args.key, 'Environmental Data', args.start, args.end)
     other_sources = sorted({r.get('source') for r in env_rows_all if r.get('source') != args.source})
     env_rows = [r for r in env_rows_all if r.get('source') == args.source]
     print(f'  {len(env_rows_all)} rows total, {len(env_rows)} from source={args.source!r}'
-          + (f' (also saw: {other_sources})' if other_sources else ''), file=sys.stderr)
+          + (f' (also saw: {other_sources})' if other_sources else ''))
 
-    print('Fetching Hiking Observations...', file=sys.stderr)
+    print('Fetching Hiking Observations...')
     obs_rows = fetch_sheet(args.url, args.key, 'Hiking Observations', args.start, args.end)
-    print(f'  {len(obs_rows)} rows', file=sys.stderr)
+    print(f'  {len(obs_rows)} rows')
 
-    print('Fetching GPS Track...', file=sys.stderr)
+    print('Fetching GPS Track...')
     gps_rows = fetch_sheet(args.url, args.key, 'GPS Track', args.start, args.end)
-    print(f'  {len(gps_rows)} rows', file=sys.stderr)
+    print(f'  {len(gps_rows)} rows')
 
-    print('Fetching Hike Start Forecast...', file=sys.stderr)
+    print('Fetching Hike Start Forecast...')
     try:
         forecast_rows = fetch_sheet(args.url, args.key, 'Hike Start Forecast', args.start, args.end)
     except RuntimeError as e:
@@ -1240,7 +1240,7 @@ def main():
             forecast_rows = []
         else:
             raise
-    print(f'  {len(forecast_rows)} rows', file=sys.stderr)
+    print(f'  {len(forecast_rows)} rows')
 
     coverage = analyze_coverage(env_rows, gps_rows, obs_rows, start_dt, end_dt)
 
@@ -1337,8 +1337,7 @@ def main():
     print(
         f"Wrote {args.out}: {len(env_rows)} env rows, {len(obs_rows)} observations, "
         f"{len(gps_rows)} GPS points, {len(sun_samples)} sun-position samples, "
-        f"{len(forecast_rows)} hike-start forecast row(s).",
-        file=sys.stderr,
+        f"{len(forecast_rows)} hike-start forecast row(s)."
     )
 
 

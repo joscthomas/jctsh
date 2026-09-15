@@ -34,7 +34,6 @@ import argparse
 import calendar
 import json
 import re
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -426,8 +425,7 @@ def main():
 
     print(
         f"Wrote {len(pages)} page(s) ({', '.join(sorted(pages))}) to {out_dir}: "
-        f"{len(entries)} summar{'y' if len(entries) == 1 else 'ies'} indexed.",
-        file=sys.stderr,
+        f"{len(entries)} summar{'y' if len(entries) == 1 else 'ies'} indexed."
     )
 
 

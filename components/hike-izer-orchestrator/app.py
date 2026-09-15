@@ -70,9 +70,9 @@ GITHUB_PAT = os.environ.get("GITHUB_PAT", "")
 PUBLIC_SRV_BASE_URL = "https://hikes.jctnet.com"
 
 
-def log(message):
+def log(message, err=False):
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    print(f"[{ts}] {message}", flush=True)
+    print(f"[{ts}] {message}", file=sys.stderr if err else None, flush=True)
 
 
 def _log_mqtt_async(category, message, component=None):
@@ -89,7 +89,7 @@ def _log_mqtt_async(category, message, component=None):
         try:
             mqtt_log.publish_log(category, message, component=component)
         except Exception as e:
-            log(f"mqtt_log publish failed: {e}")
+            log(f"mqtt_log publish failed: {e}", err=True)
 
     threading.Thread(target=_send, daemon=True).start()
 
@@ -135,7 +135,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_hike_end(self, parts):
         if not self._authorized(parts):
-            log("Rejected webhook POST: missing or incorrect key")
+            log("Rejected webhook POST: missing or incorrect key", err=True)
             # Alert, not System -- a rejected auth attempt reaching us at
             # all is the one signal a totally-silent failure (nothing ever
             # arriving) can't produce, so it's worth flagging distinctly.
@@ -148,7 +148,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             payload = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
-            log(f"Rejected webhook POST: invalid JSON body ({raw!r})")
+            log(f"Rejected webhook POST: invalid JSON body ({raw!r})", err=True)
             self._respond(400, {"status": "error", "message": "invalid JSON"})
             return
 
@@ -192,7 +192,7 @@ class Handler(BaseHTTPRequestHandler):
         Gaia embeds don't get this treatment -- staged well after hike-end
         during step 2's conversational flow, no comparable race exists."""
         if not self._authorized(parts):
-            log("Rejected stage-file POST: missing or incorrect key")
+            log("Rejected stage-file POST: missing or incorrect key", err=True)
             _log_mqtt_async("Alert", "Stage-file webhook POST rejected: missing or incorrect key.")
             self._respond(401, {"status": "error", "message": "unauthorized"})
             return
@@ -200,7 +200,7 @@ class Handler(BaseHTTPRequestHandler):
         qs = parse_qs(parts.query)
         kind = qs.get("kind", [""])[0]
         if kind not in ("gaia", "birdnet"):
-            log(f"Rejected stage-file POST: invalid or missing kind (got {kind!r})")
+            log(f"Rejected stage-file POST: invalid or missing kind (got {kind!r})", err=True)
             _log_mqtt_async("Alert", f"Stage-file webhook POST rejected: invalid or missing kind (got {kind!r}).")
             self._respond(400, {"status": "error", "message": f"invalid or missing kind (got {kind!r})"})
             return
@@ -208,7 +208,7 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length else b""
         if not body:
-            log(f"Rejected stage-file POST ({kind}): empty body")
+            log(f"Rejected stage-file POST ({kind}): empty body", err=True)
             _log_mqtt_async("Alert", f"Stage-file webhook POST ({kind}) rejected: empty body.")
             self._respond(400, {"status": "error", "message": "empty body"})
             return
@@ -222,7 +222,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     date_str, _offset_str = generation._local_date_and_offset(local_datetime)
                 except ValueError as e:
-                    log(f"Stage-file POST (birdnet): unparseable local_datetime ({e}) -- falling back to UTC date")
+                    log(f"Stage-file POST (birdnet): unparseable local_datetime ({e}) -- falling back to UTC date", err=True)
                     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             else:
                 # No local_datetime at all (older Tasker config, or some
@@ -240,7 +240,7 @@ class Handler(BaseHTTPRequestHandler):
         elif file_stem is not None:
             staging_dir = os.path.join(generation.SRV_DIR, f"{file_stem}_staging")
         else:
-            log(f"Rejected stage-file POST ({kind}): no published hike found to stage against")
+            log(f"Rejected stage-file POST ({kind}): no published hike found to stage against", err=True)
             _log_mqtt_async("Alert", f"Stage-file webhook POST ({kind}) rejected: no published hike found.")
             self._respond(409, {"status": "error", "message": "no published hike found"})
             return
@@ -265,7 +265,7 @@ class Handler(BaseHTTPRequestHandler):
             with open(dest, "wb") as f:
                 f.write(body)
         except OSError as e:
-            log(f"Failed to write staged file for {file_stem} ({kind}): {e}")
+            log(f"Failed to write staged file for {file_stem} ({kind}): {e}", err=True)
             _log_mqtt_async("Alert", f"Stage-file webhook failed to write {kind} for {file_stem}: {e}")
             self._respond(500, {"status": "error", "message": "write failed"})
             return
@@ -293,7 +293,7 @@ class Handler(BaseHTTPRequestHandler):
         so the caller can embed it in the PR body (open_kanban_pr.py's
         image_url param)."""
         if not self._authorized(parts):
-            log("Rejected idea-image POST: missing or incorrect key")
+            log("Rejected idea-image POST: missing or incorrect key", err=True)
             _log_mqtt_async("Alert", "Idea-image webhook POST rejected: missing or incorrect key.")
             self._respond(401, {"status": "error", "message": "unauthorized"})
             return
@@ -301,7 +301,7 @@ class Handler(BaseHTTPRequestHandler):
         qs = parse_qs(parts.query)
         ext = qs.get("ext", ["jpg"])[0].lower()
         if ext not in ("jpg", "jpeg", "png", "gif", "webp"):
-            log(f"Rejected idea-image POST: invalid ext (got {ext!r})")
+            log(f"Rejected idea-image POST: invalid ext (got {ext!r})", err=True)
             _log_mqtt_async("Alert", f"Idea-image webhook POST rejected: invalid ext (got {ext!r}).")
             self._respond(400, {"status": "error", "message": f"invalid ext (got {ext!r})"})
             return
@@ -309,7 +309,7 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length else b""
         if not body:
-            log("Rejected idea-image POST: empty body")
+            log("Rejected idea-image POST: empty body", err=True)
             _log_mqtt_async("Alert", "Idea-image webhook POST rejected: empty body.")
             self._respond(400, {"status": "error", "message": "empty body"})
             return
@@ -329,7 +329,7 @@ class Handler(BaseHTTPRequestHandler):
             with open(dest, "wb") as f:
                 f.write(body)
         except OSError as e:
-            log(f"Failed to write idea image {filename}: {e}")
+            log(f"Failed to write idea image {filename}: {e}", err=True)
             _log_mqtt_async("Alert", f"Idea-image webhook failed to write {filename}: {e}")
             self._respond(500, {"status": "error", "message": "write failed"})
             return
@@ -364,13 +364,13 @@ class Handler(BaseHTTPRequestHandler):
         distinct utterance, so open_finding_pr()'s dedup logic is simply
         never exercised via this path."""
         if not self._authorized(parts):
-            log("Rejected idea webhook POST: missing or incorrect key")
+            log("Rejected idea webhook POST: missing or incorrect key", err=True)
             _log_mqtt_async("Alert", "Idea webhook POST rejected: missing or incorrect key.")
             self._respond(401, {"status": "error", "message": "unauthorized"})
             return
 
         if not GITHUB_PAT:
-            log("Rejected idea webhook POST: GITHUB_PAT not configured")
+            log("Rejected idea webhook POST: GITHUB_PAT not configured", err=True)
             _log_mqtt_async("Alert", "Idea webhook POST rejected: GITHUB_PAT not configured on this host.")
             self._respond(500, {"status": "error", "message": "not configured"})
             return
@@ -380,13 +380,13 @@ class Handler(BaseHTTPRequestHandler):
         try:
             payload = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
-            log(f"Rejected idea webhook POST: invalid JSON body ({raw!r})")
+            log(f"Rejected idea webhook POST: invalid JSON body ({raw!r})", err=True)
             self._respond(400, {"status": "error", "message": "invalid JSON"})
             return
 
         text = (payload.get("text") or "").strip()
         if not text:
-            log("Rejected idea webhook POST: empty or missing 'text'")
+            log("Rejected idea webhook POST: empty or missing 'text'", err=True)
             self._respond(400, {"status": "error", "message": "empty or missing 'text'"})
             return
 
@@ -396,7 +396,7 @@ class Handler(BaseHTTPRequestHandler):
                 "jctsh-core", text, fingerprint, GITHUB_PAT, {},
             )
         except Exception as e:
-            log(f"Idea webhook: open_finding_pr failed: {e}")
+            log(f"Idea webhook: open_finding_pr failed: {e}", err=True)
             _log_mqtt_async("Alert", f"Idea webhook failed to open PR: {e}")
             self._respond(502, {"status": "error", "message": "failed to open PR"})
             return
@@ -414,14 +414,14 @@ class Handler(BaseHTTPRequestHandler):
         effect, patches the already-published static HTML directly rather
         than waiting for a future regeneration."""
         if not EDIT_PIN:
-            log("Rejected edit-observation POST: EDIT_PIN not configured")
+            log("Rejected edit-observation POST: EDIT_PIN not configured", err=True)
             _log_mqtt_async("Alert", "Edit-observation webhook POST rejected: EDIT_PIN not configured on this host.")
             self._respond(500, {"status": "error", "message": "not configured"})
             return
 
         provided_key = parse_qs(parts.query).get("key", [""])[0]
         if not hmac.compare_digest(provided_key, EDIT_PIN):
-            log("Rejected edit-observation POST: incorrect PIN")
+            log("Rejected edit-observation POST: incorrect PIN", err=True)
             _log_mqtt_async("Alert", "Edit-observation webhook POST rejected: incorrect PIN.")
             self._respond(401, {"status": "error", "message": "unauthorized"})
             return
@@ -431,7 +431,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             payload = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
-            log(f"Rejected edit-observation POST: invalid JSON body ({raw!r})")
+            log(f"Rejected edit-observation POST: invalid JSON body ({raw!r})", err=True)
             self._respond(400, {"status": "error", "message": "invalid JSON"})
             return
 
@@ -441,7 +441,7 @@ class Handler(BaseHTTPRequestHandler):
         # Path-safety: file_stem is embedded directly into a filesystem path
         # below -- reject anything that could escape SRV_DIR.
         if not file_stem or not timestamp or text is None or "/" in file_stem or "\\" in file_stem or ".." in file_stem:
-            log(f"Rejected edit-observation POST: missing/invalid field (file_stem={file_stem!r}, timestamp={timestamp!r})")
+            log(f"Rejected edit-observation POST: missing/invalid field (file_stem={file_stem!r}, timestamp={timestamp!r})", err=True)
             self._respond(400, {"status": "error", "message": "missing or invalid file_stem, timestamp, or text"})
             return
 
@@ -456,7 +456,7 @@ class Handler(BaseHTTPRequestHandler):
             with open(overrides_path, "w", encoding="utf-8") as f:
                 json.dump(overrides, f, indent=2)
         except OSError as e:
-            log(f"Edit-observation: failed to write overrides file for {file_stem}: {e}")
+            log(f"Edit-observation: failed to write overrides file for {file_stem}: {e}", err=True)
             _log_mqtt_async("Alert", f"Edit-observation failed to write overrides for {file_stem}: {e}")
             self._respond(500, {"status": "error", "message": "write failed"})
             return
@@ -505,7 +505,7 @@ class Handler(BaseHTTPRequestHandler):
         Hike Start Forecast show up on the dashboard as their own pipeline,
         not lumped under this container's identity."""
         if not self._authorized(parts):
-            log("Rejected pipeline-log POST: missing or incorrect key")
+            log("Rejected pipeline-log POST: missing or incorrect key", err=True)
             _log_mqtt_async("Alert", "Pipeline-log webhook POST rejected: missing or incorrect key.")
             self._respond(401, {"status": "error", "message": "unauthorized"})
             return
@@ -515,7 +515,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             payload = json.loads(raw) if raw else {}
         except json.JSONDecodeError:
-            log(f"Rejected pipeline-log POST: invalid JSON body ({raw!r})")
+            log(f"Rejected pipeline-log POST: invalid JSON body ({raw!r})", err=True)
             self._respond(400, {"status": "error", "message": "invalid JSON"})
             return
 
@@ -523,7 +523,7 @@ class Handler(BaseHTTPRequestHandler):
         category = (payload.get("category") or "").strip()
         message = (payload.get("message") or "").strip()
         if not component or category not in ("System", "Alert") or not message:
-            log(f"Rejected pipeline-log POST: missing/invalid fields (payload={payload!r})")
+            log(f"Rejected pipeline-log POST: missing/invalid fields (payload={payload!r})", err=True)
             self._respond(400, {"status": "error", "message": "component, category (System/Alert), and message are required"})
             return
 
@@ -544,14 +544,14 @@ class Handler(BaseHTTPRequestHandler):
         "durable proof the request even arrived" reasoning _handle_hike_end
         already established."""
         if not self._authorized(parts):
-            log("Rejected step2 webhook POST: missing or incorrect key")
+            log("Rejected step2 webhook POST: missing or incorrect key", err=True)
             _log_mqtt_async("Alert", "Step2 webhook POST rejected: missing or incorrect key.")
             self._respond(401, {"status": "error", "message": "unauthorized"})
             return
 
         file_stem = generation.current_or_latest_file_stem()
         if file_stem is None:
-            log("Rejected step2 webhook POST: no published hike found to run against")
+            log("Rejected step2 webhook POST: no published hike found to run against", err=True)
             _log_mqtt_async("Alert", "Step2 webhook POST rejected: no published hike found.")
             self._respond(409, {"status": "error", "message": "no published hike found"})
             return
@@ -572,7 +572,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     if not WEBHOOK_SECRET:
-        log("FATAL: WEBHOOK_SECRET not set -- refusing to start")
+        log("FATAL: WEBHOOK_SECRET not set -- refusing to start", err=True)
         sys.exit(1)
     log(f"Starting hike-izer-orchestrator webhook receiver on :{PORT}")
     # Makes a container rebuild/restart itself visible on the dashboard --

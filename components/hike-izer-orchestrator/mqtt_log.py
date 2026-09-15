@@ -11,6 +11,7 @@ publish()-then-disconnect() was found to drop QoS-1 messages in production
 
 import json
 import os
+import sys
 
 import paho.mqtt.client as mqtt
 
@@ -30,7 +31,7 @@ def publish_log(category, message, component=None):
     username = os.environ.get("MQTT_USERNAME")
     password = os.environ.get("MQTT_PASSWORD")
     if not username or not password:
-        print(f"[mqtt_log] MQTT_USERNAME/MQTT_PASSWORD not set -- skipping publish: {message}", flush=True)
+        print(f"[mqtt_log] MQTT_USERNAME/MQTT_PASSWORD not set -- skipping publish: {message}", file=sys.stderr, flush=True)
         return
 
     payload = json.dumps({"component": component or COMPONENT, "category": category, "message": message})

@@ -715,16 +715,36 @@ Archived to `core/homeassistant/CLAUDE.md` on 2026-09-10 (CARD-0193) — 5684B, 
 
 ---
 
-### CARD-0232 · [idea] [hiking-monitor] Investigate photo-based plant identification alternatives
-**Status:** Backlog
+### CARD-0232 · [idea] [hiking-monitor] Photo-based plant identification, integrated into Hiking Observations
+**Status:** Planning
 
 **Raised via idea email (PR #46, joscthomas+kbc@gmail.com), 2026-08-29** — raw finding text was just "plant identification"; not yet interviewed for what triggered it or what "done" would look like.
 
-**Likely context, not yet confirmed with Joseph:** Hiking Observations already has a `vegetation` category in its keyword taxonomy (saguaro, bloom, cactus, tree, shrub, flower, plant, grass, palo verde, ocotillo — `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`), and BirdNET already gives the hiking pipeline an audio-based wildlife-ID precedent (CARD-0080/`birdnet-pipeline.md`). Photo-based plant ID would be the natural flora counterpart — but whether that's actually the intent here (an addition to the phone/hike workflow) versus something unrelated hasn't been confirmed.
+**Interviewed 2026-09-14 (Joseph), via AskUserQuestion — real scope now confirmed:**
+1. **Trigger for the idea:** wanted to identify a specific plant encountered on a hike, not general curiosity or copying another app.
+2. **Mechanism: API-based, integrated into the pipeline** — not just pointing at an off-the-shelf phone app (Google Lens, PictureThis). A plant-ID API call, in the same spirit as BirdNET's audio-ID precedent (CARD-0080/`birdnet-pipeline.md`), confirming the "likely context" guess below.
+3. **Integration: feeds into Hiking Observations**, not a standalone tool — identified plants should land in the existing `vegetation`-category data alongside other hike observations (`core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`).
+4. **Trigger flow: automatic** — every photo taken while hiking-monitor's field mode is active gets run through the ID pipeline, no manual per-photo action required.
+5. **Done when (confirmed):** one real hike where a real plant photo is correctly identified end-to-end and the result lands in the Hiking Observations data — a live field test, not just a bench-level API check.
 
-**Done when:** not yet scoped — needs a real interview (what triggered this idea, phone-app vs. API-based identification, whether it's meant to integrate with the existing Hiking Observations pipeline or stand alone) before this moves to Planning.
+**Current stopgap, noted 2026-09-14 (Joseph):** all hike photos are currently already being sent to Claude, which sometimes correctly identifies a plant — informal, no structured output, not integrated into Hiking Observations. This is the real baseline a dedicated API needs to beat/replace, not a cold start.
 
-**Related:** `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` (Hiking Observations `vegetation` category), `components/hike-izer-orchestrator/birdnet-pipeline.md` (the audio-ID precedent this may be paralleling).
+**Real finding, 2026-09-14 (Claude, reading the actual code) — this "stopgap" is not ad hoc, it's CARD-0107's existing photo-captioning pipeline, and it already does plant ID.** `components/hike-izer-orchestrator/photo_captions.py` calls `claude-opus-4-8` (line 26) via `client.messages.parse()` with structured output (`PhotoObservation`: `caption` + `sign_text` fields, `max_tokens=400`) on every hike photo, prompted to name "a specific plant or wildlife species... but ONLY if that identification adds something a viewer can't already see." Real captured examples already include species-level plant IDs: `"Trumpet vine (Campsis radicans) in bloom"`, two distinct Rose of Sharon captions (CARD-0107 archive, `components/hike-izer/CLAUDE.md`). This changes the shape of this card considerably:
+- **Photo resizing already happens and is proven not to hurt accuracy for this purpose.** `fetch_hike_photos.py` (`components/hike-izer/fetch_hike_photos.py:151`) downloads Immich's `thumbnail?size=preview` (~1440px long edge JPEG), not the original — `photo_captions.py` sends only that thumb to Claude. A real CARD-0107 test (2026-07-28, 3 photos) found identical identification quality at ~24% lower cost vs. the original, though that's a small sample, not a rigorous eval.
+- **Cost is already tracked per-hike for real** (`cost_tracking.py`: $5/$25 per 1M tokens for opus-4-8), and **captions are cached** — a photo already captioned is never re-sent (CARD-0214), so this already-running pipeline costs nothing extra per repeat pass.
+- **Gap vs. this card's goal:** `photo_captions.py`'s output is a display caption + alt text, not structured species data, and it never touches the Hiking Observations `vegetation` category — the plumbing from "Claude named a plant" to "it's in the vegetation data" doesn't exist yet.
+- **Revised design direction, not yet confirmed with Joseph:** this may not need a whole new dedicated plant-ID API pipeline. Two options worth weighing at real Planning: (a) extend `photo_captions.py` to also emit a structured species field (when confidently identified) and write it into Hiking Observations directly — no new API, reuses a pipeline already proven accurate and already paid for; or (b) keep Pl@ntNet/Plant.id as a second-opinion/confidence-booster specifically for photos where Claude's caption comes back empty on the plant front. Either way, Claude's existing captioning is the real baseline to beat, not a naive substitute for it.
+
+**API research, 2026-09-14 (Claude, web search) — candidates compared:**
+- **Pl@ntNet — leading candidate to try first.** No account/API key needed for basic use; pay-per-event pricing, roughly $8 per 1,000 identifications. Trained specifically on crowdsourced *wild* plant photos (not houseplants/nursery stock) across 81,693 species — a good match for desert trail flora (saguaro/ocotillo/palo verde already in the `vegetation` taxonomy). Returns a structured species + confidence score, which is far easier to feed into a pipeline automatically than parsing Claude's freeform text.
+- **Plant.id (Kindwise)** — a real, credible alternative. Independent academic studies found it outperformed PlantNet, iNaturalist, and Google Lens for British flora and for alien street-tree ID specifically. Also does plant health/disease detection (not needed here). Pricing tiers weren't confirmed by the search — would need to check `admin.kindwise.com` directly before committing.
+- **iNaturalist — ruled out.** Its full species-classification computer vision model is kept private (IP reasons); only small ~500-taxon on-device research models are public, not a general hosted identification API. Extra work to make usable, no clear win over Pl@ntNet/Plant.id.
+- **Generic vision APIs (Google Cloud Vision, etc.) — ruled out.** Object/label detection only, not species-level plant ID — a step backward from what Claude already does today.
+- **Recommendation, not yet confirmed with Joseph:** try Pl@ntNet first against a batch of real desert hike photos (including ones Claude got wrong or missed) as a real accuracy/cost check before committing; benchmark Plant.id only if Pl@ntNet's accuracy disappoints on local species.
+
+**Still not yet scoped for Planning:** which design direction to take (extend `photo_captions.py` vs. bolt on a dedicated API vs. both — see revised design direction above), confirming API choice against real photos if a dedicated API is still wanted, how a hike photo actually reaches an external API automatically if needed (`photo_captions.py`'s existing per-hike-photo loop may already solve this for free), and how a returned/identified species gets written into the Hiking Observations `vegetation` category data shape either way.
+
+**Related:** `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` (Hiking Observations `vegetation` category), `components/hike-izer-orchestrator/birdnet-pipeline.md` (the audio-ID precedent this parallels), `components/hike-izer-orchestrator/photo_captions.py` (CARD-0107's existing photo-captioning pipeline this card may extend rather than replace).
 
 ---
 

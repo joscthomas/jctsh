@@ -9,7 +9,23 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0274 -->
+<!-- next-card-id: CARD-0275 -->
+
+---
+
+### CARD-0274 · [enhancement] [photo-server] Immich update available — v3.2.0 → v3.2.1
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-15 from photo-server's maintenance check (CARD-0128).** Raw finding: Immich update available: v3.2.1 (currently running v3.2.0).
+
+**Risk assessment, checked 2026-09-15 against the real upstream release notes (github.com/immich-app/immich/releases/tag/v3.2.1):** patch release, bug-fixes only, no breaking changes or database migrations mentioned. Notable fixes: connection-pool exhaustion during sync, search modal functionality, partner-shared assets now visible on the people page, person-merge restored for named individuals, timeline/archive behavior corrected, face-detection/metadata extraction improvements, password-reset flag handling. Low-risk upgrade.
+
+**Update stays a deliberate manual step, per `components/photo-server/operations.md`'s existing "notify-only, not auto-update" policy** (Immich has surfaced real bugs in single patch versions before — CARD-0037/0042/0043, the HEIC distortion issue — auto-applying unattended on a library holding irreplaceable family photos isn't worth the risk): `docker compose pull && docker compose up -d` in `~/immich-app` on the M8.
+
+**Done when:** the M8's `immich-app` stack is running v3.2.1 (confirmed via `/api/server/version` or the Immich UI), all Immich containers (`immich_server`, `immich_machine_learning`, `immich_postgres`, `immich_redis`) report Docker-healthy after the recreate, and a spot-check of the web UI (login, browse a library) confirms nothing regressed.
+
+**Related:** `components/photo-server/operations.md` (the Immich Update Check mechanism that raised this), `components/photo-server/immich-update-check.py`, CARD-0128 (`open_finding_pr()`, the auto-open mechanism).
 
 ---
 

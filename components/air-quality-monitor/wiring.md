@@ -21,17 +21,55 @@ GPIO32 (pin 7) note: configured as INPUT (no pull-up or pull-down) — the dock 
 
 Physical pin numbers below are from `ESP32-project-pins.md` — verify against the actual board's silkscreen before soldering or probing, per that file's own caveat.
 
-| GPIO | Board Pin # | Function | Component |
-|---|---|---|---|
-| GPIO17 | 28 | Debug UART TX (transmit-only, `logger:` UART2) | External USB-TTL adapter |
-| GPIO18 | 30 | RGB LED module — `R` pin (no external resistor — module has its own, see below) | Field indicator |
-| GPIO19 | 31 | RGB LED module — `G` pin (same module, no external resistor) | Field indicator |
-| GPIO21 | 33 | I2C SDA — blue | SEN55 (via Adafruit #5964 adapter) |
-| GPIO22 | 36 | I2C SCL — yellow | SEN55 (via Adafruit #5964 adapter) |
-| GPIO23 | 37 | RGB LED module — `B` pin (same module, no external resistor) | Field indicator |
-| GPIO27 | 11 | Intent switch input (internal pull-up, inverted logic) | SS12D10 slide switch |
-| GPIO32 | 7 | Dock detect (divider midpoint, INPUT) | TP4056 IN+ → 68kΩ → midpoint → 100kΩ → GND |
-| GPIO34 | 5 | Battery ADC (input-only) | Voltage divider midpoint |
+| GPIO | Board Pin # | Function                                                                              | Component |
+|---|---|---------------------------------------------------------------------------------------|---|
+| GPIO17 | 28 | Debug UART TX (transmit-only, `logger:` UART2) - yellow                               | External USB-TTL adapter |
+| GPIO18 | 30 | RGB LED module — `R` pin (no external resistor — module has its own, see below) - red | Field indicator |
+| GPIO19 | 31 | RGB LED module — `G` pin (same module, no external resistor) - green                  | Field indicator |
+| GPIO21 | 33 | I2C SDA — blue                                                                        | SEN55 (via Adafruit #5964 adapter) |
+| GPIO22 | 36 | I2C SCL — yellow                                                                      | SEN55 (via Adafruit #5964 adapter) |
+| GPIO23 | 37 | RGB LED module — `B` pin (same module, no external resistor) - blue                   | Field indicator |
+| GPIO27 | 11 | Intent switch input (internal pull-up, inverted logic) - blue                         | SS12D10 slide switch |
+| GPIO32 | 7 | Dock detect (divider midpoint, INPUT) - blue                                          | TP4056 IN+ → 68kΩ → midpoint → 100kΩ → GND |
+| GPIO34 | 5 | Battery ADC (input-only) - green                                                      | Voltage divider midpoint |
+
+---
+
+## Physical Pin Summary (All 38 Pins)
+
+**Derived from this document's own wiring sections, not from `ESP32-project-pins.md`** — cross-checked against it below, with discrepancies flagged rather than silently resolved. Left pins 1-19, right pins 20-38 (per that file's orientation: USB-C at bottom, left pin 1 and right pin 38 at top).
+
+| Pin | Left signal | Used for (this doc) | Pin | Right signal | Used for (this doc) |
+|---|---|---|---|---|---|
+| 1 | 3V3 | Pololu `VOUT` in; SEN55 adapter `VIN` out (red); bulk caps (470µF + 4.7µF) | 38 | GND | **The GND tap into the perfboard's GND rail** — confirmed 2026-09-14, this is the one and only ESP32 pin feeding the rail. SEN55 adapter GND / RGB LED `-` / Intent switch term. 2 / TP4056 `VOUT−` / debug UART GND / both divider bottom legs / Pololu GND / bulk cap GND legs all tie into that same rail, not directly to this pin — see the GND Rail note below. |
+| 2 | EN | Not referenced — unused | 37 | GPIO23 | RGB LED `B` — blue |
+| 3 | GPIO36 (SVP, input-only) | Not referenced — unused | 36 | GPIO22 | I2C SCL (SEN55 adapter) — yellow |
+| 4 | GPIO39 (SVN, input-only) | Not referenced — unused | 35 | GPIO1 (TX0) | Not referenced — reserved for onboard USB-serial, deliberately untouched (debug UART uses UART2/GPIO17 instead, see Debug UART section) |
+| 5 | GPIO34 (input-only) | Battery ADC (divider midpoint) — **green** per this doc (see conflict note below) | 34 | GPIO3 (RX0) | Not referenced — same reasoning as pin 35 |
+| 6 | GPIO35 (input-only) | Not referenced — unused | 33 | GPIO21 | I2C SDA (SEN55 adapter) — blue |
+| 7 | GPIO32 | Dock detect (divider midpoint) — **blue** per this doc (see conflict note below) | 32 | GND | Not used — the GND rail is fed from pin 38 only (see pin 1's row) |
+| 8 | GPIO33 | Not referenced — unused | 31 | GPIO19 | RGB LED `G` — green |
+| 9 | GPIO25 | Not referenced — unused | 30 | GPIO18 | RGB LED `R` — red |
+| 10 | GPIO26 | Not referenced — unused | 29 | GPIO5 | Not referenced — unused |
+| 11 | GPIO27 | Intent switch terminal 1 — blue | 28 | GPIO17 | Debug UART TX → external adapter RXD — yellow |
+| 12 | GPIO14 | Not referenced — unused | 27 | GPIO16 | Not referenced — unused |
+| 13 | GPIO12 | Not referenced — unused | 26 | GPIO4 | Not referenced — unused |
+| 14 | GND | Not used — the GND rail is fed from pin 38 only (see pin 1's row); confirmed continuous to pin 38 via bench test 2026-09-14, but not actually wired into the perfboard build | 25 | GPIO0 ⚠️ | Not referenced — unused (strapping pin, correctly avoided) |
+| 15 | GPIO13 | Not referenced — unused | 24 | GPIO2 ⚠️ | Not referenced — unused (strapping pin, correctly avoided) |
+| 16 | GPIO9 (SD2) ⛔ | Not referenced — correctly unused (flash-reserved) | 23 | GPIO15 ⚠️ | Not referenced — unused (strapping pin, correctly avoided) |
+| 17 | GPIO10 (SD3) ⛔ | Not referenced — correctly unused (flash-reserved) | 22 | GPIO8 (SD1) ⛔ | Not referenced — correctly unused (flash-reserved) |
+| 18 | GND *(per silkscreen, but not actually continuous — see GND Rail note below)* | Not used — never a candidate here now that the rail's single tap point is confirmed to be pin 38 | 21 | GPIO7 (SD0) ⛔ | Not referenced — correctly unused (flash-reserved) |
+| 19 | VIN (5V) | Intentionally unused — LDO/Pololu feeds `3V3` (pin 1) directly, bypassing this pin | 20 | GPIO6 (CLK) ⛔ | Not referenced — correctly unused (flash-reserved) |
+
+**GND Rail note, clarified 2026-09-14:** the perfboard has one physical GND bus rail; every ground connection in this doc (SEN55 adapter GND, RGB LED `-`, Intent switch terminal 2, TP4056 `VOUT−`, debug UART GND, both dividers' bottom legs, Pololu GND, bulk cap GND legs) ties into that rail, not directly to the ESP32. **Pin 38 is the sole ESP32 pin feeding the rail** on this build — pins 32/14/18 are not used as GND taps at all, so the pin-18 finding below doesn't affect this build's actual grounding, though it's worth keeping on record.
+
+**Real hardware finding, kept for the record even though it doesn't block this build:** bench continuity testing during Step 9 (2026-09-14) found pin 18 is silkscreened "GND" but **not actually continuous with the ground plane** — pin 38 → pin 18 does not beep, reproduced on two separate ESP32 boards with identical markings. This contradicts `ESP32-project-pins.md`'s 2026-08-19 note, which claimed this was already verified. Corrected there; root cause (unpopulated pin on this board variant? genuinely NC despite the print?) still unknown, but moot for this build since pin 18 was never wired to anything.
+
+**Two wire-color conflicts against `ESP32-project-pins.md`, found while building this table — not yet resolved, flagging rather than silently picking one:**
+- **GPIO34 (pin 5, battery ADC):** this doc says **green** (both here and in the Battery Voltage Divider Wiring section below). `ESP32-project-pins.md`'s own table annotates it **white**.
+- **GPIO32 (pin 7, dock detect):** this doc says **blue** (both here and in the Dock Detect Wiring section below). `ESP32-project-pins.md`'s own table annotates it **green**.
+
+Since this doc's colors were just re-confirmed against the physical build (the continuity-test session that found the pin 18 issue above), treat `ESP32-project-pins.md`'s colors as the stale ones pending a fix there — but worth eyeballing the actual wires at pins 5 and 7 to be sure before correcting that file.
 
 ---
 
@@ -46,7 +84,7 @@ The adapter has a 4-pin **input** header, labeled directly on the Adafruit board
 | Adafruit board pin (labeled on the board) | ESP32 Pin | Board Pin # | Wire Color | Notes |
 |---|---|---|---|---|
 | `VIN` | 3.3V (direct) | 1 | red | Board's own onboard boost converter steps this up to 5V internally, for the SEN55 side only |
-| `GND` | GND | 38 / 32 / 18 / 14 (any GND pin) | black | Direct connection — no gate transistor, always-on whenever the device has power |
+| `GND` | GND | Perfboard GND rail (fed from ESP32 pin 38 — see GND Rail note below) | black | Direct connection — no gate transistor, always-on whenever the device has power |
 | `SDA` | GPIO21 | 33 | blue | I2C data |
 | `SCL` | GPIO22 | 36 | yellow | I2C clock |
 
@@ -256,7 +294,7 @@ LiPo BAT+ (post-switch) ──── R1 (100kΩ) ──┬── R2 (100kΩ) ─
 
 | Module Pin                        | ESP32 Pin | Board Pin # | External resistor? |
 |-----------------------------------|---|---|---|
-| `-` (common cathode) (black wire) | GND | 38 / 32 / 18 / 14 (any GND pin) | — |
+| `-` (common cathode) (black wire) | GND | Perfboard GND rail (fed from ESP32 pin 38 — see GND Rail note below) | — |
 | `R` (red wire)                    | GPIO18 | 30 | **None** — module has its own onboard resistor per channel; do not add an external one in series, it would only dim the LED further |
 | `G` (green wire)                  | GPIO19 | 31 | None (see above) |
 | `B` (blue wire)                   | GPIO23 | 37 | None (see above) |

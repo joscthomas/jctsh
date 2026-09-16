@@ -776,6 +776,20 @@ interval:
       # replay-defer check already protect the actually-risky operations.
       # Fixed: while already connected, only intent/power (a real session-end
       # or undock, not a voltage blip) forces a disable.
+      #
+      # Third bug found live 2026-09-14 (Step 9 bench session): only
+      # wifi.disable/enable were called here -- ESPHome's mqtt: component
+      # has its own independent reconnect logic that keeps retrying (and
+      # cleanly failing DNS resolution) on its own schedule regardless of
+      # radio state, so a debug-UART capture during battery-only/undocked
+      # operation showed a repeating "Couldn't resolve IP address" /
+      # "Disconnected: WiFi disconnected" cycle even though wifi.disable()
+      # was correctly firing every tick (confirmed: zero [wifi:...] log
+      # lines appeared in the capture, only [mqtt:...] ones -- the radio
+      # was never actually re-enabled). Fixed by mirroring every
+      # wifi.enable/disable call with the matching mqtt.enable/disable, so
+      # the MQTT client stops attempting entirely while the gate is closed
+      # instead of spinning on its own independent retry loop.
       - if:
           condition:
             lambda: |-
@@ -788,6 +802,7 @@ interval:
               return !id(wifi_gate_ok) || !id(wifi_attempt_in_progress);
           then:
             - wifi.disable:
+            - mqtt.disable:
           else:
             - if:
                 condition:
@@ -796,6 +811,7 @@ interval:
                     - lambda: 'return !id(mqtt_client).is_connected();'
                 then:
                   - wifi.enable:
+                  - mqtt.enable:
       # CARD-0224 pattern: on_connect only fires once per connection event --
       # if the MQTT link stays persistently up after a replay was deferred
       # for low battery, nothing else re-triggers a retry once voltage

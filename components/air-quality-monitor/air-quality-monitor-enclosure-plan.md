@@ -128,10 +128,12 @@ No separate louvered vent insert needed for this build — the one piece of hiki
 
 ## 10. Open Questions (Resolve Before CAD)
 
+**Starting-point decision, 2026-09-16 (Joseph, now that Step 9's bench phase is fully complete — see CARD-0012).** CAD work starts from `hiking-monitor-enclosure-plan.md`'s own enclosure (X/Y footprint already proven against this same 5×7cm perfboard, no need to re-derive it) rather than a from-scratch design — only the Z height gets measured and adjusted for air-quality-monitor's own component stack (LDO/TP4056/LiPo/perfboard, no display cavity). Resolves the perfboard-footprint question below by reuse rather than fresh measurement, and narrows the single-shell-vs-stack question to a height question specifically, not a full redesign.
+
 | Question | When to resolve |
 |---|---|
-| Perfboard footprint — confirm the 5×7cm assumption | Step 9 (in progress — see `wiring.md`'s Perfboard Footprint Measurement Procedure) |
-| Single-shell vs. two-shell stack height | After Step 9, once perfboard + battery/LDO/TP4056 stack height is known |
+| ~~Perfboard footprint — confirm the 5×7cm assumption~~ | **Resolved 2026-09-16 by reuse** — starting from hiking-monitor's own proven X/Y footprint against the same board size, not re-measuring from scratch. |
+| Enclosure height (Z) for this device's own component stack | In progress, 2026-09-16 — Joseph measuring against the hiking-monitor base design, height only (X/Y carried over as-is) |
 | SEN55 exterior mount face and cable routing path | Measure actual routing distance (not straight-line) from adapter position to candidate exterior faces |
 | SEN55 mount orientation (inlet/outlet relative to ground) | Re-verify Sensirion's primary mechanical guidelines directly — current understanding is flagged low-confidence, sourced from search-snippet synthesis, never confirmed against the actual document |
 | 3M tape suitability for outdoor temperature swings / repeated attach-detach | Confirm tape spec before committing to this as the permanent mount method |

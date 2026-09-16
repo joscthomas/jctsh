@@ -121,6 +121,8 @@ The TP4056+boost module connects to the main perfboard via a 4-pin female Dupont
 | 3 | VOUT− (GND) | Black | ESP32 GND (left pin 14) via power-in header |
 | 4 | VOUT+ | Red | ESP32 VIN (left pin 19) via power-in header — 5.7V boost output |
 
+**Charge status LEDs, confirmed 2026-09-16 (Joseph) — closes a gap this project's own history had flagged as unconfirmed (see `components/air-quality-monitor/CLAUDE.md`, CARD-0012's Step 9 bench notes, which only speculated the generic "red=charging/green=complete" convention).** This module has two onboard LEDs: **red = power present** (lit whenever USB/solar is actually delivering power to the module, regardless of charge state), **green = charging** (lit while the battery is actively charging; goes off once charging is complete).
+
 ---
 
 ## Dock Detect Wiring (GPIO32)

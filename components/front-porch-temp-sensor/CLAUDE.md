@@ -30,3 +30,13 @@
 **Related:** `components/front-porch-temp-sensor/` (the existing sensor this exposes), CARD-0146/CARD-0164 (where Nabu Casa's Google Assistant bridge was identified as an alternative to SmartThings for reaching Google Home).
 
 ---
+
+**Archived from `tos/kanban-board.md` on 2026-09-16 (CARD-0193)** — 94 days since last touched, over the 90-day backup threshold.
+
+### CARD-0015 · [enhancement] [front-porch-temp-sensor] Environmental data pipeline integration
+**Status:** Done
+
+**Resolution:** Added SNTP, humidity/pressure IDs, and 5-min `/data` publish to firmware (temp, humidity, pressure, illuminance, lat/lon H8, rssi, ISO 8601 UTC). Added `illuminance_lx` to the environmental data schema and Apps Script. Node-RED wildcard caught it automatically — no flow changes. OTA flashed 2026-06-14.
+
+---
+

@@ -107,7 +107,9 @@ def parse_cards(text):
     return cards
 
 
-def is_archive_eligible(card, today, forced_ids=frozenset()):
+def is_archive_eligible(card, today, forced_ids=frozenset(), excluded_ids=frozenset()):
+    if card["id"] in excluded_ids:
+        return False  # --exclude wins over both the automatic threshold and --force
     if card["status"] not in ("Done", "Defer"):
         return False  # --force never bypasses the status gate, only the size/age threshold
     if card["id"] in forced_ids:
@@ -272,15 +274,24 @@ def main():
              "(e.g. a card that was legitimately eligible before an "
              "incidental edit shifted its byte count). Repeatable.",
     )
+    ap.add_argument(
+        "--exclude", action="append", default=[], metavar="CARD-NNNN",
+        help="Skip a specific card even if it meets the automatic size/age "
+             "threshold -- for a Done/Defer card that still carries an active "
+             "Watch-for/Auto-verify marker Session Start's grep depends on "
+             "finding in the live file (see CARD-0251). Repeatable, and wins "
+             "over --force if the same id is passed to both.",
+    )
     args = ap.parse_args()
     forced_ids = set(args.force)
+    excluded_ids = set(args.exclude)
 
     destinations = discover_destinations()
     text = KANBAN_PATH.read_text(encoding="utf-8")
     cards = parse_cards(text)
     today = date.today()
 
-    eligible = [c for c in cards if is_archive_eligible(c, today, forced_ids)]
+    eligible = [c for c in cards if is_archive_eligible(c, today, forced_ids, excluded_ids)]
     plan = []
     skipped_ambiguous = []
     for card in eligible:

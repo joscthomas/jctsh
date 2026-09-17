@@ -9,7 +9,21 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0277 -->
+<!-- next-card-id: CARD-0278 -->
+
+---
+
+### CARD-0277 · [enhancement] [hiking-monitor] Enclosure reprint — field-damaged shells, plus a second carabiner ear
+
+**Status:** Build
+
+**Raised 2026-09-16 (Joseph).** The hiking-monitor's enclosure was damaged in a hiking mishap — physically cracked/broken shell(s) in the field, not a firmware or electrical fault. Reprinting a replacement, and adding a second carabiner ear to the design (the original enclosure had one bail; this print adds a second) while already back in Tinkercad for the repair.
+
+**Design and export done, 2026-09-16.** New STL exports committed: `components/hiking-monitor/enclosure/hiking-monitor bottom shell 2.stl` and `hiking-monitor upper shell 3.stl` (Tinkercad's own default export naming — not the project's established `-raw`/`-final` convention from the original CARD-0009 build, since these came directly from a live Tinkercad edit session rather than the OpenSCAD/Tinkercad two-tool pipeline). Printing scheduled at Xerocraft, per this project's established print venue (same Centauri Carbon / ASA pattern as the original build).
+
+**Done when:** the new shells are printed, the existing electronics (perfboard, LiPo, display, TP4056) are reassembled into them, and the device is confirmed working post-reassembly (same bar as CARD-0009's own "Don't close until" — I2C/sensor re-verification after reassembly) — plus the second carabiner ear physically accepts a carabiner without flexing excessively, matching `hiking-monitor-enclosure-plan.md`'s existing bail success criteria.
+
+**Related:** CARD-0009 (original enclosure build, closed — this is a real physical repair/revision of that same enclosure, not a from-scratch redesign), `components/hiking-monitor/hiking-monitor-enclosure-plan.md`, `components/hiking-monitor/enclosure/`.
 
 ---
 
@@ -2831,6 +2845,8 @@ Step 7 (hardware rewiring + raw-signal checks) is next.
 **Same session, continued — checks 5-7 all closed out, despite the debug UART adapter developing a real, unresolved fault partway through.** Check 5 (Intent switch) ON case: confirmed correctly triggers `DUTY CYCLE: switching to Measurement mode` via COM9. Right after, the debug adapter's RXD line went permanently dark — systematically isolated (stdout buffering, stale process handle, USB re-enumeration, the adapter's own USB-side state, and the GPIO17/GND wiring itself, the last one re-confirmed twice by Joseph) down to either a genuine fault in the adapter module or a connection internal to it, not this project's own wiring. No spare adapter on hand to isolate further. Pivoted to the docked/MQTT dashboard path for everything else, since it doesn't depend on the debug UART: check 6 (battery divider sanity) confirmed clean (4.02V multimeter vs. 4.04V logged); check 7 (full boot) confirmed via a clean dock connect, buffered-replay, and a sane 5-min heartbeat.
 
 **Check 5's OFF case closed the same session, via a real live test, not left parked.** Intent switched ON while docked — this immediately dropped the MQTT connection (a real, previously-undocumented design fact found live: Intent-on is treated as a genuine session-start regardless of dock state). Confirmed via the Environmental Data Sheet directly (`action=export` query against the shared Apps Script) that two real readings landed exactly inside the Intent-on window (`2026-09-16T18:28:56Z`/`18:30:56Z`, PM2.5 1.9/2.0 µg/m³), while every heartbeat before and after that window (Intent off) consistently showed `PM2.5: unavailable`. Confirms the gate works both directions on this perfboard build. **Step 9's checklist is now fully complete.** Full detail in `components/air-quality-monitor/perfboard-layout.md`'s check 5-7 entries.
+
+**Enclosure CAD complete, 2026-09-16 (Joseph) — same session, once the bench phase above unblocked it.** Built in Tinkercad starting from hiking-monitor's own proven enclosure (Section 10's starting-point decision, above), height adjusted for this device's own component stack. Every open question from `air-quality-monitor-enclosure-plan.md`'s Section 10 resolved live in CAD, including reversing the earlier "no vent insert needed" call — a vent insert is included after all, for a little extra passive airflow alongside SEN55's own sealed housing. STL exports committed (`components/air-quality-monitor/enclosure/`); printing trip to Xerocraft scheduled. Full detail in the enclosure plan doc itself, not duplicated here.
 
 **Also resolved in passing, not a real bug:** the earlier note about the Pi's raw `jctsh.log` "lagging behind" the dashboard was a misdiagnosis — the dashboard renders live in-memory state including a heartbeat group that hasn't flushed to the file yet (flushes on a state change, a different message type, or 15 minutes of age, whichever comes first, per CARD-0069's original design). Not a bug; know which of the two you're checking and why they can differ.
 

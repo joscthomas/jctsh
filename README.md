@@ -17,13 +17,14 @@ environmental monitoring into a single integrated ecosystem.
 | [traveling](components/traveling/) | Randomized occupancy-simulation lighting + unexpected-TV-activity alert while traveling | Production |
 | [outdoor-presence-detection](components/outdoor-presence-detection/) | Ring motion voice announcement + doorbell live video on the Gathering Room TV | Production |
 | [automatic-garage-door-opener-closer](components/automatic-garage-door-opener-closer/) | Voice and auto-close control for LiftMaster opener | Production |
+| [equip-shelf](components/equip-shelf/) | Physical shelf housing the Pi, M8, SmartThings hub, garage relay, router, and cooling fans | Production |
 | [front-porch-temp-sensor](components/front-porch-temp-sensor/) | Front porch temperature, pressure, and light with push notifications | Production |
 | [p-w-firefly](components/p-w-firefly/) | Firefly Integrations RV-C coach interface for Pleasure-Way Lexor FL | Production |
 | [photo-server](components/photo-server/) | Self-hosted Immich photo/video library, runs on the M8 (`hosts/m8/`) | Production |
 | [photo-tv-display](components/photo-tv-display/) | Ambient photo slideshow + phone controller for Google TV, backed by m8 | In Progress |
 | [hiking-monitor](components/hiking-monitor/) | Portable environmental sensor — logs to flash during hikes, syncs on return | In Progress |
 | [weather-station](components/weather-station/) | Outdoor DIY weather station posting to Weather Underground and Google Sheets | Planned |
-| [air-quality-monitor](components/air-quality-monitor/) | Portable PM/VOC/NOx sensor carried on hikes alongside the hiking monitor | Planned |
+| [air-quality-monitor](components/air-quality-monitor/) | Portable PM/VOC/NOx sensor carried on hikes alongside the hiking monitor | In Progress |
 | [van-sensors](components/van-sensors/) | Indoor and outdoor environmental nodes for the Pleasure-Way ProMaster van | Planned |
 | [remote-temp-sensor-01](components/remote-temp-sensor-01/) | Solar/battery-powered backyard temp, humidity, pressure, light, and UV sensor | Planned |
 

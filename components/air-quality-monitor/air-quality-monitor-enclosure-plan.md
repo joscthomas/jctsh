@@ -4,7 +4,7 @@
 **Project:** JCTsh — air-quality-monitor (CARD-0012)
 **Version:** 1.0
 **Version description:** Initial draft — captures decisions already made in `JCTsh-air-quality-monitor-phase1.md` and `air-quality-monitor-claude-code-instructions.md` (clip case + carabiner, SEN55 external mount) and lays out the open questions that still need physical measurement before CAD work can begin. **Updated 2026-08-20:** final print material decided as white ASA (matching hiking-monitor's own upgrade), correcting Phase 1's original PETG call — no longer an open question.
-**Status:** Draft — pre-CAD. **Do not begin CAD work until the bench phase (Steps 0-9 in `air-quality-monitor-claude-code-instructions.md`) is confirmed complete**, per `JCTsh-Component-Planning-Pattern.md`'s bench-before-install rule. This document exists to capture the plan and open questions now, not to start building yet.
+**Status:** CAD complete, 2026-09-16 — design finished in Tinkercad (starting from `hiking-monitor-enclosure-plan.md`'s own proven base per the Section 10 decision below), STL exports committed to `components/air-quality-monitor/enclosure/`. Printing trip to Xerocraft scheduled. Real dimensions live in the Tinkercad project itself, not reproduced in this doc's text (same practice as hiking-monitor's own plan doc).
 **Related files:** `hiking-monitor-enclosure-plan.md` (reference pattern), `hiking-monitor-enclosure-instructions.md` (reference execution pattern), `JCTsh-air-quality-monitor-phase1.md`, `air-quality-monitor-claude-code-instructions.md`, `wiring.md`, `JCTsh-Build-Standards.md`
 
 ---
@@ -122,26 +122,28 @@ Same two-tool workflow as hiking-monitor — reuse the pattern, not just the too
 1. **OpenSCAD** — reuse `components/hiking-monitor/enclosure/easyprojectboxv24.scad` as the starting template (same parametric box generator), with air-quality-monitor's own `SizeX`/`SizeY`/`SizeZ` etc. once Step 9's perfboard measurement and the component layout are known.
 2. **Tinkercad** — cutouts and custom features (SEN55 cable pass-through, RGB LED window, USB-C slot, switch slot, solar JST hole, carabiner bail), same workflow hiking-monitor used.
 
-No separate louvered vent insert needed for this build — the one piece of hiking-monitor's toolchain that doesn't carry over, since there's no BME280/LTR-390 venting problem here.
+**Reversed, 2026-09-16 (Joseph):** a vent insert is included after all — decided it would provide a little extra internal airflow and wouldn't hurt anything, even though SEN55's own sealed housing still handles its own primary airflow (unchanged from Section 2's decision). `components/air-quality-monitor/enclosure/vent insert (1).stl` committed.
 
 ---
 
-## 10. Open Questions (Resolve Before CAD)
+## 10. Open Questions (Resolve Before CAD) — closed out, 2026-09-16
 
-**Starting-point decision, 2026-09-16 (Joseph, now that Step 9's bench phase is fully complete — see CARD-0012).** CAD work starts from `hiking-monitor-enclosure-plan.md`'s own enclosure (X/Y footprint already proven against this same 5×7cm perfboard, no need to re-derive it) rather than a from-scratch design — only the Z height gets measured and adjusted for air-quality-monitor's own component stack (LDO/TP4056/LiPo/perfboard, no display cavity). Resolves the perfboard-footprint question below by reuse rather than fresh measurement, and narrows the single-shell-vs-stack question to a height question specifically, not a full redesign.
+**Starting-point decision, 2026-09-16 (Joseph, now that Step 9's bench phase is fully complete — see CARD-0012).** CAD work started from `hiking-monitor-enclosure-plan.md`'s own enclosure (X/Y footprint already proven against this same 5×7cm perfboard, no need to re-derive it) rather than a from-scratch design — only the Z height was measured and adjusted for air-quality-monitor's own component stack (LDO/TP4056/LiPo/perfboard, no display cavity).
 
-| Question | When to resolve |
+**CAD work is now complete** (Joseph, 2026-09-16) — every row below was resolved during the live Tinkercad session, same as hiking-monitor's own plan doc: the actual decisions (SEN55 mount face, RGB LED treatment, USB-C port style, carabiner dimensions, solar JST hole, screw lengths, tape choice) live in the Tinkercad project and the real STL exports (`components/air-quality-monitor/enclosure/`), not reproduced here as text — this table is kept below for historical record of what had to be decided, not as a still-open checklist.
+
+| Question | Resolution |
 |---|---|
-| ~~Perfboard footprint — confirm the 5×7cm assumption~~ | **Resolved 2026-09-16 by reuse** — starting from hiking-monitor's own proven X/Y footprint against the same board size, not re-measuring from scratch. |
-| Enclosure height (Z) for this device's own component stack | In progress, 2026-09-16 — Joseph measuring against the hiking-monitor base design, height only (X/Y carried over as-is) |
-| SEN55 exterior mount face and cable routing path | Measure actual routing distance (not straight-line) from adapter position to candidate exterior faces |
-| SEN55 mount orientation (inlet/outlet relative to ground) | Re-verify Sensirion's primary mechanical guidelines directly — current understanding is flagged low-confidence, sourced from search-snippet synthesis, never confirmed against the actual document |
-| 3M tape suitability for outdoor temperature swings / repeated attach-detach | Confirm tape spec before committing to this as the permanent mount method |
-| RGB LED window vs. flush-mount | Decide once KY-016 module's physical size is measured |
-| USB-C charging port — adapter dongle (hiking-monitor's approach) vs. proper panel-mount connector | Decide before modeling the wall slot |
-| Carabiner choice and spine thickness | Measure before modeling the bail |
-| Solar JST connector body diameter and wire exit location | Same open item hiking-monitor never resolved either — measure before modeling |
-| Screw/fastening hardware length | Confirm once real enclosure wall thickness and boss height exist — same caution as hiking-monitor and remote-temp-sensor-01, don't assume on-hand kit screws are long enough |
+| Perfboard footprint — confirm the 5×7cm assumption | Resolved by reuse — hiking-monitor's own proven X/Y footprint against the same board size |
+| Enclosure height (Z) for this device's own component stack | Measured and modeled against the hiking-monitor base design |
+| SEN55 exterior mount face and cable routing path | Decided in CAD — see Tinkercad project for the actual face/routing chosen |
+| SEN55 mount orientation (inlet/outlet relative to ground) | Decided in CAD |
+| 3M tape suitability for outdoor temperature swings / repeated attach-detach | Decided in CAD (v1 uses tape per Section 12 — revisit for v2 if field use shows it's not durable enough) |
+| RGB LED window vs. flush-mount | Decided in CAD |
+| USB-C charging port — adapter dongle vs. proper panel-mount connector | Decided in CAD |
+| Carabiner choice and spine thickness | Decided in CAD — a second carabiner ear was also added to hiking-monitor's own enclosure during its concurrent reprint (CARD-0277), for reference |
+| Solar JST connector body diameter and wire exit location | Decided in CAD |
+| Screw/fastening hardware length | Decided in CAD |
 
 ---
 

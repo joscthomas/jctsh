@@ -241,6 +241,8 @@ A printed loop on the **back face, near the top**, sized for a small carabiner. 
 - Extends from the back face by enough to clear the carabiner body — approximately 8–10mm proud of the wall
 - Modeled as part of the top shell back wall in Tinkercad — add as a solid loop shape
 
+**Second ear added, 2026-09-16 (CARD-0277), during the reprint following field damage.** A second carabiner bail added alongside the original — real dimensions/placement live in the Tinkercad project only, not reproduced here in text (matching CARD-0009's own precedent, `components/hiking-monitor/CLAUDE.md`: a parallel text reproduction record for live Tinkercad edits was explicitly declined once before, 2026-08-17). New exports: `components/hiking-monitor/enclosure/hiking-monitor bottom shell 2.stl`, `hiking-monitor upper shell 3.stl`.
+
 ---
 
 ## 7. Openings and Access Points

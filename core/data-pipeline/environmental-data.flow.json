@@ -60,9 +60,34 @@
     "type": "function",
     "z": "873111e004dc4435",
     "name": "Prepare GPS lookup",
-    "func": "var d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\nmsg._sensorData = d;\nvar ts = d.ts || '';\nmsg.url = env.get('APPS_SCRIPT_URL') + '?key=' + encodeURIComponent(env.get('APPS_SCRIPT_KEY')) + '&action=lookup&ts=' + encodeURIComponent(ts);\nmsg.payload = '';\nreturn msg;",
+    "func": "var d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\nmsg._sensorData = d;\n// CARD-0279: retry counter for the lookup-failure loop below -- reset\n// here (not just on first pass through the throttle node) so a message\n// that somehow re-enters this node fresh doesn't inherit a stale count.\nmsg._lookupAttempt = 1;\nvar ts = d.ts || '';\nmsg.url = env.get('APPS_SCRIPT_URL') + '?key=' + encodeURIComponent(env.get('APPS_SCRIPT_KEY')) + '&action=lookup&ts=' + encodeURIComponent(ts);\nmsg.payload = '';\nreturn msg;",
     "x": 660,
     "y": 140,
+    "wires": [
+      [
+        "env-data-gps-throttle"
+      ]
+    ]
+  },
+  {
+    "id": "env-data-gps-throttle",
+    "type": "delay",
+    "z": "873111e004dc4435",
+    "name": "Throttle GPS lookups (CARD-0279)",
+    "pauseType": "rate",
+    "timeout": "5",
+    "timeoutUnits": "seconds",
+    "rate": "2",
+    "nbRateUnits": "1",
+    "rateUnits": "second",
+    "randomFirst": "1",
+    "randomLast": "5",
+    "randomUnits": "seconds",
+    "drop": false,
+    "allowrate": false,
+    "outputs": 1,
+    "x": 780,
+    "y": 100,
     "wires": [
       [
         "env-data-gps-lookup"
@@ -90,15 +115,35 @@
     "id": "env-data-gps-apply",
     "type": "function",
     "z": "873111e004dc4435",
-    "name": "Apply GPS coords",
-    "func": "var d = msg._sensorData;\nif (msg.statusCode === 200) {\n    try {\n        var gps = JSON.parse(msg.payload);\n        if (gps.lat !== null && gps.lat !== undefined) {\n            d.lat = gps.lat;\n            d.lon = gps.lon;\n        }\n    } catch(e) { }\n}\n// Hiking monitor at home has no GPS track \u2014 use garage front wall (H6-H7 midpoint).\n// rssi_dbm is 0 for field readings (no WiFi); non-zero confirms home WiFi.\nif (d.component === 'hiking-monitor' && (d.lat === null || d.lat === undefined) && d.rssi_dbm !== 0) {\n    d.lat = 32.4612842;\n    d.lon = -111.1183818;\n}\nmsg.payload = d;\nreturn msg;",
+    "name": "Check GPS lookup response (CARD-0279)",
+    "outputs": 3,
+    "func": "// CARD-0279: field-mode's replay-at-reconnect burst can fire dozens of\n// these lookup calls at Apps Script within a few seconds (throttled to\n// 2/sec by the delay node upstream, but Apps Script can still be slow\n// enough under that load to time out or error on an individual call --\n// this used to fail silently with no retry and no trace anywhere).\n// Outputs: [0] continue downstream (success, confirmed miss, or retries\n// exhausted) -- [1] retry (loops back through the throttle node) --\n// [2] log a failure, only populated on the final exhausted attempt.\nvar d = msg._sensorData;\nvar attempt = msg._lookupAttempt || 1;\nvar MAX_ATTEMPTS = 3;\n\nif (msg.statusCode === 200) {\n    // A 200 covers both a real match and a confirmed \"no GPS Track point\n    // within 5 min\" miss -- environmental-data.gs's own _gpsLookup()\n    // already logs a genuine miss server-side (Correlation Debug sheet,\n    // CARD-0197). Either way this call is resolved; not a retry case.\n    try {\n        var gps = JSON.parse(msg.payload);\n        if (gps.lat !== null && gps.lat !== undefined) {\n            d.lat = gps.lat;\n            d.lon = gps.lon;\n        }\n    } catch (e) { /* malformed body -- resolved-but-no-coords, not worth retrying a parse error */ }\n    // Hiking monitor at home has no GPS track -- use garage front wall (H6-H7 midpoint).\n    // rssi_dbm is 0 for field readings (no WiFi); non-zero confirms home WiFi.\n    if (d.component === 'hiking-monitor' && (d.lat === null || d.lat === undefined) && d.rssi_dbm !== 0) {\n        d.lat = 32.4612842;\n        d.lon = -111.1183818;\n    }\n    msg.payload = d;\n    return [msg, null, null];\n}\n\n// Non-200 (timeout, network error, Apps Script overload under this\n// burst's own concurrency) -- retry a bounded number of times before\n// giving up.\nif (attempt < MAX_ATTEMPTS) {\n    msg._lookupAttempt = attempt + 1;\n    return [null, msg, null];\n}\n\n// Retries exhausted -- log so this isn't silent, then continue with no\n// coordinates rather than dropping the reading entirely.\nvar failMsg = {\n    topic: 'jctsh/core/log-server/log',\n    payload: JSON.stringify({\n        component: 'node-red', category: 'Alert',\n        message: 'GPS lookup failed after ' + MAX_ATTEMPTS + ' attempts for ' + d.component +\n            ' reading @ ' + d.ts + ' (status ' + (msg.statusCode || 'no response') + ') -- publishing without coordinates.'\n    })\n};\nmsg.payload = d;\nreturn [msg, null, failMsg];",
     "x": 1060,
     "y": 140,
     "wires": [
       [
         "env-data-process"
+      ],
+      [
+        "env-data-gps-throttle"
+      ],
+      [
+        "env-data-gps-log-failure"
       ]
     ]
+  },
+  {
+    "id": "env-data-gps-log-failure",
+    "type": "mqtt out",
+    "z": "873111e004dc4435",
+    "name": "Log GPS lookup failure (CARD-0279)",
+    "topic": "jctsh/core/log-server/log",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker",
+    "x": 1060,
+    "y": 220,
+    "wires": []
   },
   {
     "id": "env-data-process",

@@ -23,6 +23,21 @@ already relies on. Re-processing the same hike overwrites that hike's own
 stored count (last-processed-wins) rather than appending a duplicate or
 summing -- step 2's real BirdNET pass should supersede step 1's best-effort
 one, not add to it.
+
+CARD-0276: each hike dict also carries "archived" (bool) -- whether this
+species' row for this hike has actually reached the "Wildlife Detections"
+Sheet, tracked separately from the entry existing at all. Before this field
+existed, generation.py's own dedup check (skip re-posting a species already
+recorded for this file_stem) conflated "this hike was rendered" with "this
+hike's Sheets write succeeded" -- since update_from_hike() ran unconditionally
+right after the archive attempt regardless of whether it actually posted, a
+failed Sheets write was silently never retried by any later pass (e.g. the
+daily refresh). A hike entry with archived=False (or missing the key, for a
+species newly recorded by an in-progress archive attempt) is still a valid
+retry candidate; a pre-CARD-0276 entry with no "archived" key at all is
+treated as already-archived by generation.py's dedup check, since that
+historical data predates per-row tracking and mass-retrying it would just
+re-post rows Joseph never had reason to suspect are missing.
 """
 
 import json
@@ -42,17 +57,27 @@ def load(path=LIFE_LIST_PATH):
         return {}
 
 
-def update_from_hike(file_stem, date_str, birdnet_rows, path=LIFE_LIST_PATH):
+def update_from_hike(file_stem, date_str, birdnet_rows, archived_species=None, path=LIFE_LIST_PATH):
     """birdnet_rows is birdnet.parse_detections()'s own output -- one dict
     per species already seen this hike, with common_name/scientific_name/
     first_timestamp. Merges each into the persisted life list and rewrites
-    it in place. No-op if birdnet_rows is empty (nothing to merge)."""
+    it in place. No-op if birdnet_rows is empty (nothing to merge).
+
+    CARD-0276: archived_species, when given, is the set of scientific_name
+    values whose Sheets archive attempt actually succeeded for this hike
+    (generation.py's _archive_new_wildlife_detections() return value) --
+    every other row gets archived=False so a later pass still treats it as
+    a retry candidate instead of silently considering it done. None (the
+    default) marks every row archived=True, matching pre-CARD-0276 behavior
+    -- used by rebuild_from_sheets(), whose rows are Sheets-derived by
+    construction and therefore already known-archived."""
     if not birdnet_rows:
         return
 
     life_list = load(path)
     for row in birdnet_rows:
         key = row["scientific_name"]
+        is_archived = archived_species is None or key in archived_species
         entry = life_list.get(key)
         if entry is None:
             entry = {
@@ -72,9 +97,16 @@ def update_from_hike(file_stem, date_str, birdnet_rows, path=LIFE_LIST_PATH):
 
         existing_hike = next((h for h in entry["hikes"] if h["file_stem"] == file_stem), None)
         if existing_hike is None:
-            entry["hikes"].append({"file_stem": file_stem, "count": row["count"]})
+            entry["hikes"].append({"file_stem": file_stem, "count": row["count"], "archived": is_archived})
         else:
             existing_hike["count"] = row["count"]
+            if is_archived:
+                # Only ever flips False/missing -> True here -- never regress
+                # an already-True flag back to False for a row that simply
+                # wasn't in this particular archived_species set (e.g. a
+                # rebuild_from_sheets() call, which always passes None and
+                # would otherwise be a no-op update anyway).
+                existing_hike["archived"] = True
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:

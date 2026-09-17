@@ -9,7 +9,182 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0278 -->
+<!-- next-card-id: CARD-0285 -->
+
+---
+
+### CARD-0284 · [idea] [tos] Persistent per-cluster Claude Code sessions — faster ramp-up and cross-work pattern recognition, without a second knowledge store
+
+**Status:** Planning
+
+**Raised 2026-09-17 (Joseph), from a discussion prompted by today's session itself** — a single continuous session organically connected a whole thread of related findings across components (the Apps-Script-flakiness pattern spanning CARD-0258/0270/0275/0276/0279, the Node-RED tab/credential findings spanning CARD-0279/0280/0281) that would have been much harder to surface from siloed, fresh-each-time sessions. Question raised: would a **persistent, per-domain session** (e.g., "the hike-izer session," resumed rather than restarted each time) capture that same cross-work pattern recognition deliberately, without the cost of starting cold every time?
+
+**Design, converged via interview 2026-09-17 — three real objections raised and each resolved, not glossed over:**
+
+1. **Single point of failure for knowledge — resolved by making persistence a cache layer, not a second store.** A persistent session's value is *speed* (skip re-deriving/re-reading what's already known), never a place durable facts live only in session memory. Everything that matters still gets written to the same `.md` files (component `CLAUDE.md`, `tos/kanban-board.md`, memory) this project already relies on — a fresh session reading those files ends up knowing the same things, just slower. If a persistent session is lost, nothing is actually lost, only the re-read cost. This makes the discipline *stricter* for a persistent session, not looser: "if it's not written down, it didn't happen" applies with zero exceptions, precisely because the whole justification for persistence stops holding otherwise.
+2. **Fragmentation across domains — resolved by having the session actively solving a cross-domain problem do the reaching-out, not a passive/automatic propagation mechanism.** When a problem being worked in one domain's session needs information that lives in another domain, that session gathers what it needs directly (this environment's `ListAgents`/`SendMessage` already let separate Claude Code sessions on the same machine find and message each other — no new infrastructure needed) — and once the problem is solved, distributes the relevant findings back out to each affected domain's own docs. Real, honestly-named tradeoff kept, not eliminated: this is **latency, not loss** — a cross-domain insight doesn't propagate the instant it's found the way it does within one continuous session, only once it's written and the other domain's session next rereads its own docs. Accepted as a reasonable cost, not a blocker.
+3. **Staleness — resolved the same way as point 1.** The `.md` files are the actual source of truth regardless of whether a given persistent session has been idle for an hour or a month; staleness of a session's own in-context understanding is a speed problem (it'll reread and catch up), not a correctness problem.
+
+**Granularity: cluster-level, not per-component.** A "domain" is a related group of components that findings routinely travel across together (e.g., the whole hike-izer pipeline: `hike-izer`, `hike-izer-orchestrator`, `hike-izer-web`, plus the shared `core/data-pipeline` Apps Script/Node-RED layer they all depend on) — not one session per individual component directory. Matches the actual blast radius most real findings already show, per today's own session.
+
+**Rollout approach, decided 2026-09-17 (Joseph's call) — start with one pilot cluster, no upfront framework.** Don't design a general multi-session protocol speculatively. Pick the busiest, most interconnected cluster as the pilot — **hike-izer**, given today's own session is direct proof of value there — and just start keeping that one session alive/resumed across future hike-izer work, rather than starting fresh each time. Add process/mechanism (a naming convention so a future session can find "the hike-izer session," a formal checklist for the gather/distribute steps, whether to add a second pilot cluster) only once a real situation actually calls for it — the same "don't solve a problem that doesn't exist yet" discipline this project already applies everywhere else (e.g. CARD-0193's archive-threshold tuning, CARD-0256's essence-only Backlog scoping).
+
+**Not yet scoped, deliberately — real answers wait for the pilot to actually run:**
+- How a future session (this one or a fresh one) finds/resumes "the hike-izer session" specifically — needs a real naming/discovery convention, not designed yet.
+- Whether the gather-then-distribute steps need any formal checklist, or whether normal doc-update discipline already covers it.
+- Whether/when a second pilot cluster gets added.
+
+**Done when:** not a single deliverable — this is an ongoing practice to adopt, not a build. Revisit once the hike-izer pilot has actually been used a few times, to decide what (if anything) needs to become a formal convention versus staying ad hoc.
+
+**Related:** CARD-0283 (the concurrent-editing convention change from the same discussion thread), `components/hike-izer*/CLAUDE.md` (the pilot cluster's docs), `tos/kanban-board.md`.
+
+---
+
+### CARD-0283 · [enhancement] [tos] Concurrent-session editing: reread kanban-board.md only on a failed Edit, not before every edit
+
+**Status:** Build
+
+**Raised 2026-09-17 (Joseph), from a discussion about what's actually clunky in the current concurrent-session workflow.** Not real collisions — the friction is that `CLAUDE.md`'s existing "Concurrent Sessions" guidance has every session reread `tos/kanban-board.md` fresh immediately before *every single edit*, as a precaution, even though the overwhelming majority of edits have zero real contention with another session. That's a real, continual cost (a full reread round-trip per edit) paid regardless of whether anything actually changed underneath.
+
+**Decided 2026-09-17 (Joseph's call) — try the lazy/reactive alternative first, before anything heavier (a lock file, etc.):** stop rereading preemptively. Attempt an edit against the content already in hand; `Edit`'s own exact-string match already fails safely if another session changed that text in the meantime. Only reread (the specific affected section, then retry) when an `Edit` call actually fails due to a stale match. Same safety guarantee as today — a stale write still can't silently clobber another session's change — just no wasted reread when there was never any real contention. A heavier fix (a session-scoped `.kanban.lock` file, claimed once per multi-edit pass rather than per edit) was discussed as the next lever if this alone doesn't cut it, not adopted now.
+
+**Scope:** update `CLAUDE.md`'s "Concurrent Sessions" section — replace "Re-read shared files fresh immediately before editing them, especially `tos/kanban-board.md`" with the reactive convention above. No code/tooling change, no new files — a pure convention change for how Claude Code sessions (this one included) behave when editing shared files going forward.
+
+**Done when:** `CLAUDE.md` reflects the new convention, and it's been used at least once in a real session without incident (an Edit failing due to genuine staleness, caught and retried correctly, or simply many edits going through with fewer rereads than the old convention would have required).
+
+**Related:** `CLAUDE.md` ("Concurrent Sessions" section), `tos/kanban-board.md` (the shared file this convention protects).
+
+---
+
+### CARD-0282 · [enhancement] [tos] Session Start's log dashboard check should use the live `/status` page, not raw `jctsh.log` grep
+
+**Status:** Backlog
+
+**Raised 2026-09-17 (Joseph), directly from CARD-0281's false alarm.** That card's original "garage-radar silent for 3 months" finding came from grepping the raw `/mnt/jctsh-logs/jctsh.log*` file for a component's activity — but this project already has a documented convention (memory: "Dashboard vs raw log") that the raw file only gets a line written after a flush trigger (a state change, 15 minutes, or another message), while the live `/status` page reflects real, current per-component connection/freshness state directly. Querying `/status` in this same investigation immediately showed the device `Connected`/`Online` with a recent heartbeat — the raw-grep method gave a materially wrong picture that a `/status` check would have caught immediately.
+
+**Essence:** `CLAUDE.md`'s Session Start step 8 ("Examine the JCTsh Log Dashboard... for system problems or data issues") should explicitly point at `/status` (or another live, current-state view) as the way to check "is component X actually alive right now" — not a raw-log grep, which is the wrong tool for that specific question even though it's a fine tool for "what did component X say recently."
+
+**Not yet interviewed for a done-when or full acceptance criteria** — essence-only per this project's Backlog scoping convention. Real scoping (exactly which step-8 wording changes, whether to add a similar caution anywhere else in `CLAUDE.md` that currently implies raw-log grepping for a liveness question) belongs in Planning.
+
+**Related:** CARD-0281 (the false alarm that raised this), `CLAUDE.md` (Session Start step 8), `core/logging/log_server.py` (`/status` endpoint).
+
+---
+
+### CARD-0281 · [bug] [garage-radar] Dashboard logging silent 2026-06-15 to ~09-10, self-recovered on its own reboot — RESOLVED 2026-09-17 (self-recovered, root cause unconfirmed)
+
+**Status:** Done
+
+**Raised 2026-09-17 (Claude), found while auditing Node-RED tabs for tab-scoped credentials (CARD-0280) — a real device gap, not related to that credential audit itself.** The live Node-RED instance has no "Garage Radar" tab at all (confirmed via the admin API, `GET /flows`), even though `components/garage-radar/garage-radar.flow.json` exists in the repo and is documented in `Node-RED-workflow.md`'s tab-mapping table. Separately, the Pi's durable dashboard log (`/mnt/jctsh-logs/jctsh.log*`) shows **zero log entries from `garage-radar` since 2026-06-15** — three months of silence, no watchdog "silent" alerts either after that date (odd on its own, since the watchdog should keep alerting on an unconditional heartbeat regardless of presence activity).
+
+**Confirmed by Joseph: the device is physically installed and working great**, including `switch.garage_presence_vswitch` in SmartThings — so this is not a dead/decommissioned device. Its core presence function (LD2412 radar → HA automation → SmartThings) doesn't depend on Node-RED or the JCTsh log dashboard at all — that path is real and unaffected.
+
+**What's been checked, and what doesn't (yet) explain it:**
+- `components/garage-radar/garage-radar.yaml`'s own comment claims `/log` messages are "routed by Node-RED to log server" — but `core/logging/log_server.py` subscribes directly via `jctsh/+/+/log` (a two-level wildcard), which matches `jctsh/components/garage-radar/log` with no Node-RED involvement needed. This comment is very likely stale documentation from before the direct-subscribe wildcard existed, not a real explanation — every other component's logs reach the dashboard this way with no Node-RED tab required for that specific function.
+- The missing Node-RED tab's git history (`git log -- components/garage-radar/garage-radar.flow.json`) shows only one commit, 2026-07-10, backfilling a file "that existed on disk since the component's original build but was never added to version control" — doesn't establish when or why the live tab itself disappeared from Node-RED, only that the repo copy was untracked for a while.
+- garage-radar's Node-RED tab's own code (`fn_build_st_request`-style functions) appears to target writing to a SmartThings virtual switch directly — plausibly redundant/superseded once the presence chain moved to HA-native automation (per `garage-radar/integration-notes.md`'s documented chain: radar → HA automation → vswitch), which could explain the tab being deliberately retired at some point without anyone connecting that to the dashboard-logging side effect.
+
+**Resolved via a live MQTT trace, 2026-09-17 — the device is actually healthy right now, not broken.** Subscribed directly to `jctsh/components/garage-radar/#` (via the `jctsh-log-server` MQTT account, documented as the general-purpose CLI subscriber) while Joseph physically triggered the radar. A real `/log` message fired and was captured live: `{"component":"garage-radar","category":"Sensor","message":"Presence detected (distance: 0.8m, still: ON, moving: OFF)"}` — and it landed in the dashboard within seconds, confirmed both via `jctsh.log` and the live `/status` page (`garage-radar | Connected | Online | heartbeat 18m ago | Presence ... 3m ago`). A heartbeat message read live off the dashboard showed `uptime: 162h 29m` as of 12:30:58 MST — meaning the device's last boot was roughly 2026-09-10, and it has been reporting correctly and continuously since.
+
+**Real timeline, corrected from this card's original framing:** silent 2026-06-15 to roughly 2026-09-10 (~87 days) for an unknown reason, then healthy since a reboot around 09-10 — not an ongoing, currently-active bug. **Root cause of the original ~87-day gap not established and likely not recoverable** — nothing logged during a silent window, by definition, leaves no diagnostic trail to examine after the fact.
+
+**Real methodology lesson from this card, folded into CARD-0282:** the original "3 months of silence" finding came from grepping the raw `jctsh.log` file directly, not checking the live `/status` dashboard — an already-documented project convention (raw log only reflects a flush trigger, not live state) that wasn't applied here and produced a stale, misleading picture. The Node-RED-tab question (also raised in this card's original framing) remains genuinely unexplained but is now understood to be unrelated to dashboard logging at all (confirmed: `log_server.py` subscribes directly via MQTT wildcard, no Node-RED relay needed) — not reopened as its own investigation since the SmartThings-writing function that tab likely existed for appears superseded by HA-native automation already, per `garage-radar/integration-notes.md`.
+
+**Done when:** the device is confirmed currently healthy (not "still broken") — **met**. Root cause of the historical gap — **not established, accepted as likely unrecoverable, not blocking closure** (Joseph's call).
+
+**Related:** CARD-0280 (the credential audit that surfaced this as a side finding), CARD-0282 (the Session Start dashboard-check methodology fix this directly motivated), `components/garage-radar/garage-radar.yaml`, `components/garage-radar/garage-radar.flow.json`, `Node-RED-workflow.md`, `core/logging/log_server.py` (`MQTT_TOPIC`).
+
+---
+
+### CARD-0280 · [infrastructure] Move Salt Sensor's tab-scoped HA_TOKEN to the systemd-level environment file, closing the exact gap that bit CARD-0261 — RESOLVED 2026-09-17
+
+**Status:** Done
+
+**Raised 2026-09-17 (Joseph + Claude), from the CARD-0279 Node-RED import investigation.** Chasing why Salt Level Sensor's tab once failed after being recreated without its tab-scoped `HA_TOKEN` Environment Variable — expected it to transparently fall back to a systemd-level value the same way Environmental Data's `APPS_SCRIPT_URL`/`APPS_SCRIPT_KEY` already do (`/home/pi/.node-red/environment`, an `EnvironmentFile` on the `nodered` systemd unit).
+
+**Two wrong theories chased and corrected before finding the real story, worth recording honestly rather than tidied away:**
+1. First theory: the systemd-level `HA_TOKEN` (in `/home/pi/.node-red/environment`) was stale/rotated-away. **Wrong** — that file never contained `HA_TOKEN` at all; the grep-based test that seemed to confirm staleness was actually testing an empty variable (empty bearer token → 401, not a stale one).
+2. Second theory, after finding the *real* systemd-level `HA_TOKEN` (set inline via the unit's own `Environment=` directive, not the EnvironmentFile): traced Node-RED's actual `env.get()` source (`@node-red/util/lib/util.js`, `@node-red/runtime/lib/flows/{Flow,index}.js`, v4.1.10) to confirm it *does* fall through to `process.env` when no flow/global Environment Variable is set, and confirmed the real inline value is valid (200 against HA's API). This seemed to contradict Salt Sensor's actual 2026-09-12 failure — until the real explanation turned up.
+
+**Real root cause, found in `components/salt-sensor/CLAUDE.md`'s own CARD-0261 history (Joseph: "check the latest card for Salt Sensor") — a mundane, already-documented, already-fixed incident, not a live bug at all.** 2026-09-12: deleting/reimporting Salt Sensor's tab lost its tab-scoped `HA_TOKEN`; Joseph manually re-pasted it, and the paste introduced stray backtick characters, corrupting the value — producing silent 401s (the flow's own HA-call functions swallow non-200 responses with no logging). Root-caused at the time via a debug node and a direct `curl` test confirming the *token itself* was always valid. **The systemd-level token was never involved and was never stale** — both of this card's own working theories were wrong turns.
+
+**Real, still-valid fix, for a different reason than either wrong theory argued:** CARD-0261's incident is exactly "tab-level credential + manual re-entry after a reimport = a proven failure mode (copy-paste corruption, silently swallowed)." Moving `HA_TOKEN` to the same systemd-level file already used successfully for `APPS_SCRIPT_URL`/`APPS_SCRIPT_KEY`/`NETALERTX_WEBHOOK_SECRET` removes tab-level credential re-entry from this flow entirely — no more manual paste, no more risk of a repeat.
+
+**Built and verified live, 2026-09-17:**
+1. Backed up `/home/pi/.node-red/environment` (`environment.bak-20260917T121310`, kept on the Pi).
+2. Appended `HA_TOKEN=<current value, matching credentials.local.md, confirmed 200 against HA's API before use>` to the file (value moved via an uploaded file reference throughout, never as a literal argument in a shell command — avoids materializing the secret in command history/logs).
+3. Restarted `nodered` — confirmed `active (running)`, `HA_TOKEN` present in the new process's live environment (`/proc/<pid>/environ`), no Alert-category dashboard messages and no auth/error lines in the post-restart journal (only routine startup warnings and one genuine, expected `Threshold logic` alert).
+
+**Real independence test, 2026-09-17 — Joseph removed Salt Sensor's tab-scoped `HA_TOKEN` override himself, then Claude tested the flow without being told it was already gone.** Triggered a real end-to-end test via `switch.salt_test_mode` (the same method CARD-0261 itself used originally):
+```
+12:18:11 | Test   | TEST MODE ON — simulating salt levels at 1s intervals
+12:18:11 | Test   | Step 1/2: WARNING zone — 36.9cm / 27%
+12:18:12 | Test   | Step 2/2: CRITICAL zone — 43.0cm / 0%
+12:18:12 | Alert  | CRITICAL — salt at 0%. Alert sent to HA.
+```
+Node-RED's 60s polling read picked up the HA-side toggle within ~20 seconds (the **read** path), the device responded and simulated its sequence, and Node-RED processed it and posted the alert back to HA (the **write** path) — both working correctly with **zero** tab-scoped `HA_TOKEN`, relying solely on the systemd-level value added above. Checked the flow's own error-handling function (`fn_ha_log`, which explicitly logs an Alert on anything but a 200/207 HTTP response) — it never fired; no HA API errors anywhere in the log for this window. This is the actual proof the exposure is closed, not just that the addition didn't break anything. Test mode turned back off afterward to restore normal operation.
+
+**`credentials.local.md` updated** — HA_TOKEN's entry now names `/home/pi/.node-red/environment` explicitly as a fourth sync location alongside Node-RED/photo-tv-display/hike-izer-orchestrator, so a future rotation doesn't silently miss it the way this file was probably missed at some earlier point (though never actually exercised until this card, since the tab-level override was masking it).
+
+**Done when:** Salt Sensor's tab-scoped `HA_TOKEN` is removed and the tab is confirmed still working via the systemd fallback alone (live-tested, not assumed) — **met**; `credentials.local.md` is updated to name this file explicitly — **met**.
+
+**Related:** CARD-0279 (the Node-RED tab-reimport investigation that surfaced this), CARD-0261 (the original 2026-09-12 incident this card traces back to and fixes the underlying exposure for), `Node-RED-workflow.md` (the import-safety guidance this confirms), `components/salt-sensor/salt-sensor.flow.json`, `credentials.local.md` (HA_TOKEN entry).
+
+---
+
+### CARD-0279 · [bug] [data-pipeline] Field-mode replay burst overwhelms Apps Script's per-reading GPS lookup — missing coordinates scale with reading volume
+
+**Status:** Build — flow changes drafted and syntax-checked, pending Joseph's manual Node-RED import/deploy
+
+**Raised 2026-09-17 (Joseph + Claude), from investigating why today's 2026-09-17 hike showed 17 of 31 (55%) Environmental Data readings with no GPS coordinates.** Initially suspected as a consequence of CARD-0226's hiking-monitor reboot loop (today was that card's 6th recurrence) — **ruled out as the general explanation, confirmed by Joseph's own observation and real data.** Checked missing-GPS rate across hikes with zero CARD-0226 occurrence, well before that reboot loop ever started:
+
+| Hike | Readings | Missing GPS |
+|---|---|---|
+| 2026-08-27 | 14 | 0% |
+| 2026-08-24 | 44 | 5% |
+| 2026-08-22 | 97 | 6% |
+| 2026-08-25 | 102 | 9% |
+
+A clean volume trend with no reboot loop anywhere nearby — the real mechanism is unrelated to CARD-0226.
+
+**Mechanism, confirmed by reading the actual code (`core/data-pipeline/environmental-data.flow.json`'s "GPS lookup"/"Apply GPS coords" nodes) and cross-checking the "Correlation Debug" sheet (CARD-0197's own diagnostic tooling):** hiking-monitor has zero WiFi/MQTT connectivity during an actual hike (field mode, confirmed via the flow's own `rssi_dbm: 0` comment) — every reading buffers on-device and only reaches Node-RED in one tight burst at reconnect (today: all 31 readings within ~4 seconds, 07:53:31-35 MST). Each reading fires its own separate `action=lookup` HTTP GET to Apps Script. The "Apply GPS coords" function node only fills in `lat`/`lon` on a clean `msg.statusCode === 200` response — any timeout, error, or non-200 status from that individual call silently falls through with **no retry and no error logging**, leaving that reading's coordinates permanently blank. A burst of many near-simultaneous requests against one Apps Script deployment is exactly the load pattern already shown flaky this week under different symptoms (CARD-0258's GPS Track timeouts, CARD-0275's incident, CARD-0276's slow-response-but-succeeds finding) — some fraction of the burst's individual lookup calls fail, roughly proportional to burst size.
+
+**One real exception, not covered by this card:** 2026-08-29 (55 readings, 84% missing) is a large outlier against the volume trend above — that hike is where CARD-0226's reboot loop happened *during the replay itself* (10 reboots in 35 seconds while actively streaming), a distinct and more severe failure mode (the replay stream interrupted mid-flight, not just Apps Script choking on volume). That finding stays on CARD-0226; this card covers the general, always-present volume-driven gap.
+
+**Design direction, decided via conversation 2026-09-17 (Joseph's question: "which approach is best? both?") — three complementary fixes, not competing alternatives:**
+1. **Throttle** — space out the outgoing `action=lookup` calls during a replay burst (e.g. a Node-RED rate-limiting delay node) instead of firing them all within the same few seconds, reducing peak concurrent load on Apps Script. Addresses the actual root cause, not just the symptom.
+2. **Retry** — a short retry-on-failure for an individual lookup call that still fails despite throttling (network blip, one slow execution) — catches stragglers without needing the whole burst redesigned.
+3. **Log** — a failed lookup currently leaves zero trace anywhere. At minimum, log when a lookup ultimately fails after retries, so a pattern like today's 55% miss rate is visible without manually diffing `hike_data.json`.
+
+**Bigger alternative considered and deliberately held in reserve:** a single batched Apps Script endpoint resolving N timestamps in one call instead of N separate `action=lookup` requests would eliminate the burst entirely — the most architecturally correct fix, but a much bigger lift (new Apps Script action, new Node-RED batching/response-correlation logic, more surface to test) for a problem throttling + retry should resolve at far lower cost. Revisit only if the smaller fix doesn't hold.
+
+**Moved to Build and flow changes drafted, 2026-09-17.** `core/data-pipeline/environmental-data.flow.json` updated, all three fixes wired into the existing GPS-lookup path between "Prepare GPS lookup" and "Compute derived fields + build POST":
+1. **Throttle:** new `env-data-gps-throttle` delay node (Node-RED core `delay`, `pauseType: "rate"`) inserted between "Prepare GPS lookup" and "GPS lookup" — caps outgoing `action=lookup` calls at 2/sec (`drop: false`, so messages queue rather than get silently dropped under load) instead of firing a whole burst within the same second or two.
+2. **Retry:** "Apply GPS coords" renamed to "Check GPS lookup response (CARD-0279)", rewritten with 3 outputs instead of 1. A 200 response (real match, or a confirmed miss — `_gpsLookup()` already logs a genuine miss server-side via Correlation Debug, CARD-0197, so that's resolved, not retried) continues downstream immediately. A non-200 (timeout/error/Apps-Script-overload) retries by looping back through the same throttle node, up to 3 total attempts (`msg._lookupAttempt`, seeded in "Prepare GPS lookup").
+3. **Log:** once retries are exhausted, a new `env-data-gps-log-failure` mqtt-out node (same `jctsh/core/log-server/log` topic/pattern as the flow's existing "Log success/error" node) publishes an `Alert` naming the component, reading timestamp, and last HTTP status — the reading still publishes with no coordinates rather than being dropped, but the failure is now visible on the dashboard instead of silent.
+
+**Verified so far:** the full JSON parses (13 nodes, up from 8); all 5 function nodes' JS bodies syntax-checked clean (`node --check`, run on the M8, one file per function node).
+
+**Import/deploy done, with a real duplicate-tab detour along the way (the general Node-RED import-safety findings from this are now in `Node-RED-workflow.md`).** The import created a genuine duplicate "Environmental Data" tab (the old, cleared tab plus a fresh one holding the new nodes) — confirmed directly via the Node-RED admin API (`GET /flows`, authenticated via `/auth/token`), not just visually: the new tab (`d15dbc9164b2dce9`) correctly holds all 12 nodes including the three new CARD-0279 ones. The stale empty tab was deleted and deploy re-run 2026-09-17; a follow-up API check confirmed exactly one "Environmental Data" tab remains, 12 nodes, no leftover duplicate.
+
+**Still not yet verified:** the throttle/retry/log path exercised against a real or simulated burst — no hike has happened since the deploy. **Done when:** a real hike with a large reading-volume burst shows a meaningfully lower missing-GPS rate than the pre-fix volume trend predicts, and a deliberately-forced lookup failure is confirmed to retry, exhaust, and produce a real Alert on the dashboard rather than failing silently. Not yet met — the fix is live, but unexercised.
+
+**Watch for:** the next real hike's Environmental Data coverage — check its missing-GPS rate against the pre-fix volume trend documented above (a hike with ~30 readings previously implied ~50%+ missing; the fix should bring that down meaningfully). Also grep `/mnt/jctsh-logs/jctsh.log*` for a real `"GPS lookup failed after 3 attempts"` Alert line (from the new `env-data-gps-log-failure` node) — its appearance would confirm the retry-then-log path fires correctly on real data, and its absence on a hike with a low miss rate would just mean the throttle alone was enough that hike. Per CARD-0251's convention, this card stays in Build until this is observed. Not yet observed as of 2026-09-17 (no hike since deploy).
+
+**Related:** CARD-0226 (the reboot loop this was initially, incorrectly, thought to be part of — its own 2026-08-29 replay-interruption finding is the one real exception this card doesn't cover), CARD-0197 (the Correlation Debug diagnostic that made this investigation possible), CARD-0258/CARD-0275/CARD-0276 (this week's other Apps-Script-under-load findings, same underlying flakiness class), `core/data-pipeline/environmental-data.flow.json` ("Prepare GPS lookup"/"Throttle GPS lookups"/"GPS lookup"/"Check GPS lookup response" nodes), `core/data-pipeline/environmental-data.gs` (`_gpsLookup`), `Node-RED-workflow.md` (the manual import/deploy convention this fix depends on).
+
+---
+
+### CARD-0278 · [enhancement] [hike-izer] Wildlife list/player UX — sticky heading, in-page audio player for hike-page species clips
+
+**Status:** Backlog
+
+**Raised 2026-09-17 (Joseph).** Two related UX asks, both about how BirdNET audio/species data is presented:
+1. **Wildlife list page (`wildlife.html`):** the page heading currently scrolls away with the list — should stay pinned (sticky) while the species table scrolls beneath it.
+2. **Hike summary page, Species section:** add an audio-player-style widget at the end of the Species list — shows what's currently playing with a pause button. Clicking a species' audio to play it should scroll the page down to bring the player into view.
+
+**Not yet interviewed for a done-when or full acceptance criteria** — essence-only per this project's Backlog scoping convention. Real design work (single persistent player vs. per-row players, exact sticky-header CSS approach, where the existing per-species audio clips currently live/play from on the hike page) belongs in Planning.
+
+**Related:** `components/hike-izer-orchestrator/build_wildlife_index.py` (wildlife.html), `components/hike-izer-orchestrator/templating.py` (hike-summary page rendering), `components/hike-izer-orchestrator/birdnet-pipeline.md`.
 
 ---
 
@@ -29,7 +204,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ### CARD-0276 · [bug] [hike-izer-orchestrator] Wildlife-detection archive-to-Sheets 404 on 2026-09-15, no retry protection on this write path
 
-**Status:** Backlog
+**Status:** Build — fix built, deployed, and live-verified via a real synthetic test; watching for a real production occurrence before closing
 
 **Raised 2026-09-16, from CLAUDE.md's Session Start dashboard scan** — not yet interviewed, captured as a finding pending investigation. Real log line: `2026-09-15 11:47:20 MST | hike-izer-orchestrator | Alert | Failed to archive wildlife detections for 2026-09-15 to Sheets: HTTP Error 404: Not Found`.
 
@@ -39,9 +214,32 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Likely related to CARD-0275, not yet confirmed as the same root cause.** CARD-0275 already root-caused a sustained (45+ min) window of intermittent Google Apps Script 404s that same morning, affecting `fetch_sheet()`'s *read* path (widened its retry budget as a result) — this is the same Apps Script deployment, same failure signature (404), same rough time window, but a different code path (`_post_wildlife_detection`'s write, not `fetch_sheet()`'s read) that CARD-0275's fix doesn't touch. Could be the same underlying Apps Script flakiness manifesting on the write side too, or a distinct issue — not established.
 
-**Needs an interview pass to scope real acceptance criteria** — open questions for that pass: was 2026-09-15's wildlife data actually lost, or is the Sheet complete regardless (e.g., because the species list that hike was empty, or because a later daily-refresh pass on CARD-0214's gap-fill mechanism reprocessed it)? Should this write path get the same retry-before-alert treatment as CARD-0258's fetch paths, or does the "never block page publication" design intentionally trade that off, and if so does a *failed* archive attempt need some other durable record so it isn't just a one-line Alert that scrolls off?
+**Second occurrence, 2026-09-17 08:15:40 MST, found via CLAUDE.md's Session Start dashboard scan — confirms this is recurring, not a one-off.** Same write path, different error shape (`The read operation timed out`, not a 404) — same morning as CARD-0258's own GPS Track probe timeout on this same hike, ~19 minutes earlier.
 
-**Related:** CARD-0275 (same-morning Apps Script 404 root-cause, read side), CARD-0258 (the retry-before-alert mechanism this write path sits outside of), CARD-0229 (`_archive_new_wildlife_detections`'s original best-effort design), `components/hike-izer-orchestrator/generation.py` (`_post_wildlife_detection`, `_archive_new_wildlife_detections`).
+**Interviewed 2026-09-17 (Joseph) — real data loss confirmed, not just risked, before scoping the fix.** Queried the live Wildlife Detections sheet directly (`action=export`) rather than guessing: **2026-09-15 had 11 species detected, only 2 (Gilded Flicker, Black-throated Sparrow) reached the Sheet** — 9 missing (Northern Cardinal, House Finch, Curve-billed Thrasher, Verdin, Gila Woodpecker, Rock Wren, Bewick's Wren, Zone-tailed Hawk, Grey Vireo). **2026-09-17 had 16 species, only 2 (Say's Phoebe, Lesser Goldfinch) reached the Sheet** — 14 missing. The archive loop posts species one at a time and aborts entirely at the first failure, so only whichever species happened to post before the 404/timeout hit survived — a real, structural all-or-nothing bug, not a rare edge case.
+
+**Deeper structural bug found while reading the code, not previously known:** `wildlife_life_list.json` (the local cache `_archive_new_wildlife_detections`'s dedup check reads) gets updated via `update_from_hike()` **unconditionally right after the archive attempt, regardless of whether the Sheets POST actually succeeded** — so a species that failed to post was permanently marked "done" and would never be retried by any later pass (including CARD-0214's daily refresh). This is why the 23 missing rows above were still missing days later, not just delayed.
+
+**Fix built and deployed, 2026-09-17 (Joseph's call via interview: per-row retry-before-alert, closing the structural gap directly):**
+- `wildlife_life_list.py`: `update_from_hike()` gained an `archived_species` parameter — each hike-entry now carries its own `archived` bool, defaulting True only when that species' Sheets POST actually succeeded. A pre-existing entry with no `archived` key (every hike processed before this fix) is treated as already-archived by the dedup check, to avoid a mass-retry sweep across ~150 historical hikes that were never suspected of being incomplete.
+- `generation.py`: `_archive_new_wildlife_detections()` rewritten — each species gets its own bounded retry (`WILDLIFE_ARCHIVE_RETRY_ATTEMPTS=3`, 10s apart), a genuine failure is named by species in the Alert (not just the first exception hit), and only species that actually succeed are reported back to `update_from_hike()` as archived — everything else stays retry-eligible on the next generation pass.
+- Deployed via the standard `scp` + `docker compose up -d --build orchestrator` cycle; container confirmed healthy.
+
+**Real second bug found live while backfilling, 2026-09-17 — the retry fix above was itself unsafe without a further change.** Re-parsed both hikes' still-present BirdNET staging exports and ran the missing species through the fixed retry path. Apps Script turned out to be slow enough that a write can **commit server-side while the client's response read still times out** — so a "failed" attempt that gets retried can silently double-post. Confirmed live: Verdin (logged as one success) ended up with 2 rows for 2026-09-17; House Finch (logged as failed all 3 attempts) ended up with 3 rows — every attempt had actually succeeded, the client just never saw a clean response. Root cause: unlike GPS Track/Hiking Observations (CARD-0243/CARD-0244), the Wildlife Detections sheet's Apps Script handler had no dedup-before-append guard, so retries were never actually safe there.
+
+**Second fix built and deployed, 2026-09-17 — matches the GPS Track dedup precedent (CARD-0243).** `core/data-pipeline/environmental-data.gs`'s wildlife-detection `doPost` branch now checks columns B/D (`hike_file_stem`/`scientific_name`) for an existing match before `appendRow`, returning `{"status": "duplicate", ...}` instead of writing a second row. `generation.py`'s `_post_wildlife_detection()` updated to treat `"duplicate"` as success, not failure — this is what makes the per-row retry actually safe now. `SCRIPT_VERSION` bumped to `2026-09-17.1-wildlife-detection-dedup`, syntax-checked clean (`node --check`, run on the M8).
+
+**Deployed by Joseph and live-verified end-to-end, 2026-09-17.** `?action=version` confirmed `2026-09-17.1-wildlife-detection-dedup`. Real dedup test: POSTed an identical synthetic payload (`hike_file_stem="card-0276-dedup-test"`, `scientific_name="Testus dedupicus"`) four times across two different HTTP clients (2x curl, which hit an unrelated client-side redirect-handling quirk on POST but very likely still reached the sheet -- 2x Python `urllib`, matching the real production call). `action=export` afterward confirmed **exactly 1 row** exists for that key despite the repeated attempts -- direct proof the guard holds even under the exact "write succeeds, client never sees it" failure mode that caused the original duplicates.
+
+**Backfill: 22 of 23 missing species successfully posted, 2026-09-17** (Joseph's call: backfill now using the real staging data rather than leave the gap). One (House Finch, 2026-09-17) reported failed by the backfill script but actually succeeded 3 times server-side per the duplicate-row finding above.
+
+**Cleanup done by Joseph, confirmed live 2026-09-17.** All 4 extra rows removed by hand in the Sheets UI (1 extra Verdin + 2 extra House Finch from the pre-dedup-guard backfill, plus the synthetic `card-0276-dedup-test`/`Testus dedupicus` verification row) — re-queried via `action=export`: the test key now returns `count: 0`, and 2026-09-15/2026-09-17 show exactly 11/16 rows respectively (matching each hike's real detected-species count exactly), zero duplicates remaining.
+
+**Done when:** the 4 extra rows are removed from the Sheet — **met**; the fix's core mechanism (per-row retry + server-side dedup) is confirmed correct via a real live test reproducing the exact failure mode that caused the original duplicates — **met**; a real future production archive-write failure is observed to retry and recover cleanly — **not yet met**. Stays in Build until the Watch-for below fires, per Joseph's 2026-09-17 correction to this project's own status-vs-Watch-for convention (see CARD-0251): an open Watch-for means real-world verification is still outstanding, so the card shouldn't read as Done — CARD-0224 corrected to match, below.
+
+**Watch for:** a real future wildlife-archive write failure (an `Alert`-category "Failed to archive N species detection(s) for `<file_stem>` to Sheets after 3 attempts each" or a retry-then-success `System` line) — confirms the fixed retry/dedup path end-to-end on real production data, not just this session's synthetic test. Once observed, move Status to Done. Not yet observed since deploy.
+
+**Related:** CARD-0275 (same-morning Apps Script 404 root-cause, read side), CARD-0258 (the retry-before-alert mechanism this write path now has its own version of; also fired for real the same morning as this card's second occurrence), CARD-0229 (`_archive_new_wildlife_detections`'s original best-effort design), CARD-0243/CARD-0244 (the GPS Track/Hiking Observations dedup precedent this card's Apps Script fix follows), `components/hike-izer-orchestrator/generation.py` (`_post_wildlife_detection`, `_archive_new_wildlife_detections`), `components/hike-izer-orchestrator/wildlife_life_list.py` (`update_from_hike`), `core/data-pipeline/environmental-data.gs` (wildlife-detection `doPost` branch).
 
 ---
 
@@ -381,9 +579,11 @@ Archived to `components/salt-sensor/CLAUDE.md` on 2026-09-16 (CARD-0193) — 909
 
 Deployed via the standard scp + `docker compose up -d --build orchestrator` cycle; container confirmed back to `healthy` after recreate. **Not yet verified against a real triggered retry cycle** — that would mean forcing a failure and watching it actually retry and recover 15 minutes later, which hasn't been done. The one thing this *does* directly verify is that the container still starts and runs cleanly with the new code path.
 
-**Done when:** (1) the actual cause of the GPS Track fetch stall is identified (Apps Script-side slowness/quota, sheet size growth, or something else) — **still open**, unchanged by the retry fix, which mitigates the symptom without explaining it; (2) the retry-before-alert behavior is confirmed live against a real failure-then-recovery cycle, not just code review and a clean container start — **not yet met**.
+**Done when:** (1) the actual cause of the GPS Track fetch stall is identified (Apps Script-side slowness/quota, sheet size growth, or something else) — **still open**, unchanged by the retry fix, which mitigates the symptom without explaining it; (2) the retry-before-alert behavior is confirmed live against a real failure-then-recovery cycle, not just code review and a clean container start — **met, 2026-09-17** (see Watch for resolution above).
 
 **Watch for:** a real occurrence of the retry path actually firing (a "retrying in 15 min" System log line in `hike-izer-orchestrator`'s logs) — confirms the new code path works as designed on real data, not just in review. Not yet observed as of 2026-09-16. The "second occurrence of the underlying stall, to compare conditions" half of this watch is now answered by the 2026-09-08 finding above — if a *third* occurrence happens, check hiking-monitor's own log for a same-day reboot-loop recurrence again, now that two of two known occurrences have shown that pattern, before assuming it's coincidence.
+
+**Watch for marker resolved 2026-09-17, via CLAUDE.md's Session Start check — the retry path fired for real and recovered, done-when item (2) now met.** Today's whole-day session probe hit the same 240s timeout again (`07:56:34 MST`, identical command shape, `fetch_hike_data.py` against GPS Track), logged exactly as designed: `Hike summary step 1 generation failed (attempt 1/5), retrying in 15 min`. The retry fired ~19 minutes later and succeeded — `08:15:45 MST | hike-izer-orchestrator | System | Published data-only hike summary for 2026-09-17` — no Alert/push notification was sent, confirming a transient failure no longer surfaces to Joseph. This is a third occurrence of the underlying stall (2026-09-08, 2026-09-10-adjacent day not applicable, 2026-09-17), but no same-day hiking-monitor reboot-loop recurrence check was run against it yet — see CARD-0226, which separately logged its own sixth recurrence this same morning (07:53 MST, ~3 minutes before this timeout) on the same hike. Worth noting as a third data point for the correlation CARD-0226/this card have been tracking. Item (1) (actual GPS Track stall cause) remains unidentified — this only confirms the mitigation, not the root cause.
 
 **Related:** CARD-0226 (hiking-monitor reboot-loop recurrence, same hike/window, tracked separately), CARD-0135 (raised the timeout ceiling from 120s to 240s after a similarly-shaped slow-Apps-Script day), CARD-0120 (why session bounds are derived from the GPS trace rather than trusted from GPSLogger), `components/hike-izer-orchestrator/generation.py` (`_detect_session_window`, `run_and_log`, `run_step2_and_log`, `run_daily_refresh_and_log`), `components/hike-izer-orchestrator/hike-izer-daily-refresh.service`, CARD-0173 (the Log Idea capture path that surfaced this), CARD-0214 (the daily refresh pass this retry logic now covers).
 
@@ -823,7 +1023,7 @@ All log lines were relayed together at 07:20 MST when the device reconnected, bu
 
 **Direct, quantified consequence confirmed via `hike_data.json`'s own coverage numbers for this hike, same analysis as the 2026-09-03 recurrence.** Environmental Data coverage was **18.4%** (7 of 38 expected readings), with four gaps of 13.0/21.1/21.0/8.0 minutes. Two of the seven surviving readings (`13:23:00Z`, `14:06:06Z`) land at the *exact same timestamp* as boots 2 and 5's own "Display refreshed" events — the device only got a reading out in the brief window right after each reboot, same pattern as 09-03. Notably, **GPS Track was unaffected** — all 148 expected trackpoints landed (98% coverage, no gaps over 62s, no duplicates) straight through the same reboot loop; only the slower/less-frequent environmental-sensor upload path took the hit. This is corroborating evidence for the existing causal chain (CARD-0221/CARD-0222), not a new bug.
 
-**Done when:** (1) the actual reboot trigger is identified via a real live capture, not just ruled-out candidates, and fixed or confirmed benign; (2) the replay path tracks delivery per-record (e.g. QoS 1 with a real broker ack, removing just that one line once confirmed) instead of all-or-nothing, so a mid-replay interruption -- from this bug or any future one -- can't cost real data; (3) verified live against a real hike with a large buffered-reading count, confirming no reboot loop and no data shortfall. **Still not met** — five recurrences now confirmed (2026-08-29, 2026-09-03, 2026-09-08, 2026-09-10, 2026-09-15), all adding evidence and confirming this isn't a one-off, but none resolving anything: no live UART capture has happened yet (still blocked on physically running CARD-0205's debug setup during a real occurrence, or forcing a deliberate bench reproduction), and the replay-path robustness fix (per-record delivery tracking) hasn't been built.
+**Done when:** (1) the actual reboot trigger is identified via a real live capture, not just ruled-out candidates, and fixed or confirmed benign; (2) the replay path tracks delivery per-record (e.g. QoS 1 with a real broker ack, removing just that one line once confirmed) instead of all-or-nothing, so a mid-replay interruption -- from this bug or any future one -- can't cost real data; (3) verified live against a real hike with a large buffered-reading count, confirming no reboot loop and no data shortfall. **Still not met** — six recurrences now confirmed (2026-08-29, 2026-09-03, 2026-09-08, 2026-09-10, 2026-09-15, 2026-09-17), all adding evidence and confirming this isn't a one-off, but none resolving anything: no live UART capture has happened yet (still blocked on physically running CARD-0205's debug setup during a real occurrence, or forcing a deliberate bench reproduction), and the replay-path robustness fix (per-record delivery tracking) hasn't been built.
 
 **Fifth recurrence, found 2026-09-15 via CLAUDE.md's Session Start Watch-for check — same "spread through the live hike" shape as 09-03/09-08/09-10, and the largest boot count yet.** `hiking-monitor`'s device log for the 2026-09-15 hike shows 15 of its 16 field-mode wake cycles carrying an anomalous reset reason (6 blank, 9 `Reboot request from mqtt`), roughly 15 minutes apart across nearly 4 hours:
 - Boot 1: `exiting deep sleep mode` → `Display refreshed (field mode) at 2026-09-15T13:11:04Z` (normal, the hike's first wake).
@@ -835,6 +1035,14 @@ All log lines were relayed together at 07:20 MST when the device reconnected, bu
 All log lines were relayed together at 10:42 MST when the device reconnected (159 buffered hike readings replayed), but the boot events themselves happened live across 13:11Z-16:56Z, matching the spread-through-the-hike shape, not 08-29's tight post-replay burst. Five occurrences in 17 days now. **New symptom, not seen on the prior four recurrences:** three of this hike's blank-reset-reason boots (10-12) each paired with a `Skipped reading - nan_sensor` line — the environmental sensor read out all-null immediately after those particular reboots, distinct from the already-understood "no reading published at all" pattern. Not yet analyzed against `hike_data.json` coverage numbers for this hike, and CARD-0205's debug UART still hasn't been run on a real occurrence — no new information on the actual trigger.
 
 **Watch for:** hiking-monitor's durable log showing a `"Reboot request from mqtt"` (or any blank/empty) field-mode reset-reason line from a hike **after 2026-09-15** — a sixth recurrence beyond the five now logged above. Five occurrences in 17 days suggests this happens often enough that the next one is likely soon; if it shows up, log it the same way as the prior five (exact reset-reason text, real event timestamps via "Display refreshed" lines, which shape it matches) — CARD-0205's debug UART setup is still flagged to run on the next hike regardless, so the next occurrence has a real chance of being caught live.
+
+**Sixth recurrence, found 2026-09-17 via CLAUDE.md's Session Start Watch-for check — same "spread through the live hike" shape as 09-03/09-08/09-10/09-15, smallest boot count of the spread-shape occurrences so far.** `hiking-monitor`'s device log for the 2026-09-17 hike shows 4 of its 6 field-mode wake cycles carrying an anomalous reset reason (1 blank, 3 `Reboot request from mqtt`), roughly 15 minutes apart across ~75 minutes:
+- Boot 1: `exiting deep sleep mode` → `Display refreshed (field mode) at 2026-09-17T13:29:08Z` (normal, the hike's first wake).
+- Boot 2: **`Reboot request from mqtt`** → `13:44:13Z`.
+- Boot 3: **blank reset reason** → `13:59:10Z`.
+- Boot 4: **`Reboot request from mqtt`** → `14:14:12Z`.
+- Boot 5: **`Reboot request from mqtt`** → `14:29:12Z`.
+All log lines were relayed together at 07:53 MST when the device reconnected (57 buffered hike readings replayed), but the boot events themselves happened live across 13:29Z-14:29Z, matching the established spread-through-the-hike shape. Six occurrences in 19 days now — still no live UART capture (CARD-0205 not yet run on an actual occurrence), no new information on the trigger. Not yet analyzed against `hike_data.json` coverage numbers for this hike. **Possibly relevant:** this same hike's whole-day session probe also hit CARD-0258's 240s GPS Track timeout, ~3 minutes after this reboot loop's log lines relayed (07:56:34 MST) — a third instance of the two cards' loosely-correlated "load right at reconnect" timing, per CARD-0258's own note.
 
 **Kept open independent of CARD-0259 (hiking-monitor v2), 2026-09-10 — Joseph's call.** This is the actual motivating problem behind v2, but worth continuing to chase root cause on the current hardware in parallel, in case it turns out fixable without a full rebuild — not automatically superseded by v2's longer timeline.
 
@@ -849,8 +1057,10 @@ Archived to `tos/kanban-archive.md` on 2026-09-10 (CARD-0193) — 11530B, over t
 
 ---
 
-### CARD-0224 · [bug] [infrastructure] Low-battery-while-charging WiFi-attempt gating is undefined — real risk, not a corner case — RESOLVED 2026-09-10
-**Status:** Done
+### CARD-0224 · [bug] [infrastructure] Low-battery-while-charging WiFi-attempt gating is undefined — real risk, not a corner case
+**Status:** Build
+
+**Reopened from Done 2026-09-17 (Joseph's correction, applied consistently with CARD-0276).** This card carries its own still-open Watch for (below, from 2026-09-06) that has never fired — marking it Done while a real-world confirmation is still outstanding was the wrong convention. An open Watch-for now means the card stays in Build until it fires; see CARD-0251 for the general rule.
 
 **Raised 2026-08-29 (Joseph), during a conversation clarifying `JCTsh-Build-Standards.md` §2.14 point 13's data-flow model.** Point 13 establishes that a WiFi upload attempt requires Intent off AND Power Connected true. Point 2/9 separately establish a low-battery cutoff that's supposed to gate WiFi-burst operations regardless of those two signals. Neither point specifies what actually happens when *all three* conditions are in play at once: Intent off, Power Connected true (charging), **and battery voltage below the safe cutoff as a direct result of the device having just worked hard** (a long hike, extended field session) — the device's own prior activity is what put it in this state, not an external fluke.
 
@@ -4003,10 +4213,32 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 6077B
 
 ---
 
-### CARD-0251 · [enhancement] [tos] Auto verify markers — date-based and event-based — RESOLVED 2026-09-08
+### CARD-0251 · [enhancement] [tos] Auto verify markers — date-based and event-based
 **Status:** Done
 
-Archived to `tos/CLAUDE.md` on 2026-09-10 (CARD-0193) — 5610B, over the 5000B size threshold.
+**Un-archived from `tos/CLAUDE.md` 2026-09-17, per the un-archiving rule (CARD-0193) — a real update, not just a re-touch.** Moved back to make the correction below in place rather than editing the archive copy.
+
+**Raised retroactively 2026-09-08 (Joseph): "that's the second marker, did we have a card for the first? seems like tos work."** Both marker conventions were built inline under other cards' threads without ever being scoped as their own item — `Auto verify` under CARD-0249 (that card's own "Scope" section only names its two heartbeat-script fixes, not the marker mechanism it also produced), `Watch for` under CARD-0224. Both are genuinely reusable `tos/` kanban-tooling, the same category as CARD-0128/CARD-0173/CARD-0190 — not `[infrastructure]` work belonging to either origin card. Filed here per the "Impromptu Work Cards" convention: logged as already interviewed, built, and deployed, not as new pending work.
+
+**Sorted to the end of the file, not by ID position, 2026-09-08 (Joseph's call) — a deliberate placement, not an accident.** Every other card sits roughly in ID order; this one is meta/self-referential low-priority tooling, so it's placed after the last card in the file, guaranteeing it renders last within its column on `/kanban` (which lists cards in file order, not by ID) rather than jumping to the top of the Done list just because it was written today.
+
+**One family, two flavors — named "Auto verify markers" collectively, deliberately keeping distinct literal wording per flavor (decided 2026-09-08, Joseph's call) rather than forcing both onto one literal keyword.** Each flavor's marker phrase already reads naturally in its own card prose ("Auto verify: 2026-09-14" vs. "Watch for: ..."); unifying only the *umbrella name* (in card titles, CLAUDE.md, and code comments) gets the "one mental model" benefit without a forced, awkward shared keyword or any regex/CSS/JS churn.
+
+**The mechanism, as built:** every card can carry a follow-up marker in its body, parsed by `log_server.py`'s `_parse_kanban_board()` and rendered as a badge on the card's `/kanban` header (so it isn't missed behind a fold), and checked by an unconditional CLAUDE.md Session Start step (independent of the existing 7-day recently-updated window, since a card can sit untouched far longer than that while still waiting on its marker):
+- **Date-based** — `**Auto verify: <date>**` (CARD-0249, 2026-09-07) — for a check that couldn't be done live at write time because it depends on a *known future date/event* (a scheduled reboot, a timer firing). CLAUDE.md Session Start step 4 greps for the marker and, once the date has passed, follows through on the card's own stated check.
+- **Event-based** — `**Watch for:** <description>` (CARD-0224, 2026-09-08) — for a check tied to a real-world condition of *unknown* future timing (no date to wait on) — typically a specific log message that will only appear if/when a field condition occurs. CLAUDE.md Session Start step 5 greps for the marker, then greps the Pi's durable log (`/mnt/jctsh-logs/jctsh.log*`, including rotated backups) for the stated pattern.
+
+**Built and deployed 2026-09-07/08:** `core/logging/log_server.py` — regex parsing for both markers (`av_m`/`wf_m` in `_parse_kanban_board()`), `.flag[data-flag="auto-verify"]`/`.flag[data-flag="watch-for"]` CSS, and JS badge rendering in `cardHtml()`. `CLAUDE.md` — Session Start steps 4 (Auto verify) and 5 (Watch for), both unconditional every session. Deployed to the Pi, `jctsh-logging` restarted, confirmed running. First real uses: CARD-0247/CARD-0248/CARD-0249 (Auto verify), CARD-0224/CARD-0217/CARD-0196 (Watch for).
+
+**Badge text shortened for Watch for, 2026-09-08 (Joseph: "exclude from the yellow marker on the /kanban card the detail... it's too long").** A `Watch for` description can run to a full sentence or more — the card body needs that detail for the actual grep to be precise, but it made the badge itself unreadably long next to every other card's short flags. The badge now shows a fixed `Watch for` label only; the full description moved into the badge's `title` attribute (hover tooltip) instead of being dropped. `Auto verify`'s badge is unchanged — a date is already short enough to show inline.
+
+**Sort-to-end-of-column added, 2026-09-08 (Joseph: "make them sort to the end of their column since they don't require my attention").** A card carrying either marker flavor is passively waiting on something outside this session's control — it doesn't need eyes on it right now, so it shouldn't compete for the top of its column's list. `render()`'s per-column `cards` array now runs a stable sort (`Array.sort`, ES2019+ guaranteed-stable, safe for every browser this page targets) that pushes any card with `auto_verify`/`watch_for` set after every card without one, preserving each group's original file order internally. Applies automatically to every current and future marker-carrying card — no per-card file reordering needed, unlike this card's own placement (see the note above, which is a one-off exception since this card itself carries neither marker).
+
+**Status-vs-marker convention corrected, 2026-09-17 (Joseph).** Found via CARD-0276/CARD-0224: a card was being marked **Done** while still carrying an unresolved Watch-for/Auto-verify marker, reasoning that a marker was just a "bonus" real-world confirmation on top of an already-thoroughly-verified fix. Joseph's call: that's the wrong convention — **an open Auto verify/Watch-for marker means real-world verification is still outstanding, so the card stays in Build (or whatever non-Done column it's actually in) until the marker resolves, full stop, no case-by-case exception for "verified some other way."** Applied retroactively to the two cards that surfaced this (CARD-0276, CARD-0224 — both moved back from Done to Build). The sort-to-end-of-column behavior above is unaffected by this correction — it already sorts within whatever column the card is actually in, not just Done, so a Build-column card with an open marker still correctly sorts to the end of Build.
+
+**Done when:** both marker types parse correctly, render as a card-header badge on `/kanban`, and are checked unconditionally at Session Start regardless of the card's last-touched date — **met**, live on the Pi. The status-vs-marker convention correction above is a documentation/process fix, not a code change — no separate verification needed.
+
+**Related:** CARD-0249 (Auto verify's origin thread), CARD-0224/CARD-0217/CARD-0196 (Watch for's origin/adopting threads), CARD-0276 (the card whose incorrect Done status while a Watch-for was open prompted this correction), CARD-0128/CARD-0173/CARD-0190 (prior `[tos]` kanban-tooling precedent), `core/logging/log_server.py`, `CLAUDE.md`.
 
 ---
 

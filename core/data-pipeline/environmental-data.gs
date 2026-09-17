@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-06.3-forecast-session-gap-fix';
+var SCRIPT_VERSION = '2026-09-17.1-wildlife-detection-dedup';
 
 // ---------------------------------------------------------------------------
 // _relayLog -- CARD-0225: MQTT-dashboard visibility for GPS Track/Hiking
@@ -185,6 +185,38 @@ function doPost(e) {
         // this cell was already Date-typed from a prior write and the
         // format change alone doesn't retroactively fix it).
         wildlifeSheet.getRange('B:B').setNumberFormat('@');
+
+        // CARD-0276: dedup on (hike_file_stem, scientific_name) before
+        // appendRow -- same pattern as GPS Track's own ingest dedup
+        // (CARD-0243). Found live 2026-09-17: generation.py's own
+        // per-row retry (added to fix a different CARD-0276 gap) turned
+        // out to be unsafe without this -- Apps Script can be slow enough
+        // that a write actually commits here but the HTTP response never
+        // reaches the client before its read times out, so the client
+        // retries a call that already succeeded. Real duplicates this
+        // caused: 2 x Verdin and 3 x House Finch for the 2026-09-17 hike.
+        // Columns: B=hike_file_stem (leading apostrophe stripped on read,
+        // see the CARD-0235 comment above), D=scientific_name.
+        var isDuplicate = false;
+        if (wildlifeSheet.getLastRow() > 1) {
+          var existingKeys = wildlifeSheet.getRange(2, 2, wildlifeSheet.getLastRow() - 1, 3).getValues();
+          for (var wk = 0; wk < existingKeys.length; wk++) {
+            if (String(existingKeys[wk][0]) === String(payload.hike_file_stem) &&
+                String(existingKeys[wk][2]) === String(payload.scientific_name)) {
+              isDuplicate = true;
+              break;
+            }
+          }
+        }
+
+        if (isDuplicate) {
+          // finally below still runs (and releases the lock) on this
+          // return path -- do not release it here too.
+          return ContentService
+            .createTextOutput(JSON.stringify({status: 'duplicate', hike_file_stem: payload.hike_file_stem, scientific_name: payload.scientific_name}))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+
         wildlifeSheet.appendRow([
           payload.ts, "'" + payload.hike_file_stem, payload.common_name,
           payload.scientific_name, payload.count, payload.best_confidence,

@@ -146,8 +146,20 @@ def _post_wildlife_detection(row, file_stem):
     )
     with urllib.request.urlopen(req, timeout=20) as resp:
         result = json.loads(resp.read())
-    if result.get("status") != "ok":
+    # CARD-0276: "duplicate" (the Apps Script's own dedup guard on
+    # (hike_file_stem, scientific_name)) counts as success, not failure --
+    # this is what makes _archive_new_wildlife_detections' per-row retry
+    # actually safe. Without server-side dedup, a client-side retry after
+    # a read timeout (the write can commit before Apps Script's response
+    # makes it back) silently double-posted real rows -- confirmed live
+    # 2026-09-17 (2x Verdin, 3x House Finch on one hike) before this guard
+    # existed.
+    if result.get("status") not in ("ok", "duplicate"):
         raise RuntimeError(f"Apps Script rejected wildlife-detection POST: {result}")
+
+
+WILDLIFE_ARCHIVE_RETRY_ATTEMPTS = 3
+WILDLIFE_ARCHIVE_RETRY_DELAY_SEC = 10
 
 
 def _archive_new_wildlife_detections(file_stem, birdnet_rows):
@@ -157,41 +169,75 @@ def _archive_new_wildlife_detections(file_stem, birdnet_rows):
     on success, matching Node-RED's own convention of confirming every
     successful Sheets append, not just an Alert on failure).
 
-    Only archives species not already recorded for this file_stem,
-    checked against the local life-list cache *before*
+    Only archives species not already recorded (and actually archived --
+    see wildlife_life_list's own "archived" flag, CARD-0276) for this
+    file_stem, checked against the local life-list cache *before*
     wildlife_life_list.update_from_hike() (called right after this, by
     both callers) mutates it -- run_step2() can re-run for the same hike
     on every CARD-0214 daily refresh pass, and a plain unconditional
     appendRow would duplicate rows on each one. The local cache already
     tracks "which species were recorded on which hikes" for exactly this
     idempotency reason, so this reuses it rather than adding a second,
-    separate dedup scan on the Apps Script side."""
+    separate dedup scan on the Apps Script side.
+
+    CARD-0276: real data loss (23 of 27 species across two real hikes,
+    2026-09-15/17) was found from this loop's original all-or-nothing
+    shape -- one species' POST failing (a transient Apps Script 404 or
+    timeout) raised past the whole for-loop, so every row after the
+    failing one was never even attempted, and the exception was caught
+    one level up with no per-row detail. Worse, the caller's own
+    update_from_hike() call ran unconditionally right after regardless of
+    what actually reached Sheets, so a failed row was marked done in the
+    local cache and never retried by any later pass. Fixed here: each
+    row gets its own bounded retry, a genuine failure is named by species
+    (not just the first exception hit), and only rows that actually
+    succeed are reported back to the caller for update_from_hike() to
+    mark archived -- everything else stays retry-eligible."""
     if not birdnet_rows:
-        return
+        return set()
 
     life_list = wildlife_life_list.load()
     new_rows = [
         row for row in birdnet_rows
         if not any(
-            h["file_stem"] == file_stem
+            h["file_stem"] == file_stem and h.get("archived", True)
             for h in life_list.get(row["scientific_name"], {}).get("hikes", [])
         )
     ]
     if not new_rows:
-        return
+        return set()
 
-    try:
-        for row in new_rows:
-            _post_wildlife_detection(row, file_stem)
+    archived_species = set()
+    failed = []
+    for row in new_rows:
+        last_error = None
+        for attempt in range(1, WILDLIFE_ARCHIVE_RETRY_ATTEMPTS + 1):
+            try:
+                _post_wildlife_detection(row, file_stem)
+                last_error = None
+                break
+            except Exception as e:
+                last_error = e
+                if attempt < WILDLIFE_ARCHIVE_RETRY_ATTEMPTS:
+                    time.sleep(WILDLIFE_ARCHIVE_RETRY_DELAY_SEC)
+        if last_error is None:
+            archived_species.add(row["scientific_name"])
+        else:
+            failed.append((row["common_name"], last_error))
+
+    if archived_species:
         mqtt_log.publish_log(
             "System",
-            f"Archived {len(new_rows)} species detection(s) for {file_stem} to Wildlife Detections.",
+            f"Archived {len(archived_species)} species detection(s) for {file_stem} to Wildlife Detections.",
         )
-    except Exception as e:
+    if failed:
+        detail = "; ".join(f"{name}: {err}" for name, err in failed)
         mqtt_log.publish_log(
             "Alert",
-            f"Failed to archive wildlife detections for {file_stem} to Sheets: {e}",
+            f"Failed to archive {len(failed)} species detection(s) for {file_stem} to Sheets "
+            f"after {WILDLIFE_ARCHIVE_RETRY_ATTEMPTS} attempts each: {detail}",
         )
+    return archived_species
 
 
 def _log_birdnet_parse_outcome(staging_dir, file_stem, birdnet_rows):
@@ -694,7 +740,7 @@ def run(payload):
         _log_birdnet_parse_outcome(_staging_dir, file_stem, birdnet_rows)
         # CARD-0229: must run before update_from_hike() below mutates the
         # local cache -- see that function's own docstring for why.
-        _archive_new_wildlife_detections(file_stem, birdnet_rows)
+        archived_species = _archive_new_wildlife_detections(file_stem, birdnet_rows)
 
         # CARD-0112: no place_context, no narrative call in step 1 -- mechanical
         # rendering only. templating.render_html omits the whole narrative
@@ -720,7 +766,7 @@ def run(payload):
         # correctly matches file_stem on the very render where it should.
         # No-op if birdnet_rows is empty, same "no empty scaffolding"
         # convention as the Photos section.
-        wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows)
+        wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows, archived_species=archived_species)
 
         # CARD-0134: thunderforest_api_key passed here too (not just step 2) --
         # the Route Map + Elevation & Speed chart need no manual staging, unlike
@@ -850,7 +896,7 @@ def run_step2(file_stem, with_narrative=False):
     _log_birdnet_parse_outcome(staging_dir, file_stem, birdnet_rows)
     # CARD-0229: must run before update_from_hike() below mutates the
     # local cache -- see that function's own docstring for why.
-    _archive_new_wildlife_detections(file_stem, birdnet_rows)
+    archived_species = _archive_new_wildlife_detections(file_stem, birdnet_rows)
 
     # CARD-0108/CARD-0112: runs after photo captioning so sign_text (if any)
     # is already on the manifest, and now with real photo locations
@@ -884,7 +930,7 @@ def run_step2(file_stem, with_narrative=False):
     # reasoning as step 1's own call site -- see that comment for the full
     # story. This was the second half of the same live bug (both step 1 and
     # step 2 had the render-then-merge ordering).
-    wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows)
+    wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows, archived_species=archived_species)
 
     # CARD-0134: gaia_embed_html deliberately not passed anymore -- the
     # native Route Map (CARD-0082) replaced it as this pipeline's default,

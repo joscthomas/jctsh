@@ -2,7 +2,8 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** Defines how a session chooses which card to pick up next, when several are candidates.
-**Version:** 1.0
+**Version:** 1.1
+**Version description:** Added a note on how this combines with Priority for a requested open-cards listing (CARD-0288 follow-on) — Priority governs the display's tier ordering there, this document's four factors order within each tier. Doesn't change what this document weighs for actual selection.
 
 ---
 
@@ -34,5 +35,13 @@ Explicitly not weighed: raw severity beyond the bug/enhancement tiebreaker, card
 business impact — these can be added later if they prove genuinely load-bearing, same
 discipline as the rest of this system.
 
+**Combined with Priority for a requested open-cards listing (added 2026-09-17) — a display
+rule, not a change to selection.** `JCTsh-Operating-System.md`'s "Listing open cards"
+convention always renders a requested listing as a table, ordered by Priority tier first
+(Critical → High → Medium → Low → unset), then by this document's four factors within each
+tier. This project's "severity/business-impact wasn't weighed" stance above still holds for
+*selection* — Priority only governs how a listing gets *displayed* when asked for.
+
 **Related:** `JCTsh-Operating-System.md` (Priority section, the adjacent-but-distinct
-existing concept), `kanban-board.md` CARD-0288 (origin of this document).
+existing concept; also its Listing open cards convention, combined with this document for
+display ordering), `kanban-board.md` CARD-0288 (origin of this document).

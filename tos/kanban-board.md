@@ -9,7 +9,32 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0292 -->
+<!-- next-card-id: CARD-0293 -->
+
+---
+
+### CARD-0292 · [enhancement] [tos] Split a document's own version-history out of its header into a sibling `<Doc>-History.md`
+
+**Status:** Done
+
+**Raised 2026-09-17 (Joseph), directly from watching `JCTsh-Operating-System.md`'s own "Version description" field keep growing across this session's own edits.** Every version bump had been prepending new text while keeping every prior "Prior version description" entry chained inline — the field had reached ~6KB, over 20% of a 29KB file, the exact same unbounded-growth shape `kanban-board.md` (CARD-0193) and component `CLAUDE.md` files (CARD-0290) already hit and were fixed for, one layer up (a doc's own changelog, not just its subject matter).
+
+**Interviewed 2026-09-17.** "Put doc version tracking in a separate file and point at it... make this a pattern and apply when appropriate" — a standing Documentation Structure rule, not a one-off fix to a single file. Scope decided by measuring actual size (Engineering Discipline — verify, don't assume) rather than applying it everywhere reflexively:
+
+| Document | Version-history size | Action |
+|---|---|---|
+| `JCTsh-Operating-System.md` | ~6KB header chain (21% of 29KB file) | Split |
+| `JCTsh-Component-Session-Start.md` | ~2.5KB header chain (22% of 11KB file) | Split proactively — same pattern, would hit the same growth soon |
+| `JCTsh-Build-Standards.md` | 14.6KB dedicated table (12% of 122KB file) | Split |
+| `JCTsh-Session-Card-Selection.md` | 301B header field (10% of 3KB file) | Left alone — not yet a real problem |
+
+**Built, 2026-09-17.** Three new sibling `<Doc>-History.md` files created, one per qualifying document, each holding the complete version-by-version changelog as a table. Each live document's header now states only its **current** version's description — never chained prior ones — plus a `**Version history:**` pointer line to its history file. For `JCTsh-Operating-System.md` and `JCTsh-Component-Session-Start.md`, the existing prose chains were parsed and reconstructed into per-version table rows; versions 1.2–1.5 of `JCTsh-Operating-System.md` had been bundled into a single unrecoverable paragraph (each of those four edits fully restated the field before the chaining habit began, rather than prefixing a "Prior version description"), noted honestly in the history file rather than assigning fabricated individual version numbers. `JCTsh-Build-Standards.md`'s existing table already carried real per-version numbers throughout, so that split was a clean cut-and-move.
+
+**Documented as a standing pattern, `JCTsh-Operating-System.md`'s Documentation Structure section** (→ v1.15): a document's version-tracking splits into `<Doc>-History.md` once it stops being a short header field — a real "Prior version description" chain or dedicated table, not a vague sense of "too long." Applied immediately to the three qualifying documents above.
+
+**Done when:** the three qualifying documents each have a `<Doc>-History.md` sibling, their own headers trimmed to current-version-only, and the pattern is documented in `JCTsh-Operating-System.md` for future use. **Met.**
+
+**Related:** CARD-0193 (`kanban-board.md`/`kanban-archive.md`, the original instance of this same growth pattern), CARD-0290 (component `CLAUDE.md`/`card-archive.md`, the same pattern one layer down), CARD-0289 (the general documentation-splitting-by-read-frequency principle this extends to a document's own changelog), `tos/JCTsh-Operating-System-History.md`, `tos/JCTsh-Component-Session-Start-History.md`, `JCTsh-Build-Standards-History.md` (the three new files this card produced).
 
 ---
 

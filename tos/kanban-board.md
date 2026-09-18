@@ -9,7 +9,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0285 -->
+<!-- next-card-id: CARD-0286 -->
+
+---
+
+### CARD-0285 · [enhancement] [hike-izer] Carry air-quality-monitor's sensor data through the pipeline and onto the hike-izer web page
+
+**Status:** Backlog
+
+**Auto-opened from jctsh-core's maintenance check (PR #86).** Raw finding: adjustments to hikizer for air quality monitor.
+
+**Interviewed 2026-09-17 (Joseph).** Now that air-quality-monitor's core build (Step 8 firmware/duty-cycle/replay, live-verified; Step 9 perfboard, confirmed done) is far enough along, its sensor readings (PM1.0, PM2.5, PM4.0, PM10, VOC Index, NOx Index) captured during a hike should flow through to the hike-izer web page, not just hiking-monitor's existing temp/humidity/pressure/UV.
+
+**Real gap found while scoping:** `fetch_hike_data.py`'s Environmental Data pull is hardcoded to `--source hiking-monitor` (its own `--source` arg help text warns that omitting the filter would otherwise mix in another device's readings) -- air-quality-monitor's readings are filtered out entirely today, not merely unused.
+
+**Scope:**
+1. Extend `fetch_hike_data.py` to also pull air-quality-monitor's Environmental Data rows for the hike window, alongside (not instead of) hiking-monitor's -- both devices are carried on the same hike.
+2. Carry all six AQM fields through the pipeline (PM1.0, PM2.5, PM4.0, PM10, VOC Index, NOx Index) -- no subset.
+3. Display them by extending the existing Environmental Data chart/table (`html-template.html`, the CARD-0204/CARD-0207 pattern) rather than building a separate section.
+
+**Done when:** a real hike with both hiking-monitor and air-quality-monitor active shows all six AQM fields on the published hike-izer page, in the same Environmental Data area as the existing temp/humidity/pressure/UV lines, verified against real MQTT-logged data for that hike.
+
+**Related:** CARD-0012 (air-quality-monitor's own build), `components/hike-izer/fetch_hike_data.py` (`ENV_CHART_FIELDS`, `--source` filtering), `components/hike-izer/html-template.html` (Environmental Data chart).
 
 ---
 

@@ -9,7 +9,119 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0295 -->
+<!-- next-card-id: CARD-0300 -->
+
+---
+
+### CARD-0299 · [enhancement] [tos] Table defining which components each component/cluster session covers
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: "create a table that defines the scope of each component session".
+
+**What exists today, checked against the real file rather than assumed.** `tos/JCTsh-Component-Session-Start.md` already has a table — but it answers a different question: *which of `CLAUDE.md`'s 9 general Session Start steps get scoped, skipped, or run as-is* for a component session. There is no table anywhere listing **which sessions exist and which components each one covers**. That roster currently lives only as prose: the document names two real instances as of 2026-09-17 (the hike-izer cluster session covering `hike-izer`/`hike-izer-orchestrator`/`hike-izer-web`/`core/data-pipeline`, and the `tos` session), with no structured place for a third.
+
+**Real tension this surfaces, worth deciding explicitly rather than quietly overriding.** `JCTsh-Component-Session-Start.md`'s step 2 currently states that naming a session is "purely so `/resume`'s own picker can find it later; **no separate registry or naming file is needed**." This finding is a direct request for something registry-shaped. That earlier call wasn't wrong at two sessions — the question is whether it still holds now, and what changed. Scoping this card should confront that line directly and either revise it with a stated reason or decline the table; it should not add a registry while leaving the "no registry needed" sentence standing.
+
+**Open questions for planning:**
+1. **Where the table lives** — inside `JCTsh-Component-Session-Start.md` (alongside its existing per-step table), or a separate `tos/` file.
+2. **What columns it carries** — at minimum session name and covered components; candidates beyond that include the `/status` devices it scans, which card tags it owns, and whether a session is currently active or dormant.
+3. **How it stays current** — a table listing sessions goes stale exactly like the doc-status drift CARD-0291 just audited for. Whether anything keeps it honest (a startup step that checks it, a periodic audit) or it is accepted as manually maintained.
+4. **Whether tag ownership belongs here at all**, given CARD-0294 is separately reconciling every card tag against the directory structure — a session-to-component table and a tag-to-directory mapping could end up restating each other.
+
+**Done when:** a table defining each component/cluster session's scope exists in `tos/`, the "no separate registry or naming file is needed" line in `JCTsh-Component-Session-Start.md` is either revised to match or the table is deliberately declined with that reasoning recorded, and the two known real sessions (hike-izer cluster, `tos`) are both represented.
+
+**Related:** CARD-0284 (persistent per-cluster sessions — the practice this table would describe), CARD-0294 (tag-to-directory reconciliation, overlapping concern), CARD-0291 (documentation drift audit — the failure mode a roster table is exposed to), CARD-0128 (the auto-PR intake pipeline this was raised by), `tos/JCTsh-Component-Session-Start.md` (the existing per-step table and the "no registry needed" line this card must reconcile with).
+
+---
+
+### CARD-0298 · [idea] [personal] Move the Pastor Ben blog file/directory system into a repo
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding (voice transcription, lightly garbled): "move the Pastor Ben blog filed directory system into a repo".
+
+**Goal, as captured:** put the Pastor Ben blog's files and directory structure under version control in a repo.
+
+**Open questions, not yet answered — captured here for later resolution (Joseph's call, 2026-09-18, same treatment as CARD-0293):**
+1. **What this system actually is** — not established anywhere in this repo or its docs. Needs a real description before scoping: what the blog is, what produces it (a static-site generator, a hosted platform's export, hand-written files?), what the directory structure holds, and where it currently lives.
+2. **Destination repo undecided.** Same open choice as the sibling card from PR #93: a new dedicated repo, one new personal repo shared with the LogSeq content, or a new top-level directory inside `jctsh`. As with that card, this is not smart-home work, so folding it into this monorepo carries a real "does it belong here" question.
+3. **Whether anything is published/live from these files today**, and if so whether moving them into a repo changes or risks that publishing path.
+4. **Privacy/visibility** — whether the repo should be private, and whether the content involves anyone other than Joseph whose expectations matter here.
+5. **Component tag** — set to `[personal]` for now. Note `[personal]` does not map to any real directory, which is exactly the reconciliation problem CARD-0294 exists to resolve; this card's tag should be revisited when that pass runs.
+
+**Explicitly not started.**
+
+**Done when:** the blog's files are in a chosen repo with their directory structure intact, any live publishing path confirmed still working, and the sync/commit mechanism decided.
+
+**Related:** CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by), the sibling card from PR #93 (LogSeq file system, same "move into a repo" question and same undecided destination).
+
+---
+
+### CARD-0297 · [idea] [personal] Move the LogSeq file system into a repo
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding (voice transcription, garbled): "move the log seat file system into a repo" — "log seat" is LogSeq, the same mis-transcription CARD-0293 carried.
+
+**Goal, as captured:** put the LogSeq graph's files under version control in a repo, rather than leaving them wherever they currently live unversioned.
+
+**Open questions, not yet answered — captured here for later resolution (Joseph's call, 2026-09-18, same treatment as CARD-0293):**
+1. **Destination repo undecided.** Options discussed but not chosen: a new dedicated repo for LogSeq alone, one new personal repo shared with the Pastor Ben blog content (see the sibling card from PR #94), or a new top-level directory inside `jctsh` itself. Note that LogSeq content is not smart-home work, so folding it into this monorepo has a real "does it belong here" question attached, not just a mechanical one.
+2. **Where the LogSeq graph currently lives** — which machine, which path, and whether it is already synced by anything (LogSeq Sync, a cloud drive, etc.) that a git repo would conflict or overlap with.
+3. **How LogSeq's own file-writing behavior interacts with git** — LogSeq writes continuously as notes are edited, so whether this wants real commits (and who/what makes them) or just a backup-shaped sync needs deciding.
+4. **Privacy/visibility** — whether this repo should be private, and whether any of the content is sensitive enough to affect that choice.
+5. **Component tag** — set to `[personal]` for now, matching CARD-0293. Note `[personal]` does not map to any real directory, which is exactly the reconciliation problem CARD-0294 exists to resolve; this card's tag should be revisited when that pass runs.
+
+**Explicitly not started.**
+
+**Done when:** the LogSeq graph's files are in a chosen repo, with the sync/commit mechanism decided and actually working (not just an initial one-time import).
+
+**Related:** CARD-0293 (LogSeq devotional-note posting — same underlying LogSeq graph, different problem), CARD-0179 (route captured voice notes to LogSeq — a third LogSeq thread already on the board), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by), the sibling card from PR #94 (Pastor Ben blog directory, same "move into a repo" question).
+
+---
+
+### CARD-0296 · [idea] [tos] Set up remote access for running Claude Code sessions away from the desktop
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: "Set up remote access for Claude Code" — the finding body also carried a pasted walkthrough (from another assistant session, not a decision made here) proposing OpenSSH Server on the Windows machine + Tailscale + Termux on the Pixel, with a note that the author had no access to this repo and was guessing at the setup.
+
+**Goal, as captured:** be able to run Claude Code against this repo from the Pixel while away from the desktop, rather than only from the Windows machine the working tree lives on.
+
+**Approach deliberately left open, 2026-09-18 (Joseph's call) — the pasted SSH/Termux/Tailscale walkthrough is one candidate, not the decision.** Open questions to resolve during planning:
+1. **First-party options not yet evaluated.** Claude Code has its own remote paths that the pasted walkthrough predates or ignores — Claude Code on the web (`claude.ai/code`), and Remote Control driving a session on another machine. Either could make a hand-rolled SSH setup unnecessary. Evaluate these before building anything.
+2. **If SSH is still the answer:** Tailscale is already installed and working on the Pi and the RV Pi (`CLAUDE.md`'s Remote Access section) — a Windows node would join the same tailnet with no port forwarding, which is strictly better than the walkthrough's port-forward-22 alternative. The walkthrough's port-forward option should not be adopted.
+3. **What "running Claude Code" actually needs to mean here** — a shell for git/status/commits only, versus genuinely doing editing work from a phone screen. These have very different setup costs and the walkthrough itself flags phone-screen editing as rough.
+4. **Whether the working tree should even live on the Windows box for this** — a session run from elsewhere against a different checkout raises the same concurrent-edit questions `CLAUDE.md`'s Concurrent Sessions section already covers, and CARD-0283 already tuned for.
+
+**Explicitly not started** — this card captures the goal and the open questions; no setup work has been done and no approach has been chosen.
+
+**Done when:** a decided approach is written down (first-party remote vs. self-hosted SSH), and — if it needs building — a real Claude Code session has been run against this repo from the Pixel end to end, not just a shell login proven.
+
+**Related:** CARD-0128 (the auto-PR intake pipeline this was raised by), `CLAUDE.md` (Remote Access section — the existing Tailscale footprint any SSH approach would build on; Concurrent Sessions section), CARD-0283 (concurrent-session editing discipline, relevant if a second checkout enters the picture).
+
+---
+
+### CARD-0295 · [enhancement] [homeassistant] Home Assistant container update available: 2026.9.2 → 2026.9.3
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: `Container image updates: home-assistant: 2026.9.3 available (running 2026.9.2)`.
+
+**Risk assessment, checked 2026-09-18 16:57 MST against the real upstream release notes (github.com/home-assistant/core/releases/tag/2026.9.3):** patch release, bug-fixes and dependency bumps only — no breaking changes, no database migrations. Notable fixes: EnergyZero market-price regression, Private BLE Device now requires an IRK in its config flow, Bond retains known-host info on repeated zeroconf announcements, Matter/Shelly cover-entity creation when the tilt attribute is null, Nest Climate `turn_on` made idempotent, Spotify reauth crash when a config entry lacks an `id` field, Airthings BLE duplicate device entries from incomplete reads, better DNS/API error handling for Google Tasks and WAQI, onboarding username validation. Dependency bumps: holidays, pylutron, hassil, waterfurnace, aioamazondevices, reolink_aio. Also redacts API keys in debug logs. **None of these touch an integration this install actually depends on** (SmartThings, Ring, MQTT, Matter/Cync, SamsungTV) — low-risk upgrade.
+
+**Deploy per `CLAUDE.md`'s standing Pi rule (CARD-0266/CARD-0268/CARD-0269) — never `docker pull`/`docker compose pull` on this host** (hangs indefinitely on this Pi's Docker 29.6.1 via a confirmed OCI-referrers bug, and risks starving the live container's I/O on the Pi 3B+'s shared USB 2.0 bus):
+```bash
+sudo pi-image-pull.py ghcr.io/home-assistant/home-assistant:stable --recreate homeassistant
+```
+Optionally add `--schedule "<time>"` to defer it to the Mon 3 AM reboot window; the deliberate default is still to run it in the foreground and watch it.
+
+**Post-update check required (CARD-0240, generalized):** after the recreate, check `/api/states` for unavailable entities and `docker logs homeassistant` for the `homeassistant.bootstrap` "Waiting for integrations to complete setup" line. Any integration named there is a candidate for a config-entry reload via the HA REST API before investigating real device failure — a config entry can report `state: loaded` without having actually re-synced its entities.
+
+**Done when:** the Pi's `homeassistant` container is running 2026.9.3 (confirmed via the HA UI or `/api/config`), the container reports healthy after the recreate, and the post-update entity-availability check above comes back clean (or any affected integration has been reloaded and confirmed resynced).
+
+**Related:** CARD-0266 (the immediately prior HA update, 2026.9.1 → 2026.9.2, same shape), CARD-0269 (`pi-image-pull.py`, the required pull mechanism), CARD-0268 (the I/O-contention rationale behind it), CARD-0240 (the post-update entity-availability check this card inherits), CARD-0128 (the auto-PR intake pipeline this was raised by), `core/homeassistant/docker-compose.yml`.
 
 ---
 

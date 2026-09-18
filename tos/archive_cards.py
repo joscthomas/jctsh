@@ -18,18 +18,30 @@ Destination: if exactly one of a card's bracketed tags (after the first,
 which is always the type -- idea/enhancement/bug) matches a real
 components/<name>/, core/<name>/, or hosts/<name>/ directory, or the
 literal tag `tos`, the card's full text is appended verbatim under a
-"## Card History" heading in that destination's CLAUDE.md (created if
-missing -- tos/CLAUDE.md is a new file the first time a tos-tagged card
-archives). components/ was the only place originally checked; core/,
-hosts/, and tos itself were added after the first real dry run showed
-genuine cards (e.g. CARD-0128, about the auto-PR pipeline tos/ now
-contains) falling to the dated archive purely because their real home
-wasn't a components/ directory, not because they lacked a real home at
-all. Zero or 2+ tag matches fall back to a dated archive file
+"## Card History" heading in that destination's card-archive.md (created
+if missing -- tos/card-archive.md is a new file the first time a
+tos-tagged card archives). components/ was the only place originally
+checked; core/, hosts/, and tos itself were added after the first real
+dry run showed genuine cards (e.g. CARD-0128, about the auto-PR pipeline
+tos/ now contains) falling to the dated archive purely because their
+real home wasn't a components/ directory, not because they lacked a real
+home at all. Zero or 2+ tag matches fall back to a dated archive file
 (tos/kanban-archive.md) rather than guessing which destination was
 meant -- an ambiguous or genuinely absent match is a tagging-precision
 problem to flag and fix, not something this script should silently paper
 over.
+
+CARD-0290: destination changed from CLAUDE.md to a dedicated card-archive.md
+sibling, 2026-09-17 -- appending archived cards directly into CLAUDE.md let
+it grow unboundedly (hike-izer's reached 485KB) and conflated two different
+purposes: CLAUDE.md is supposed to be curated "constraints and gotchas"
+context (read every component/cluster-session startup, JCTsh-Component-
+Session-Start.md), while archived card history is an on-demand-only
+historical record -- exactly the same working-file-vs-archive split
+kanban-board.md/kanban-archive.md already went through. Every existing
+component's CLAUDE.md was migrated to this split in the same pass that
+changed this destination logic; going forward, new archiving only ever
+writes to card-archive.md, never CLAUDE.md.
 
 A short pointer stub replaces the card in kanban-board.md, keeping the
 **Status:** line so it still renders in /kanban's own column view (see
@@ -138,25 +150,28 @@ def archive_reason(card, today, forced_ids):
 
 
 def discover_destinations():
-    """Every tag that maps to a real CLAUDE.md-style destination: each
+    """Every tag that maps to a real card-archive.md-style destination: each
     components/<name>/ and core/<name>/ directory, plus `tos` itself
     (CARD-0193 found real cards -- e.g. CARD-0128, about the auto-PR
     pipeline tos/ now contains -- that belonged under `core/` or `tos/`
     rather than any components/ directory, and were only falling to the
     generic dated archive because the original design only checked
-    components/). Returns {tag: (label, claude_md_path)}."""
+    components/). Returns {tag: (label, card_archive_path)}.
+
+    CARD-0290: destination file is card-archive.md, not CLAUDE.md -- see
+    this module's own docstring for why."""
     dests = {}
     for p in COMPONENTS_DIR.iterdir():
         if p.is_dir():
-            dests[p.name] = (p.name, p / "CLAUDE.md")
+            dests[p.name] = (p.name, p / "card-archive.md")
     for base in ("core", "hosts"):
         base_dir = REPO_ROOT / base
         if not base_dir.is_dir():
             continue
         for p in base_dir.iterdir():
             if p.is_dir():
-                dests[p.name] = (f"{base}/{p.name}", p / "CLAUDE.md")
-    dests["tos"] = ("tos", TOS_DIR / "CLAUDE.md")
+                dests[p.name] = (f"{base}/{p.name}", p / "card-archive.md")
+    dests["tos"] = ("tos", TOS_DIR / "card-archive.md")
     return dests
 
 
@@ -223,7 +238,13 @@ def apply_plan(plan, today):
     written = []
     for path, (label, blocks) in by_path.items():
         existing = path.read_text(encoding="utf-8") if path.exists() else None
-        preamble = f"# {label} — Context\n"
+        preamble = (
+            f"# {label} — Card Archive\n\n"
+            f"Historical record of archived Done/Defer kanban cards for this component "
+            f"(CARD-0193). Not read as part of routine Session Start or component/cluster-"
+            f"session startup (JCTsh-Component-Session-Start.md) -- on-demand lookup only. "
+            f"See this component's own CLAUDE.md for current, curated context.\n"
+        )
         path.parent.mkdir(parents=True, exist_ok=True)
         new_text = append_under_heading(existing, CARD_HISTORY_HEADING, "\n\n".join(blocks), preamble)
         path.write_text(new_text, encoding="utf-8")

@@ -1,6 +1,17 @@
 # JCTsh — Monorepo Context
 
-Smart home automation monorepo. See `components/<name>/CLAUDE.md` for component-specific context. For what's installed and running on the Pi, see `SOFTWARE-ENVIRONMENT.md`.
+Smart home automation monorepo. Per `JCTsh-Build-Standards.md` §7.1, each component's
+**`README.md` is the permanent reference** for what it actually is right now — hardware,
+wiring, known behaviors, current capabilities/limitations — while `components/<name>/CLAUDE.md`
+is curated context: design rationale, constraints, gotchas, open threads (kept genuinely
+small and worth reading in full — archived card history lives separately in a sibling
+`card-archive.md`, on-demand only, never routine reading; see `JCTsh-Operating-System.md`'s
+Documentation Structure section, CARD-0290). Before relying on or asserting a hardware/physical
+capability of a specific component (can it do X, is Y wired), check that component's own
+`README.md` first — its **Files** table indexes the detail docs (`wiring.md`, `power-system.md`,
+`ESP32-project-pins.md`, `perfboard-layout.md`, etc.) — rather than inferring from a sibling
+component's build or from memory (see `JCTsh-Operating-System.md`'s Engineering Discipline
+section). For what's installed and running on the Pi, see `SOFTWARE-ENVIRONMENT.md`.
 
 ## Session Start
 
@@ -53,7 +64,13 @@ At the start of every Claude Code session in this repo, before doing anything el
    the board (columns, state-transition triggers, the Build → Done Reflection requirement).
    Read this once per session alongside the board itself, not just the first time. It points
    to `tos/JCTsh-Session-Card-Selection.md` — the four ordered factors for choosing which card
-   to pick up next (CARD-0288) — apply that by default when deciding what to work on.
+   to pick up next (CARD-0288) — apply that by default when deciding what to work on. **If
+   this session has a standing, resumed identity dedicated to a specific component or cluster
+   of components** (a cluster session, CARD-0284 — e.g. "the hike-izer session"), it also
+   points to `tos/JCTsh-Component-Session-Start.md` — extended startup steps beyond this list,
+   scoped to that component/cluster (read its `README.md`/`CLAUDE.md`, check its own
+   component-tagged cards specifically). A general session with no such persistent focus
+   doesn't need this extra step.
 8. **Check whether `tos/kanban-board.md` needs archiving (CARD-0193).** `archive_cards.py` is
    deliberately manual, not on a timer — so nothing else will notice if the file has grown
    large again. If it's been a few weeks since the last archiving pass, or the file feels

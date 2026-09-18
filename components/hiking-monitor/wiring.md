@@ -208,6 +208,16 @@ Enable `scan: true` in the ESPHome `i2c:` block during initial testing to confir
 
 ---
 
+## Debug UART — Not Wired On This Device
+
+**No debug UART exists on hiking-monitor** — unlike `components/air-quality-monitor/wiring.md`'s Debug UART section (external USB-TTL adapter on GPIO17/UART2), this device has no equivalent tap wired anywhere. Confirmed 2026-09-17, after CARD-0226 (a real reboot-loop investigation) repeatedly assumed otherwise across several dated notes before this was caught.
+
+**Why, concretely:** GPIO17 — the exact pin air-quality-monitor's debug UART TX uses (`hardware_uart: UART2`) — is already committed on this board to the E-ink display's **DC** line (see GPIO Assignment Summary above). There was never a spare pin set aside for this the way air-quality-monitor's build deliberately reserved one.
+
+**Practical consequence:** catching a live serial trace on this specific, already-assembled, field-proven unit isn't a "just run the existing setup" task — it requires either reassigning a GPIO and reflashing (real risk on a unit with no current headroom, not evaluated), or waiting for CARD-0259 (hiking-monitor v2, built on air-quality-monitor's proven architecture — debug UART included by design from the start). See CARD-0226's own 2026-09-17 correction for the investigation this affects.
+
+---
+
 ## Schematic Overview
 
 ```

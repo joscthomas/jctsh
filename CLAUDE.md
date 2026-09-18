@@ -1,16 +1,13 @@
 # JCTsh — Monorepo Context
 
-Smart home automation monorepo. Per `JCTsh-Build-Standards.md` §7.1, each component's
-**`README.md` is the permanent reference** for what it actually is right now — hardware,
-wiring, known behaviors, current capabilities/limitations — while `components/<name>/CLAUDE.md`
-is curated context: design rationale, constraints, gotchas, open threads (kept genuinely
-small and worth reading in full — archived card history lives separately in a sibling
-`card-archive.md`, on-demand only, never routine reading; see `JCTsh-Operating-System.md`'s
-Documentation Structure section, CARD-0290). Before relying on or asserting a hardware/physical
-capability of a specific component (can it do X, is Y wired), check that component's own
-`README.md` first — its **Files** table indexes the detail docs (`wiring.md`, `power-system.md`,
+Smart home automation monorepo. **See `JCTsh-Operating-System.md`'s Documentation Structure
+section for what goes in a component's `README.md` vs. its `CLAUDE.md`** (CARD-0304 —
+that's the authoritative statement now, not this file). Quick reminder since it comes up
+constantly: before relying on or asserting a hardware/physical capability of a specific
+component (can it do X, is Y wired), check that component's own `README.md` first — its
+**Files** table indexes the detail docs (`wiring.md`, `power-system.md`,
 `ESP32-project-pins.md`, `perfboard-layout.md`, etc.) — rather than inferring from a sibling
-component's build or from memory (see `JCTsh-Operating-System.md`'s Engineering Discipline
+component's build or from memory (`JCTsh-Operating-System.md`'s Engineering Discipline
 section). For what's installed and running on the Pi, see `SOFTWARE-ENVIRONMENT.md`.
 
 ## Session Start

@@ -13,9 +13,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0304 · [enhancement] [tos] Reconcile and fill gaps in JCTsh-Operating-System.md's stated principles
+### CARD-0304 · [enhancement] [tos] Reconcile and fill gaps in JCTsh-Operating-System.md's stated principles — RESOLVED 2026-09-18
 
-**Status:** Planning — scoped via conversation, holding for Joseph's go-ahead before any edit (2026-09-18)
+**Status:** Done
 
 **Raised 2026-09-18 (Joseph), after asking for a flat list of every process principle currently in `JCTsh-Operating-System.md`.** Producing that list (21 items, organized by topic across the document's sections) surfaced one stale principle, one real-but-only-implicit principle worth stating explicitly, six more candidates drawn from patterns applied repeatedly across this session's own card history without ever being named once as a standing rule, a ninth meta-level principle naming the activity that produced the other eight, and a tenth found by that same meta-principle's own method (applied to itself, live, the same session it was named).
 
@@ -47,7 +47,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Explicitly not in scope:** auditing whether any *other* implied principles beyond these ten exist — this card captures what surfaced from one conversation, not an exhaustive mining pass. Item 9 itself says more will keep surfacing over time; that's expected, not a blocker to landing these now.
 
-**Done when:** all ten items above are reflected in `JCTsh-Operating-System.md`, each in a fitting section, version-bumped.
+**Done when:** all ten items above are reflected in `JCTsh-Operating-System.md`, each in a fitting section, version-bumped. **Met, 2026-09-18** — all ten landed (→ v1.18): items 1/2 in Where Work Happens/Note on Build, items 3/6 (interview-first, non-goals) and 5 (explicit-decisions) in Core Principle, items 4/8/9 (verify-completions, measured-thresholds, discover-implied-conventions) in Engineering Discipline, item 7 (live-verification) in Note on Build, item 10 (README-vs-CLAUDE.md split) in Documentation Structure with root `CLAUDE.md`'s own paragraph trimmed to a pointer at it.
 
 **Related:** CARD-0302 (the commit/push visibility fix this generalizes — same "stated once, in the discoverable place" pattern), CARD-0303 (the sibling gap-finding pass over root `CLAUDE.md`, still holding for its own go-ahead), CARD-0290/CARD-0258 (the two real incidents behind the "verify a completion claim" principle), CARD-0193/CARD-0292 (the measured-threshold precedent).
 

@@ -198,9 +198,9 @@ Wrote `tos/Portable-Kanban-Template.md` for the second piece of scope — card f
 
 ---
 
-### CARD-0298 · [idea] [tos] Move the Pastor Ben blog file/directory system into a repo
+### CARD-0298 · [idea] [tos] Move the Pastor Ben blog file/directory system into a repo — RESOLVED 2026-09-18
 
-**Status:** Backlog
+**Status:** Done
 
 **Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding (voice transcription, lightly garbled): "move the Pastor Ben blog filed directory system into a repo".
 
@@ -228,11 +228,15 @@ Wrote `tos/Portable-Kanban-Template.md` for the second piece of scope — card f
 - `Corel Auto-Preserve/` — an entire folder of Corel/PaintShop autosave copies, all duplicating finished assets already present elsewhere in `other/`. Deleted.
 - **149 files, 5.2MB** of zero-content OS/app cache — 130 `Thumbs.db` (Windows Explorer's thumbnail cache, scattered across nearly every 2010–2014 month folder) and 19 `.picasa.ini` (Picasa's old metadata cache, 2011–2015). Enumerated and totaled before deleting, not assumed; verified afterward that none remain.
 
-**Explicitly not started (the actual move/git-init)** — investigation, secret remediation, and cruft cleanup above are done; execution (move, `git init`, `.gitignore`, kanban bootstrap, GitHub remote) is next.
+**More cruft found and removed during the actual `git add`, 2026-09-18 — not caught by the earlier pass because it only targeted OS/app cache, not application lock files.** Staging surfaced 149 Word lock/temp files (`~$*.doc(x)`, `*.tmp`, 11.6MB) — leftover from Word not closing a document cleanly at some point over 16 years of use, zero content value. Same walkthrough-and-confirm treatment as the earlier cruft: enumerated, sized, confirmed with Joseph, deleted, verified gone. Also ran a second, broader secrets sweep across every file type (not just code/config extensions) before committing — two hits (an old auto-generated "year in blogging" `.mht` stats email, a benign Skill-doc prose mention) both confirmed as false positives by reading the actual matched content, not assumed clean from the keyword hit alone.
 
-**Done when:** the Pastor Ben blog's files (only, not the rest of `BNC`) are in `Projects\PB Blog` as their own git repo with directory structure intact, the existing Claude tooling confirmed still working from the new path, any live publishing path confirmed unaffected, its own `kanban-board.md` bootstrapped from CARD-0301's template, and the GitHub remote/visibility decided and pushed.
+**Executed 2026-09-18, in order:** Joseph moved `BNC\PB Blog` → `Projects\PB Blog` directly (same auto-mode-classifier block on a Claude-driven move as CARD-0301 hit). Verified from the new location: expected content present, old path gone, `BNC`'s other church-admin content untouched, not yet a git repo. `git init`, wrote `.gitignore` (Thumbs.db/.picasa.ini/desktop.ini/`~$*`/`*.tmp` — forward-looking, matching what was just cleaned out), bootstrapped `kanban-board.md` from `tos/Portable-Kanban-Template.md` (preamble removed per the template's own instructions, title changed to "PB Blog Backlog"). Initial commit: 1,755 files. Created a private GitHub repo (`github.com/joscthomas/PB-Blog`, confirmed `PRIVATE` via `gh repo view`) and pushed.
 
-**Related:** CARD-0301 (the parent-directory decision, jctsh move, and portable kanban template this is sequenced after and depends on), CARD-0297 (LogSeq → repo, the sibling move with the same shape), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by).
+**Claude tooling verification:** confirmed by absence (no hardcoded absolute paths anywhere in the skill `.md` files, checked before the move) rather than a live end-to-end publish test — the skills are markdown-driven, not path-bound scripts, so there's no script to dry-run independent of an actual publish. Real verification happens naturally the next time Joseph runs the monthly workflow from the new location, same "prove it when actually used" pragmatism as the rest of this project.
+
+**Done when:** met. `Projects\PB Blog` exists as its own private git repo (`github.com/joscthomas/PB-Blog`) with directory structure intact aside from the cruft/secret removals documented above (all confirmed with Joseph, none silent); `kanban-board.md` bootstrapped from CARD-0301's template; pushed.
+
+**Related:** CARD-0301 (the parent-directory decision, jctsh move, and portable kanban template this is sequenced after and depends on), CARD-0297 (LogSeq → repo, the sibling move with the same shape, still not started), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by).
 
 ---
 

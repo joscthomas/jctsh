@@ -19,7 +19,7 @@ Self-hosted Immich photo/video library on a dedicated GMKtec M8 mini PC. Replace
 | `verify-and-retire-source.md` | Reusable procedure — verify a batch of photos from an external source (USB drive, old backup, etc.) against Immich before deleting the source |
 | `operations.md` | Day-to-day maintenance — scheduled reboots, Immich Tags feature, router coordination |
 | `heartbeat.md` | MQTT heartbeat script — how JCTsh dashboard monitoring works for this host |
-| `network.md` | Final IP/hostname/MAC/Tailscale reference for this host |
+| `../../hosts/m8/network.md` | Final IP/hostname/MAC/Tailscale reference for this host — moved to the host-level directory when `photo-server` was renamed to `m8` (CARD-0096); not a file in this directory |
 | `backup.md` | rsync backup script, cron schedule, capacity monitoring |
 | `docker-compose.yml` | Copy of the authoritative compose file actually running |
 | `.env.example` | Template `.env` — real `.env` lives only on the M8, never committed |

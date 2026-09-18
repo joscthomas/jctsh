@@ -1401,8 +1401,8 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 11239
 
 ---
 
-### CARD-0208 · [enhancement] [hiking-monitor] Spoken mile-marker announcements on the Pixel during a hike
-**Status:** Build
+### CARD-0208 · [enhancement] [hiking-monitor] Spoken mile-marker announcements on the Pixel during a hike — RESOLVED 2026-09-17 18:02 MST
+**Status:** Done
 
 **Raised 2026-08-24 (Joseph)**, via the "Log Idea" Tasker widget (PR #35, "mile notifications"). Interviewed same day: wants a **voice** notification (TTS, spoken aloud) on the Pixel at each whole-mile mark during a hike, not a silent push notification — the original PR title undersold what was actually wanted.
 
@@ -1473,7 +1473,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 11239
 
 **Fixed same day, 2026-09-15 — switched to Alarm stream, not Media, per Claude's recommendation.** Alarm was chosen over re-adding the original Media-stream approach: Android's Alarm stream plays at its own fixed volume regardless of Ringer/Silent/Do Not Disturb mode, and isn't subject to another app "ducking" it the way Media volume can be — Media can silently end up inaudible (muted, headphones disconnected, whatever it was last left at) with nothing in Tasker's log able to show it, which fits the original sporadic-audibility symptom better than a pure "the action was missing" explanation alone would. Two changes made in the Task, both immediately before `Say`: (1) added a new Audio → **Volume** action, Alarm stream only, set to max; (2) changed the existing `Say` action's own `Stream` parameter from Media to **Alarm** — both matter together, since forcing Alarm's volume up does nothing if `Say` is still routed through Media.
 
-**Still open: needs one real hike to confirm reliably audible at every whole mile**, not just that the actions are now present — same "code/config being correct isn't the same as confirmed working in the field" discipline this card has already been burned by twice (the original 2026-09-08 fix that turned out to never have actually saved, and the four Tasker action-configuration bugs found in the 2026-08-27 debugging session). **Done when** (updated): a real hike after this fix shows every whole-mile crossing announced audibly, with no gaps.
+**Confirmed, 2026-09-17 18:02 MST (Joseph): a real hike since the Alarm-stream fix showed every whole-mile crossing announced audibly, with no gaps.** Meets the Done-when bar this card has been held to since the two earlier false "fixed" claims (2026-09-08's Volume action that never actually saved, and the four Tasker action-configuration bugs found 2026-08-27) — a real observed hike, not just correct config. **Done.**
 
 **Related:** CARD-0086 (the GPSLogger start/stop broadcast this reuses as the enabling signal), CARD-0110 (hike-izer's own server-side distance computation and GPS-noise-filtering — a different, more precise pipeline this doesn't need to match exactly), `components/hiking-monitor/gps-pipeline.md` (GPSLogger's current custom-URL-only configuration, the "local file outputs disabled" note this card reconsiders), PR #35 (the original voice-captured idea this scopes).
 

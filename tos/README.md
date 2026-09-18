@@ -19,10 +19,19 @@ here and how the pieces fit together — it doesn't repeat that content.
 | File | Role |
 |---|---|
 | `kanban-board.md` | The board itself — every card, its status, and its full history. |
-| `JCTsh-Operating-System.md` | The process definition — columns, triggers, Reflection requirement. Read once per session (see `CLAUDE.md`'s Session Start). |
+| `kanban-archive.md` | Dated archive of Done/Defer cards moved out of `kanban-board.md` by size, when no single `components/<name>/`/`core/<name>/`/`hosts/<name>/` home fits (CARD-0193). |
+| `archive_cards.py` | The archiving tool behind `kanban-archive.md` and every `card-archive.md` below — size-primary trigger, `--force`/`--apply` dry-run-by-default, provenance annotations (CARD-0193). Manual, not on a timer — see `CLAUDE.md`'s periodic Session Start reminder. |
+| `CLAUDE.md` | This directory's own curated context stub — archived card history lives in `card-archive.md` instead (CARD-0290). |
+| `card-archive.md` | `[tos]`-tagged cards' archived history, split out of `CLAUDE.md` (CARD-0290). On-demand only, never routine reading — same pattern every `components/<name>/`/`core/<name>/`/`hosts/<name>/` directory now follows. |
+| `JCTsh-Operating-System.md` | The process definition — columns, triggers, Reflection requirement, Engineering Discipline, Documentation Structure. Read once per session (see `CLAUDE.md`'s Session Start). |
+| `JCTsh-Session-Card-Selection.md` | Four ordered factors for which card a session actually picks up next, distinct from the Priority tag (CARD-0288). |
+| `JCTsh-Component-Session-Start.md` | Extended startup steps for a persistent component/cluster session, on top of `CLAUDE.md`'s general Session Start (CARD-0284/CARD-0290). |
 | `open_kanban_pr.py` | `open_finding_pr()` / `resolve_and_merge()` — opens a placeholder-stub PR against `kanban-board.md` for any finding/idea, and lands a reviewed PR as a real numbered card at merge time. Imported (as a sibling module) by `email-idea-check.py`, `pi-maintenance-check.py`, `maintenance-check.py`, and `hike-izer-orchestrator`'s `/webhook/idea` route. |
 | `land_pr_card.py` | Interactive-only script Claude runs (never automated) to land a PR as a fully-interviewed, real card — not just a renumbered stub. See its own docstring for the distinction from `resolve_and_merge()`. |
 | `email-idea-check.py` + `.service`/`.timer` | Polls `joscthomas+kbc@gmail.com` every 30 min for `jctsh-idea` emails (CARD-0151), calls `open_finding_pr()` for each. Deployed to the Pi. |
+| `kanban-pr-selftest.py` + `.service`/`.timer` | Daily self-test of the auto-PR intake pipeline itself (CARD-0192) — opens and closes a real PR against a test component so a broken pipeline is caught before a real finding needs it. |
+| `tasker-setup.md` | The `Log Idea` Tasker build steps — home-screen voice-capture widget feeding `/webhook/idea` (CARD-0241, moved here from `hike-izer-orchestrator`'s README since it's a TOS feature, not a hiking one). |
+| `Log-Idea.tsk.xml` | Exported Tasker Task backing `tasker-setup.md`, committed as diffable ground truth against the prose doc (CARD-0231). |
 
 ## The auto-PR intake pipeline
 
@@ -110,6 +119,11 @@ the timer's next tick).
 
 - `kanban-board.md` CARD-0191 — the consolidation this directory is the result of, full inventory and reasoning.
 - `kanban-board.md` CARD-0190 — the 1MB Contents API bug this whole pipeline had to be redesigned around.
-- `kanban-board.md` CARD-0192 — proposed watchdog self-test for this pipeline (not yet built).
+- `kanban-board.md` CARD-0192 — the daily self-test behind `kanban-pr-selftest.py`, built and running.
 - `kanban-board.md` CARD-0193 — kanban board scaling/archival strategy, including why a database was considered and ruled out.
 - `kanban-board.md` CARD-0251 — Auto verify markers (date-based + event-based), the follow-up-reminder mechanism described above.
+- `kanban-board.md` CARD-0231/CARD-0241 — `Log-Idea.tsk.xml`/`tasker-setup.md`'s origin (Tasker export-as-ground-truth pattern; moving Tasker build docs to their conceptual owner, not their hosting container).
+- `kanban-board.md` CARD-0284 — persistent per-cluster/component sessions, the origin of `JCTsh-Component-Session-Start.md`.
+- `kanban-board.md` CARD-0288 — Session Card Selection, the origin of `JCTsh-Session-Card-Selection.md`.
+- `kanban-board.md` CARD-0289 — the documentation-splitting-by-read-frequency principle this directory's own file layout follows.
+- `kanban-board.md` CARD-0290 — the `CLAUDE.md`/`card-archive.md` split, applied to this directory's own `CLAUDE.md` among every other component/core/host directory.

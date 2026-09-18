@@ -2,12 +2,21 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** Extended startup steps for a persistent component or cluster session (CARD-0284) — additional to, never instead of, the general Session Start every session runs (`CLAUDE.md`).
-**Version:** 1.2
-**Version description:** Step 3 extended (CARD-0284 follow-on) — the component-tag scoping isn't just for the automated startup kanban checks, it's the default for any card-related request made during the session (e.g. "list the open cards" defaults to this session's own component tag(s), not the whole board, unless Joseph asks otherwise). Found live: a `tos`-component-session "list the open cards" request was answered whole-board instead, because the prior wording only covered the automatic sweep. Prior version description: Step 2 updated (CARD-0290) — `CLAUDE.md` is genuinely readable in full now that archived card history lives in a dedicated `card-archive.md` sibling instead of being appended directly into `CLAUDE.md` (which had grown as large as 485KB before the split). `card-archive.md` explicitly stays out of this list — on-demand only, never routine reading.
+**Version:** 1.3
+**Version description:** Added "Initiating or Rebuilding a Component Session" (CARD-0284, moved to Build) — generalizes the two real instances (hike-izer, `tos`) into a repeatable 4-step procedure for starting a new component/cluster session or reconstructing an existing one, using nothing beyond this document's own existing startup steps. Prior version description: Step 3 extended (CARD-0284 follow-on) — the component-tag scoping isn't just for the automated startup kanban checks, it's the default for any card-related request made during the session (e.g. "list the open cards" defaults to this session's own component tag(s), not the whole board, unless Joseph asks otherwise). Found live: a `tos`-component-session "list the open cards" request was answered whole-board instead, because the prior wording only covered the automatic sweep. Prior version description: Step 2 updated (CARD-0290) — `CLAUDE.md` is genuinely readable in full now that archived card history lives in a dedicated `card-archive.md` sibling instead of being appended directly into `CLAUDE.md` (which had grown as large as 485KB before the split). `card-archive.md` explicitly stays out of this list — on-demand only, never routine reading.
 
 ---
 
 A **component session** — which includes a **cluster session** (CARD-0284: a group of related components with one shared session, e.g. "the hike-izer session" covering `hike-izer`/`hike-izer-orchestrator`/`hike-izer-web`/`core/data-pipeline`) — is a session with a standing, resumed identity dedicated to one or more specific components. This is distinct from a general session with no such persistent focus (yet) established.
+
+## Initiating or Rebuilding a Component Session
+
+Two real instances exist as of 2026-09-17 — the hike-izer cluster session (CARD-0284's original pilot) and the `tos` component session (this document's own subject, confirmed as a second instance the same day) — generalized here into a repeatable procedure for starting a new one, or reconstructing an existing one that's been lost or never formally initiated:
+
+1. **Decide the scope.** One component, or a cluster of related components that findings routinely travel across together (CARD-0284's cluster-level granularity guidance) — not one session per individual file or feature.
+2. **Give it a plain name** matching the scope (e.g. "the hike-izer session," "the tos session") — this is purely so `/resume`'s own picker can find it later; no separate registry or naming file is needed.
+3. **Run the startup steps below** (root `CLAUDE.md`'s general Session Start, then this document's steps 1–4, scoped to the chosen component(s)) — this is the entire initiation procedure. There is no separate "setup" step beyond actually running startup scoped to the new component(s) for the first time.
+4. **From then on, resume it, never restart it** (CARD-0284's workflow) — the session's own history is a speed cache, not the source of truth, so nothing is lost if it's later abandoned and needs rebuilding: re-running the same startup steps against the same component(s) reconstructs full working context from the `.md` files alone, per CARD-0284's original "cache layer, not a second store" design. This is what makes "rebuilding" identical to "initiating" — there's no separate recovery procedure to maintain.
 
 A component session runs `CLAUDE.md`'s general Session Start steps first, exactly like any other session — nothing below replaces those. Then, additionally, scoped to its own covered component(s):
 

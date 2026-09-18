@@ -131,9 +131,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0299 · [enhancement] [tos] Table defining which components each component/cluster session covers
+### CARD-0299 · [enhancement] [tos] Table defining which components each component/cluster session covers — RESOLVED 2026-09-18
 
-**Status:** Backlog
+**Status:** Done
 
 **Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: "create a table that defines the scope of each component session".
 
@@ -147,9 +147,20 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 3. **How it stays current** — a table listing sessions goes stale exactly like the doc-status drift CARD-0291 just audited for. Whether anything keeps it honest (a startup step that checks it, a periodic audit) or it is accepted as manually maintained.
 4. **Whether tag ownership belongs here at all**, given CARD-0294 is separately reconciling every card tag against the directory structure — a session-to-component table and a tag-to-directory mapping could end up restating each other.
 
-**Done when:** a table defining each component/cluster session's scope exists in `tos/`, the "no separate registry or naming file is needed" line in `JCTsh-Component-Session-Start.md` is either revised to match or the table is deliberately declined with that reasoning recorded, and the two known real sessions (hike-izer cluster, `tos`) are both represented.
+**Interviewed 2026-09-18, all four open questions resolved:**
+1. **Location:** new section in `JCTsh-Component-Session-Start.md` (not a separate file) — one document owns both how a component session starts and which ones exist.
+2. **Tension resolved:** the "no separate registry or naming file is needed" line revised, not kept — it was right at two organic instances, no longer held once a third was deliberately initiated and the practice needed a real roster to check against.
+3. **Tag ownership:** explicitly excluded — purely a component roster (name, covered components, status), leaving directory/tag reconciliation entirely to CARD-0294 so the two don't restate each other.
+4. **Staying current:** a reconciliation check added to the initiation procedure's own step 3 — every time a session initiates or rebuilds, it checks its name against the registry and either updates the table (if its actual scope has drifted) or resolves a real conflict explicitly, rather than a separate periodic audit.
 
-**Related:** CARD-0284 (persistent per-cluster sessions — the practice this table would describe), CARD-0294 (tag-to-directory reconciliation, overlapping concern), CARD-0291 (documentation drift audit — the failure mode a roster table is exposed to), CARD-0128 (the auto-PR intake pipeline this was raised by), `tos/JCTsh-Component-Session-Start.md` (the existing per-step table and the "no registry needed" line this card must reconcile with).
+**Built and refined through several follow-ons, same session:**
+- **Renamed to "Component/Cluster Registry"** (Joseph: "this table identifies the clusters") — its primary job is naming which clusters exist, not just which happen to have a session. An **Initiated** column (Yes/No) was added specifically so a cluster can be identified and named before anyone starts a session for it — a "No" row is a real, decided candidate, not a placeholder.
+- **Predefined every remaining component/core/host into a proposed cluster** (Joseph: "add all the clusters... so they are predefined") — 11 new clusters beyond the three live ones (hiking-monitor, garage, HA automations, network/infra-visibility, ops, outdoor/backyard sensors, plus five single-component clusters: salt-sensor, p-w-firefly, jctsh-menu, front-porch-temp-sensor, equip-shelf), each grounded in real evidence of components' findings traveling together — not arbitrary groupings. Every directory now has a home except `core/offline-logger` (a reusable template, not a component with its own thread).
+- **"One component, one owning cluster," never dual-membership** (Joseph, asking directly about `air-quality-monitor`'s real relevance to both the proposed `hiking-monitor cluster` and hike-izer's own data pipeline) — a component is covered by exactly one cluster; another domain reaches it by reading its files directly (CARD-0284's existing cross-domain workflow), never by co-owning it. Same single-source-of-truth principle already governing documentation, applied here to component ownership.
+
+**Done when:** met. A table defining each cluster's scope exists in `tos/JCTsh-Component-Session-Start.md`; the "no registry needed" line is revised with the reason recorded; all three live sessions (hike-izer, `tos`, photo-server cluster) plus 11 predefined-but-not-yet-initiated clusters are represented, covering every component/core/host directory in the repo.
+
+**Related:** CARD-0284 (persistent per-cluster sessions — the practice this table describes, and whose own closing note fed this card's `hiking-monitor cluster` grouping), CARD-0294 (tag-to-directory reconciliation, a deliberately separate concern), CARD-0291 (documentation drift audit — the failure mode a registry is exposed to), CARD-0128 (the auto-PR intake pipeline this was raised by), `tos/JCTsh-Component-Session-Start.md` (now v1.11 — the registry, the reconciliation check, and the one-cluster-per-component rule all live here).
 
 ---
 
@@ -1090,18 +1101,20 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-18 (CARD-0193) —
 
 ---
 
-### CARD-0257 · [enhancement] [infrastructure] cloudflared container update available: 2026.8.3 → 2026.9.0 — deliberately deferred pending tunnel-failure reports
+### CARD-0257 · [enhancement] [infrastructure] cloudflared container update available: 2026.8.3 → 2026.9.1 — deliberately deferred pending tunnel-failure reports
 **Status:** Backlog
 
 **Raised via automated maintenance finding (PR #71, photo-server), 2026-09-10.** Routine container-version-bump finding from the scheduled maintenance check (CARD-0126): cloudflared 2026.9.0 available, running 2026.8.3.
 
 **Held rather than applied, 2026-09-10 — researched before landing, per this repo's standing PR-landing process.** A Cloudflare Community post from the last ~24h ("Issue with 2026.9.0 release of cloudflared") reports tunnel failures (origin unreachable, error 1033) after upgrading, resolved for that user by rolling back to 2026.8.3. One unconfirmed report — not corroborated by other community posts or GitHub issues at the time of this check, and no official Cloudflare acknowledgment found. But cloudflared is what backs the public `hikes.jctnet.com` Cloudflare Tunnel (`hike-izer-orchestrator`'s only public HTTPS surface — `hike-end`, `idea`, `step2`, `pipeline-log` webhooks, `birdnet-live` staging all go through it, per CARD-0227), so an outage here would be immediately felt on a live hike, not just a background service hiccup. Joseph's call: hold rather than apply now.
 
-**Re-checked 2026-09-13 (PR #78, superseded/closed as duplicate) — still holding, not enough new evidence yet.** A newer patch, 2026.9.1, has shipped — but its own release notes only mention an unrelated transport log-level revert, no tunnel-connectivity fix. No further corroboration or refutation of the original single Cloudflare Community report was found either. The "revisit in 1-2 weeks" window hasn't fully elapsed (3 days in). Still holding; re-check again closer to the full window, targeting whatever version is current then.
+**Superseded target, 2026-09-13 (PR #78, closed as duplicate 2026-09-14) — still holding, not enough new evidence yet.** A newer patch, 2026.9.1, shipped — but its own release notes only mention an unrelated transport log-level revert, no tunnel-connectivity fix. No further corroboration or refutation of the original single Cloudflare Community report was found either. The "revisit in 1-2 weeks" window hadn't fully elapsed (3 days in at the time). Folded into this card rather than opening a duplicate — same pattern CARD-0274 used for Immich's v3.2.1→v3.2.2 supersession — but this card's own title/target number was left un-bumped when PR #78 was closed, so it kept reading "2026.9.0" for days after the real pending version had already moved to 2026.9.1.
 
-**Done when:** revisit again nearer the full 1-2 week window — check for further community reports or GitHub issues corroborating or refuting the tunnel-failure claim, and check whether a newer patch release has since shipped and fixed it. If the risk turns out to be unconfirmed or already fixed upstream, apply the update then via the normal `docker compose pull && docker compose up -d` cycle on the M8.
+**Real gap found and fixed here, 2026-09-18 (Joseph: "cloudflared update isn't tracked by any card yet, why?" — prompted by the mismatch between the live `/status` dashboard showing 2026.9.1 pending and this card's stale 2026.9.0 title).** Confirmed via the M8's own systemd journal (`container-update-check-m8.service`) that the automation worked correctly the whole time: it detected 2026.9.1 as genuinely new on 2026-09-12 and opened PR #78 for it, which was then correctly closed as a duplicate of this held card rather than landed separately — the actual miss was just that closing a duplicate PR never re-bumped the target on the card it deduped against. Re-checked cloudflared's GitHub releases directly, 2026-09-18: **2026.9.1 is still the current latest release** (published 2026-09-11, nothing newer since) — title corrected above to reflect that as the real pending target. The tunnel-failure risk itself has not been re-researched in this pass; still holding on the same 2026-09-13 evidence.
 
-**Related:** CARD-0126 (container-image update-visibility check that raised this), CARD-0227 (the Cloudflare Tunnel setup for `hikes.jctnet.com` this update would touch), CARD-0128 (the auto-PR intake pipeline).
+**Done when:** revisit again nearer the full 1-2 week window (now past due — 8 days since the original 2026-09-10 raise) — check for further community reports or GitHub issues corroborating or refuting the tunnel-failure claim, and check whether a newer patch release has since shipped and fixed it. If the risk turns out to be unconfirmed or already fixed upstream, apply the update then via the normal `docker compose pull && docker compose up -d` cycle on the M8.
+
+**Related:** CARD-0126 (container-image update-visibility check that raised this), CARD-0227 (the Cloudflare Tunnel setup for `hikes.jctnet.com` this update would touch), CARD-0128 (the auto-PR intake pipeline), CARD-0274 (the Immich supersession this card's target-bump now matches).
 
 ---
 

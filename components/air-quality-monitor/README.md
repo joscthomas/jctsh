@@ -1,10 +1,10 @@
 # Air Quality Monitor
 
-Planned portable clip-mounted sensor measuring PM1.0, PM2.5, PM4.0, PM10, VOC index,
+Portable clip-mounted sensor measuring PM1.0, PM2.5, PM4.0, PM10, VOC index,
 and NOx index — carried on hikes alongside the hiking monitor to capture personal air
 quality exposure on the trail.
 
-**Status:** Bench phase underway (see [air-quality-monitor-claude-code-instructions.md](air-quality-monitor-claude-code-instructions.md) for full step tracking) — Steps 1–6 confirmed: SEN55 validated on breadboard, RGB LED boot/threshold logic implemented and confirmed live. Step 6 dropped the SEN55 power-gate transistor entirely (SEN55 is hard-wired always-on; duty-cycling moves to I2C mode-switching in Step 8). Step 7 (LiPo/LDO power validation) next.
+**Status:** Bench phase complete (CARD-0291 audit found this line stale — see [air-quality-monitor-claude-code-instructions.md](air-quality-monitor-claude-code-instructions.md)'s "Bench Phase Complete" section for full step tracking). Perfboard-built and wired (SEN55/adapter, power-gate transistor, RGB LED, both dividers), validated on USB and battery power, running field-mode duty-cycle logging and home-mode WiFi replay, integrated with the log dashboard/watchdog/Sheets. Install phase (enclosure/carry-case) not yet started.
 
 ---
 

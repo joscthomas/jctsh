@@ -21,8 +21,14 @@ environmental monitoring into a single integrated ecosystem.
 | [front-porch-temp-sensor](components/front-porch-temp-sensor/) | Front porch temperature, pressure, and light with push notifications | Production |
 | [p-w-firefly](components/p-w-firefly/) | Firefly Integrations RV-C coach interface for Pleasure-Way Lexor FL | Production |
 | [photo-server](components/photo-server/) | Self-hosted Immich photo/video library, runs on the M8 (`hosts/m8/`) | Production |
+| [photo-quality-review](components/photo-quality-review/) | Finds duplicate/blurry/broken images across Immich libraries, review UI to confirm deletions | Production |
 | [photo-tv-display](components/photo-tv-display/) | Ambient photo slideshow + phone controller for Google TV, backed by m8 | In Progress |
-| [hiking-monitor](components/hiking-monitor/) | Portable environmental sensor — logs to flash during hikes, syncs on return | In Progress |
+| [netalertx](components/netalertx/) | Translates NetAlertX's MQTT firehose into JCTsh-shaped log events + heartbeat | Production |
+| [jctsh-menu](components/jctsh-menu/) | Tasker menu task routing to any component's webhook by name, not a running service | Production |
+| [hiking-monitor](components/hiking-monitor/) | Portable environmental sensor — logs to flash during hikes, syncs on return | Production |
+| [hike-izer](components/hike-izer/) | Turns raw hiking-monitor data into a narrative HTML hike summary | Production |
+| [hike-izer-orchestrator](components/hike-izer-orchestrator/) | Webhook receiver/generator that triggers Hike-izer automatically | Production |
+| [hike-izer-web](components/hike-izer-web/) | Publishes Hike-izer's generated summaries at `hikes.jctnet.com` | Production |
 | [weather-station](components/weather-station/) | Outdoor DIY weather station posting to Weather Underground and Google Sheets | Planned |
 | [air-quality-monitor](components/air-quality-monitor/) | Portable PM/VOC/NOx sensor carried on hikes alongside the hiking monitor | In Progress |
 | [van-sensors](components/van-sensors/) | Indoor and outdoor environmental nodes for the Pleasure-Way ProMaster van | Planned |
@@ -130,12 +136,14 @@ Shared infrastructure not specific to any one component.
 
 | Directory | Contents |
 |---|---|
+| `core/data-pipeline/` | Environmental Data Apps Script + Node-RED flow — GPS/sensor correlation pipeline shared across hiking-monitor and air-quality-monitor |
 | `core/homeassistant/` | HA configuration snapshot (version-controlled copy — live copy is on Pi) |
 | `core/logging/` | Python MQTT log server — see [core/logging/README.md](core/logging/README.md) |
 | `core/mqtt/` | Mosquitto configuration (version-controlled copy) |
 | `core/node-red/` | Shared Node-RED flows and settings (version-controlled copies) |
 | `core/offline-logger/` | Reusable offline flash logging template (`sensor_logger.h`) — copy and rename for each intermittently-connected sensor |
-| `core/maintenance/` | Scheduled-reboot systemd units, deployed to the Pi and M8 |
+| `core/maintenance/` | Scheduled-reboot systemd units and maintenance/update-check scripts, deployed to the Pi and M8 |
+| `core/docker/` | Docker daemon config (DNS pinning, journald log driver, containerd data-root) for hosts running containers |
 
 ---
 

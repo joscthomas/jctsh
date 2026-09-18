@@ -9,7 +9,24 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0293 -->
+<!-- next-card-id: CARD-0294 -->
+
+---
+
+### CARD-0293 · [idea] [personal] Develop a method to post daily devotional notes into LogSeq
+
+**Status:** Backlog
+
+**Auto-opened from jctsh-core's maintenance check (PR #90).** Raw finding (voice transcription, garbled): "widget to take a screenshot take the text off it and put it in log seat."
+
+**Clarified 2026-09-18 (Joseph):** develop a method to facilitate LogSeq posting of daily devotional notes. Not yet interviewed beyond this one-line clarification — open questions before this can be scoped/planned, left here for later resolution:
+1. Source of the devotional text — a screenshot of an app/site that doesn't offer copy-paste (hence OCR), or something else?
+2. Trigger — manual, or an automated Tasker-style flow (share-to-profile, like the existing Idea Tasker/Hike-izer Done pattern)?
+3. How this reaches LogSeq — local markdown files synced somehow, a LogSeq API/plugin, a sync service, or direct file writes into the graph?
+4. Target — append into LogSeq's existing daily-journal page for that date, or somewhere else?
+5. Component tag — set to `[personal]` (Joseph's call, 2026-09-18, same as CARD-0072) for now.
+
+**Related:** none yet.
 
 ---
 

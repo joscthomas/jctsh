@@ -137,12 +137,13 @@ Shared infrastructure not specific to any one component.
 | Directory | Contents |
 |---|---|
 | `core/data-pipeline/` | Environmental Data Apps Script + Node-RED flow — GPS/sensor correlation pipeline shared across hiking-monitor and air-quality-monitor |
-| `core/homeassistant/` | HA configuration snapshot (version-controlled copy — live copy is on Pi) |
+| `core/homeassistant/` | HA configuration snapshot (version-controlled copy — live copy is on Pi) — see [core/homeassistant/README.md](core/homeassistant/README.md) |
 | `core/logging/` | Python MQTT log server — see [core/logging/README.md](core/logging/README.md) |
-| `core/mqtt/` | Mosquitto configuration (version-controlled copy) |
+| `core/mqtt/` | Mosquitto configuration (version-controlled copy) — see [core/mqtt/README.md](core/mqtt/README.md) |
 | `core/node-red/` | Shared Node-RED flows and settings (version-controlled copies) |
 | `core/offline-logger/` | Reusable offline flash logging template (`sensor_logger.h`) — copy and rename for each intermittently-connected sensor |
-| `core/maintenance/` | Scheduled-reboot systemd units and maintenance/update-check scripts, deployed to the Pi and M8 |
+| `core/maintenance/` | Scheduled-reboot systemd units and maintenance/update-check scripts, deployed to the Pi and M8 — see [core/maintenance/README.md](core/maintenance/README.md) |
+| `core/docker/` | Docker daemon config (DNS pinning, journald log driver, containerd data-root) for hosts running containers |
 | `core/docker/` | Docker daemon config (DNS pinning, journald log driver, containerd data-root) for hosts running containers |
 
 ---

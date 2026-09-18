@@ -13,17 +13,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0305 · [idea] [tos] Decide how the PB Blog monthly workflow relates to its new repo
+### CARD-0305 · [retracted] Moved to PB-Blog's own kanban-board.md as CARD-0001 — was: Decide how the PB Blog monthly workflow relates to its new repo
 
-**Status:** Build
+**Status:** Retracted
 
-**Raised 2026-09-18 (Joseph), directly out of CARD-0298's own PB-Blog README.** That README documents PB Blog's monthly editorial pipeline (Claude/pb-monthly-workflow-v1.5.md — edit → teasers → categories → WordPress category setup → monthly graphic → publish → master-file build), currently run via a Claude.ai Project + Claude-in-Chrome, and leaves open whether that live workflow should now run through Claude Code sessions in the new `PB-Blog` repo instead, continue exactly as-is with the repo purely as version control/backup, or something else. Asked directly — Joseph: "not decided yet... we'll figure out how this will work when I receive the November files."
+**Opened 2026-09-18, moved same day (Joseph's call).** Raised right after CARD-0298 created the `PB-Blog` repo, before that repo had its own `kanban-board.md` bootstrapped — Joseph's direction: this is PB-Blog's own process question, not jctsh's, and belongs on PB-Blog's own board now that one exists. No content lost — the full card (raised-context, the Watch-for marker on Pastor Ben's November files, done-when criteria) moved verbatim to `PB-Blog/kanban-board.md` CARD-0001.
 
-**Watch for:** Pastor Ben's November devotional/teasers `.docx` drafts arriving — the next real occasion to decide whether that month's edit is run through a Claude Code session in the `PB-Blog` repo, the existing Claude.ai Project + Claude-in-Chrome setup, or some hybrid, rather than deciding in the abstract now.
-
-**Done when:** an approach is decided (repo's role vs. the existing Project/Chrome workflow) and, if it changes anything about how a month actually gets edited/published, `PB-Blog/README.md`'s "not yet decided" line is updated to reflect the real decision.
-
-**Related:** CARD-0298 (PB Blog → repo, the move whose README surfaced this question), `PB-Blog/README.md`, `PB-Blog/Claude/pb-monthly-workflow-v1.5.md` (the workflow this decision concerns).
+**Related:** `PB-Blog/kanban-board.md` CARD-0001 (where this card actually lives now), CARD-0298 (the move that created the repo this question is about).
 
 ---
 

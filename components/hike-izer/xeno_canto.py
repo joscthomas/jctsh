@@ -118,17 +118,22 @@ def lookup(scientific_name, api_key, cache_path=CACHE_PATH):
     return result
 
 
-def render_button_html(audio, esc):
-    """Speaker-icon button + hidden <audio> element for one species, or ''
-    if no reference call was found. `esc` is the caller's own HTML-
-    escaping function -- both templating.py and build_wildlife_index.py
-    already have one, no need for this module to take on that dependency
-    itself. Shared here (not duplicated in each template) so both pages
-    render byte-identical markup -- CARD-0176 hit real drift from exactly
-    this kind of duplication between the two templates. Pairs with each
-    page's own click-delegation script (`.audio-btn` -> toggle play/pause
-    on the next sibling `<audio>`), not included here since it's one
-    listener per page, not one per button."""
+def render_button_html(audio, esc, species_name=""):
+    """Speaker-icon button for one species, or '' if no reference call was
+    found. `esc` is the caller's own HTML-escaping function -- both
+    templating.py and build_wildlife_index.py already have one, no need for
+    this module to take on that dependency itself. Shared here (not
+    duplicated in each template) so both pages render byte-identical markup
+    -- CARD-0176 hit real drift from exactly this kind of duplication
+    between the two templates.
+
+    CARD-0278: no longer emits an inline <audio> sibling -- the audio URL
+    and species name are carried as data-audio-url/data-species attributes
+    instead, read by the shared player-widget script below (also CARD-0278:
+    both pages now route into the same persistent widget, not one shared
+    button feeding two different playback behaviors as originally split --
+    Joseph's call, once he saw wildlife.html's simpler per-click toggle next
+    to the hike-summary page's real widget and wanted the two consistent)."""
     if not audio:
         return ""
     title = (
@@ -136,6 +141,107 @@ def render_button_html(audio, esc):
         f"(CC BY-NC-SA) — {audio['xc_url']}"
     )
     return (
-        f' <button class="audio-btn" type="button" title="{esc(title)}">&#128266;</button>'
-        f'<audio preload="none" src="{esc(audio["audio_url"])}"></audio>'
+        f' <button class="audio-btn" type="button" title="{esc(title)}" '
+        f'data-audio-url="{esc(audio["audio_url"])}" data-species="{esc(species_name)}"'
+        f'>&#128266;</button>'
     )
+
+
+# CARD-0278: persistent species-audio player widget -- shared markup/CSS/JS
+# so wildlife.html and the hike-summary page render and behave identically,
+# same drift-avoidance reasoning as render_button_html() above. Each page
+# still owns its own design-token values (--surface/--accent/etc. differ
+# slightly in hex between the two <style> blocks); only the rule *shapes*
+# and the widget's HTML/JS are shared here.
+
+PLAYER_WIDGET_CSS = """
+  .species-player {
+    display: flex; align-items: center; gap: 0.6rem; margin-top: 0.75rem;
+    padding: 0.6rem 0.9rem; background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  /* Real bug found live (CARD-0278): an unqualified `.species-player {
+     display: flex }` rule beats the browser's own `[hidden] { display:
+     none }` UA-stylesheet rule (author styles win over user-agent styles
+     at equal specificity), so the widget rendered visible from page load
+     regardless of the `hidden` attribute. This higher-specificity rule
+     re-asserts hidden explicitly rather than relying on the attribute
+     alone. */
+  .species-player[hidden] { display: none; }
+  .species-player-toggle {
+    background: var(--accent); color: var(--accent-ink); border: none; border-radius: 50%;
+    width: 2rem; height: 2rem; flex: none; cursor: pointer; font-size: 0.8em;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .species-player-toggle:hover { opacity: 0.85; }
+  .species-player-label { font-weight: 600; }
+"""
+
+
+def render_player_widget_html():
+    """The widget's own markup -- append once per page, right after
+    whichever table's audio-btn clicks should feed it. Starts hidden;
+    render_player_widget_script()'s click-delegation reveals it on first
+    use."""
+    return (
+        '<div class="species-player" id="species-player" hidden>'
+        '<button type="button" class="species-player-toggle" id="species-player-toggle" aria-label="Play/pause">&#9654;</button>'
+        '<span class="species-player-label" id="species-player-label"></span>'
+        '<audio id="species-player-audio" preload="none"></audio>'
+        '</div>'
+    )
+
+
+def render_player_widget_script(table_id):
+    """Click-delegation on `table_id` (the page's own species table) plus
+    the widget's play/pause/scroll-into-view wiring. `table_id` is the only
+    thing that ever differs between the two pages ("birdnet-table" vs
+    "wildlife-table"), so it's the one parameter -- everything else about
+    how the widget behaves is identical on both pages by construction, not
+    just by convention."""
+    return f"""<script>
+(function () {{
+  var audioTable = document.getElementById("{table_id}");
+  var player = document.getElementById("species-player");
+  if (!audioTable || !player) return;
+  var playerAudio = document.getElementById("species-player-audio");
+  var playerLabel = document.getElementById("species-player-label");
+  var playerToggle = document.getElementById("species-player-toggle");
+  // Compared against the raw data-audio-url on each click instead of
+  // reading playerAudio.src back -- the browser normalizes .src to an
+  // absolute URL once set, which can legitimately differ in formatting
+  // from the original attribute string even for the same resource,
+  // causing a spurious reload/restart on re-clicking the same species.
+  var currentUrl = null;
+
+  function setToggleIcon() {{
+    playerToggle.innerHTML = playerAudio.paused ? "&#9654;" : "&#10074;&#10074;";
+  }}
+  playerAudio.addEventListener("play", setToggleIcon);
+  playerAudio.addEventListener("pause", setToggleIcon);
+  playerAudio.addEventListener("ended", setToggleIcon);
+
+  playerToggle.addEventListener("click", function () {{
+    if (playerAudio.paused) {{ playerAudio.play().catch(function () {{}}); }} else {{ playerAudio.pause(); }}
+  }});
+
+  audioTable.addEventListener("click", function (e) {{
+    if (!e.target.classList || !e.target.classList.contains("audio-btn")) return;
+    var url = e.target.dataset.audioUrl;
+    if (!url) return;
+    playerLabel.textContent = e.target.dataset.species || "";
+    player.hidden = false;
+    player.scrollIntoView({{behavior: "smooth", block: "center"}});
+    if (currentUrl !== url) {{
+      currentUrl = url;
+      playerAudio.src = url;
+    }}
+    // play() is a Promise -- a network/decode failure (bad URL, blocked
+    // request) rejects it silently otherwise, leaving the toggle icon
+    // stuck on play with no feedback. Caught here, not left unhandled.
+    playerAudio.play().catch(function (err) {{
+      console.error("species-player: playback failed", err);
+    }});
+  }});
+}})();
+</script>"""

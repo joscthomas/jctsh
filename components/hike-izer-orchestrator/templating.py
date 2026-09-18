@@ -964,7 +964,14 @@ _HTML_STYLE = """
      style above. */
   .data-source { color: var(--ink-muted); font-size: 0.78rem; font-style: italic; margin: -0.6rem 0 1rem; }
   .narrative p { margin: 0 0 1rem; font-size: 1.02rem; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  /* CARD-0278: same fix as wildlife.html's own table rule -- position:
+     sticky on <th> is broken in Chromium under border-collapse: collapse
+     (found from a real screenshot on wildlife.html; this table shares the
+     identical .obs-table thead th { position: sticky; top: 0 } pattern,
+     so it was very likely silently broken here too, just never noticed).
+     `separate` + zero spacing is visually identical since th/td here only
+     ever set border-bottom, never all four sides. */
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
   th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); }
   thead th { background: var(--surface-2); font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); }
   tbody tr:last-child td { border-bottom: none; }
@@ -1027,7 +1034,7 @@ _HTML_STYLE = """
   .map-embed { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
   .map-embed iframe { display: block; width: 100%; border: none; }
   footer { color: var(--ink-faint); font-size: 0.75rem; font-family: var(--mono); margin-top: 2.5rem; border-top: 1px solid var(--line); padding-top: 1rem; }
-"""
+""" + xeno_canto.PLAYER_WIDGET_CSS  # CARD-0278: shared with wildlife.html, see xeno_canto.py
 
 
 def _esc(s):
@@ -1425,7 +1432,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
             f"<tr><td data-sort-value=\"{_esc(r['species'].lower())}\">"
             f"<a href=\"{r['wikipedia_url']}\" target=\"_blank\" rel=\"noopener\">{_esc(r['species'])}</a>"
             f"{new_species_badge if r['is_new'] else ''}"
-            f"{xeno_canto.render_button_html(r['audio'], _esc)}"
+            f"{xeno_canto.render_button_html(r['audio'], _esc, r['species'])}"
             f" <em>({_esc(r['scientific_name'])})</em></td>"
             f"<td data-sort-value=\"{r['count']}\">{_esc(r['count'])}</td>"
             f"<td data-sort-value=\"{r['confidence_pct']}\">{_esc(r['confidence'])}</td>"
@@ -1448,6 +1455,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
       </tr></thead>
       <tbody>{birdnet_html_rows}</tbody>
     </table>
+    {xeno_canto.render_player_widget_html()}
   </section>
   <script>
   (function () {{
@@ -1476,22 +1484,8 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
       }});
     }});
   }})();
-  // CARD-0174: speaker-icon click -> toggle play/pause on the button's own
-  // next-sibling <audio> element (xeno_canto.render_button_html()'s
-  // markup). Event delegation on the table (own getElementById call --
-  // out of the sort IIFE's function scope above), not a per-button
-  // listener -- this table can have a couple dozen rows, each with its
-  // own button.
-  var audioTable = document.getElementById("birdnet-table");
-  if (audioTable) {{
-    audioTable.addEventListener("click", function (e) {{
-      if (!e.target.classList || !e.target.classList.contains("audio-btn")) return;
-      var audio = e.target.nextElementSibling;
-      if (!audio) return;
-      if (audio.paused) {{ audio.play(); }} else {{ audio.pause(); }}
-    }});
-  }}
-  </script>"""
+  </script>
+  {xeno_canto.render_player_widget_script("birdnet-table")}"""
 
     # CARD-0134: vendored Leaflet, same relative path CARD-0082 already
     # deployed to ~/hike-izer-web-app/srv/vendor/leaflet/ -- this pipeline

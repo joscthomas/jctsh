@@ -434,17 +434,34 @@ A clean volume trend with no reboot loop anywhere nearby — the real mechanism 
 
 ---
 
-### CARD-0278 · [enhancement] [hike-izer] Wildlife list/player UX — sticky heading, in-page audio player for hike-page species clips
+### CARD-0278 · [enhancement] [hike-izer] Wildlife list/player UX — sticky heading, in-page audio player for hike-page species clips — RESOLVED 2026-09-17 22:34 MST
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-17 (Joseph).** Two related UX asks, both about how BirdNET audio/species data is presented:
 1. **Wildlife list page (`wildlife.html`):** the page heading currently scrolls away with the list — should stay pinned (sticky) while the species table scrolls beneath it.
 2. **Hike summary page, Species section:** add an audio-player-style widget at the end of the Species list — shows what's currently playing with a pause button. Clicking a species' audio to play it should scroll the page down to bring the player into view.
 
-**Not yet interviewed for a done-when or full acceptance criteria** — essence-only per this project's Backlog scoping convention. Real design work (single persistent player vs. per-row players, exact sticky-header CSS approach, where the existing per-species audio clips currently live/play from on the hike page) belongs in Planning.
+**Interviewed 2026-09-17 (Joseph):** sticky heading covers the whole intro block (h1+subtitle+nav), not just the `<h1>`. The new player is one shared persistent widget with full play/pause/resume transport — replacing, not sitting alongside, the existing per-row inline `<audio>` toggle (`xeno_canto.render_button_html()`'s old markup).
 
-**Related:** `components/hike-izer-orchestrator/build_wildlife_index.py` (wildlife.html), `components/hike-izer-orchestrator/templating.py` (hike-summary page rendering), `components/hike-izer-orchestrator/birdnet-pipeline.md`.
+**Scope grew twice during Build, both times from Joseph testing the real thing, not from the original ask:** (1) wildlife.html got the same persistent player widget as the hike-summary page, not just a simple toggle, once he saw the two pages side by side and wanted them consistent; (2) wildlife.html's own table column headers got the same sticky treatment as the page heading, then that was generalized to the Month/Year summary tables too, once he asked for "the same way" there as well.
+
+**Built:** `xeno_canto.py` gained shared `render_player_widget_html()`/`render_player_widget_script()`/`PLAYER_WIDGET_CSS` (both pages import the same widget instead of hand-rolling their own, avoiding the exact drift CARD-0176 already got bitten by once) and `render_button_html()` dropped its inline `<audio>` sibling for `data-audio-url`/`data-species` attributes instead. `build_wildlife_index.py` gained a `.page-header` sticky wrapper and a reusable `makeStickyHeader()` JS function, applied to the species table, Month table, and Year table alike.
+
+**Real bugs found and fixed live, several rounds, via actual screenshots (not just synthetic smoke tests) — worth a full record since the pattern is reusable:**
+1. **My own placeholder test audio URL was a 404** the entire time — not a code bug, but it's what first made auto-play look broken. Real, `curl`-verified audio URL used from then on.
+2. **`.species-player { display: flex }` overrode the browser's `[hidden] { display: none }`** (author styles beat user-agent styles at equal specificity) — the widget was never actually hidden pre-interaction. Fixed with an explicit `.species-player[hidden] { display: none; }` override.
+3. **A speculative negative `margin-top`/`padding-top` pair on `.page-header`**, added without real justification, was a real candidate for "wrong position" — removed.
+4. **`top: var(--header-h, 0px)` (a CSS custom property set dynamically from JS) didn't reliably drive `position: sticky`** — switched to a direct inline `style.top` per `<th>`. Didn't fix it either.
+5. **`border-collapse: collapse` was suspected** (a real, documented Chromium limitation for sticky `<th>`) — switched both pages' tables to `separate` + zero spacing. Also didn't fix it.
+6. **The actual root cause, found only once a real screenshot was read directly** (this session couldn't get browser-automation screenshots working at all this session — see below): `position: sticky` on `<th>` visually detaches from the table's own row flow instead of properly stacking, when it's the whole *page* scrolling rather than a bounded overflow-scrollable container around just the table — a real cross-browser reliability gap, not fixable by tuning the sticky rule further. Replaced with a JS-driven `position: fixed` clone of the header row (a real `<table>`, not a bare row, so column layout matches), width-synced to the real header and shown/hidden by scroll position.
+7. **The clone's first version never hid once scrolled past the whole table**, only past its header — it kept floating over unrelated later content (the Month table) still showing the species table's own columns. Fixed: also hides once the table's own bottom has scrolled above the stick point.
+
+**Verification method worth recording:** this session's `mcp__claude-in-chrome` browser-automation screenshot tool failed consistently (a "script injection timed out" extension-connectivity error, reproduced across many retries, fresh tabs, and long waits) — real visual verification only became possible once Joseph took screenshots himself (Windows' own Screenshots folder, `C:\Users\jcthomas\Pictures\Screenshots\`) and Claude read the latest file directly via the Read tool. Worth remembering as a fallback for any future session that hits the same browser-automation failure.
+
+**Done when:** confirmed working end-to-end via real screenshots — wildlife.html's page heading and all three of its tables (species list, Month, Year) correctly stick their headers while scrolling and correctly release once scrolled past; the persistent player widget works identically on both pages, auto-playing with the pause icon showing immediately on first click. **Met**, per Joseph's own live confirmation ("success").
+
+**Related:** `components/hike-izer/build_wildlife_index.py` (wildlife.html — canonical source lives here, not `hike-izer-orchestrator/`, a stale path this card's own original Related line had), `components/hike-izer-orchestrator/templating.py` (hike-summary page rendering), `components/hike-izer/xeno_canto.py` (the shared player-widget/button module both pages now import), `components/hike-izer-orchestrator/birdnet-pipeline.md`, CARD-0176 (the prior markup-drift incident this card's shared-module approach specifically avoids repeating).
 
 ---
 

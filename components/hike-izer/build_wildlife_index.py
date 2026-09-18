@@ -79,6 +79,18 @@ _STYLE = """
   .subtitle { color: var(--ink-muted); font-size: 0.85rem; margin: 0 0 1.5rem; }
   .empty { color: var(--ink-faint); font-style: italic; }
 
+  /* CARD-0278: pin the h1/subtitle/nav block while the species table
+     scrolls beneath it -- background matches body so content scrolling
+     underneath never shows through the sticky box. The table's own
+     column headers stick too (rule further below), stacked directly
+     under this block via a measured inline style.top, not a CSS custom
+     property (see that rule's own comment for why).
+     Real bug found live: an earlier version of this rule added a
+     speculative negative margin-top/padding-top pair with no solid
+     reason for it, which is exactly the kind of thing that can shift a
+     sticky element's rendered position unpredictably -- removed. */
+  .page-header { position: sticky; top: 0; background: var(--bg); z-index: 5; }
+
   .top-nav { margin-bottom: 1.25rem; }
   .top-nav a {
     font-size: 0.9rem;
@@ -90,9 +102,18 @@ _STYLE = """
   }
   .top-nav a:hover { background: var(--surface-2); }
 
+  /* CARD-0278: real root cause of the sticky-header bug, found from an
+     actual screenshot after two wrong CSS-tuning guesses -- `position:
+     sticky` on <th> is well-documented as broken in Chromium when the
+     table uses `border-collapse: collapse` (the header cell detaches
+     from its row's place in the table's layout instead of sticking).
+     Switched to `separate` + zero spacing -- visually identical here
+     since th/td only ever set border-bottom, never all four sides, so
+     there's no adjacent-border pair that collapsing was merging away. */
   table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -119,6 +140,19 @@ _STYLE = """
   th.sort-desc::after { content: " ▼"; }
   tr:last-child td { border-bottom: none; }
   td.scientific { font-style: italic; color: var(--ink-muted); }
+  /* CARD-0278: main species table's own column headers stick too, stacked
+     just below the sticky .page-header above. Real limitation found live
+     (an actual screenshot, after three failed `position: sticky`
+     CSS-tuning attempts): `position: sticky` on <th> visually detaches
+     from the table's own row flow instead of properly stacking, when it's
+     the whole *page* scrolling rather than a bounded overflow-scrollable
+     container around just the table -- a known cross-browser reliability
+     gap, not something more CSS tuning fixes. Replaced with a
+     JS-driven `position: fixed` clone of the header row instead (script
+     below) -- more code, but this is the actually-reliable technique.
+     `.wildlife-sticky-clone` is that clone's own wrapper table. */
+  .wildlife-sticky-clone { position: fixed; border-collapse: separate; border-spacing: 0; box-shadow: var(--shadow); z-index: 10; }
+  .wildlife-sticky-clone th { border-bottom: 1px solid var(--line); }
   /* CARD-0174: reference-call speaker icon (xeno_canto.render_button_html()) */
   .audio-btn { background: none; border: none; cursor: pointer; font-size: 0.85em; padding: 0 0.2em; vertical-align: middle; line-height: 1; }
   .audio-btn:hover { opacity: 0.65; }
@@ -130,7 +164,7 @@ _STYLE = """
     border-top: 1px solid var(--line);
     padding-top: 1rem;
   }
-""".strip("\n")
+""".strip("\n") + xeno_canto.PLAYER_WIDGET_CSS  # CARD-0278: shared with templating.py, see xeno_canto.py
 
 
 def _hike_url(file_stem):
@@ -217,7 +251,7 @@ def _render_page(life_list, xeno_canto_key=None):
             f"<tr>"
             f"<td data-sort-value=\"{_esc_attr(e['common_name'].lower())}\">"
             f"<a href=\"{wikipedia_url(e['scientific_name'])}\" target=\"_blank\" rel=\"noopener\">{e['common_name']}</a>"
-            f"{xeno_canto.render_button_html(xeno_canto.lookup(e['scientific_name'], xeno_canto_key), _esc_attr)}"
+            f"{xeno_canto.render_button_html(xeno_canto.lookup(e['scientific_name'], xeno_canto_key), _esc_attr, e['common_name'])}"
             f"</td>"
             f"<td class=\"scientific\" data-sort-value=\"{_esc_attr(e['scientific_name'].lower())}\">{e['scientific_name']}</td>"
             # first_heard_file_stem is already YYYY-MM-DD -- sorts correctly
@@ -232,7 +266,7 @@ def _render_page(life_list, xeno_canto_key=None):
             for e in species
         )
         body = (
-            "<table><thead><tr>"
+            "<table id=\"wildlife-table\"><thead><tr>"
             "<th data-sort-type=\"text\">Common Name</th>"
             "<th data-sort-type=\"text\">Scientific Name</th>"
             "<th data-sort-type=\"text\">First Heard</th>"
@@ -241,6 +275,7 @@ def _render_page(life_list, xeno_canto_key=None):
             "</tr></thead><tbody>"
             f"{rows}"
             "</tbody></table>"
+            f"{xeno_canto.render_player_widget_html()}"
         )
 
         # CARD-0210: seasonality -- a plain calendar-order table, not a
@@ -255,7 +290,7 @@ def _render_page(life_list, xeno_canto_key=None):
         month_section = f"""
   <h2>Detections by Month</h2>
   <p class="subtitle">Collapsed across every year hiked -- shows which months tend to be most active, not any single year's own pattern.</p>
-  <table><thead><tr><th>Month</th><th>Total Detections</th><th>Distinct Species Heard</th></tr></thead>
+  <table id="month-table"><thead><tr><th>Month</th><th>Total Detections</th><th>Distinct Species Heard</th></tr></thead>
   <tbody>{month_rows}</tbody></table>"""
 
         year_data = _new_species_by_year(species)
@@ -263,7 +298,7 @@ def _render_page(life_list, xeno_canto_key=None):
             year_rows = "".join(f"<tr><td>{y}</td><td>{n}</td></tr>" for y, n in year_data)
             year_section = f"""
   <h2>Life List Growth</h2>
-  <table><thead><tr><th>Year</th><th>New Species First Heard</th></tr></thead>
+  <table id="year-table"><thead><tr><th>Year</th><th>New Species First Heard</th></tr></thead>
   <tbody>{year_rows}</tbody></table>"""
         else:
             # Only one year of data so far -- a growth-over-time table with
@@ -288,9 +323,11 @@ def _render_page(life_list, xeno_canto_key=None):
 </head>
 <body>
 <main>
-  <h1>Wildlife Life List</h1>
-  <p class="subtitle">{subtitle}</p>
-  <div class="top-nav"><a href="index.html">&larr; Calendar</a></div>
+  <div class="page-header">
+    <h1>Wildlife Life List</h1>
+    <p class="subtitle">{subtitle}</p>
+    <div class="top-nav"><a href="index.html">&larr; Calendar</a></div>
+  </div>
   {body}
   {month_section}
   {year_section}
@@ -298,51 +335,111 @@ def _render_page(life_list, xeno_canto_key=None):
 </main>
 <script>
 (function () {{
-  var table = document.querySelector("table");
-  if (!table) return;
-  var tbody = table.querySelector("tbody");
-  var ths = Array.prototype.slice.call(table.querySelectorAll("th"));
-  // Rows already arrive sorted by common name ascending (Python's own
-  // sort above) -- state starts matching that so the header's arrow
-  // reflects reality on first load, not just after the first click.
-  var state = {{col: 0, dir: 1}};
+  var pageHeader = document.querySelector(".page-header");
 
-  function sortBy(colIndex) {{
-    var type = ths[colIndex].dataset.sortType;
-    var dir = (state.col === colIndex) ? -state.dir : 1;
-    state = {{col: colIndex, dir: dir}};
+  // CARD-0278: sticky column headers, built as a JS-driven position:fixed
+  // clone rather than `position: sticky` on the real <th> elements -- see
+  // .wildlife-sticky-clone's own CSS comment for why sticky-on-th was
+  // abandoned. Generalized into one reusable function (originally
+  // written just for #wildlife-table, then Joseph asked for the same
+  // treatment on the Month/Year summary tables too) so every table on
+  // this page gets identical, correctly-behaving sticky headers from one
+  // piece of logic rather than three hand-copied ones. `onHeaderClick`
+  // is optional -- only the main species table has click-to-sort; the
+  // summary tables are deliberately static (CARD-0210).
+  function makeStickyHeader(table, onHeaderClick) {{
+    if (!table) return null;
+    var thead = table.querySelector("thead");
+    if (!thead) return null;
+    var ths = Array.prototype.slice.call(thead.querySelectorAll("th"));
 
-    var rows = Array.prototype.slice.call(tbody.querySelectorAll("tr"));
-    rows.sort(function (a, b) {{
-      var av = a.children[colIndex].dataset.sortValue;
-      var bv = b.children[colIndex].dataset.sortValue;
-      var cmp = type === "number" ? (parseFloat(av) - parseFloat(bv)) : av.localeCompare(bv);
-      return cmp * dir;
-    }});
-    rows.forEach(function (r) {{ tbody.appendChild(r); }});
+    var cloneTable = document.createElement("table");
+    cloneTable.className = "wildlife-sticky-clone";
+    cloneTable.hidden = true;
+    var cloneThead = thead.cloneNode(true);
+    var cloneThs = Array.prototype.slice.call(cloneThead.querySelectorAll("th"));
+    if (onHeaderClick) {{
+      cloneThs.forEach(function (th, i) {{
+        th.addEventListener("click", function () {{ onHeaderClick(i); }});
+      }});
+    }}
+    cloneTable.appendChild(cloneThead);
+    document.body.appendChild(cloneTable);
 
-    ths.forEach(function (th, i) {{
-      th.classList.remove("sort-asc", "sort-desc");
-      if (i === colIndex) th.classList.add(dir === 1 ? "sort-asc" : "sort-desc");
-    }});
+    function sync() {{
+      if (!pageHeader) return;
+      var stickAt = pageHeader.getBoundingClientRect().bottom;
+      var theadTop = thead.getBoundingClientRect().top;
+      var tableRect = table.getBoundingClientRect();
+      // Real bug found live (a real screenshot): only checked whether
+      // we'd scrolled past the *header* -- once the whole table
+      // (including every data row) had also scrolled past, the clone
+      // kept floating over completely unrelated content further down
+      // the page, still showing that table's own columns. Also hide
+      // once the table's own bottom has scrolled above the stick point,
+      // not just its header.
+      if (theadTop >= stickAt || tableRect.bottom <= stickAt) {{
+        cloneTable.hidden = true;
+        return;
+      }}
+      cloneTable.style.top = stickAt + "px";
+      cloneTable.style.left = tableRect.left + "px";
+      cloneTable.style.width = tableRect.width + "px";
+      ths.forEach(function (th, i) {{
+        cloneThs[i].style.width = th.getBoundingClientRect().width + "px";
+        cloneThs[i].className = th.className;
+      }});
+      cloneTable.hidden = false;
+    }}
+    window.addEventListener("scroll", sync);
+    window.addEventListener("resize", sync);
+    sync();
+    return {{ths: ths, sync: sync}};
   }}
 
-  ths.forEach(function (th, i) {{
-    th.addEventListener("click", function () {{ sortBy(i); }});
-  }});
-  ths[0].classList.add("sort-asc");
+  var wildlifeTable = document.getElementById("wildlife-table");
+  if (wildlifeTable) {{
+    var tbody = wildlifeTable.querySelector("tbody");
+    // Rows already arrive sorted by common name ascending (Python's own
+    // sort above) -- state starts matching that so the header's arrow
+    // reflects reality on first load, not just after the first click.
+    var state = {{col: 0, dir: 1}};
+    var sticky = null;  // assigned below, after sortBy exists (sortBy needs sticky.sync)
 
-  // CARD-0174: speaker-icon click -> toggle play/pause on the button's own
-  // next-sibling <audio> element (xeno_canto.render_button_html()'s
-  // markup). Event delegation on the table, not a per-button listener.
-  table.addEventListener("click", function (e) {{
-    if (!e.target.classList || !e.target.classList.contains("audio-btn")) return;
-    var audio = e.target.nextElementSibling;
-    if (!audio) return;
-    if (audio.paused) {{ audio.play(); }} else {{ audio.pause(); }}
-  }});
+    function sortBy(colIndex) {{
+      var ths = sticky.ths;
+      var type = ths[colIndex].dataset.sortType;
+      var dir = (state.col === colIndex) ? -state.dir : 1;
+      state = {{col: colIndex, dir: dir}};
+
+      var rows = Array.prototype.slice.call(tbody.querySelectorAll("tr"));
+      rows.sort(function (a, b) {{
+        var av = a.children[colIndex].dataset.sortValue;
+        var bv = b.children[colIndex].dataset.sortValue;
+        var cmp = type === "number" ? (parseFloat(av) - parseFloat(bv)) : av.localeCompare(bv);
+        return cmp * dir;
+      }});
+      rows.forEach(function (r) {{ tbody.appendChild(r); }});
+
+      ths.forEach(function (th, i) {{
+        th.classList.remove("sort-asc", "sort-desc");
+        if (i === colIndex) th.classList.add(dir === 1 ? "sort-asc" : "sort-desc");
+      }});
+      sticky.sync();  // sort-arrow classes changed -- the clone's own <th>s need the same update
+    }}
+
+    sticky = makeStickyHeader(wildlifeTable, sortBy);
+    sticky.ths.forEach(function (th, i) {{
+      th.addEventListener("click", function () {{ sortBy(i); }});
+    }});
+    sticky.ths[0].classList.add("sort-asc");
+  }}
+
+  makeStickyHeader(document.getElementById("month-table"));
+  makeStickyHeader(document.getElementById("year-table"));
 }})();
 </script>
+{xeno_canto.render_player_widget_script("wildlife-table")}
 </body>
 </html>
 """

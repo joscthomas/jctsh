@@ -3257,14 +3257,42 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 12923
 
 ---
 
-### CARD-0041 · [idea] [photo-server] Disk capacity growth analysis — wait for steady state
-**Status:** Planning
+### CARD-0041 · [idea] [m8] Disk capacity growth analysis — wait for steady state
+**Status:** Build
+
+**Retagged `[photo-server]` → `[m8]`, 2026-09-18 (Joseph's call, photo cluster session).** This card is about the M8 host's physical drives, not the Immich application itself — the same host-specific-work criterion CARD-0294's planned retag sweep applies to cards like CARD-0238/CARD-0272. Flagged live rather than deferred to that sweep, since it directly affected this card's own scope determination.
 
 **Notes:** Discussed 2026-07-09: want to estimate photo-library growth rate and project when the primary drive (Backup Plus 1TB, currently 615G/71% used) or backup drive (Momentus 640GB) will need replacing/upsizing. Deliberately not started yet — Joseph's call: current disk numbers are all noise from one-off events (CARD-0039 added 3,433 assets in one shot, CARD-0030 just freed 818GB by deleting zips, first post-cleanup backup run is still doing a full reconciliation rather than a normal weekly delta), not representative of organic day-to-day growth.
 
 **Watch for (RESOLVED 2026-09-18, see below):** the backup cron (CARD-0030/CARD-0040) running its normal weekly incremental cadence for a few cycles, so disk usage tracking reflects only real photo uploads from Joseph's and Robin's phones — no fixed date, just "after the dust settles." At that point, weekly rsync deltas become a meaningful proxy for actual growth rate and a "months until full" estimate becomes trustworthy rather than a guess. Revisit this card once that's true. (Predates the Auto verify marker convention — originally written as plain "Wait for:" prose, 2026-07-09; converted to the real marker 2026-09-08 so it actually shows up on `/kanban` and Session Start's grep, per CARD-0251.)
 
-**Resolved, 2026-09-18 (photo cluster session startup, CARD-0251/CARD-0258 resolution protocol).** Checked live rather than assumed: `journalctl -u cron` on the M8 shows the weekly backup cron (`15 2 * * 0`) has fired every Sunday, unbroken, for 11 consecutive weeks (2026-07-05 through 2026-09-13) — well past CARD-0030/CARD-0039's one-off cleanup (2026-07-09/10) that originally made the numbers noisy. `/var/log/photo-library-backup.log`'s per-run rsync summaries (`sent ... bytes`) show the incremental transfer size has settled into a stable, gently-decreasing band (~5.6GB → ~5.2GB) across the most recent five runs, rather than the one-off reconciliation spike right after the cleanup — real evidence of organic-growth steady state, not just elapsed time. The watch-for condition is met; the disk-growth analysis itself (this card's actual remaining scope) hasn't been started — that's real scoping work needing its own interview, left for Joseph to schedule rather than done unprompted as part of session startup.
+**Watch-for resolved, 2026-09-18 (photo cluster session startup, CARD-0251/CARD-0258 resolution protocol).** Checked live rather than assumed: `journalctl -u cron` on the M8 shows the weekly backup cron (`15 2 * * 0`) has fired every Sunday, unbroken, for 11 consecutive weeks (2026-07-05 through 2026-09-13) — well past CARD-0030/CARD-0039's one-off cleanup (2026-07-09/10) that originally made the numbers noisy.
+
+**Growth analysis performed, 2026-09-18 (same session — sufficient data confirmed available, so done now rather than deferred).** Source: the 7 confirmed clean weekly cron runs since the cleanup fully settled (2026-08-02 through 2026-09-13 — `backup.md`'s split-by-account architecture means each weekly run logs two independent `rsync` transfer sizes, one per account), read from `/var/log/photo-library-backup.log`'s per-run `sent ... bytes` summaries:
+
+| Week | Joseph's delta | Robin's delta | Combined |
+|---|---|---|---|
+| 2026-08-02 | 5.59 GB | 4.93 GB | 10.52 GB |
+| 2026-08-09 | 5.69 GB | 5.49 GB | 11.17 GB |
+| 2026-08-16 | 5.62 GB | 5.76 GB | 11.38 GB |
+| 2026-08-23 | 5.50 GB | 5.45 GB | 10.96 GB |
+| 2026-08-30 | 6.20 GB | 5.41 GB | 11.60 GB |
+| 2026-09-06 | 5.51 GB | 5.40 GB | 10.90 GB |
+| 2026-09-13 | 5.22 GB | 5.20 GB | 10.42 GB |
+
+Combined weekly variance is tight (10.42–11.60 GB, no trend up or down) — real confirmation this is steady organic growth, not lingering reconciliation noise. Average combined ≈ **11.0 GB/week** (Joseph ≈5.62 GB/week, Robin ≈5.38 GB/week — split is close to even, not badly lopsided despite Joseph's library being larger overall).
+
+**Current usage (`df -h` on the M8, 2026-09-18)** — three drives now, not two (CARD-0030's 2026-07-10 split-by-account redesign added a second backup drive after the original two-drive framing was written):
+
+| Drive | Mount | Size | Used | Avail | Weekly growth | Est. time to full |
+|---|---|---|---|---|---|---|
+| Primary (both accounts) | `/mnt/photo-library` | 916G | 584G (68%) | 287G | ~11.0 GB/wk combined | **~28 weeks (~6.5 months, early Apr 2027)** |
+| Joseph's backup | `/mnt/photo-library-backup-joseph` | 916G | 422G (49%) | 448G | ~5.62 GB/wk | ~86 weeks (~20 months) |
+| Robin's backup (Momentus) | `/mnt/photo-library-backup` | 586G | 175G (32%) | 382G | ~5.38 GB/wk | ~76 weeks (~17.5 months) |
+
+**The primary drive is the real bottleneck**, not either backup — both backups have well over a year of headroom at current growth. Linear extrapolation from 7 weeks of steady data; doesn't account for seasonal upload spikes (holidays, travel) that could pull the primary's ~6.5-month estimate earlier. "Months until full" is a real, trustworthy number now, per this card's own original done-when framing — whether to act at 100% full vs. some earlier threshold (85%/90%), and whether to replace or just upsize the primary drive, is a decision left for Joseph, not made here.
+
+**Left in Build, not closed** — the projection is done, but the card's implicit purpose (deciding what to actually do about the primary drive's ~6.5-month runway) isn't resolved yet.
 
 ---
 

@@ -9,7 +9,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0287 -->
+<!-- next-card-id: CARD-0288 -->
+
+---
+
+### CARD-0287 · [enhancement] [hiking-monitor] Extend Mile Announcer with a spoken cumulative elevation-gain figure
+
+**Status:** Backlog
+
+**Auto-opened from jctsh-core's maintenance check (PR #88).** Raw finding (garbled in the original capture): "mileage not mileage elevation announcer." Clarified 2026-09-17 (Joseph): wants CARD-0208's existing Mile Announcer (Tasker TTS on the Pixel, currently speaks "one mile," "two miles," etc.) to also speak cumulative elevation gain at each mile mark.
+
+**Interviewed 2026-09-17 (Joseph):** kept as its own new card rather than folded into CARD-0208 -- CARD-0208's own audibility bug (the `Volume` action that kept not sticking) is confirmed fixed, so this builds on a working base, not a still-flaky one. Elevation figure: cumulative gain since the hike started, matching how hike-izer's own stats report gain -- not current altitude.
+
+**Scope:** extend the "Mile Announcer" Tasker task (`components/hiking-monitor/tasker/Mile-Announcement.prf.xml`) to also track cumulative elevation gain and speak it alongside the mile count, e.g. "Two miles, three hundred feet gained."
+
+**Open question, not yet resolved:** where cumulative elevation gain is sourced from on-device during a live hike (GPSLogger's own altitude field vs. barometric pressure via hiking-monitor's BME280) -- needs a real design pass before building, same as CARD-0208's own original design sketch.
+
+**Done when:** a real hike shows every whole-mile crossing announced audibly with both the mile count and a correct cumulative elevation-gain figure, cross-checked against hike-izer's own published elevation-gain stat for that hike.
+
+**Related:** CARD-0208 (Mile Announcer, the base this extends), `components/hiking-monitor/tasker/Mile-Announcement.prf.xml`, `components/hiking-monitor/hiking-monitor.yaml` (BME280 pressure/altitude sensor).
 
 ---
 

@@ -13,7 +13,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0300 · [idea] [personal] Document the existing process for daily devotional LogSeq entries
+### CARD-0300 · [idea] [tos] Document the existing process for daily devotional LogSeq entries
 
 **Status:** Backlog
 
@@ -25,7 +25,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 1. **What the current daily process actually is, end to end** — where the devotional comes from, what Joseph does with it each day, and where it lands in LogSeq. This is the substance of the card; none of it is recorded anywhere yet.
 2. **Where the description should live** — a doc in whichever repo the LogSeq files end up in (see the sibling card from PR #93, destination undecided), somewhere in `tos/`, or inside the LogSeq graph itself as a note.
 3. **How much of the process is worth documenting versus simply automating** — some steps may not survive CARD-0293's automation, so documenting them in detail could be wasted effort. Worth deciding which parts are durable before writing them all down.
-4. **Component tag** — set to `[personal]` for now, matching CARD-0293. Note `[personal]` does not map to any real directory, which is exactly the reconciliation problem CARD-0294 exists to resolve; this card's tag should be revisited when that pass runs.
+4. **Component tag** — set to `[tos]`, 2026-09-18 (Joseph: tag all four LogSeq/Pastor Ben blog cards `[tos]` until their repos actually exist). Reasoning: `[personal]` doesn't map to any real directory (the exact problem CARD-0294 exists to resolve for cards that stay in jctsh's board), and this card's work is currently happening *inside* jctsh's own tos-governed board/process, not inside a repo of its own yet — `[tos]` reflects that correctly for now. Revisit once CARD-0297/0298/0301 land and this content has a real repo to be tagged against instead.
 
 **Explicitly not started.**
 
@@ -79,15 +79,17 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Deliberately not this card's scope** — moving/initializing LogSeq and the Pastor Ben blog are CARD-0297 and CARD-0298 respectively, done as their own incremental steps once this card's move is verified.
 
-**Explicitly not started** — Joseph's direction was to draft the card, not execute the move.
+**Second piece of scope added 2026-09-18 (Joseph) — a portable, minimal kanban template.** Directly out of the "this all feels like tos work" observation: once CARD-0297/0298 decided to reuse jctsh's kanban *discipline* (card format, Status columns, done-when criteria, `Related:` cross-refs) without its *automation scaffolding* (no `archive_cards.py`, no auto-PR intake bots, no multi-host Session Start ritual — none of that solves a problem LogSeq or the Pastor Ben blog repo actually has), defining that minimal template once, in `tos/`, is itself process definition — squarely this directory's charter, not either new repo's own content work. Scope: a template file capturing the card format/columns/done-when convention only, deliberately excluding the scaffolding, that both new repos' first kanban-board.md files get bootstrapped from.
 
-**Done when:** `Projects\jctsh` exists at the new path, is confirmed to be the same git repo (same remote, same history, `git status` clean), and this session's/any Claude Code session's working directory has been updated to the new path with no loss of function.
+**Explicitly not started** — Joseph's direction was to draft the card, not execute the move or write the template yet.
 
-**Related:** CARD-0297 (LogSeq → repo, the next incremental step after this one), CARD-0298 (Pastor Ben blog → repo, the step after that), CARD-0293/CARD-0300 (the LogSeq devotional-note work that prompted this whole thread), CARD-0294 (the `[personal]`-tag reconciliation this reorg is adjacent to but doesn't resolve, since LogSeq/Pastor Ben blog are leaving jctsh's directory structure entirely).
+**Done when:** `Projects\jctsh` exists at the new path, is confirmed to be the same git repo (same remote, same history, `git status` clean), this session's/any Claude Code session's working directory has been updated to the new path with no loss of function; and a minimal portable kanban template exists in `tos/`, used to bootstrap both LogSeq's and the Pastor Ben blog's first `kanban-board.md`.
+
+**Related:** CARD-0297 (LogSeq → repo, the next incremental step after this one, and a consumer of this card's template), CARD-0298 (Pastor Ben blog → repo, the step after that, and the template's other consumer), CARD-0293/CARD-0300 (the LogSeq devotional-note work that prompted this whole thread), CARD-0294 (the `[personal]`-tag reconciliation this reorg is adjacent to but doesn't resolve, since LogSeq/Pastor Ben blog are leaving jctsh's directory structure entirely).
 
 ---
 
-### CARD-0298 · [idea] [personal] Move the Pastor Ben blog file/directory system into a repo
+### CARD-0298 · [idea] [tos] Move the Pastor Ben blog file/directory system into a repo
 
 **Status:** Backlog
 
@@ -106,18 +108,18 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 1. **What this system actually is, in detail** — still not established: what actually produces the blog (a static-site generator, a hosted platform's export, hand-written files?), what the year/month directory structure holds, and what the existing Claude tooling inside it currently does.
 2. **Whether anything is published/live from these files today**, and if so whether moving them into a repo changes or risks that publishing path.
 3. **Privacy/visibility** — whether the new repo should be private (likely, given the content), and whether anyone other than Joseph has expectations about this content worth accounting for.
-4. **Tracking model** — still undecided (CARD-0299's sibling question); likely something lighter than jctsh's own card/interview machinery, per the "shared principle, not shared machinery" framing from the same conversation.
-5. **Component tag** — set to `[personal]` for now. Once this repo exists independently, it leaves jctsh's directory structure entirely, so whether it needs a jctsh-board tag at all afterward is itself an open question — see CARD-0294.
+4. ~~Tracking model — still undecided~~ **Resolved, 2026-09-18 (Joseph: "i concur; this all feels like tos work").** Reuse jctsh's kanban *discipline* — card format, Status columns, done-when criteria, `Related:` cross-refs — via the portable template CARD-0301 is now scoped to produce. Explicitly not reusing jctsh's automation scaffolding (`archive_cards.py`, the auto-PR intake bots, the multi-host Session Start ritual) — none of that solves a problem this repo actually has at its expected volume. This repo's own `kanban-board.md` gets bootstrapped from CARD-0301's template once it exists.
+5. **Component tag** — set to `[tos]`, 2026-09-18 (Joseph: tag all four LogSeq/Pastor Ben blog cards `[tos]` until their repos actually exist). This work is currently happening inside jctsh's own tos-governed board, not inside a repo of its own yet — revisit once this card's own "done when" is met and the Pastor Ben blog repo exists to be tagged against instead.
 
-**Explicitly not started** — waiting on CARD-0301 (parent directory + jctsh move) as the first incremental step.
+**Explicitly not started** — waiting on CARD-0301 (parent directory, jctsh move, and the portable kanban template) as the first incremental step.
 
-**Done when:** the Pastor Ben blog's files (only, not the rest of `BNC`) are in `Projects\PB Blog` as their own git repo with directory structure intact, the existing Claude tooling confirmed still working from the new path, any live publishing path confirmed unaffected, and the GitHub remote/visibility decided and pushed.
+**Done when:** the Pastor Ben blog's files (only, not the rest of `BNC`) are in `Projects\PB Blog` as their own git repo with directory structure intact, the existing Claude tooling confirmed still working from the new path, any live publishing path confirmed unaffected, its own `kanban-board.md` bootstrapped from CARD-0301's template, and the GitHub remote/visibility decided and pushed.
 
-**Related:** CARD-0301 (the parent-directory decision and jctsh move this is sequenced after), CARD-0297 (LogSeq → repo, the sibling move with the same shape), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by).
+**Related:** CARD-0301 (the parent-directory decision, jctsh move, and portable kanban template this is sequenced after and depends on), CARD-0297 (LogSeq → repo, the sibling move with the same shape), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by).
 
 ---
 
-### CARD-0297 · [idea] [personal] Move the LogSeq file system into a repo
+### CARD-0297 · [idea] [tos] Move the LogSeq file system into a repo
 
 **Status:** Backlog
 
@@ -135,14 +137,14 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 1. **Whether LogSeq is already synced by anything** (LogSeq Sync, a cloud drive, etc.) that a git repo would conflict or overlap with.
 2. **How LogSeq's own continuous file-writing interacts with git** — whether this wants real periodic commits (and who/what makes them — Claude Code, a scheduled task, manual) or more of a backup-shaped sync.
 3. **Privacy/visibility** — whether this repo should be private (likely, given devotional/personal journal content), and same account as jctsh's GitHub.
-4. **Tracking model** — still undecided (CARD-0299's sibling question); likely something lighter than jctsh's own card/interview machinery, per the "shared principle, not shared machinery" framing from the same conversation.
-5. **Component tag** — set to `[personal]` for now, matching CARD-0293. Once this repo exists independently, it leaves jctsh's directory structure entirely, so whether it needs a jctsh-board tag at all afterward is itself an open question — see CARD-0294.
+4. ~~Tracking model — still undecided~~ **Resolved, 2026-09-18 (Joseph: "i concur; this all feels like tos work").** Reuse jctsh's kanban *discipline* — card format, Status columns, done-when criteria, `Related:` cross-refs — via the portable template CARD-0301 is now scoped to produce. Explicitly not reusing jctsh's automation scaffolding (`archive_cards.py`, the auto-PR intake bots, the multi-host Session Start ritual) — none of that solves a problem this repo actually has at its expected volume. This repo's own `kanban-board.md` gets bootstrapped from CARD-0301's template once it exists.
+5. **Component tag** — set to `[tos]`, 2026-09-18 (Joseph: tag all four LogSeq/Pastor Ben blog cards `[tos]` until their repos actually exist). This work is currently happening inside jctsh's own tos-governed board, not inside a repo of its own yet — revisit once this card's own "done when" is met and the LogSeq repo exists to be tagged against instead.
 
-**Explicitly not started** — waiting on CARD-0301 (parent directory + jctsh move) as the first incremental step.
+**Explicitly not started** — waiting on CARD-0301 (parent directory, jctsh move, and the portable kanban template) as the first incremental step.
 
-**Done when:** the LogSeq graph's files are in `Projects\LogSeq` as their own git repo, with a real `.gitignore` for LogSeq's local-state files, the sync/commit mechanism decided and actually working (not just an initial one-time import), and the GitHub remote/visibility decided and pushed.
+**Done when:** the LogSeq graph's files are in `Projects\LogSeq` as their own git repo, with a real `.gitignore` for LogSeq's local-state files, the sync/commit mechanism decided and actually working (not just an initial one-time import), its own `kanban-board.md` bootstrapped from CARD-0301's template, and the GitHub remote/visibility decided and pushed.
 
-**Related:** CARD-0301 (the parent-directory decision and jctsh move this is sequenced after), CARD-0293 (LogSeq devotional-note posting — same underlying LogSeq graph, different problem), CARD-0179 (route captured voice notes to LogSeq — a third LogSeq thread already on the board), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by), CARD-0298 (Pastor Ben blog → repo, the sibling move with the same shape).
+**Related:** CARD-0301 (the parent-directory decision, jctsh move, and portable kanban template this is sequenced after and depends on), CARD-0293 (LogSeq devotional-note posting — same underlying LogSeq graph, different problem), CARD-0179 (route captured voice notes to LogSeq — a third LogSeq thread already on the board), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by), CARD-0298 (Pastor Ben blog → repo, the sibling move with the same shape).
 
 ---
 
@@ -217,7 +219,7 @@ Optionally add `--schedule "<time>"` to defer it to the Mon 3 AM reboot window; 
 
 ---
 
-### CARD-0293 · [idea] [personal] Develop a method to post daily devotional notes into LogSeq
+### CARD-0293 · [idea] [tos] Develop a method to post daily devotional notes into LogSeq
 
 **Status:** Backlog
 
@@ -228,9 +230,9 @@ Optionally add `--schedule "<time>"` to defer it to the Mon 3 AM reboot window; 
 2. Trigger — manual, or an automated Tasker-style flow (share-to-profile, like the existing Idea Tasker/Hike-izer Done pattern)?
 3. How this reaches LogSeq — local markdown files synced somehow, a LogSeq API/plugin, a sync service, or direct file writes into the graph?
 4. Target — append into LogSeq's existing daily-journal page for that date, or somewhere else?
-5. Component tag — set to `[personal]` (Joseph's call, 2026-09-18, same as CARD-0072) for now.
+5. Component tag — set to `[tos]`, 2026-09-18 (Joseph: tag all four LogSeq/Pastor Ben blog cards `[tos]` until their repos actually exist). This work is currently happening inside jctsh's own tos-governed board, not inside a repo of its own yet — revisit once the LogSeq repo exists (see CARD-0297) to be tagged against instead.
 
-**Related:** none yet.
+**Related:** CARD-0297 (move LogSeq into its own repo — this card's eventual home), CARD-0300 (documenting the existing manual process, kept separate).
 
 ---
 

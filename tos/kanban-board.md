@@ -9,7 +9,29 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0300 -->
+<!-- next-card-id: CARD-0301 -->
+
+---
+
+### CARD-0300 · [idea] [personal] Document the existing process for daily devotional LogSeq entries
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding (voice transcription, garbled): "describe the process of daily devotional log seek entries" — "log seek" is LogSeq, the same mis-transcription CARD-0293 carried.
+
+**Kept as its own card rather than folded into CARD-0293 (Joseph's call, 2026-09-18).** CARD-0293 is about *building* an automation (screenshot → OCR → posted note); this card is about *describing the process as it actually works today*. Writing down the current manual process is genuinely separate work, and doing it first is likely to sharpen CARD-0293's own still-open scoping questions rather than duplicate them.
+
+**Open questions, not yet answered:**
+1. **What the current daily process actually is, end to end** — where the devotional comes from, what Joseph does with it each day, and where it lands in LogSeq. This is the substance of the card; none of it is recorded anywhere yet.
+2. **Where the description should live** — a doc in whichever repo the LogSeq files end up in (see the sibling card from PR #93, destination undecided), somewhere in `tos/`, or inside the LogSeq graph itself as a note.
+3. **How much of the process is worth documenting versus simply automating** — some steps may not survive CARD-0293's automation, so documenting them in detail could be wasted effort. Worth deciding which parts are durable before writing them all down.
+4. **Component tag** — set to `[personal]` for now, matching CARD-0293. Note `[personal]` does not map to any real directory, which is exactly the reconciliation problem CARD-0294 exists to resolve; this card's tag should be revisited when that pass runs.
+
+**Explicitly not started.**
+
+**Done when:** the current daily devotional-to-LogSeq process is written down somewhere durable and agreed, in enough detail that CARD-0293's automation scoping can proceed from it rather than from fresh questions.
+
+**Related:** CARD-0293 (the automation this describes the manual version of — deliberately kept separate, see above), the sibling card from PR #93 (LogSeq file system into a repo, a candidate home for this description), CARD-0179 (route captured voice notes to LogSeq — a third LogSeq thread already on the board), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by).
 
 ---
 

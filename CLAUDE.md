@@ -51,7 +51,9 @@ At the start of every Claude Code session in this repo, before doing anything el
    way it'd ever be missed.
 7. `tos/JCTsh-Operating-System.md` — the process definition governing how work moves through
    the board (columns, state-transition triggers, the Build → Done Reflection requirement).
-   Read this once per session alongside the board itself, not just the first time.
+   Read this once per session alongside the board itself, not just the first time. It points
+   to `tos/JCTsh-Session-Card-Selection.md` — the four ordered factors for choosing which card
+   to pick up next (CARD-0288) — apply that by default when deciding what to work on.
 8. **Check whether `tos/kanban-board.md` needs archiving (CARD-0193).** `archive_cards.py` is
    deliberately manual, not on a timer — so nothing else will notice if the file has grown
    large again. If it's been a few weeks since the last archiving pass, or the file feels

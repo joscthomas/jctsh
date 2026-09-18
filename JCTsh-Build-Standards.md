@@ -1,10 +1,10 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.35
-**Version description:** Added §9.10, SD-Card Hosts: Route Every Write-Heavy Path Off the SD Card — harvested from CARD-0159/CARD-0006 (previously only captured in CLAUDE.md's project-specific Infrastructure section, never in this reusable standards doc). Also added §9.9, `journald` as the Docker Logging Driver — the M8-wide switch (CARD-0272), why a per-service `logging:` options block breaks under it (found live via netalertx), and why a `daemon.json` driver change needs every container recreated, not just a daemon restart.
+**Version:** 1.37
+**Version description:** Moved three process rules with no technology content out to `tos/JCTsh-Operating-System.md` (CARD-0289 follow-on): §6.1 Additive First and §6.3 Existing Pattern Investigation generalized into a new Engineering Discipline section there (they applied beyond hardware/integration code); §7.5 Documentation Captures Reality folded into that document's Note on Build, since it overlapped the existing Reflection requirement. All three section numbers kept here as short pointers so existing cross-references (e.g. `photo-server-claude-code-instructions.md`'s §6.1 reference) stay valid. Also added a reconciliation note cross-referencing `tos/JCTsh-Operating-System.md` — this document covers technology/build conventions (how things get built), that one covers process/policy/workflow (how the team works); the boundary case (documentation structure) generalizes in whichever doc is broader and cross-references the narrower one, rather than duplicating.
 **Project:** JCTsh — Smart Home Automation
-**Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md
+**Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md, `tos/JCTsh-Operating-System.md` (process/policy/workflow — see the reconciliation note below for how the two relate)
 
 ---
 
@@ -13,6 +13,8 @@
 These standards apply to every JCTsh component build. Claude Code must read this file at the start of every project and apply all relevant standards before producing any documentation, configuration, or code. Standards are not optional and are not subject to deferral unless explicitly overridden by the Claude Code instruction set for a specific project.
 
 When a standard says "examine the existing pattern," Claude Code must locate and read the relevant existing component files before writing anything. Never invent a new convention when an existing one can be matched.
+
+**Scope boundary, reconciled with `tos/JCTsh-Operating-System.md`:** this document is technology/build conventions — how to wire, name, and configure things. Process, policy, and workflow — how work moves through the board, how a session decides what to pick up, documentation-structure principles — live in `tos/JCTsh-Operating-System.md` instead. A standard that would still make sense in a repo with no hardware or code at all belongs there, not here.
 
 ---
 
@@ -809,7 +811,7 @@ New components are picked up automatically by the wildcard subscription and get 
 
 ### 6.1 Additive First
 
-New components are additive by default. Existing inputs, automations, and integrations are never removed or modified without an explicit decision documented in the instruction set. When integrating a new component alongside existing ones, wire it in parallel — do not replace.
+Moved to `tos/JCTsh-Operating-System.md`'s Engineering Discipline section (CARD-0289 follow-on) — the underlying rule isn't hardware-specific. Applied here: when integrating a new component alongside existing ones, wire it in parallel — do not replace inputs, automations, or integrations without an explicit decision documented in the instruction set.
 
 ### 6.2 Timeout and Timer Logic
 
@@ -823,7 +825,7 @@ When both a short smoothing timeout (ESPHome) and a longer presence timeout (HA 
 
 ### 6.3 Existing Pattern Investigation
 
-Before writing any integration code that touches an existing process (logging, presence automation, HA-SmartThings bridge, Node-RED flows), Claude Code must examine the existing implementation first. Never assume — always verify. Read the relevant flow JSON, YAML, or source file before writing new code.
+Moved to `tos/JCTsh-Operating-System.md`'s Engineering Discipline section (CARD-0289 follow-on) — the underlying rule isn't hardware-specific. Applied here: before writing any integration code that touches an existing process (logging, presence automation, HA-SmartThings bridge, Node-RED flows), read the relevant flow JSON, YAML, or source file first.
 
 ### 6.4 New Smart-Home Devices Default to SmartThings-Free
 
@@ -904,7 +906,7 @@ Add an entry to JCTsh-Parts-Inventory.md inventory update log when a project is 
 
 ### 7.5 Documentation Captures Reality
 
-Instructions are updated with actual findings during the build, not just intentions. The repo reflects what was actually built. Deviations from the plan are documented immediately when discovered.
+Moved to `tos/JCTsh-Operating-System.md`'s Note on Build (CARD-0289 follow-on) — pure process, no technology content, and overlapped the existing Reflection requirement there.
 
 ---
 
@@ -1089,6 +1091,7 @@ On the Windows dev machine, the private key (`~/.ssh/id_ed25519`) must be restri
 
 | Version | Change |
 |---|---|
+| 1.37 | Moved §6.1 (Additive First), §6.3 (Existing Pattern Investigation), and §7.5 (Documentation Captures Reality) to `tos/JCTsh-Operating-System.md` — pure process/policy with no technology content, found via a repo-wide review of what belongs in this doc vs. the TOS doc (CARD-0289 follow-on). Section numbers kept here as pointers. |
 | 1.35 | Added §9.10, SD-Card Hosts: Route Every Write-Heavy Path Off the SD Card — harvested from CARD-0159/CARD-0006 (previously only captured in CLAUDE.md's project-specific Infrastructure section, never in this reusable standards doc). Covers Docker `data-root` + containerd `root` (two separate paths), container/native-service persistent state, and `/var/log` as a whole, plus the mount-ordering-race gotcha (`RequiresMountsFor`) hit three separate times (CARD-0032/CARD-0048/CARD-0006) before becoming a checked step. |
 | 1.34 | Added §9.9, `journald` as the Docker Logging Driver — the M8-wide switch (CARD-0272), why a per-service `logging:` options block breaks under it (found live via netalertx), and why a `daemon.json` driver change needs every container recreated, not just a daemon restart. |
 | 1.30 | Extended §6.4 with a Matter device registration order (HA first, then expose to Google Home through HA — never register in Google Home directly or into both independently) after the household's first 3 Matter devices were registered directly in Google Home and left HA with zero visibility (`404 Entity not found` on every one). Documents the Android HA Companion app's "Add Matter Device" commissioning flow (hands off to Android's system Google Matter UI, relays to HA) and that it still needs HA's own Matter Server backend already configured — which a Docker Container HA install (not Home Assistant OS) doesn't have by default. See CARD-0262. |

@@ -9,7 +9,61 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0288 -->
+<!-- next-card-id: CARD-0290 -->
+
+---
+
+### CARD-0289 · [idea] [tos] Documentation-splitting principle — split by read-frequency, keep cross-references current — RESOLVED 2026-09-17
+
+**Status:** Done
+
+**Raised 2026-09-17 (Joseph), this session** — while deciding CARD-0288's own home (a standalone `JCTsh-Session-Card-Selection.md` file, not a section embedded in `JCTsh-Operating-System.md`), Joseph asked Claude directly what file structure actually works best for it, then asked to turn the answer into a standing principle.
+
+**Claude's reasoning, given when asked:** many small, focused files beat one large one, grounded in a real prior incident, not just a stylistic preference — `kanban-board.md` crossed the Read tool's 256KB cap (CARD-0193), forcing grep-only access and losing the "read straight through" comprehension that's actually most useful. A file sized to one topic, small enough to Read whole in one call, beats a large one that can only be sampled or reconstructed from many greps. The real cost isn't file count — it's reference-chasing (a `**Related:**`-style pointer that has to be followed) and drift (two files disagreeing because one got edited and the other didn't).
+
+**Decision:** adopt as a standing principle — split documentation by topic and read-frequency (what's read every session stays small and central; what's read only on demand goes into its own focused file that gets pointed to explicitly), not by minimizing file count for its own sake. Cross-references must stay explicit and current, or many small files just become a maze instead of a coherent system.
+
+**Placed in `JCTsh-Operating-System.md`, not `JCTsh-Build-Standards.md` §7 (Joseph's call)** — even though §7.1a already established a narrower version of the same idea for component docs (README vs. CLAUDE.md, by read-frequency). This is a TOS-wide process rule (how any doc in this repo gets structured), not a per-component build-standard, so it sits alongside Priority and the Session Card Selection pointer instead.
+
+**Scope:** add a new section to `JCTsh-Operating-System.md` stating the principle (split by read-frequency, keep `**Related:**` pointers current), version-bumped; note the relationship to `JCTsh-Build-Standards.md` §7.1a's existing narrower precedent rather than duplicating it.
+
+**Built, 2026-09-17.** Added a "Documentation Structure" section to `JCTsh-Operating-System.md` (placed after Session Card Selection), version-bumped to 1.3. States the principle, names the cost it trades for (reference-chasing/drift, not file count), and explicitly generalizes `JCTsh-Build-Standards.md` §7.1a's existing README/CLAUDE.md split rather than duplicating it as a separate unrelated rule.
+
+**Reflection (per this document's own Build → Done Reflection requirement):** the durable knowledge lives in the section itself — the one place a future session would actually look before deciding how to structure a new doc — not just in this card's history.
+
+**Done when:** `JCTsh-Operating-System.md` documents the principle. ✓
+
+**Second follow-on, same session, 2026-09-17 — a reconciliation note between the two documents.** Joseph asked how to reconcile what goes in `JCTsh-Build-Standards.md` vs. `JCTsh-Operating-System.md` generally — principles, policy, process, workflow, vs. technology. Claude's answer, adopted: **TOS = process/policy/workflow** (would still make sense in a repo with no hardware or code at all); **Build Standards = technology/build conventions** (specific to a technology or build pattern). The boundary case already on the board — Documentation Structure vs. §7.1a's narrower README/CLAUDE.md split — is the worked example: generalize in the broader doc, cross-reference the narrower one, don't duplicate or merge. Both documents' headers gained a short **Scope boundary** note and a `**Related files:**` pointer to the other, stating this test.
+
+**Third follow-on, same session, 2026-09-17 — a full review of `JCTsh-Build-Standards.md` against that test, requested by Joseph, found three misplaced sections.** All ten numbered sections were read end-to-end. Two were flagged as pure process with no technology content — §6.1 Additive First and §6.3 Existing Pattern Investigation (framed around integration code specifically, but the underlying rules apply to any change in this repo) and §7.5 Documentation Captures Reality (overlapped the existing Build → Done Reflection requirement). Everything else (ESP32/ESPHome, MQTT, SmartThings/Matter, Docker, Security) passed the test cleanly and stayed.
+
+**Moved, 2026-09-17.** §6.1/§6.3 generalized into a new **Engineering Discipline** section in `JCTsh-Operating-System.md` (placed after Core Principle); §7.5 folded into that document's existing Note on Build. `JCTsh-Operating-System.md` version-bumped to 1.5, `JCTsh-Build-Standards.md` to 1.37. All three section numbers kept in `JCTsh-Build-Standards.md` as short pointers (with any hardware-specific application detail that doesn't generalize) rather than deleted outright, so the existing numbered cross-reference in `components/photo-server/photo-server-claude-code-instructions.md` (§6.1) stays valid.
+
+**Done when (revised):** `JCTsh-Operating-System.md` documents the principle, the reconciliation test, and the three moved sections; `JCTsh-Build-Standards.md` correctly points back at each. ✓
+
+**Related:** CARD-0288 (the concrete instance that prompted this), CARD-0193 (the `kanban-board.md` size incident Claude's reasoning is grounded in), `JCTsh-Build-Standards.md` §7.1a/§6.1/§6.3/§7.5 (the existing narrower precedent and the three sections moved out), `components/photo-server/photo-server-claude-code-instructions.md` (the existing §6.1 cross-reference this had to keep valid).
+
+---
+
+### CARD-0288 · [idea] [tos] Session card-selection criteria — which card to pick up next, distinct from the Priority tag — RESOLVED 2026-09-17
+
+**Status:** Done
+
+**Raised 2026-09-17 (Joseph), this session.** Wants a documented, repeatable answer to "given several candidate cards, which one does a session actually pick up" — separate from the existing Priority tag (`JCTsh-Operating-System.md`'s Priority section), which describes urgency, not selection order.
+
+**Interviewed 2026-09-17.** Basis: a real prior pick (CARD-0286 over CARD-0258/0276/0279/0287/0278) and the reasoning behind it, generalized into an ordered rule:
+1. **Actionable now vs. blocked on something else** — skip a card, even one in Build, if there's nothing left for Claude to do on it right now (waiting on a real-world recurrence, a manual deploy step, etc.), not on more work from this session.
+2. **Whose job it is** — skip a card whose next step belongs to Joseph by this project's established division of labor (e.g. Tasker profile build/confirm); Claude's part there is already done at the scoping stage.
+3. **Already scoped beats not yet scoped** — a card with a full interview and concrete acceptance criteria already sitting in Backlog/Planning is cheaper to pick up than one still essence-only, needing a Planning pass before any code gets written.
+4. **Bugs before enhancements — a tiebreaker only, decided 2026-09-17.** Applied only when two or more candidates tie on all three factors above; does not override factor 1 (a blocked bug still loses to an actionable enhancement).
+
+**Explicitly not weighed:** raw severity beyond the bug/enhancement tiebreaker, card age, business impact — can be added later if they prove genuinely load-bearing, not swept in preemptively.
+
+**Scope, revised 2026-09-17 (Joseph) — a standalone file, not an embedded section.** Claude's original recommendation was a new "Session Card Selection" section inside `JCTsh-Operating-System.md` itself, next to Priority; Joseph asked for it as its own file instead. Landed on `tos/JCTsh-Session-Card-Selection.md`, matching the existing precedent of `JCTsh-Component-Planning-Pattern.md`/`JCTsh-Build-Standards.md` — standalone `JCTsh-*.md` docs referenced *from* the Operating System doc rather than embedded in it. `JCTsh-Operating-System.md` gets a short pointer paragraph (in the same Priority-adjacent location) plus a version bump instead of the full text; `CLAUDE.md`'s Session Start pointer names the new file directly.
+
+**Done when:** `tos/JCTsh-Session-Card-Selection.md` documents the four ordered factors, `JCTsh-Operating-System.md` points to it, and `CLAUDE.md` points to it from Session Start.
+
+**Related:** `tos/JCTsh-Session-Card-Selection.md` (the new doc this card produced), `JCTsh-Operating-System.md` (Priority section, the adjacent-but-distinct existing concept), CARD-0286 (the real pick this rule generalizes from).
 
 ---
 

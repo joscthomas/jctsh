@@ -1,8 +1,9 @@
 # JCT Smart Home (JCTsh) Team Operating System (TOS)
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines how the JCTsh team works — the conceptual process governing all work.
-**Version:** 1.1
-**Version description:** Added a Priority section — four levels (Critical/High/Medium/Low), independent of column/state, defining how urgently a card needs attention rather than how far along it is. Used whenever prioritization is asked for.
+**Version:** 1.5
+**Version description:** Moved two process rules out of `JCTsh-Build-Standards.md` (CARD-0289 follow-on): §6.1/§6.3 (Additive First, Existing Pattern Investigation) generalized into a new Engineering Discipline section — they were framed around integration code but apply to any change in this repo; §7.5 (Documentation Captures Reality) folded into the Note on Build, since it was pure process with no technology content and overlapped the existing Reflection requirement. Also added a reconciliation note cross-referencing `JCTsh-Build-Standards.md` — this document covers process/policy/workflow (how the team works), that one covers technology/build conventions (how things get built); the boundary case (documentation structure) generalizes in whichever doc is broader and cross-references the narrower one, rather than duplicating. Also added a Documentation Structure section (CARD-0289) — split docs by topic/read-frequency, not file count, and keep cross-references current; generalizes `JCTsh-Build-Standards.md` §7.1a's README/CLAUDE.md split into a repo-wide rule. Also added a Session Card Selection pointer (CARD-0288) to the new standalone `JCTsh-Session-Card-Selection.md` — four ordered factors governing which card a session actually picks up next, distinct from the Priority section's urgency tag. Applied by default each session, not only when prioritization is explicitly asked for.
+**Related files:** `JCTsh-Build-Standards.md` (technology/build conventions — see the reconciliation note below for how the two relate)
 
 ---
 
@@ -13,11 +14,26 @@
 
 ---
 
+**Scope boundary, reconciled with `JCTsh-Build-Standards.md`:** this document is process, policy, and workflow — how the team works, how work moves through the board, how a session decides what to pick up. Technology and build conventions — how to wire, name, or configure things — live in `JCTsh-Build-Standards.md` instead. A rule that would still make sense in a repo with no hardware or code at all belongs here, not there.
+
+---
+
 ## Core Principle
 
 All work has a card on the kanban board (`kanban-board.md`). The board is the durable, scannable record of what the team is doing, has done, and has decided not to do — not DEVLOG entries or component docs alone, which capture detail but aren't structured for at-a-glance status.
 
 If files start changing for something not already covered by an open card, a card should exist before or while that work proceeds — or a deliberate decision gets made not to open one. Work doesn't happen off the board silently.
+
+---
+
+## Engineering Discipline
+
+Generalized from `JCTsh-Build-Standards.md` §6.1/§6.3 (CARD-0289 follow-on) — those were framed narrowly around integration code, but the underlying rules apply to any change in this repo, hardware or not:
+
+- **Additive first.** New work is additive by default. Existing behavior, integrations, or automations are never removed or modified without an explicit decision documented in the card or instruction set — wire something new in parallel, don't replace, unless that decision was actually made.
+- **Investigate existing patterns first, never assume.** Before writing anything new that touches an existing process, locate and read the relevant existing implementation first — verify, don't guess at how something already works.
+
+`JCTsh-Build-Standards.md` §6.1/§6.3 keep their section numbers as short pointers here, with any hardware/integration-specific specifics that don't generalize.
 
 ---
 
@@ -59,6 +75,20 @@ Use this scale whenever asked to prioritize — cards, backlog review, or otherw
 
 ---
 
+## Session Card Selection
+
+Distinct from Priority above — Priority tags how urgent a card is; **which card a session actually picks up when several are candidates** is a separate question, defined in its own document: `JCTsh-Session-Card-Selection.md`. Applied by default when deciding what to work on next, not only when prioritization is explicitly asked for.
+
+---
+
+## Documentation Structure
+
+**Split documentation by topic and read-frequency, not by minimizing file count.** What gets read every session stays small and central (`CLAUDE.md`, this document); detail that's only needed on demand goes into its own focused file that gets pointed to explicitly, rather than growing in place. A file sized to one topic — small enough to read whole in one pass — beats a large one that has to be sampled or reconstructed piecemeal once it outgrows that (`kanban-board.md` hit this for real, CARD-0193, forcing grep-only access and losing the "read straight through" comprehension a single pass gives).
+
+The cost of splitting is reference-chasing and drift, not file count — so cross-references (`**Related:**` or equivalent) must stay explicit and current, or many small files just become a maze instead of a coherent system. `JCTsh-Build-Standards.md` §7.1a already applies this same read-frequency split at the component-doc level (README vs. CLAUDE.md); this section generalizes it as a repo-wide rule rather than a component-specific one (CARD-0289).
+
+---
+
 ## State Transitions
 
 Each transition has a **trigger** — the concrete thing (an artifact existing, a decision being made, or both) that causes a card to move to the next state. A trigger is not a vague sense that it's "probably time" — it's a specific, checkable condition.
@@ -74,7 +104,7 @@ Each transition has a **trigger** — the concrete thing (an artifact existing, 
 
 **Note on Planning:** Planning is not always a single step, and it happens in Claude Code, not chat (see Where Work Happens above) — chat's contribution is the informal, pre-card thinking that led to the card's creation, not the planning documents themselves. For a hardware or software build, Planning may consist of multiple sequential phases — e.g. discovery/feasibility, hardware selection, architecture/integration design, per `JCTsh-Component-Planning-Pattern.md`'s Phases 1–3 — each potentially producing its own planning document depending on the sequence and depth of work the card actually needs. For simpler work, Planning may produce just a single planning document. Either way, the Planning → Design trigger's "a planning document exists" is satisfied by whatever set of documents Planning actually produced — the structure adapts to the work, not the other way around.
 
-**Note on Build:** Build is not Claude Code executing alone. It includes per-step manual work and confirmation by Joseph wherever the work requires it — physical assembly, wiring, flashing, real-world verification — the same Claude Code does / Joseph does / Joseph confirms pattern `JCTsh-Component-Planning-Pattern.md` Phase 5 uses for hardware builds, generalized to any card where a human step is required. "Verification that everything works correctly" means the change is live and confirmed working — deployed, tested, observed — not merely edited locally. A card with outstanding deployment, manual, or verification steps stays in Build with those steps noted, rather than moving to Done prematurely.
+**Note on Build:** Build is not Claude Code executing alone. It includes per-step manual work and confirmation by Joseph wherever the work requires it — physical assembly, wiring, flashing, real-world verification — the same Claude Code does / Joseph does / Joseph confirms pattern `JCTsh-Component-Planning-Pattern.md` Phase 5 uses for hardware builds, generalized to any card where a human step is required. "Verification that everything works correctly" means the change is live and confirmed working — deployed, tested, observed — not merely edited locally. A card with outstanding deployment, manual, or verification steps stays in Build with those steps noted, rather than moving to Done prematurely. **Documentation captures reality as it goes** (generalized from `JCTsh-Build-Standards.md` §7.5, CARD-0289 follow-on): instructions get updated with actual findings during the work itself, not just original intentions, and a deviation from the plan is documented immediately when discovered — not deferred to the Reflection step below.
 
 **Required last step of Build — Reflection:** Before a card moves to Done, reflect on what was learned while doing the work and capture it somewhere it will actually be found again — the relevant standards or pattern document (e.g. `JCTsh-Build-Standards.md` for hardware/firmware builds), a component doc, or a note on the card itself if no broader pattern doc applies. The goal is to leverage what was just learned in future work, not relearn the same thing by trial and error later. This mirrors `JCTsh-Component-Planning-Pattern.md`'s "Harvest new patterns into Build Standards" final step, generalized to all Build work, not just hardware components.
 

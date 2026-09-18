@@ -33,6 +33,7 @@ environmental monitoring into a single integrated ecosystem.
 | [air-quality-monitor](components/air-quality-monitor/) | Portable PM/VOC/NOx sensor carried on hikes alongside the hiking monitor | In Progress |
 | [van-sensors](components/van-sensors/) | Indoor and outdoor environmental nodes for the Pleasure-Way ProMaster van | Planned |
 | [remote-temp-sensor-01](components/remote-temp-sensor-01/) | Solar/battery-powered backyard temp, humidity, pressure, light, and UV sensor | Planned |
+| [bedside-clock](components/bedside-clock/) | Battery-powered, tap-to-wake bedside clock for the camper van, DS3231-timed with occasional WiFi/NTP timezone correction | Planned |
 
 ---
 

@@ -9,7 +9,80 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0303 -->
+<!-- next-card-id: CARD-0305 -->
+
+---
+
+### CARD-0304 · [enhancement] [tos] Reconcile and fill gaps in JCTsh-Operating-System.md's stated principles
+
+**Status:** Planning — scoped via conversation, holding for Joseph's go-ahead before any edit (2026-09-18)
+
+**Raised 2026-09-18 (Joseph), after asking for a flat list of every process principle currently in `JCTsh-Operating-System.md`.** Producing that list (21 items, organized by topic across the document's sections) surfaced one stale principle, one real-but-only-implicit principle worth stating explicitly, six more candidates drawn from patterns applied repeatedly across this session's own card history without ever being named once as a standing rule, a ninth meta-level principle naming the activity that produced the other eight, and a tenth found by that same meta-principle's own method (applied to itself, live, the same session it was named).
+
+**1. "Where Work Happens: Chat vs. Claude Code" is stale.** Currently frames preliminary thinking as happening in a separate "chat" surface before a card exists, with Claude Code only starting once one does. Joseph's correction: he often thinks things through *inside* a Claude Code session too — the real distinction was never "which tool," it's "is this pre-card thinking or tracked work," and that can happen anywhere, including here. Needs rewording to drop the tool-specific framing.
+
+**2. "Documentation captures reality as it goes" (under Note on Build) needs a real clarification, confirmed correct via conversation, not yet written down.** Three genuinely different things get conflated if this isn't stated explicitly:
+   - **The plan** — original intention, what Planning/Design produced before Build started. **Stays as-is once Build finishes — it is what it is, not cleaned up retroactively** (Joseph's explicit call: don't touch the plan after the fact).
+   - **As-built docs** (`README.md`, wiring/current-state references) — describe what *is*, right now, cleanly. Once built, these should read as if it were always this way.
+   - **The card** — the journey from plan to as-built: what was tried, what changed, why, the messy part. This is where that history belongs.
+   The principle: don't let journey-noise leak into as-built docs just because it happened during Build — that history is exactly what the card already owns, and repeating it in the reference doc adds clutter nobody wants once the thing is done. This refines, not replaces, the existing "documentation captures reality" note (which is really about keeping *plan/instruction-set* documents from going stale during Build, a different and still-correct point).
+
+**3–8. Six more candidates, confirmed via conversation as genuinely recurring and never stated as their own principle:**
+   - **Interview first, don't write from assumption — currently missing from this document entirely,** despite operating all session (every card this session opened got interviewed first). Only lives in the global `CLAUDE.md` today — the identical visibility gap CARD-0302 already fixed for the commit/push rule, unfixed here.
+   - **Verify a claimed completion directly — don't trust a card's own "Done"/"verified" text at face value.** Distinct from Engineering Discipline's "investigate before *new* work" — this is about re-checking *existing* claims. Caught twice this session: CARD-0290 claimed "zero Card History headings remain" when two actually did; CARD-0258 found a resolved marker whose own line was never edited, so the parser kept treating it as still-open.
+   - **Explicit decisions, never silent defaults — the thread connecting four separate rules that each state it locally** (Priority assignment, Accepted-limitation closure, Retraction vs. Defer, opening-a-card). Same principle stated four times instead of once.
+   - **Measured thresholds over vague judgment.** CARD-0193 pulled real per-card size data before picking a threshold; CARD-0292 explicitly required "a concrete trigger, not a vague sense of 'too long.'"
+   - **State explicit non-goals, not just scope.** Cards routinely carry a "deliberately out of scope" line (CARD-0286, CARD-0227) — never stated as a standing practice, just done repeatedly.
+   - **Live/real verification beats synthetic or inferred confidence.** Partly embodied in Note on Build ("deployed, tested, observed") and the whole reason Watch-for markers exist, but scattered rather than named once.
+
+**9. A ninth, added 2026-09-18 (Joseph) — the meta-principle behind several of the above, not just another item on the pile.** Discover implied rules or conventions inherent in how work is actually being done — in a session, in `CLAUDE.md`, anywhere — and explicitly define them in the appropriate place, rather than letting them stay real-but-unwritten indefinitely. This is the exact activity that produced items 1–8 and CARD-0302's retraction-protocol fix: none of those were designed in advance, all of them were *already happening* (interviewing before writing a card, verifying claims, requiring explicit decisions) and simply never named. Closest existing precedent: `JCTsh-Component-Session-Start.md`'s own "promote once proven out" pattern for Auto Verify/Watch For markers (CARD-0251) and cluster sessions (CARD-0284) — but that precedent has only ever been *applied* case by case, never stated as its own standing principle that this is how the document is supposed to grow.
+
+**10. A tenth, added 2026-09-18 (Joseph), found by item 9's own method — what goes into a `README.md` vs. a `CLAUDE.md`.** This is a real, load-bearing distinction (`README.md` = permanent reference, what a component actually is right now — hardware, wiring, behavior; `CLAUDE.md` = curated context — design rationale, constraints, gotchas, open threads) that's been applied consistently across the entire CARD-0290/CARD-0291 body of work this session, but **currently stated in exactly one place: root `CLAUDE.md`'s own opening paragraph.** `JCTsh-Operating-System.md` only references it in passing (the archived-card-history rule assumes "`CLAUDE.md` is supposed to be curated context" without ever defining the split itself), and `JCTsh-Build-Standards.md` §7.1/§7.1a is where the *requirement* to have both files lives, not where the *content* distinction between them is defined. Same shape as items 1–9: correct, consistently applied, never given its own explicit statement in the document that's supposed to own process/documentation principles.
+
+**Scope, once approved:**
+1. Reword "Where Work Happens" to drop the tool-specific (chat vs. Claude Code) framing in favor of the real distinction (pre-card thinking vs. tracked work).
+2. Add the plan/as-built/card clarification under Note on Build, explicit that the plan is never retroactively cleaned up.
+3. Add items 3–10 above as new principles, each placed in the section it fits (or a new section if none fits) — not simply appended as a flat list, consistent with this document's existing by-topic organization. Item 9 likely belongs near Engineering Discipline (it's a discipline about documentation itself); item 10 belongs in Documentation Structure, alongside the archived-card-history and filename-standard rules it's a sibling of — calls to make once actually drafting the edit, not pre-decided here.
+4. Item 10 specifically: state the README/CLAUDE.md split once, properly, in Documentation Structure — root `CLAUDE.md`'s own paragraph can then either stay as a short pointer or be trimmed, matching how the commit/push section and the concurrent-sessions move (CARD-0303) are already being handled.
+
+**Explicitly not in scope:** auditing whether any *other* implied principles beyond these ten exist — this card captures what surfaced from one conversation, not an exhaustive mining pass. Item 9 itself says more will keep surfacing over time; that's expected, not a blocker to landing these now.
+
+**Done when:** all ten items above are reflected in `JCTsh-Operating-System.md`, each in a fitting section, version-bumped.
+
+**Related:** CARD-0302 (the commit/push visibility fix this generalizes — same "stated once, in the discoverable place" pattern), CARD-0303 (the sibling gap-finding pass over root `CLAUDE.md`, still holding for its own go-ahead), CARD-0290/CARD-0258 (the two real incidents behind the "verify a completion claim" principle), CARD-0193/CARD-0292 (the measured-threshold precedent).
+
+---
+
+### CARD-0303 · [enhancement] [tos] Reconcile root CLAUDE.md against JCTsh-Operating-System.md and JCTsh-Build-Standards.md
+
+**Status:** Planning — scoped, holding for Joseph's go-ahead before any edit (2026-09-18)
+
+**Raised 2026-09-18 (Joseph), asking what else in the CLAUDE.md files deserves the same treatment as the commit/push rule (CARD-0302's fold-in, and the JCTsh-Operating-System.md v1.17 move).** That move was specifically about *visibility* — a rule living only in the unversioned, repo-external global `CLAUDE.md`. Root `jctsh/CLAUDE.md` is already versioned and in-repo, so that specific problem doesn't apply to it — but reading it end to end against `JCTsh-Operating-System.md`'s and `JCTsh-Build-Standards.md`'s own reconciliation test (process/policy → Operating System; technology/build convention → Build Standards; genuinely session-mechanical/live-state reference → stays in `CLAUDE.md`) surfaced two distinct problems, not one.
+
+**Problem 1 — a process/policy section with no home in `JCTsh-Operating-System.md` at all.** `CLAUDE.md`'s "Concurrent Sessions" section (reactive-reread per CARD-0283, never `git add -A`, Edit-over-Write, commit granularity) is pure team-workflow policy — would still make sense in a repo with no hardware or code — and isn't duplicated anywhere. It just isn't in the document that's supposed to own this category, the same gap the commit/push rule had before CARD-0302.
+
+**Problem 2 — real duplication against `JCTsh-Build-Standards.md`'s already-canonical technology standards, not absence.** Both files are versioned and in-repo, so this isn't a visibility problem — it's two sources of truth for one standard, with no mechanism keeping them in sync:
+
+| Root `CLAUDE.md` section | Duplicates | Checked for actual drift? |
+|---|---|---|
+| MQTT Topic Convention / Log Message Format / Watchdog Heartbeat | Build Standards §3.1, §4.2 | Not yet |
+| SmartThings Integration | Build Standards §5, §6.4 | Not yet |
+| Internet Exposure and Security Posture | Build Standards §10.5 | Not yet |
+| ESP32 GPIO pin guidance | Build Standards §2.6 | **Yes — real conflict found, not just duplication** |
+
+**Confirmed conflict, not just restatement:** root `CLAUDE.md`'s GPIO exclusion list (GPIO0, 2, 6–11, 12, 15, 25, 26, 34–39) and Build Standards §2.6's list (GPIO0, 1, 3, 6–11, 34–36, 39) disagree — `CLAUDE.md` excludes GPIO25/26 (DAC pins) and the strapping pins GPIO2/12/15, none of which §2.6 mentions; §2.6 excludes GPIO1/3 (UART0/USB), which `CLAUDE.md` doesn't mention. Someone consulting only Build Standards while wiring a new ESP32 component would have no warning against GPIO25/26 or the strapping pins; someone consulting only `CLAUDE.md` would have no warning against GPIO1/3. This is exactly the drift risk duplication creates, not a hypothetical — found on the very first section checked.
+
+**Scope, once approved:**
+1. Move "Concurrent Sessions" into `JCTsh-Operating-System.md`, with a pointer left in root `CLAUDE.md` (mirroring how the commit/push section now works).
+2. Check the remaining three duplicate-flagged sections (MQTT/logging, SmartThings, security posture) for actual drift the same way GPIO was checked — not assumed identical just because GPIO turned out not to be.
+3. For each section confirmed to duplicate Build Standards with no drift: delete `CLAUDE.md`'s copy, replace with a pointer to the Build Standards section (matching the Documentation Structure principle — narrow, technology-specific instance stays in Build Standards, generalize/point rather than duplicate).
+4. For GPIO specifically (already confirmed to conflict): reconcile into one correct, complete list — resolve which exclusions are real requirements vs. which need re-verifying — and place it in Build Standards §2.6 as the single source, with `CLAUDE.md` pointing there.
+
+**Explicitly left alone, correctly placed in `CLAUDE.md`:** Credentials, Session Start, Repository Layout, Architecture/Component Roles — genuinely project-live-state or every-session reference with no better home.
+
+**Done when:** Concurrent Sessions lives in `JCTsh-Operating-System.md`; all four flagged sections are checked for drift (not just GPIO); each confirmed-duplicate section is a pointer, not a restatement; GPIO's actual conflict is resolved into one correct list.
+
+**Related:** CARD-0302 (the commit/push visibility fix this generalizes from), `JCTsh-Operating-System.md` v1.17 (Relationship to Commit / Push, the template for how a `CLAUDE.md` section becomes a pointer), `JCTsh-Build-Standards.md` §2.6/§3.1/§4.2/§5/§6.4/§10.5 (the sections being reconciled against).
 
 ---
 
@@ -280,9 +353,9 @@ This confirms this card's own step 2 ("whether any *other* existing tags... also
 
 ---
 
-### CARD-0291 · [enhancement] [tos] Audit every component/core/host README.md and CLAUDE.md against what they're actually supposed to contain
+### CARD-0291 · [enhancement] [tos] Audit every component/core/host README.md and CLAUDE.md against what they're actually supposed to contain — RESOLVED 2026-09-18
 
-**Status:** Build
+**Status:** Done
 
 **Raised 2026-09-17 (Joseph), directly from this session's tos/README.md fix** — that file had drifted stale (missing several real files, a card cited as "not yet built" that was actually Done), found only by accident while fixing an unrelated migration gap. Question: is the same kind of drift sitting undetected in every other component/core/host `README.md`/`CLAUDE.md` pair?
 
@@ -318,7 +391,19 @@ This confirms this card's own step 2 ("whether any *other* existing tags... also
 
 **Still not done, deliberately — real content work, not a stub or index fix:** whether any of these eight components have real "constraints and gotchas" content currently stranded inside their `README.md` that should move into the new `CLAUDE.md` stub was not checked file-by-file this pass; the stubs exist so there's a home for it going forward, not because that content was found and moved. `core/docker/README.md` still doesn't exist. `bedside-clock`/`photo-quality-review`/`remote-temp-sensor-01`'s own doc content beyond their Status lines, `core/logging`'s own content, and `hosts/pi1`'s `CLAUDE.md` remain unchecked. Card stays in Build.
 
-**Related:** `tos/README.md`'s CARD-0290 fix (the finding that prompted this), `JCTsh-Build-Standards.md` §7.1/§7.1a (the required-documents standard being audited against), `JCTsh-Operating-System.md`'s Documentation Structure section and Engineering Discipline section ("investigate existing patterns first" — this card is that check applied systematically rather than incidentally), root `README.md` (System Status table, Repository Layout), `components/netalertx/README.md` (the rename), `components/air-quality-monitor/README.md` (the stale-status fix).
+**Fourth and final pass, 2026-09-18 (Joseph: "finish 291") — the remaining unchecked items from the third pass, closed out.**
+
+1. **`core/docker/README.md` written** — genuinely minimal (`daemon.json` + `containerd-config.toml`, DNS pinning and USB-drive data-root, per `JCTsh-Build-Standards.md` §9.10). Root `README.md`'s `core/` table updated with the link. **A real discrepancy found while writing it, not fixed, noted honestly instead:** this repo's `daemon.json` doesn't include CARD-0272's `journald` logging-driver setting, which was applied directly on the M8's live config — worth confirming whether the two have actually diverged before assuming this file is stale.
+2. **Stranded-content check on the eight newly-stubbed components** — grepped each README for rationale/gotcha language (`gotcha`, `rationale`, `design decision`, `why we`, `the reason`). No significant stranded content found in any of the six checked this way (`garage-radar`, `hike-izer-orchestrator`, `hike-izer-web`, `jctsh-menu`, `p-w-firefly`, `photo-tv-display`) — this is a real check, not exhaustive full-text reading of every file, so a subtler case could still exist, but nothing surfaced. **One concrete finding this check did catch:** `garage-radar/README.md`'s own Files table already referenced a `CLAUDE.md` ("Claude Code context — constraints and gotchas") that didn't exist until this card's third pass created the stub — a real broken reference, now resolved as a side effect of that earlier fix. Checked `hosts/m8/README.md` and `core/node-red/watchdog-README.md` for the same broken-reference pattern — neither has one.
+3. **`core/logging`'s own content and `hosts/pi1`'s `CLAUDE.md` checked** — both correct: `core/logging/README.md` was already thorough and accurate (used as the template for the other `core/` READMEs this same card wrote); `core/logging/CLAUDE.md` and `hosts/pi1/CLAUDE.md` are both the standard post-CARD-0290 stub, correctly so.
+4. **`photo-quality-review`/`remote-temp-sensor-01`'s own content spot-checked** — no staleness found.
+5. **`bedside-clock` was missing from root `README.md`'s System Status table entirely**, despite having real Phase 1 planning docs (hardware selection, feasibility) — the same completeness gap as the first pass's six missing components, just missed then because it doesn't have a `README.md`/`CLAUDE.md` of its own yet (a planning-stage component, correctly so per CARD-0044-style precedent). Added as Planned, description pulled from its own planning doc.
+
+**Done when:** met. Every `components/<name>/`, `core/<name>/`, `hosts/<name>/` directory's `README.md`/`CLAUDE.md` pair has been checked against all three criteria (purpose adherence, staleness/accuracy, completeness), with every real finding corrected in place across four passes. Not claimed as a perfect, exhaustive line-by-line audit of every file's full text — the stranded-content check in particular was a targeted grep, not a complete read of all ~26 directories' every document — but every explicitly-tracked open item from prior passes is now resolved or honestly noted as an accepted limit (the `journald` config discrepancy).
+
+**Reflection (per `JCTsh-Operating-System.md`'s Build → Done requirement).** The durable finding wasn't any single file fix — it's that the README-vs-CLAUDE.md content split (permanent reference vs. curated rationale) has been applied correctly and consistently across every fix this card made, yet was never itself stated as an explicit principle anywhere in `JCTsh-Operating-System.md` — only assumed, via a single paragraph in root `CLAUDE.md`. That gap is now captured as its own item on CARD-0304 (item 10) rather than left to be rediscovered next time someone has to decide what belongs in which file. The other durable pattern — check every "Done"/completeness claim directly rather than trusting it (this card's own four passes each found something the previous one had marked settled) — is likewise now CARD-0304's item covering verification of claimed completions, not just a lesson this card learned and forgot.
+
+**Related:** `tos/README.md`'s CARD-0290 fix (the finding that prompted this), `JCTsh-Build-Standards.md` §7.1/§7.1a/§9.10 (the required-documents standard being audited against), `JCTsh-Operating-System.md`'s Documentation Structure section and Engineering Discipline section ("investigate existing patterns first" — this card is that check applied systematically rather than incidentally), root `README.md` (System Status table, Repository Layout), `components/netalertx/README.md` (the rename), `components/air-quality-monitor/README.md` (the stale-status fix), `components/garage-radar/README.md` (the broken CLAUDE.md reference this resolved), `core/docker/README.md` (the new file this pass produced).
 
 ---
 

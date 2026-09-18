@@ -9,7 +9,30 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0297 -->
+<!-- next-card-id: CARD-0298 -->
+
+---
+
+### CARD-0297 · [idea] [personal] Move the LogSeq file system into a repo
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding (voice transcription, garbled): "move the log seat file system into a repo" — "log seat" is LogSeq, the same mis-transcription CARD-0293 carried.
+
+**Goal, as captured:** put the LogSeq graph's files under version control in a repo, rather than leaving them wherever they currently live unversioned.
+
+**Open questions, not yet answered — captured here for later resolution (Joseph's call, 2026-09-18, same treatment as CARD-0293):**
+1. **Destination repo undecided.** Options discussed but not chosen: a new dedicated repo for LogSeq alone, one new personal repo shared with the Pastor Ben blog content (see the sibling card from PR #94), or a new top-level directory inside `jctsh` itself. Note that LogSeq content is not smart-home work, so folding it into this monorepo has a real "does it belong here" question attached, not just a mechanical one.
+2. **Where the LogSeq graph currently lives** — which machine, which path, and whether it is already synced by anything (LogSeq Sync, a cloud drive, etc.) that a git repo would conflict or overlap with.
+3. **How LogSeq's own file-writing behavior interacts with git** — LogSeq writes continuously as notes are edited, so whether this wants real commits (and who/what makes them) or just a backup-shaped sync needs deciding.
+4. **Privacy/visibility** — whether this repo should be private, and whether any of the content is sensitive enough to affect that choice.
+5. **Component tag** — set to `[personal]` for now, matching CARD-0293. Note `[personal]` does not map to any real directory, which is exactly the reconciliation problem CARD-0294 exists to resolve; this card's tag should be revisited when that pass runs.
+
+**Explicitly not started.**
+
+**Done when:** the LogSeq graph's files are in a chosen repo, with the sync/commit mechanism decided and actually working (not just an initial one-time import).
+
+**Related:** CARD-0293 (LogSeq devotional-note posting — same underlying LogSeq graph, different problem), CARD-0179 (route captured voice notes to LogSeq — a third LogSeq thread already on the board), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by), the sibling card from PR #94 (Pastor Ben blog directory, same "move into a repo" question).
 
 ---
 

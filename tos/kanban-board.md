@@ -9,7 +9,30 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0298 -->
+<!-- next-card-id: CARD-0299 -->
+
+---
+
+### CARD-0298 · [idea] [personal] Move the Pastor Ben blog file/directory system into a repo
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding (voice transcription, lightly garbled): "move the Pastor Ben blog filed directory system into a repo".
+
+**Goal, as captured:** put the Pastor Ben blog's files and directory structure under version control in a repo.
+
+**Open questions, not yet answered — captured here for later resolution (Joseph's call, 2026-09-18, same treatment as CARD-0293):**
+1. **What this system actually is** — not established anywhere in this repo or its docs. Needs a real description before scoping: what the blog is, what produces it (a static-site generator, a hosted platform's export, hand-written files?), what the directory structure holds, and where it currently lives.
+2. **Destination repo undecided.** Same open choice as the sibling card from PR #93: a new dedicated repo, one new personal repo shared with the LogSeq content, or a new top-level directory inside `jctsh`. As with that card, this is not smart-home work, so folding it into this monorepo carries a real "does it belong here" question.
+3. **Whether anything is published/live from these files today**, and if so whether moving them into a repo changes or risks that publishing path.
+4. **Privacy/visibility** — whether the repo should be private, and whether the content involves anyone other than Joseph whose expectations matter here.
+5. **Component tag** — set to `[personal]` for now. Note `[personal]` does not map to any real directory, which is exactly the reconciliation problem CARD-0294 exists to resolve; this card's tag should be revisited when that pass runs.
+
+**Explicitly not started.**
+
+**Done when:** the blog's files are in a chosen repo with their directory structure intact, any live publishing path confirmed still working, and the sync/commit mechanism decided.
+
+**Related:** CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by), the sibling card from PR #93 (LogSeq file system, same "move into a repo" question and same undecided destination).
 
 ---
 

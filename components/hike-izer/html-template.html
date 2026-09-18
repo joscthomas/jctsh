@@ -81,6 +81,16 @@
     --chart-humidity: #2e7ac1;
     --chart-pressure: #7a4fb0;
     --chart-uv: #b08a1a;
+    /* CARD-0285: air-quality-monitor's three added Environmental Data
+       pairings -- kept in the same warm-olive/forest family as every other
+       chart token above, six more distinct hues so none reads as a
+       lighter/darker twin of an existing one at a glance. */
+    --chart-pm25: #b0432e;
+    --chart-pm10: #2e8ab0;
+    --chart-pm1: #8a6b2e;
+    --chart-pm4: #2e8a5c;
+    --chart-voc: #6b3fa8;
+    --chart-nox: #a83f7a;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -110,6 +120,12 @@
       --chart-humidity: #6ba8e0;
       --chart-pressure: #b090e0;
       --chart-uv: #e0c068;
+      --chart-pm25: #e08068;
+      --chart-pm10: #68b8e0;
+      --chart-pm1: #d9b868;
+      --chart-pm4: #68d99a;
+      --chart-voc: #a890e0;
+      --chart-nox: #e090b8;
     }
   }
   * { box-sizing: border-box; }
@@ -255,6 +271,12 @@
   .chart-tooltip-slot .tt-metric.humidity { color: var(--chart-humidity); }
   .chart-tooltip-slot .tt-metric.pressure { color: var(--chart-pressure); }
   .chart-tooltip-slot .tt-metric.uv { color: var(--chart-uv); }
+  .chart-tooltip-slot .tt-metric.pm25 { color: var(--chart-pm25); }
+  .chart-tooltip-slot .tt-metric.pm10 { color: var(--chart-pm10); }
+  .chart-tooltip-slot .tt-metric.pm1 { color: var(--chart-pm1); }
+  .chart-tooltip-slot .tt-metric.pm4 { color: var(--chart-pm4); }
+  .chart-tooltip-slot .tt-metric.voc { color: var(--chart-voc); }
+  .chart-tooltip-slot .tt-metric.nox { color: var(--chart-nox); }
   .chart-tooltip-slot .tt-metric + .tt-metric { margin-left: 0.75rem; }
 
   .chart-svg-wrap { width: 100%; overflow-x: auto; }
@@ -273,6 +295,14 @@
   .line-humidity { fill: none; stroke: var(--chart-humidity); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
   .line-pressure { fill: none; stroke: var(--chart-pressure); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
   .line-uv { fill: none; stroke: var(--chart-uv); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  /* CARD-0285: air-quality-monitor's three added pairings, same unfilled
+     two-line treatment as the Environmental Data lines above. */
+  .line-pm25 { fill: none; stroke: var(--chart-pm25); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .line-pm10 { fill: none; stroke: var(--chart-pm10); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .line-pm1 { fill: none; stroke: var(--chart-pm1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .line-pm4 { fill: none; stroke: var(--chart-pm4); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .line-voc { fill: none; stroke: var(--chart-voc); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .line-nox { fill: none; stroke: var(--chart-nox); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 
   .hit-target { fill: transparent; cursor: pointer; }
   .hover-dot { r: 4; fill: var(--surface); stroke-width: 2.5; transition: opacity 0.08s ease; pointer-events: none; }
@@ -282,10 +312,17 @@
   .hover-dot.humidity { stroke: var(--chart-humidity); }
   .hover-dot.pressure { stroke: var(--chart-pressure); }
   .hover-dot.uv { stroke: var(--chart-uv); }
+  .hover-dot.pm25 { stroke: var(--chart-pm25); }
+  .hover-dot.pm10 { stroke: var(--chart-pm10); }
+  .hover-dot.pm1 { stroke: var(--chart-pm1); }
+  .hover-dot.pm4 { stroke: var(--chart-pm4); }
+  .hover-dot.voc { stroke: var(--chart-voc); }
+  .hover-dot.nox { stroke: var(--chart-nox); }
   .hover-guide { stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 2 2; pointer-events: none; }
-  /* CARD-0204: legend-as-toggle for the Environmental Data chart's two
-     preset pairings (Temp+Humidity / Pressure+UV) -- same visual weight as
-     .chart-legend above, but clickable buttons instead of static labels. */
+  /* CARD-0204: legend-as-toggle for the Environmental Data chart's preset
+     pairings (Temp+Humidity / Pressure+UV, plus CARD-0285's three
+     air-quality-monitor pairings) -- same visual weight as .chart-legend
+     above, but clickable buttons instead of static labels. */
   .chart-toggle { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
   .chart-toggle-btn {
     font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;
@@ -689,6 +726,12 @@
     Omit this whole section when build_env_chart_html() returns '' (no
     environmental sensor data at all for the day) -- same "no empty
     scaffolding" convention every other optional section here follows.
+
+    CARD-0285: same panel, three more toggle-able pairings added for
+    air-quality-monitor's PM/VOC/NOx fields (its own separate correlation
+    pass in fetch_hike_data.py, kept out of hiking-monitor's env_rows --
+    see that file's AQM_SOURCE comment) -- no template change needed here,
+    build_env_chart_html() renders however many modes ENV_CHART_MODES has.
   -->
   <section>
     <h2>Environmental Data</h2>

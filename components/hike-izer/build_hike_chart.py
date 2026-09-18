@@ -351,6 +351,12 @@ def build_chart_script(chart_id):
 # 4 lines on one axis (unit spread makes that unreadable) or a free-pick-any-2
 # UI (real complexity for a combination nobody asked for) -- see CARD-0204's
 # own interview notes on kanban-board.md.
+#
+# CARD-0285: three more pairings added for air-quality-monitor's six fields
+# (also per-point on the same chart_series, via a second, independent
+# correlation pass against air-quality-monitor's own rows -- see
+# fetch_hike_data.py's AQM_SOURCE/AQM_CHART_FIELDS comment), same
+# two-per-mode reasoning as CARD-0204's original pairings above.
 ENV_CHART_MODES = [
     {
         'key': 'temp-humidity',
@@ -364,19 +370,46 @@ ENV_CHART_MODES = [
         'left': {'field': 'pressure_hpa', 'unit': 'hPa', 'css': 'pressure'},
         'right': {'field': 'uv_index', 'unit': '', 'css': 'uv'},
     },
+    # CARD-0285: three more preset pairings for air-quality-monitor's six
+    # fields, same "two-per-mode" pattern as the pairings above rather than
+    # cramming all six onto one axis pair.
+    {
+        'key': 'pm25-pm10',
+        'label': 'PM2.5 & PM10',
+        'left': {'field': 'pm25_ug_m3', 'unit': 'µg/m³', 'css': 'pm25'},
+        'right': {'field': 'pm10_ug_m3', 'unit': 'µg/m³', 'css': 'pm10'},
+    },
+    {
+        'key': 'pm1-pm4',
+        'label': 'PM1.0 & PM4.0',
+        'left': {'field': 'pm1_ug_m3', 'unit': 'µg/m³', 'css': 'pm1'},
+        'right': {'field': 'pm4_ug_m3', 'unit': 'µg/m³', 'css': 'pm4'},
+    },
+    {
+        'key': 'voc-nox',
+        'label': 'VOC & NOx',
+        'left': {'field': 'voc_index', 'unit': '', 'css': 'voc'},
+        'right': {'field': 'nox_index', 'unit': '', 'css': 'nox'},
+    },
 ]
 
 
 def build_env_chart_html(chart_series, chart_id='hikeEnvChart', tz_offset_hours=DEFAULT_TZ_OFFSET_HOURS):
     """Returns the Environmental Data chart's <div class="chart-card">...
     markup, or '' if chart_series is empty or carries no environmental
-    values at all for any of the 4 fields (e.g. the hiking-monitor device
-    wasn't carried that day) -- same "no empty scaffolding" convention
-    build_chart_html() itself follows. Both preset pairings' full geometry
-    is precomputed here and shipped in the same SVG as two sibling <g>
+    values at all for any of ENV_CHART_MODES' fields (e.g. neither device
+    was carried that day) -- same "no empty scaffolding" convention
+    build_chart_html() itself follows. Every preset pairing's full geometry
+    is precomputed here and shipped in the same SVG as sibling <g>
     elements; the legend-toggle only ever flips which one is visible
-    (build_env_chart_script()), no client-side math."""
-    env_fields = ('temp_f', 'humidity_pct', 'pressure_hpa', 'uv_index')
+    (build_env_chart_script()), no client-side math.
+
+    CARD-0285: the empty-check's field list is derived from ENV_CHART_MODES
+    itself (every mode's left+right field) rather than a separately
+    hardcoded tuple, so adding a new mode (as this card did, for
+    air-quality-monitor's three new pairings) can't silently drift out of
+    sync with what this check actually looks for."""
+    env_fields = {f for mode in ENV_CHART_MODES for f in (mode['left']['field'], mode['right']['field'])}
     if not chart_series or not any(p.get(f) is not None for p in chart_series for f in env_fields):
         return ''
 

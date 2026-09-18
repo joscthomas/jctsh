@@ -975,21 +975,36 @@ ENV_INTERPOLATION_MAX_GAP_SEC = 900.0
 
 ENV_CHART_FIELDS = ('temp_f', 'humidity_pct', 'pressure_hpa', 'uv_index')
 
+# CARD-0285: air-quality-monitor's own six sensor fields, carried the same
+# way as hiking-monitor's ENV_CHART_FIELDS above but kept in a separate
+# tuple/correlation pass rather than merged into it -- air-quality-monitor
+# also reports temp_f/humidity_pct/battery_v under those *same* column names
+# (its own SEN55/battery, not hiking-monitor's BME280/battery), so blending
+# its rows into the same env_rows list used for ENV_CHART_FIELDS or
+# compute_stats()/analyze_coverage() would silently mix two different
+# devices' readings under one figure. These six field names never collide
+# with ENV_CHART_FIELDS, so they're safe to correlate from air-quality-
+# monitor's own rows and merge into the same per-point chart output.
+AQM_SOURCE = 'air-quality-monitor'
+AQM_CHART_FIELDS = ('pm1_ug_m3', 'pm25_ug_m3', 'pm4_ug_m3', 'pm10_ug_m3', 'voc_index', 'nox_index')
 
-def _correlate_environmental_series(chart_ts_list, env_rows, max_gap_sec=ENV_INTERPOLATION_MAX_GAP_SEC):
+
+def _correlate_environmental_series(chart_ts_list, env_rows, fields=ENV_CHART_FIELDS, max_gap_sec=ENV_INTERPOLATION_MAX_GAP_SEC):
     """Returns a list aligned 1:1 with chart_ts_list (must be chronologically
-    sorted, true of chart_series' own point order), each entry
-    {temp_f, humidity_pct, pressure_hpa, uv_index}. Each field is linearly
-    interpolated between the nearest real Environmental Data reading before
-    and after that timestamp; a field missing on one side falls back to the
-    other side alone (within max_gap_sec); missing entirely (or too far on
-    both sides) yields None, so the chart draws no line through that stretch
-    rather than implying a value that was never measured near there."""
+    sorted, true of chart_series' own point order), each entry keyed by
+    `fields` (default ENV_CHART_FIELDS; CARD-0285 also calls this with
+    AQM_CHART_FIELDS against air-quality-monitor's own rows). Each field is
+    linearly interpolated between the nearest real Environmental Data
+    reading before and after that timestamp; a field missing on one side
+    falls back to the other side alone (within max_gap_sec); missing
+    entirely (or too far on both sides) yields None, so the chart draws no
+    line through that stretch rather than implying a value that was never
+    measured near there."""
     parsed = sorted(
         (
             {
                 'ts': ts,
-                **{f: to_float(r.get(f)) for f in ENV_CHART_FIELDS},
+                **{f: to_float(r.get(f)) for f in fields},
             }
             for r in env_rows
             for ts in [parse_ts(r.get('timestamp'))]
@@ -998,7 +1013,7 @@ def _correlate_environmental_series(chart_ts_list, env_rows, max_gap_sec=ENV_INT
         key=lambda r: r['ts'],
     )
     if not parsed:
-        return [{f: None for f in ENV_CHART_FIELDS} for _ in chart_ts_list]
+        return [{f: None for f in fields} for _ in chart_ts_list]
 
     out = []
     j = 0
@@ -1009,7 +1024,7 @@ def _correlate_environmental_series(chart_ts_list, env_rows, max_gap_sec=ENV_INT
         after = parsed[j] if j < n else None
         before = parsed[j - 1] if j > 0 else None
         point = {}
-        for f in ENV_CHART_FIELDS:
+        for f in fields:
             bv = before[f] if before is not None else None
             av = after[f] if after is not None else None
             gap_b = (target - before['ts']).total_seconds() if before is not None else None
@@ -1036,7 +1051,7 @@ def _correlate_environmental_series(chart_ts_list, env_rows, max_gap_sec=ENV_INT
     return out
 
 
-def build_chart_series(gps_rows, sessions, env_rows=None, max_points=80):
+def build_chart_series(gps_rows, sessions, env_rows=None, aqm_rows=None, max_points=80):
     """CARD-0110: downsampled elevation+speed-vs-distance series for the
     Elevation & Speed chart -- resampled by cumulative distance rather than
     plotting every raw ~30s GPS point, which would make for a cluttered
@@ -1058,7 +1073,13 @@ def build_chart_series(gps_rows, sessions, env_rows=None, max_points=80):
     point, interpolated from env_rows (see _correlate_environmental_series)
     -- kept on this same shared series, not a second list, so a new
     Environmental Data chart panel can't drift out of index-sync with the
-    Route Map / Elevation & Speed chart's existing hover-sync contract."""
+    Route Map / Elevation & Speed chart's existing hover-sync contract.
+
+    CARD-0285: also carries air-quality-monitor's six fields (AQM_CHART_FIELDS)
+    per point, interpolated separately from aqm_rows -- a second, independent
+    _correlate_environmental_series pass against a different rows list and
+    field tuple, not merged into env_rows/ENV_CHART_FIELDS (see AQM_SOURCE's
+    own comment for why that separation matters)."""
     all_series = _session_point_series(gps_rows, sessions)
     if not all_series:
         return []
@@ -1083,6 +1104,11 @@ def build_chart_series(gps_rows, sessions, env_rows=None, max_points=80):
         # within a session, matching _correlate_environmental_series' own
         # sorted-input assumption.
         env_values = _correlate_environmental_series([p['ts'] for p in picked], env_rows or [])
+        # CARD-0285: separate correlation pass, air-quality-monitor's own
+        # rows/fields -- see build_chart_series' own docstring for why this
+        # can't share env_values' pass.
+        aqm_values = _correlate_environmental_series(
+            [p['ts'] for p in picked], aqm_rows or [], fields=AQM_CHART_FIELDS)
         for i, p in enumerate(picked):
             # CARD-0085: sun position computed per-point here (cheap, pure
             # math, no API cost) rather than reused from the separately
@@ -1093,6 +1119,7 @@ def build_chart_series(gps_rows, sessions, env_rows=None, max_points=80):
             # are actually hoverable.
             sun_elev, sun_az = solar_position(p['ts'], p['lat'], p['lon'])
             ev = env_values[i]
+            av = aqm_values[i]
             out.append({
                 'timestamp': p['ts'].isoformat(),
                 'distance_mi': round(p['distance_mi'] + dist_offset, 3),
@@ -1108,6 +1135,12 @@ def build_chart_series(gps_rows, sessions, env_rows=None, max_points=80):
                 'humidity_pct': round(ev['humidity_pct'], 1) if ev['humidity_pct'] is not None else None,
                 'pressure_hpa': round(ev['pressure_hpa'], 1) if ev['pressure_hpa'] is not None else None,
                 'uv_index': round(ev['uv_index'], 1) if ev['uv_index'] is not None else None,
+                'pm1_ug_m3': round(av['pm1_ug_m3'], 1) if av['pm1_ug_m3'] is not None else None,
+                'pm25_ug_m3': round(av['pm25_ug_m3'], 1) if av['pm25_ug_m3'] is not None else None,
+                'pm4_ug_m3': round(av['pm4_ug_m3'], 1) if av['pm4_ug_m3'] is not None else None,
+                'pm10_ug_m3': round(av['pm10_ug_m3'], 1) if av['pm10_ug_m3'] is not None else None,
+                'voc_index': round(av['voc_index']) if av['voc_index'] is not None else None,
+                'nox_index': round(av['nox_index']) if av['nox_index'] is not None else None,
             })
         dist_offset += total_mi
     return out
@@ -1225,9 +1258,18 @@ def main():
 
     print('Fetching Environmental Data...')
     env_rows_all = fetch_sheet(args.url, args.key, 'Environmental Data', args.start, args.end)
-    other_sources = sorted({r.get('source') for r in env_rows_all if r.get('source') != args.source})
+    # CARD-0285: air-quality-monitor is carried on the same hikes as
+    # hiking-monitor and shares this sheet -- pulled out into its own list
+    # (never merged into env_rows, see AQM_SOURCE's own comment) so its six
+    # fields can reach the chart without contaminating env_rows' existing
+    # temp_f/humidity_pct/battery_v stats, which air-quality-monitor also
+    # reports under those same column names for its own sensor/battery.
+    known_sources = {args.source, AQM_SOURCE}
+    other_sources = sorted({r.get('source') for r in env_rows_all if r.get('source') not in known_sources})
     env_rows = [r for r in env_rows_all if r.get('source') == args.source]
-    print(f'  {len(env_rows_all)} rows total, {len(env_rows)} from source={args.source!r}'
+    aqm_rows = [r for r in env_rows_all if r.get('source') == AQM_SOURCE]
+    print(f'  {len(env_rows_all)} rows total, {len(env_rows)} from source={args.source!r}, '
+          f'{len(aqm_rows)} from source={AQM_SOURCE!r}'
           + (f' (also saw: {other_sources})' if other_sources else ''))
 
     print('Fetching Hiking Observations...')
@@ -1319,13 +1361,15 @@ def main():
     hike_sessions = coverage['gps_track']['sessions']
     stats.update(compute_hike_detail_stats(altitude_gps_rows, hike_sessions, stats['distance_mi'], hike_duration_min))
     chart_series = (
-        build_chart_series(altitude_gps_rows, hike_sessions, env_rows) if coverage['gps_track']['hike_confirmed'] else []
+        build_chart_series(altitude_gps_rows, hike_sessions, env_rows, aqm_rows)
+        if coverage['gps_track']['hike_confirmed'] else []
     )
 
     out = {
         'query': {'start': args.start, 'end': args.end, 'source_filter': args.source},
         'counts': {
             'environmental_data': len(env_rows),
+            'environmental_data_air_quality_monitor': len(aqm_rows),
             'environmental_data_other_sources_seen_but_excluded': other_sources,
             'hiking_observations': len(obs_rows),
             'gps_track': len(gps_rows),
@@ -1336,6 +1380,7 @@ def main():
         'chart_series': chart_series,
         'sun_position_samples': sun_samples,
         'environmental_data': env_rows,
+        'environmental_data_air_quality_monitor': aqm_rows,
         'hiking_observations': obs_rows,
         'gps_track': gps_rows,
         'hike_start_forecast': forecast_rows,

@@ -159,7 +159,13 @@ def discover_destinations():
     components/). Returns {tag: (label, card_archive_path)}.
 
     CARD-0290: destination file is card-archive.md, not CLAUDE.md -- see
-    this module's own docstring for why."""
+    this module's own docstring for why.
+
+    CARD-0294: `architecture` (the new residual home for genuinely
+    cross-cutting cards, a repo-root peer of components/core/hosts/tos, not
+    a subdirectory of any of them) needs the same explicit entry `tos`
+    already gets -- this function never walked the repo root generically,
+    so a new top-level directory is invisible to it until added here."""
     dests = {}
     for p in COMPONENTS_DIR.iterdir():
         if p.is_dir():
@@ -172,6 +178,7 @@ def discover_destinations():
             if p.is_dir():
                 dests[p.name] = (f"{base}/{p.name}", p / "card-archive.md")
     dests["tos"] = ("tos", TOS_DIR / "card-archive.md")
+    dests["architecture"] = ("architecture", REPO_ROOT / "architecture" / "card-archive.md")
     return dests
 
 

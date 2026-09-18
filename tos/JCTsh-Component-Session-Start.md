@@ -2,8 +2,8 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** The startup steps a persistent component or cluster session (CARD-0284) actually runs instead of `CLAUDE.md`'s general Session Start — some general steps scoped down, some skipped, some run unscoped, plus component-only steps with no general-session equivalent.
-**Version:** 1.11
-**Version description:** Added "one component, one owning cluster" (CARD-0299 follow-on, Joseph asking directly about `air-quality-monitor`'s dual relevance to both `hiking-monitor cluster` and hike-izer's data pipeline) — a component is never listed under two clusters; another domain's work reaches it by reading its files directly, not by co-owning it. Same single-source-of-truth principle already applied to documentation, applied here to component ownership.
+**Version:** 1.12
+**Version description:** Reconciled the Component/Cluster Registry against `kanban-board.md`'s actual tags (CARD-0294's closing step) — added an `architecture` row and confirmed every real-directory tag resolves to exactly one cluster.
 **Version history:** `JCTsh-Component-Session-Start-History.md`
 
 ---
@@ -27,6 +27,7 @@ Added 2026-09-18 (CARD-0299, refined same day — Joseph: "this table identifies
 |---|---|---|---|
 | hike-izer | `hike-izer`, `hike-izer-orchestrator`, `hike-izer-web`, `core/data-pipeline` | Yes | Active |
 | tos | `tos` | Yes | Active |
+| architecture | `architecture` | No | — |
 | photo-server cluster | `photo-server`, `photo-quality-review`, `photo-tv-display` | Yes | Active |
 | hiking-monitor cluster | `hiking-monitor`, `air-quality-monitor` | No | — |
 | garage cluster | `automatic-garage-door-opener-closer`, `garage-presence`, `garage-radar` | No | — |
@@ -49,7 +50,10 @@ Added 2026-09-18 (CARD-0299, refined same day — Joseph: "this table identifies
 - **outdoor/backyard sensors cluster** — all still Planning-stage, but `JCTsh-Build-Standards.md`'s power-architecture standards (§2.14) were written with exactly this class of device in mind; grouping now means the pattern gets applied consistently across all three from the start rather than independently rediscovered.
 - **salt-sensor, p-w-firefly, jctsh-menu, front-porch-temp-sensor, equip-shelf** — each self-contained enough (no real recurring cross-work found with anything else) that forcing a grouping would be arbitrary; single-component clusters, not omissions.
 - **`core/offline-logger`** deliberately has no row — a reusable template (`sensor_logger.h`) copied into whichever sensor uses it, not a component with its own ongoing thread; it belongs to whichever cluster actually uses it at the time.
+- **architecture** — added 2026-09-18 (CARD-0294's tag reconciliation, once retagging `[infrastructure]` cards revealed a genuine residual bucket that needed a real directory): doc-only, not a component or host, same shape as `tos`'s own row — a single-"component" cluster where the covered "component" is the directory itself.
 Not yet checked against Joseph's own judgment — these are proposed groupings, corrigible like any other card content, not a final decision just because they're written down.
+
+**Reconciled against `kanban-board.md`'s actual tags, 2026-09-18 (CARD-0294's own closing step).** Every non-type tag currently in use that names a real `components/<name>/`, `core/<name>/`, or `hosts/<name>/` directory resolves to exactly one row above — no orphaned directory tag, and no directory claimed by two clusters. Three things this check deliberately did *not* try to reconcile, because they aren't directory tags at all: (1) tags for **planned components with no directory yet** (`vu-meter`, `shower-temp-sensor`, `back-patio-temp-sensor`, `garage-entry-hallway`, `presence`, `wildlife`) — correctly absent here, since this table tracks real components, not ideas; they'll get a row (new or joining an existing cluster) once actually built, per the same iterative/incremental discipline as everything else in this doc; (2) `personal` — non-project life-admin cards (DNS records, digital-identity checklists), not a component tag and never meant to have a cluster; (3) **multi-directory clusters use per-directory tags, not one unified cluster tag** — e.g. the ops cluster's four cards use `[m8]`/`[pi1]`/`[maintenance]`/`[docker]` individually, never `[ops]`, because `archive_cards.py` (CARD-0294) routes on the literal directory name. A cluster groups tags for session-scoping purposes; it doesn't rename or merge them.
 
 **One component, one owning cluster — never listed under two (decided 2026-09-18, Joseph asking directly about `air-quality-monitor`'s real dual relevance).** `air-quality-monitor`'s firmware/hardware work belongs with `hiking-monitor` (shared power architecture, shared debug-UART investigation); its *data* also flows through hike-izer's pipeline (CARD-0285). That doesn't make it dual-membership — it stays solely under `hiking-monitor cluster`. A session whose work needs another domain's info reads that domain's files directly (`README.md`/`CLAUDE.md`, CARD-0284's own workflow) without needing to *own* it. Listing a component under two clusters would create real ambiguity — which session's startup actually reads its docs, and whose `CLAUDE.md` edits are the curated truth if both write to it — the same single-source-of-truth principle `JCTsh-Operating-System.md` already applies to documentation, applied here to component ownership instead.
 

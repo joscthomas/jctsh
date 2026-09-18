@@ -301,7 +301,7 @@ Optionally add `--schedule "<time>"` to defer it to the Mon 3 AM reboot window; 
 
 ### CARD-0294 · [enhancement] [tos] Reconcile kanban-board.md tags against the real directory structure, retiring the [infrastructure] tag
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-18 (Joseph), directly from CARD-0280's archiving outcome** — `archive_cards.py` routes a card to a component/core/host's own `card-archive.md` only when exactly one of its bracketed tags matches a real `components/<name>/`, `core/<name>/`, or `hosts/<name>/` directory (or the literal tag `tos`). CARD-0280 fell to the dated `tos/kanban-archive.md` fallback instead — investigation found this isn't a one-off: `[infrastructure]` is used on **48 cards** across the board, and since no `components/infrastructure/`, `core/infrastructure/`, or `hosts/infrastructure/` directory exists (or ever will), every one of them is permanently routed to the dated fallback regardless of formatting.
 
@@ -329,7 +329,18 @@ This confirms this card's own step 2 ("whether any *other* existing tags... also
 
 **Done when:** every card's tag(s) either match a real `components/`/`core/`/`hosts/` directory or the literal `tos`/`architecture`, or are captured in an explicit "cannot reconcile" list; `[infrastructure]` appears nowhere in `kanban-board.md`; CARD-0280's title formatting bug is fixed; `architecture/` exists with its residual cards retagged and verified to archive correctly via a dry run of `archive_cards.py`.
 
-**Related:** CARD-0193 (`archive_cards.py`'s own build), CARD-0280 (the archiving outcome that surfaced this), `tos/archive_cards.py` (the directory-matching logic this card's fix targets), CARD-0290/CARD-0291/CARD-0292 (the recent documentation-structure work this continues).
+**Executed 2026-09-18, all of the above completed:**
+1. **Applied the 5 clear-cut retags:** CARD-0114/CARD-0056 → `[tos]`, CARD-0139 → `[logging]`, CARD-0018 → `[photo-server]`, CARD-0014 → `[data-pipeline]`.
+2. **Fixed CARD-0280** — both its formatting bug (missing type bracket) and its actual mistag: reading its full body showed it's genuinely about `components/salt-sensor/`'s `HA_TOKEN` handling, not generic infrastructure, so it became `[bug] [salt-sensor]` rather than just adding a type bracket to `[infrastructure]`.
+3. **Triaged and retagged all 46 remaining `[infrastructure]` cards** into `[m8]`, `[pi1]`, an existing component tag, or the new `[architecture]` tag, reading each card's body (not just its title) to distinguish genuinely cross-cutting decisions from work that only *looked* generic — e.g. separating M8-specific findings from Pi-specific ones inside the same maintenance-check batch. 61 total header replacements applied across `kanban-board.md` and `kanban-archive.md` (46 + 15 already-archived cards carrying the same tag). Verified via `grep -c "\[infrastructure\]"`: zero in `kanban-archive.md`, and the 12 remaining hits in `kanban-board.md` are all literal mentions of the tag name in this card's own prose, not actual card-header tags.
+4. **Created `architecture/`** (`README.md`, `CLAUDE.md`) as the doc-only residual home, mirroring `tos/`'s shape — no executable code, `card-archive.md` created on first archive.
+5. **Fixed `archive_cards.py`'s `discover_destinations()`** — this card's own open question ("whether `architecture/` needs a script change... current understanding: no, since `tos/` isn't special-cased either") turned out to be **wrong**: `tos` *is* explicitly hardcoded in that function, which only walks `components/`, `core/`, `hosts/`, plus that one literal entry — it never generically discovers repo-root peers. Added an identical explicit `dests["architecture"]` entry. Verified with a real dry run: `python tos/archive_cards.py --force CARD-0223` resolved to `architecture/card-archive.md` correctly; the unforced dry run separately confirmed no accidental behavior change for the 5 already-eligible `[tos]`-tagged cards.
+6. **Reconciled the resulting tag list against `JCTsh-Component-Session-Start.md`'s Component/Cluster Registry** (Joseph's follow-on instruction) — added an `architecture` row (the one real gap: a brand-new top-level directory with no cluster yet) and confirmed every other real-directory tag now in use maps to exactly one registry row. Documented three deliberate non-matches so they don't read as oversights: planned-component tags with no directory yet, the non-project `personal` tag, and multi-directory clusters (e.g. ops) using per-directory tags rather than one unified cluster tag, since `archive_cards.py` routes on literal directory names.
+7. **No "cannot reconcile" list needed** — every one of the original 48 `[infrastructure]` cards, plus the 4 folded in from CARD-0302, found a real home.
+
+**Reflection:** the open question about `archive_cards.py` not needing a change was a real near-miss — an assumption stated in this card's own text, carried for a full session without being checked against the actual code, and it was backwards. Caught only by actually reading `discover_destinations()` before closing rather than trusting the earlier note. Directly the "verify a claimed completion/assumption directly" principle this same reconciliation effort (CARD-0303/CARD-0304) had just written into `JCTsh-Operating-System.md`.
+
+**Related:** CARD-0193 (`archive_cards.py`'s own build), CARD-0280 (the archiving outcome that surfaced this), `tos/archive_cards.py` (the directory-matching logic this card's fix targets), CARD-0290/CARD-0291/CARD-0292 (the recent documentation-structure work this continues), CARD-0299 (the Component/Cluster Registry this card's closing step reconciled against).
 
 ---
 
@@ -663,7 +674,7 @@ Archived to `components/garage-radar/card-archive.md` on 2026-09-18 (CARD-0193) 
 
 ---
 
-### CARD-0280 · [infrastructure] Move Salt Sensor's tab-scoped HA_TOKEN to the systemd-level environment file, closing the exact gap that bit CARD-0261 — RESOLVED 2026-09-17
+### CARD-0280 · [bug] [salt-sensor] Move Salt Sensor's tab-scoped HA_TOKEN to the systemd-level environment file, closing the exact gap that bit CARD-0261 — RESOLVED 2026-09-17
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-18 (CARD-0193) — 5918B, over the 5000B size threshold.
@@ -775,7 +786,7 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-18 (CARD-0193) —
 
 ---
 
-### CARD-0275 · [bug] [infrastructure] 2026-09-15 hike-izer intake incident — hike-end + BirdNET webhooks failed, backstop probe 404'd, all recovered — RESOLVED 2026-09-15 11:50 MST
+### CARD-0275 · [bug] [hike-izer-orchestrator] 2026-09-15 hike-izer intake incident — hike-end + BirdNET webhooks failed, backstop probe 404'd, all recovered — RESOLVED 2026-09-15 11:50 MST
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8287B, over the 5000B size threshold.
@@ -800,14 +811,14 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8287B, over th
 
 ---
 
-### CARD-0273 · [enhancement] [infrastructure] hike-izer-orchestrator: split print() output into stdout (routine) vs. stderr (worth a look)
+### CARD-0273 · [enhancement] [hike-izer-orchestrator] hike-izer-orchestrator: split print() output into stdout (routine) vs. stderr (worth a look)
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8255B, over the 5000B size threshold.
 
 ---
 
-### CARD-0272 · [enhancement] [infrastructure] M8-wide: switch Docker's logging driver to journald, reusing the M8's already-persistent journal
+### CARD-0272 · [enhancement] [m8] M8-wide: switch Docker's logging driver to journald, reusing the M8's already-persistent journal
 **Status:** Build — functionally complete and live-verified, one residual check pending a real reboot
 
 **Auto verify: 2026-09-21 05:00 MST** — the M8's next scheduled Monday 4am reboot. Once past, confirm `docker logs hike-izer-orchestrator` (or `journalctl CONTAINER_NAME=hike-izer-orchestrator`) still shows real pre-reboot history, not a gap starting at the reboot — same check CARD-0270 was originally trying to run when this whole thread started. Only move Status to Done once this is confirmed live; don't close it from inference alone.
@@ -858,7 +869,7 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8255B, over th
 
 ---
 
-### CARD-0270 · [enhancement] [infrastructure] Structured, queryable per-hike API cost data — a dedicated Sheet, not a substring in a notification message
+### CARD-0270 · [enhancement] [hike-izer-orchestrator] Structured, queryable per-hike API cost data — a dedicated Sheet, not a substring in a notification message
 **Status:** Planning
 
 **Raised 2026-09-14 (Joseph)**, after asking for the real total API cost of all hike-photo captioning to date and finding the number effectively unavailable.
@@ -885,14 +896,14 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8255B, over th
 
 ---
 
-### CARD-0269 · [enhancement] [infrastructure] Scriptable, ionice-wrapped `ctr`-based image-pull for the Pi — schedulable, first real use run manually — RESOLVED 2026-09-14 09:50 MST
+### CARD-0269 · [enhancement] [pi1] Scriptable, ionice-wrapped `ctr`-based image-pull for the Pi — schedulable, first real use run manually — RESOLVED 2026-09-14 09:50 MST
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 7099B, over the 5000B size threshold.
 
 ---
 
-### CARD-0268 · [bug] [infrastructure] Docker pulls on the Pi can starve HA's own I/O on the shared USB 2.0 bus — real, not hypothetical — RESOLVED 2026-09-14 10:05 MST via CARD-0269
+### CARD-0268 · [bug] [pi1] Docker pulls on the Pi can starve HA's own I/O on the shared USB 2.0 bus — real, not hypothetical — RESOLVED 2026-09-14 10:05 MST via CARD-0269
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 9158B, over the 5000B size threshold.
@@ -953,7 +964,7 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 9158B, over th
 
 ---
 
-### CARD-0264 · [idea] [infrastructure] Decision criteria: when (if ever) to add a Zigbee2MQTT/Z-Wave USB coordinator to bring legacy hardware under HA
+### CARD-0264 · [idea] [architecture] Decision criteria: when (if ever) to add a Zigbee2MQTT/Z-Wave USB coordinator to bring legacy hardware under HA
 
 **Status:** Backlog
 
@@ -983,7 +994,7 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 9158B, over th
 
 ---
 
-### CARD-0263 · [enhancement] [infrastructure] Switch the Pi from graphical boot target to headless — RESOLVED 2026-09-12 MST (already true, not what was assumed)
+### CARD-0263 · [enhancement] [pi1] Switch the Pi from graphical boot target to headless — RESOLVED 2026-09-12 MST (already true, not what was assumed)
 **Status:** Done
 **Priority:** Medium
 
@@ -1007,7 +1018,7 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 9158B, over th
 
 ---
 
-### CARD-0262 · [enhancement] [infrastructure] Set up HA's native Matter integration; re-register the 3 Cync lights through HA instead of directly in Google Home — RESOLVED 2026-09-12 MST
+### CARD-0262 · [enhancement] [homeassistant] Set up HA's native Matter integration; re-register the 3 Cync lights through HA instead of directly in Google Home — RESOLVED 2026-09-12 MST
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 10561B, over the 5000B size threshold.
@@ -1021,7 +1032,7 @@ Archived to `components/salt-sensor/CLAUDE.md` on 2026-09-16 (CARD-0193) — 909
 
 ---
 
-### CARD-0260 · [enhancement] [infrastructure] Rebuild garage SmartThings Routines as HA automations — real sensor/actuator dependency remains, sequenced after CARD-0164's Oct 2 check
+### CARD-0260 · [enhancement] [homeassistant] Rebuild garage SmartThings Routines as HA automations — real sensor/actuator dependency remains, sequenced after CARD-0164's Oct 2 check
 **Status:** Planning
 
 **Raised 2026-09-11, from CARD-0164's decided direction.** The second of two concrete migration cards scoped from that day's full-repo sweep — genuinely more complicated than CARD-0261's salt-sensor case, not a clean parallel.
@@ -1101,7 +1112,7 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-18 (CARD-0193) —
 
 ---
 
-### CARD-0257 · [enhancement] [infrastructure] cloudflared container update available: 2026.8.3 → 2026.9.1 — deliberately deferred pending tunnel-failure reports
+### CARD-0257 · [enhancement] [m8] cloudflared container update available: 2026.8.3 → 2026.9.1 — deliberately deferred pending tunnel-failure reports
 **Status:** Backlog
 
 **Raised via automated maintenance finding (PR #71, photo-server), 2026-09-10.** Routine container-version-bump finding from the scheduled maintenance check (CARD-0126): cloudflared 2026.9.0 available, running 2026.8.3.
@@ -1118,7 +1129,7 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-18 (CARD-0193) —
 
 ---
 
-### CARD-0256 · [idea] [infrastructure] Standard robust solar+swappable-battery power pattern for backyard devices
+### CARD-0256 · [idea] [architecture] Standard robust solar+swappable-battery power pattern for backyard devices
 **Status:** Backlog
 
 **Raised 2026-09-09**, from a battery-inventory discussion prompted by CARD-0255's bird-bath BirdNET idea. Joseph wants a general power pattern for backyard/outdoor devices (not tied to one specific build): solar charging as the primary source, with the ability to swap batteries by hand if solar can't keep up (shading, winter, extended cloudy stretches) — a step up in robustness from this project's existing single-LiPo-pouch, solder/JST-connector pattern (hiking-monitor, air-quality-monitor).
@@ -1196,7 +1207,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 7117B
 
 ---
 
-### CARD-0249 · [enhancement] [infrastructure] Distinguish post-reboot container "starting" alerts from real Docker-degraded alerts — RESOLVED 2026-09-14 11:00 MST
+### CARD-0249 · [enhancement] [maintenance] Distinguish post-reboot container "starting" alerts from real Docker-degraded alerts — RESOLVED 2026-09-14 11:00 MST
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 6829B, over the 5000B size threshold.
@@ -1245,7 +1256,7 @@ Archived to `core/logging/CLAUDE.md` on 2026-09-16 (CARD-0193) — 10037B, over 
 
 ---
 
-### CARD-0246 · [bug] [infrastructure] Pi's systemd-journald uses volatile storage — all system logs wiped on every weekly reboot — RESOLVED 2026-09-06
+### CARD-0246 · [bug] [pi1] Pi's systemd-journald uses volatile storage — all system logs wiped on every weekly reboot — RESOLVED 2026-09-06
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-10 (CARD-0193) — 7418B, over the 5000B size threshold.
@@ -1327,14 +1338,14 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 6740B
 
 ---
 
-### CARD-0238 · [enhancement] [infrastructure] M8 OS maintenance: 25 routine updates, 10 flagged for review — includes Docker itself and linux-firmware — RESOLVED 2026-09-02
+### CARD-0238 · [enhancement] [m8] M8 OS maintenance: 25 routine updates, 10 flagged for review — includes Docker itself and linux-firmware — RESOLVED 2026-09-02
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-10 (CARD-0193) — 8225B, over the 5000B size threshold.
 
 ---
 
-### CARD-0237 · [enhancement] [infrastructure] cloudflared container update available: 2026.8.2 → 2026.8.3 — RESOLVED 2026-09-02
+### CARD-0237 · [enhancement] [m8] cloudflared container update available: 2026.8.2 → 2026.8.3 — RESOLVED 2026-09-02
 **Status:** Done
 
 **Raised via automated maintenance finding (PR #55, photo-server), 2026-09-01** — routine container-version-bump finding, same shape as CARD-0233's Home Assistant finding.
@@ -1353,7 +1364,7 @@ Archived to `tos/kanban-archive.md` on 2026-09-10 (CARD-0193) — 8225B, over th
 
 ---
 
-### CARD-0236 · [enhancement] [infrastructure] NetAlertX container update available: 26.8.5 → v26.9.0 — RESOLVED 2026-09-02
+### CARD-0236 · [enhancement] [netalertx] NetAlertX container update available: 26.8.5 → v26.9.0 — RESOLVED 2026-09-02
 **Status:** Done
 
 **Raised via automated maintenance finding (PR #59, photo-server), 2026-09-02** — routine container-version-bump finding, same shape as CARD-0233/CARD-0237.
@@ -1568,14 +1579,14 @@ All log lines were relayed together at 07:53 MST when the device reconnected (57
 
 ---
 
-### CARD-0225 · [bug] [infrastructure] MQTT architecture docs are inaccurate/stale, and phone-based intake pipelines are invisible to the log dashboard — RESOLVED 2026-09-02
+### CARD-0225 · [bug] [mqtt] MQTT architecture docs are inaccurate/stale, and phone-based intake pipelines are invisible to the log dashboard — RESOLVED 2026-09-02
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-10 (CARD-0193) — 11530B, over the 5000B size threshold.
 
 ---
 
-### CARD-0224 · [bug] [infrastructure] Low-battery-while-charging WiFi-attempt gating is undefined — real risk, not a corner case
+### CARD-0224 · [bug] [hiking-monitor] Low-battery-while-charging WiFi-attempt gating is undefined — real risk, not a corner case
 **Status:** Build
 
 **Reopened from Done 2026-09-17 (Joseph's correction, applied consistently with CARD-0276).** This card carries its own still-open Watch for (below, from 2026-09-06) that has never fired — marking it Done while a real-world confirmation is still outstanding was the wrong convention. An open Watch-for now means the card stays in Build until it fires; see CARD-0251 for the general rule.
@@ -1639,7 +1650,7 @@ Archived to `tos/kanban-archive.md` on 2026-09-10 (CARD-0193) — 11530B, over t
 
 ---
 
-### CARD-0223 · [enhancement] [infrastructure] Standalone LiPo battery charging station (TP4056) — RESOLVED 2026-09-10
+### CARD-0223 · [enhancement] [architecture] Standalone LiPo battery charging station (TP4056) — RESOLVED 2026-09-10
 **Status:** Done
 
 **Raised 2026-08-28 (Joseph), during CARD-0198's extended air-quality-monitor bench session** — needed a way to charge/top-off spare LiPo cells without disturbing whatever device's circuit a cell happens to be wired into at the time.
@@ -1788,7 +1799,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 11758
 
 ---
 
-### CARD-0213 · [enhancement] [infrastructure] Quantified peak-current headroom standard for battery-powered builds — RESOLVED 2026-08-25
+### CARD-0213 · [enhancement] [architecture] Quantified peak-current headroom standard for battery-powered builds — RESOLVED 2026-08-25
 **Status:** Done
 
 **Raised 2026-08-25 (Joseph)**, stepping back after two separate same-night incidents (CARD-0198's air-quality-monitor brownout investigation, CARD-0211's hiking-monitor reset loop) hit the identical underlying physics: a WiFi TX/association current spike (100s of mA, millisecond-scale) landing on a battery+regulator chain without enough peak headroom, sagging the rail below the ESP32's brownout threshold. Asked directly: why does this keep happening, is it common, and what does a genuinely robust design look like — scoped as a **general JCTsh reference standard** (not just a fix for these two devices), since the same physics will hit every future battery-powered build.
@@ -1989,7 +2000,7 @@ Archived to `tos/CLAUDE.md` on 2026-08-22 (CARD-0193) — 17933B, over the 5000B
 
 ---
 
-### CARD-0192 · [idea] [infrastructure] Watchdog self-test for the kanban-PR intake pipeline — RESOLVED 2026-09-10
+### CARD-0192 · [idea] [tos] Watchdog self-test for the kanban-PR intake pipeline — RESOLVED 2026-09-10
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 9564B, over the 5000B size threshold.
@@ -2188,7 +2199,7 @@ Archived to `components/hiking-monitor/CLAUDE.md` on 2026-08-22 (CARD-0193) — 
 
 ---
 
-### CARD-0179 · [idea] [infrastructure] Route captured voice notes to LogSeq, alongside the kanban PR pipeline — low priority
+### CARD-0179 · [idea] [tos] Route captured voice notes to LogSeq, alongside the kanban PR pipeline — low priority
 
 **Status:** Backlog
 
@@ -2273,14 +2284,14 @@ Archived to `tos/CLAUDE.md` on 2026-08-22 (CARD-0193) — 7174B, over the 5000B 
 
 ---
 
-### CARD-0172 · [idea] [infrastructure] Disaster Recovery — auto-opened from jctsh-core — RESOLVED 2026-08-16 19:30 MST
+### CARD-0172 · [idea] [architecture] Disaster Recovery — auto-opened from jctsh-core — RESOLVED 2026-08-16 19:30 MST
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-08-22 (CARD-0193) — 9049B, over the 5000B size threshold.
 
 ---
 
-### CARD-0171 · [enhancement] [infrastructure] M8 UEFI Secure Boot KEK CA firmware update available — auto-opened from photo-server — RESOLVED 2026-08-16 19:00 MST
+### CARD-0171 · [enhancement] [m8] M8 UEFI Secure Boot KEK CA firmware update available — auto-opened from photo-server — RESOLVED 2026-08-16 19:00 MST
 
 **Status:** Done
 
@@ -2310,7 +2321,7 @@ Archived to `tos/kanban-archive.md` on 2026-08-22 (CARD-0193) — 9049B, over th
 
 ---
 
-### CARD-0170 · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1) — auto-opened from jctsh-core — RESOLVED 2026-08-16 18:00 MST
+### CARD-0170 · [enhancement] [homeassistant] Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1) — auto-opened from jctsh-core — RESOLVED 2026-08-16 18:00 MST
 
 **Status:** Done
 
@@ -2390,7 +2401,7 @@ This is the nginx reverse-proxy trust setting from CARD-0096/CARD-0141's HTTPS w
 
 ---
 
-### CARD-0167 · [enhancement] [infrastructure] Close CARD-0096's mDNS transition-window aliases — RESOLVED 2026-08-17 12:11 MST
+### CARD-0167 · [enhancement] [architecture] Close CARD-0096's mDNS transition-window aliases — RESOLVED 2026-08-17 12:11 MST
 **Status:** Done
 
 **Raised 2026-08-14 16:15 MST**, split out from CARD-0096 (Done) so this last step doesn't get lost inside an already-closed card. Two systemd units are still deliberately running: `raspberrypi-mdns-alias.service` (Pi) and `photo-server-mdns-alias.service` (M8), each publishing the old hostname as a static mDNS alias for the unchanged real IP, per CARD-0096's own transition-window design.
@@ -2419,7 +2430,7 @@ This is the nginx reverse-proxy trust setting from CARD-0096/CARD-0141's HTTPS w
 
 ---
 
-### CARD-0166 · [enhancement] [infrastructure] Synchronize room/area names across HA, Google Home, and SmartThings — HA as master
+### CARD-0166 · [enhancement] [homeassistant] Synchronize room/area names across HA, Google Home, and SmartThings — HA as master
 **Status:** Build
 
 **Raised 2026-08-14**, directly motivated by CARD-0165's real collision: the front porch temperature sensor's Google Assistant exposure was correctly named and area-assigned, but "what's the front porch temperature" kept answering with a pre-existing SmartThings front-door sensor instead — root-caused to Google routing temperature-type queries by room/context rather than literal device name, and the word "front" alone was enough to misroute. Also directly surfaced a duplicate-area mistake caught and fixed live during that same card (created `Front Porch` when `Porch (Front)` already existed).
@@ -2448,7 +2459,7 @@ Archived to `components/front-porch-temp-sensor/CLAUDE.md` on 2026-08-22 (CARD-0
 
 ---
 
-### CARD-0164 · [enhancement] [infrastructure] Samsung ending free SmartThings API access October 2026 — decide pay vs. migrate before then
+### CARD-0164 · [enhancement] [architecture] Samsung ending free SmartThings API access October 2026 — decide pay vs. migrate before then
 **Status:** Planning
 
 **Raised 2026-08-14 08:35 MST**, found while researching CARD-0146's Ring-live-view question (checking whether SmartThings could expose Ring camera entities to HA — it can't, but that research surfaced this instead). Confirmed directly against HA's own official integration docs (`home-assistant.io/integrations/smartthings/`), not a secondhand summary:
@@ -2544,7 +2555,7 @@ Archived to `tos/CLAUDE.md` on 2026-08-22 (CARD-0193) — 6679B, over the 5000B 
 
 ---
 
-### CARD-0160 · [enhancement] [infrastructure] Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3) — auto-opened from photo-server — RESOLVED 2026-08-14 07:39 MST
+### CARD-0160 · [enhancement] [m8] Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3) — auto-opened from photo-server — RESOLVED 2026-08-14 07:39 MST
 **Status:** Done
 
 **Auto-generated 2026-08-14 06:30 MST from photo-server's maintenance check (PR #11).** Raw finding: Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3). Landed as a real kanban card via the old `resolve_and_merge()` path before the interviewed `land_pr_card.py` process (CARD-0162) existed — this note backfills the research and verification that process would normally require up front.
@@ -2794,7 +2805,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 6885B
 
 ---
 
-### CARD-0139 · [enhancement] [log-server] Exclude bench-test/dev components from the /status dashboard
+### CARD-0139 · [enhancement] [logging] Exclude bench-test/dev components from the /status dashboard
 **Status:** Done
 
 **Raised 2026-08-03 17:46 MST**, superseding CARD-0138 (Deferred): `log_server.py`'s `/status` page has no concept of "not a real monitored asset" — anything publishing to the watched MQTT topics gets surfaced automatically, so `hiking-monitor-test` (a bench test rig, per Joseph) was showing up with equal billing to real deployed sensors. That's dashboard noise at best and misleading at worst (as CARD-0138's now-moot investigation showed).
@@ -2874,7 +2885,7 @@ Archived to `core/logging/CLAUDE.md` on 2026-08-22 (CARD-0193) — 6381B, over t
 
 ---
 
-### CARD-0131 · [enhancement] [infrastructure] Immich update available: v3.1.0 (currently running v3.0.1) — auto-opened from photo-server
+### CARD-0131 · [enhancement] [photo-server] Immich update available: v3.1.0 (currently running v3.0.1) — auto-opened from photo-server
 **Status:** Done
 
 **Auto-generated 2026-07-31 23:01 UTC from photo-server's maintenance check.** Raw finding: Immich update available: v3.1.0 (currently running v3.0.1).
@@ -2887,7 +2898,7 @@ Archived to `core/logging/CLAUDE.md` on 2026-08-22 (CARD-0193) — 6381B, over t
 
 ---
 
-### CARD-0130 · [enhancement] [infrastructure] Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1) — auto-opened from jctsh-core — RESOLVED 2026-08-13 21:50 MST
+### CARD-0130 · [enhancement] [homeassistant] Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1) — auto-opened from jctsh-core — RESOLVED 2026-08-13 21:50 MST
 **Status:** Done
 
 **Auto-generated 2026-07-31 22:52 UTC from jctsh-core's maintenance check.** Raw finding: Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
@@ -3002,7 +3013,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 22500
 
 ---
 
-### CARD-0096 · [enhancement] [infrastructure] Rename photo-server → m8 and raspberrypi → pi1, adopt a real host-naming convention — RESOLVED 2026-08-14 16:15 MST
+### CARD-0096 · [enhancement] [architecture] Rename photo-server → m8 and raspberrypi → pi1, adopt a real host-naming convention — RESOLVED 2026-08-14 16:15 MST
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-08-22 (CARD-0193) — 40575B, over the 10000B size threshold.
@@ -3187,7 +3198,7 @@ Archived to `components/photo-server/CLAUDE.md` on 2026-08-22 (CARD-0193) — 28
 ---
 
 
-### CARD-0114 · [enhancement] [kanban-board] Status field per card, replacing physical column position — RESOLVED 2026-07-29 16:28 MST
+### CARD-0114 · [enhancement] [tos] Status field per card, replacing physical column position — RESOLVED 2026-07-29 16:28 MST
 **Status:** Done
 
 **Raised 2026-07-29 07:59 MST**, after tonight's CARD-0106/0108/0104 move to Done briefly corrupted a large stretch of `kanban-board.md` — a script assumed a fixed line-offset for the insertion point instead of a real content marker, and a second recovery attempt made the same mistake in reverse (discarding everything before a search anchor). Both were caught and repaired, but the underlying problem is structural: a card's column is encoded as *physical location in a 2000+ line file*, so every status change requires relocating a whole prose block — exactly the operation that's error-prone for both a script and a human eyeballing large diffs.
@@ -3831,7 +3842,7 @@ Archived to `tos/kanban-archive.md` on 2026-08-22 (CARD-0193) — 8063B, over th
 
 ---
 
-### CARD-0102 · [investigation] [infrastructure] Audit: what else breaks when the Pi/M8 weekly scheduled reboots discard in-flight state — RESOLVED 2026-07-27
+### CARD-0102 · [investigation] [architecture] Audit: what else breaks when the Pi/M8 weekly scheduled reboots discard in-flight state — RESOLVED 2026-07-27
 **Status:** Done
 
 **Raised 2026-07-27**, prompted by the CARD-0098 finding that the Pi's `scheduled-reboot.timer` (CARD-0035) silently disabled the Traveling Lights automation via HA's `initial_state:` key. Joseph asked what else that same weekly-reboot blast radius could be quietly breaking, on both hosts CARD-0035 covers.
@@ -4147,7 +4158,7 @@ Archived to `core/mqtt/CLAUDE.md` on 2026-08-22 (CARD-0193) — 7374B, over the 
 
 ---
 
-### CARD-0061 · [enhancement] [infrastructure] Add Docker health check for the Pi's Home Assistant container &mdash; RESOLVED 2026-07-12
+### CARD-0061 · [enhancement] [pi1] Add Docker health check for the Pi's Home Assistant container &mdash; RESOLVED 2026-07-12
 **Status:** Done
 
 **Notes:** Found 2026-07-12 during a Pi health evaluation. The `homeassistant` Docker container had no configured `HEALTHCHECK` &mdash; `docker ps`/`docker inspect` only reflected process liveness, not actual HA responsiveness. Same class of blind spot already found and fixed on photo-server (CARD-0032/CARD-0046: Docker's own health check only pings the API, doesn't verify real functionality) &mdash; HA is arguably the single most critical container on the Pi, since it's the sole bridge to SmartThings/Google Home for the whole house.
@@ -4162,7 +4173,7 @@ Archived to `core/mqtt/CLAUDE.md` on 2026-08-22 (CARD-0193) — 7374B, over the 
 
 ---
 
-### CARD-0062 · [enhancement] [infrastructure] Switch Pi to headless boot &mdash; drop the desktop GUI &mdash; RESOLVED 2026-07-12
+### CARD-0062 · [enhancement] [pi1] Switch Pi to headless boot &mdash; drop the desktop GUI &mdash; RESOLVED 2026-07-12
 **Status:** Done
 
 **Notes:** Found 2026-07-12 during a Pi health evaluation. The Pi boots into `graphical.target` with a full desktop session running (`pcmanfm --desktop`, `wf-panel-pi`) even though normal access is SSH-only &mdash; Joseph used the physical desktop once, during initial setup, never since. On a Pi 3B+ with only ~905MB RAM already under real pressure (zram swap sitting at ~50% used while running HA, Node-RED, Mosquitto, the log server, Tailscale, and fail2ban concurrently), this was pure reclaimable overhead.
@@ -4175,7 +4186,7 @@ Archived to `core/mqtt/CLAUDE.md` on 2026-08-22 (CARD-0193) — 7374B, over the 
 
 ---
 
-### CARD-0059 · [idea] [infrastructure] NetAlertX — self-hosted LAN device tracker with custom naming — RESOLVED 2026-07-12
+### CARD-0059 · [idea] [netalertx] NetAlertX — self-hosted LAN device tracker with custom naming — RESOLVED 2026-07-12
 **Status:** Done
 
 **Notes:** Raised 2026-07-12. Motivated by the router (TP-Link Archer AXE75) listing most connected devices with meaningless names, with no built-in way to rename them — the JCTsh-managed fleet already has this solved via DHCP reservations + `jctsh-network.md`'s device table + ESPHome hostnames, but third-party/commercial devices (Ring, Ecobee, Cast devices, guest phones) aren't part of that convention and the router won't let their names be overridden.
@@ -4222,7 +4233,7 @@ Archived to `core/logging/CLAUDE.md` on 2026-08-22 (CARD-0193) — 8240B, over t
 
 ---
 
-### CARD-0056 · [enhancement] [kanban-board] Persistent visual kanban board — RESOLVED 2026-07-11
+### CARD-0056 · [enhancement] [tos] Persistent visual kanban board — RESOLVED 2026-07-11
 **Status:** Done
 
 **Notes:** Raised 2026-07-11: every time the board gets summarized in chat, it comes out in a different ad hoc format and scrolls out of view while working, with no stable place to return to it. Agreed approach: a browser-hosted Artifact with a persistent URL, redeployed to the same link whenever `kanban-board.md` changes, rather than a fresh chat message each time.
@@ -4237,7 +4248,7 @@ Built as a single self-contained HTML page (no external requests, per the Artifa
 
 ---
 
-### CARD-0052 · [idea] [infrastructure] JCTsh Team Operating System (TOS) — RESOLVED 2026-07-11
+### CARD-0052 · [idea] [tos] JCTsh Team Operating System (TOS) — RESOLVED 2026-07-11
 **Status:** Done
 
 **Notes:** Defines how the team works — the conceptual process governing all work, independent of any single component. Written up 2026-07-11 at Joseph's direction after a series of card/backlog/commit/push questions surfaced that this process was implicit (living in `backlog.md`'s column definitions and the user's global CLAUDE.md workflow notes) but never stated as its own document.
@@ -4349,14 +4360,14 @@ First deploy attempt crashed on the state-file write (`/etc/jctsh/` isn't writab
 
 ---
 
-### CARD-0022 · [enhancement] [infrastructure] Security hardening — infrastructure audit (Steps 1–8)
+### CARD-0022 · [enhancement] [architecture] Security hardening — infrastructure audit (Steps 1–8)
 **Status:** Done
 
 **Resolution:** All 8 steps complete. Steps 1–5 and 8 passed clean or were fixed on 2026-06-20 (SSH key-only auth, MQTT auth, port audit, Node-RED adminAuth). Step 7 (HA MFA) done 2026-07-09: TOTP enabled for both Joseph and Robin via HA profile → Multi-Factor Authentication Modules. Step 6 (router UPnP) done 2026-07-09: found enabled with zero registered clients, disabled with no functional impact. Full findings in `jctsh-security-hardening.md`. Patterns harvested to `JCTsh-Build-Standards.md` §10 Security Standards (v1.14).
 
 ---
 
-### CARD-0023 · [enhancement] [infrastructure] Security hardening — cloud accounts (Steps 9–14 + Final)
+### CARD-0023 · [enhancement] [architecture] Security hardening — cloud accounts (Steps 9–14 + Final)
 **Status:** Done
 
 **Resolution:** All steps complete. Steps 9–12 and 14 passed clean 2026-06-20 (Ring/Amazon, SmartThings, Google ×2, Windows machine — one stale SmartThings connected app, SharpTools, revoked). Step 13 done 2026-07-09: router admin password rotated to a new strong unique password (`credentials.local.md`), remote/WAN management confirmed disabled, DNS confirmed intentional (CenturyLink/Quantum Fiber bypass-modem setup), firmware found one version behind (1.5.2 → 1.5.3 available) with auto-update now enabled (nightly 3–5 AM) rather than relying on manual checks going forward. Final Step complete: findings harvested to `JCTsh-Build-Standards.md` §10 Security Standards (v1.14).
@@ -4394,7 +4405,7 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 
 ---
 
-### CARD-0036 · [enhancement] [infrastructure] Dashboard visibility for scheduled reboots
+### CARD-0036 · [enhancement] [architecture] Dashboard visibility for scheduled reboots
 **Status:** Done
 
 **Resolution:** CARD-0035's scheduled reboots were invisible on the JCTsh log dashboard — confirming success required manually SSHing in and checking `systemctl`/`docker ps`. Added a matched pair of MQTT log messages around each reboot: `scheduled-reboot.service` now publishes `"Scheduled reboot about to occur."` immediately before calling `/sbin/reboot` (multiple `ExecStart=` lines in the oneshot unit), and a new `reboot-complete.service` (enabled via `WantedBy=multi-user.target`) publishes `"Boot complete."` on every boot once the MQTT broker is reachable. Pi publishes as component `jctsh-core` to `jctsh/core/log-server/log` using the existing `jctsh-log-server` MQTT account (`/etc/jctsh/log-server.env`) via `mosquitto_pub` (already installed). M8 publishes as component `photo-server` to `jctsh/server/photo-server/log` using the existing `photo-server` MQTT account (`/etc/jctsh/heartbeat.env`) — required installing the `mosquitto-clients` apt package on the M8 (the heartbeat script uses Python `paho-mqtt` instead, so the CLI wasn't already present). Neither message uses the `"Heartbeat - "` prefix, so each occurrence stays visible as its own dashboard row rather than collapsing. Per-host unit files split out: `scheduled-reboot-pi.service`/`scheduled-reboot-m8.service` replace the old shared `scheduled-reboot.service` (now host-specific since the MQTT broker address, credentials file, and topic differ per host). Verified live 2026-07-08 via manual `systemctl start reboot-complete.service` on both hosts — confirmed on the dashboard (`/data` live view and, after flushing, the persisted `/log` file).
@@ -4414,14 +4425,14 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 
 ---
 
-### CARD-0035 · [enhancement] [infrastructure] Weekly scheduled reboot — Pi and M8 photo-server
+### CARD-0035 · [enhancement] [architecture] Weekly scheduled reboot — Pi and M8 photo-server
 **Status:** Done
 
 **Resolution:** Deployed systemd timers on both hosts: `scheduled-reboot.timer` → `scheduled-reboot.service` (`/sbin/reboot`), `Persistent=true`. Pi: Monday 3:00 AM. M8: Monday 4:00 AM — staggered one hour later so the M8 heartbeat script's MQTT publish to the Pi's Mosquitto broker doesn't collide with the Pi being mid-reboot. Not synchronized to KeepConnect's own weekly router reset — that schedule has drifted from its original Wednesday setting, most likely because its "every 7 days" timer restarts from any reset (scheduled or outage-triggered), so it can't be relied on as a fixed weekday anyway; a router reboot's brief network blip is tolerated regardless of timing. Version-controlled unit files in `core/maintenance/`; documented in `SOFTWARE-ENVIRONMENT.md` (Pi) and new `components/photo-server/operations.md` (M8). Verified live via `systemctl list-timers` on both hosts — next run confirmed Mon 2026-07-13. 2026-07-08.
 
 ---
 
-### CARD-0033 · [idea] [infrastructure] Document Keep Connect configuration and schedule
+### CARD-0033 · [idea] [architecture] Document Keep Connect configuration and schedule
 **Status:** Done
 
 **Resolution:** KeepConnect is a standalone router-rebooter device (Johnson Creative KeepConnect-27F8, not a JCTsh component). New dedicated doc `keepconnect.md` created at repo root with full device identity, network config, physical outlet-scoping rationale, and complete monitor/timing/schedule/notification configuration. Linked from `jctsh-network.md` devices table (IP 192.168.1.108, DHCP-reserved) and `ENVIRONMENT.md` Hub & Controller table; added to `README.md` repository layout. Remaining open item (scheduled Pi/Immich reboot via cron, separate from power-strip cycling) carried forward in `keepconnect.md` itself. 2026-07-08.
@@ -4435,21 +4446,21 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 
 ---
 
-### CARD-0018 · [idea] [immich] Self-hosted photo library
+### CARD-0018 · [idea] [photo-server] Self-hosted photo library
 **Status:** Done
 
 **Resolution:** Superseded. Hardware (GMKtec M8) in hand. Replaced by `components/photo-server/` (Immich install + immich-go migration) and `components/photo-tv-display/` (Node.js TV slideshow + phone companion) — full planning docs committed 2026-06-30.
 
 ---
 
-### CARD-0014 · [enhancement] [core] Move environmental data pipeline to core
+### CARD-0014 · [enhancement] [data-pipeline] Move environmental data pipeline to core
 **Status:** Done
 
 **Resolution:** Moved `environmental-data.gs` → `core/data-pipeline/`, `JCTsh-Environmental-Data-Architecture.md` → `core/data-pipeline/`, and `core/node-red/environmental-data.flow.json` → `core/data-pipeline/`. Updated references across 15 files (CLAUDE.md, README.md, Node-RED-workflow.md, JCTsh-Build-Standards.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Property-Sensor-Pattern.md, all component planning docs, hiking-monitor instructions). 2026-06-30.
 
 ---
 
-### CARD-0002 · [enhancement] [infrastructure] MQTT v3.1.1 → v5 upgrade
+### CARD-0002 · [enhancement] [mqtt] MQTT v3.1.1 → v5 upgrade
 **Status:** Done
 
 **Resolution:** Mosquitto 2.0.21 already supports v5 — no broker config change needed. Changed `protocolVersion` from 4 → 5 in the Node-RED broker config node (`core/node-red/core.flow.json`) and updated the live Pi flows.json in place. Confirmed via Mosquitto log: client `nodered-saltlevel` connected with `p5`. ESP32/ESPHome devices unaffected (remain on v3.1.1). 2026-06-30.
@@ -4463,14 +4474,14 @@ Archived to `components/hiking-monitor/CLAUDE.md` on 2026-09-16 (CARD-0193) — 
 
 ---
 
-### CARD-0017 · [enhancement] [infrastructure] Charging state schema fields for solar/battery sensors
+### CARD-0017 · [enhancement] [architecture] Charging state schema fields for solar/battery sensors
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 93 days since last touched, over the 90-day backup threshold.
 
 ---
 
-### CARD-0016 · [enhancement] [infrastructure] Offline flash logging — extract reusable standard
+### CARD-0016 · [enhancement] [offline-logger] Offline flash logging — extract reusable standard
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 94 days since last touched, over the 90-day backup threshold.
@@ -4565,7 +4576,7 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 ---
 
-### CARD-0050 · [idea] [infrastructure] Network segmentation to contain a compromised/hostile device on home WiFi
+### CARD-0050 · [idea] [architecture] Network segmentation to contain a compromised/hostile device on home WiFi
 **Status:** Defer
 
 **Priority: low (deprioritized 2026-07-10) — accepted as a residual risk, not offloaded onto CARD-0003.**

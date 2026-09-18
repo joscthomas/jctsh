@@ -6,7 +6,7 @@ Cards archived from `tos/kanban-board.md` (CARD-0193) because they were Done/Def
 
 **Archived from `tos/kanban-board.md` on 2026-08-22 (CARD-0193)** — 40575B, over the 10000B size threshold.
 
-### CARD-0096 · [enhancement] [infrastructure] Rename photo-server → m8 and raspberrypi → pi1, adopt a real host-naming convention — RESOLVED 2026-08-14 16:15 MST
+### CARD-0096 · [enhancement] [architecture] Rename photo-server → m8 and raspberrypi → pi1, adopt a real host-naming convention — RESOLVED 2026-08-14 16:15 MST
 **Status:** Done
 
 **Blocked — deferred until Joseph is physically home (2026-07-31).** Joseph is remote as of this writing (per this session — see the risk summary above, added the same day: Phase 2's own pre-check already calls for running the Pi rename from the home LAN rather than purely remote, given a real Tailscale reconnection hiccup earlier this same session). Plan is written and reviewed; execution holds until he's back on JCTnet1. Phase 0 (read-only audit) carries none of that risk and could technically run remotely — hasn't been started either, pending confirmation this is wanted before he's home rather than folded into one clean start-to-finish session.
@@ -173,7 +173,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-08-22 (CARD-0193)** — 9049B, over the 5000B size threshold.
 
-### CARD-0172 · [idea] [infrastructure] Disaster Recovery — auto-opened from jctsh-core — RESOLVED 2026-08-16 19:30 MST
+### CARD-0172 · [idea] [architecture] Disaster Recovery — auto-opened from jctsh-core — RESOLVED 2026-08-16 19:30 MST
 
 **Status:** Done
 
@@ -256,7 +256,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-10 (CARD-0193)** — 7418B, over the 5000B size threshold.
 
-### CARD-0246 · [bug] [infrastructure] Pi's systemd-journald uses volatile storage — all system logs wiped on every weekly reboot — RESOLVED 2026-09-06
+### CARD-0246 · [bug] [pi1] Pi's systemd-journald uses volatile storage — all system logs wiped on every weekly reboot — RESOLVED 2026-09-06
 
 **Status:** Done
 
@@ -284,7 +284,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-10 (CARD-0193)** — 8225B, over the 5000B size threshold.
 
-### CARD-0238 · [enhancement] [infrastructure] M8 OS maintenance: 25 routine updates, 10 flagged for review — includes Docker itself and linux-firmware — RESOLVED 2026-09-02
+### CARD-0238 · [enhancement] [m8] M8 OS maintenance: 25 routine updates, 10 flagged for review — includes Docker itself and linux-firmware — RESOLVED 2026-09-02
 **Status:** Done
 
 **Raised via automated maintenance finding (PR #57, photo-server), 2026-09-01** — the M8's monthly OS/firmware maintenance check (CARD-0095). Full finding: *"M8 maintenance: 25 routine update(s) pending. 10 package(s) need review: containerd.io, docker-buildx-plugin, docker-ce, docker-ce-cli, docker-ce-rootless-extras, docker-compose-plugin, linux-firmware-intel-misc, linux-firmware-mediatek, linux-firmware-misc, linux-firmware-qualcomm-wireless."*
@@ -322,7 +322,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-10 (CARD-0193)** — 11530B, over the 5000B size threshold.
 
-### CARD-0225 · [bug] [infrastructure] MQTT architecture docs are inaccurate/stale, and phone-based intake pipelines are invisible to the log dashboard — RESOLVED 2026-09-02
+### CARD-0225 · [bug] [mqtt] MQTT architecture docs are inaccurate/stale, and phone-based intake pipelines are invisible to the log dashboard — RESOLVED 2026-09-02
 **Status:** Done
 
 **Raised 2026-08-29 (Joseph), during a conversation correcting/refining Claude's understanding of JCTsh's MQTT usage.** Two related but distinct problems surfaced, bundled into one card at Joseph's request rather than split.
@@ -373,7 +373,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-16 (CARD-0193)** — 8287B, over the 5000B size threshold.
 
-### CARD-0275 · [bug] [infrastructure] 2026-09-15 hike-izer intake incident — hike-end + BirdNET webhooks failed, backstop probe 404'd, all recovered — RESOLVED 2026-09-15 11:50 MST
+### CARD-0275 · [bug] [hike-izer-orchestrator] 2026-09-15 hike-izer intake incident — hike-end + BirdNET webhooks failed, backstop probe 404'd, all recovered — RESOLVED 2026-09-15 11:50 MST
 
 **Status:** Done
 
@@ -407,7 +407,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-16 (CARD-0193)** — 8255B, over the 5000B size threshold.
 
-### CARD-0273 · [enhancement] [infrastructure] hike-izer-orchestrator: split print() output into stdout (routine) vs. stderr (worth a look)
+### CARD-0273 · [enhancement] [hike-izer-orchestrator] hike-izer-orchestrator: split print() output into stdout (routine) vs. stderr (worth a look)
 **Status:** Done
 
 **Raised 2026-09-14 (Joseph), a direct follow-on from CARD-0270/CARD-0272's investigation.** Once container stdout is durable and queryable (CARD-0272's journald switch), the value of that durability depends on the output actually being distinguishable by kind — today every diagnostic message in the orchestrator is a bare `print()` with no consistent stream discipline, so a future "how often is Nominatim actually failing" query means grepping free text, not filtering.
@@ -446,7 +446,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-16 (CARD-0193)** — 7099B, over the 5000B size threshold.
 
-### CARD-0269 · [enhancement] [infrastructure] Scriptable, ionice-wrapped `ctr`-based image-pull for the Pi — schedulable, first real use run manually — RESOLVED 2026-09-14 09:50 MST
+### CARD-0269 · [enhancement] [pi1] Scriptable, ionice-wrapped `ctr`-based image-pull for the Pi — schedulable, first real use run manually — RESOLVED 2026-09-14 09:50 MST
 **Status:** Done
 
 **Raised 2026-09-14 (Joseph), directly from CARD-0266/CARD-0268's HA update pain.** Build the pull mechanism CARD-0268's fix options 1-2 (ionice + scheduled window) and the `ctr`-workaround finding both pointed at, as a real reusable script — not just documented options on a card.
@@ -485,7 +485,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-16 (CARD-0193)** — 9158B, over the 5000B size threshold.
 
-### CARD-0268 · [bug] [infrastructure] Docker pulls on the Pi can starve HA's own I/O on the shared USB 2.0 bus — real, not hypothetical — RESOLVED 2026-09-14 10:05 MST via CARD-0269
+### CARD-0268 · [bug] [pi1] Docker pulls on the Pi can starve HA's own I/O on the shared USB 2.0 bus — real, not hypothetical — RESOLVED 2026-09-14 10:05 MST via CARD-0269
 **Status:** Done
 
 **Referrers-hang bug fully resolved 2026-09-14, via CARD-0266's actual apply.** The digest-pull workaround (fix option 5, "pull by exact manifest digest instead of the floating `:stable` tag") was tried and **failed identically** — `docker pull ghcr.io/home-assistant/home-assistant@sha256:a1bc133af84e...` hung the same way, ruling out tag-resolution as the trigger. **The real workaround: containerd's own lower-level CLI, `sudo ctr -n moby images pull ghcr.io/home-assistant/home-assistant:stable`, bypasses the hang entirely.** `ctr` doesn't go through dockerd's own pull orchestration (the code path that gets stuck after the referrers 404 + manifest 404 double-miss) — it talks to containerd directly, correctly recognized all already-downloaded content as "already exists," and proceeded to genuinely extract the one missing layer. Ran for ~50 minutes total (mostly slow extraction off the USB 2.0 bus, not stuck) and completed cleanly — `docker images` picked up the new digest immediately afterward with no further intervention needed.
@@ -515,7 +515,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-16 (CARD-0193)** — 10561B, over the 5000B size threshold.
 
-### CARD-0262 · [enhancement] [infrastructure] Set up HA's native Matter integration; re-register the 3 Cync lights through HA instead of directly in Google Home — RESOLVED 2026-09-12 MST
+### CARD-0262 · [enhancement] [homeassistant] Set up HA's native Matter integration; re-register the 3 Cync lights through HA instead of directly in Google Home — RESOLVED 2026-09-12 MST
 **Status:** Done
 
 **Progress, 2026-09-12 MST — steps 1-2 done and verified live.** `python-matter-server:stable` added to `core/homeassistant/docker-compose.yml` (`network_mode: host`, volume on `/mnt/jctsh-logs/matter-server` per CARD-0159's convention), deployed and pulled on the Pi — confirmed running via `docker ps` and listening on port 5580 (both IPv4/IPv6; a plain HTTP GET to `/ws` correctly returns `400`, the expected response for a WebSocket-only endpoint hit without an upgrade handshake — proof the server is live and responding, not just that the container exists). One non-fatal `CHIP_ERROR: Network is unreachable` during mDNS advertisement at startup, worth watching but didn't prevent successful initialization (`Matter Server successfully initialized.`). HA's Matter integration added via the UI (Settings → Devices & Services → Add Integration → Matter → `ws://localhost:5580/ws`), confirmed connected by Joseph directly in the UI — this session's HA REST token wasn't available to independently double-check via the API (credential-file access is blocked from Claude's direct access, per this repo's standing constraint), so the UI's own "Connected" status is the authoritative confirmation here.
@@ -558,7 +558,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-16 (CARD-0193)** — 6829B, over the 5000B size threshold.
 
-### CARD-0249 · [enhancement] [infrastructure] Distinguish post-reboot container "starting" alerts from real Docker-degraded alerts — RESOLVED 2026-09-14 11:00 MST
+### CARD-0249 · [enhancement] [maintenance] Distinguish post-reboot container "starting" alerts from real Docker-degraded alerts — RESOLVED 2026-09-14 11:00 MST
 
 **Status:** Done
 
@@ -589,7 +589,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-16 (CARD-0193)** — 9564B, over the 5000B size threshold.
 
-### CARD-0192 · [idea] [infrastructure] Watchdog self-test for the kanban-PR intake pipeline — RESOLVED 2026-09-10
+### CARD-0192 · [idea] [tos] Watchdog self-test for the kanban-PR intake pipeline — RESOLVED 2026-09-10
 **Status:** Done
 
 **Built, 2026-08-24 00:33 MST — not yet deployed, no PR opened yet.** Implementation, per the interview decisions below:
@@ -632,7 +632,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-16 (CARD-0193)** — 93 days since last touched, over the 90-day backup threshold.
 
-### CARD-0017 · [enhancement] [infrastructure] Charging state schema fields for solar/battery sensors
+### CARD-0017 · [enhancement] [architecture] Charging state schema fields for solar/battery sensors
 **Status:** Done
 
 **Resolution:** Added `solar_v` (solar panel voltage, V, ADC voltage divider) to the environmental data schema. Decision: `solar_v` chosen over `charging` boolean (not universally available on all charge controllers) and `charge_current_ma` (requires INA219, overkill). Combined with `battery_v`, charging state is derivable in Node-RED or Sheets as `solar_v > battery_v + ~0.3V`. Added to field reference and Sheets schema in `JCTsh-Environmental-Data-Architecture.md` (v1.4), column Z in `components/hiking-monitor/environmental-data.gs`, and Apps Script redeployed. 2026-06-15.
@@ -641,7 +641,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-16 (CARD-0193)** — 94 days since last touched, over the 90-day backup threshold.
 
-### CARD-0016 · [enhancement] [infrastructure] Offline flash logging — extract reusable standard
+### CARD-0016 · [enhancement] [offline-logger] Offline flash logging — extract reusable standard
 **Status:** Done
 
 **Resolution:** Created `core/offline-logger/sensor_logger.h` — generic template header with `sensor_log_*` function prefix (adapt by renaming to `<name>_log_*` and updating the log file path). Added "Offline Flash Logging" section to `JCTsh-Property-Sensor-Pattern.md` with template adaptation instructions, on_boot mount snippet, on_connect replay block (500ms settle delay), and interval guard (connected → publish, offline → log_write). Removed CARD-0016 from pattern doc Open Gaps. 2026-06-14.
@@ -650,7 +650,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-09-18 (CARD-0193)** — 5918B, over the 5000B size threshold.
 
-### CARD-0280 · [infrastructure] Move Salt Sensor's tab-scoped HA_TOKEN to the systemd-level environment file, closing the exact gap that bit CARD-0261 — RESOLVED 2026-09-17
+### CARD-0280 · [bug] [salt-sensor] Move Salt Sensor's tab-scoped HA_TOKEN to the systemd-level environment file, closing the exact gap that bit CARD-0261 — RESOLVED 2026-09-17
 
 **Status:** Done
 

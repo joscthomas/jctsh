@@ -9,7 +9,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0301 -->
+<!-- next-card-id: CARD-0302 -->
 
 ---
 
@@ -57,6 +57,36 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
+### CARD-0301 · [idea] [tos] Establish a `Projects/` parent directory for jctsh, LogSeq, and the Pastor Ben blog repos
+
+**Status:** Backlog
+
+**Raised 2026-09-18 (Joseph), out of the "help me think about knowledge bases" conversation that also produced CARD-0293/0297/0298/0300.** Once CARD-0297/0298 committed to real, separate repos for LogSeq and the Pastor Ben blog, a further question came up: should those two new repos, plus jctsh's existing one, share a common parent directory for navigation, and is jctsh itself one of the three or an unrelated fourth thing?
+
+**Decided in conversation, 2026-09-18:**
+- **Two separate repos, not one combined** — LogSeq and Pastor Ben blog are different domains/audiences/write-patterns; a shared repo would just create an artificial coupling. (This directly answers CARD-0297/0298's own "destination repo undecided" question — see the updates to both below.)
+- **Common parent directory: `C:\Users\jcthomas\Documents\JCT Documents\Projects\`**, holding `jctsh`, `LogSeq`, and `PB Blog` as three independent git repos side by side. Purely a filesystem/navigation convenience — no git-level relationship (no submodules, no shared history) between the three.
+- **Name: `Projects`, not `KB` (Knowledge Base).** `KB` was this conversation's own earlier working framing, but doesn't actually fit jctsh — jctsh is live firmware, deployed scripts, and running services with an operational knowledge base as one part of it, not primarily a knowledge repository. `Projects` is neutral enough to hold all three without overclaiming what any of them are.
+- **jctsh itself moves too**, from `JCT Documents\SmartHome\jctsh` to `Projects\jctsh` — this is the one piece of the reorg not covered by CARD-0297 or CARD-0298 (both scoped only to LogSeq/Pastor Ben blog), which is why it's captured here instead.
+
+**Risk-checked before deciding, 2026-09-18 — moving jctsh's local checkout is low-risk.** Searched the whole repo (`*.py`/`*.md`/`*.json`/`*.yaml`/`*.yml`/`*.js`) for hardcoded references to the current `SmartHome\jctsh` absolute path. The only hit outside ephemeral, gitignored ESPHome build artifacts is `.claude/settings.local.json` — a local, uncommitted permission allowlist that would just go stale and need a few commands re-approved once after the move, not a functional break. Nothing on the Pi/M8 side references the local Windows checkout path at all — deployment goes through `scp`/git, not a local path. `SmartHome`'s other contents (`IPReservations.txt`, `Salt Sensor`/`Salt Sensor BACKUP`, a 32GB RV backup image) are unrelated to jctsh and stay exactly where they are; only the `jctsh` subfolder itself moves.
+
+**Real fact found while scoping, 2026-09-18 — neither LogSeq nor the Pastor Ben blog is a git repo yet.** Both currently live as plain folders (`JCT Documents\LogSeq`, `JCT Documents\BNC\PB Blog`) with no `.git` directory — confirmed directly via `git rev-parse --is-inside-work-tree` on each. So CARD-0297/0298's own work isn't "move an existing repo," it's "move the folder, then `git init` from scratch." Also found: the Pastor Ben blog folder is one subfolder inside `BNC`, which otherwise holds decades of unrelated church administrative files (financial records, attendance stats, member documents/photos) — none of that is in scope here and it stays exactly where it is; only `BNC\PB Blog` itself moves.
+
+**Scope of this card specifically — steps 1-2 of the larger incremental plan, per Joseph's own "do this incrementally" direction:**
+1. Create `C:\Users\jcthomas\Documents\JCT Documents\Projects\`.
+2. Move `SmartHome\jctsh` → `Projects\jctsh`; verify `git status` and `git remote -v` are unaffected by the move.
+
+**Deliberately not this card's scope** — moving/initializing LogSeq and the Pastor Ben blog are CARD-0297 and CARD-0298 respectively, done as their own incremental steps once this card's move is verified.
+
+**Explicitly not started** — Joseph's direction was to draft the card, not execute the move.
+
+**Done when:** `Projects\jctsh` exists at the new path, is confirmed to be the same git repo (same remote, same history, `git status` clean), and this session's/any Claude Code session's working directory has been updated to the new path with no loss of function.
+
+**Related:** CARD-0297 (LogSeq → repo, the next incremental step after this one), CARD-0298 (Pastor Ben blog → repo, the step after that), CARD-0293/CARD-0300 (the LogSeq devotional-note work that prompted this whole thread), CARD-0294 (the `[personal]`-tag reconciliation this reorg is adjacent to but doesn't resolve, since LogSeq/Pastor Ben blog are leaving jctsh's directory structure entirely).
+
+---
+
 ### CARD-0298 · [idea] [personal] Move the Pastor Ben blog file/directory system into a repo
 
 **Status:** Backlog
@@ -65,18 +95,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Goal, as captured:** put the Pastor Ben blog's files and directory structure under version control in a repo.
 
-**Open questions, not yet answered — captured here for later resolution (Joseph's call, 2026-09-18, same treatment as CARD-0293):**
-1. **What this system actually is** — not established anywhere in this repo or its docs. Needs a real description before scoping: what the blog is, what produces it (a static-site generator, a hosted platform's export, hand-written files?), what the directory structure holds, and where it currently lives.
-2. **Destination repo undecided.** Same open choice as the sibling card from PR #93: a new dedicated repo, one new personal repo shared with the LogSeq content, or a new top-level directory inside `jctsh`. As with that card, this is not smart-home work, so folding it into this monorepo carries a real "does it belong here" question.
-3. **Whether anything is published/live from these files today**, and if so whether moving them into a repo changes or risks that publishing path.
-4. **Privacy/visibility** — whether the repo should be private, and whether the content involves anyone other than Joseph whose expectations matter here.
-5. **Component tag** — set to `[personal]` for now. Note `[personal]` does not map to any real directory, which is exactly the reconciliation problem CARD-0294 exists to resolve; this card's tag should be revisited when that pass runs.
+**Destination decided, 2026-09-18 (see CARD-0301) — `C:\Users\jcthomas\Documents\JCT Documents\Projects\PB Blog`**, as a separate repo from LogSeq (not combined, not folded into jctsh). Sequenced as the incremental step after CARD-0301 (parent directory + jctsh move) and CARD-0297 (LogSeq).
 
-**Explicitly not started.**
+**Real facts found while scoping, 2026-09-18:**
+- **Not currently a git repo** — confirmed via `git rev-parse --is-inside-work-tree` against `BNC\PB Blog`: no `.git` directory exists. This is a `git init` from scratch, not a repo relocation.
+- **Currently sits inside `BNC`, a much larger folder of unrelated church administrative content** — financial records, attendance statistics, member documents and photos spanning back to the 1990s-2000s. None of that is in scope for this card and it is not moving; only the `PB Blog` subfolder itself relocates. `BNC`'s other contents should not be touched, read further, or referenced as part of this work.
+- **Existing Claude tooling already lives inside the `PB Blog` folder** (per Joseph, 2026-09-18) — this move should carry that tooling along as-is and verify it still runs correctly from the new path (same hardcoded-absolute-path check CARD-0301 ran for jctsh), not rebuild it.
 
-**Done when:** the blog's files are in a chosen repo with their directory structure intact, any live publishing path confirmed still working, and the sync/commit mechanism decided.
+**Open questions, still not answered — carried forward for planning:**
+1. **What this system actually is, in detail** — still not established: what actually produces the blog (a static-site generator, a hosted platform's export, hand-written files?), what the year/month directory structure holds, and what the existing Claude tooling inside it currently does.
+2. **Whether anything is published/live from these files today**, and if so whether moving them into a repo changes or risks that publishing path.
+3. **Privacy/visibility** — whether the new repo should be private (likely, given the content), and whether anyone other than Joseph has expectations about this content worth accounting for.
+4. **Tracking model** — still undecided (CARD-0299's sibling question); likely something lighter than jctsh's own card/interview machinery, per the "shared principle, not shared machinery" framing from the same conversation.
+5. **Component tag** — set to `[personal]` for now. Once this repo exists independently, it leaves jctsh's directory structure entirely, so whether it needs a jctsh-board tag at all afterward is itself an open question — see CARD-0294.
 
-**Related:** CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by), the sibling card from PR #93 (LogSeq file system, same "move into a repo" question and same undecided destination).
+**Explicitly not started** — waiting on CARD-0301 (parent directory + jctsh move) as the first incremental step.
+
+**Done when:** the Pastor Ben blog's files (only, not the rest of `BNC`) are in `Projects\PB Blog` as their own git repo with directory structure intact, the existing Claude tooling confirmed still working from the new path, any live publishing path confirmed unaffected, and the GitHub remote/visibility decided and pushed.
+
+**Related:** CARD-0301 (the parent-directory decision and jctsh move this is sequenced after), CARD-0297 (LogSeq → repo, the sibling move with the same shape), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by).
 
 ---
 
@@ -88,18 +125,24 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Goal, as captured:** put the LogSeq graph's files under version control in a repo, rather than leaving them wherever they currently live unversioned.
 
-**Open questions, not yet answered — captured here for later resolution (Joseph's call, 2026-09-18, same treatment as CARD-0293):**
-1. **Destination repo undecided.** Options discussed but not chosen: a new dedicated repo for LogSeq alone, one new personal repo shared with the Pastor Ben blog content (see the sibling card from PR #94), or a new top-level directory inside `jctsh` itself. Note that LogSeq content is not smart-home work, so folding it into this monorepo has a real "does it belong here" question attached, not just a mechanical one.
-2. **Where the LogSeq graph currently lives** — which machine, which path, and whether it is already synced by anything (LogSeq Sync, a cloud drive, etc.) that a git repo would conflict or overlap with.
-3. **How LogSeq's own file-writing behavior interacts with git** — LogSeq writes continuously as notes are edited, so whether this wants real commits (and who/what makes them) or just a backup-shaped sync needs deciding.
-4. **Privacy/visibility** — whether this repo should be private, and whether any of the content is sensitive enough to affect that choice.
-5. **Component tag** — set to `[personal]` for now, matching CARD-0293. Note `[personal]` does not map to any real directory, which is exactly the reconciliation problem CARD-0294 exists to resolve; this card's tag should be revisited when that pass runs.
+**Destination decided, 2026-09-18 (see CARD-0301) — `C:\Users\jcthomas\Documents\JCT Documents\Projects\LogSeq`**, as a separate repo from the Pastor Ben blog (not combined, not folded into jctsh). Sequenced as the incremental step after CARD-0301 (parent directory + jctsh move) and before CARD-0298 (Pastor Ben blog).
 
-**Explicitly not started.**
+**Real facts found while scoping, 2026-09-18:**
+- **Not currently a git repo** — confirmed via `git rev-parse --is-inside-work-tree` against `JCT Documents\LogSeq`: no `.git` directory exists. This is a `git init` from scratch, not a repo relocation.
+- **Current contents surveyed**: `assets/`, `journals/`, `pages/`, `version-files/`, a `logseq/` subfolder (LogSeq's own local config/state), `config.edn`, `custom.css`, `graphs-txid.edn`. The `logseq/` subfolder likely holds local-only state worth excluding via `.gitignore` — needs a real look before the first commit, not a blind add-everything.
 
-**Done when:** the LogSeq graph's files are in a chosen repo, with the sync/commit mechanism decided and actually working (not just an initial one-time import).
+**Open questions, not yet answered — carried forward for planning:**
+1. **Whether LogSeq is already synced by anything** (LogSeq Sync, a cloud drive, etc.) that a git repo would conflict or overlap with.
+2. **How LogSeq's own continuous file-writing interacts with git** — whether this wants real periodic commits (and who/what makes them — Claude Code, a scheduled task, manual) or more of a backup-shaped sync.
+3. **Privacy/visibility** — whether this repo should be private (likely, given devotional/personal journal content), and same account as jctsh's GitHub.
+4. **Tracking model** — still undecided (CARD-0299's sibling question); likely something lighter than jctsh's own card/interview machinery, per the "shared principle, not shared machinery" framing from the same conversation.
+5. **Component tag** — set to `[personal]` for now, matching CARD-0293. Once this repo exists independently, it leaves jctsh's directory structure entirely, so whether it needs a jctsh-board tag at all afterward is itself an open question — see CARD-0294.
 
-**Related:** CARD-0293 (LogSeq devotional-note posting — same underlying LogSeq graph, different problem), CARD-0179 (route captured voice notes to LogSeq — a third LogSeq thread already on the board), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by), the sibling card from PR #94 (Pastor Ben blog directory, same "move into a repo" question).
+**Explicitly not started** — waiting on CARD-0301 (parent directory + jctsh move) as the first incremental step.
+
+**Done when:** the LogSeq graph's files are in `Projects\LogSeq` as their own git repo, with a real `.gitignore` for LogSeq's local-state files, the sync/commit mechanism decided and actually working (not just an initial one-time import), and the GitHub remote/visibility decided and pushed.
+
+**Related:** CARD-0301 (the parent-directory decision and jctsh move this is sequenced after), CARD-0293 (LogSeq devotional-note posting — same underlying LogSeq graph, different problem), CARD-0179 (route captured voice notes to LogSeq — a third LogSeq thread already on the board), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by), CARD-0298 (Pastor Ben blog → repo, the sibling move with the same shape).
 
 ---
 

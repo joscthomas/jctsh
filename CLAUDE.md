@@ -247,37 +247,11 @@ Nabu Casa is active on this HA instance (account: `joscthomas@gmail.com`). It pr
 
 If HA ever needs to be re-set-up from scratch, confirm Nabu Casa is signed in (Settings → Home Assistant Cloud) before attempting to re-add SmartThings, or the integration setup will fail with "No OAuth services available."
 
-## MQTT Topic Convention
-```
-jctsh/<type>/<component>/<message-type>
-```
-Examples:
-- `jctsh/sensors/salt-sensor/data` — sensor readings
-- `jctsh/sensors/salt-sensor/status` — status commands
-- `jctsh/sensors/salt-sensor/log` — log messages
-
-## Log Message Format
-All components publish logs as JSON to `jctsh/<type>/<component>/log`:
-```json
-{ "component": "salt-sensor", "category": "MQTT", "message": "Connected." }
-```
-Timestamps are added by the log server on receipt — do not include them in the payload.
-
-**Category guide** — each category maps to a distinct layer of the stack:
-
-| Category | What it covers | Examples |
-|---|---|---|
-| `System` | Device health and operational state | Online/boot, WiFi reconnect, heartbeat |
-| `MQTT` | Transport layer — the broker connection itself | Connected, disconnected, LWT |
-| `Sensor` | Physical-world data and state transitions | Presence detected/cleared, distance, salt % |
-| `Alert` | Threshold crossings requiring human attention | Salt warning/critical, API failures |
-| `Test` | Messages generated during test mode | Simulated readings, test mode on/off |
-
-The dividing line between `System` and `MQTT`: if the message is about the *device* (booted, alive, WiFi), use `System`. If it's specifically about the *broker connection* (connected, disconnected, subscribed), use `MQTT`.
-
-**Collapsing convention:** Any repeating status message that should be collapsed into a single dashboard row (count + time range) must start with `"Heartbeat - "`. The log server groups consecutive same-state messages with this prefix per component. Messages without this prefix only collapse when consecutive identical runs are uninterrupted — unreliable for high-frequency or long-lived repeats.
-
-**Event-time convention:** since the log server timestamps every message by receipt time (see above), a message describing something that happened at a *different* time than when it's posted must include that actual event time in the message text itself — otherwise the dashboard timestamp silently misrepresents when the thing actually happened. This applies any time a component relays/re-reports an event from another system's own history rather than reporting something happening live (e.g., CARD-0078's NetAlertX relay, which can post about a device's original connection time well after the fact — the relayed message must say when the device actually connected, not just rely on the post time).
+## MQTT Topic Convention and Log Message Format
+**See `JCTsh-Build-Standards.md` §3.1 (topic naming) and §4.1/§4.2 (heartbeat, log format,
+categories, collapsing and event-time conventions)** — merged there from this file,
+CARD-0303, since both already stated the same facts with no drift, just at different
+levels of detail. Base pattern, worth keeping visible here: `jctsh/<type>/<component>/<message-type>`.
 
 ## Watchdog Heartbeat
 `core/logging/log_server.py` publishes an hourly heartbeat to `jctsh/core/log-server/log`:
@@ -316,49 +290,21 @@ ssh pi@pi1.local "sudo systemctl restart jctsh-logging"
 ```
 
 ## SmartThings Integration
-Home Assistant is the bridge to SmartThings — **there is no other path.** Do not call
-the SmartThings REST API (api.smartthings.com) directly. That API requires a SmartThings
-Personal Access Token, which we do not use. All SmartThings interaction goes through HA:
-
-```
-Node-RED → HA REST API (port 8123) → SmartThings integration → SmartThings device
-```
-
-HA is confirmed connected with the SmartThings integration active. The salt sensor
-switches (`switch.salt_critical_alert`, `switch.salt_low_alert`, `switch.salt_full_reset`,
-`switch.salt_test_mode`) are HA entities that HA syncs to SmartThings. Future components
-that need SmartThings alerts or control should follow the same pattern: create virtual
-switches in SmartThings, expose them as HA entities, control via Node-RED → HA REST API.
-
-To expose a sensor (not a switch) to SmartThings — e.g. a motion sensor — use the HA
-SmartThings integration's entity-exposure feature (Settings → Devices & Services →
-SmartThings → Configure) to push the existing HA entity to SmartThings directly. No
-virtual device and no SmartThings PAT required.
+**See `JCTsh-Build-Standards.md` §5 (mechanics) and §6.4 (CARD-0164 — SmartThings is no
+longer the default for new components; check §6.4's decision order first) — this file's
+old copy was stale**, still describing SmartThings as where future components should go,
+which §6.4 explicitly reversed (CARD-0303 found this contradiction live). Home Assistant
+remains the only path when SmartThings genuinely is the target: **there is no other
+path** — never call the SmartThings REST API directly, only through HA. HA is confirmed
+connected with the SmartThings integration active; the salt sensor switches
+(`switch.salt_critical_alert`, etc.) are the existing reference implementation.
 
 ## Internet Exposure and Security Posture
-
-### MQTT broker internet exposure (as of 2026-06-12)
-
-Port 1883 is forwarded from the internet to the Pi (192.168.1.117) via DuckDNS dynamic DNS + router port forward. The hiking-monitor ESP32 uses this to reach the broker from the Pixel cellular hotspot when away from home.
-
-**Mitigations in place:**
-- All Mosquitto accounts use strong random passwords (20+ chars, alphanumeric)
-- fail2ban watches `/var/log/mosquitto/mosquitto.log` — bans any IP making more than 10 connections in 60 seconds for 1 hour. Stops port scanners before they can attempt brute force.
-- Each MQTT account is scoped to its component; no anonymous access.
-
-**Risks accepted:**
-- MQTT 3.1.1 sends credentials and all sensor data in cleartext. Your ISP can see the username, password, and every reading in transit. A man-in-the-middle on the internet path could also see and modify traffic.
-- Metadata (connection timing, frequency) is always visible regardless of encryption — reveals home occupancy patterns.
-- Brute force: with 20-char random passwords the keyspace is not practically exhaustable. fail2ban makes even low-rate attacks impractical.
-- If credentials were stolen: an attacker could publish fake sensor readings or (without ACLs) subscribe to all component topics, including garage presence data.
-
-**Not yet mitigated — in backlog:**
-- TLS (port 8883): would encrypt credentials and data in transit, eliminating the cleartext risk. See backlog entry.
-- Mosquitto ACLs: would limit each account to its own component topics, reducing the blast radius of a compromised credential.
-
-### LAN security
-
-Mosquitto on the LAN (port 1883 at 192.168.1.117) is also cleartext. Any device on JCTnet1 can passively capture MQTT traffic. Acceptable for a home network; no mitigation planned.
+**See `JCTsh-Build-Standards.md` §10.5** for the full risk accounting (mitigations in
+place, risks accepted, not-yet-mitigated backlog, LAN security) — merged there from this
+file, CARD-0303. Quick fact worth keeping here since it's specific, live infrastructure
+state: MQTT port 1883 is forwarded from the internet to the Pi at `192.168.1.117` via
+DuckDNS + router port forward, since 2026-06-12.
 
 ## Credentials
 
@@ -416,27 +362,12 @@ Use **ESPHome YAML** (not Arduino C++) for new ESP-based components:
 **Hostname convention:** Every ESP32 component must set its network hostname to match its component name so it is discoverable as `<name>.local`. ESPHome does this automatically via `esphome: name:`. For any Arduino sketch, call `WiFi.setHostname("<name>");` before `WiFi.begin()`. Reserve the DHCP IP on the router and record the IP, hostname, and MAC in `jctsh-network.md`.
 
 ### ESP32 GPIO pin guidance
-Safe pins for digital output: **GPIO32, GPIO33**, GPIO18, GPIO19, GPIO21, GPIO22, GPIO23, GPIO27.
-
-Pins to avoid:
-| Pin(s) | Reason |
-|---|---|
-| GPIO25, GPIO26 | DAC1/DAC2 — GPIO25 confirmed broken for digital output in ESPHome/Arduino framework (post-boot DAC init reconfigures the pin). Avoid both as a precaution. |
-| GPIO34–39 | Input-only — no output capability |
-| GPIO6–11 | Connected to flash — do not use |
-| GPIO0, GPIO2, GPIO12, GPIO15 | Strapping pins — affect boot mode if driven at reset |
+**See `JCTsh-Build-Standards.md` §2.6** — the two lists here and there had genuinely
+diverged (CARD-0303); §2.6 is now the single, reconciled, correct source.
 
 ## Concurrent Sessions
-
-Multiple Claude Code sessions (or the user directly) may edit files in this repo at the same time. Git has no file-locking or checkout-exclusivity model (unlike SVN/Perforce) — two sessions sharing this working directory get no automatic protection against clobbering each other.
-
-The real risk is **staleness between reading a file and writing it back**, not how long a file stays "open" (tool calls never hold a file open across turns). Practices:
-
-- **Reread reactively, not preemptively (CARD-0283, 2026-09-17).** Don't reread a shared file fresh before every single edit as a blanket precaution — that's a real, continual cost paid regardless of whether any other session actually touched it. Instead, attempt the edit against the content already in hand; `Edit`'s own exact-string match already fails safely if another session changed that text in the meantime. Only reread (the affected section, then retry) when an `Edit` call actually fails due to a stale match. Same safety guarantee as a preemptive reread — a stale write still can't silently clobber another session's change — without the wasted round-trip when there was never any real contention. If this stops being enough (e.g., genuinely frequent concurrent multi-session activity on `tos/kanban-board.md`), the next lever is a session-scoped lock file claimed once per multi-edit pass rather than per edit — not adopted yet.
-- **Never `git add -A` or `git add .`** — always stage specific files/paths. A blanket add is what sweeps up another session's unrelated, held-back edits and creates real collisions.
-- **Prefer Edit over Write for shared files.** Edit's exact-string match fails safely if the content changed underneath you; Write blindly overwrites whatever is on disk.
-- **Commit `tos/kanban-board.md` as a whole at natural checkpoints** (a card closing, a card added, meaningful progress) rather than surgically splitting commits per card.
-- **Reserve `git worktree` / branch isolation for the narrow case of two sessions actively rewriting the *same* file at the same time** — it's not a default. Isolating a session onto its own branch means its work is invisible to anything reading `main` directly (e.g. the live kanban page pulled from `main` on GitHub) until an explicit merge, which is unnecessary overhead when sessions are touching disjoint files.
+**See `JCTsh-Operating-System.md`'s Concurrent Sessions section** (CARD-0303 — moved
+there, pure process/policy, not specific to this repo's hardware or code).
 
 ## Backlog
 

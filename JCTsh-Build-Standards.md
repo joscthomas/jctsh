@@ -1,9 +1,9 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.38
-**Version description:** Split the Standards Version History table out to `JCTsh-Build-Standards-History.md` (CARD-0292) — it had grown to 14.6KB inside an already-121KB file, read on demand only, never routine reading. From this version on, this header holds only the current version's description — older ones live exclusively in the history file, never chained here.
-**Version history:** `JCTsh-Build-Standards-History.md`: §6.1 Additive First and §6.3 Existing Pattern Investigation generalized into a new Engineering Discipline section there (they applied beyond hardware/integration code); §7.5 Documentation Captures Reality folded into that document's Note on Build, since it overlapped the existing Reflection requirement. All three section numbers kept here as short pointers so existing cross-references (e.g. `photo-server-claude-code-instructions.md`'s §6.1 reference) stay valid. Also added a reconciliation note cross-referencing `tos/JCTsh-Operating-System.md` — this document covers technology/build conventions (how things get built), that one covers process/policy/workflow (how the team works); the boundary case (documentation structure) generalizes in whichever doc is broader and cross-references the narrower one, rather than duplicating.
+**Version:** 1.39
+**Version description:** CARD-0303 — merged root `CLAUDE.md`'s richer content into the canonical sections it was duplicating, then trimmed `CLAUDE.md` to pointers: §4.2 gained the fuller MQTT log-category table and a new Event-time convention (missing here entirely before); §5 gained a note flagging that its own opening line contradicted §6.4's later SmartThings-Free policy (struck through, not deleted); new §5.7 for SmartThings sensor-exposure; §10.5 gained the full risk-accounting detail (mitigations, risks accepted, LAN security); §2.6's GPIO exclusion list was reconciled with `CLAUDE.md`'s separate list, which had genuinely diverged (each missing pins the other correctly excluded) — now one complete, correct list.
+**Version history:** `JCTsh-Build-Standards-History.md`
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md, `JCTsh-Build-Standards-History.md` (full version-change history), `tos/JCTsh-Operating-System.md` (process/policy/workflow — see the reconciliation note below for how the two relate)
 
@@ -141,11 +141,16 @@ First flash via USB. All subsequent updates via ESPHome OTA. Document the OTA up
 
 ### 2.6 GPIO Assignment
 
+**Reconciled 2026-09-18, CARD-0303 — this list and root `CLAUDE.md`'s separate list had genuinely diverged, not just restated each other.** `CLAUDE.md` excluded GPIO25/26 (DAC) and the strapping pins GPIO2/12/15, none of which this section mentioned; this section excluded GPIO1/3 (UART0/USB), which `CLAUDE.md` didn't mention. Someone consulting only one list had no warning from the other's findings. Merged into one complete, correct exclusion list — this section is now the single source; `CLAUDE.md` points here.
+
 Before assigning GPIOs, exclude the following on ESP32 DevKitC-32 38-pin:
-- GPIO0 — boot mode, avoid
-- GPIO1, GPIO3 — UART0 / USB
-- GPIO6–11 — internal flash, never use
-- GPIO34, GPIO35, GPIO36, GPIO39 — input only, cannot drive output
+- **GPIO0, GPIO2, GPIO12, GPIO15** — strapping pins, affect boot mode if driven at reset
+- **GPIO1, GPIO3** — UART0 / USB
+- **GPIO6–11** — internal flash, never use
+- **GPIO25, GPIO26** — DAC1/DAC2. GPIO25 confirmed broken for digital output in the ESPHome/Arduino framework (post-boot DAC init reconfigures the pin) — avoid both as a precaution.
+- **GPIO34, GPIO35, GPIO36, GPIO39** — input only, cannot drive output
+
+**Known-safe for digital output** (from real use across this project's components): GPIO18, GPIO19, GPIO21, GPIO22, GPIO23, GPIO27, GPIO32, GPIO33.
 
 Document all GPIO assignments in the Hardware Context table of the instruction set. Note the pin label orientation issue: ESP32 DevKit pin labels face down when inserted in a breadboard. Mark key GPIO rows with masking tape before wiring. A pinout PNG should be placed in the component directory for reference.
 
@@ -612,9 +617,21 @@ All log messages are published as JSON to `jctsh/<type>/<component>/log`. Node-R
 { "component": "<name>", "category": "<category>", "message": "<text>" }
 ```
 
-**Valid categories:** `MQTT`, `System`, `Sensor`, `Alert`, `Test`
+**Category guide** — each category maps to a distinct layer of the stack (merged in from root `CLAUDE.md`, CARD-0303 — the two had drifted into two separate levels of detail for the same convention):
+
+| Category | What it covers | Examples |
+|---|---|---|
+| `System` | Device health and operational state | Online/boot, WiFi reconnect, heartbeat |
+| `MQTT` | Transport layer — the broker connection itself | Connected, disconnected, LWT |
+| `Sensor` | Physical-world data and state transitions | Presence detected/cleared, distance, salt % |
+| `Alert` | Threshold crossings requiring human attention | Salt warning/critical, API failures |
+| `Test` | Messages generated during test mode | Simulated readings, test mode on/off |
+
+The dividing line between `System` and `MQTT`: if the message is about the *device* (booted, alive, WiFi), use `System`. If it's specifically about the *broker connection* (connected, disconnected, subscribed), use `MQTT`.
 
 **Do not include timestamps** — the log server adds them on receipt.
+
+**Event-time convention (merged in from root `CLAUDE.md`, CARD-0303 — previously only stated there, missing here entirely).** Since the log server timestamps every message by receipt time, a message describing something that happened at a *different* time than when it's posted must include that actual event time in the message text itself — otherwise the dashboard timestamp silently misrepresents when the thing actually happened. This applies any time a component relays/re-reports an event from another system's own history rather than reporting something happening live (e.g., CARD-0078's NetAlertX relay, which can post about a device's original connection time well after the fact — the relayed message must say when the device actually connected, not just rely on the post time).
 
 ### 4.3 Standard Log Events
 
@@ -689,7 +706,9 @@ ESPHome components with **I2C or SPI sensors** must publish explicit error log m
 
 ## 5. SmartThings Integration Standards
 
-Every JCTsh component that produces actionable state is exposed in SmartThings. Determine the SmartThings device type during Phase 3 — not deferred.
+**Superseded for new components by §6.4 (CARD-0164, found as a real internal contradiction during CARD-0303) — SmartThings is no longer the default destination.** This section's mechanics (device type selection, integration path) still apply *when* SmartThings is genuinely the right target per §6.4's decision order (native HA integration, then Matter, then SmartThings only if neither applies) — but this section's own opening line below ("every component... is exposed in SmartThings... not deferred") predates that policy and directly contradicts it. Treat §6.4 as authoritative on *whether* to use SmartThings; this section on *how*, once that's already decided.
+
+~~Every JCTsh component that produces actionable state is exposed in SmartThings. Determine the SmartThings device type during Phase 3 — not deferred.~~ **(Superseded by §6.4 — kept struck through, not deleted, so the contradiction this card found stays visible rather than silently vanishing.)**
 
 ### 5.1 Device Type Selection
 
@@ -805,6 +824,10 @@ New components are picked up automatically by the wildcard subscription and get 
 **Important:** Node-RED in-memory context is cleared on service restart (`sudo systemctl restart nodered`). If you need to reset stale per-component state (e.g., after a long offline period), a restart is the cleanest method.
 
 **Reference:** `components/hiking-monitor/hiking-hike-events.flow.json`, `Detect field session start / end` function node.
+
+### 5.7 Exposing a Sensor (Not a Switch) to SmartThings
+
+Merged in from root `CLAUDE.md`, CARD-0303 — previously only stated there. To expose a sensor (e.g. a motion sensor) rather than a switch, use HA's own SmartThings integration's entity-exposure feature (Settings → Devices & Services → SmartThings → Configure) to push the existing HA entity to SmartThings directly. No virtual device and no SmartThings PAT required — simpler than the virtual-switch pattern in §5.2, which is for state HA needs to *push* into SmartThings rather than an entity SmartThings can read directly.
 
 ---
 
@@ -1069,6 +1092,16 @@ The Node-RED flow editor must never be reachable without a login — `adminAuth`
 ### 10.5 No direct internet port forwarding except MQTT (accepted exception)
 
 Tailscale is the sole remote-access path for Pi services (SSH, Node-RED, HA). The one accepted exception is MQTT port 1883, forwarded via DuckDNS specifically so field ESP32 devices (e.g. hiking-monitor) can reach the broker over cellular when away from Tailscale-capable hardware — mitigated by fail2ban + strong per-component passwords, with TLS (port 8883) tracked as a follow-up (CARD-0003). Any new component considering port forwarding should default to Tailscale first and only forward a port if the device genuinely cannot run Tailscale.
+
+**Full risk accounting, merged in from root `CLAUDE.md`, CARD-0303 (as of 2026-06-12, that file's own dating — previously only stated there):**
+
+Mitigations in place: all Mosquitto accounts use strong random passwords (20+ chars, alphanumeric); fail2ban watches `/var/log/mosquitto/mosquitto.log`, banning any IP making more than 10 connections in 60 seconds for 1 hour, stopping port scanners before brute force; each MQTT account is scoped to its own component, no anonymous access.
+
+Risks accepted: MQTT 3.1.1 sends credentials and all sensor data in cleartext — an ISP or a man-in-the-middle on the internet path can see (and could modify) traffic; connection metadata (timing, frequency) reveals home occupancy patterns regardless of encryption; brute force is impractical given the password keyspace and fail2ban, but a stolen credential could publish fake readings or (with no ACLs yet) subscribe to every component's topics, including garage presence data.
+
+Not yet mitigated, in backlog: TLS (port 8883) would close the cleartext risk; Mosquitto ACLs would scope each account to only its own topics, reducing a compromised credential's blast radius.
+
+LAN security: Mosquitto on the LAN (port 1883) is also cleartext — any device on the home network can passively capture MQTT traffic. Accepted as a normal home-network risk; no mitigation planned.
 
 ### 10.6 MFA required on every cloud account in the ecosystem
 

@@ -55,9 +55,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0303 · [enhancement] [tos] Reconcile root CLAUDE.md against JCTsh-Operating-System.md and JCTsh-Build-Standards.md
+### CARD-0303 · [enhancement] [tos] Reconcile root CLAUDE.md against JCTsh-Operating-System.md and JCTsh-Build-Standards.md — RESOLVED 2026-09-18
 
-**Status:** Planning — scoped, holding for Joseph's go-ahead before any edit (2026-09-18)
+**Status:** Done
 
 **Raised 2026-09-18 (Joseph), asking what else in the CLAUDE.md files deserves the same treatment as the commit/push rule (CARD-0302's fold-in, and the JCTsh-Operating-System.md v1.17 move).** That move was specifically about *visibility* — a rule living only in the unversioned, repo-external global `CLAUDE.md`. Root `jctsh/CLAUDE.md` is already versioned and in-repo, so that specific problem doesn't apply to it — but reading it end to end against `JCTsh-Operating-System.md`'s and `JCTsh-Build-Standards.md`'s own reconciliation test (process/policy → Operating System; technology/build convention → Build Standards; genuinely session-mechanical/live-state reference → stays in `CLAUDE.md`) surfaced two distinct problems, not one.
 
@@ -82,9 +82,18 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Explicitly left alone, correctly placed in `CLAUDE.md`:** Credentials, Session Start, Repository Layout, Architecture/Component Roles — genuinely project-live-state or every-session reference with no better home.
 
-**Done when:** Concurrent Sessions lives in `JCTsh-Operating-System.md`; all four flagged sections are checked for drift (not just GPIO); each confirmed-duplicate section is a pointer, not a restatement; GPIO's actual conflict is resolved into one correct list.
+**Done when:** Concurrent Sessions lives in `JCTsh-Operating-System.md`; all four flagged sections are checked for drift (not just GPIO); each confirmed-duplicate section is a pointer, not a restatement; GPIO's actual conflict is resolved into one correct list. **Met, 2026-09-18:**
 
-**Related:** CARD-0302 (the commit/push visibility fix this generalizes from), `JCTsh-Operating-System.md` v1.17 (Relationship to Commit / Push, the template for how a `CLAUDE.md` section becomes a pointer), `JCTsh-Build-Standards.md` §2.6/§3.1/§4.2/§5/§6.4/§10.5 (the sections being reconciled against).
+1. **Concurrent Sessions moved** into `JCTsh-Operating-System.md` (new section, v1.20), `CLAUDE.md` trimmed to a pointer.
+2. **All three remaining sections checked for drift, not assumed identical:** MQTT/logging matched with no conflict but different levels of detail (`CLAUDE.md`'s richer category table and an entire Event-time convention missing from Build Standards) — merged the richer content into §4.2, then trimmed `CLAUDE.md`. SmartThings had a **real conflict, not just duplication**: `CLAUDE.md` still told future components to use the SmartThings pattern, directly contradicting §6.4's later SmartThings-Free policy (CARD-0164) — and while fixing it, found `JCTsh-Build-Standards.md` §5's own opening line had the identical contradiction *within itself*, predating §6.4. Struck through in place (new "superseding stale content" principle, below) rather than deleted. Security posture matched with no conflict but `CLAUDE.md` had richer risk-accounting detail — merged into §10.5, then trimmed.
+3. **GPIO reconciled** into one complete, correct list in §2.6 (strapping pins, UART0/USB, flash, DAC, input-only — the union of both prior lists, nothing dropped), `CLAUDE.md` trimmed to a pointer.
+4. **A real, unrelated bug caught and fixed along the way:** `JCTsh-Build-Standards.md`'s own v1.37→1.38 version bump had left a stray fragment of the *old* version description dangling on the "Version history:" pointer line instead of being fully absorbed into the history file — confirmed the history file already had the correct full text, then cleaned up the live header.
+
+**Two more principles surfaced live during this same pass** (Joseph: "as you reconcile CLAUDE files identify new principles and add as appropriate") — added to `JCTsh-Operating-System.md` directly rather than deferred to a separate card: **merge, don't just delete** when reconciling two copies with different levels of detail (a corollary to single source of truth), and **superseding stale content: mark and strike through, don't silently delete** (from the §5/§6.4 internal-contradiction finding above) — a silent deletion would have erased the evidence the contradiction ever existed.
+
+**Reflection (per `JCTsh-Operating-System.md`'s Build → Done requirement).** The durable finding isn't any one section fix — it's that "duplication" turned out to be three different real situations (no drift but different detail; genuine conflict against a later policy; a document contradicting itself), each needing a different response (merge, supersede-visibly, reconcile-into-one), not a single "just delete the copy" move. That distinction is now captured as two of this document's own principles rather than left as something only this card's history remembers.
+
+**Related:** CARD-0302 (the commit/push visibility fix this generalizes from), CARD-0304 (the sibling principles-gap-filling pass, itself corrected mid-stream by this card's own need for the single-source-of-truth principle), `JCTsh-Operating-System.md` v1.17/v1.20 (Relationship to Commit/Push and Concurrent Sessions, the template for how a `CLAUDE.md` section becomes a pointer), `JCTsh-Build-Standards.md` §2.6/§4.2/§5/§5.7/§6.4/§10.5 (the sections reconciled or added).
 
 ---
 

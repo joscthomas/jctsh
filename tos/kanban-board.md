@@ -9,7 +9,21 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0305 -->
+<!-- next-card-id: CARD-0306 -->
+
+---
+
+### CARD-0305 · [idea] [tos] Decide how the PB Blog monthly workflow relates to its new repo
+
+**Status:** Build
+
+**Raised 2026-09-18 (Joseph), directly out of CARD-0298's own PB-Blog README.** That README documents PB Blog's monthly editorial pipeline (Claude/pb-monthly-workflow-v1.5.md — edit → teasers → categories → WordPress category setup → monthly graphic → publish → master-file build), currently run via a Claude.ai Project + Claude-in-Chrome, and leaves open whether that live workflow should now run through Claude Code sessions in the new `PB-Blog` repo instead, continue exactly as-is with the repo purely as version control/backup, or something else. Asked directly — Joseph: "not decided yet... we'll figure out how this will work when I receive the November files."
+
+**Watch for:** Pastor Ben's November devotional/teasers `.docx` drafts arriving — the next real occasion to decide whether that month's edit is run through a Claude Code session in the `PB-Blog` repo, the existing Claude.ai Project + Claude-in-Chrome setup, or some hybrid, rather than deciding in the abstract now.
+
+**Done when:** an approach is decided (repo's role vs. the existing Project/Chrome workflow) and, if it changes anything about how a month actually gets edited/published, `PB-Blog/README.md`'s "not yet decided" line is updated to reflect the real decision.
+
+**Related:** CARD-0298 (PB Blog → repo, the move whose README surfaced this question), `PB-Blog/README.md`, `PB-Blog/Claude/pb-monthly-workflow-v1.5.md` (the workflow this decision concerns).
 
 ---
 

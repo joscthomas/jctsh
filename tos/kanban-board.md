@@ -9,7 +9,23 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0286 -->
+<!-- next-card-id: CARD-0287 -->
+
+---
+
+### CARD-0286 · [enhancement] [hike-izer] Auto-create an Immich Album per hike, populated with that hike's photos
+
+**Status:** Backlog
+
+**Auto-opened from jctsh-core's maintenance check (PR #87).** Raw finding: put the photos for each hike in its own folder. Clarified 2026-09-17 (Joseph): this is about Immich's own organization, not hike-izer's already-per-hike served output (`generation.py` already writes to `/srv/hike-izer/<date>_photos/`, confirmed unrelated to this finding).
+
+**Interviewed 2026-09-17 (Joseph):** create a folder -- an Immich Album -- for each hike, and put that hike's photos into it. Scoped deliberately narrow: Album creation only. This does not touch Immich's global Storage Template setting, so it does not trigger a library-wide on-disk reorganization (that setting is global and would move the entire ~900GB+ library, not just hike photos -- explicitly ruled out of scope for this card).
+
+**Scope:** as part of the existing photo-fetch step (`fetch_hike_photos.py` / `generation.py`'s `_fetch_photos`), create (or find, if already present) an Immich Album for the hike and add the same photos already selected by the existing time-window search to it.
+
+**Done when:** a real hike's photos appear grouped together in a dedicated Album in Immich's own UI, verified live against the real Immich instance, for a newly-processed hike (backfilling past hikes not required).
+
+**Related:** `components/hike-izer/fetch_hike_photos.py` (`search_assets`, the existing time-window photo selection this reuses), `components/hike-izer-orchestrator/generation.py` (`_fetch_photos`), CARD-0175 (Immich album-related prior idea -- different mechanism, same API surface).
 
 ---
 

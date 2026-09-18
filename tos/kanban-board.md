@@ -273,7 +273,7 @@ Node-RED's 60s polling read picked up the HA-side toggle within ~20 seconds (the
 
 ### CARD-0279 · [bug] [data-pipeline] Field-mode replay burst overwhelms Apps Script's per-reading GPS lookup — missing coordinates scale with reading volume
 
-**Status:** Build — flow changes drafted and syntax-checked, pending Joseph's manual Node-RED import/deploy
+**Status:** Build — deployed and confirmed live (import/deploy done, see below); watching for the next real hike to confirm the fix works under an actual replay burst
 
 **Raised 2026-09-17 (Joseph + Claude), from investigating why today's 2026-09-17 hike showed 17 of 31 (55%) Environmental Data readings with no GPS coordinates.** Initially suspected as a consequence of CARD-0226's hiking-monitor reboot loop (today was that card's 6th recurrence) — **ruled out as the general explanation, confirmed by Joseph's own observation and real data.** Checked missing-GPS rate across hikes with zero CARD-0226 occurrence, well before that reboot loop ever started:
 

@@ -9,7 +9,29 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0296 -->
+<!-- next-card-id: CARD-0297 -->
+
+---
+
+### CARD-0296 · [idea] [tos] Set up remote access for running Claude Code sessions away from the desktop
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: "Set up remote access for Claude Code" — the finding body also carried a pasted walkthrough (from another assistant session, not a decision made here) proposing OpenSSH Server on the Windows machine + Tailscale + Termux on the Pixel, with a note that the author had no access to this repo and was guessing at the setup.
+
+**Goal, as captured:** be able to run Claude Code against this repo from the Pixel while away from the desktop, rather than only from the Windows machine the working tree lives on.
+
+**Approach deliberately left open, 2026-09-18 (Joseph's call) — the pasted SSH/Termux/Tailscale walkthrough is one candidate, not the decision.** Open questions to resolve during planning:
+1. **First-party options not yet evaluated.** Claude Code has its own remote paths that the pasted walkthrough predates or ignores — Claude Code on the web (`claude.ai/code`), and Remote Control driving a session on another machine. Either could make a hand-rolled SSH setup unnecessary. Evaluate these before building anything.
+2. **If SSH is still the answer:** Tailscale is already installed and working on the Pi and the RV Pi (`CLAUDE.md`'s Remote Access section) — a Windows node would join the same tailnet with no port forwarding, which is strictly better than the walkthrough's port-forward-22 alternative. The walkthrough's port-forward option should not be adopted.
+3. **What "running Claude Code" actually needs to mean here** — a shell for git/status/commits only, versus genuinely doing editing work from a phone screen. These have very different setup costs and the walkthrough itself flags phone-screen editing as rough.
+4. **Whether the working tree should even live on the Windows box for this** — a session run from elsewhere against a different checkout raises the same concurrent-edit questions `CLAUDE.md`'s Concurrent Sessions section already covers, and CARD-0283 already tuned for.
+
+**Explicitly not started** — this card captures the goal and the open questions; no setup work has been done and no approach has been chosen.
+
+**Done when:** a decided approach is written down (first-party remote vs. self-hosted SSH), and — if it needs building — a real Claude Code session has been run against this repo from the Pixel end to end, not just a shell login proven.
+
+**Related:** CARD-0128 (the auto-PR intake pipeline this was raised by), `CLAUDE.md` (Remote Access section — the existing Tailscale footprint any SSH approach would build on; Concurrent Sessions section), CARD-0283 (concurrent-session editing discipline, relevant if a second checkout enters the picture).
 
 ---
 

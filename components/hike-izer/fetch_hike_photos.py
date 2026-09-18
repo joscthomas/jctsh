@@ -16,6 +16,11 @@ Downloads a thumbnail and the original file for each match, and writes a
 manifest.json describing what landed on disk, for the hike-izer Skill's
 HTML-authoring step to build a gallery from.
 
+CARD-0286: when --album-name is given, also adds every matched asset to an
+Immich album of that name (created if it doesn't exist yet) -- separate
+from the manifest/download work above and never lets that succeed or fail
+by it (see find_or_create_album's own best-effort handling in main()).
+
 KNOWN LIMITATION (cross-midnight sessions, same edge case as Hike-izer's day-
 scoping rule in SKILL.md): a query day's *own* window can still surface a
 session that only *looks* like it starts that day (e.g. "00:00:03") because
@@ -50,15 +55,43 @@ def _api_get(base_url, api_key, path):
 
 
 def _api_post_json(base_url, api_key, path, payload):
-    body = json.dumps(payload).encode('utf-8')
+    return _api_json('POST', base_url, api_key, path, payload)
+
+
+def _api_json(method, base_url, api_key, path, payload=None):
+    body = json.dumps(payload).encode('utf-8') if payload is not None else None
     req = urllib.request.Request(
         base_url.rstrip('/') + path,
         data=body,
         headers={'x-api-key': api_key, 'Content-Type': 'application/json'},
-        method='POST',
+        method=method,
     )
     with urllib.request.urlopen(req, timeout=60) as resp:
-        return json.loads(resp.read().decode('utf-8'))
+        raw = resp.read()
+        return json.loads(raw.decode('utf-8')) if raw else None
+
+
+# CARD-0286: album-name -> album lookup/create, same Immich endpoints already
+# proven live by components/photo-tv-display/routes/immich.js
+# (getAlbums/addToAlbum/createAlbum) -- GET /albums has no name filter, so
+# finding an existing album means listing every album for this account and
+# matching albumName client-side (fine at this project's real album count).
+def find_or_create_album(base_url, api_key, album_name, asset_ids):
+    """Best-effort: adds asset_ids to the Immich album named album_name,
+    creating it (with those assets) if it doesn't exist yet. Returns the
+    album id, or None if album_name is falsy or asset_ids is empty (nothing
+    to do)."""
+    if not album_name or not asset_ids:
+        return None
+    albums = _api_json('GET', base_url, api_key, '/api/albums')
+    existing = next((a for a in albums if a.get('albumName') == album_name), None)
+    if existing:
+        _api_json('PUT', base_url, api_key, f'/api/albums/{existing["id"]}/assets', {'ids': asset_ids})
+        return existing['id']
+    created = _api_json('POST', base_url, api_key, '/api/albums', {
+        'albumName': album_name, 'assetIds': asset_ids,
+    })
+    return created['id']
 
 
 def hike_time_windows(hike_data):
@@ -107,6 +140,10 @@ def main():
     ap.add_argument('--immich-url', required=True, help='Immich base URL, e.g. http://m8.local:2283')
     ap.add_argument('--immich-key', required=True, help='Immich API key')
     ap.add_argument('--out-dir', required=True, help='Directory to write downloaded media + manifest.json into')
+    ap.add_argument('--album-name', default=None,
+                     help='CARD-0286: if given, add every matched asset to an Immich album with this '
+                          'name (created if it does not already exist). Omit to skip album handling '
+                          'entirely -- this script still works standalone without it.')
     args = ap.parse_args()
 
     with open(args.data, 'r', encoding='utf-8') as f:
@@ -171,6 +208,17 @@ def main():
         json.dump({'assets': manifest_assets}, f, indent=2)
 
     print(f'Wrote {manifest_path}: {len(manifest_assets)} asset(s) downloaded to {args.out_dir}')
+
+    # CARD-0286: best-effort, same spirit as the photo fetch itself -- never
+    # let Immich album trouble take down manifest generation, which already
+    # succeeded above regardless of what happens here.
+    if args.album_name and manifest_assets:
+        try:
+            asset_ids = [a['id'] for a in manifest_assets]
+            find_or_create_album(args.immich_url, args.immich_key, args.album_name, asset_ids)
+            print(f'  Added {len(asset_ids)} asset(s) to Immich album {args.album_name!r}')
+        except (urllib.error.URLError, urllib.error.HTTPError) as e:
+            print(f'WARNING: Immich album update failed ({e}) -- manifest/photos are unaffected.', file=sys.stderr)
 
 
 if __name__ == '__main__':

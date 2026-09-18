@@ -538,7 +538,7 @@ def _fetch_hike_data(start_iso, end_iso, hike_data_path):
     )
 
 
-def _fetch_photos(hike_data_path, photos_dir):
+def _fetch_photos(hike_data_path, photos_dir, file_stem):
     """Shared by step 1 (best-effort attempt) and every later gap-filling
     pass (CARD-0111/CARD-0112/CARD-0214). Returns a manifest dict with at
     least one asset, or None.
@@ -549,7 +549,13 @@ def _fetch_photos(hike_data_path, photos_dir):
     recovered from the on-disk manifest before that overwrite and reapplied
     after, keyed by Immich's own stable asset id. photo_captions.caption_photos()
     then only processes assets that still have no 'caption' key -- i.e.
-    genuinely new photos -- never redoing an already-paid-for caption."""
+    genuinely new photos -- never redoing an already-paid-for caption.
+
+    CARD-0286: also passes an album name ("Hike <file_stem>") through to
+    fetch_hike_photos.py so this hike's photos land in their own Immich
+    album -- the same file_stem every other per-hike path (photos_dir
+    itself, the published HTML/meta.json) already keys off of, so the
+    album name can't drift out of sync with which hike this actually is."""
     existing_manifest_path = os.path.join(photos_dir, "manifest.json")
     prior_captions = {}
     if os.path.exists(existing_manifest_path):
@@ -569,6 +575,7 @@ def _fetch_photos(hike_data_path, photos_dir):
                 "--data", hike_data_path,
                 "--immich-url", _env("IMMICH_URL"), "--immich-key", _env("IMMICH_KEY"),
                 "--out-dir", photos_dir,
+                "--album-name", f"Hike {file_stem}",
             ],
             check=True, timeout=180,
         )
@@ -722,7 +729,7 @@ def run(payload):
         # effort only -- CARD-0111 confirmed Immich's own upload almost never
         # happens this fast, but it costs nothing to check.
         photos_dir = os.path.join(SRV_DIR, f"{file_stem}_photos")
-        photos_manifest = _fetch_photos(hike_data_path, photos_dir)
+        photos_manifest = _fetch_photos(hike_data_path, photos_dir, file_stem)
         if photos_manifest:
             photos_manifest = photo_captions.caption_photos(
                 photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker
@@ -875,7 +882,7 @@ def run_step2(file_stem, with_narrative=False):
 
     # Real photo fetch this time, not step 1's best-effort attempt.
     photos_dir = os.path.join(SRV_DIR, f"{file_stem}_photos")
-    photos_manifest = _fetch_photos(hike_data_path, photos_dir)
+    photos_manifest = _fetch_photos(hike_data_path, photos_dir, file_stem)
     if photos_manifest:
         photos_manifest = photo_captions.caption_photos(
             photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker

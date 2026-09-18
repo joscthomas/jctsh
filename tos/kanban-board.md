@@ -33,7 +33,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ### CARD-0286 · [enhancement] [hike-izer] Auto-create an Immich Album per hike, populated with that hike's photos
 
-**Status:** Backlog
+**Status:** Build
 
 **Auto-opened from jctsh-core's maintenance check (PR #87).** Raw finding: put the photos for each hike in its own folder. Clarified 2026-09-17 (Joseph): this is about Immich's own organization, not hike-izer's already-per-hike served output (`generation.py` already writes to `/srv/hike-izer/<date>_photos/`, confirmed unrelated to this finding).
 
@@ -41,9 +41,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Scope:** as part of the existing photo-fetch step (`fetch_hike_photos.py` / `generation.py`'s `_fetch_photos`), create (or find, if already present) an Immich Album for the hike and add the same photos already selected by the existing time-window search to it.
 
+**Built, 2026-09-17.** `fetch_hike_photos.py` gained a new `--album-name` argument and `find_or_create_album()`, reusing the exact Immich REST endpoints `components/photo-tv-display/routes/immich.js` already proved live (`GET /albums` to list, `POST /albums` to create with initial assets, `PUT /albums/:id/assets` to add to an existing one) rather than guessing at the API shape. `generation.py`'s `_fetch_photos()` now passes `--album-name "Hike <file_stem>"` through at both call sites (step 1's best-effort attempt and every later gap-filling pass), so the album name can't drift from which hike it actually is. `.claude/skills/hike-izer/SKILL.md`'s manual invocation updated the same way, so a hand-run hike gets the same album as an automated one. Album handling is best-effort, same spirit as the photo fetch itself -- a failure there can't block manifest/photo generation, which already succeeded by the time it runs.
+
+**Verified with a synthetic smoke test** (a fake local HTTP server standing in for Immich, driving the real script as a subprocess): confirmed the album is created with both matched assets on a first run, and confirmed a second run against the same hike finds the existing album and adds to it via `PUT` rather than creating a duplicate -- the actual re-fetch shape CARD-0214's gap-filling passes produce for a real hike. Not yet run against the real Immich instance or a real hike.
+
+**Watch for:** the next real hike this pipeline processes -- confirm a real "Hike `<file_stem>`" Album actually appears in Immich's own UI (Joseph's account) containing that hike's photos, and that a later gap-fill pass on the same hike (CARD-0214's re-fetch) adds to that same Album rather than creating a second one. This card stays in Build until observed. Not yet observed as of 2026-09-17 (no hike processed since this was built).
+
 **Done when:** a real hike's photos appear grouped together in a dedicated Album in Immich's own UI, verified live against the real Immich instance, for a newly-processed hike (backfilling past hikes not required).
 
-**Related:** `components/hike-izer/fetch_hike_photos.py` (`search_assets`, the existing time-window photo selection this reuses), `components/hike-izer-orchestrator/generation.py` (`_fetch_photos`), CARD-0175 (Immich album-related prior idea -- different mechanism, same API surface).
+**Related:** `components/hike-izer/fetch_hike_photos.py` (`search_assets`, `find_or_create_album`), `components/hike-izer-orchestrator/generation.py` (`_fetch_photos`), `components/photo-tv-display/routes/immich.js` (the proven album-endpoint precedent this reuses), CARD-0175 (Immich album-related prior idea -- different mechanism, same API surface), CARD-0214 (the gap-filling re-fetch pattern this must stay idempotent against).
 
 ---
 

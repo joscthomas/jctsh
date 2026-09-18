@@ -487,8 +487,14 @@ section.
    python components/hike-izer/fetch_hike_photos.py \
      --data <scratch path>/hike_data.json \
      --immich-url <Immich Web UI URL> --immich-key <Joseph's API key> \
-     --out-dir hike-izer/summaries/<start-date>_photos
+     --out-dir hike-izer/summaries/<start-date>_photos \
+     --album-name "Hike <start-date>"
    ```
+
+   CARD-0286: `--album-name` also adds every matched asset to an Immich album
+   named `Hike <start-date>` (created if it doesn't exist yet), same
+   convention `generation.py`'s automated pipeline uses -- so a manually-run
+   hike ends up with the same per-hike Immich grouping as an automated one.
 
    This queries each `is_hike`-confirmed session's own time window
    separately and matches Immich assets by timestamp only -- **no GPS

@@ -9,7 +9,29 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0295 -->
+<!-- next-card-id: CARD-0296 -->
+
+---
+
+### CARD-0295 · [enhancement] [homeassistant] Home Assistant container update available: 2026.9.2 → 2026.9.3
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: `Container image updates: home-assistant: 2026.9.3 available (running 2026.9.2)`.
+
+**Risk assessment, checked 2026-09-18 16:57 MST against the real upstream release notes (github.com/home-assistant/core/releases/tag/2026.9.3):** patch release, bug-fixes and dependency bumps only — no breaking changes, no database migrations. Notable fixes: EnergyZero market-price regression, Private BLE Device now requires an IRK in its config flow, Bond retains known-host info on repeated zeroconf announcements, Matter/Shelly cover-entity creation when the tilt attribute is null, Nest Climate `turn_on` made idempotent, Spotify reauth crash when a config entry lacks an `id` field, Airthings BLE duplicate device entries from incomplete reads, better DNS/API error handling for Google Tasks and WAQI, onboarding username validation. Dependency bumps: holidays, pylutron, hassil, waterfurnace, aioamazondevices, reolink_aio. Also redacts API keys in debug logs. **None of these touch an integration this install actually depends on** (SmartThings, Ring, MQTT, Matter/Cync, SamsungTV) — low-risk upgrade.
+
+**Deploy per `CLAUDE.md`'s standing Pi rule (CARD-0266/CARD-0268/CARD-0269) — never `docker pull`/`docker compose pull` on this host** (hangs indefinitely on this Pi's Docker 29.6.1 via a confirmed OCI-referrers bug, and risks starving the live container's I/O on the Pi 3B+'s shared USB 2.0 bus):
+```bash
+sudo pi-image-pull.py ghcr.io/home-assistant/home-assistant:stable --recreate homeassistant
+```
+Optionally add `--schedule "<time>"` to defer it to the Mon 3 AM reboot window; the deliberate default is still to run it in the foreground and watch it.
+
+**Post-update check required (CARD-0240, generalized):** after the recreate, check `/api/states` for unavailable entities and `docker logs homeassistant` for the `homeassistant.bootstrap` "Waiting for integrations to complete setup" line. Any integration named there is a candidate for a config-entry reload via the HA REST API before investigating real device failure — a config entry can report `state: loaded` without having actually re-synced its entities.
+
+**Done when:** the Pi's `homeassistant` container is running 2026.9.3 (confirmed via the HA UI or `/api/config`), the container reports healthy after the recreate, and the post-update entity-availability check above comes back clean (or any affected integration has been reloaded and confirmed resynced).
+
+**Related:** CARD-0266 (the immediately prior HA update, 2026.9.1 → 2026.9.2, same shape), CARD-0269 (`pi-image-pull.py`, the required pull mechanism), CARD-0268 (the I/O-contention rationale behind it), CARD-0240 (the post-update entity-availability check this card inherits), CARD-0128 (the auto-PR intake pipeline this was raised by), `core/homeassistant/docker-compose.yml`.
 
 ---
 

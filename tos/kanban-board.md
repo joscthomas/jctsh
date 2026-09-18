@@ -9,7 +9,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0294 -->
+<!-- next-card-id: CARD-0295 -->
+
+---
+
+### CARD-0294 · [enhancement] [tos] Reconcile kanban-board.md tags against the real directory structure, retiring the [infrastructure] tag
+
+**Status:** Backlog
+
+**Raised 2026-09-18 (Joseph), directly from CARD-0280's archiving outcome** — `archive_cards.py` routes a card to a component/core/host's own `card-archive.md` only when exactly one of its bracketed tags matches a real `components/<name>/`, `core/<name>/`, or `hosts/<name>/` directory (or the literal tag `tos`). CARD-0280 fell to the dated `tos/kanban-archive.md` fallback instead — investigation found this isn't a one-off: `[infrastructure]` is used on **48 cards** across the board, and since no `components/infrastructure/`, `core/infrastructure/`, or `hosts/infrastructure/` directory exists (or ever will), every one of them is permanently routed to the dated fallback regardless of formatting.
+
+**Scope, per Joseph's direction:**
+1. **Reconcile all tags in `kanban-board.md`** so each card's tag(s) match a real entry in the directory structure (`components/`, `core/`, `hosts/`, plus the literal `tos`) wherever a real match exists.
+2. **Identify tags that don't fit and can't be reconciled** to any real directory — list them explicitly rather than silently leaving them ambiguous.
+3. **Fix the formatting bug found on CARD-0280** — its title is missing its type bracket (`[infrastructure]` alone instead of `[type] [infrastructure]`), the only card on the board with just one bracket where every sibling `[infrastructure]`-tagged card has two.
+4. **Change the `[infrastructure]` tag to `[m8]` or `[pi1]`** for cards that are actually host-specific work (e.g. CARD-0272 M8 Docker logging driver, CARD-0246 Pi journald volatile storage, CARD-0263 Pi headless boot, CARD-0238 M8 OS maintenance) — `hosts/m8/` and `hosts/pi1/` already exist and `archive_cards.py` already checks `hosts/<name>/`, so these start resolving correctly with no script change.
+5. **For the residual case** — cards that are genuinely cross-cutting architecture/operational decisions, not owned by any single host or component (e.g. SmartThings API strategy, MQTT security posture, disaster recovery, the backyard-device power-pattern standard) — **create a new top-level `architecture/` directory** (doc-only: `README.md`/`CLAUDE.md`/`card-archive.md`, mirroring `tos/`'s shape, no executable code) and tag those cards `[architecture]`.
+6. **End state: the `[infrastructure]` tag is fully retired** — zero cards in `kanban-board.md` should carry it once this is done.
+
+**Open questions to resolve during planning, not yet answered:**
+- Full triage of all 48 `[infrastructure]`-tagged cards into "retag to `[m8]`/`[pi1]`" vs. "retag to `[architecture]`" vs. "genuinely can't be reconciled" buckets — not yet done, this card only established the pattern exists and the general fix direction.
+- Whether any *other* existing tags (beyond `[infrastructure]`) also fail to map to a real directory and need the same treatment — this card's own step 2 should surface that, not assumed zero going in.
+- Whether `architecture/`'s `card-archive.md` needs `archive_cards.py` changes at all, or whether creating the real directory is sufficient for the script's existing directory-matching logic to pick it up automatically (current understanding: the latter, since `tos/` isn't special-cased either — worth confirming against the actual script logic during planning, not assumed).
+
+**Explicitly not started yet** — Joseph's direction was to open this card now and scope/interview it later, not begin the retag pass.
+
+**Done when:** every card's tag(s) either match a real `components/`/`core/`/`hosts/` directory or the literal `tos`/`architecture`, or are captured in an explicit "cannot reconcile" list; `[infrastructure]` appears nowhere in `kanban-board.md`; CARD-0280's title formatting bug is fixed; `architecture/` exists with its residual cards retagged and verified to archive correctly via a dry run of `archive_cards.py`.
+
+**Related:** CARD-0193 (`archive_cards.py`'s own build), CARD-0280 (the archiving outcome that surfaced this), `tos/archive_cards.py` (the directory-matching logic this card's fix targets), CARD-0290/CARD-0291/CARD-0292 (the recent documentation-structure work this continues).
 
 ---
 

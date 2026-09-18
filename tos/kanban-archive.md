@@ -648,3 +648,41 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-18 (CARD-0193)** — 5918B, over the 5000B size threshold.
+
+### CARD-0280 · [infrastructure] Move Salt Sensor's tab-scoped HA_TOKEN to the systemd-level environment file, closing the exact gap that bit CARD-0261 — RESOLVED 2026-09-17
+
+**Status:** Done
+
+**Raised 2026-09-17 (Joseph + Claude), from the CARD-0279 Node-RED import investigation.** Chasing why Salt Level Sensor's tab once failed after being recreated without its tab-scoped `HA_TOKEN` Environment Variable — expected it to transparently fall back to a systemd-level value the same way Environmental Data's `APPS_SCRIPT_URL`/`APPS_SCRIPT_KEY` already do (`/home/pi/.node-red/environment`, an `EnvironmentFile` on the `nodered` systemd unit).
+
+**Two wrong theories chased and corrected before finding the real story, worth recording honestly rather than tidied away:**
+1. First theory: the systemd-level `HA_TOKEN` (in `/home/pi/.node-red/environment`) was stale/rotated-away. **Wrong** — that file never contained `HA_TOKEN` at all; the grep-based test that seemed to confirm staleness was actually testing an empty variable (empty bearer token → 401, not a stale one).
+2. Second theory, after finding the *real* systemd-level `HA_TOKEN` (set inline via the unit's own `Environment=` directive, not the EnvironmentFile): traced Node-RED's actual `env.get()` source (`@node-red/util/lib/util.js`, `@node-red/runtime/lib/flows/{Flow,index}.js`, v4.1.10) to confirm it *does* fall through to `process.env` when no flow/global Environment Variable is set, and confirmed the real inline value is valid (200 against HA's API). This seemed to contradict Salt Sensor's actual 2026-09-12 failure — until the real explanation turned up.
+
+**Real root cause, found in `components/salt-sensor/CLAUDE.md`'s own CARD-0261 history (Joseph: "check the latest card for Salt Sensor") — a mundane, already-documented, already-fixed incident, not a live bug at all.** 2026-09-12: deleting/reimporting Salt Sensor's tab lost its tab-scoped `HA_TOKEN`; Joseph manually re-pasted it, and the paste introduced stray backtick characters, corrupting the value — producing silent 401s (the flow's own HA-call functions swallow non-200 responses with no logging). Root-caused at the time via a debug node and a direct `curl` test confirming the *token itself* was always valid. **The systemd-level token was never involved and was never stale** — both of this card's own working theories were wrong turns.
+
+**Real, still-valid fix, for a different reason than either wrong theory argued:** CARD-0261's incident is exactly "tab-level credential + manual re-entry after a reimport = a proven failure mode (copy-paste corruption, silently swallowed)." Moving `HA_TOKEN` to the same systemd-level file already used successfully for `APPS_SCRIPT_URL`/`APPS_SCRIPT_KEY`/`NETALERTX_WEBHOOK_SECRET` removes tab-level credential re-entry from this flow entirely — no more manual paste, no more risk of a repeat.
+
+**Built and verified live, 2026-09-17:**
+1. Backed up `/home/pi/.node-red/environment` (`environment.bak-20260917T121310`, kept on the Pi).
+2. Appended `HA_TOKEN=<current value, matching credentials.local.md, confirmed 200 against HA's API before use>` to the file (value moved via an uploaded file reference throughout, never as a literal argument in a shell command — avoids materializing the secret in command history/logs).
+3. Restarted `nodered` — confirmed `active (running)`, `HA_TOKEN` present in the new process's live environment (`/proc/<pid>/environ`), no Alert-category dashboard messages and no auth/error lines in the post-restart journal (only routine startup warnings and one genuine, expected `Threshold logic` alert).
+
+**Real independence test, 2026-09-17 — Joseph removed Salt Sensor's tab-scoped `HA_TOKEN` override himself, then Claude tested the flow without being told it was already gone.** Triggered a real end-to-end test via `switch.salt_test_mode` (the same method CARD-0261 itself used originally):
+```
+12:18:11 | Test   | TEST MODE ON — simulating salt levels at 1s intervals
+12:18:11 | Test   | Step 1/2: WARNING zone — 36.9cm / 27%
+12:18:12 | Test   | Step 2/2: CRITICAL zone — 43.0cm / 0%
+12:18:12 | Alert  | CRITICAL — salt at 0%. Alert sent to HA.
+```
+Node-RED's 60s polling read picked up the HA-side toggle within ~20 seconds (the **read** path), the device responded and simulated its sequence, and Node-RED processed it and posted the alert back to HA (the **write** path) — both working correctly with **zero** tab-scoped `HA_TOKEN`, relying solely on the systemd-level value added above. Checked the flow's own error-handling function (`fn_ha_log`, which explicitly logs an Alert on anything but a 200/207 HTTP response) — it never fired; no HA API errors anywhere in the log for this window. This is the actual proof the exposure is closed, not just that the addition didn't break anything. Test mode turned back off afterward to restore normal operation.
+
+**`credentials.local.md` updated** — HA_TOKEN's entry now names `/home/pi/.node-red/environment` explicitly as a fourth sync location alongside Node-RED/photo-tv-display/hike-izer-orchestrator, so a future rotation doesn't silently miss it the way this file was probably missed at some earlier point (though never actually exercised until this card, since the tab-level override was masking it).
+
+**Done when:** Salt Sensor's tab-scoped `HA_TOKEN` is removed and the tab is confirmed still working via the systemd fallback alone (live-tested, not assumed) — **met**; `credentials.local.md` is updated to name this file explicitly — **met**.
+
+**Related:** CARD-0279 (the Node-RED tab-reimport investigation that surfaced this), CARD-0261 (the original 2026-09-12 incident this card traces back to and fixes the underlying exposure for), `Node-RED-workflow.md` (the import-safety guidance this confirms), `components/salt-sensor/salt-sensor.flow.json`, `credentials.local.md` (HA_TOKEN entry).
+
+---
+

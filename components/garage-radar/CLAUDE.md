@@ -1,7 +1,3 @@
 # garage-radar — Context
 
-No curated context recorded yet — add design rationale, constraints, and gotchas here
-as they're actually learned, per `JCTsh-Build-Standards.md` §7.1's intent for this
-file. `README.md` in this directory is the permanent reference (what it does, current
-behavior); this file is history/rationale, kept separate per `JCTsh-Operating-System.md`'s
-Documentation Structure section.
+Card history archived to `card-archive.md` (CARD-0290) — on-demand only, not part of routine reading. This file is currently a stub; add curated "constraints and gotchas" content here as it's actually learned, per `JCTsh-Build-Standards.md` §7.1's original intent for this file.

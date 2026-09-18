@@ -415,3 +415,104 @@
 
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-18 (CARD-0193)** — 7752B, over the 5000B size threshold.
+
+### CARD-0290 · [enhancement] [tos] Split archived card history out of component CLAUDE.md files into a dedicated card-archive.md — RESOLVED 2026-09-17 20:31 MST
+
+**Status:** Done
+
+**Raised 2026-09-17 (Joseph), directly from running the new Component/Cluster Session Start protocol (CARD-0284) retroactively for the first time.** Reading `components/hike-izer/CLAUDE.md` in full — step 2 of that protocol — turned out to be impossible: the file was 485KB. Joseph's question cut to the actual cause: `archive_cards.py` (CARD-0193) appends every archived Done/Defer card's full text directly into the matching component's `CLAUDE.md`, unbounded, forever — the same file the protocol expects to be small enough to read every resume.
+
+**Real, load-bearing question asked before any fix:** "what is the purpose of CLAUDE.md?" Per hiking-monitor's own `README.md` Files table, it's supposed to be "Claude Code context — constraints and gotchas" — curated, actively-useful guidance. Checked every component's `CLAUDE.md` directly rather than assuming: most (13 of 16 with any archived content) were **100% raw archived card blocks**, nothing curated at all; three (`outdoor-presence-detection`, `salt-sensor`, `traveling`) had genuine hand-authored architecture/design/gotcha content *followed by* an appended Card History section. The stated purpose and the actual mechanism had drifted apart — exactly the same shape as `kanban-board.md` outgrowing itself (CARD-0190/CARD-0193), one layer down, not yet noticed because no session had tried to read a component's `CLAUDE.md` in full until this protocol required it.
+
+**Scope, decided via interview:**
+1. New per-component `card-archive.md` (unprefixed — see the filename-standard decision below) becomes the archive destination instead of `CLAUDE.md`. Read on-demand only, never part of routine Session Start or component/cluster-session startup.
+2. Migrate every existing component's already-archived content out of `CLAUDE.md` into its new `card-archive.md`, today — not just fix the tool going forward.
+3. Migration must never touch genuinely curated content — only the "## Card History" section specifically moves; anything before it (the three files that had real hand-authored content) stays in `CLAUDE.md` untouched.
+4. Document a real filename-prefixing standard (unprefixed by default; prefix only when a file is commonly referenced/searched by name outside its own directory context) — the repo already had an inconsistent, never-articulated split between the two styles, surfaced by having to name this exact new file.
+
+**Filename-standard placement corrected mid-work, 2026-09-17 (Joseph): "seems like it applies regardless of component technology."** First draft proposed writing the standard into `JCTsh-Build-Standards.md` — wrong per that document's own reconciliation note with `JCTsh-Operating-System.md` ("a rule that would still make sense in a repo with no hardware or code at all belongs [in Operating System], not [Build Standards]"). A filename convention applies identically to ESP32 firmware and pure-software components alike — corrected to land in `JCTsh-Operating-System.md`'s Documentation Structure section instead.
+
+**Migration executed via a one-time verified script, not by hand.** For each of the 16 affected `CLAUDE.md` files: split at the literal `## Card History` heading, verified the split exactly reconstructs the original byte-for-byte before writing anything (`before + card_history_section == original`, checked per file), then wrote the pre-heading content (plus a short pointer note) back to `CLAUDE.md` and the heading-onward content to the new `card-archive.md`. Dry-run reviewed before `--apply`. Confirmed after: zero `## Card History` headings remain in any `CLAUDE.md`; the three curated files' hand-authored content (21.7KB/7.4KB/25.2KB respectively) verified intact with nothing but a clean pointer appended; `components/hike-izer/CLAUDE.md` dropped from 485KB to a 310-byte stub, its full history preserved verbatim in the new `card-archive.md`.
+
+**`tos/archive_cards.py` updated** (`discover_destinations()`, the fresh-file preamble in `apply_plan()`, module docstring) so every future archiving run writes to `card-archive.md`, never `CLAUDE.md` again. Re-run as a dry run afterward against the live board — confirmed it now correctly targets `components/hike-izer/card-archive.md`, `tos/card-archive.md`, etc. for the cards currently archive-eligible (CARD-0258/CARD-0208 among them, not archived as part of this card — routine archiving stays a periodic action per `CLAUDE.md`'s own Session Start step 8, not something to run reflexively here).
+
+**Protocol docs updated to reflect the split:** `JCTsh-Component-Session-Start.md` (v1.0 → v1.1) — step 2 now says "read in full" without caveat, and `card-archive.md` explicitly named as on-demand-only, never part of startup. `JCTsh-Operating-System.md` (→ v1.11) — new Documentation Structure notes for both the archive-split rule and the filename standard. Root `CLAUDE.md` — its README/CLAUDE.md distinction paragraph updated to describe `CLAUDE.md` as genuinely small now, with `card-archive.md` as the separate on-demand layer.
+
+**Done when:** every component `CLAUDE.md` with archived content has it split into a sibling `card-archive.md`, curated content is verified untouched, `archive_cards.py` targets the new file going forward, and the extended-session-start protocol/TOS docs reflect the change. **Met** — migration verified via exact reconstruction check per file, tool fix confirmed via a real dry run, all three doc updates made.
+
+**Reopened, 2026-09-17 (this session, running the Component/Cluster Session Start protocol scoped to `tos` itself) — the "zero `## Card History` headings remain in any `CLAUDE.md`" verification above was wrong.** Two files were missed by whatever one-time migration script actually ran, despite `archive_cards.py`'s own `discover_destinations()` docstring already listing both `hosts/` and `tos` itself as in-scope: `hosts/pi1/CLAUDE.md` (7.4KB, untouched) and — the more notable miss — `tos/CLAUDE.md` itself, at 109.5KB, the single largest `CLAUDE.md` in the repo, never split at all. Neither has a `card-archive.md` sibling until this fix. Caught only because this session read `tos/CLAUDE.md` in full as the component-session-start protocol requires — the exact failure mode CARD-0290 exists to prevent, recurring inside CARD-0290's own migration.
+
+**Fixed, same session.** Both files split using the identical verified method the original migration used (exact reconstruction check before writing, `before + after == original`): `hosts/pi1/CLAUDE.md` → 305B stub + `hosts/pi1/card-archive.md` (7404B); `tos/CLAUDE.md` → 299B stub + `tos/card-archive.md` (108769B). Re-confirmed via a full-repo grep: zero `^## Card History` headings remain in any `CLAUDE.md`, this time actually verified rather than asserted.
+
+**Done when (revised):** as above, now genuinely met for all 18 `CLAUDE.md` files with archived content, not just 16 — confirmed by grep, not by trusting the prior verification statement.
+
+**Related:** CARD-0284/CARD-0226/CARD-0222/CARD-0258 (the retroactive-protocol-run that surfaced this), CARD-0193 (the original archiving mechanism this corrects), CARD-0190 (`kanban-board.md`/`kanban-archive.md` — the precedent this same split follows one layer down), CARD-0289 (the general documentation-splitting-by-read-frequency principle this is a concrete instance of), `tos/archive_cards.py`, `tos/JCTsh-Component-Session-Start.md`, `tos/JCTsh-Operating-System.md` (Documentation Structure section), `hosts/pi1/CLAUDE.md`/`tos/CLAUDE.md` (the two files this reopening fixed).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-18 (CARD-0193)** — 5758B, over the 5000B size threshold.
+
+### CARD-0289 · [idea] [tos] Documentation-splitting principle — split by read-frequency, keep cross-references current — RESOLVED 2026-09-17
+
+**Status:** Done
+
+**Raised 2026-09-17 (Joseph), this session** — while deciding CARD-0288's own home (a standalone `JCTsh-Session-Card-Selection.md` file, not a section embedded in `JCTsh-Operating-System.md`), Joseph asked Claude directly what file structure actually works best for it, then asked to turn the answer into a standing principle.
+
+**Claude's reasoning, given when asked:** many small, focused files beat one large one, grounded in a real prior incident, not just a stylistic preference — `kanban-board.md` crossed the Read tool's 256KB cap (CARD-0193), forcing grep-only access and losing the "read straight through" comprehension that's actually most useful. A file sized to one topic, small enough to Read whole in one call, beats a large one that can only be sampled or reconstructed from many greps. The real cost isn't file count — it's reference-chasing (a `**Related:**`-style pointer that has to be followed) and drift (two files disagreeing because one got edited and the other didn't).
+
+**Decision:** adopt as a standing principle — split documentation by topic and read-frequency (what's read every session stays small and central; what's read only on demand goes into its own focused file that gets pointed to explicitly), not by minimizing file count for its own sake. Cross-references must stay explicit and current, or many small files just become a maze instead of a coherent system.
+
+**Placed in `JCTsh-Operating-System.md`, not `JCTsh-Build-Standards.md` §7 (Joseph's call)** — even though §7.1a already established a narrower version of the same idea for component docs (README vs. CLAUDE.md, by read-frequency). This is a TOS-wide process rule (how any doc in this repo gets structured), not a per-component build-standard, so it sits alongside Priority and the Session Card Selection pointer instead.
+
+**Scope:** add a new section to `JCTsh-Operating-System.md` stating the principle (split by read-frequency, keep `**Related:**` pointers current), version-bumped; note the relationship to `JCTsh-Build-Standards.md` §7.1a's existing narrower precedent rather than duplicating it.
+
+**Built, 2026-09-17.** Added a "Documentation Structure" section to `JCTsh-Operating-System.md` (placed after Session Card Selection), version-bumped to 1.3. States the principle, names the cost it trades for (reference-chasing/drift, not file count), and explicitly generalizes `JCTsh-Build-Standards.md` §7.1a's existing README/CLAUDE.md split rather than duplicating it as a separate unrelated rule.
+
+**Reflection (per this document's own Build → Done Reflection requirement):** the durable knowledge lives in the section itself — the one place a future session would actually look before deciding how to structure a new doc — not just in this card's history.
+
+**Done when:** `JCTsh-Operating-System.md` documents the principle. ✓
+
+**Second follow-on, same session, 2026-09-17 — a reconciliation note between the two documents.** Joseph asked how to reconcile what goes in `JCTsh-Build-Standards.md` vs. `JCTsh-Operating-System.md` generally — principles, policy, process, workflow, vs. technology. Claude's answer, adopted: **TOS = process/policy/workflow** (would still make sense in a repo with no hardware or code at all); **Build Standards = technology/build conventions** (specific to a technology or build pattern). The boundary case already on the board — Documentation Structure vs. §7.1a's narrower README/CLAUDE.md split — is the worked example: generalize in the broader doc, cross-reference the narrower one, don't duplicate or merge. Both documents' headers gained a short **Scope boundary** note and a `**Related files:**` pointer to the other, stating this test.
+
+**Third follow-on, same session, 2026-09-17 — a full review of `JCTsh-Build-Standards.md` against that test, requested by Joseph, found three misplaced sections.** All ten numbered sections were read end-to-end. Two were flagged as pure process with no technology content — §6.1 Additive First and §6.3 Existing Pattern Investigation (framed around integration code specifically, but the underlying rules apply to any change in this repo) and §7.5 Documentation Captures Reality (overlapped the existing Build → Done Reflection requirement). Everything else (ESP32/ESPHome, MQTT, SmartThings/Matter, Docker, Security) passed the test cleanly and stayed.
+
+**Moved, 2026-09-17.** §6.1/§6.3 generalized into a new **Engineering Discipline** section in `JCTsh-Operating-System.md` (placed after Core Principle); §7.5 folded into that document's existing Note on Build. `JCTsh-Operating-System.md` version-bumped to 1.5, `JCTsh-Build-Standards.md` to 1.37. All three section numbers kept in `JCTsh-Build-Standards.md` as short pointers (with any hardware-specific application detail that doesn't generalize) rather than deleted outright, so the existing numbered cross-reference in `components/photo-server/photo-server-claude-code-instructions.md` (§6.1) stays valid.
+
+**Done when (revised):** `JCTsh-Operating-System.md` documents the principle, the reconciliation test, and the three moved sections; `JCTsh-Build-Standards.md` correctly points back at each. ✓
+
+**Related:** CARD-0288 (the concrete instance that prompted this), CARD-0193 (the `kanban-board.md` size incident Claude's reasoning is grounded in), `JCTsh-Build-Standards.md` §7.1a/§6.1/§6.3/§7.5 (the existing narrower precedent and the three sections moved out), `components/photo-server/photo-server-claude-code-instructions.md` (the existing §6.1 cross-reference this had to keep valid).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-18 (CARD-0193)** — 7057B, over the 5000B size threshold.
+
+### CARD-0251 · [enhancement] [tos] Auto verify markers — date-based and event-based
+**Status:** Done
+
+**Un-archived from `tos/CLAUDE.md` 2026-09-17, per the un-archiving rule (CARD-0193) — a real update, not just a re-touch.** Moved back to make the correction below in place rather than editing the archive copy.
+
+**Raised retroactively 2026-09-08 (Joseph): "that's the second marker, did we have a card for the first? seems like tos work."** Both marker conventions were built inline under other cards' threads without ever being scoped as their own item — `Auto verify` under CARD-0249 (that card's own "Scope" section only names its two heartbeat-script fixes, not the marker mechanism it also produced), `Watch for` under CARD-0224. Both are genuinely reusable `tos/` kanban-tooling, the same category as CARD-0128/CARD-0173/CARD-0190 — not `[infrastructure]` work belonging to either origin card. Filed here per the "Impromptu Work Cards" convention: logged as already interviewed, built, and deployed, not as new pending work.
+
+**Sorted to the end of the file, not by ID position, 2026-09-08 (Joseph's call) — a deliberate placement, not an accident.** Every other card sits roughly in ID order; this one is meta/self-referential low-priority tooling, so it's placed after the last card in the file, guaranteeing it renders last within its column on `/kanban` (which lists cards in file order, not by ID) rather than jumping to the top of the Done list just because it was written today.
+
+**One family, two flavors — named "Auto verify markers" collectively, deliberately keeping distinct literal wording per flavor (decided 2026-09-08, Joseph's call) rather than forcing both onto one literal keyword.** Each flavor's marker phrase already reads naturally in its own card prose ("Auto verify: 2026-09-14" vs. "Watch for: ..."); unifying only the *umbrella name* (in card titles, CLAUDE.md, and code comments) gets the "one mental model" benefit without a forced, awkward shared keyword or any regex/CSS/JS churn.
+
+**The mechanism, as built:** every card can carry a follow-up marker in its body, parsed by `log_server.py`'s `_parse_kanban_board()` and rendered as a badge on the card's `/kanban` header (so it isn't missed behind a fold), and checked by an unconditional CLAUDE.md Session Start step (independent of the existing 7-day recently-updated window, since a card can sit untouched far longer than that while still waiting on its marker):
+- **Date-based** — `**Auto verify: <date>**` (CARD-0249, 2026-09-07) — for a check that couldn't be done live at write time because it depends on a *known future date/event* (a scheduled reboot, a timer firing). CLAUDE.md Session Start step 4 greps for the marker and, once the date has passed, follows through on the card's own stated check.
+- **Event-based** — `**Watch for:** <description>` (CARD-0224, 2026-09-08) — for a check tied to a real-world condition of *unknown* future timing (no date to wait on) — typically a specific log message that will only appear if/when a field condition occurs. CLAUDE.md Session Start step 5 greps for the marker, then greps the Pi's durable log (`/mnt/jctsh-logs/jctsh.log*`, including rotated backups) for the stated pattern.
+
+**Built and deployed 2026-09-07/08:** `core/logging/log_server.py` — regex parsing for both markers (`av_m`/`wf_m` in `_parse_kanban_board()`), `.flag[data-flag="auto-verify"]`/`.flag[data-flag="watch-for"]` CSS, and JS badge rendering in `cardHtml()`. `CLAUDE.md` — Session Start steps 4 (Auto verify) and 5 (Watch for), both unconditional every session. Deployed to the Pi, `jctsh-logging` restarted, confirmed running. First real uses: CARD-0247/CARD-0248/CARD-0249 (Auto verify), CARD-0224/CARD-0217/CARD-0196 (Watch for).
+
+**Badge text shortened for Watch for, 2026-09-08 (Joseph: "exclude from the yellow marker on the /kanban card the detail... it's too long").** A `Watch for` description can run to a full sentence or more — the card body needs that detail for the actual grep to be precise, but it made the badge itself unreadably long next to every other card's short flags. The badge now shows a fixed `Watch for` label only; the full description moved into the badge's `title` attribute (hover tooltip) instead of being dropped. `Auto verify`'s badge is unchanged — a date is already short enough to show inline.
+
+**Sort-to-end-of-column added, 2026-09-08 (Joseph: "make them sort to the end of their column since they don't require my attention").** A card carrying either marker flavor is passively waiting on something outside this session's control — it doesn't need eyes on it right now, so it shouldn't compete for the top of its column's list. `render()`'s per-column `cards` array now runs a stable sort (`Array.sort`, ES2019+ guaranteed-stable, safe for every browser this page targets) that pushes any card with `auto_verify`/`watch_for` set after every card without one, preserving each group's original file order internally. Applies automatically to every current and future marker-carrying card — no per-card file reordering needed, unlike this card's own placement (see the note above, which is a one-off exception since this card itself carries neither marker).
+
+**Status-vs-marker convention corrected, 2026-09-17 (Joseph).** Found via CARD-0276/CARD-0224: a card was being marked **Done** while still carrying an unresolved Watch-for/Auto-verify marker, reasoning that a marker was just a "bonus" real-world confirmation on top of an already-thoroughly-verified fix. Joseph's call: that's the wrong convention — **an open Auto verify/Watch-for marker means real-world verification is still outstanding, so the card stays in Build (or whatever non-Done column it's actually in) until the marker resolves, full stop, no case-by-case exception for "verified some other way."** Applied retroactively to the two cards that surfaced this (CARD-0276, CARD-0224 — both moved back from Done to Build). The sort-to-end-of-column behavior above is unaffected by this correction — it already sorts within whatever column the card is actually in, not just Done, so a Build-column card with an open marker still correctly sorts to the end of Build.
+
+**Done when:** both marker types parse correctly, render as a card-header badge on `/kanban`, and are checked unconditionally at Session Start regardless of the card's last-touched date — **met**, live on the Pi. The status-vs-marker convention correction above is a documentation/process fix, not a code change — no separate verification needed.
+
+**Related:** CARD-0249 (Auto verify's origin thread), CARD-0224/CARD-0217/CARD-0196 (Watch for's origin/adopting threads), CARD-0276 (the card whose incorrect Done status while a Watch-for was open prompted this correction), CARD-0258 (found a real gap in this convention's resolution protocol and promoted it into `tos/JCTsh-Operating-System.md`), CARD-0128/CARD-0173/CARD-0190 (prior `[tos]` kanban-tooling precedent), `core/logging/log_server.py`, `CLAUDE.md`.
+
+---
+

@@ -9,7 +9,24 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0293 -->
+<!-- next-card-id: CARD-0294 -->
+
+---
+
+### CARD-0293 · [idea] [personal] Develop a method to post daily devotional notes into LogSeq
+
+**Status:** Backlog
+
+**Auto-opened from jctsh-core's maintenance check (PR #90).** Raw finding (voice transcription, garbled): "widget to take a screenshot take the text off it and put it in log seat."
+
+**Clarified 2026-09-18 (Joseph):** develop a method to facilitate LogSeq posting of daily devotional notes. Not yet interviewed beyond this one-line clarification — open questions before this can be scoped/planned, left here for later resolution:
+1. Source of the devotional text — a screenshot of an app/site that doesn't offer copy-paste (hence OCR), or something else?
+2. Trigger — manual, or an automated Tasker-style flow (share-to-profile, like the existing Idea Tasker/Hike-izer Done pattern)?
+3. How this reaches LogSeq — local markdown files synced somehow, a LogSeq API/plugin, a sync service, or direct file writes into the graph?
+4. Target — append into LogSeq's existing daily-journal page for that date, or somewhere else?
+5. Component tag — set to `[personal]` (Joseph's call, 2026-09-18, same as CARD-0072) for now.
+
+**Related:** none yet.
 
 ---
 
@@ -69,7 +86,12 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Second pass, same session — the rest of `components/*`'s own Status lines checked against the root table.** All matched except one real find: **`outdoor-presence-detection`'s root-table description said "Ring motion voice announcement + doorbell live video," but the component's own `README.md` states the doorbell live video half was deactivated 2026-08-21 (CARD-0187 on hold)** — the root table implied both sub-features are live when only one is. Fixed to name the deactivation explicitly rather than silently dropping it. `automatic-garage-door-opener-closer`, `equip-shelf`, `front-porch-temp-sensor`, `garage-presence`, `garage-radar`, `p-w-firefly`, `salt-sensor`, `traveling` all match root table exactly, no discrepancy. `van-sensors`/`weather-station` (Planned) also match. `hosts/pi1/README.md` checked — it's an honest, self-declared placeholder ("not yet populated," explains why, points at where the real info currently lives) — not stale, just incomplete by its own admission, which is the correct way to document an unfinished state, not a finding to fix.
 
-**Remaining scope, not yet swept — real completeness gap noted, not fixed from scratch:** `core/homeassistant`, `core/maintenance`, and `core/mqtt` have no `README.md` at all (only `core/logging` and now `core/data-pipeline`/`core/docker` — added to the root table this pass, though those two still lack their own `README.md` files too — do). All three run real, currently-deployed infrastructure. Writing accurate `README.md` content for each needs real knowledge of current config/behavior, not a mechanical fix — better scoped as its own follow-up than fabricated here. Also not yet checked in depth: `bedside-clock`/`photo-quality-review`/`remote-temp-sensor-01`'s own doc content beyond their Status lines, `core/logging`'s own content, `hosts/pi1`'s `CLAUDE.md`. Card stays in Build.
+**Third pass, 2026-09-18 (Joseph: "fix the missing README and CLAUDE files") — the completeness gaps from the first two passes actually closed, not just noted.**
+
+1. **Three `README.md` files written from scratch for `core/homeassistant`, `core/maintenance`, `core/mqtt`** — grounded in each directory's actual files (`docker-compose.yml`, script docstrings, systemd unit `ExecStart` lines, existing detail docs like `monitoring.md`), not guessed. `core/maintenance`'s is organized by category (update checks, reboots, backup, image pull, heartbeat) given how many scripts/units live there. Root `README.md`'s `core/` table updated with links to all three, matching `core/logging`'s existing link pattern, plus `core/docker/` (still no own `README.md` — genuinely minimal, just two config files, lower priority).
+2. **Eight missing `CLAUDE.md` stubs created**: `garage-radar`, `hike-izer-orchestrator`, `hike-izer-web`, `jctsh-menu`, `p-w-firefly`, `photo-tv-display`, `hosts/m8`, `core/node-red`. **Deliberately not CARD-0290's exact stub wording** — that text says "Card history archived to `card-archive.md` (CARD-0290)," which would be a false claim for these eight (nothing was ever migrated from them, since none had a `CLAUDE.md` to migrate from). New wording states plainly that no curated context has been recorded yet, without inventing a false archival claim or creating a phantom `card-archive.md` alongside it.
+
+**Still not done, deliberately — real content work, not a stub or index fix:** whether any of these eight components have real "constraints and gotchas" content currently stranded inside their `README.md` that should move into the new `CLAUDE.md` stub was not checked file-by-file this pass; the stubs exist so there's a home for it going forward, not because that content was found and moved. `core/docker/README.md` still doesn't exist. `bedside-clock`/`photo-quality-review`/`remote-temp-sensor-01`'s own doc content beyond their Status lines, `core/logging`'s own content, and `hosts/pi1`'s `CLAUDE.md` remain unchecked. Card stays in Build.
 
 **Related:** `tos/README.md`'s CARD-0290 fix (the finding that prompted this), `JCTsh-Build-Standards.md` §7.1/§7.1a (the required-documents standard being audited against), `JCTsh-Operating-System.md`'s Documentation Structure section and Engineering Discipline section ("investigate existing patterns first" — this card is that check applied systematically rather than incidentally), root `README.md` (System Status table, Repository Layout), `components/netalertx/README.md` (the rename), `components/air-quality-monitor/README.md` (the stale-status fix).
 

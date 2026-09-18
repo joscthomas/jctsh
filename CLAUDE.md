@@ -16,6 +16,10 @@ section). For what's installed and running on the Pi, see `SOFTWARE-ENVIRONMENT.
 ## Session Start
 
 At the start of every Claude Code session in this repo, before doing anything else, read:
+**This list is for a general session.** A component/cluster session (CARD-0284 — a session
+with a standing identity dedicated to specific component(s)) runs a modified version instead,
+not this list unmodified plus extras — see `tos/JCTsh-Component-Session-Start.md`'s per-step
+table for exactly which steps below get scoped, skipped, or run as-is.
 1. **`git status --short` for uncommitted changes to tracked files, especially
    `tos/kanban-board.md`.** A prior session can leave real edits sitting in the working tree
    without ever running `git commit`/`git push` — invisible to git history, but still capable
@@ -83,7 +87,14 @@ At the start of every Claude Code session in this repo, before doing anything el
    (missing/gappy data, an unexpected reboot, a component gone silent) that isn't already
    covered by steps 5/6's targeted marker checks above. Summarize anything notable to Joseph
    rather than acting on it unprompted — this step is a general health scan, not a substitute
-   for the specific Auto verify/Watch for lookups.
+   for the specific Auto verify/Watch for lookups. **For "is component X actually alive right
+   now," check the live `/status` page, not a raw-log grep (CARD-0282).** `jctsh.log*` only
+   gets a line written after a flush trigger (a state change, 15 minutes, or another message)
+   — it can look silent for months while the device is actually fine, the exact false alarm
+   CARD-0281 hit. `/status` reflects real, current per-component connection/freshness state
+   directly; use the raw log for "what did component X say recently," not "is it alive now."
+   A general session scans `/status` across every device; a component session (per
+   `JCTsh-Component-Session-Start.md`) scans it for its own covered component(s) only.
 
 **Every timestamp written into `tos/kanban-board.md` (`Raised`, `RESOLVED`, `verified`, `Built`,
 `Decided`, status-line dates, anywhere else a date gets stamped) MUST include a time of day,

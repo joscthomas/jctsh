@@ -245,7 +245,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Step 4 softened, same session, 2026-09-17 (Joseph asked directly whether periodic restart has real benefits beyond "resume unless lost").** It does — three, weighed against the ramp-up cost this whole design exists to avoid: context/cost bloat from an ever-growing transcript, self-testing that the `.md` files are actually sufficient on their own (a rebuild is exactly what surfaced this same session's two real gaps — CARD-0290's incomplete migration, the whole-board-vs-scoped listing miss), and shedding stale intermediate reasoning that lingers in a long session's context even after the docs are corrected. `JCTsh-Component-Session-Start.md` step 4 changed from an unconditional "resume it, never restart it" to "default to resuming," with a periodic deliberate restart named as a real, judgment-based exception — not just a fallback for a lost session. Also clarified there, mechanically: resuming works the same from a clean shell (`claude --resume`/`--continue`) as from `/resume` inside another session — two terminal windows, each independently resumed, is the practical way to run two component sessions side by side (live example: this `tos` session and the hike-izer session's own uncommitted changes, both present in this repo at once today).
 
-**Related:** CARD-0283 (the concurrent-editing convention change from the same discussion thread), CARD-0251 (the Auto verify/Watch for markers precedent this follows for how a proven ad hoc practice gets promoted into real TOS documentation), CARD-0226/CARD-0222/CARD-0258 (the real miss that prompted the first promoted piece, above), CARD-0291 (opened by this same `tos` component session, the other concrete evidence this second pilot instance is real), `components/hike-izer*/CLAUDE.md` (the pilot cluster's docs), `tos/kanban-board.md`, `tos/JCTsh-Operating-System.md` (now carries a real section for this), `tos/JCTsh-Component-Session-Start.md` (the extended startup-steps document itself, now v1.4, including the generalized initiation/rebuild procedure and the periodic-restart exception).
+**Framing corrected, same session, 2026-09-17 (Joseph) — a component session doesn't run general Session Start "plus" component steps, it runs a genuinely modified version.** Raised directly: "for a general session look at all devices; for a 'component session' only look at items particular to the component... this distinguishes between a general session and a 'component session'." The prior design (this card's own earlier text, and `JCTsh-Component-Session-Start.md`'s own framing sentence) had every component session run *all 9* general Session Start steps unmodified and then layer scoped extras on top — never actually correct, just never questioned until asked directly. Decided per-step, individually rather than by blanket rule (Joseph: "i'll decide on each"):
+
+| # | General step | Component session |
+|---|---|---|
+| 1 | git status | Scoped to the session's own component director(y/ies) |
+| 2 | Build column | Scoped to the session's own component tag(s) |
+| 3 | 7-day-updated | Scoped to the session's own component tag(s) |
+| 4 | Open PRs | **Skipped** — a raw finding's component often isn't known until reviewed |
+| 5 | Auto verify (date) | Scoped to the session's own component tag(s) |
+| 6 | Watch for (event) | Scoped to the session's own component tag(s) |
+| 7 | Read `JCTsh-Operating-System.md` | **Unscoped** — foundational, not a data scan |
+| 8 | Periodic archive check | **Skipped** — whole-board housekeeping, not component-specific |
+| 9 | `/status` device health (CARD-0282) | Scoped to the session's own component(s)/device(s) |
+
+**Fixed, same session.** `tos/JCTsh-Component-Session-Start.md` (→ v1.6) rewritten: replaced the "runs general steps first, nothing below replaces those" sentence with the table above, so the document's two step-lists are now genuinely *instead of* the general list, not *in addition to* it. Root `CLAUDE.md`'s Session Start intro now states explicitly that its list is for a general session and points to the table for what a component session does differently. `JCTsh-Operating-System.md`'s Component/Cluster Sessions section (→ v1.13) corrected to match.
+
+**Done when (revised again):** as above, plus the per-step table exists and root `CLAUDE.md`/`JCTsh-Operating-System.md` both point to it accurately rather than describing the old "general steps plus extras" model. **Met** for the documentation; still open per the earlier revision's own criterion (a future session deliberately initiated via the documented procedure, not yet observed).
+
+**Related:** CARD-0283 (the concurrent-editing convention change from the same discussion thread), CARD-0282 (the `/status` scoping this table incorporates as row 9), CARD-0251 (the Auto verify/Watch for markers precedent this follows for how a proven ad hoc practice gets promoted into real TOS documentation), CARD-0226/CARD-0222/CARD-0258 (the real miss that prompted the first promoted piece, above), CARD-0291 (opened by this same `tos` component session, the other concrete evidence this second pilot instance is real), `components/hike-izer*/CLAUDE.md` (the pilot cluster's docs), `tos/kanban-board.md`, `tos/JCTsh-Operating-System.md` (now v1.13), `tos/JCTsh-Component-Session-Start.md` (now v1.6, the corrected per-step table plus the generalized initiation/rebuild procedure and the periodic-restart exception).
 
 ---
 
@@ -265,17 +283,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0282 · [enhancement] [tos] Session Start's log dashboard check should use the live `/status` page, not raw `jctsh.log` grep
+### CARD-0282 · [enhancement] [tos] Session Start's log dashboard check should use the live `/status` page, not raw `jctsh.log` grep — RESOLVED 2026-09-17
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-17 (Joseph), directly from CARD-0281's false alarm.** That card's original "garage-radar silent for 3 months" finding came from grepping the raw `/mnt/jctsh-logs/jctsh.log*` file for a component's activity — but this project already has a documented convention (memory: "Dashboard vs raw log") that the raw file only gets a line written after a flush trigger (a state change, 15 minutes, or another message), while the live `/status` page reflects real, current per-component connection/freshness state directly. Querying `/status` in this same investigation immediately showed the device `Connected`/`Online` with a recent heartbeat — the raw-grep method gave a materially wrong picture that a `/status` check would have caught immediately.
 
 **Essence:** `CLAUDE.md`'s Session Start step 8 ("Examine the JCTsh Log Dashboard... for system problems or data issues") should explicitly point at `/status` (or another live, current-state view) as the way to check "is component X actually alive right now" — not a raw-log grep, which is the wrong tool for that specific question even though it's a fine tool for "what did component X say recently."
 
-**Not yet interviewed for a done-when or full acceptance criteria** — essence-only per this project's Backlog scoping convention. Real scoping (exactly which step-8 wording changes, whether to add a similar caution anywhere else in `CLAUDE.md` that currently implies raw-log grepping for a liveness question) belongs in Planning.
+**Interviewed 2026-09-17 (Joseph), in the `tos` component session — added a second dimension beyond the original essence.** This is also a new general-session-vs-component-session distinction, the same shape as CARD-0284's kanban-tag scoping: a **general** session's device-health check scans `/status` across every device; a **component** session scans it for only the device(s)/component(s) it actually covers, not the whole fleet.
 
-**Related:** CARD-0281 (the false alarm that raised this), `CLAUDE.md` (Session Start step 8), `core/logging/log_server.py` (`/status` endpoint).
+**Scope:**
+1. `CLAUDE.md`'s Session Start step 9 (the actual current step number — the card's original "step 8" reference was already stale) points at `/status` for a liveness check, explicitly contrasted with the raw-log grep's different purpose ("what did X say recently," not "is X alive now").
+2. `tos/JCTsh-Component-Session-Start.md` gains a new step 5, mirroring step 3's kanban-scoping principle: a component session scopes the `/status` check to its own covered component(s) only.
+
+**Built, 2026-09-17.** `CLAUDE.md` step 9 updated in place with the `/status`-vs-raw-log distinction and the general-vs-component-session scoping note. `JCTsh-Component-Session-Start.md` → v1.5, new step 5 added.
+
+**Done when:** both documents state the `/status`-for-liveness rule and the general-vs-component scoping distinction. **Met.**
+
+**Related:** CARD-0281 (the false alarm that raised this), CARD-0284 (the analogous kanban-scoping precedent this generalizes to device health), `CLAUDE.md` (Session Start step 9), `core/logging/log_server.py` (`/status` endpoint), `tos/JCTsh-Component-Session-Start.md` (new step 5, now v1.5).
 
 ---
 

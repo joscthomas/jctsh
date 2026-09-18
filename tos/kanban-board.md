@@ -9,7 +9,29 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0299 -->
+<!-- next-card-id: CARD-0300 -->
+
+---
+
+### CARD-0299 · [enhancement] [tos] Table defining which components each component/cluster session covers
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: "create a table that defines the scope of each component session".
+
+**What exists today, checked against the real file rather than assumed.** `tos/JCTsh-Component-Session-Start.md` already has a table — but it answers a different question: *which of `CLAUDE.md`'s 9 general Session Start steps get scoped, skipped, or run as-is* for a component session. There is no table anywhere listing **which sessions exist and which components each one covers**. That roster currently lives only as prose: the document names two real instances as of 2026-09-17 (the hike-izer cluster session covering `hike-izer`/`hike-izer-orchestrator`/`hike-izer-web`/`core/data-pipeline`, and the `tos` session), with no structured place for a third.
+
+**Real tension this surfaces, worth deciding explicitly rather than quietly overriding.** `JCTsh-Component-Session-Start.md`'s step 2 currently states that naming a session is "purely so `/resume`'s own picker can find it later; **no separate registry or naming file is needed**." This finding is a direct request for something registry-shaped. That earlier call wasn't wrong at two sessions — the question is whether it still holds now, and what changed. Scoping this card should confront that line directly and either revise it with a stated reason or decline the table; it should not add a registry while leaving the "no registry needed" sentence standing.
+
+**Open questions for planning:**
+1. **Where the table lives** — inside `JCTsh-Component-Session-Start.md` (alongside its existing per-step table), or a separate `tos/` file.
+2. **What columns it carries** — at minimum session name and covered components; candidates beyond that include the `/status` devices it scans, which card tags it owns, and whether a session is currently active or dormant.
+3. **How it stays current** — a table listing sessions goes stale exactly like the doc-status drift CARD-0291 just audited for. Whether anything keeps it honest (a startup step that checks it, a periodic audit) or it is accepted as manually maintained.
+4. **Whether tag ownership belongs here at all**, given CARD-0294 is separately reconciling every card tag against the directory structure — a session-to-component table and a tag-to-directory mapping could end up restating each other.
+
+**Done when:** a table defining each component/cluster session's scope exists in `tos/`, the "no separate registry or naming file is needed" line in `JCTsh-Component-Session-Start.md` is either revised to match or the table is deliberately declined with that reasoning recorded, and the two known real sessions (hike-izer cluster, `tos`) are both represented.
+
+**Related:** CARD-0284 (persistent per-cluster sessions — the practice this table would describe), CARD-0294 (tag-to-directory reconciliation, overlapping concern), CARD-0291 (documentation drift audit — the failure mode a roster table is exposed to), CARD-0128 (the auto-PR intake pipeline this was raised by), `tos/JCTsh-Component-Session-Start.md` (the existing per-step table and the "no registry needed" line this card must reconcile with).
 
 ---
 

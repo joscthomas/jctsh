@@ -224,7 +224,11 @@ Wrote `tos/Portable-Kanban-Template.md` for the second piece of scope — card f
 
 **No hardcoded absolute-path references found** in any Claude skill `.md` file (same check CARD-0301 ran for jctsh) — the skills should run unaffected from the new path.
 
-**Explicitly not started (the actual move/git-init)** — investigation and the open questions above are done; execution is next.
+**Cruft removed before the move, 2026-09-18 (Joseph's calls, each confirmed before deleting):**
+- `Corel Auto-Preserve/` — an entire folder of Corel/PaintShop autosave copies, all duplicating finished assets already present elsewhere in `other/`. Deleted.
+- **149 files, 5.2MB** of zero-content OS/app cache — 130 `Thumbs.db` (Windows Explorer's thumbnail cache, scattered across nearly every 2010–2014 month folder) and 19 `.picasa.ini` (Picasa's old metadata cache, 2011–2015). Enumerated and totaled before deleting, not assumed; verified afterward that none remain.
+
+**Explicitly not started (the actual move/git-init)** — investigation, secret remediation, and cruft cleanup above are done; execution (move, `git init`, `.gitignore`, kanban bootstrap, GitHub remote) is next.
 
 **Done when:** the Pastor Ben blog's files (only, not the rest of `BNC`) are in `Projects\PB Blog` as their own git repo with directory structure intact, the existing Claude tooling confirmed still working from the new path, any live publishing path confirmed unaffected, its own `kanban-board.md` bootstrapped from CARD-0301's template, and the GitHub remote/visibility decided and pushed.
 

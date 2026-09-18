@@ -15,7 +15,7 @@ environmental monitoring into a single integrated ecosystem.
 | [garage-radar](components/garage-radar/) | 24GHz mmWave workbench presence sensor | Production |
 | [garage-presence](components/garage-presence/) | Garage presence countdown timer and lights automation | Production |
 | [traveling](components/traveling/) | Randomized occupancy-simulation lighting + unexpected-TV-activity alert while traveling | Production |
-| [outdoor-presence-detection](components/outdoor-presence-detection/) | Ring motion voice announcement + doorbell live video on the Gathering Room TV | Production |
+| [outdoor-presence-detection](components/outdoor-presence-detection/) | Ring motion voice announcement (doorbell live video deactivated 2026-08-21, CARD-0187 on hold) | Production |
 | [automatic-garage-door-opener-closer](components/automatic-garage-door-opener-closer/) | Voice and auto-close control for LiftMaster opener | Production |
 | [equip-shelf](components/equip-shelf/) | Physical shelf housing the Pi, M8, SmartThings hub, garage relay, router, and cooling fans | Production |
 | [front-porch-temp-sensor](components/front-porch-temp-sensor/) | Front porch temperature, pressure, and light with push notifications | Production |

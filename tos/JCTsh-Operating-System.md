@@ -1,8 +1,8 @@
 # JCT Smart Home (JCTsh) Team Operating System (TOS)
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines how the JCTsh team works — the conceptual process governing all work.
-**Version:** 1.15
-**Version description:** Added a Documentation Structure rule for a document's own version-tracking (CARD-0292, Joseph) — split into a sibling `<Doc>-History.md` once it stops being a short header field, with a concrete trigger (a real "Prior version description" chain or dedicated table, not a vague sense of "too long"). Applied immediately to this document, `JCTsh-Component-Session-Start.md`, and `JCTsh-Build-Standards.md`.
+**Version:** 1.16
+**Version description:** Added a "Retracting a card" note to State Transitions (CARD-0302) — formalizes an observed-but-undocumented convention (distinct from Defer: the card itself shouldn't have existed, almost always a duplicate found after the fact) already used three times (CARD-0252, CARD-0253, CARD-0302 itself) with no written definition until now.
 **Version history:** `JCTsh-Operating-System-History.md`
 **Related files:** `JCTsh-Build-Standards.md` (technology/build conventions — see the reconciliation note below for how the two relate)
 
@@ -116,6 +116,13 @@ Each transition has a **trigger** — the concrete thing (an artifact existing, 
 | *(any state)* | **Defer** | A decision to not pursue the work. |
 
 **Note on Planning:** Planning is not always a single step, and it happens in Claude Code, not chat (see Where Work Happens above) — chat's contribution is the informal, pre-card thinking that led to the card's creation, not the planning documents themselves. For a hardware or software build, Planning may consist of multiple sequential phases — e.g. discovery/feasibility, hardware selection, architecture/integration design, per `JCTsh-Component-Planning-Pattern.md`'s Phases 1–3 — each potentially producing its own planning document depending on the sequence and depth of work the card actually needs. For simpler work, Planning may produce just a single planning document. Either way, the Planning → Design trigger's "a planning document exists" is satisfied by whatever set of documents Planning actually produced — the structure adapts to the work, not the other way around.
+
+**Retracting a card (formalized 2026-09-18, CARD-0302 — observed convention, never previously written down).** Distinct from **Defer**: Defer means the work is real but consciously parked; retraction means the card itself shouldn't have been opened as its own card — almost always because it duplicates work already tracked elsewhere, found only after the fact (e.g. CARD-0302 duplicating the already-open CARD-0294; CARD-0252/0253 duplicating open threads on CARD-0012). Not a new column — a retracted card's `**Status:**` is **Done**, with the retraction itself named in the title:
+1. **Title becomes `[retracted] Folded into CARD-XXXX — was: <original title>`** — replacing the type bracket (`[idea]`/`[bug]`/`[enhancement]`), not adding to it.
+2. **Body explains when/why it was opened, then found to duplicate**, and names the real card its findings moved to.
+3. **Any genuinely new finding the retracted card surfaced gets folded into the target card as its own note** — not lost just because the card housing it was a mistake.
+4. **Kept as a stub, never deleted** — the card number may already be referenced elsewhere (a commit message, a code comment, another card's `Related:` line), and a dangling reference is worse than a short stub explaining where the content actually lives.
+5. **A `Related:` line points at the target card.**
 
 **Note on Build:** Build is not Claude Code executing alone. It includes per-step manual work and confirmation by Joseph wherever the work requires it — physical assembly, wiring, flashing, real-world verification — the same Claude Code does / Joseph does / Joseph confirms pattern `JCTsh-Component-Planning-Pattern.md` Phase 5 uses for hardware builds, generalized to any card where a human step is required. "Verification that everything works correctly" means the change is live and confirmed working — deployed, tested, observed — not merely edited locally. A card with outstanding deployment, manual, or verification steps stays in Build with those steps noted, rather than moving to Done prematurely. **Documentation captures reality as it goes** (generalized from `JCTsh-Build-Standards.md` §7.5, CARD-0289 follow-on): instructions get updated with actual findings during the work itself, not just original intentions, and a deviation from the plan is documented immediately when discovered — not deferred to the Reflection step below.
 

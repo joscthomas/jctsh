@@ -19,6 +19,7 @@ began.
 
 | Version | Description |
 |---|---|
+| 1.16 | Added a "Retracting a card" note to State Transitions (CARD-0302) — formalizes an observed-but-undocumented convention (distinct from Defer: the card itself shouldn't have existed, almost always a duplicate found after the fact) already used three times (CARD-0252, CARD-0253, CARD-0302 itself) with no written definition until now. |
 | 1.15 | Added a Documentation Structure rule for a document's own version-tracking (CARD-0292) — split into a sibling `<Doc>-History.md` once it stops being a short header field, with a concrete trigger (a real "Prior version description" chain or dedicated table). Applied immediately to this document, `JCTsh-Component-Session-Start.md`, and `JCTsh-Build-Standards.md`. |
 | 1.14 | Split this "Version description" chain out of `JCTsh-Operating-System.md` into this file (CARD-0292) — it had grown to ~6KB, over 20% of the file. From this version on, the live document's header holds only the current version's description; this file is the complete record. |
 | 1.13 | Corrected the Component/Cluster Sessions section's framing (CARD-0284 follow-on, Joseph) — a component/cluster session runs a *modified* general Session Start (per-step scoped/skipped/unscoped, see `JCTsh-Component-Session-Start.md`'s table), not the general steps unmodified plus extras as previously stated. |

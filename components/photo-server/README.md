@@ -4,10 +4,10 @@ Self-hosted Immich photo/video library on a dedicated GMKtec M8 mini PC. Replace
 
 | Status | Production |
 |---|---|
-| Host | GMKtec NucBox M8, hostname `photo-server` |
-| LAN | `192.168.1.165` (DHCP-reserved), `photo-server.local` |
+| Host | GMKtec NucBox M8, hostname `m8` (renamed from `photo-server`, CARD-0096, 2026-08-14) |
+| LAN | `192.168.1.165` (DHCP-reserved), `m8.local` |
 | Tailscale | `100.111.16.14` |
-| Web UI | `http://photo-server.local:2283` or `http://192.168.1.165:2283` |
+| Web UI | `http://m8.local:2283` or `http://192.168.1.165:2283` |
 | OS | Ubuntu 26.04 LTS |
 
 ## What's Here

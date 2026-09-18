@@ -9,7 +9,33 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0302 -->
+<!-- next-card-id: CARD-0303 -->
+
+---
+
+### CARD-0302 · [enhancement] [tos] Reconcile every kanban tag against the actual directory structure
+
+**Status:** Planning — scoped and decided, holding for Joseph's go-ahead before any card is retagged (2026-09-18)
+
+**Raised 2026-09-18 (Joseph).** Card tags were never governed by anything — each card's `[tag]` was chosen by hand at write time, with no check that it matches a real `components/<name>/`, `core/<name>/`, or `hosts/<name>/` directory. Over 300 cards that's drifted: renamed things kept their old tag, some tags name a concept rather than a component, and one generic bucket absorbed a large share of everything.
+
+**Inventory pulled 2026-09-18 — 38 distinct tags across the board.** 26 match a real directory (19 `components/`, 6 `core/` by bare name — e.g. `logging` → `core/logging`, `pi1` → `hosts/pi1`, `tos`). The other 12 fall into three genuinely different kinds, and the distinction is the actual point of this card:
+
+| Kind | Tags | Cards | Decided treatment |
+|---|---|---|---|
+| **Reconcilable** — renamed or superseded, a real directory exists today | `kanban-board`→`tos`, `log-server`→`logging`, `immich`→`photo-server`, `core`→`data-pipeline` | 5 | Retag in place, this card |
+| **Planned component, no directory yet** | `vu-meter`, `shower-temp-sensor`, `back-patio-temp-sensor`, `garage-entry-hallway`, `presence` | 5 | **Leave as-is — legitimate, not a defect** (Joseph's call). A tag naming a not-yet-built component is correct; the directory appears when the build starts. |
+| **Generic bucket — no component exists or could** | `infrastructure` (47), `personal` (5), `wildlife` (1) | 53 | `personal`/`wildlife` accepted as-is; **`infrastructure` gets a real audit** (below) |
+
+**The five clear-cut retags, identified and ready but NOT yet applied** (holding per Joseph, 2026-09-18): CARD-0114 and CARD-0056 (`kanban-board` → `tos`, both predate CARD-0191's `tos/` consolidation), CARD-0139 (`log-server` → `logging`, two names for `core/logging`), CARD-0018 (`immich` → `photo-server`, Immich *is* photo-server), CARD-0014 (`core` → `data-pipeline` — that card is literally the one that created `core/data-pipeline/`, confirmed from its own resolution text rather than inferred from the title).
+
+**`infrastructure`'s 47 cards — audit in scope, application is not (Joseph's call).** 47 cards on one catch-all tag is the single largest reconciliation opportunity on the board, and many of them plausibly belong to a real directory that exists now (`core/docker`, `core/maintenance`, `core/mqtt`, `hosts/m8`, `hosts/pi1`). But each one needs a per-card judgment about where the work actually landed — exactly the kind of call that shouldn't be applied unilaterally across 47 cards. This card produces the proposed mapping for review; the retags themselves wait for a go-ahead.
+
+**Explicitly not in scope:** enforcing tags going forward. Whether the valid-tag set should be documented in `JCTsh-Operating-System.md`, or checked by `log_server.py`'s parser, or left to judgment, is a separate decision — worth raising once this pass shows how much drift actually accumulated without any enforcement.
+
+**Done when:** every tag on the board is classified into one of the three kinds above; the five reconcilable ones are retagged in place; and the `infrastructure` audit's proposed per-card mapping is written up here for Joseph's call.
+
+**Related:** CARD-0191 (the `tos/` consolidation that orphaned the `kanban-board` tag), CARD-0014 (created `core/data-pipeline/`, the `core` tag's real home), CARD-0291 (the README/CLAUDE.md audit this mirrors — same "check the docs against what's actually on disk" shape, one layer over), `core/logging/log_server.py` (`_parse_kanban_board()`, which reads these tags for the `/kanban` page).
 
 ---
 

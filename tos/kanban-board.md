@@ -9,7 +9,62 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0285 -->
+<!-- next-card-id: CARD-0288 -->
+
+---
+
+### CARD-0287 · [enhancement] [hiking-monitor] Extend Mile Announcer with a spoken cumulative elevation-gain figure
+
+**Status:** Backlog
+
+**Auto-opened from jctsh-core's maintenance check (PR #88).** Raw finding (garbled in the original capture): "mileage not mileage elevation announcer." Clarified 2026-09-17 (Joseph): wants CARD-0208's existing Mile Announcer (Tasker TTS on the Pixel, currently speaks "one mile," "two miles," etc.) to also speak cumulative elevation gain at each mile mark.
+
+**Interviewed 2026-09-17 (Joseph):** kept as its own new card rather than folded into CARD-0208 -- CARD-0208's own audibility bug (the `Volume` action that kept not sticking) is confirmed fixed, so this builds on a working base, not a still-flaky one. Elevation figure: cumulative gain since the hike started, matching how hike-izer's own stats report gain -- not current altitude.
+
+**Scope:** extend the "Mile Announcer" Tasker task (`components/hiking-monitor/tasker/Mile-Announcement.prf.xml`) to also track cumulative elevation gain and speak it alongside the mile count, e.g. "Two miles, three hundred feet gained."
+
+**Open question, not yet resolved:** where cumulative elevation gain is sourced from on-device during a live hike (GPSLogger's own altitude field vs. barometric pressure via hiking-monitor's BME280) -- needs a real design pass before building, same as CARD-0208's own original design sketch.
+
+**Done when:** a real hike shows every whole-mile crossing announced audibly with both the mile count and a correct cumulative elevation-gain figure, cross-checked against hike-izer's own published elevation-gain stat for that hike.
+
+**Related:** CARD-0208 (Mile Announcer, the base this extends), `components/hiking-monitor/tasker/Mile-Announcement.prf.xml`, `components/hiking-monitor/hiking-monitor.yaml` (BME280 pressure/altitude sensor).
+
+---
+
+### CARD-0286 · [enhancement] [hike-izer] Auto-create an Immich Album per hike, populated with that hike's photos
+
+**Status:** Backlog
+
+**Auto-opened from jctsh-core's maintenance check (PR #87).** Raw finding: put the photos for each hike in its own folder. Clarified 2026-09-17 (Joseph): this is about Immich's own organization, not hike-izer's already-per-hike served output (`generation.py` already writes to `/srv/hike-izer/<date>_photos/`, confirmed unrelated to this finding).
+
+**Interviewed 2026-09-17 (Joseph):** create a folder -- an Immich Album -- for each hike, and put that hike's photos into it. Scoped deliberately narrow: Album creation only. This does not touch Immich's global Storage Template setting, so it does not trigger a library-wide on-disk reorganization (that setting is global and would move the entire ~900GB+ library, not just hike photos -- explicitly ruled out of scope for this card).
+
+**Scope:** as part of the existing photo-fetch step (`fetch_hike_photos.py` / `generation.py`'s `_fetch_photos`), create (or find, if already present) an Immich Album for the hike and add the same photos already selected by the existing time-window search to it.
+
+**Done when:** a real hike's photos appear grouped together in a dedicated Album in Immich's own UI, verified live against the real Immich instance, for a newly-processed hike (backfilling past hikes not required).
+
+**Related:** `components/hike-izer/fetch_hike_photos.py` (`search_assets`, the existing time-window photo selection this reuses), `components/hike-izer-orchestrator/generation.py` (`_fetch_photos`), CARD-0175 (Immich album-related prior idea -- different mechanism, same API surface).
+
+---
+
+### CARD-0285 · [enhancement] [hike-izer] Carry air-quality-monitor's sensor data through the pipeline and onto the hike-izer web page
+
+**Status:** Backlog
+
+**Auto-opened from jctsh-core's maintenance check (PR #86).** Raw finding: adjustments to hikizer for air quality monitor.
+
+**Interviewed 2026-09-17 (Joseph).** Now that air-quality-monitor's core build (Step 8 firmware/duty-cycle/replay, live-verified; Step 9 perfboard, confirmed done) is far enough along, its sensor readings (PM1.0, PM2.5, PM4.0, PM10, VOC Index, NOx Index) captured during a hike should flow through to the hike-izer web page, not just hiking-monitor's existing temp/humidity/pressure/UV.
+
+**Real gap found while scoping:** `fetch_hike_data.py`'s Environmental Data pull is hardcoded to `--source hiking-monitor` (its own `--source` arg help text warns that omitting the filter would otherwise mix in another device's readings) -- air-quality-monitor's readings are filtered out entirely today, not merely unused.
+
+**Scope:**
+1. Extend `fetch_hike_data.py` to also pull air-quality-monitor's Environmental Data rows for the hike window, alongside (not instead of) hiking-monitor's -- both devices are carried on the same hike.
+2. Carry all six AQM fields through the pipeline (PM1.0, PM2.5, PM4.0, PM10, VOC Index, NOx Index) -- no subset.
+3. Display them by extending the existing Environmental Data chart/table (`html-template.html`, the CARD-0204/CARD-0207 pattern) rather than building a separate section.
+
+**Done when:** a real hike with both hiking-monitor and air-quality-monitor active shows all six AQM fields on the published hike-izer page, in the same Environmental Data area as the existing temp/humidity/pressure/UV lines, verified against real MQTT-logged data for that hike.
+
+**Related:** CARD-0012 (air-quality-monitor's own build), `components/hike-izer/fetch_hike_data.py` (`ENV_CHART_FIELDS`, `--source` filtering), `components/hike-izer/html-template.html` (Environmental Data chart).
 
 ---
 

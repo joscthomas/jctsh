@@ -1,8 +1,8 @@
 # JCT Smart Home (JCTsh) Team Operating System (TOS)
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines how the JCTsh team works — the conceptual process governing all work.
-**Version:** 1.16
-**Version description:** Added a "Retracting a card" note to State Transitions (CARD-0302) — formalizes an observed-but-undocumented convention (distinct from Defer: the card itself shouldn't have existed, almost always a duplicate found after the fact) already used three times (CARD-0252, CARD-0253, CARD-0302 itself) with no written definition until now.
+**Version:** 1.17
+**Version description:** Expanded Relationship to Commit / Push (Joseph: keeping this only in the global, unversioned CLAUDE.md "obscures the existence of the rule" compared to a discoverable tos/ file) — the full commit/push-without-asking conditions now live here in detail, with the global preferences trimmed to a cross-project pointer instead of the authoritative copy.
 **Version history:** `JCTsh-Operating-System-History.md`
 **Related files:** `JCTsh-Build-Standards.md` (technology/build conventions — see the reconciliation note below for how the two relate)
 
@@ -189,6 +189,14 @@ Separate from board state, but adjacent to it. The **card**, not any git mechani
 | **File creation/modification** | The result of working a card — a card's work produces some set of created or modified files on disk |
 | **Commit** | Taking that file set (the card's work product) and recording it into local `.git` history. Not strictly before or after Done — the commit is the action that *enacts* the Build → Done transition. It requires Build's criteria (implementation, verification, reflection) to be satisfied first, and typically includes the `kanban-board.md` edit moving the card to Done with its Resolution note in the same atomic commit |
 | **Commit note** | Ties back to the card that defines the work, so history reads as "which card produced this snapshot," not just a list of file diffs |
-| **Push** | A backup checkpoint, not a release — nothing deploys from `origin/main` itself (devices/servers are updated via their own explicit step: scp, OTA, a deploy script, verified live before the commit that represents it), so a push just copies already-verified history to the remote. Default to pushing readily rather than batching for release-shaped reasons |
+| **Push** | A backup checkpoint, not a release — nothing deploys from `origin/main` itself (devices/servers are updated via their own explicit step: scp, OTA, a deploy script, verified live before the commit that represents it), so a push just copies already-verified history to the remote. There is no release management here at all. |
 
-See the user's global Claude Code preferences for the full card/commit/push workflow this operating system runs inside of.
+**When commit/push happen without a separate ask (established 2026-09-18).** The general principle lives in the user's global Claude Code preferences (a cross-project practice, not specific to this repo); this is that principle's concrete shape in this repo. Both conditions must hold:
+1. **The commit represents no judgment call Joseph hasn't already seen** — either he gave an explicit go-ahead on the finished work, or a card's own interview made the approach unambiguous and he separately authorized *doing* the work. Scoping a card and authorizing its execution are two different gates (see the Retracting-a-card note above's own CARD-0302 history for why this matters) — collapsing them isn't what this rule permits.
+2. **It's not runtime/production code** — firmware, deployed scripts, anything where a bad commit changes real device/service behavior. That still gets a real offer-and-wait; only documentation, `tos/kanban-board.md`, and similar non-executing changes qualify.
+
+Push follows automatically once a commit is made this way — it carries no risk beyond the commit itself (this repo has no CI/CD triggered by `push`). Still always ask before force-push, history rewrites, or `git add -A`/`.` on a repo with another session's uncommitted work — none of those are covered by this rule regardless of how well-authorized the underlying task is.
+
+**Real incident this rule already had to account for:** a CARD-0291 fix (renaming `netalertx-README.md`) was staged but landed inside a concurrent hike-izer session's own commit instead of this one, because that session's own `git add` swept it up — the risk a blanket add poses to another session's held-back work, not something this commit/push rule changes.
+
+See the user's global Claude Code preferences for the general cross-project version of this practice.

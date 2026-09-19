@@ -9,7 +9,32 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0306 -->
+<!-- next-card-id: CARD-0307 -->
+
+---
+
+### CARD-0306 · [bug] [data-pipeline] front-porch-temp-sensor's GPS lookups repeatedly fail with HTTP 404 outside any hike window
+
+**Status:** Backlog
+
+**Raised 2026-09-19, from CLAUDE.md's Session Start dashboard scan — not yet interviewed, captured as a finding pending investigation.** Three occurrences on three consecutive days, all the same Alert shape from `core/data-pipeline/environmental-data.flow.json`'s `env-data-gps-log-failure` node (CARD-0279):
+- `2026-09-17 20:37:21 MST` — `GPS lookup failed after 3 attempts for front-porch-temp-sensor reading @ 2026-09-18T03:35:55Z (status 404)`
+- `2026-09-18 04:43:15 MST` — same, reading @ `2026-09-18T11:40:55Z`
+- `2026-09-19 06:48:23 MST` — same, reading @ `2026-09-19T13:46:06Z`
+
+All three timestamps fall well outside any hike window (front-porch-temp-sensor is a stationary device, not carried) — no burst context like CARD-0279's hiking-monitor replay scenario, just a single isolated `action=lookup` call each time.
+
+**Checked `core/data-pipeline/environmental-data.gs`'s `doGet` `action === 'lookup'` handler directly, rather than assuming a code-level cause:** it unconditionally returns `ContentService.createTextOutput(JSON.stringify(coords))` — always HTTP 200, whether `_gpsLookup` finds a match or returns `{lat:null, lon:null}`. There is no code path in this script that produces a 404. **This rules out "expected no-match for a non-hiking reading" as the explanation** — a genuine miss would come back 200 with null coordinates, not 404, and CARD-0279's own retry/log logic already treats a 200-with-null as resolved, not retried. A literal HTTP 404 has to be coming from Apps Script's own web-app infrastructure (stale/misrouted deployment, a transient Google-side failure, or the same general Apps-Script-under-load flakiness already tracked across CARD-0258/0270/0275/0276/0279), not from this script's own logic.
+
+**Open questions, not yet answered:**
+1. Why would a single, non-burst lookup for a stationary sensor hit the same flakiness class that's so far only been observed under real concurrent load (a hiking-monitor replay burst)? Is this actually load-related (something else hitting the same Apps Script deployment concurrently at these times), or a distinct failure mode that just produces the same symptom?
+2. Does this happen to any other always-on device's environmental-data uploads (air-quality-monitor, garage-radar, salt-sensor), or is it specific to front-porch-temp-sensor?
+3. Is there a pattern to the timing (20:37, 04:43, 06:48 — no obvious cron/schedule overlap identified yet), or is a broader window of the log worth checking for more occurrences than these three?
+4. Should a lone `action=lookup` 404 even retry/alert the same way CARD-0279's burst-failure path does, or does a stationary device's isolated reading warrant different handling (e.g. it's just missing GPS forever, which is already correct/expected for this device)?
+
+**Done when:** not yet scoped.
+
+**Related:** CARD-0279 (the retry/log mechanism that surfaced this as a visible Alert; same `env-data-gps-log-failure` node), CARD-0258/CARD-0270/CARD-0275/CARD-0276 (the broader Apps-Script-under-load flakiness thread this may or may not belong to), `core/data-pipeline/environmental-data.gs` (`doGet` action=lookup handler, `_gpsLookup`), `core/data-pipeline/environmental-data.flow.json`.
 
 ---
 
@@ -700,7 +725,7 @@ Archived to `tos/kanban-archive.md` on 2026-09-18 (CARD-0193) — 5918B, over th
 
 ### CARD-0279 · [bug] [data-pipeline] Field-mode replay burst overwhelms Apps Script's per-reading GPS lookup — missing coordinates scale with reading volume
 
-**Status:** Build — deployed and confirmed live (import/deploy done, see below); watching for the next real hike to confirm the fix works under an actual replay burst
+**Status:** Done — RESOLVED 2026-09-19 11:15 MST
 
 **Raised 2026-09-17 (Joseph + Claude), from investigating why today's 2026-09-17 hike showed 17 of 31 (55%) Environmental Data readings with no GPS coordinates.** Initially suspected as a consequence of CARD-0226's hiking-monitor reboot loop (today was that card's 6th recurrence) — **ruled out as the general explanation, confirmed by Joseph's own observation and real data.** Checked missing-GPS rate across hikes with zero CARD-0226 occurrence, well before that reboot loop ever started:
 
@@ -733,11 +758,15 @@ A clean volume trend with no reboot loop anywhere nearby — the real mechanism 
 
 **Import/deploy done, with a real duplicate-tab detour along the way (the general Node-RED import-safety findings from this are now in `Node-RED-workflow.md`).** The import created a genuine duplicate "Environmental Data" tab (the old, cleared tab plus a fresh one holding the new nodes) — confirmed directly via the Node-RED admin API (`GET /flows`, authenticated via `/auth/token`), not just visually: the new tab (`d15dbc9164b2dce9`) correctly holds all 12 nodes including the three new CARD-0279 ones. The stale empty tab was deleted and deploy re-run 2026-09-17; a follow-up API check confirmed exactly one "Environmental Data" tab remains, 12 nodes, no leftover duplicate.
 
-**Still not yet verified:** the throttle/retry/log path exercised against a real or simulated burst — no hike has happened since the deploy. **Done when:** a real hike with a large reading-volume burst shows a meaningfully lower missing-GPS rate than the pre-fix volume trend predicts, and a deliberately-forced lookup failure is confirmed to retry, exhaust, and produce a real Alert on the dashboard rather than failing silently. Not yet met — the fix is live, but unexercised.
+**Still not yet verified:** the throttle/retry/log path exercised against a real or simulated burst — no hike has happened since the deploy. **Done when:** a real hike with a large reading-volume burst shows a meaningfully lower missing-GPS rate than the pre-fix volume trend predicts, and a deliberately-forced lookup failure is confirmed to retry, exhaust, and produce a real Alert on the dashboard rather than failing silently. **Met, 2026-09-19 — see resolution below.**
 
-**Watch for:** the next real hike's Environmental Data coverage — check its missing-GPS rate against the pre-fix volume trend documented above (a hike with ~30 readings previously implied ~50%+ missing; the fix should bring that down meaningfully). Also grep `/mnt/jctsh-logs/jctsh.log*` for a real `"GPS lookup failed after 3 attempts"` Alert line (from the new `env-data-gps-log-failure` node) — its appearance would confirm the retry-then-log path fires correctly on real data, and its absence on a hike with a low miss rate would just mean the throttle alone was enough that hike. Per CARD-0251's convention, this card stays in Build until this is observed. Not yet observed as of 2026-09-17 (no hike since deploy).
+**Resolved 2026-09-19, via CLAUDE.md's Session Start Watch-for check against the 2026-09-19 hike (Joseph's ask, checked directly against the exported Environmental Data sheet, not inferred).** `action=export` on the Environmental Data sheet for the hike's window (`2026-09-19T12:00:00Z`–`17:00:00Z`) returned 19 `hiking-monitor` readings, **1 missing GPS coordinates (5.3%)** — a large drop from the pre-fix volume trend's ~50%+ prediction for a hike this size (table above). The one gap (`2026-09-19T16:36:28Z`) lands 7 minutes after the hike's own `gpsloggerevent=stopped` webhook (09:29:13 MST) — outside any GPS Track point's ±5 minute match window, a genuine no-match (correctly resolved as `{lat:null,lon:null}`, no retry/Alert expected), not a lookup failure.
 
-**Related:** CARD-0226 (the reboot loop this was initially, incorrectly, thought to be part of — its own 2026-08-29 replay-interruption finding is the one real exception this card doesn't cover), CARD-0197 (the Correlation Debug diagnostic that made this investigation possible), CARD-0258/CARD-0275/CARD-0276 (this week's other Apps-Script-under-load findings, same underlying flakiness class), CARD-0222 (2026-09-17: may resolve structurally once this card's Watch for confirms the fix holds — its own diagnosed failure mode, a GPS-lookup burst overwhelming Node-RED, is the exact mechanism this card's throttle/retry/log fix targets, independent of what triggered the burst), `core/data-pipeline/environmental-data.flow.json` ("Prepare GPS lookup"/"Throttle GPS lookups"/"GPS lookup"/"Check GPS lookup response" nodes), `core/data-pipeline/environmental-data.gs` (`_gpsLookup`), `Node-RED-workflow.md` (the manual import/deploy convention this fix depends on).
+**Second Done-when criterion also met, via a real (not deliberately forced) production failure rather than a synthetic test — stronger evidence per this project's own "live beats synthetic" principle (`JCTsh-Operating-System.md`, Note on Build).** The `env-data-gps-log-failure` node's retry-then-Alert path fired for real on 2026-09-17, 2026-09-18, and 2026-09-19 (`front-porch-temp-sensor` readings, HTTP 404 after 3 attempts each) — confirms the throttle/retry/log mechanism itself works correctly end-to-end on live data. **Root cause of *why* those specific lookups 404 is a separate, still-open question** (checked `environmental-data.gs`'s `doGet` — it never returns 404 from script logic, so this is an Apps-Script-infrastructure-level failure, not a code-level miss) — tracked on its own as CARD-0306, deliberately not blocking this card's closure since it doesn't bear on whether CARD-0279's fix itself works.
+
+~~**Watch for:** the next real hike's Environmental Data coverage — check its missing-GPS rate against the pre-fix volume trend documented above (a hike with ~30 readings previously implied ~50%+ missing; the fix should bring that down meaningfully). Also grep `/mnt/jctsh-logs/jctsh.log*` for a real `"GPS lookup failed after 3 attempts"` Alert line (from the new `env-data-gps-log-failure` node) — its appearance would confirm the retry-then-log path fires correctly on real data, and its absence on a hike with a low miss rate would just mean the throttle alone was enough that hike. Per CARD-0251's convention, this card stays in Build until this is observed.~~ **RESOLVED 2026-09-19, see above.**
+
+**Related:** CARD-0226 (the reboot loop this was initially, incorrectly, thought to be part of — its own 2026-08-29 replay-interruption finding is the one real exception this card doesn't cover), CARD-0197 (the Correlation Debug diagnostic that made this investigation possible), CARD-0258/CARD-0275/CARD-0276 (this week's other Apps-Script-under-load findings, same underlying flakiness class), CARD-0222 (its diagnosed failure mode, a GPS-lookup burst overwhelming Node-RED, is the exact mechanism this card's throttle/retry/log fix targets — worth revisiting now that this card's fix is confirmed holding), CARD-0306 (the front-porch-temp-sensor 404s that proved this card's retry/log path fires for real — root cause of those specific failures is that card's own open question, not this one's), `core/data-pipeline/environmental-data.flow.json` ("Prepare GPS lookup"/"Throttle GPS lookups"/"GPS lookup"/"Check GPS lookup response" nodes), `core/data-pipeline/environmental-data.gs` (`_gpsLookup`), `Node-RED-workflow.md` (the manual import/deploy convention this fix depends on).
 
 ---
 

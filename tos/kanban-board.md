@@ -9,7 +9,23 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0308 -->
+<!-- next-card-id: CARD-0309 -->
+
+---
+
+### CARD-0308 · [enhancement] [tos] Add a PR review checklist for the auto-PR intake pipeline
+
+**Status:** Done — RESOLVED 2026-09-19
+
+**Raised and built 2026-09-19 (Joseph, direct instruction) — small enough to interview-by-instruction rather than a separate scoping pass.** Came out of a question about where the auto-PR intake pipeline's review/handling steps were documented — the answer was "scattered": the pipeline shape in `tos/README.md`, the merge-time mechanics in `open_kanban_pr.py`/`land_pr_card.py`'s own docstrings, and the interview-first policy rule in `JCTsh-Operating-System.md`, with no single place a reviewer lands to actually work through a PR.
+
+**Built:** new `tos/pr-review-checklist.md` — a step-by-step procedure (skip the `jctsh-pr-selftest` PR, read the raw finding, decide stub-vs-interview merge path, never merge without Joseph's go-ahead, confirm the landed result) that points at the existing scripts/docs for mechanics rather than duplicating them, per this document's own single-source-of-truth principle. Pointed at it from `tos/README.md` (file index + pipeline diagram) and `tos/JCTsh-Session-Start.md` step 4 (where open PRs actually get reviewed each session).
+
+**Done when:** the checklist file exists and is referenced from the places a reviewer would actually encounter the task. **Met, 2026-09-19.**
+
+**Committed and pushed** to `claude/pr-review-handling-t5b3ck` (not yet merged to `main`).
+
+**Related:** `tos/README.md` (pipeline description, now points here), `tos/pr-review-checklist.md`, `tos/open_kanban_pr.py`/`tos/land_pr_card.py` (mechanics this checklist points at instead of repeating), CARD-0304 (interview-first rule this checklist enforces), CARD-0128/CARD-0190/CARD-0192 (pipeline origin, zero-diff redesign, self-test exception).
 
 ---
 

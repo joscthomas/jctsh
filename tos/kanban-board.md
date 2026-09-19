@@ -9,13 +9,29 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0307 -->
+<!-- next-card-id: CARD-0308 -->
+
+---
+
+### CARD-0307 · [enhancement] [tos] Split the general Session Start checklist out of CLAUDE.md; orient sessions starting at the Projects/ parent directory
+
+**Status:** Done — RESOLVED 2026-09-19 11:55 MST
+
+**Raised and built 2026-09-19 (Joseph, two direct instructions in the same thread) — small enough to interview-by-instruction rather than a separate scoping pass.**
+
+**Part 1: "move the steps to an md file in tos, and point to them in CLAUDE.md."** Root `CLAUDE.md`'s Session Start section had grown to ~90 lines of inlined checklist (the same "read every session" content genuinely belongs there, but per `JCTsh-Operating-System.md`'s Documentation Structure section, a large block like this benefits from the same split-by-topic treatment already applied to `JCTsh-Operating-System.md` and `JCTsh-Component-Session-Start.md` — still read every session, just no longer bloating the file a session opens first). Moved the full 9-step list plus the timestamp-format rule verbatim into new `tos/JCTsh-Session-Start.md`; `CLAUDE.md`'s Session Start section is now a short pointer. **Updated the one file that referenced the old location by name:** `JCTsh-Component-Session-Start.md`'s Purpose line said "instead of `CLAUDE.md`'s general Session Start" — corrected to point at `tos/JCTsh-Session-Start.md`, version-bumped (1.12 → 1.13) with the superseded description moved into `JCTsh-Component-Session-Start-History.md`, per that document's own established convention. The 9-step numbering `JCTsh-Component-Session-Start.md`'s own table maps against is unchanged, so that table itself needed no edits.
+
+**Part 2: "note that a general session is likely to start at the Projects directory in addition to the JCTsh directory."** Real gap CARD-0301 never addressed when it created the shared `Projects/` parent for `jctsh`/`LogSeq`/`PB Blog` — nothing oriented a session that starts one level up, at `Projects/` itself, before any repo's own `CLAUDE.md` is even in view. Added `Projects/README.md` (untracked — `Projects/` isn't a git repo, purely a filesystem convenience per CARD-0301) listing the three repos and directing a session that starts there to identify the relevant repo, `cd` in, and follow that repo's own process — explicitly not assuming jctsh's process applies to LogSeq/PB Blog work.
+
+**Done when:** `tos/JCTsh-Session-Start.md` exists with the moved content, `CLAUDE.md` points to it, `JCTsh-Component-Session-Start.md`'s reference is corrected and versioned, and `Projects/README.md` orients a session landing at the parent directory. **Met — all four, this session.**
+
+**Related:** CARD-0301 (created the `Projects/` parent this card's second half orients sessions within), CARD-0292 (the version-history-split precedent this card's `JCTsh-Component-Session-Start.md` edit followed), CARD-0289 (documentation-splitting-by-read-frequency, the principle this card's first half applies to `CLAUDE.md` itself), `tos/JCTsh-Session-Start.md`, `tos/JCTsh-Component-Session-Start.md`, `Projects/README.md`.
 
 ---
 
 ### CARD-0306 · [bug] [data-pipeline] Environmental Data pipeline overwrites a stationary device's own coordinates with the hiker's live GPS during a hike
 
-**Status:** Done — RESOLVED 2026-09-19 11:40 MST
+**Status:** Build — pipeline fix deployed and verified live (below); one outstanding manual step (historical data cleanup) before this is actually Done
 
 **Retitled 2026-09-19 (Joseph's question: "front porch sensor is stationary, why is it making GPS lookup calls?").** The original framing below (repeated HTTP 404s) turned out to be a minor symptom of a much more real problem this question surfaced — a stationary device's own correct coordinates silently getting overwritten by wherever the hiker currently is, whenever a hike happens to overlap in time. The 404 investigation is kept intact below as the thread that led here; the actual fix addresses the real bug, not the 404s.
 
@@ -46,9 +62,21 @@ All three timestamps fall well outside any hike window (front-porch-temp-sensor 
 - **Pre-deploy reading** (`front-porch-temp-sensor` @ `2026-09-19T18:36:06Z`, before the 18:38:18Z deploy): **2 `lookup_miss` rows** in Correlation Debug — the old code called the lookup, as expected.
 - **Post-deploy reading** (`front-porch-temp-sensor` @ `2026-09-19T18:41:06Z`): **zero rows** in Correlation Debug — proof the lookup was never called, not just that it happened to find nothing.
 
-**Done when:** front-porch-temp-sensor's readings stop calling `action=lookup` at all, verified against live production data rather than inferred from the deploy alone. **Met, 2026-09-19 — see the before/after Correlation Debug proof above.** (The original geotagging-during-a-hike scenario itself will get a final live confirmation on the next real hike, same as any Build-verified fix without a hike to test against today; not blocking closure since the mechanism is already proven — a skipped call can't overwrite anything, regardless of whether a hike happens to be running.)
+**Forward-fix done when:** front-porch-temp-sensor's readings stop calling `action=lookup` at all, verified against live production data rather than inferred from the deploy alone. **Met, 2026-09-19 — see the before/after Correlation Debug proof above.** (The original geotagging-during-a-hike scenario itself will get a final live confirmation on the next real hike, same as any Build-verified fix without a hike to test against today; not blocking on that specifically — a skipped call can't overwrite anything, regardless of whether a hike happens to be running.)
 
-**Related:** CARD-0279 (the retry/log mechanism that originally surfaced the 404s; same `env-data-gps-log-failure` node, now unreachable for this device), CARD-0258/CARD-0270/CARD-0275/CARD-0276 (the broader Apps-Script-under-load flakiness thread the 404s turned out not to really belong to), `core/data-pipeline/environmental-data.gs` (`doGet` action=lookup handler, `_gpsLookup`), `core/data-pipeline/environmental-data.flow.json` (`env-data-gps-prep`), `components/front-porch-temp-sensor/front-porch-temp-sensor.yaml` (the hardcoded coordinate this fix protects), `Node-RED-workflow.md` (the new API-patch deploy method this used).
+**Historical scope checked, 2026-09-19 (Joseph: "what about the front porch sensor data?") — this bug predates CARD-0279 entirely.** The unconditional `d.lat = gps.lat` overwrite was already in the GPS-lookup function (then named "Apply GPS coords") since front-porch-temp-sensor was first wired into this shared pipeline — `git log`: commit `d298abf1`, 2026-06-14. Exported the full Environmental Data history (`action=export`, 2026-06-14 through today, 30,434 rows) and compared every `front-porch-temp-sensor` row against its known-correct fixed coordinate: **569 of 27,625 rows carry a drifted, wrong coordinate**, spanning 2026-06-17 through today, tracking almost every hike date since (06-18, 07-29, 08-15, 08-18, 08-22, 08-25, 08-27, 08-29, 09-03, 09-08, 09-10, 09-15, 09-17, 09-19).
+
+**Practical impact assessed, not just row-counted.** Checked every consumer of Environmental Data's `lat`/`lon` columns in `environmental-data.gs`: the only one is `_localString()` (line ~473), which uses a row's coordinate solely to resolve which timezone to display that row's local timestamp in (CARD-0097's fix). Every drifted coordinate is still a few miles from home, well inside `America/Phoenix` either way, so this has never actually produced a visibly wrong result. `hike-izer`'s `fetch_hike_data.py` never touches these rows at all — it's hardcoded to `--source hiking-monitor` (CARD-0285's own finding). **Net effect: real but low-stakes** — factually wrong data sitting in the sheet, no functional consequence found anywhere it's actually used.
+
+**Joseph's call, 2026-09-19: fix it, run in the background (not blocking on a live conversation turn).** Correction is unambiguous — front-porch-temp-sensor's coordinate is always the same fixed constant, so any row where it doesn't match is wrong and gets reset, nothing else touched.
+
+**Built, 2026-09-19, following this repo's own established Apps Script deployment convention (confirmed via `card-archive.md`: no `clasp`/API tooling exists here — Claude cannot deploy or run Apps Script changes, Joseph has to paste-and-deploy manually, same as CARD-0215/CARD-0243 before it).** Added `fixFrontPorchCoordinates()` to `core/data-pipeline/environmental-data.gs`, same one-time-menu-item pattern as `cleanupDuplicateEnvironmentalData`/`cleanupDuplicateGpsTrack` right above it: iterates every `Environmental Data` row, and for any `front-porch-temp-sensor` row whose `lat`/`lon` doesn't already match the known-correct constant, overwrites just those two cells. Logs a summary (rows fixed / already correct / other sources untouched) via `Logger.log` and a UI alert. New menu item: **JCTsh → Fix Front-Porch-Temp-Sensor Coordinates (CARD-0306, one-time)**.
+
+**Outstanding — needs Joseph, same as every other Apps Script change in this repo:** paste the updated `environmental-data.gs` into the Apps Script editor, **Deploy → Manage deployments → pencil → Version: New version → Save**, reload the Sheet tab, then run **JCTsh menu → Fix Front-Porch-Temp-Sensor Coordinates (CARD-0306, one-time)** once. Expect the alert to report **569 fixed**. Safe to remove `fixFrontPorchCoordinates()` and its menu item afterward, same convention as the two cleanup functions beside it.
+
+**Done when:** the forward-fix (met, see above) **and** the one-time historical correction has actually been run and confirmed (the menu's own alert reporting ~569 rows fixed, or a fresh `action=export` scan showing 0 remaining drifted rows) — not just built and waiting.
+
+**Related:** CARD-0279 (the retry/log mechanism that originally surfaced the 404s; same `env-data-gps-log-failure` node, now unreachable for this device), CARD-0258/CARD-0270/CARD-0275/CARD-0276 (the broader Apps-Script-under-load flakiness thread the 404s turned out not to really belong to), `core/data-pipeline/environmental-data.gs` (`doGet` action=lookup handler, `_gpsLookup`), `core/data-pipeline/environmental-data.flow.json` (`env-data-gps-prep`), `components/front-porch-temp-sensor/front-porch-temp-sensor.yaml` (the hardcoded coordinate this fix protects), `Node-RED-workflow.md` (the new API-patch deploy method this used), CARD-0215/CARD-0243 (the one-time-menu-item cleanup pattern `fixFrontPorchCoordinates` follows), CARD-0097 (the timezone-resolution consumer that's the only reason this data's correctness matters at all), CARD-0285 (confirms `hike-izer` never touches these rows, bounding this card's real-world impact).
 
 ---
 

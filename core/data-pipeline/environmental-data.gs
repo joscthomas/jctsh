@@ -336,6 +336,7 @@ function onOpen() {
     .addItem('Refresh Timeline', 'refreshTimeline')
     .addItem('Cleanup Duplicate Environmental Data (CARD-0215, one-time)', 'cleanupDuplicateEnvironmentalData')
     .addItem('Cleanup Duplicate GPS Track (CARD-0243, one-time)', 'cleanupDuplicateGpsTrack')
+    .addItem('Fix Front-Porch-Temp-Sensor Coordinates (CARD-0306, one-time)', 'fixFrontPorchCoordinates')
     .addToUi();
 }
 
@@ -457,6 +458,61 @@ function cleanupDuplicateGpsTrack() {
     'Original rows: ' + (data.length - 1) + '\n' +
     'Kept: ' + (kept.length - 1) + '\n' +
     'Dropped as duplicates: ' + droppedDuplicates
+  );
+}
+
+// ---------------------------------------------------------------------------
+// fixFrontPorchCoordinates — CARD-0306 one-time fix
+// ---------------------------------------------------------------------------
+// Run once from the JCTsh menu, after the Node-RED skip-lookup fix is
+// deployed (env-data-gps-prep now skips the GPS-Track lookup for any
+// reading that already carries non-null lat/lon, so this can't recur).
+//
+// front-porch-temp-sensor is stationary and self-reports its own fixed
+// coordinates (front-porch-temp-sensor.yaml, "H8 front porch" per
+// house-lot-coordinates.md) -- but the old, unconditional "d.lat = gps.lat"
+// in the GPS-lookup pipeline overwrote it with whatever hiker GPS point
+// happened to be nearest in time, whenever a hike overlapped one of its
+// ~5-minute readings. Found live 2026-09-19: 569 of 27,625 rows (spanning
+// 2026-06-17 through today, tracking almost every hike date since the
+// integration was wired in 2026-06-14) carry a drifted, wrong coordinate.
+//
+// The correct value is always the same constant -- unlike the duplicate
+// cleanups above, this isn't a dedup, just a targeted overwrite back to
+// truth. Only touches rows where source === 'front-porch-temp-sensor' and
+// the coordinate doesn't already match; nothing else on the sheet is
+// touched. Safe to remove this function (and its menu item) once run and
+// confirmed -- it's a one-time fix, not a recurring job; the permanent
+// protection is the Node-RED skip-lookup change, not this.
+
+function fixFrontPorchCoordinates() {
+  var CORRECT_LAT = 32.4612997;
+  var CORRECT_LON = -111.1184154;
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Environmental Data');
+  var data = sheet.getDataRange().getValues();
+
+  var fixed = 0;
+  var alreadyCorrect = 0;
+  var otherSources = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (row[1] !== 'front-porch-temp-sensor') { otherSources++; continue; }
+    if (row[2] === CORRECT_LAT && row[3] === CORRECT_LON) { alreadyCorrect++; continue; }
+    sheet.getRange(i + 1, 3, 1, 2).setValues([[CORRECT_LAT, CORRECT_LON]]);
+    fixed++;
+  }
+
+  Logger.log('Rows fixed: ' + fixed);
+  Logger.log('Already correct: ' + alreadyCorrect);
+  Logger.log('Other sources (untouched): ' + otherSources);
+  SpreadsheetApp.getUi().alert(
+    'Front-Porch-Temp-Sensor coordinate fix complete.\n' +
+    'Rows corrected: ' + fixed + '\n' +
+    'Already correct: ' + alreadyCorrect + '\n' +
+    'Other sources (untouched): ' + otherSources
   );
 }
 

@@ -1,9 +1,9 @@
 # Component/Cluster Session Start
 
 **Author:** Joseph C Thomas (JCT), via Claude
-**Purpose:** The startup steps a persistent component or cluster session (CARD-0284) actually runs instead of `CLAUDE.md`'s general Session Start — some general steps scoped down, some skipped, some run unscoped, plus component-only steps with no general-session equivalent.
-**Version:** 1.12
-**Version description:** Reconciled the Component/Cluster Registry against `kanban-board.md`'s actual tags (CARD-0294's closing step) — added an `architecture` row and confirmed every real-directory tag resolves to exactly one cluster.
+**Purpose:** The startup steps a persistent component or cluster session (CARD-0284) actually runs instead of the general Session Start (`tos/JCTsh-Session-Start.md`) — some general steps scoped down, some skipped, some run unscoped, plus component-only steps with no general-session equivalent.
+**Version:** 1.13
+**Version description:** CARD-0306 — updated the reference to the general Session Start list, which moved from being inlined in root `CLAUDE.md` to its own `tos/JCTsh-Session-Start.md` (same read-frequency-split principle this document's own history already applies to itself, per `JCTsh-Operating-System.md`'s Documentation Structure section). The 9-step numbering this document's table maps against is unchanged.
 **Version history:** `JCTsh-Component-Session-Start-History.md`
 
 ---

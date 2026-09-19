@@ -23,6 +23,31 @@ Skip import entirely — edit in place:
 - If a duplicate tab appears: copy any backed-up Environment Variables into the new tab, delete the old (now-redundant) one, and rename the new tab back to its original name (Node-RED may append a suffix).
 - The broker node (in `core.flow`) is a separate, global config node — it isn't affected either way and MQTT nodes re-attach to it automatically regardless of which tab ends up holding the flow.
 
+## Patching a single node via the admin API (no UI, no duplicate-tab risk)
+
+Used by CARD-0306 to change a function node's code and output count without
+touching the Node-RED UI at all — avoids the duplicate-tab risk above
+entirely, since the live tab/nodes are never deleted or reimported, only
+one node's fields are replaced in place.
+
+**Real gotcha, found live 2026-09-19: the live flow's node IDs do not match
+this repo's checked-in JSON file's IDs.** This repo's flow files use
+human-readable IDs (e.g. `env-data-gps-prep`), but Node-RED assigns its own
+IDs on import and does not preserve the file's — the live ID for that same
+node was `c0208e8454c6d1d9`. **Always match by node `name` within the
+target tab, not by the repo file's `id`.**
+
+Steps:
+1. Auth: `POST /auth/token` with `client_id=node-red-admin&grant_type=password&scope=*&username=<user>&password=<pass>` → `access_token`.
+2. `GET /flows` with `Authorization: Bearer <token>` — the full array across every tab, not just the one you're touching.
+3. Find the target tab: the `type:"tab"` entry whose `label` (trimmed) matches. Build a `name -> live id` map for every node with that tab's `id` as its own `z`.
+4. Build the replacement node from the repo file's version, but overwrite its `id`/`z` with the live tab's node/tab ids, and rewrite every entry in `wires` from the repo file's target-node `id`s to their live equivalents via the same name map (a `wires` entry pointing at a stale repo-file id silently breaks that connection instead of erroring).
+5. Splice the corrected node into the live `/flows` array in place of the old one (match by live `id`).
+6. `POST /flows` with the full modified array, `Content-Type: application/json`, `Node-RED-Deployment-Type: full`. A `204` means accepted.
+7. **Verify, don't trust the 204:** `GET /flows` again and check the specific fields you changed actually landed. Also check `journalctl -u nodered --since <deploy time>` for a clean `Stopping flows → Updated flows → Starting flows → Started flows` with no errors, and that unrelated tabs (other components' timers, MQTT reconnects) came back up normally — a full-array POST redeploys every tab, not just the one you meant to touch.
+8. **Verify the actual behavior change against real production data, not just that the deploy succeeded** — CARD-0306 confirmed via Apps Script's own Correlation Debug sheet (a call log independent of Node-RED) that a lookup call it changed to skip genuinely stopped being made, comparing a reading from just before vs. just after the deploy.
+9. Still export the flow back to the repo afterward (Hamburger → Export → Download in the UI, or re-fetch `/flows` and extract the tab) so the checked-in file matches what's actually live.
+
 ## Identifying which flow a JSON file belongs to
 
 The flow JSON files don't include a tab name. Match by filename:

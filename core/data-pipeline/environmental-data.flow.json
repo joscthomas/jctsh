@@ -60,12 +60,16 @@
     "type": "function",
     "z": "873111e004dc4435",
     "name": "Prepare GPS lookup",
-    "func": "var d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\nmsg._sensorData = d;\n// CARD-0279: retry counter for the lookup-failure loop below -- reset\n// here (not just on first pass through the throttle node) so a message\n// that somehow re-enters this node fresh doesn't inherit a stale count.\nmsg._lookupAttempt = 1;\nvar ts = d.ts || '';\nmsg.url = env.get('APPS_SCRIPT_URL') + '?key=' + encodeURIComponent(env.get('APPS_SCRIPT_KEY')) + '&action=lookup&ts=' + encodeURIComponent(ts);\nmsg.payload = '';\nreturn msg;",
+    "outputs": 2,
+    "func": "var d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\nmsg._sensorData = d;\n\n// CARD-0306: a device that already knows its own fixed location (e.g.\n// front-porch-temp-sensor, hardcoded per house-lot-coordinates.md) sends\n// non-null lat/lon itself -- skip the GPS-Track correlation lookup\n// entirely for it. Two reasons, not just one: (1) the lookup call is\n// pointless for a device that already knows its own coordinates, and\n// (2) left unskipped, a match against the GPS Track sheet (populated\n// only by an active hike) would silently overwrite this device's own\n// correct coordinate with wherever the hiker happens to be at that\n// moment -- a real geotagging-correctness bug, not just wasted calls.\nif (d.lat !== null && d.lat !== undefined) {\n    msg.payload = d;\n    return [null, msg];\n}\n\n// CARD-0279: retry counter for the lookup-failure loop below -- reset\n// here (not just on first pass through the throttle node) so a message\n// that somehow re-enters this node fresh doesn't inherit a stale count.\nmsg._lookupAttempt = 1;\nvar ts = d.ts || '';\nmsg.url = env.get('APPS_SCRIPT_URL') + '?key=' + encodeURIComponent(env.get('APPS_SCRIPT_KEY')) + '&action=lookup&ts=' + encodeURIComponent(ts);\nmsg.payload = '';\nreturn [msg, null];",
     "x": 660,
     "y": 140,
     "wires": [
       [
         "env-data-gps-throttle"
+      ],
+      [
+        "env-data-process"
       ]
     ]
   },

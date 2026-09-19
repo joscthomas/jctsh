@@ -542,7 +542,7 @@ Archived to `tos/card-archive.md` on 2026-09-18 (CARD-0193) — 5758B, over the 
 
 ### CARD-0286 · [enhancement] [hike-izer] Auto-create an Immich Album per hike, populated with that hike's photos
 
-**Status:** Build
+**Status:** Done — RESOLVED 2026-09-19 11:35 MST
 
 **Auto-opened from jctsh-core's maintenance check (PR #87).** Raw finding: put the photos for each hike in its own folder. Clarified 2026-09-17 (Joseph): this is about Immich's own organization, not hike-izer's already-per-hike served output (`generation.py` already writes to `/srv/hike-izer/<date>_photos/`, confirmed unrelated to this finding).
 
@@ -558,9 +558,13 @@ Archived to `tos/card-archive.md` on 2026-09-18 (CARD-0193) — 5758B, over the 
 
 **Real gap found 2026-09-19, checking this Watch for against the 2026-09-19 hike (Joseph: "seems like that should be observable").** The hike ran, 36 photos were fetched, a manifest was written — but `docker logs hike-izer-orchestrator` shows zero mention of "album" anywhere in its history, when a successful run should print `Added N asset(s) to Immich album '...'` (or a `WARNING: Immich album update failed` on error). Checked the actual deployed code directly rather than assuming the Build note above ("Import/deploy done"-equivalent) was true: `docker exec hike-izer-orchestrator` shows **`/app/fetch_hike_photos.py` dated Sep 14 20:22 with no `--album-name` argument at all, and `/app/generation.py` dated Sep 17 10:34 with zero album references** — both predate this card's own commit (`c5f32b6e`, 2026-09-17 18:16 MST). The container was last rebuilt at **10:34 MST that day, over 7 hours before the commit landed.** This isn't a "no hike happened yet" gap — the code was built and smoke-tested locally (per above) but the deploy step (`README.md`'s `scp` + `docker compose up -d --build orchestrator`) was never actually run afterward. **Corrects this card's own "Built"/"Import/deploy done"-style framing above** — same failure mode `JCTsh-Operating-System.md`'s "verify a claimed completion directly" principle exists to catch.
 
-**Not yet redeployed — Joseph's call needed before touching this production service.** Once deployed, re-run against a real hike (today's 2026-09-19 hike, or the next one) to actually observe the Watch for's original condition.
+**Redeployed 2026-09-19 (Joseph's go-ahead).** `scp`'d the current `fetch_hike_photos.py`/`generation.py`/etc. to `~/hike-izer-web-app/orchestrator/` on the M8 and ran `docker compose up -d --build orchestrator`, per `README.md`'s documented deploy steps. **Verified the new code actually landed before trusting it** — `docker exec hike-izer-orchestrator grep` confirmed 12 `album` references in the deployed `fetch_hike_photos.py` (was 0) and file sizes/mtimes matching the freshly-copied files.
 
-**Done when:** a real hike's photos appear grouped together in a dedicated Album in Immich's own UI, verified live against the real Immich instance, for a newly-processed hike (backfilling past hikes not required).
+**Re-ran against the 2026-09-19 hike directly inside the container** (`fetch_hike_photos.py --data /srv/hike-izer-private/2026-09-19_hike_data.json --album-name "Hike 2026-09-19" ...`, the same call `generation.py` makes): `Added 36 asset(s) to Immich album 'Hike 2026-09-19'`. **Confirmed directly against Immich's own API, not just the script's own success message** — `GET /api/albums` on the M8 shows one album named `Hike 2026-09-19`, id `e694e2f2-9210-4f71-a89d-8cd0a7b4e61c`, `assetCount: 36`.
+
+**Idempotency also verified live, not assumed from the smoke test alone.** Ran the exact same command a second time: same success output, and `GET /api/albums` afterward still shows exactly **one** `Hike 2026-09-19` album, same id, still 36 assets — the second pass added to the existing album via `PUT`, no duplicate created.
+
+**Done when:** a real hike's photos appear grouped together in a dedicated Album in Immich's own UI, verified live against the real Immich instance, for a newly-processed hike (backfilling past hikes not required). **Met, 2026-09-19 — both the initial creation and repeat-pass idempotency confirmed live against the real Immich instance, see above.**
 
 **Related:** `components/hike-izer/fetch_hike_photos.py` (`search_assets`, `find_or_create_album`), `components/hike-izer-orchestrator/generation.py` (`_fetch_photos`), `components/photo-tv-display/routes/immich.js` (the proven album-endpoint precedent this reuses), CARD-0175 (Immich album-related prior idea -- different mechanism, same API surface), CARD-0214 (the gap-filling re-fetch pattern this must stay idempotent against).
 

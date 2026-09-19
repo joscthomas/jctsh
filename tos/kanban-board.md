@@ -119,25 +119,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0300 · [idea] [tos] Document the existing process for daily devotional LogSeq entries
+### CARD-0300 · [retracted] Moved to LogSeq's own kanban-board.md as CARD-0002 — was: Document the existing process for daily devotional LogSeq entries
 
-**Status:** Backlog
+**Status:** Retracted
 
-**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding (voice transcription, garbled): "describe the process of daily devotional log seek entries" — "log seek" is LogSeq, the same mis-transcription CARD-0293 carried.
+**Opened 2026-09-18, moved same day (Joseph's call).** LogSeq now has its own repo and `kanban-board.md` (CARD-0297) — this is LogSeq's own process question, not jctsh's. No content lost — the full card (raised-context, open questions, done-when) moved verbatim to `Projects\LogSeq\kanban-board.md` CARD-0002.
 
-**Kept as its own card rather than folded into CARD-0293 (Joseph's call, 2026-09-18).** CARD-0293 is about *building* an automation (screenshot → OCR → posted note); this card is about *describing the process as it actually works today*. Writing down the current manual process is genuinely separate work, and doing it first is likely to sharpen CARD-0293's own still-open scoping questions rather than duplicate them.
-
-**Open questions, not yet answered:**
-1. **What the current daily process actually is, end to end** — where the devotional comes from, what Joseph does with it each day, and where it lands in LogSeq. This is the substance of the card; none of it is recorded anywhere yet.
-2. **Where the description should live** — a doc in whichever repo the LogSeq files end up in (see the sibling card from PR #93, destination undecided), somewhere in `tos/`, or inside the LogSeq graph itself as a note.
-3. **How much of the process is worth documenting versus simply automating** — some steps may not survive CARD-0293's automation, so documenting them in detail could be wasted effort. Worth deciding which parts are durable before writing them all down.
-4. **Component tag** — set to `[tos]`, 2026-09-18 (Joseph: tag all four LogSeq/Pastor Ben blog cards `[tos]` until their repos actually exist). Reasoning: `[personal]` doesn't map to any real directory (the exact problem CARD-0294 exists to resolve for cards that stay in jctsh's board), and this card's work is currently happening *inside* jctsh's own tos-governed board/process, not inside a repo of its own yet — `[tos]` reflects that correctly for now. Revisit once CARD-0297/0298/0301 land and this content has a real repo to be tagged against instead.
-
-**Explicitly not started.**
-
-**Done when:** the current daily devotional-to-LogSeq process is written down somewhere durable and agreed, in enough detail that CARD-0293's automation scoping can proceed from it rather than from fresh questions.
-
-**Related:** CARD-0293 (the automation this describes the manual version of — deliberately kept separate, see above), the sibling card from PR #93 (LogSeq file system into a repo, a candidate home for this description), CARD-0179 (route captured voice notes to LogSeq — a third LogSeq thread already on the board), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by).
+**Related:** `Projects\LogSeq\kanban-board.md` CARD-0002 (where this card actually lives now), CARD-0297 (the move that created the repo this question is about), CARD-0293 (its sibling, also retracted and moved, to CARD-0001 in the same board).
 
 ---
 
@@ -202,7 +190,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 Wrote `tos/Portable-Kanban-Template.md` for the second piece of scope — card format/columns/Priority table/done-when convention only, explicitly excluding `archive_cards.py`, the auto-PR intake pipeline, and the multi-host Session Start ritual, with an explanatory preamble on why those are excluded and a worked example card to copy from.
 
-**Done when:** met — `Projects\jctsh` exists at the new path, confirmed same git repo with clean status; this session's working directory updated with no loss of function; portable kanban template exists in `tos/`, ready for CARD-0297/CARD-0298 to bootstrap from.
+**Superseded same day — `Projects\` itself relocated.** Once all three repos existed under `JCT Documents\Projects\`, Joseph found Google Drive for Desktop backs up `JCT Documents`, meaning it would fight with git and (for LogSeq specifically) LogSeq Sync over the same files — the same conflict `JCT Documents not synced` already existed to avoid for LogSeq alone. Rather than hand-picking a long subfolder exclusion list in Google Drive's UI, Joseph moved the whole `Projects` folder (all three repos together) to `JCT Documents not synced\Projects` instead. Verified from the new location: all three repos' `git status` clean, remotes intact, last commits matching; LogSeq's sync re-verified working after its second unlink/move/relink (required since it was inside `Projects` too). This session's working directory is now `JCT Documents not synced\Projects\jctsh`. **Final paths, superseding every "`Projects\<repo>`" reference below and on CARD-0297/CARD-0298: `JCT Documents not synced\Projects\jctsh`, `...\Projects\LogSeq`, `...\Projects\PB Blog`.**
+
+**Done when:** met — `Projects\jctsh` (now `JCT Documents not synced\Projects\jctsh`) exists, confirmed same git repo with clean status; this session's working directory updated with no loss of function; portable kanban template exists in `tos/`, ready for CARD-0297/CARD-0298 to bootstrap from.
 
 **Related:** CARD-0297 (LogSeq → repo, the next incremental step after this one, and a consumer of this card's template), CARD-0298 (Pastor Ben blog → repo, the step after that, and the template's other consumer), CARD-0293/CARD-0300 (the LogSeq devotional-note work that prompted this whole thread), CARD-0294 (the `[personal]`-tag reconciliation this reorg is adjacent to but doesn't resolve, since LogSeq/Pastor Ben blog are leaving jctsh's directory structure entirely).
 
@@ -250,15 +240,15 @@ Wrote `tos/Portable-Kanban-Template.md` for the second piece of scope — card f
 
 ---
 
-### CARD-0297 · [idea] [tos] Move the LogSeq file system into a repo
+### CARD-0297 · [idea] [tos] Move the LogSeq file system into a repo — RESOLVED 2026-09-18
 
-**Status:** Backlog
+**Status:** Done
 
 **Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding (voice transcription, garbled): "move the log seat file system into a repo" — "log seat" is LogSeq, the same mis-transcription CARD-0293 carried.
 
 **Goal, as captured:** put the LogSeq graph's files under version control in a repo, rather than leaving them wherever they currently live unversioned.
 
-**Destination decided, 2026-09-18 (see CARD-0301) — `C:\Users\jcthomas\Documents\JCT Documents\Projects\LogSeq`**, as a separate repo from the Pastor Ben blog (not combined, not folded into jctsh). Originally sequenced before CARD-0298; **reordered 2026-09-18 (Joseph's explicit call)** — CARD-0298 went first instead, no dependency between the two.
+**Destination decided, 2026-09-18 (see CARD-0301) — originally `C:\Users\jcthomas\Documents\JCT Documents\Projects\LogSeq`**, as a separate repo from the Pastor Ben blog (not combined, not folded into jctsh). Originally sequenced before CARD-0298; **reordered 2026-09-18 (Joseph's explicit call)** — CARD-0298 went first instead, no dependency between the two. **Superseded same day** — see the Google Drive backup-conflict note below; final path is `JCT Documents not synced\Projects\LogSeq`.
 
 **Real facts found while scoping, 2026-09-18:**
 - **Not currently a git repo** — confirmed via `git rev-parse --is-inside-work-tree` against `JCT Documents\LogSeq`: no `.git` directory exists. This is a `git init` from scratch, not a repo relocation.
@@ -271,9 +261,19 @@ Wrote `tos/Portable-Kanban-Template.md` for the second piece of scope — card f
 4. ~~Tracking model — still undecided~~ **Resolved, 2026-09-18 (Joseph: "i concur; this all feels like tos work").** Reuse jctsh's kanban *discipline* — card format, Status columns, done-when criteria, `Related:` cross-refs — via the portable template CARD-0301 is now scoped to produce. Explicitly not reusing jctsh's automation scaffolding (`archive_cards.py`, the auto-PR intake bots, the multi-host Session Start ritual) — none of that solves a problem this repo actually has at its expected volume. This repo's own `kanban-board.md` gets bootstrapped from CARD-0301's template once it exists.
 5. **Component tag** — set to `[tos]`, 2026-09-18 (Joseph: tag all four LogSeq/Pastor Ben blog cards `[tos]` until their repos actually exist). This work is currently happening inside jctsh's own tos-governed board, not inside a repo of its own yet — revisit once this card's own "done when" is met and the LogSeq repo exists to be tagged against instead.
 
-**Explicitly not started** — waiting on CARD-0301 (parent directory, jctsh move, and the portable kanban template) as the first incremental step.
+**Real correction, 2026-09-18 — the folder originally scoped was the wrong one.** `JCT Documents\LogSeq` (checked above) turned out to be a stale, abandoned copy — journal entries stopped 2025-11-09, no 2026 devotional activity at all. Confirmed with Joseph directly rather than proceeding on assumption: the real, live graph — actively synced via **LogSeq Sync** across laptop/phone/tablet — lives at `JCT Documents not synced\LogSeq`. All work below targets that real folder, not the stale one (left untouched).
 
-**Done when:** the LogSeq graph's files are in `Projects\LogSeq` as their own git repo, with a real `.gitignore` for LogSeq's local-state files, the sync/commit mechanism decided and actually working (not just an initial one-time import), its own `kanban-board.md` bootstrapped from CARD-0301's template, and the GitHub remote/visibility decided and pushed.
+**LogSeq Sync relocation researched before moving anything, 2026-09-18 — Joseph's top concern was not breaking sync to this laptop.** Web research ([discuss.logseq.com](https://discuss.logseq.com/t/how-to-move-local-directory-of-a-sync-ed-logseq-graph/29533)) found the safe procedure: unlink the graph in LogSeq's "All Graphs" page, move the folder, then "Open a local directory" at the new path to relink. Joseph executed this himself at each step; verified working via a real round-trip test (a `journals/2026_09_17.md` test entry, confirmed synced).
+
+**A second, real finding before the first move: the live folder had its own `.git` file**, pointing to `C:/Users/jcthomas/.logseq/git/.../\.git` — LogSeq's own internal local-history feature (separate from LogSeq Sync), empty (zero commits, no remote). Confirmed with Joseph it was safe to replace before `git init`.
+
+**Secrets/cruft sweep, same discipline as CARD-0298:** no secrets found; no OS/app cache cruft found either (clean, unlike PB Blog). `assets/` (316MB — photos/PDFs attached to notes) is real content, kept as-is. `.gitignore` excludes LogSeq's own internal backup/versioning (`logseq/.recycle/`, `logseq/bak/`, `logseq/version-files/`, `version-files/`, ~18MB) as redundant with real git history, per Joseph's confirmation.
+
+**Executed 2026-09-18:** Joseph moved the folder (`JCT Documents not synced\LogSeq` → `Projects\LogSeq`) and relinked LogSeq Sync. `git init`, `.gitignore`, `kanban-board.md` bootstrapped from CARD-0301's template — carrying over CARD-0293/CARD-0300 (LogSeq's own process questions) as this new repo's CARD-0001/CARD-0002, retracted here with stubs (Joseph's explicit call, mirroring CARD-0305's earlier move to PB-Blog). Initial commit, private GitHub repo (`github.com/joscthomas/LogSeq`, confirmed `PRIVATE`), pushed. `README.md` written, later corrected per Joseph's own words: LogSeq is his personal knowledge management system ("I put whatever I want to save"), not just journals/notes/pages.
+
+**A second move, same day — Google Drive backup conflict.** Joseph asked how to exclude `Projects` from Google Drive for Desktop's backup (too tedious to hand-pick a long subfolder list); recognized this as the same hazard the original `JCT Documents not synced` naming already solved for LogSeq specifically, now reintroduced by nesting `Projects` under the backed-up `JCT Documents`. Recommended and executed: relocate the whole `Projects` folder (jctsh, PB-Blog, LogSeq together) to `JCT Documents not synced\Projects` instead — reusing the already-excluded parent rather than fighting Drive's UI. Required redoing LogSeq's unlink/move/relink sequence a second time; Joseph executed it, verified working (live journal writes continuing to land correctly). All three repos verified from the final location: clean `git status`, correct remotes, matching last commits.
+
+**Done when:** met. The live LogSeq graph's files are in `JCT Documents not synced\Projects\LogSeq` as their own git repo, with a real `.gitignore` for LogSeq's local-state files; LogSeq Sync confirmed still working via a real test; `kanban-board.md` bootstrapped from CARD-0301's template; private GitHub repo pushed.
 
 **Related:** CARD-0301 (the parent-directory decision, jctsh move, and portable kanban template this is sequenced after and depends on), CARD-0293 (LogSeq devotional-note posting — same underlying LogSeq graph, different problem), CARD-0179 (route captured voice notes to LogSeq — a third LogSeq thread already on the board), CARD-0294 (the `[personal]` tag's own unresolved mapping), CARD-0128 (the auto-PR intake pipeline this was raised by), CARD-0298 (Pastor Ben blog → repo, the sibling move with the same shape).
 
@@ -368,20 +368,13 @@ This confirms this card's own step 2 ("whether any *other* existing tags... also
 
 ---
 
-### CARD-0293 · [idea] [tos] Develop a method to post daily devotional notes into LogSeq
+### CARD-0293 · [retracted] Moved to LogSeq's own kanban-board.md as CARD-0001 — was: Develop a method to post daily devotional notes into LogSeq
 
-**Status:** Backlog
+**Status:** Retracted
 
-**Auto-opened from jctsh-core's maintenance check (PR #90).** Raw finding (voice transcription, garbled): "widget to take a screenshot take the text off it and put it in log seat."
+**Opened earlier (auto-opened from PR #90), moved 2026-09-18 (Joseph's call).** LogSeq now has its own repo and `kanban-board.md` (CARD-0297) — this is LogSeq's own process question, not jctsh's. No content lost — the full card (raised-context, open questions, done-when) moved verbatim to `Projects\LogSeq\kanban-board.md` CARD-0001.
 
-**Clarified 2026-09-18 (Joseph):** develop a method to facilitate LogSeq posting of daily devotional notes. Not yet interviewed beyond this one-line clarification — open questions before this can be scoped/planned, left here for later resolution:
-1. Source of the devotional text — a screenshot of an app/site that doesn't offer copy-paste (hence OCR), or something else?
-2. Trigger — manual, or an automated Tasker-style flow (share-to-profile, like the existing Idea Tasker/Hike-izer Done pattern)?
-3. How this reaches LogSeq — local markdown files synced somehow, a LogSeq API/plugin, a sync service, or direct file writes into the graph?
-4. Target — append into LogSeq's existing daily-journal page for that date, or somewhere else?
-5. Component tag — set to `[tos]`, 2026-09-18 (Joseph: tag all four LogSeq/Pastor Ben blog cards `[tos]` until their repos actually exist). This work is currently happening inside jctsh's own tos-governed board, not inside a repo of its own yet — revisit once the LogSeq repo exists (see CARD-0297) to be tagged against instead.
-
-**Related:** CARD-0297 (move LogSeq into its own repo — this card's eventual home), CARD-0300 (documenting the existing manual process, kept separate).
+**Related:** `Projects\LogSeq\kanban-board.md` CARD-0001 (where this card actually lives now), CARD-0297 (the move that created the repo this question is about), CARD-0300 (its sibling, also retracted and moved, to CARD-0002 in the same board).
 
 ---
 

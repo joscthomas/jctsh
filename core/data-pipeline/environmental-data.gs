@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-17.1-wildlife-detection-dedup';
+var SCRIPT_VERSION = '2026-09-19.1-front-porch-coord-fix';
 
 // ---------------------------------------------------------------------------
 // _relayLog -- CARD-0225: MQTT-dashboard visibility for GPS Track/Hiking

@@ -2,8 +2,8 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** Step-by-step checklist for reviewing and handling a PR opened against this repo by the auto-PR intake pipeline (`tos/README.md`).
-**Version:** 1.0
-**Version description:** Initial release — consolidates steps previously scattered across `tos/README.md`, `tos/open_kanban_pr.py`, `tos/land_pr_card.py`, and `JCTsh-Operating-System.md`'s "interview first" rule into one procedural checklist.
+**Version:** 1.1
+**Version description:** Added the easily-satisfied-vs-save-for-later fork within the interview path (resolve immediately with permission and close, or land the card without working it right then), and a step to ask rather than guess when a finding's tag or target repo isn't obvious.
 
 ---
 
@@ -21,11 +21,14 @@
      1. Get Joseph's explicit go-ahead to proceed with this finding.
      2. Interview to fill in a real acceptance-criteria / "done" definition — not just the auto-opened title.
      3. Confirm the finished card text with Joseph.
-     4. Run `python tos/land_pr_card.py --pr <N> --body path/to/card_body.md` with that confirmed text.
+     4. **If the finding is easily satisfied** (a quick, low-risk fix, clear once interviewed) — ask Joseph's explicit permission to resolve it immediately. If he agrees, do the work, then run `python tos/land_pr_card.py --pr <N> --body path/to/card_body.md` with the card already written up as Done/RESOLVED, closing it out in the same pass.
+     5. **Otherwise** — land the card without working it right then: run `land_pr_card.py` with the confirmed text placed in whichever column (Backlog/Planning) actually reflects its state, and leave the work itself for a later session. Landing the card is not the same as resolving the finding — don't let "the card exists now" become an implicit decision to also do the work now.
 
-4. **Never merge or close a PR from this pipeline without Joseph's go-ahead** — summarize what's open and let him decide, per `JCTsh-Session-Start.md` step 4.
+4. **If the finding's tag (`[tos]`, `[hike-izer]`, etc.) or which repo it belongs to isn't obvious, ask — don't guess.** Some components now live in their own repos (e.g. `PB-Blog`, `LogSeq`, split out from `jctsh` per CARD-0298/CARD-0300/CARD-0305), so a finding can land on the wrong board entirely if the tag/repo is inferred rather than confirmed.
 
-5. **Confirm the landed result.** Neither script asks Joseph anything itself — `land_pr_card.py`'s own docstring is explicit that confirming the rendered card against Joseph is a separate step it doesn't perform. Don't treat a PR as landed until that confirmation happens.
+5. **Never merge or close a PR from this pipeline without Joseph's go-ahead** — summarize what's open and let him decide, per `JCTsh-Session-Start.md` step 4.
+
+6. **Confirm the landed result.** Neither script asks Joseph anything itself — `land_pr_card.py`'s own docstring is explicit that confirming the rendered card against Joseph is a separate step it doesn't perform. Don't treat a PR as landed until that confirmation happens.
 
 ## Where the mechanics live (not repeated here)
 

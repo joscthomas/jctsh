@@ -25,7 +25,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Committed and pushed** to `claude/pr-review-handling-t5b3ck` (not yet merged to `main`).
 
-**Related:** `tos/README.md` (pipeline description, now points here), `tos/pr-review-checklist.md`, `tos/open_kanban_pr.py`/`tos/land_pr_card.py` (mechanics this checklist points at instead of repeating), CARD-0304 (interview-first rule this checklist enforces), CARD-0128/CARD-0190/CARD-0192 (pipeline origin, zero-diff redesign, self-test exception).
+**Follow-up, 2026-09-19 (Joseph, direct instruction) → checklist v1.1.** Added a fork the interview path didn't previously make explicit: once a finding is real enough to be interviewed and confirmed, decide whether it's easily satisfied — if so, ask Joseph's permission to resolve it immediately and close the card in the same pass; otherwise land the card without working it right then, saving the fix for later rather than treating "the card exists" as an implicit decision to also do the work now. Also added a step to ask rather than guess when a finding's tag or target repo isn't obvious, since some components now live in their own repos (`PB-Blog`, `LogSeq`) split out from `jctsh`.
+
+**Related:** `tos/README.md` (pipeline description, now points here), `tos/pr-review-checklist.md`, `tos/open_kanban_pr.py`/`tos/land_pr_card.py` (mechanics this checklist points at instead of repeating), CARD-0304 (interview-first rule this checklist enforces), CARD-0128/CARD-0190/CARD-0192 (pipeline origin, zero-diff redesign, self-test exception), CARD-0298/CARD-0300/CARD-0305 (the repo splits behind the tag/repo-ambiguity step).
 
 ---
 

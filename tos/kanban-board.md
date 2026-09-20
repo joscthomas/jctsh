@@ -9,7 +9,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0313 -->
+<!-- next-card-id: CARD-0314 -->
+
+---
+
+### CARD-0313 · [enhancement] [tos] Add LogSeq and PB-Blog swimlanes to the live `/kanban` dashboard
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #103, jctsh-core maintenance check).** Original finding text: "create swimlanes for each additional repo on the kanban board." **Clarified 2026-09-19 (Joseph):** since LogSeq and PB-Blog now have their own separate `kanban-board.md` files (CARD-0297/CARD-0298/CARD-0301), the live `/kanban` dashboard should show all three repos' cards together, one swimlane per repo.
+
+**Architecture checked directly, not assumed.** `core/logging/log_server.py`'s `_load_kanban_cards()` already fetches `tos/kanban-board.md` live from `KANBAN_RAW_URL` (a public-repo `raw.githubusercontent.com` URL, no auth) and `_parse_kanban_board()` parses it into card dicts. Extending this to LogSeq/PB-Blog reuses the same parser as-is — both were bootstrapped from `tos/Portable-Kanban-Template.md` (CARD-0301), so they share jctsh's card format (`### CARD-XXXX · [type] title`, `**Status:**` line, same column names).
+
+**Real complication found, not assumed away:** checked both repos' visibility directly (`gh repo view`) — **`LogSeq` and `PB-Blog` are both private**, unlike `jctsh` (public). The current unauthenticated raw-URL fetch won't work for them; this needs an authenticated GitHub API fetch (a PAT with read access to both repos), not just two more URLs added to the existing mechanism.
+
+**Not yet scoped:**
+1. Where the required GitHub PAT gets stored/scoped on the Pi (this repo already has a `GITHUB_PAT` pattern in `/etc/jctsh/github.env` for the maintenance-check auto-PR pipeline — likely reusable or a close precedent, not yet confirmed as directly reusable for read-only cross-repo fetches).
+2. Whether card IDs need a repo prefix in the rendered display to stay unambiguous (`CARD-0003` exists independently in both jctsh and LogSeq today).
+3. Whether Priority/status-marker badges (Auto verify/Watch for) apply the same way to LogSeq/PB-Blog cards, or whether those markers are jctsh-specific conventions not used on the simpler boards.
+
+**Done when:** not yet scoped.
+
+**Related:** `core/logging/log_server.py` (`_load_kanban_cards`, `_parse_kanban_board`, `KANBAN_RAW_URL`), CARD-0301 (created the `Portable-Kanban-Template.md` both other boards share), CARD-0297/CARD-0298 (moved LogSeq/PB-Blog into their own repos).
 
 ---
 

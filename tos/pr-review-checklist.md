@@ -2,8 +2,8 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** Step-by-step checklist for reviewing and handling a PR opened against this repo by the auto-PR intake pipeline (`tos/README.md`).
-**Version:** 1.3
-**Version description:** Step 2 now says to display the raw finding text verbatim before offering any interpretation — found live 2026-09-19 reviewing PR #109, after Claude's paraphrased guess at a garbled transcription ("combine board") turned out less useful than just showing Joseph the exact raw text so he could parse it himself.
+**Version:** 1.4
+**Version description:** Step 3.4 now says explicitly: an interview answer that itself sounds directive ("I want X done") is not the same as answering the handle-now-vs-later question — land the card and ask anyway, every time. Found live 2026-09-20 reviewing PR #122: Joseph's interview answer ("I want the pdf turned into a md file... then i want it put in LogSeq") read as authorization and got treated as one, skipping straight to doing the work with no card landed first and no explicit ask — Joseph caught it after the fact ("our convention is to create a card, then ask if you want me to do it now").
 
 ---
 
@@ -21,7 +21,7 @@
      1. Get Joseph's explicit go-ahead to proceed with this finding.
      2. Interview to fill in a real acceptance-criteria / "done" definition — not just the auto-opened title.
      3. Confirm the finished card text with Joseph.
-     4. **Ask explicitly whether Joseph wants it handled now or tracked for later — every time, not only when it looks easily satisfied.** Give an honest read on scope/effort as part of asking, but the decision is his to make, not Claude's to default. Don't let "this looks like real work" silently skip the question the way `land`-only handling would.
+     4. **Ask explicitly whether Joseph wants it handled now or tracked for later — every time, not only when it looks easily satisfied, and not skipped just because his interview answer already sounded directive.** Give an honest read on scope/effort as part of asking, but the decision is his to make, not Claude's to default. Don't let "this looks like real work" silently skip the question the way `land`-only handling would — and don't let "he said 'I want X done'" substitute for actually asking either. An interview answer describing what the finding means is not the same speech act as confirming he wants it worked *right now*, even when the wording sounds directive; land the card with the confirmed text first, then ask, before touching any files.
      5. **If he says handle it now** — do the work, then run `python tos/land_pr_card.py --pr <N> --body path/to/card_body.md` with the card already written up as Done/RESOLVED (or Build, if it's not fully done in one pass), closing it out in the same session.
      6. **Otherwise** — land the card without working it right then: run `land_pr_card.py` with the confirmed text placed in whichever column (Backlog/Planning) actually reflects its state, and leave the work itself for a later session. Landing the card is not the same as resolving the finding — don't let "the card exists now" become an implicit decision to also do the work now.
 

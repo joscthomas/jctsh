@@ -100,6 +100,8 @@ This is elevation **range**, not cumulative ascent. For any hike with rolling te
 2. Whether card IDs need a repo prefix in the rendered display to stay unambiguous (`CARD-0003` exists independently in both jctsh and LogSeq today).
 3. Whether Priority/status-marker badges (Auto verify/Watch for) apply the same way to LogSeq/PB-Blog cards, or whether those markers are jctsh-specific conventions not used on the simpler boards.
 
+**Scope folded in from PR #109, 2026-09-19 (Joseph's call — directly dependent on this card's own swimlane feature, not separate work).** Original finding: "enhance the combine board to be able to select the component" (garbled voice transcription — "combine board" = kanban board). Clarified: the dashboard should support **selecting by tag** (show only cards carrying a given tag) and **selecting a single swimlane** (once swimlanes exist per this card) — otherwise stack/show all swimlanes together, the default. Both are display/filter controls on top of the data-source work above, not a substitute for it.
+
 **Done when:** not yet scoped.
 
 **Related:** `core/logging/log_server.py` (`_load_kanban_cards`, `_parse_kanban_board`, `KANBAN_RAW_URL`), CARD-0301 (created the `Portable-Kanban-Template.md` both other boards share), CARD-0297/CARD-0298 (moved LogSeq/PB-Blog into their own repos).

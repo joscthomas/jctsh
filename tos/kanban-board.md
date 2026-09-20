@@ -9,7 +9,322 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0306 -->
+<!-- next-card-id: CARD-0320 -->
+
+---
+
+### CARD-0319 · [idea] [hike-izer] Add a photo curation step before sending hike photos to Claude for captioning
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #116, jctsh-core maintenance check).** Original finding text (voice transcription, garbled): "curate the photos in Emmett before sending to Claude" — "Emmett" = Immich. **Clarified 2026-09-19 (Joseph):** create a curation step for hike pages, before that hike's photos get sent to Claude for captioning.
+
+**Real gap confirmed, not assumed.** Checked `components/hike-izer/fetch_hike_photos.py`'s `search_assets()` — selection is purely a time-window match against the hike's start/end (every Immich asset taken during that window), no quality/relevance filtering at all. Every photo in the window gets captioned and potentially published, with no step for Joseph to exclude a bad, irrelevant, or duplicate shot first.
+
+**Related existing infrastructure, not yet confirmed as directly reusable:** `components/photo-quality-review/` already does library-wide blur/duplicate/broken-image detection (czkawka + sharp) with its own review UI (keep/delete against Immich). That's a whole-library periodic groom, not scoped to one hike's photo set — whether this card should reuse its detection logic, present a similar review UI scoped to just one hike's candidate photos, or use a different mechanism entirely is an open Planning question, not decided here.
+
+**Not yet scoped:**
+1. What "curate" means in practice — deleting a photo from Immich outright, or just excluding it from this specific hike page while leaving it in the library?
+2. When curation happens — a manual step Joseph does after a hike (before the "rich version" is generated), or an automated pre-filter (blur/duplicate detection) with Joseph only reviewing edge cases?
+3. Whether this reuses `photo-quality-review`'s detection code or is a separate, hike-scoped mechanism.
+
+**Done when:** not yet scoped.
+
+**Related:** `components/hike-izer/fetch_hike_photos.py` (`search_assets`, the selection step this curation would sit in front of), `components/photo-quality-review/` (CARD-0028, the closest existing precedent for photo curation against Immich).
+
+---
+
+### CARD-0318 · [idea] [photo-server] Additional Immich widgets/automations — starting with a dynamic geofenced album
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #115, jctsh-core maintenance check).** Original finding text: "make a repo for photos." **Clarified 2026-09-19 (Joseph):** not a new repo — Immich already lives in `photo-server` (part of the photo-server cluster, alongside `photo-quality-review` and `photo-tv-display`). The actual idea is additional widgets/automations built on top of the existing Immich setup.
+
+**First concrete example given:** a dynamic album/folder that always contains photos falling within a certain geofence (a defined lat/lon boundary), updating automatically as new matching photos land in the library — rather than a manually-curated album.
+
+**Not yet interviewed:** whether this is meant as one specific geofence (e.g. the property itself, or a specific hiking area) or a general mechanism for defining any number of geofenced albums; how "always contains" should behave for photos already in the library before the geofence is defined (backfill vs. forward-only); and whether this uses Immich's own API (`find_or_create_album`-style, per CARD-0286's precedent) or some other mechanism.
+
+**Done when:** not yet scoped.
+
+**Related:** CARD-0286 (Immich album-creation precedent — `find_or_create_album`, the same API surface a geofenced album would likely reuse), `components/photo-server/`, `components/photo-tv-display/routes/immich.js` (existing proven Immich API endpoints).
+
+---
+
+### CARD-0317 · [idea] [tos] Create a new repo for Bible study content
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #110, jctsh-core maintenance check).** Original finding text: "create a repo for the Bible study and a tool that examines the questions for the feedback items I've received."
+
+**Scope:** create a new, separate repo for Bible study content — same pattern as CARD-0297 (LogSeq) and CARD-0298 (Pastor Ben blog), which each moved a distinct content domain into its own dedicated repo under `Projects/` rather than folding it into jctsh or an existing repo.
+
+**Note for whoever picks this up:** the original finding also mentions "a tool that examines the questions for the feedback items I've received" — not yet scoped or interviewed at all; captured here so it isn't lost, but it's a separate piece of work from the repo creation itself and needs its own interview before any building starts.
+
+**Not yet scoped:** what "Bible study" content actually consists of (notes, a specific study's materials, a recurring format), and whether it should follow the same portable-kanban-template pattern CARD-0301 built for LogSeq/PB-Blog.
+
+**Done when:** not yet scoped.
+
+**Related:** CARD-0297 (LogSeq → repo, the precedent this follows), CARD-0298 (Pastor Ben blog → repo, same shape), CARD-0301 (created the `Projects/` parent directory and portable kanban template these repo-creation cards use).
+
+---
+
+### CARD-0316 · [idea] [logseq] Reconcile CARD-0034/0071/0072's digital-identity files with LogSeq — deprecate the `[personal]` tag
+
+**Status:** Backlog
+
+**Raised 2026-09-19 (Joseph), out of a live discussion prompted by PR #108's finding** ("for information of certain types automatically send the MD file to LogSeq" — Joseph: "this is what we just did with GitHub issues, but i want to look at `[personal]` tags"). Reviewing the board's 5 `[personal]`-tagged cards (CARD-0294's own "accepted as-is, not retired" call) found none of them were actually a good permanent fit for a generic tag once looked at individually.
+
+**Executed this session, `[personal]` fully retired (zero cards carry it now):**
+1. **CARD-0093** (DNS cleanup, `jctnet.com`/`jctnet.net`) → retagged `[network]`. Real operational/network work, not personal-life content.
+2. **CARD-0103** (legacy Google Sites migration) → retagged `[website]`.
+3. **CARD-0034/CARD-0071/CARD-0072** (digital-identity-protection planning, Joseph and Robin's personal security checklist) → retagged `[logseq]` — this is genuinely personal-life content, belongs with Joseph's LogSeq knowledge base per the same reasoning that moved the wash-survey/night-vision-goggles findings there (PR #102/#104 this session).
+
+**New `network/` directory created** (mirroring `architecture/`'s doc-only shape from CARD-0294) to give `[network]` a real, `archive_cards.py`-discoverable home instead of falling to the dated fallback archive the way `[personal]`/`[wildlife]` still do. `tos/archive_cards.py`'s `discover_destinations()` given an explicit `dests["network"]` entry, same pattern as `architecture`'s own fix. **Existing network-related files moved into it** (Joseph's own catch — "there might be files that belong in the network directory"): `jctsh-network.md`, `jctsh-access.md`, and `keepconnect.md` (a standalone router-rebooter device, network-adjacent even though it's not a JCTsh MQTT component). ~26 active documentation files' cross-references updated to the new `network/` paths; archived card history (`card-archive.md`/`kanban-archive.md` files) deliberately left untouched as historical record, not retrofitted.
+
+**What's still actually open — this card's real remaining scope:** CARD-0071/CARD-0072/CARD-0034 now carry `[logseq]` but **still physically live in `jctsh`'s `kanban-board.md`**, and all three depend heavily on files that also still live in jctsh's repo root (`digital-identity.md`, `digital-identity-protection-checklist.md`, `Incident Response Plan.pdf`) — CARD-0072 explicitly states "Canonical detail lives in `digital-identity-protection-checklist.md`... that file is the actual checklist." **Joseph's explicit call, 2026-09-19: tag and leave in place for now, reconcile properly later** rather than deciding under this same conversation's momentum. Open questions for whenever this gets picked up:
+1. Do the three cards move to `LogSeq/kanban-board.md` (matching CARD-0034/0071/0072-in-LogSeq's own numbering) with the reference files moving too, or do the files have a reason to stay in jctsh (e.g., they touch RoboForm/2FA setup for accounts that also gate access to jctsh infrastructure itself — a real "infrastructure-adjacent" argument the wash-survey/night-vision-goggles precedent didn't have to weigh)?
+2. If the files move, do they move as-is or get restructured to fit LogSeq's page/journal shape rather than staying standalone `.md` files?
+
+**Done when:** not yet scoped — the retag/directory work above is complete, but the actual file reconciliation this card exists to hold is not.
+
+**Related:** CARD-0294 (originally accepted `[personal]` as-is; this card reverses that call — see the strike-through note added there), CARD-0301 (created the `network/`-adjacent `architecture/` pattern this reuses), PR #102/#104 (this session's own precedent for moving a personal finding to LogSeq instead of landing it in jctsh), `network/README.md`, `tos/archive_cards.py` (`discover_destinations()`).
+
+---
+
+### CARD-0315 · [idea] [tos] Cross-repo protocol management — a general session that spans Projects/, and whether a dedicated TOS repo is eventually needed
+
+**Status:** Backlog
+
+**Raised 2026-09-19 (Joseph), out of a live discussion prompted by adding LogSeq's own editing-protocol rules.** While setting up a `tos/` directory for LogSeq (mirroring jctsh's own), Joseph asked how to reconcile what belongs in each repo's `tos/` versus something shared — noting that jctsh's 9-step Session Start (`tos/JCTsh-Session-Start.md`, CARD-0307) doesn't actually look jctsh-specific in its general shape (checking for uncommitted work, checking for a stray unmerged branch, reviewing open PRs) — it's a general "how does a Claude Code session start responsibly" pattern that LogSeq and PB-Blog would each plausibly want their own version of too.
+
+**The bigger picture Joseph is envisioning, not yet built:** a **general session that runs at the `Projects/` parent level and works across all three repos** — exactly the shape this session has actually been operating in today (jumping between jctsh, LogSeq, and back, handling the auto-PR intake queue, moving a finding to whichever repo it actually belongs on). Today that happened organically, session-by-session, with no standing definition of what such a session's own "start" procedure or cross-repo responsibilities should be.
+
+**Open question, deliberately not decided yet (Joseph: "I'm not sure at this point"):** whether this eventually warrants a **dedicated TOS repo** — a fourth repository (or some other durable, versioned location) holding protocols genuinely shared across jctsh/LogSeq/PB-Blog (and any future addition to this `Projects/` family), separate from truly universal preferences (which belong in the user's global `~/.claude/CLAUDE.md`, already established) and from protocols genuinely specific to one repo (which stay in that repo's own `tos/`).
+
+**Interim call made in the same discussion, not blocking this card:** a repo-specific rule found live this session ("steps/rules/protocols belong in dedicated `.md` files, never inlined in `CLAUDE.md` — `CLAUDE.md` only points at them") was judged to be a truly universal preference, not repo-specific, and destined for the global `~/.claude/CLAUDE.md` rather than repeated per-repo. This card is about the harder, still-open middle tier — protocols shared by *some* repos (or by a cross-repo session) but not universal to every project.
+
+**Not yet scoped:** what would actually need to live in a TOS repo if one existed (a shared Session Start template? a cross-repo card-numbering or PR-triage convention, like the one this exact session used to move findings between jctsh and LogSeq today?) — real examples exist now (this session lived them), but nothing has been abstracted into a reusable definition yet.
+
+**Second interim call, same discussion, 2026-09-19 — where to put the "protocol placement" meta-rule itself while this card stays open.** Wrote `tos/Protocol-Placement.md` (this repo) as the working answer for the still-open middle tier (protocols shared by *some* repos but not universal to every project Joseph works in) — **reusing `jctsh/tos/` as the pragmatic default for now** rather than inventing a new shared location before a second real need for one shows up, per Joseph's own call ("for now i thought we would keep using jctsh/tos unless we want to put it somewhere else"). Global `~/.claude/CLAUDE.md` now points at it. This is explicitly provisional — if this card ever produces a real dedicated shared location, `Protocol-Placement.md`'s own content (not just this card) would need to move too.
+
+**Done when:** not yet scoped — this card exists to hold the question, not to answer it prematurely.
+
+**Related:** CARD-0307 (created `tos/JCTsh-Session-Start.md`, the concrete example prompting this question), CARD-0301 (created the `Projects/` parent directory this card's "general session" concept would run at), CARD-0310 (the most recent addition to jctsh's own Session Start, itself a candidate for what a shared protocol might look like), `Projects/README.md` (today's lightweight, non-versioned answer to "orient a session starting at Projects/" — a stopgap this card's eventual answer might supersede), `tos/Protocol-Placement.md` (the interim middle-tier answer living here until/unless this card changes that).
+
+---
+
+### CARD-0314 · [bug] [hike-izer] Reported "elevation gain" is actually elevation range (max−min), not cumulative ascent
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #105, jctsh-core maintenance check).** Original finding text: "for the hiking statistic elevation gain how is that calculated." Started as a general question, not a bug report — checking the actual code to answer it surfaced a real discrepancy.
+
+**General practice, for reference:** "elevation gain" (cumulative gain / total ascent) is normally the **sum of every positive elevation change** between consecutive track points along a route — descents are tracked separately as "elevation loss," not subtracted from gain. It equals simple `max − min` only in the special case of a route that climbs the whole way with no dips. Because raw GPS/barometric altitude is noisy (several meters of jitter even stationary), a correct implementation smooths the elevation profile or applies a minimum-delta threshold before summing positive deltas — naively summing every raw point-to-point delta would wildly overstate gain from noise alone.
+
+**Real bug found, checking the actual code rather than assuming:** `components/hike-izer/fetch_hike_data.py`'s `compute_stats()` (line ~287) computes:
+```python
+'gain_ft': round(m_to_ft(max(alt_vals) - min(alt_vals)))
+```
+This is elevation **range**, not cumulative ascent. For any hike with rolling terrain (up-down-up-down, not a single monotonic climb), this understates true total ascent — potentially significantly, depending on how much up-and-down the route actually has.
+
+**Real cross-dependency found, not incidental:** CARD-0287 (Mile Announcer's planned spoken cumulative-elevation-gain feature) explicitly designed itself to "match how hike-izer's own stats report gain" and its own Done-when criterion is to be "cross-checked against hike-izer's own published elevation-gain stat for that hike." Fixing this bug changes what that reference value actually is — CARD-0287 should build against the corrected calculation, not the current max−min one, and its own Done-when should be re-confirmed once this lands. Noted on CARD-0287 directly.
+
+**Not yet scoped:**
+1. The actual fix — sum positive deltas between consecutive `altitude_m` GPS readings, with a noise-reduction pass (smoothing or a minimum-delta threshold) tuned against real hike data, same discipline as this project's other noise-vs-signal thresholds (e.g. CARD-0250's walking-speed classifier).
+2. Whether to also report elevation *loss* alongside gain, now that the two are no longer trivially the same number (`max−min` conflated them; a real cumulative-gain calculation naturally produces both separately).
+3. Whether past hikes' already-published gain figures should be recomputed/corrected, or only hikes generated after the fix.
+
+**Done when:** not yet scoped.
+
+**Related:** CARD-0287 (Mile Announcer's planned elevation announcement — depends on this card's corrected value), `components/hike-izer/fetch_hike_data.py` (`compute_stats`), CARD-0250 (the precedent for a real noise-vs-signal threshold tuned against real hike data).
+
+---
+
+### CARD-0313 · [enhancement] [tos] Add LogSeq and PB-Blog swimlanes to the live `/kanban` dashboard
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #103, jctsh-core maintenance check).** Original finding text: "create swimlanes for each additional repo on the kanban board." **Clarified 2026-09-19 (Joseph):** since LogSeq and PB-Blog now have their own separate `kanban-board.md` files (CARD-0297/CARD-0298/CARD-0301), the live `/kanban` dashboard should show all three repos' cards together, one swimlane per repo.
+
+**Architecture checked directly, not assumed.** `core/logging/log_server.py`'s `_load_kanban_cards()` already fetches `tos/kanban-board.md` live from `KANBAN_RAW_URL` (a public-repo `raw.githubusercontent.com` URL, no auth) and `_parse_kanban_board()` parses it into card dicts. Extending this to LogSeq/PB-Blog reuses the same parser as-is — both were bootstrapped from `tos/Portable-Kanban-Template.md` (CARD-0301), so they share jctsh's card format (`### CARD-XXXX · [type] title`, `**Status:**` line, same column names).
+
+**Real complication found, not assumed away:** checked both repos' visibility directly (`gh repo view`) — **`LogSeq` and `PB-Blog` are both private**, unlike `jctsh` (public). The current unauthenticated raw-URL fetch won't work for them; this needs an authenticated GitHub API fetch (a PAT with read access to both repos), not just two more URLs added to the existing mechanism.
+
+**Not yet scoped:**
+1. Where the required GitHub PAT gets stored/scoped on the Pi (this repo already has a `GITHUB_PAT` pattern in `/etc/jctsh/github.env` for the maintenance-check auto-PR pipeline — likely reusable or a close precedent, not yet confirmed as directly reusable for read-only cross-repo fetches).
+2. Whether card IDs need a repo prefix in the rendered display to stay unambiguous (`CARD-0003` exists independently in both jctsh and LogSeq today).
+3. Whether Priority/status-marker badges (Auto verify/Watch for) apply the same way to LogSeq/PB-Blog cards, or whether those markers are jctsh-specific conventions not used on the simpler boards.
+
+**Scope folded in from PR #109, 2026-09-19 (Joseph's call — directly dependent on this card's own swimlane feature, not separate work).** Original finding: "enhance the combine board to be able to select the component" (garbled voice transcription — "combine board" = kanban board). Clarified: the dashboard should support **selecting by tag** (show only cards carrying a given tag) and **selecting a single swimlane** (once swimlanes exist per this card) — otherwise stack/show all swimlanes together, the default. Both are display/filter controls on top of the data-source work above, not a substitute for it.
+
+**Done when:** not yet scoped.
+
+**Related:** `core/logging/log_server.py` (`_load_kanban_cards`, `_parse_kanban_board`, `KANBAN_RAW_URL`), CARD-0301 (created the `Portable-Kanban-Template.md` both other boards share), CARD-0297/CARD-0298 (moved LogSeq/PB-Blog into their own repos).
+
+---
+
+### CARD-0312 · [idea] [photo-server] Sync photo deletions from Google Photos to Immich
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #101, jctsh-core maintenance check).** Original finding text (voice transcription, garbled): "when I delete a photo out of Google photos I wanted to delete out of iMac as well." **Clarified 2026-09-19 (Joseph): "iMac" = Immich, "delete out of Immich too."** When a photo already imported into Immich is later deleted from Google Photos, it stays orphaned in Immich — nothing currently removes it.
+
+**Real gap confirmed, not assumed:** checked `components/photo-server/operations.md` — the existing `immich-go` integration is a **one-time Google Takeout migration** (a folder-upload batch job), not an ongoing sync. Nothing in this repo watches Google Photos for live changes (additions or deletions) at all.
+
+**Not yet scoped — open questions before Planning:**
+1. Is Google Photos still the active capture app for new photos day-to-day, or was it only ever the source of the original migration batch (i.e., is this "watch an actively-growing library for deletions" or "clean up strays from one historical import")? Very different scope depending on the answer.
+2. Does the Google Photos API expose a practical way to detect deletions at all (vs. only listing currently-existing items, requiring a diff against a prior snapshot)?
+3. Matching mechanism: how would a Google Photos item be reliably matched to its corresponding Immich asset (checksum, filename+timestamp, the `immich-go` import-batch tag already applied)?
+
+**Done when:** not yet scoped.
+
+**Related:** `components/photo-server/operations.md` (`immich-go`'s existing one-time migration, the closest precedent), `components/photo-server/migration.md`.
+
+---
+
+### CARD-0311 · [enhancement] [hike-izer] Hike pages don't name the trail/trailhead, despite existing Overpass lookup infrastructure
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #99, jctsh-core maintenance check).** Original finding text (voice transcription, garbled): "make a Kaiser more spatially aware so of trailheads and names." **Clarified 2026-09-19 (Joseph): "Kaiser" = "hike-izer"** (a transcription artifact — the two are phonetically close). Interviewed the actual gap: hike-izer's published hike pages don't name the specific trail or trailhead a hike used.
+
+**Confirmed live, not assumed — checked today's real page.** `components/hike-izer-orchestrator/place_context.py` (CARD-0108) already exists specifically for this: its own module docstring states the base layer (OpenStreetMap Overpass, named park/school/trail features near the hike's coordinates) is "Always gathered (free, no cost) -- feeds the Location/Nearby Named Features page sections directly (CARD-0123), independent of whether narrative is on." But the real, just-published `2026-09-19_hike-summary.html` page has **no Location/Nearby Named Features section at all** — confirmed by direct inspection, not inferred.
+
+**Open question for Planning, not yet answered:** is `place_context.py` simply not being invoked for this page's generation tier (today's was explicitly a "data-only" summary, before photos/Gaia/bird data were staged — `hike-izer-orchestrator`'s own log message: "Ask for the rich version once photos/Gaia/bird data are staged"), or is it invoked but Overpass genuinely has no named trail/trailhead feature tagged near this hike's specific coordinates (a real OpenStreetMap data gap, not a code gap)? These have very different fixes — the first is a wiring gap in this pipeline, the second is either accepting the gap or falling back to something else (a manually-maintained trail-name lookup, e.g.) when OSM has nothing. Needs checking against the "rich" version of a recent hike (which does run the full pipeline) before assuming which case this is.
+
+**Done when:** not yet scoped — pending Planning's root-cause investigation above.
+
+**Related:** CARD-0108 (built the Overpass/Nominatim place-context infrastructure this gap sits inside), CARD-0123 (the Location/Nearby Named Features page section this should feed), `components/hike-izer-orchestrator/place_context.py`, `components/hike-izer-orchestrator/generation.py` (where the data-only vs. rich generation tiers diverge).
+
+---
+
+### CARD-0310 · [enhancement] [tos] Session Start: check for unmerged remote branches with real work, not just local uncommitted changes
+
+**Status:** Done — RESOLVED 2026-09-19 18:47 MST
+
+**Raised 2026-09-19 (Joseph, direct instruction: "what can we do to make the mobile session work like it should," after "yes, add it" confirming the recommendation) — real incident-driven, not speculative.** CARD-0309 (a PR review checklist, genuinely built, verified, and marked Done) was completed entirely on a branch a mobile/cloud session pushed to (`claude/pr-review-handling-t5b3ck`) but never merged into `main`. Nothing in the existing Session Start checklist would have caught this — step 1's `git status --short` only sees the current session's own local working tree, not other branches sitting on `origin`. This session only found it by chance, via a `git fetch` run for an unrelated reason (reconciling a `next-card-id` collision with CARD-0308).
+
+**Root cause left genuinely open, not assumed:** whether the mobile session's branch-based workflow (instead of committing straight to `main`, as this desktop session does) is a fixable choice or an inherent platform behavior for mobile/cloud Claude Code sessions wasn't determined — out of scope for a repo-level doc to control either way. This card's fix is a **catch-it-every-session safety net**, not a prevention of the underlying cause.
+
+**Built:** extended `tos/JCTsh-Session-Start.md` step 1 with a second check — `git fetch` then `git branch -r --no-merged origin/main`, explicitly excluding the auto-generated `maintenance-alert/*` branches (CARD-0128's intake pipeline, expected to sit unmerged until reviewed via `tos/pr-review-checklist.md`, not a miss). Anything else found gets summarized to Joseph and merged in if it looks complete, same care as reconciling local uncommitted changes.
+
+**Done when:** the check is documented as a standing part of Session Start step 1. **Met, 2026-09-19.** (Real-world effectiveness — whether this actually catches the next stray branch — will only be confirmed the next time one exists; not a live-verified fix in the CARD-0279/0286 sense, since there's no stray branch to test against right now.)
+
+**Related:** CARD-0309 (the incident this responds to), CARD-0307 (created `tos/JCTsh-Session-Start.md` this card extends), CARD-0128/CARD-0190 (the `maintenance-alert/*` branch pattern this check must not false-positive on), `tos/pr-review-checklist.md` (where a real found branch/PR gets handled once surfaced).
+
+---
+
+### CARD-0308 · [idea] [hike-izer] Scat identification from hike photos — analogous to BirdNET's audio wildlife ID
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #98, jctsh-core maintenance check).** Original finding text: "scat identification." Interviewed via PR review: Joseph wants automatic identification of animal scat photographed during a hike, analogous to how the existing BirdNET Live integration (CARD-0080, `birdnet-pipeline.md`) already does audio-based wildlife identification — the phone app does the actual classification, and hike-izer's pipeline just parses/renders the already-identified results into the hike page and the cross-hike Wildlife Life List.
+
+**Not yet scoped:** whether an existing app/model does scat identification the way BirdNET Live does bird calls (an on-device classifier hike-izer could just parse the export from), or whether this needs a different mechanism entirely (e.g. an AI vision call inside hike-izer's own pipeline). A Planning-stage question, not decided here.
+
+**Related:** `components/hike-izer-orchestrator/birdnet-pipeline.md` (the audio-ID pattern this is modeled after), `components/hike-izer-orchestrator/birdnet.py`, `components/hike-izer-orchestrator/wildlife_life_list.py`.
+
+---
+
+### CARD-0309 · [enhancement] [tos] Add a PR review checklist for the auto-PR intake pipeline
+
+**Status:** Done — RESOLVED 2026-09-19
+
+**Raised and built 2026-09-19 (Joseph, direct instruction) — small enough to interview-by-instruction rather than a separate scoping pass.** Came out of a question about where the auto-PR intake pipeline's review/handling steps were documented — the answer was "scattered": the pipeline shape in `tos/README.md`, the merge-time mechanics in `open_kanban_pr.py`/`land_pr_card.py`'s own docstrings, and the interview-first policy rule in `JCTsh-Operating-System.md`, with no single place a reviewer lands to actually work through a PR.
+
+**Built:** new `tos/pr-review-checklist.md` — a step-by-step procedure (skip the `jctsh-pr-selftest` PR, read the raw finding, decide stub-vs-interview merge path, never merge without Joseph's go-ahead, confirm the landed result) that points at the existing scripts/docs for mechanics rather than duplicating them, per this document's own single-source-of-truth principle. Pointed at it from `tos/README.md` (file index + pipeline diagram) and `tos/JCTsh-Session-Start.md` step 4 (where open PRs actually get reviewed each session).
+
+**Done when:** the checklist file exists and is referenced from the places a reviewer would actually encounter the task. **Met, 2026-09-19.**
+
+**Committed and pushed** to `claude/pr-review-handling-t5b3ck` (not yet merged to `main`).
+
+**Follow-up, 2026-09-19 (Joseph, direct instruction) → checklist v1.1.** Added a fork the interview path didn't previously make explicit: once a finding is real enough to be interviewed and confirmed, decide whether it's easily satisfied — if so, ask Joseph's permission to resolve it immediately and close the card in the same pass; otherwise land the card without working it right then, saving the fix for later rather than treating "the card exists" as an implicit decision to also do the work now. Also added a step to ask rather than guess when a finding's tag or target repo isn't obvious, since some components now live in their own repos (`PB-Blog`, `LogSeq`) split out from `jctsh`.
+
+**Follow-up, 2026-09-19, via PR #107 (finding: "review PR processing steps to include asking whether it should be handled now") → checklist v1.2.** Real gap found live: this same session had already landed CARD-0311/0312/0313/0314 straight to Backlog without ever actually asking Joseph whether any of them should be worked immediately instead — the v1.1 fork only forced that question when Claude itself judged a finding "easily satisfied," not for everything. Reworded step 3 so the "handle now vs. save for later" choice is asked explicitly for every real finding, with Claude giving an honest scope/effort read but Joseph making the call, not Claude defaulting silently.
+
+**Follow-up, 2026-09-19, via PR #109 (finding: garbled voice transcription, "combine board") → checklist v1.3.** Claude's paraphrased guess at what the garbled text probably meant, offered before showing Joseph the actual raw text, turned out to be the wrong move — Joseph asked to see the raw text directly instead. Reworded step 2 to display the raw finding verbatim first, every time, before any interpretation — a misheard word is Joseph's to correct directly, not something to route through Claude's guess first.
+
+**Renumbered 2026-09-20 from a provisional CARD-0308 to the real CARD-0309** — this card was drafted on this feature branch before `main` had actually advanced, so its number was only ever provisional per this repo's own numbering design (real assignment happens at merge time, reading `main`'s marker fresh). PR #98 (the scat-identification finding) landed on `main` first and claimed CARD-0308 for real; this card is renumbered on merge with `main` to avoid the collision, per CARD-0128/CARD-0190's own stated rationale for why numbering is deferred rather than reserved at open time.
+
+**Related:** `tos/README.md` (pipeline description, now points here), `tos/pr-review-checklist.md`, `tos/open_kanban_pr.py`/`tos/land_pr_card.py` (mechanics this checklist points at instead of repeating), CARD-0304 (interview-first rule this checklist enforces), CARD-0128/CARD-0190/CARD-0192 (pipeline origin, zero-diff redesign, self-test exception), CARD-0298/CARD-0300/CARD-0305 (the repo splits behind the tag/repo-ambiguity step), CARD-0308 (the scat-identification card that claimed this card's original provisional number).
+
+---
+
+### CARD-0307 · [enhancement] [tos] Split the general Session Start checklist out of CLAUDE.md; orient sessions starting at the Projects/ parent directory
+
+**Status:** Done — RESOLVED 2026-09-19 11:55 MST
+
+**Raised and built 2026-09-19 (Joseph, two direct instructions in the same thread) — small enough to interview-by-instruction rather than a separate scoping pass.**
+
+**Part 1: "move the steps to an md file in tos, and point to them in CLAUDE.md."** Root `CLAUDE.md`'s Session Start section had grown to ~90 lines of inlined checklist (the same "read every session" content genuinely belongs there, but per `JCTsh-Operating-System.md`'s Documentation Structure section, a large block like this benefits from the same split-by-topic treatment already applied to `JCTsh-Operating-System.md` and `JCTsh-Component-Session-Start.md` — still read every session, just no longer bloating the file a session opens first). Moved the full 9-step list plus the timestamp-format rule verbatim into new `tos/JCTsh-Session-Start.md`; `CLAUDE.md`'s Session Start section is now a short pointer. **Updated the one file that referenced the old location by name:** `JCTsh-Component-Session-Start.md`'s Purpose line said "instead of `CLAUDE.md`'s general Session Start" — corrected to point at `tos/JCTsh-Session-Start.md`, version-bumped (1.12 → 1.13) with the superseded description moved into `JCTsh-Component-Session-Start-History.md`, per that document's own established convention. The 9-step numbering `JCTsh-Component-Session-Start.md`'s own table maps against is unchanged, so that table itself needed no edits.
+
+**Part 2: "note that a general session is likely to start at the Projects directory in addition to the JCTsh directory."** Real gap CARD-0301 never addressed when it created the shared `Projects/` parent for `jctsh`/`LogSeq`/`PB Blog` — nothing oriented a session that starts one level up, at `Projects/` itself, before any repo's own `CLAUDE.md` is even in view. Added `Projects/README.md` (untracked — `Projects/` isn't a git repo, purely a filesystem convenience per CARD-0301) listing the three repos and directing a session that starts there to identify the relevant repo, `cd` in, and follow that repo's own process — explicitly not assuming jctsh's process applies to LogSeq/PB Blog work.
+
+**Done when:** `tos/JCTsh-Session-Start.md` exists with the moved content, `CLAUDE.md` points to it, `JCTsh-Component-Session-Start.md`'s reference is corrected and versioned, and `Projects/README.md` orients a session landing at the parent directory. **Met — all four, this session.**
+
+**Related:** CARD-0301 (created the `Projects/` parent this card's second half orients sessions within), CARD-0292 (the version-history-split precedent this card's `JCTsh-Component-Session-Start.md` edit followed), CARD-0289 (documentation-splitting-by-read-frequency, the principle this card's first half applies to `CLAUDE.md` itself), `tos/JCTsh-Session-Start.md`, `tos/JCTsh-Component-Session-Start.md`, `Projects/README.md`.
+
+---
+
+### CARD-0306 · [bug] [data-pipeline] Environmental Data pipeline overwrites a stationary device's own coordinates with the hiker's live GPS during a hike
+
+**Status:** Done — RESOLVED 2026-09-19 18:37 MST
+
+**Retitled 2026-09-19 (Joseph's question: "front porch sensor is stationary, why is it making GPS lookup calls?").** The original framing below (repeated HTTP 404s) turned out to be a minor symptom of a much more real problem this question surfaced — a stationary device's own correct coordinates silently getting overwritten by wherever the hiker currently is, whenever a hike happens to overlap in time. The 404 investigation is kept intact below as the thread that led here; the actual fix addresses the real bug, not the 404s.
+
+**Raised 2026-09-19, from CLAUDE.md's Session Start dashboard scan — not yet interviewed, captured as a finding pending investigation.** Three occurrences on three consecutive days, all the same Alert shape from `core/data-pipeline/environmental-data.flow.json`'s `env-data-gps-log-failure` node (CARD-0279):
+- `2026-09-17 20:37:21 MST` — `GPS lookup failed after 3 attempts for front-porch-temp-sensor reading @ 2026-09-18T03:35:55Z (status 404)`
+- `2026-09-18 04:43:15 MST` — same, reading @ `2026-09-18T11:40:55Z`
+- `2026-09-19 06:48:23 MST` — same, reading @ `2026-09-19T13:46:06Z`
+
+All three timestamps fall well outside any hike window (front-porch-temp-sensor is a stationary device, not carried) — no burst context like CARD-0279's hiking-monitor replay scenario, just a single isolated `action=lookup` call each time.
+
+**Checked `core/data-pipeline/environmental-data.gs`'s `doGet` `action === 'lookup'` handler directly, rather than assuming a code-level cause:** it unconditionally returns `ContentService.createTextOutput(JSON.stringify(coords))` — always HTTP 200, whether `_gpsLookup` finds a match or returns `{lat:null, lon:null}`. There is no code path in this script that produces a 404. **This rules out "expected no-match for a non-hiking reading" as the explanation** — a genuine miss would come back 200 with null coordinates, not 404, and CARD-0279's own retry/log logic already treats a 200-with-null as resolved, not retried. A literal HTTP 404 has to be coming from Apps Script's own web-app infrastructure (stale/misrouted deployment, a transient Google-side failure, or the same general Apps-Script-under-load flakiness already tracked across CARD-0258/0270/0275/0276/0279), not from this script's own logic.
+
+**Open questions 1-3 answered, 2026-09-19, via `action=export` against the real Environmental Data sheet (not inferred):** exported the full 2026-09-17T00:00Z–2026-09-19T18:00Z window (66 hours, spanning all three occurrences) and counted sources directly: **788 `front-porch-temp-sensor` readings vs. 50 `hiking-monitor` readings in the same window** — front-porch-temp-sensor reports roughly every 5 minutes, 24/7, making it by far the highest-volume caller of `action=lookup` on any non-hike day (a ~16:1 call-volume ratio here). 3 final-failures out of 788 calls is a **0.38% failure rate** — small enough to plausibly be ordinary exposure to the same baseline Apps-Script transient-failure rate already documented across CARD-0258/0270/0275/0276, not a distinct failure mode or anything device-specific. No rotated log backup (`jctsh.log.1`/`.2`/etc.) carries this Alert text at all — consistent with it being new since CARD-0279's `env-data-gps-log-failure` node was deployed 2026-09-17 evening, not evidence of a longer-running problem. No timing pattern found across the three (20:37, 04:43, 06:48 MST) beyond "whenever this device's ~5-minute cadence happens to draw a bad call."
+1. **Answered:** not concurrent-load-specific — front-porch-temp-sensor's sheer call volume, not a distinct trigger, explains why it's the device that surfaces this.
+2. **Answered:** no evidence of any other device hitting this in the same window (hiking-monitor: 0 of 50; no other source appeared in the export at all) — consistent with front-porch-temp-sensor's outsized call volume being the actual reason, not a device-specific fault.
+3. **Answered:** no timing pattern found; treat as background rate, not schedule-correlated.
+4. **Superseded by the real finding below** — the answer turns out to be "don't call it at all for this device," which also makes question 4's Alert-suppression question moot (zero calls means zero chance of a lookup Alert).
+
+**Real bug found 2026-09-19, answering Joseph's actual question.** Checked `components/front-porch-temp-sensor/front-porch-temp-sensor.yaml` (lines 148/181/189): the device hardcodes and self-reports its own correct, fixed coordinates in every MQTT payload it sends (`lat:32.4612997, lon:-111.1184154`, "H8 front porch" per `house-lot-coordinates.md`) — it was never supposed to need a GPS lookup at all. But `core/data-pipeline/environmental-data.flow.json`'s `Check GPS lookup response (CARD-0279)` node does `d.lat = gps.lat` **unconditionally** whenever `_gpsLookup` finds any match, with no check for whether the reading already carried a known-good coordinate. Confirmed live via the real Environmental Data sheet: during today's hike, front-porch-temp-sensor's own "location" drifted through the hike almost exactly tracking the hiker's real position (e.g. `32.4570349,-111.1130772` at 13:51:06Z, essentially the same spot hiking-monitor logged at 13:51:57Z) — a real geotagging-correctness bug, not just wasted API calls. It only shows its correct fixed coordinate when no hike happens to be running (the 3 known 404s were also just noise from this same unnecessary call path).
+
+**Scope-checked the other two devices that reference coordinates, not assumed:** `air-quality-monitor.yaml` sends `"lat":null,"lon":null"` explicitly — it's carried on hikes and correctly wants the lookup fill-in. `hiking-monitor.yaml` also wants the lookup (the whole point of this pipeline), and its own "at home" fallback is already special-cased in the same function node. **Only front-porch-temp-sensor is affected** — the one device that's both stationary and already self-reports a real coordinate.
+
+**Fix built 2026-09-19: skip the GPS-Track lookup entirely when a reading already carries non-null `lat`/`lon`.** `env-data-gps-prep` ("Prepare GPS lookup") gained a second output — `outputs: 2`, with a new guard at the top of its function: `if (d.lat !== null && d.lat !== undefined) { msg.payload = d; return [null, msg]; }`, wired straight to `env-data-process` ("Compute derived fields + build POST"), bypassing the throttle/lookup/check-response chain entirely for a device that already knows its own location. The normal lookup path (output 0, unchanged) still runs for anything sending `null` coordinates (air-quality-monitor, hiking-monitor).
+
+**Deployed live 2026-09-19 (Joseph's explicit go-ahead — the harness's own auto-mode classifier blocked the first attempt as a "Production Deploy" and required it).** Used the Node-RED admin API directly rather than the UI import procedure, to avoid `Node-RED-workflow.md`'s documented duplicate-tab risk. **Real gotcha found along the way, worth keeping for next time:** the live flow's actual node IDs (e.g. `c0208e8454c6d1d9` for this node) do **not** match the human-readable IDs in this repo's checked-in JSON (`env-data-gps-prep`) — Node-RED reassigns its own IDs on import, so a direct API patch has to match nodes by **name**, fetch the live ID, and rewrite `wires` to point at live IDs of the target nodes, not the repo file's IDs. Documented as its own method in `Node-RED-workflow.md`. `curl -X POST /flows` with the corrected full array returned `204`; `journalctl -u nodered` showed a clean `Stopping flows → Updated flows → Starting flows → Started flows` with MQTT reconnecting, no errors, and every other tab's timers still firing normally afterward.
+
+**Verified live against real production data, not inferred from the deploy succeeding.** Checked Apps Script's own Correlation Debug sheet (CARD-0197) directly — it logs a row for every `_gpsLookup` call, hit or miss, completely independent of Node-RED's own success/failure reporting:
+- **Pre-deploy reading** (`front-porch-temp-sensor` @ `2026-09-19T18:36:06Z`, before the 18:38:18Z deploy): **2 `lookup_miss` rows** in Correlation Debug — the old code called the lookup, as expected.
+- **Post-deploy reading** (`front-porch-temp-sensor` @ `2026-09-19T18:41:06Z`): **zero rows** in Correlation Debug — proof the lookup was never called, not just that it happened to find nothing.
+
+**Forward-fix done when:** front-porch-temp-sensor's readings stop calling `action=lookup` at all, verified against live production data rather than inferred from the deploy alone. **Met, 2026-09-19 — see the before/after Correlation Debug proof above.** (The original geotagging-during-a-hike scenario itself will get a final live confirmation on the next real hike, same as any Build-verified fix without a hike to test against today; not blocking on that specifically — a skipped call can't overwrite anything, regardless of whether a hike happens to be running.)
+
+**Historical scope checked, 2026-09-19 (Joseph: "what about the front porch sensor data?") — this bug predates CARD-0279 entirely.** The unconditional `d.lat = gps.lat` overwrite was already in the GPS-lookup function (then named "Apply GPS coords") since front-porch-temp-sensor was first wired into this shared pipeline — `git log`: commit `d298abf1`, 2026-06-14. Exported the full Environmental Data history (`action=export`, 2026-06-14 through today, 30,434 rows) and compared every `front-porch-temp-sensor` row against its known-correct fixed coordinate: **569 of 27,625 rows carry a drifted, wrong coordinate**, spanning 2026-06-17 through today, tracking almost every hike date since (06-18, 07-29, 08-15, 08-18, 08-22, 08-25, 08-27, 08-29, 09-03, 09-08, 09-10, 09-15, 09-17, 09-19).
+
+**Practical impact assessed, not just row-counted.** Checked every consumer of Environmental Data's `lat`/`lon` columns in `environmental-data.gs`: the only one is `_localString()` (line ~473), which uses a row's coordinate solely to resolve which timezone to display that row's local timestamp in (CARD-0097's fix). Every drifted coordinate is still a few miles from home, well inside `America/Phoenix` either way, so this has never actually produced a visibly wrong result. `hike-izer`'s `fetch_hike_data.py` never touches these rows at all — it's hardcoded to `--source hiking-monitor` (CARD-0285's own finding). **Net effect: real but low-stakes** — factually wrong data sitting in the sheet, no functional consequence found anywhere it's actually used.
+
+**Joseph's call, 2026-09-19: fix it, run in the background (not blocking on a live conversation turn).** Correction is unambiguous — front-porch-temp-sensor's coordinate is always the same fixed constant, so any row where it doesn't match is wrong and gets reset, nothing else touched.
+
+**Built, 2026-09-19, following this repo's own established Apps Script deployment convention (confirmed via `card-archive.md`: no `clasp`/API tooling exists here — Claude cannot deploy or run Apps Script changes, Joseph has to paste-and-deploy manually, same as CARD-0215/CARD-0243 before it).** Added `fixFrontPorchCoordinates()` to `core/data-pipeline/environmental-data.gs`, same one-time-menu-item pattern as `cleanupDuplicateEnvironmentalData`/`cleanupDuplicateGpsTrack` right above it: iterates every `Environmental Data` row, and for any `front-porch-temp-sensor` row whose `lat`/`lon` doesn't already match the known-correct constant, overwrites just those two cells. Logs a summary (rows fixed / already correct / other sources untouched) via `Logger.log` and a UI alert. New menu item: **JCTsh → Fix Front-Porch-Temp-Sensor Coordinates (CARD-0306, one-time)**.
+
+**Deployed and run by Joseph, 2026-09-19.** One real gap caught along the way: the original build never bumped `SCRIPT_VERSION`, so there was no reliable way to confirm the paste-and-deploy had actually taken effect (Joseph: "not seeing the updated environmental-data.gs" — deploy had silently not landed yet). Fixed by bumping `SCRIPT_VERSION` to `2026-09-19.1-front-porch-coord-fix` and confirming `?action=version` returned it live before proceeding — exactly the tool this constant exists for, per its own comment. Once confirmed live, the menu item ran and reported:
+```
+Front-Porch-Temp-Sensor coordinate fix complete.
+Rows corrected: 569
+Already correct: 27137
+Other sources (untouched): 3467
+```
+**569 — matches this card's own predicted count exactly.**
+
+**Independently re-verified against the live sheet, not just the alert text.** Re-ran the full `action=export` history scan (2026-06-14–2026-09-19, 27,687 front-porch-temp-sensor rows by now, more having landed since the original 27,625-row count): **0 rows remain drifted from the known-correct coordinate.** Both the forward fix (no new drift can occur) and the historical correction (no drift remains) are now confirmed live, independently, not inferred from either the deploy succeeding or the menu's own report alone.
+
+`fixFrontPorchCoordinates()` and its menu item left in place for now, same as `cleanupDuplicateEnvironmentalData`/`cleanupDuplicateGpsTrack` beside it — safe to remove, not yet done, matching actual practice on this file rather than the stated convention.
+
+**Done when:** the forward-fix (met, see above) **and** the one-time historical correction has actually been run and confirmed. **Both met, 2026-09-19.**
+
+**Related:** CARD-0279 (the retry/log mechanism that originally surfaced the 404s; same `env-data-gps-log-failure` node, now unreachable for this device), CARD-0258/CARD-0270/CARD-0275/CARD-0276 (the broader Apps-Script-under-load flakiness thread the 404s turned out not to really belong to), `core/data-pipeline/environmental-data.gs` (`doGet` action=lookup handler, `_gpsLookup`), `core/data-pipeline/environmental-data.flow.json` (`env-data-gps-prep`), `components/front-porch-temp-sensor/front-porch-temp-sensor.yaml` (the hardcoded coordinate this fix protects), `Node-RED-workflow.md` (the new API-patch deploy method this used), CARD-0215/CARD-0243 (the one-time-menu-item cleanup pattern `fixFrontPorchCoordinates` follows), CARD-0097 (the timezone-resolution consumer that's the only reason this data's correctness matters at all), CARD-0285 (confirms `hike-izer` never touches these rows, bounding this card's real-world impact).
 
 ---
 
@@ -347,7 +662,7 @@ Optionally add `--schedule "<time>"` to defer it to the Mon 3 AM reboot window; 
 **Folded in from CARD-0302 (opened as a duplicate of this card, same session, 2026-09-18) — a full inventory of every tag on the board, not just `[infrastructure]`.** 38 distinct tags total; 26 already match a real directory. Of the other 12:
 - **Four more clear-cut retags, beyond `[infrastructure]`, identified and ready but not yet applied:** CARD-0114 and CARD-0056 (`kanban-board` → `tos`, both predate CARD-0191's `tos/` consolidation), CARD-0139 (`log-server` → `logging`, two names for `core/logging`), CARD-0018 (`immich` → `photo-server`, Immich *is* photo-server), CARD-0014 (`core` → `data-pipeline` — that card is literally the one that created `core/data-pipeline/`, confirmed from its own resolution text).
 - **Five tags name a planned-but-unbuilt component and are legitimate as-is, not a defect** (Joseph's call): `vu-meter`, `shower-temp-sensor`, `back-patio-temp-sensor`, `garage-entry-hallway`, `presence`. A tag naming a component with no directory yet is correct; the directory appears when the build starts.
-- **Two more generic-bucket tags beyond `[infrastructure]`**, accepted as-is rather than retired: `personal` (5 cards), `wildlife` (1 card) — neither names something that could ever be a `components/`/`core/`/`hosts/` directory, unlike `[infrastructure]`'s cards which mostly do have a real home once triaged.
+- **Two more generic-bucket tags beyond `[infrastructure]`**, accepted as-is rather than retired: ~~`personal` (5 cards)~~ (reversed 2026-09-19, CARD-0316 — see below), `wildlife` (1 card) — neither names something that could ever be a `components/`/`core/`/`hosts/` directory, unlike `[infrastructure]`'s cards which mostly do have a real home once triaged.
 
 This confirms this card's own step 2 ("whether any *other* existing tags... also fail to map") — answer: yes, four more reconcilable ones, now folded in above rather than needing a separate pass.
 
@@ -361,6 +676,8 @@ This confirms this card's own step 2 ("whether any *other* existing tags... also
 5. **Fixed `archive_cards.py`'s `discover_destinations()`** — this card's own open question ("whether `architecture/` needs a script change... current understanding: no, since `tos/` isn't special-cased either") turned out to be **wrong**: `tos` *is* explicitly hardcoded in that function, which only walks `components/`, `core/`, `hosts/`, plus that one literal entry — it never generically discovers repo-root peers. Added an identical explicit `dests["architecture"]` entry. Verified with a real dry run: `python tos/archive_cards.py --force CARD-0223` resolved to `architecture/card-archive.md` correctly; the unforced dry run separately confirmed no accidental behavior change for the 5 already-eligible `[tos]`-tagged cards.
 6. **Reconciled the resulting tag list against `JCTsh-Component-Session-Start.md`'s Component/Cluster Registry** (Joseph's follow-on instruction) — added an `architecture` row (the one real gap: a brand-new top-level directory with no cluster yet) and confirmed every other real-directory tag now in use maps to exactly one registry row. Documented three deliberate non-matches so they don't read as oversights: planned-component tags with no directory yet, the non-project `personal` tag, and multi-directory clusters (e.g. ops) using per-directory tags rather than one unified cluster tag, since `archive_cards.py` routes on literal directory names.
 7. **No "cannot reconcile" list needed** — every one of the original 48 `[infrastructure]` cards, plus the 4 folded in from CARD-0302, found a real home.
+
+**Reversed 2026-09-19 (Joseph's call, CARD-0316) — `[personal]` is deprecated, not accepted-as-is after all.** Revisiting the 5 cards this decision covered found none of them were actually a good fit for a permanent generic tag once looked at individually: CARD-0093 (DNS cleanup) is real network/operational work (`[network]`, a new directory alongside `architecture/`), CARD-0103 (legacy Google Sites migration) is real website work (`[website]`), and CARD-0034/CARD-0071/CARD-0072 (digital-identity-protection planning) are personal-life content that belongs with Joseph's LogSeq knowledge base, not jctsh (`[logseq]`, pending CARD-0316's own reconciliation of where the underlying `digital-identity*.md` files should actually live). Zero cards carry `[personal]` after this — see CARD-0316 for the full retag/move record.
 
 **Reflection:** the open question about `archive_cards.py` not needing a change was a real near-miss — an assumption stated in this card's own text, carried for a full session without being checked against the actual code, and it was backwards. Caught only by actually reading `discover_destinations()` before closing rather than trusting the earlier note. Directly the "verify a claimed completion/assumption directly" principle this same reconciliation effort (CARD-0303/CARD-0304) had just written into `JCTsh-Operating-System.md`.
 
@@ -509,15 +826,17 @@ Archived to `tos/card-archive.md` on 2026-09-18 (CARD-0193) — 5758B, over the 
 
 **Open question, not yet resolved:** where cumulative elevation gain is sourced from on-device during a live hike (GPSLogger's own altitude field vs. barometric pressure via hiking-monitor's BME280) -- needs a real design pass before building, same as CARD-0208's own original design sketch.
 
-**Done when:** a real hike shows every whole-mile crossing announced audibly with both the mile count and a correct cumulative elevation-gain figure, cross-checked against hike-izer's own published elevation-gain stat for that hike.
+**Real dependency found, 2026-09-19 (CARD-0314) — this card's own reference value is currently wrong.** This card's "Interviewed" note above and its Done-when both anchor to "hike-izer's own published elevation-gain stat" — but CARD-0314 found that stat (`fetch_hike_data.py`'s `gain_ft`) is actually elevation *range* (`max − min`), not real cumulative ascent, and is getting fixed. **Don't build or validate this card against the current (buggy) figure** — wait for CARD-0314's corrected calculation, or this card's own on-device figure will "match" a wrong reference and both will be wrong together instead of one fixing the other.
 
-**Related:** CARD-0208 (Mile Announcer, the base this extends), `components/hiking-monitor/tasker/Mile-Announcement.prf.xml`, `components/hiking-monitor/hiking-monitor.yaml` (BME280 pressure/altitude sensor).
+**Done when:** a real hike shows every whole-mile crossing announced audibly with both the mile count and a correct cumulative elevation-gain figure, cross-checked against hike-izer's own published elevation-gain stat for that hike **(once CARD-0314's fix lands — see dependency above)**.
+
+**Related:** CARD-0208 (Mile Announcer, the base this extends), CARD-0314 (fixes the elevation-gain calculation this card depends on as its own reference/validation value), `components/hiking-monitor/tasker/Mile-Announcement.prf.xml`, `components/hiking-monitor/hiking-monitor.yaml` (BME280 pressure/altitude sensor).
 
 ---
 
 ### CARD-0286 · [enhancement] [hike-izer] Auto-create an Immich Album per hike, populated with that hike's photos
 
-**Status:** Build
+**Status:** Done — RESOLVED 2026-09-19 11:35 MST
 
 **Auto-opened from jctsh-core's maintenance check (PR #87).** Raw finding: put the photos for each hike in its own folder. Clarified 2026-09-17 (Joseph): this is about Immich's own organization, not hike-izer's already-per-hike served output (`generation.py` already writes to `/srv/hike-izer/<date>_photos/`, confirmed unrelated to this finding).
 
@@ -529,9 +848,17 @@ Archived to `tos/card-archive.md` on 2026-09-18 (CARD-0193) — 5758B, over the 
 
 **Verified with a synthetic smoke test** (a fake local HTTP server standing in for Immich, driving the real script as a subprocess): confirmed the album is created with both matched assets on a first run, and confirmed a second run against the same hike finds the existing album and adds to it via `PUT` rather than creating a duplicate -- the actual re-fetch shape CARD-0214's gap-filling passes produce for a real hike. Not yet run against the real Immich instance or a real hike.
 
-**Watch for:** the next real hike this pipeline processes -- confirm a real "Hike `<file_stem>`" Album actually appears in Immich's own UI (Joseph's account) containing that hike's photos, and that a later gap-fill pass on the same hike (CARD-0214's re-fetch) adds to that same Album rather than creating a second one. This card stays in Build until observed. Not yet observed as of 2026-09-17 (no hike processed since this was built).
+~~**Watch for:** the next real hike this pipeline processes -- confirm a real "Hike `<file_stem>`" Album actually appears in Immich's own UI (Joseph's account) containing that hike's photos, and that a later gap-fill pass on the same hike (CARD-0214's re-fetch) adds to that same Album rather than creating a second one. This card stays in Build until observed. Not yet observed as of 2026-09-17 (no hike processed since this was built).~~
 
-**Done when:** a real hike's photos appear grouped together in a dedicated Album in Immich's own UI, verified live against the real Immich instance, for a newly-processed hike (backfilling past hikes not required).
+**Real gap found 2026-09-19, checking this Watch for against the 2026-09-19 hike (Joseph: "seems like that should be observable").** The hike ran, 36 photos were fetched, a manifest was written — but `docker logs hike-izer-orchestrator` shows zero mention of "album" anywhere in its history, when a successful run should print `Added N asset(s) to Immich album '...'` (or a `WARNING: Immich album update failed` on error). Checked the actual deployed code directly rather than assuming the Build note above ("Import/deploy done"-equivalent) was true: `docker exec hike-izer-orchestrator` shows **`/app/fetch_hike_photos.py` dated Sep 14 20:22 with no `--album-name` argument at all, and `/app/generation.py` dated Sep 17 10:34 with zero album references** — both predate this card's own commit (`c5f32b6e`, 2026-09-17 18:16 MST). The container was last rebuilt at **10:34 MST that day, over 7 hours before the commit landed.** This isn't a "no hike happened yet" gap — the code was built and smoke-tested locally (per above) but the deploy step (`README.md`'s `scp` + `docker compose up -d --build orchestrator`) was never actually run afterward. **Corrects this card's own "Built"/"Import/deploy done"-style framing above** — same failure mode `JCTsh-Operating-System.md`'s "verify a claimed completion directly" principle exists to catch.
+
+**Redeployed 2026-09-19 (Joseph's go-ahead).** `scp`'d the current `fetch_hike_photos.py`/`generation.py`/etc. to `~/hike-izer-web-app/orchestrator/` on the M8 and ran `docker compose up -d --build orchestrator`, per `README.md`'s documented deploy steps. **Verified the new code actually landed before trusting it** — `docker exec hike-izer-orchestrator grep` confirmed 12 `album` references in the deployed `fetch_hike_photos.py` (was 0) and file sizes/mtimes matching the freshly-copied files.
+
+**Re-ran against the 2026-09-19 hike directly inside the container** (`fetch_hike_photos.py --data /srv/hike-izer-private/2026-09-19_hike_data.json --album-name "Hike 2026-09-19" ...`, the same call `generation.py` makes): `Added 36 asset(s) to Immich album 'Hike 2026-09-19'`. **Confirmed directly against Immich's own API, not just the script's own success message** — `GET /api/albums` on the M8 shows one album named `Hike 2026-09-19`, id `e694e2f2-9210-4f71-a89d-8cd0a7b4e61c`, `assetCount: 36`.
+
+**Idempotency also verified live, not assumed from the smoke test alone.** Ran the exact same command a second time: same success output, and `GET /api/albums` afterward still shows exactly **one** `Hike 2026-09-19` album, same id, still 36 assets — the second pass added to the existing album via `PUT`, no duplicate created.
+
+**Done when:** a real hike's photos appear grouped together in a dedicated Album in Immich's own UI, verified live against the real Immich instance, for a newly-processed hike (backfilling past hikes not required). **Met, 2026-09-19 — both the initial creation and repeat-pass idempotency confirmed live against the real Immich instance, see above.**
 
 **Related:** `components/hike-izer/fetch_hike_photos.py` (`search_assets`, `find_or_create_album`), `components/hike-izer-orchestrator/generation.py` (`_fetch_photos`), `components/photo-tv-display/routes/immich.js` (the proven album-endpoint precedent this reuses), CARD-0175 (Immich album-related prior idea -- different mechanism, same API surface), CARD-0214 (the gap-filling re-fetch pattern this must stay idempotent against).
 
@@ -700,7 +1027,7 @@ Archived to `tos/kanban-archive.md` on 2026-09-18 (CARD-0193) — 5918B, over th
 
 ### CARD-0279 · [bug] [data-pipeline] Field-mode replay burst overwhelms Apps Script's per-reading GPS lookup — missing coordinates scale with reading volume
 
-**Status:** Build — deployed and confirmed live (import/deploy done, see below); watching for the next real hike to confirm the fix works under an actual replay burst
+**Status:** Done — RESOLVED 2026-09-19 11:15 MST
 
 **Raised 2026-09-17 (Joseph + Claude), from investigating why today's 2026-09-17 hike showed 17 of 31 (55%) Environmental Data readings with no GPS coordinates.** Initially suspected as a consequence of CARD-0226's hiking-monitor reboot loop (today was that card's 6th recurrence) — **ruled out as the general explanation, confirmed by Joseph's own observation and real data.** Checked missing-GPS rate across hikes with zero CARD-0226 occurrence, well before that reboot loop ever started:
 
@@ -733,11 +1060,17 @@ A clean volume trend with no reboot loop anywhere nearby — the real mechanism 
 
 **Import/deploy done, with a real duplicate-tab detour along the way (the general Node-RED import-safety findings from this are now in `Node-RED-workflow.md`).** The import created a genuine duplicate "Environmental Data" tab (the old, cleared tab plus a fresh one holding the new nodes) — confirmed directly via the Node-RED admin API (`GET /flows`, authenticated via `/auth/token`), not just visually: the new tab (`d15dbc9164b2dce9`) correctly holds all 12 nodes including the three new CARD-0279 ones. The stale empty tab was deleted and deploy re-run 2026-09-17; a follow-up API check confirmed exactly one "Environmental Data" tab remains, 12 nodes, no leftover duplicate.
 
-**Still not yet verified:** the throttle/retry/log path exercised against a real or simulated burst — no hike has happened since the deploy. **Done when:** a real hike with a large reading-volume burst shows a meaningfully lower missing-GPS rate than the pre-fix volume trend predicts, and a deliberately-forced lookup failure is confirmed to retry, exhaust, and produce a real Alert on the dashboard rather than failing silently. Not yet met — the fix is live, but unexercised.
+**Still not yet verified:** the throttle/retry/log path exercised against a real or simulated burst — no hike has happened since the deploy. **Done when:** a real hike with a large reading-volume burst shows a meaningfully lower missing-GPS rate than the pre-fix volume trend predicts, and a deliberately-forced lookup failure is confirmed to retry, exhaust, and produce a real Alert on the dashboard rather than failing silently. **Met, 2026-09-19 — see resolution below.**
 
-**Watch for:** the next real hike's Environmental Data coverage — check its missing-GPS rate against the pre-fix volume trend documented above (a hike with ~30 readings previously implied ~50%+ missing; the fix should bring that down meaningfully). Also grep `/mnt/jctsh-logs/jctsh.log*` for a real `"GPS lookup failed after 3 attempts"` Alert line (from the new `env-data-gps-log-failure` node) — its appearance would confirm the retry-then-log path fires correctly on real data, and its absence on a hike with a low miss rate would just mean the throttle alone was enough that hike. Per CARD-0251's convention, this card stays in Build until this is observed. Not yet observed as of 2026-09-17 (no hike since deploy).
+**Resolved 2026-09-19, via CLAUDE.md's Session Start Watch-for check against the 2026-09-19 hike (Joseph's ask, checked directly against the exported Environmental Data sheet, not inferred).** `action=export` on the Environmental Data sheet for the hike's window (`2026-09-19T12:00:00Z`–`17:00:00Z`) returned 19 `hiking-monitor` readings, **1 missing GPS coordinates (5.3%)** — a large drop from the pre-fix volume trend's ~50%+ prediction for a hike this size (table above). The one gap (`2026-09-19T16:36:28Z`) lands 7 minutes after the hike's own `gpsloggerevent=stopped` webhook (09:29:13 MST) — outside any GPS Track point's ±5 minute match window, a genuine no-match (correctly resolved as `{lat:null,lon:null}`, no retry/Alert expected), not a lookup failure.
 
-**Related:** CARD-0226 (the reboot loop this was initially, incorrectly, thought to be part of — its own 2026-08-29 replay-interruption finding is the one real exception this card doesn't cover), CARD-0197 (the Correlation Debug diagnostic that made this investigation possible), CARD-0258/CARD-0275/CARD-0276 (this week's other Apps-Script-under-load findings, same underlying flakiness class), CARD-0222 (2026-09-17: may resolve structurally once this card's Watch for confirms the fix holds — its own diagnosed failure mode, a GPS-lookup burst overwhelming Node-RED, is the exact mechanism this card's throttle/retry/log fix targets, independent of what triggered the burst), `core/data-pipeline/environmental-data.flow.json` ("Prepare GPS lookup"/"Throttle GPS lookups"/"GPS lookup"/"Check GPS lookup response" nodes), `core/data-pipeline/environmental-data.gs` (`_gpsLookup`), `Node-RED-workflow.md` (the manual import/deploy convention this fix depends on).
+**Second Done-when criterion also met, via a real (not deliberately forced) production failure rather than a synthetic test — stronger evidence per this project's own "live beats synthetic" principle (`JCTsh-Operating-System.md`, Note on Build).** The `env-data-gps-log-failure` node's retry-then-Alert path fired for real on 2026-09-17, 2026-09-18, and 2026-09-19 (`front-porch-temp-sensor` readings, HTTP 404 after 3 attempts each) — confirms the throttle/retry/log mechanism itself works correctly end-to-end on live data. **Root cause of *why* those specific lookups 404 is a separate, still-open question** (checked `environmental-data.gs`'s `doGet` — it never returns 404 from script logic, so this is an Apps-Script-infrastructure-level failure, not a code-level miss) — tracked on its own as CARD-0306, deliberately not blocking this card's closure since it doesn't bear on whether CARD-0279's fix itself works.
+
+**Deploy claim double-checked directly against the live Node-RED instance, 2026-09-19 (prompted by CARD-0286 turning out to have never actually been deployed despite near-identical "Import/deploy done" framing).** Authenticated to `pi1.local:1880`'s admin API and pulled `/flows` live: the "Environmental Data" tab is still `d15dbc9164b2dce9` (the exact id this card's own Import/deploy note names), 12 nodes, including `Throttle GPS lookups (CARD-0279)`, `Check GPS lookup response (CARD-0279)`, and `Log GPS lookup failure (CARD-0279)` by name. Unlike CARD-0286, this deploy claim holds up under direct verification — no gap found here.
+
+~~**Watch for:** the next real hike's Environmental Data coverage — check its missing-GPS rate against the pre-fix volume trend documented above (a hike with ~30 readings previously implied ~50%+ missing; the fix should bring that down meaningfully). Also grep `/mnt/jctsh-logs/jctsh.log*` for a real `"GPS lookup failed after 3 attempts"` Alert line (from the new `env-data-gps-log-failure` node) — its appearance would confirm the retry-then-log path fires correctly on real data, and its absence on a hike with a low miss rate would just mean the throttle alone was enough that hike. Per CARD-0251's convention, this card stays in Build until this is observed.~~ **RESOLVED 2026-09-19, see above.**
+
+**Related:** CARD-0226 (the reboot loop this was initially, incorrectly, thought to be part of — its own 2026-08-29 replay-interruption finding is the one real exception this card doesn't cover), CARD-0197 (the Correlation Debug diagnostic that made this investigation possible), CARD-0258/CARD-0275/CARD-0276 (this week's other Apps-Script-under-load findings, same underlying flakiness class), CARD-0222 (its diagnosed failure mode, a GPS-lookup burst overwhelming Node-RED, is the exact mechanism this card's throttle/retry/log fix targets — worth revisiting now that this card's fix is confirmed holding), CARD-0306 (the front-porch-temp-sensor 404s that proved this card's retry/log path fires for real — root cause of those specific failures is that card's own open question, not this one's), `core/data-pipeline/environmental-data.flow.json` ("Prepare GPS lookup"/"Throttle GPS lookups"/"GPS lookup"/"Check GPS lookup response" nodes), `core/data-pipeline/environmental-data.gs` (`_gpsLookup`), `Node-RED-workflow.md` (the manual import/deploy convention this fix depends on).
 
 ---
 
@@ -848,7 +1181,7 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8255B, over th
 1. **Driver: switch to `journald`**, not a new log-shipping aggregator (fluentd/syslog/etc.) — reuses proven-durable storage already on this host, no new infrastructure.
 2. **Scope: all 9 M8 containers** (`immich_server`, `immich_postgres`, `immich_machine_learning`, `immich_redis`, `hike-izer-orchestrator`, `netalertx`, `hike-izer-cloudflared`, `hike-izer-web`, `ring-mqtt`), applied globally via `/etc/docker/daemon.json`'s `log-driver` key (currently only sets `"dns": [...]`, confirmed by reading the file directly) rather than editing each container's compose config individually.
 
-**Real blast radius to plan around, not just a config edit:** `/etc/docker/daemon.json` changes require `systemctl restart docker` to take effect, which restarts **every container on the host** at once — same category of disruption CARD-0238 planned a deliberate maintenance window around for the Docker engine upgrade. Should be batched into a scheduled M8 maintenance window (per `jctsh-network.md`'s existing convention), not run ad hoc, and verified live afterward the same way CARD-0238 did (`docker ps` healthy for all 9 containers, `https://hikes.jctnet.com/` reachable).
+**Real blast radius to plan around, not just a config edit:** `/etc/docker/daemon.json` changes require `systemctl restart docker` to take effect, which restarts **every container on the host** at once — same category of disruption CARD-0238 planned a deliberate maintenance window around for the Docker engine upgrade. Should be batched into a scheduled M8 maintenance window (per `network/jctsh-network.md`'s existing convention), not run ad hoc, and verified live afterward the same way CARD-0238 did (`docker ps` healthy for all 9 containers, `https://hikes.jctnet.com/` reachable).
 
 **Real behavior to confirm during Build, not assumed:** `docker logs <container>` should keep working transparently against the journald driver (Docker reads back through it), and existing tooling (`docker logs hike-izer-orchestrator | grep ...`, used throughout this session's own investigation) shouldn't need to change to `journalctl CONTAINER_NAME=...` — worth a real check before considering this done, not just trusting the docs.
 
@@ -881,6 +1214,8 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8255B, over th
 **Scope for Build:** a throwaway script (not part of the deployed pipeline) that reads the 64 photos' thumb files from the M8 (`/home/jct/hike-izer-web-app/srv/*_photos/`), calls Pl@ntNet's API for each, and produces the comparison table. Needs a Pl@ntNet account/API key obtained first (per CARD-0232's research, no key needed for very light basic use, but confirm the real limit before running 64 calls).
 
 **Not yet scoped:** whether this script becomes throwaway (run once, findings folded into CARD-0232, script discarded) or worth keeping around for future re-benchmarking (e.g. if Plant.id is tried later) — decide at Build once the comparison is in hand.
+
+**Grass species called out as a specific thing to look for, 2026-09-19 (Joseph, via PR #100's auto-opened finding "grass species" — folded in here rather than landed as its own card, since it's a scoping note on this experiment, not a separate idea).** Grasses are a known-hard case for visual species ID (subtle, overlapping morphological differences) — worth specifically checking within the 64-photo comparison whether Pl@ntNet or Claude's existing captions actually distinguish grass species at all, or both just genericize to "grass"/"bunchgrass," rather than only noticing this gap after the benchmark is already done.
 
 **Related:** CARD-0232 (the design question this experiment resolves), `components/hike-izer-orchestrator/photo_captions.py` (the existing baseline this benchmarks against).
 
@@ -1565,7 +1900,7 @@ All log lines were relayed together at 07:20 MST when the device reconnected, bu
 
 **Direct, quantified consequence confirmed via `hike_data.json`'s own coverage numbers for this hike, same analysis as the 2026-09-03 recurrence.** Environmental Data coverage was **18.4%** (7 of 38 expected readings), with four gaps of 13.0/21.1/21.0/8.0 minutes. Two of the seven surviving readings (`13:23:00Z`, `14:06:06Z`) land at the *exact same timestamp* as boots 2 and 5's own "Display refreshed" events — the device only got a reading out in the brief window right after each reboot, same pattern as 09-03. Notably, **GPS Track was unaffected** — all 148 expected trackpoints landed (98% coverage, no gaps over 62s, no duplicates) straight through the same reboot loop; only the slower/less-frequent environmental-sensor upload path took the hit. This is corroborating evidence for the existing causal chain (CARD-0221/CARD-0222), not a new bug.
 
-**Done when:** (1) the actual reboot trigger is identified via a real live capture, not just ruled-out candidates, and fixed or confirmed benign; (2) the replay path tracks delivery per-record (e.g. QoS 1 with a real broker ack, removing just that one line once confirmed) instead of all-or-nothing, so a mid-replay interruption -- from this bug or any future one -- can't cost real data; (3) verified live against a real hike with a large buffered-reading count, confirming no reboot loop and no data shortfall. **Still not met** — six recurrences now confirmed (2026-08-29, 2026-09-03, 2026-09-08, 2026-09-10, 2026-09-15, 2026-09-17), all adding evidence and confirming this isn't a one-off, but none resolving anything: no live UART capture has happened yet (still blocked on physically running CARD-0205's debug setup during a real occurrence, or forcing a deliberate bench reproduction), and the replay-path robustness fix (per-record delivery tracking) hasn't been built.
+**Done when:** (1) the actual reboot trigger is identified via a real live capture, not just ruled-out candidates, and fixed or confirmed benign; (2) the replay path tracks delivery per-record (e.g. QoS 1 with a real broker ack, removing just that one line once confirmed) instead of all-or-nothing, so a mid-replay interruption -- from this bug or any future one -- can't cost real data; (3) verified live against a real hike with a large buffered-reading count, confirming no reboot loop and no data shortfall. **Still not met** — seven recurrences now confirmed (2026-08-29, 2026-09-03, 2026-09-08, 2026-09-10, 2026-09-15, 2026-09-17, 2026-09-19), all adding evidence and confirming this isn't a one-off, but none resolving anything: no live UART capture has happened yet (CARD-0205's debug setup isn't wired for this device at all, per the 2026-09-17 correction below), and the replay-path robustness fix (per-record delivery tracking) hasn't been built.
 
 **Fifth recurrence, found 2026-09-15 via CLAUDE.md's Session Start Watch-for check — same "spread through the live hike" shape as 09-03/09-08/09-10, and the largest boot count yet.** `hiking-monitor`'s device log for the 2026-09-15 hike shows 15 of its 16 field-mode wake cycles carrying an anomalous reset reason (6 blank, 9 `Reboot request from mqtt`), roughly 15 minutes apart across nearly 4 hours:
 - Boot 1: `exiting deep sleep mode` → `Display refreshed (field mode) at 2026-09-15T13:11:04Z` (normal, the hike's first wake).
@@ -1576,7 +1911,7 @@ All log lines were relayed together at 07:20 MST when the device reconnected, bu
 - Boots 13-16: **`Reboot request from mqtt`** → `16:11:19Z`, `16:26:22Z`, `16:41:20Z`, `16:56:22Z`.
 All log lines were relayed together at 10:42 MST when the device reconnected (159 buffered hike readings replayed), but the boot events themselves happened live across 13:11Z-16:56Z, matching the spread-through-the-hike shape, not 08-29's tight post-replay burst. Five occurrences in 17 days now. **New symptom, not seen on the prior four recurrences:** three of this hike's blank-reset-reason boots (10-12) each paired with a `Skipped reading - nan_sensor` line — the environmental sensor read out all-null immediately after those particular reboots, distinct from the already-understood "no reading published at all" pattern. Not yet analyzed against `hike_data.json` coverage numbers for this hike, and CARD-0205's debug UART still hasn't been run on a real occurrence — no new information on the actual trigger.
 
-**Watch for:** hiking-monitor's durable log showing a `"Reboot request from mqtt"` (or any blank/empty) field-mode reset-reason line from a hike **after 2026-09-15** — a sixth recurrence beyond the five now logged above. Five occurrences in 17 days suggests this happens often enough that the next one is likely soon; if it shows up, log it the same way as the prior five (exact reset-reason text, real event timestamps via "Display refreshed" lines, which shape it matches). ~~CARD-0205's debug UART setup is still flagged to run on the next hike regardless, so the next occurrence has a real chance of being caught live~~ — **corrected below, 2026-09-17: this was never actually possible on this device.**
+**Watch for:** hiking-monitor's durable log showing a `"Reboot request from mqtt"` (or any blank/empty) field-mode reset-reason line from a hike **after 2026-09-19** — an eighth recurrence beyond the seven now logged above. Five occurrences in 17 days suggests this happens often enough that the next one is likely soon; if it shows up, log it the same way as the prior five (exact reset-reason text, real event timestamps via "Display refreshed" lines, which shape it matches). ~~CARD-0205's debug UART setup is still flagged to run on the next hike regardless, so the next occurrence has a real chance of being caught live~~ — **corrected below, 2026-09-17: this was never actually possible on this device.**
 
 **Real correction, 2026-09-17 (Joseph): hiking-monitor's current hardware is not wired to support UART capture at all.** Every recurrence note above (2026-09-10's, this Watch for, and others) repeated the same wrong assumption — that CARD-0205's debug-UART setup could simply be run against hiking-monitor on its next hike. CARD-0205 was built specifically for **air-quality-monitor** (its own card tag, archived to `components/air-quality-monitor/CLAUDE.md`) — hiking-monitor's own perfboard was never wired for a debug UART tap, so there has never actually been a way to "just run it on the next hike" as five separate notes above assumed. This isn't a missing step that was merely skipped; it's been impossible on this specific, already-assembled hardware the whole time. **Practical consequence:** a live capture of the actual trigger is not available without either (a) a physical rework of the current perfboard to add UART wiring — same category of cost as CARD-0070/CARD-0201/CARD-0202, all deliberately deferred to the v2 rebuild rather than reopening the field-proven current build — or (b) waiting for CARD-0259 (hiking-monitor v2, built on air-quality-monitor's proven power/debug architecture, UART included by design). The "Kept open independent of CARD-0259" call below was made assuming a cheaper live-capture path existed in parallel; worth Joseph revisiting whether that's still the right call now that the only two real paths are "rework this hardware" or "wait for v2," not "catch it live on the next ordinary hike."
 
@@ -1589,6 +1924,12 @@ All log lines were relayed together at 10:42 MST when the device reconnected (15
 - Boot 4: **`Reboot request from mqtt`** → `14:14:12Z`.
 - Boot 5: **`Reboot request from mqtt`** → `14:29:12Z`.
 All log lines were relayed together at 07:53 MST when the device reconnected (57 buffered hike readings replayed), but the boot events themselves happened live across 13:29Z-14:29Z, matching the established spread-through-the-hike shape. Six occurrences in 19 days now — still no live UART capture (CARD-0205 not yet run on an actual occurrence), no new information on the trigger. Not yet analyzed against `hike_data.json` coverage numbers for this hike. **Possibly relevant:** this same hike's whole-day session probe also hit CARD-0258's 240s GPS Track timeout, ~3 minutes after this reboot loop's log lines relayed (07:56:34 MST) — a third instance of the two cards' loosely-correlated "load right at reconnect" timing, per CARD-0258's own note.
+
+**Seventh recurrence, found 2026-09-19 via CLAUDE.md's Session Start Watch-for check — same "spread through the live hike" shape as 09-03/09-08/09-10/09-15/09-17, largest boot count yet.** `hiking-monitor`'s device log for the 2026-09-19 hike shows 14 of its 15 field-mode wake cycles carrying an anomalous reset reason (2 blank, 12 `Reboot request from mqtt`), roughly 15 minutes apart across ~3.5 hours:
+- Boot 1: `exiting deep sleep mode` → `Display refreshed (field mode) at 2026-09-19T13:06:55Z` (normal, the hike's first wake).
+- Boots 2-13: **`Reboot request from mqtt`** → `13:21:56Z`, `13:36:55Z`, `13:51:57Z`, `14:06:57Z`, `14:21:58Z`, `14:37:02Z`, `14:52:02Z`, `15:07:03Z`, `15:22:05Z`, `15:37:07Z`, `15:52:07Z`, `16:07:08Z`.
+- Boots 14-15: **blank reset reason** → `16:22:07Z`, `16:36:28Z`.
+All log lines were relayed together at 09:43 MST when the device reconnected (138 buffered hike readings replayed, "Hike log replay complete." logged), but the boot events themselves happened live across 13:06Z-16:36Z, matching the established spread-through-the-hike shape. Seven occurrences in 21 days now — still no live UART capture (CARD-0205 not wired for this device, per the 2026-09-17 correction above), no new information on the trigger. Not yet analyzed against `hike_data.json` coverage numbers for this hike. **Checked for CARD-0224 overlap:** no `"Replay deferred - battery..."` line this session — battery was healthy (4.26V at 06:03 MST, well above the 3.4V cutoff) going into the hike, so this recurrence doesn't bear on CARD-0224's own still-open Watch for.
 
 **Kept open independent of CARD-0259 (hiking-monitor v2), 2026-09-10 — Joseph's call.** This is the actual motivating problem behind v2, but worth continuing to chase root cause on the current hardware in parallel, in case it turns out fixable without a full rebuild — not automatically superseded by v2's longer timeline.
 
@@ -2423,7 +2764,7 @@ This is the nginx reverse-proxy trust setting from CARD-0096/CARD-0141's HTTPS w
 
 **Raised 2026-08-14 16:15 MST**, split out from CARD-0096 (Done) so this last step doesn't get lost inside an already-closed card. Two systemd units are still deliberately running: `raspberrypi-mdns-alias.service` (Pi) and `photo-server-mdns-alias.service` (M8), each publishing the old hostname as a static mDNS alias for the unchanged real IP, per CARD-0096's own transition-window design.
 
-**Due date reasoning:** 2026-08-17 (Monday) 09:00 MST — chosen specifically so both hosts' weekly scheduled reboots (Pi Mon 3:00 AM, M8 Mon 4:00 AM — `jctsh-network.md`) happen first. A clean reboot survival is a real stability test, not just elapsed time — if anything were silently still depending on the old name in a way the alias masks, a reboot is exactly the kind of event likely to surface it. 09:00 gives buffer after both.
+**Due date reasoning:** 2026-08-17 (Monday) 09:00 MST — chosen specifically so both hosts' weekly scheduled reboots (Pi Mon 3:00 AM, M8 Mon 4:00 AM — `network/jctsh-network.md`) happen first. A clean reboot survival is a real stability test, not just elapsed time — if anything were silently still depending on the old name in a way the alias masks, a reboot is exactly the kind of event likely to surface it. 09:00 gives buffer after both.
 
 **Interactive, not automated** — Joseph explicitly declined an autonomous/scheduled agent run for this (2026-08-14): do this in a live session with him present, same human-in-the-loop pattern as the rest of CARD-0096, not unattended.
 
@@ -2678,11 +3019,11 @@ Archived to `components/hiking-monitor/CLAUDE.md` on 2026-08-22 (CARD-0193) — 
 
 **If pursued, one option discussed:** run the database as its own container on the M8 (`photo-server`, `192.168.1.165`) rather than on the Pi, since HA's `recorder:` config accepts any reachable `db_url` — the M8 is already running Docker and is more capable than the Pi. Two real snags flagged, not yet resolved:
 1. HA's official Docker image doesn't bundle a PostgreSQL/MariaDB Python driver by default — would need a custom image or an init step to install one.
-2. Creates a new cross-device dependency that doesn't exist today — HA's recorder would go dark any time the M8 is unreachable, including the M8's own weekly scheduled reboot (Mon 4am) — worth checking that window against the Pi's own Monday 3am reboot stagger (see `jctsh-network.md`'s Scheduled Maintenance Windows table) if this is ever built, since the whole point of that stagger was avoiding a different false-down reading and a DB dependency adds a second reason to care about the timing.
+2. Creates a new cross-device dependency that doesn't exist today — HA's recorder would go dark any time the M8 is unreachable, including the M8's own weekly scheduled reboot (Mon 4am) — worth checking that window against the Pi's own Monday 3am reboot stagger (see `network/jctsh-network.md`'s Scheduled Maintenance Windows table) if this is ever built, since the whole point of that stagger was avoiding a different false-down reading and a DB dependency adds a second reason to care about the timing.
 
 **Done when (if ever picked up):** not yet defined — this card is parked as an idea, not scoped for Planning. Needs a real interview (which engine, where hosted, migration approach for existing history data, backup coverage) before any implementation starts.
 
-**Related:** `jctsh-network.md` (M8 host details, maintenance-window table).
+**Related:** `network/jctsh-network.md` (M8 host details, maintenance-window table).
 
 ---
 
@@ -3012,7 +3353,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 22500
 
 ---
 
-### CARD-0103 · [idea] [personal] Migrate 3 legacy Google Sites pages (Cochie Springs hike, Mustang, Karli's Summer) to the M8 webserver — low priority
+### CARD-0103 · [idea] [website] Migrate 3 legacy Google Sites pages (Cochie Springs hike, Mustang, Karli's Summer) to the M8 webserver — low priority
 **Status:** Backlog
 
 **Raised 2026-07-27**, during CARD-0093 (DNS cleanup). CARD-0093's original plan let `jctnet.com`'s Google Sites content go entirely (Joseph had called it unimportant), but revisiting surfaced that 3 specific pages are still wanted — dropping the `www` CNAME and `google-site-verification` TXT as part of CARD-0093 will break their reachability at `jctnet.com`/`www.jctnet.com`, even though the underlying Google Sites content itself isn't deleted by a DNS change (it stays live at its own `sites.google.com` URL, just unmapped from the custom domain).
@@ -3262,7 +3603,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 12923
 
 ---
 
-### CARD-0071 · [idea] [personal] Emergency Access preparation
+### CARD-0071 · [idea] [logseq] Emergency Access preparation
 **Status:** Planning
 
 **Notes:** Raised 2026-07-17, split out from CARD-0034's closure. Covers the "both Joseph and Robin unavailable at once" gap that the rest of `digital-identity-protection-checklist.md` doesn't — since both spouses already have the RoboForm master password memorized, each already has full independent access if something happens to the other, so Emergency Access only matters for the joint-unavailability case.
@@ -3667,7 +4008,7 @@ Archived to `components/hiking-monitor/CLAUDE.md` on 2026-09-16 (CARD-0193) — 
 
 ---
 
-### CARD-0072 · [idea] [personal] Digital Identity Checklist Version 2
+### CARD-0072 · [idea] [logseq] Digital Identity Checklist Version 2
 **Status:** Build
 
 **Notes:** Raised 2026-07-17, split out from CARD-0034's closure as the next layer of hardening on top of the v1-done core (phone/SIM-swap single point of failure closed). Works through `digital-identity-protection-checklist.md`'s remaining open items, targeting v3.0.
@@ -3852,7 +4193,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 7381B
 
 ---
 
-### CARD-0093 · [enhancement] [personal] Clean up DNS records on both `jctnet.com` and `jctnet.net` — RESOLVED 2026-07-27
+### CARD-0093 · [enhancement] [network] Clean up DNS records on both `jctnet.com` and `jctnet.net` — RESOLVED 2026-07-27
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-08-22 (CARD-0193) — 8063B, over the 5000B size threshold.
@@ -4074,7 +4415,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 16167
 
 ---
 
-### CARD-0034 · [idea] [personal] Complete digital-identity-protection-checklist.md — RESOLVED 2026-07-17
+### CARD-0034 · [idea] [logseq] Complete digital-identity-protection-checklist.md — RESOLVED 2026-07-17
 **Status:** Done
 
 **Notes:** Work through `digital-identity-protection-checklist.md` (repo root) — Joseph and Robin's personal security checklist closing single-point-of-failure risks (carrier port-out PIN, 2FA off SMS, credit freezes, password manager, household verification protocol, incident response plan). Almost entirely manual actions by Joseph/Robin themselves (phone calls to carriers/bureaus, account settings changes) — not something Claude Code can execute directly, but worth tracking to completion since it's currently all unchecked. Also has an "Open Items to Fill In" section (list specific banks/brokerages in use, confirm current password manager/2FA setup, set a 6-month review date) that needs input from Joseph before those parts can be finished.
@@ -4206,7 +4547,7 @@ Archived to `core/mqtt/CLAUDE.md` on 2026-08-22 (CARD-0193) — 7374B, over the 
 ### CARD-0059 · [idea] [netalertx] NetAlertX — self-hosted LAN device tracker with custom naming — RESOLVED 2026-07-12
 **Status:** Done
 
-**Notes:** Raised 2026-07-12. Motivated by the router (TP-Link Archer AXE75) listing most connected devices with meaningless names, with no built-in way to rename them — the JCTsh-managed fleet already has this solved via DHCP reservations + `jctsh-network.md`'s device table + ESPHome hostnames, but third-party/commercial devices (Ring, Ecobee, Cast devices, guest phones) aren't part of that convention and the router won't let their names be overridden.
+**Notes:** Raised 2026-07-12. Motivated by the router (TP-Link Archer AXE75) listing most connected devices with meaningless names, with no built-in way to rename them — the JCTsh-managed fleet already has this solved via DHCP reservations + `network/jctsh-network.md`'s device table + ESPHome hostnames, but third-party/commercial devices (Ring, Ecobee, Cast devices, guest phones) aren't part of that convention and the router won't let their names be overridden.
 
 **What it is:** NetAlertX (formerly Pi.Alert) — open-source, self-hosted LAN device scanner and presence tracker. Maintains its own device database independent of the router, so naming lives there regardless of what the router shows.
 
@@ -4373,7 +4714,7 @@ Runbook note added to `components/photo-server/heartbeat.md`: if storage alerts 
 
 Built `immich-update-check.py` (deployed to `/usr/local/bin/`) + `immich-update-check.service`/`.timer` (daily, 6:00 AM `America/Phoenix`), following the same MQTT dashboard-notification pattern as CARD-0036/CARD-0040: compares `/api/server/version` against `/api/server/version-check`, publishes `"Immich update available: <latest> (currently running <current>)"` (component `photo-server`, category `System`) when they differ. De-duplicated via a state file so the same pending update doesn't re-notify daily — only fires again if an even newer version appears after the first notice.
 
-First deploy attempt crashed on the state-file write (`/etc/jctsh/` isn't writable by the `jct` user, appropriately, since it holds credentials) — moved the state file to `/home/jct/.jctsh/` and added `os.makedirs`. Verified live 2026-07-10: first corrected run notified correctly (`v3.0.2` vs. running `v3.0.1`), confirmed on the dashboard; second run correctly skipped re-notifying for the same version. Added to `jctsh-network.md`'s Scheduled Maintenance Windows table (6:00 AM daily, no conflicts with existing jobs). Actual update application remains a deliberate manual step, not automated.
+First deploy attempt crashed on the state-file write (`/etc/jctsh/` isn't writable by the `jct` user, appropriately, since it holds credentials) — moved the state file to `/home/jct/.jctsh/` and added `os.makedirs`. Verified live 2026-07-10: first corrected run notified correctly (`v3.0.2` vs. running `v3.0.1`), confirmed on the dashboard; second run correctly skipped re-notifying for the same version. Added to `network/jctsh-network.md`'s Scheduled Maintenance Windows table (6:00 AM daily, no conflicts with existing jobs). Actual update application remains a deliberate manual step, not automated.
 
 ---
 
@@ -4452,7 +4793,7 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 ### CARD-0033 · [idea] [architecture] Document Keep Connect configuration and schedule
 **Status:** Done
 
-**Resolution:** KeepConnect is a standalone router-rebooter device (Johnson Creative KeepConnect-27F8, not a JCTsh component). New dedicated doc `keepconnect.md` created at repo root with full device identity, network config, physical outlet-scoping rationale, and complete monitor/timing/schedule/notification configuration. Linked from `jctsh-network.md` devices table (IP 192.168.1.108, DHCP-reserved) and `ENVIRONMENT.md` Hub & Controller table; added to `README.md` repository layout. Remaining open item (scheduled Pi/Immich reboot via cron, separate from power-strip cycling) carried forward in `keepconnect.md` itself. 2026-07-08.
+**Resolution:** KeepConnect is a standalone router-rebooter device (Johnson Creative KeepConnect-27F8, not a JCTsh component). New dedicated doc `network/keepconnect.md` created with full device identity, network config, physical outlet-scoping rationale, and complete monitor/timing/schedule/notification configuration. Linked from `network/jctsh-network.md` devices table (IP 192.168.1.108, DHCP-reserved) and `ENVIRONMENT.md` Hub & Controller table; added to `README.md` repository layout. Remaining open item (scheduled Pi/Immich reboot via cron, separate from power-strip cycling) carried forward in `network/keepconnect.md` itself. 2026-07-08.
 
 ---
 
@@ -4598,14 +4939,14 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 **Priority: low (deprioritized 2026-07-10) — accepted as a residual risk, not offloaded onto CARD-0003.**
 
-**Notes:** Raised 2026-07-10 during CARD-0003 (MQTT TLS) discussion. WPA2/3-Personal on `JCTnet1` only protects the radio hop and doesn't stop a device that's already authenticated on the LAN — anyone holding the shared PSK can capture another client's handshake and derive its session key, and more practically, any device on the same `192.168.1.x` subnet can ARP-spoof to MITM traffic between other devices, bypassing WiFi encryption entirely since that attack happens at L2/L3, not over the air. Right now there's no segmentation at all — every JCTsh device, guest device, and IoT gadget shares one flat subnet, confirmed via `jctsh-network.md` and `jctsh-security-hardening.md` (no VLAN/isolation findings from CARD-0022/0023's audit). Note HA's existing HTTPS proxy (nginx on 443, cert for `raspberrypi.tailfe828a.ts.net`) is Tailscale-only — it doesn't protect LAN-side access today (cert error on direct LAN hit).
+**Notes:** Raised 2026-07-10 during CARD-0003 (MQTT TLS) discussion. WPA2/3-Personal on `JCTnet1` only protects the radio hop and doesn't stop a device that's already authenticated on the LAN — anyone holding the shared PSK can capture another client's handshake and derive its session key, and more practically, any device on the same `192.168.1.x` subnet can ARP-spoof to MITM traffic between other devices, bypassing WiFi encryption entirely since that attack happens at L2/L3, not over the air. Right now there's no segmentation at all — every JCTsh device, guest device, and IoT gadget shares one flat subnet, confirmed via `network/jctsh-network.md` and `jctsh-security-hardening.md` (no VLAN/isolation findings from CARD-0022/0023's audit). Note HA's existing HTTPS proxy (nginx on 443, cert for `raspberrypi.tailfe828a.ts.net`) is Tailscale-only — it doesn't protect LAN-side access today (cert error on direct LAN hit).
 
-**Original proposed fix (not pursued — see Decision below):** put IoT/guest devices (SmartThings-paired gadgets, guest phones, anything not a trusted JCTsh host) on the router's built-in IoT/guest network with client isolation enabled, so they're on a separate broadcast domain and can't reach or ARP-spoof JCTsh devices (Pi, ESP32s, M8) at all. Router is a TP-Link Archer AXE75 (`jctsh-network.md`).
+**Original proposed fix (not pursued — see Decision below):** put IoT/guest devices (SmartThings-paired gadgets, guest phones, anything not a trusted JCTsh host) on the router's built-in IoT/guest network with client isolation enabled, so they're on a separate broadcast domain and can't reach or ARP-spoof JCTsh devices (Pi, ESP32s, M8) at all. Router is a TP-Link Archer AXE75 (`network/jctsh-network.md`).
 
 **Decision (2026-07-10) — deprioritized, not executed:** scoping this out surfaced that the original framing no longer fits current reality:
 - Guest phones already have their own separate network (existing Guest network, confirmed by Joseph) — the original guest-phone isolation target is already handled.
 - Joseph decided Ring, Ecobee, and Google Cast devices (Chromecast, Google TV, Google Home speakers, Nest Display, Pixel Tablet) should stay on the main network — moving them risks breaking phone-to-device casting (mDNS/SSDP needs same subnet), and their actual access pattern (Ring app, Ecobee app, SmartThings/Google Home integration) is cloud-to-cloud, not LAN-dependent, so isolating them buys little anyway.
-- The remaining alternative — inverting the approach to isolate the JCTsh devices themselves instead — was scoped and rejected: real, certain ongoing costs (re-IP the whole fleet in `jctsh-network.md`, update every ESPHome `secrets.yaml` MQTT broker address, update the DuckDNS port-forward target, lose casual LAN access to photo-server's web UI for Joseph/Robin, and require Joseph's laptop to temporarily join that network for every future OTA reflash) against a threat that's low-probability and low-consequence given the hardening already completed in CARD-0022/0023 (SSH key-only auth, HA TOTP MFA, Node-RED adminAuth, router admin password rotation, UPnP disabled).
+- The remaining alternative — inverting the approach to isolate the JCTsh devices themselves instead — was scoped and rejected: real, certain ongoing costs (re-IP the whole fleet in `network/jctsh-network.md`, update every ESPHome `secrets.yaml` MQTT broker address, update the DuckDNS port-forward target, lose casual LAN access to photo-server's web UI for Joseph/Robin, and require Joseph's laptop to temporarily join that network for every future OTA reflash) against a threat that's low-probability and low-consequence given the hardening already completed in CARD-0022/0023 (SSH key-only auth, HA TOTP MFA, Node-RED adminAuth, router admin password rotation, UPnP disabled).
 - Router capability is also limited: TP-Link Archer AXE75 has no VLAN support, and community reports (TP-Link forums) flag its Guest/IoT-network client isolation as sometimes leaky — any attempt would need empirical verification before being trusted, on top of the migration cost.
 
 **Risk analysis:** getting a hostile device onto `JCTnet1` at all requires either cracking a strong WPA2/3 PSK or a real exploited vulnerability in an existing IoT device — uncommon for a non-targeted residential home. Even if achieved, the highest-value JCTsh surfaces (SSH, HA, Node-RED) are already independently hardened (key-only auth, TOTP MFA, adminAuth). The only real remaining exposure is cleartext MQTT sensor telemetry on the LAN — low-stakes (salt %, temp, garage presence; the garage door itself is actuated via a Zigbee switch through SmartThings, not exposed via this MQTT path). Low probability × low consequence doesn't justify the migration cost, on its own — independent of CARD-0003.

@@ -9,7 +9,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0314 -->
+<!-- next-card-id: CARD-0315 -->
+
+---
+
+### CARD-0314 · [bug] [hike-izer] Reported "elevation gain" is actually elevation range (max−min), not cumulative ascent
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #105, jctsh-core maintenance check).** Original finding text: "for the hiking statistic elevation gain how is that calculated." Started as a general question, not a bug report — checking the actual code to answer it surfaced a real discrepancy.
+
+**General practice, for reference:** "elevation gain" (cumulative gain / total ascent) is normally the **sum of every positive elevation change** between consecutive track points along a route — descents are tracked separately as "elevation loss," not subtracted from gain. It equals simple `max − min` only in the special case of a route that climbs the whole way with no dips. Because raw GPS/barometric altitude is noisy (several meters of jitter even stationary), a correct implementation smooths the elevation profile or applies a minimum-delta threshold before summing positive deltas — naively summing every raw point-to-point delta would wildly overstate gain from noise alone.
+
+**Real bug found, checking the actual code rather than assuming:** `components/hike-izer/fetch_hike_data.py`'s `compute_stats()` (line ~287) computes:
+```python
+'gain_ft': round(m_to_ft(max(alt_vals) - min(alt_vals)))
+```
+This is elevation **range**, not cumulative ascent. For any hike with rolling terrain (up-down-up-down, not a single monotonic climb), this understates true total ascent — potentially significantly, depending on how much up-and-down the route actually has.
+
+**Real cross-dependency found, not incidental:** CARD-0287 (Mile Announcer's planned spoken cumulative-elevation-gain feature) explicitly designed itself to "match how hike-izer's own stats report gain" and its own Done-when criterion is to be "cross-checked against hike-izer's own published elevation-gain stat for that hike." Fixing this bug changes what that reference value actually is — CARD-0287 should build against the corrected calculation, not the current max−min one, and its own Done-when should be re-confirmed once this lands. Noted on CARD-0287 directly.
+
+**Not yet scoped:**
+1. The actual fix — sum positive deltas between consecutive `altitude_m` GPS readings, with a noise-reduction pass (smoothing or a minimum-delta threshold) tuned against real hike data, same discipline as this project's other noise-vs-signal thresholds (e.g. CARD-0250's walking-speed classifier).
+2. Whether to also report elevation *loss* alongside gain, now that the two are no longer trivially the same number (`max−min` conflated them; a real cumulative-gain calculation naturally produces both separately).
+3. Whether past hikes' already-published gain figures should be recomputed/corrected, or only hikes generated after the fix.
+
+**Done when:** not yet scoped.
+
+**Related:** CARD-0287 (Mile Announcer's planned elevation announcement — depends on this card's corrected value), `components/hike-izer/fetch_hike_data.py` (`compute_stats`), CARD-0250 (the precedent for a real noise-vs-signal threshold tuned against real hike data).
 
 ---
 

@@ -19,13 +19,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Raised 2026-09-20 (Joseph), via jctsh's auto-PR intake pipeline (PR #123) — a note captured during a sermon, also already sitting in `LogSeq/journals/2026_09_20.md`'s own sermon notes.** Original finding text: "It's not just about the system, it is about the results, the benefits for people." **Clarified 2026-09-20:** this prompted a real question — think through and define the actual purpose of each repo under `Projects/` (jctsh, LogSeq, PB-Blog, and whatever comes next), not just what each one *is* mechanically, but what real benefit it's actually for.
 
-**Where these definitions should live — not yet decided, Claude's recommendation given, Joseph hasn't confirmed:** `Projects/README.md` already holds a one-line purpose statement for each repo (from CARD-0307), but that file isn't version-tracked — `Projects/` itself isn't a git repo (CARD-0301). Recommended: a proper doc in `jctsh/tos/` for the deeper, reflective version (same interim "shared-but-not-universal lives in jctsh/tos/ for now" call `tos/Protocol-Placement.md` already made for CARD-0315), with `Projects/README.md`'s existing one-liners staying as the quick-orient surface and pointing to the fuller doc rather than being replaced by it.
+**Where these definitions live — decided 2026-09-20 (Joseph's call, confirming Claude's recommendation).** New `tos/Repo-Purposes.md` — one section per repo, the real benefit/who-it-serves reflection, not the mechanical description. `Projects/README.md` keeps its existing one-liners and now points to this file for the deeper version rather than being replaced by it.
 
-**Not yet scoped:** the actual content — what jctsh, LogSeq, and PB-Blog are each really *for*, beyond their mechanical descriptions, hasn't been thought through yet. This card is about deciding where that reflection lives and then doing it, not a substitute for doing it.
+**jctsh's own section written, 2026-09-20 — via a real interview, not assumption.** Talked through who benefits (Joseph primarily, Robin secondarily), where it came from (a decade of general tech interest, accelerating sharply in the last year via ESP32/circuits/3D printing), what the actual satisfaction is (the multi-dimensional puzzle, problem-solving through to something working, a strong specific thread around building gadgets for hiking), and a second purpose that emerged from the first — ESP32 firmware work became the on-ramp to understanding AI-assisted development, now a deliberate direction in its own right ("using AI/Claude Code to build out a personal 'operating system'" — Joseph's own words, echoing this repo's `tos/` naming). See `tos/Repo-Purposes.md` for the full text.
 
-**Done when:** not yet scoped.
+**Not yet scoped:** LogSeq's and PB-Blog's sections — same interview approach, not yet done.
 
-**Related:** CARD-0315 (the cross-repo protocol-placement precedent this reuses), `Projects/README.md` (the existing one-line-per-repo surface this would deepen, not replace), `tos/Protocol-Placement.md`.
+**Done when:** all three repos (jctsh, LogSeq, PB-Blog) have a real, interviewed purpose section in `tos/Repo-Purposes.md`. **jctsh met, 2026-09-20; LogSeq and PB-Blog still open.**
+
+**Related:** CARD-0315 (the cross-repo protocol-placement precedent this reuses), `Projects/README.md` (the existing one-line-per-repo surface this deepens, not replaces), `tos/Protocol-Placement.md`, `tos/Repo-Purposes.md` (the doc this card produces).
 
 ---
 

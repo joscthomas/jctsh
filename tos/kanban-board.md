@@ -50,9 +50,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0317 · [idea] [tos] Create a new repo for Bible study content
+### CARD-0317 · [idea] [tos] Create a new repo for Bible study content — RESOLVED 2026-09-20
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-19, via the auto-PR intake pipeline (PR #110, jctsh-core maintenance check).** Original finding text: "create a repo for the Bible study and a tool that examines the questions for the feedback items I've received."
 
@@ -60,13 +60,19 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Note for whoever picks this up:** the original finding also mentions "a tool that examines the questions for the feedback items I've received" — not yet scoped or interviewed at all; captured here so it isn't lost, but it's a separate piece of work from the repo creation itself and needs its own interview before any building starts.
 
-**Not yet scoped:** what "Bible study" content actually consists of (notes, a specific study's materials, a recurring format), and whether it should follow the same portable-kanban-template pattern CARD-0301 built for LogSeq/PB-Blog.
-
 **Prerequisite written 2026-09-19, folded in here (Joseph's call) rather than its own card** — `tos/New-Repo-Setup-Protocol.md`, the step-by-step procedure extracted from CARD-0297/CARD-0298's own execution (interview, secrets sweep, cruft cleanup, sync-service handling, backup-conflict check, `.gitignore` categories, kanban bootstrap, README, private GitHub repo, session note). This card's own execution should follow that protocol directly rather than rediscovering its steps.
 
-**Done when:** not yet scoped beyond following `tos/New-Repo-Setup-Protocol.md`'s own done-when checklist once this card's content questions are answered.
+**Scoped 2026-09-20 — content answer, not what was assumed.** "Bible study content" is documents Joseph writes and manages as Google Docs, not local files. Interviewed directly ("Doesn't make sense to put these docs in the repo? How can I think about this?") before assuming a migration: three options laid out (Google Docs stays authoritative/repo holds process only; periodic export into the repo; full migration into repo-native files like LogSeq/PB-Blog). **Joseph's decision: Google Docs stays authoritative** — collaborative editing, comments, and Google's own revision history are load-bearing here, unlike LogSeq's/PB-Blog's local-file cases. This repo holds process tracking (a kanban board) and, eventually, an index of links to the Docs — not a copy of their content.
 
-**Related:** CARD-0297 (LogSeq → repo, the precedent this follows), CARD-0298 (Pastor Ben blog → repo, same shape), CARD-0301 (created the `Projects/` parent directory and portable kanban template these repo-creation cards use), `tos/New-Repo-Setup-Protocol.md` (the procedure this card's own execution should follow).
+**Real deviation from `tos/New-Repo-Setup-Protocol.md`, worth noting there too:** that protocol's every step assumes an existing unversioned folder being migrated (interview about sync services, secrets sweep, cruft cleanup, a physical move Joseph performs). This card had no such folder — the repo was created fresh, directly, since the actual content intentionally never enters git at all. Not a gap in the protocol, just a case its steps don't apply to; noted on the protocol doc itself so a future reader doesn't assume every "new repo" card is a folder migration.
+
+**Built 2026-09-20:** `Rethinking Scripture Bible Study` directory created under `Projects/` (in `JCT Documents not synced`, already excluding it from Google Drive's backup by inheriting `Projects/`'s own location — no separate backup-conflict check needed), `git init`, `kanban-board.md` bootstrapped from `tos/Portable-Kanban-Template.md` (CARD-0001: building an index of the study's Docs once they exist, plus the still-unscoped "tool that examines the questions for the feedback items" from the original finding), `README.md` documenting the architecture decision and the options considered, private GitHub repo (`github.com/joscthomas/Rethinking-Scripture-Bible-Study`, confirmed `PRIVATE`), pushed.
+
+**The "tool that examines the questions for the feedback items I've received"** from the original finding is carried into the new repo's own CARD-0001 rather than closed here — still not scoped, needs its own interview whenever Joseph picks it up.
+
+**Done when:** met — repo exists, private, pushed; `kanban-board.md` bootstrapped; the content-location decision made and documented, not left implicit.
+
+**Related:** CARD-0297 (LogSeq → repo, the precedent this follows), CARD-0298 (Pastor Ben blog → repo, same shape), CARD-0301 (created the `Projects/` parent directory and portable kanban template these repo-creation cards use), `tos/New-Repo-Setup-Protocol.md` (the procedure whose folder-migration assumption this card didn't fit, noted there).
 
 ---
 

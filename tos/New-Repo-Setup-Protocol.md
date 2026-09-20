@@ -6,10 +6,14 @@
 `Projects/` — extracted from CARD-0297 (LogSeq) and CARD-0298 (Pastor Ben blog), the two
 real instances that established this pattern, so the next one (e.g. CARD-0317, Bible study
 content) doesn't rediscover the same lessons from scratch.
-**Version:** 1.0
-**Version description:** Initial version, written 2026-09-19 directly from CARD-0297/CARD-0298's
-own execution history — every step below traces back to something that actually happened
-(a real gotcha found, a real question asked) in one of those two cards, not a hypothetical.
+**Version:** 1.1
+**Version description:** Added a top-level "Confirmation gates" section and strengthened the
+`.gitignore` step (CARD-0317, 2026-09-20) — executing this protocol on a real third instance
+still skipped two things it already documented (visibility, card-migration confirmation) and
+one it hadn't (`.gitignore` as an explicit decision, not a silently-droppable step), because
+they were folded into the same general "yes, build this" that authorized the whole card.
+Writing a rule down once wasn't enough to survive contact with a real "just do it" instruction
+this same session already gave for the mechanical work.
 **Related:** `Protocol-Placement.md` (this doc's own placement — "shared by some projects,"
 interim home in jctsh's `tos/`), `Portable-Kanban-Template.md` (used in step 8), CARD-0297,
 CARD-0298 (the precedent), CARD-0301 (created `Projects/` itself and the portable template).
@@ -19,6 +23,18 @@ CARD-0298 (the precedent), CARD-0301 (created `Projects/` itself and the portabl
 **Scope:** a distinct content domain — one person's blog, notes system, or similar — that
 belongs in its own repo rather than folded into jctsh or another existing one. Not for a new
 jctsh component (that's `JCTsh-Component-Session-Start.md`'s territory instead).
+
+**Confirmation gates — these need their own explicit yes, never inferred from a general
+"create the repo" go-ahead (added 2026-09-20, CARD-0317's real miss — both of these were
+already written into steps 1 and 8 below, and still got skipped in practice: visibility was
+assumed private from precedent instead of asked, and CARD-0317's content got moved into the
+new repo's board before Joseph confirmed that specific move, not just the repo's creation).
+A general "yes, build this" authorizes the mechanical steps; it does not answer these two on
+its own:**
+1. **Visibility** (step 1) — ask every time, even when every prior instance came back
+   "private." A strong pattern is not a decision already made for the next one.
+2. **Migrating an originating card's content into the new repo's board** (step 8) — a
+   separate ask from "create the repo," not bundled into it.
 
 ## 1. Interview before touching anything
 
@@ -111,6 +127,12 @@ already a git repo somehow — `git status`/`git remote -v` unaffected.
 If the source folder already has its own stray `.git` (an app's internal versioning
 pointer, unrelated to the new repo), confirm with Joseph it's safe to replace (check it has
 no remote / no real commits first) before running `git init`.
+
+**Decide `.gitignore` explicitly even when nothing obvious applies — don't just skip the
+step (CARD-0317's real miss: a repo with no migrated folder and no sync tool had no obvious
+candidate, and the step got silently dropped rather than consciously ruled out).** "No
+`.gitignore` needed yet" is a legitimate outcome of this step; arriving there without
+noticing the step existed is not.
 
 ## 8. Bootstrap `kanban-board.md`
 

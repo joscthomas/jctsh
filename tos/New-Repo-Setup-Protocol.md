@@ -6,8 +6,13 @@
 `Projects/` — extracted from CARD-0297 (LogSeq) and CARD-0298 (Pastor Ben blog), the two
 real instances that established this pattern, so the next one (e.g. CARD-0317, Bible study
 content) doesn't rediscover the same lessons from scratch.
-**Version:** 1.2
-**Version description:** Added step 13, optional `/kanban` dashboard onboarding (CARD-0317,
+**Version:** 1.3
+**Version description:** Step 9 now also covers interviewing for and writing this repo's
+purpose section in `tos/Repo-Purposes.md` (CARD-0320, 2026-09-20) — folded in there rather
+than as a new numbered step, since it's a natural extension of "describe what this repo is,"
+just answering "what it's for" instead. Prompted by defining `Rethinking-Scripture-Bible-Study`'s
+own purpose retroactively (it was created under v1.2, before this step existed).
+**Prior version (1.2):** added step 13, optional `/kanban` dashboard onboarding (CARD-0317,
 2026-09-20) — folded into this doc rather than a separate one (Joseph's call): the procedure
 is small, jctsh-specific (not part of the new repo itself, hence "optional"), and has now
 happened three times in a row as the natural next step after repo creation.
@@ -160,6 +165,16 @@ guessed paraphrase), this repo's role relative to any existing sync/workflow it'
 replacing, why it lives at its specific path if that's non-obvious (step 5's conflict, if
 any), a structure table, and the session note from step 11.
 
+**Also interview for and write this repo's purpose section in `tos/Repo-Purposes.md`
+(added 2026-09-20, CARD-0320) — a distinct thing from the README above, not a duplicate
+of it.** The README covers what this repo mechanically *is*; `Repo-Purposes.md` covers
+what it's actually *for* — who benefits, where it came from, what the real satisfaction
+or value is, and any emergent/secondary purpose or genuinely open question, following
+that doc's own template (Primary beneficiary → Origin → Core value/satisfaction →
+Secondary beneficiaries → Emergent purpose → Open question). Do this via a real
+interview, the same way jctsh's, LogSeq's, and PB Blog's own sections were written — not
+assumed or guessed from the README content alone.
+
 ## 10. Private GitHub repo, push
 
 `gh repo create <name> --private --source=. --remote=origin`, then push. Confirm visibility
@@ -211,6 +226,7 @@ it's a separate optional step rather than folded into 8-11 above. Mechanism buil
 - [ ] Repo moved, `git init`, `.gitignore` covers all three categories in step 7
 - [ ] `kanban-board.md` bootstrapped; any migrated jctsh cards retracted there with stubs
 - [ ] `README.md` written, including the session-separation note
+- [ ] Purpose section interviewed and written in `tos/Repo-Purposes.md`
 - [ ] Private GitHub repo created and confirmed private, pushed
 - [ ] Originating jctsh card closed with a full summary
 - [ ] (Optional, step 13) `/kanban` dashboard onboarding — done, explicitly skipped, or

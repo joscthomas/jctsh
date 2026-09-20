@@ -63,7 +63,7 @@ Both Pixels are saved to JCT-RV and will connect automatically.
 
 ## Network
 
-For all addresses and IPs, see `jctsh-network.md` (repo root).
+For all addresses and IPs, see `network/jctsh-network.md`.
 
 The Pi uses concurrent STA+AP mode — `wlan0` connects to a known WiFi network while `uap0` broadcasts JCT-RV **simultaneously and permanently**. JCT-RV is always available regardless of what network `wlan0` is connected to.
 

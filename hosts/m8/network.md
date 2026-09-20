@@ -1,6 +1,6 @@
 # m8 — Network Reference
 
-Cross-reference with `jctsh-network.md` (repo root), which is the canonical device table.
+Cross-reference with `network/jctsh-network.md`, which is the canonical device table.
 
 | Property | Value |
 |---|---|

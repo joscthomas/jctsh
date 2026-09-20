@@ -303,7 +303,7 @@ Before beginning Phase 2, `photo-server` Phase 1 planning must be complete and P
 - `CLAUDE.md` (repo root)
 - `ENVIRONMENT.md` (repo root)
 - `JCTsh-Build-Standards.md` (repo root)
-- `jctsh-network.md` (repo root)
+- `network/jctsh-network.md`
 - `JCTsh-Parts-Inventory.md` (repo root)
 - All existing component READMEs
 - `photo-server-phase1-planning.md` (as reference for backend API contract)

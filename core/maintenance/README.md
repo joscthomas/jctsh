@@ -4,7 +4,7 @@ systemd units and their Python scripts for scheduled maintenance work across the
 M8: OS/firmware/container update checks, scheduled reboots with coordinated
 pre/post-reboot notifications, backups, and image pulls. Deployed to `/usr/local/bin/`
 on whichever host each unit's `.service` targets (see each unit's `ExecStart`) — check
-`jctsh-network.md`'s Scheduled Maintenance Windows table before adding a new recurring
+`network/jctsh-network.md`'s Scheduled Maintenance Windows table before adding a new recurring
 job here (`JCTsh-Build-Standards.md` §9.5, ≥1 hour clearance from other jobs).
 
 **Status:** Production — every unit here is a currently-running scheduled job on the Pi

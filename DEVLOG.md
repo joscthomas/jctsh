@@ -15,7 +15,7 @@ clean step until manually removed. OTA succeeded; verified via the live Mosquitt
 the Pi that `hiking-monitor-04b24797df2c`'s old plaintext-1883 session timed out and a new
 TLS session on 8883 came up immediately after, staying connected with no disconnects.
 
-Phase E: updated `jctsh-network.md`, `components/hiking-monitor/wifi-config.md`,
+Phase E: updated `network/jctsh-network.md`, `components/hiking-monitor/wifi-config.md`,
 `credentials.local.md`, and `jctsh-security-hardening.md` (dated superseded-note on the
 original port-inventory finding, history kept intact) to reflect 8883/TLS as the
 roaming-device path. Confirmed via `p-w-firefly/heartbeat.md` that coachproxyos reaches
@@ -179,7 +179,7 @@ the weekly backup cron, kicked off a manual verification run (still in progress 
 run is slow, reconciling a destination that previously held zip staging data instead of
 real backups; future weekly runs should be fast since rsync is incremental).
 
-Also added a consolidated "Scheduled Maintenance Windows" table to jctsh-network.md
+Also added a consolidated "Scheduled Maintenance Windows" table to network/jctsh-network.md
 (prompted by realizing KeepConnect's router reboot, now landing Wednesday 3am, was never
 cross-referenced against the Pi/M8 reboot and backup schedule) and MQTT dashboard
 visibility for backup runs (CARD-0040, same "Backup starting."/"Backup complete." pattern
@@ -217,9 +217,9 @@ into a home-internet outage (unrelated — the jobs run locally on the M8, unaff
 Confirmed complete 2026-07-09: all queues drained, zero failures, M8 uptime showed it never
 rebooted mid-run. People clusters grew 2,626 → 3,331. Full writeup in `backlog.md` CARD-0037.
 
-Also documented the home router (TP-Link Archer AXE75, 192.168.1.1) in `jctsh-network.md`
+Also documented the home router (TP-Link Archer AXE75, 192.168.1.1) in `network/jctsh-network.md`
 and `ENVIRONMENT.md` — it had never been added despite being the gateway every other device
-depends on, and despite `keepconnect.md` already referencing it extensively.
+depends on, and despite `network/keepconnect.md` already referencing it extensively.
 
 ## 2026-07-08 (continued, part 3)
 Closed the actual CARD-0032 monitoring gap and live-tested CARD-0029 in the same session.
@@ -270,7 +270,7 @@ at 3/4 AM) fires on next boot instead of skipping the week. Verified live via
 ## 2026-07-08
 Documented KeepConnect router rebooter (CARD-0033). Not a JCTsh component — a
 standalone Johnson Creative device (KeepConnect-27F8) that power-cycles the
-router/modem on internet-loss detection. New `keepconnect.md` at repo root covers
+router/modem on internet-loss detection. New `network/keepconnect.md` covers
 full config: monitor mode set to "Require Full TCP/HTTPS Success" (switched from
 vendor Roundtrip mode to avoid depending on Johnson Creative's own server uptime),
 distinct primary/backup test domains (google.com / cloudflare.com), and a 4-minute
@@ -279,7 +279,7 @@ headroom for DOCSIS ranging). Physically scoped to the router's own surge-protec
 outlet only — the Immich Pi and SmartThings hub were moved to a separate always-on
 outlet so router-triggered power cycling can't corrupt the Immich Postgres DB
 mid-write or force a Zigbee/Z-Wave mesh rebuild on the hub. Linked from
-`jctsh-network.md` and `ENVIRONMENT.md`. Open item carried forward: a clean
+`network/jctsh-network.md` and `ENVIRONMENT.md`. Open item carried forward: a clean
 scheduled `shutdown -r` cron for the Pi/Immich stack, independent of power-strip
 cycling.
 
@@ -467,7 +467,7 @@ re-added successfully; all devices visible.
 Also cleared a stale production_auth.json from the HA cloud config directory that was
 blocking Nabu Casa login with "Cannot login if already logged in."
 
-Network housekeeping: jctsh-network.md updated to add SmartThings hub (192.168.1.112,
+Network housekeeping: network/jctsh-network.md updated to add SmartThings hub (192.168.1.112,
 MAC 24-FD-5B-01-72-23), hiking-monitor (192.168.1.161, MAC 04-B2-47-97-DF-2C), and
 coachproxyos (192.168.1.219, MAC B8-27-EB-BD-C6-63). DHCP reservations confirmed for
 all three. SOFTWARE-ENVIRONMENT.md created to document all Pi services (Mosquitto,

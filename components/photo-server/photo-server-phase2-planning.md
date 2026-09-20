@@ -5,7 +5,7 @@
 **Version description:** Initial release — Phase 2 complete.
 **Project:** JCTsh Photo Platform
 **Status:** Phase 2 Complete — Ready for Phase 3
-**Related files:** `photo-server-phase1-planning.md`, `photo-tv-display-phase1-planning.md`, `jctsh-network.md`, `README.md`
+**Related files:** `photo-server-phase1-planning.md`, `photo-tv-display-phase1-planning.md`, `network/jctsh-network.md`, `README.md`
 
 ---
 
@@ -129,7 +129,7 @@ The M8 connects via wired ethernet directly to a gigabit LAN port on the router.
 | IP assignment | Dynamic on first boot; reserve in router DHCP after confirming assignment |
 | MAC address | Record from router DHCP table after first boot |
 
-After reserving the IP, record the entry in `jctsh-network.md`:
+After reserving the IP, record the entry in `network/jctsh-network.md`:
 
 ```
 | photo-server | [assigned IP] | photo-server.local | [MAC] | Immich photo server + photo-tv-display Node.js server; wired gigabit direct to router, DHCP-reserved |
@@ -139,7 +139,7 @@ After reserving the IP, record the entry in `jctsh-network.md`:
 
 Install Tailscale on the M8 and enroll it in the existing JCTsh Tailscale account. This provides secure remote admin access (SSH, Immich web UI) from anywhere without port forwarding.
 
-Add the Tailscale IP to `jctsh-network.md` after enrollment.
+Add the Tailscale IP to `network/jctsh-network.md` after enrollment.
 
 ### WiFi — Not Used for Production
 
@@ -389,7 +389,7 @@ No ports are forwarded to the internet for the initial build.
 
 | Integration | Action required |
 |---|---|
-| `jctsh-network.md` | Add `photo-server` entry (IP, hostname, MAC, Tailscale IP) after first boot |
+| `network/jctsh-network.md` | Add `photo-server` entry (IP, hostname, MAC, Tailscale IP) after first boot |
 | `README.md` | Add `photo-server` to the Components table |
 | Tailscale | Enroll M8 in existing JCTsh Tailscale account |
 | Google Sheets | Create new dedicated sheet for deletion log (separate from existing JCTsh environmental data sheet) |

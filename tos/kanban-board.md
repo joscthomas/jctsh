@@ -9,7 +9,30 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0316 -->
+<!-- next-card-id: CARD-0317 -->
+
+---
+
+### CARD-0316 · [idea] [logseq] Reconcile CARD-0034/0071/0072's digital-identity files with LogSeq — deprecate the `[personal]` tag
+
+**Status:** Backlog
+
+**Raised 2026-09-19 (Joseph), out of a live discussion prompted by PR #108's finding** ("for information of certain types automatically send the MD file to LogSeq" — Joseph: "this is what we just did with GitHub issues, but i want to look at `[personal]` tags"). Reviewing the board's 5 `[personal]`-tagged cards (CARD-0294's own "accepted as-is, not retired" call) found none of them were actually a good permanent fit for a generic tag once looked at individually.
+
+**Executed this session, `[personal]` fully retired (zero cards carry it now):**
+1. **CARD-0093** (DNS cleanup, `jctnet.com`/`jctnet.net`) → retagged `[network]`. Real operational/network work, not personal-life content.
+2. **CARD-0103** (legacy Google Sites migration) → retagged `[website]`.
+3. **CARD-0034/CARD-0071/CARD-0072** (digital-identity-protection planning, Joseph and Robin's personal security checklist) → retagged `[logseq]` — this is genuinely personal-life content, belongs with Joseph's LogSeq knowledge base per the same reasoning that moved the wash-survey/night-vision-goggles findings there (PR #102/#104 this session).
+
+**New `network/` directory created** (mirroring `architecture/`'s doc-only shape from CARD-0294) to give `[network]` a real, `archive_cards.py`-discoverable home instead of falling to the dated fallback archive the way `[personal]`/`[wildlife]` still do. `tos/archive_cards.py`'s `discover_destinations()` given an explicit `dests["network"]` entry, same pattern as `architecture`'s own fix. **Existing network-related files moved into it** (Joseph's own catch — "there might be files that belong in the network directory"): `jctsh-network.md`, `jctsh-access.md`, and `keepconnect.md` (a standalone router-rebooter device, network-adjacent even though it's not a JCTsh MQTT component). ~26 active documentation files' cross-references updated to the new `network/` paths; archived card history (`card-archive.md`/`kanban-archive.md` files) deliberately left untouched as historical record, not retrofitted.
+
+**What's still actually open — this card's real remaining scope:** CARD-0071/CARD-0072/CARD-0034 now carry `[logseq]` but **still physically live in `jctsh`'s `kanban-board.md`**, and all three depend heavily on files that also still live in jctsh's repo root (`digital-identity.md`, `digital-identity-protection-checklist.md`, `Incident Response Plan.pdf`) — CARD-0072 explicitly states "Canonical detail lives in `digital-identity-protection-checklist.md`... that file is the actual checklist." **Joseph's explicit call, 2026-09-19: tag and leave in place for now, reconcile properly later** rather than deciding under this same conversation's momentum. Open questions for whenever this gets picked up:
+1. Do the three cards move to `LogSeq/kanban-board.md` (matching CARD-0034/0071/0072-in-LogSeq's own numbering) with the reference files moving too, or do the files have a reason to stay in jctsh (e.g., they touch RoboForm/2FA setup for accounts that also gate access to jctsh infrastructure itself — a real "infrastructure-adjacent" argument the wash-survey/night-vision-goggles precedent didn't have to weigh)?
+2. If the files move, do they move as-is or get restructured to fit LogSeq's page/journal shape rather than staying standalone `.md` files?
+
+**Done when:** not yet scoped — the retag/directory work above is complete, but the actual file reconciliation this card exists to hold is not.
+
+**Related:** CARD-0294 (originally accepted `[personal]` as-is; this card reverses that call — see the strike-through note added there), CARD-0301 (created the `network/`-adjacent `architecture/` pattern this reuses), PR #102/#104 (this session's own precedent for moving a personal finding to LogSeq instead of landing it in jctsh), `network/README.md`, `tos/archive_cards.py` (`discover_destinations()`).
 
 ---
 
@@ -580,7 +603,7 @@ Optionally add `--schedule "<time>"` to defer it to the Mon 3 AM reboot window; 
 **Folded in from CARD-0302 (opened as a duplicate of this card, same session, 2026-09-18) — a full inventory of every tag on the board, not just `[infrastructure]`.** 38 distinct tags total; 26 already match a real directory. Of the other 12:
 - **Four more clear-cut retags, beyond `[infrastructure]`, identified and ready but not yet applied:** CARD-0114 and CARD-0056 (`kanban-board` → `tos`, both predate CARD-0191's `tos/` consolidation), CARD-0139 (`log-server` → `logging`, two names for `core/logging`), CARD-0018 (`immich` → `photo-server`, Immich *is* photo-server), CARD-0014 (`core` → `data-pipeline` — that card is literally the one that created `core/data-pipeline/`, confirmed from its own resolution text).
 - **Five tags name a planned-but-unbuilt component and are legitimate as-is, not a defect** (Joseph's call): `vu-meter`, `shower-temp-sensor`, `back-patio-temp-sensor`, `garage-entry-hallway`, `presence`. A tag naming a component with no directory yet is correct; the directory appears when the build starts.
-- **Two more generic-bucket tags beyond `[infrastructure]`**, accepted as-is rather than retired: `personal` (5 cards), `wildlife` (1 card) — neither names something that could ever be a `components/`/`core/`/`hosts/` directory, unlike `[infrastructure]`'s cards which mostly do have a real home once triaged.
+- **Two more generic-bucket tags beyond `[infrastructure]`**, accepted as-is rather than retired: ~~`personal` (5 cards)~~ (reversed 2026-09-19, CARD-0316 — see below), `wildlife` (1 card) — neither names something that could ever be a `components/`/`core/`/`hosts/` directory, unlike `[infrastructure]`'s cards which mostly do have a real home once triaged.
 
 This confirms this card's own step 2 ("whether any *other* existing tags... also fail to map") — answer: yes, four more reconcilable ones, now folded in above rather than needing a separate pass.
 
@@ -594,6 +617,8 @@ This confirms this card's own step 2 ("whether any *other* existing tags... also
 5. **Fixed `archive_cards.py`'s `discover_destinations()`** — this card's own open question ("whether `architecture/` needs a script change... current understanding: no, since `tos/` isn't special-cased either") turned out to be **wrong**: `tos` *is* explicitly hardcoded in that function, which only walks `components/`, `core/`, `hosts/`, plus that one literal entry — it never generically discovers repo-root peers. Added an identical explicit `dests["architecture"]` entry. Verified with a real dry run: `python tos/archive_cards.py --force CARD-0223` resolved to `architecture/card-archive.md` correctly; the unforced dry run separately confirmed no accidental behavior change for the 5 already-eligible `[tos]`-tagged cards.
 6. **Reconciled the resulting tag list against `JCTsh-Component-Session-Start.md`'s Component/Cluster Registry** (Joseph's follow-on instruction) — added an `architecture` row (the one real gap: a brand-new top-level directory with no cluster yet) and confirmed every other real-directory tag now in use maps to exactly one registry row. Documented three deliberate non-matches so they don't read as oversights: planned-component tags with no directory yet, the non-project `personal` tag, and multi-directory clusters (e.g. ops) using per-directory tags rather than one unified cluster tag, since `archive_cards.py` routes on literal directory names.
 7. **No "cannot reconcile" list needed** — every one of the original 48 `[infrastructure]` cards, plus the 4 folded in from CARD-0302, found a real home.
+
+**Reversed 2026-09-19 (Joseph's call, CARD-0316) — `[personal]` is deprecated, not accepted-as-is after all.** Revisiting the 5 cards this decision covered found none of them were actually a good fit for a permanent generic tag once looked at individually: CARD-0093 (DNS cleanup) is real network/operational work (`[network]`, a new directory alongside `architecture/`), CARD-0103 (legacy Google Sites migration) is real website work (`[website]`), and CARD-0034/CARD-0071/CARD-0072 (digital-identity-protection planning) are personal-life content that belongs with Joseph's LogSeq knowledge base, not jctsh (`[logseq]`, pending CARD-0316's own reconciliation of where the underlying `digital-identity*.md` files should actually live). Zero cards carry `[personal]` after this — see CARD-0316 for the full retag/move record.
 
 **Reflection:** the open question about `archive_cards.py` not needing a change was a real near-miss — an assumption stated in this card's own text, carried for a full session without being checked against the actual code, and it was backwards. Caught only by actually reading `discover_destinations()` before closing rather than trusting the earlier note. Directly the "verify a claimed completion/assumption directly" principle this same reconciliation effort (CARD-0303/CARD-0304) had just written into `JCTsh-Operating-System.md`.
 
@@ -1097,7 +1122,7 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8255B, over th
 1. **Driver: switch to `journald`**, not a new log-shipping aggregator (fluentd/syslog/etc.) — reuses proven-durable storage already on this host, no new infrastructure.
 2. **Scope: all 9 M8 containers** (`immich_server`, `immich_postgres`, `immich_machine_learning`, `immich_redis`, `hike-izer-orchestrator`, `netalertx`, `hike-izer-cloudflared`, `hike-izer-web`, `ring-mqtt`), applied globally via `/etc/docker/daemon.json`'s `log-driver` key (currently only sets `"dns": [...]`, confirmed by reading the file directly) rather than editing each container's compose config individually.
 
-**Real blast radius to plan around, not just a config edit:** `/etc/docker/daemon.json` changes require `systemctl restart docker` to take effect, which restarts **every container on the host** at once — same category of disruption CARD-0238 planned a deliberate maintenance window around for the Docker engine upgrade. Should be batched into a scheduled M8 maintenance window (per `jctsh-network.md`'s existing convention), not run ad hoc, and verified live afterward the same way CARD-0238 did (`docker ps` healthy for all 9 containers, `https://hikes.jctnet.com/` reachable).
+**Real blast radius to plan around, not just a config edit:** `/etc/docker/daemon.json` changes require `systemctl restart docker` to take effect, which restarts **every container on the host** at once — same category of disruption CARD-0238 planned a deliberate maintenance window around for the Docker engine upgrade. Should be batched into a scheduled M8 maintenance window (per `network/jctsh-network.md`'s existing convention), not run ad hoc, and verified live afterward the same way CARD-0238 did (`docker ps` healthy for all 9 containers, `https://hikes.jctnet.com/` reachable).
 
 **Real behavior to confirm during Build, not assumed:** `docker logs <container>` should keep working transparently against the journald driver (Docker reads back through it), and existing tooling (`docker logs hike-izer-orchestrator | grep ...`, used throughout this session's own investigation) shouldn't need to change to `journalctl CONTAINER_NAME=...` — worth a real check before considering this done, not just trusting the docs.
 
@@ -2680,7 +2705,7 @@ This is the nginx reverse-proxy trust setting from CARD-0096/CARD-0141's HTTPS w
 
 **Raised 2026-08-14 16:15 MST**, split out from CARD-0096 (Done) so this last step doesn't get lost inside an already-closed card. Two systemd units are still deliberately running: `raspberrypi-mdns-alias.service` (Pi) and `photo-server-mdns-alias.service` (M8), each publishing the old hostname as a static mDNS alias for the unchanged real IP, per CARD-0096's own transition-window design.
 
-**Due date reasoning:** 2026-08-17 (Monday) 09:00 MST — chosen specifically so both hosts' weekly scheduled reboots (Pi Mon 3:00 AM, M8 Mon 4:00 AM — `jctsh-network.md`) happen first. A clean reboot survival is a real stability test, not just elapsed time — if anything were silently still depending on the old name in a way the alias masks, a reboot is exactly the kind of event likely to surface it. 09:00 gives buffer after both.
+**Due date reasoning:** 2026-08-17 (Monday) 09:00 MST — chosen specifically so both hosts' weekly scheduled reboots (Pi Mon 3:00 AM, M8 Mon 4:00 AM — `network/jctsh-network.md`) happen first. A clean reboot survival is a real stability test, not just elapsed time — if anything were silently still depending on the old name in a way the alias masks, a reboot is exactly the kind of event likely to surface it. 09:00 gives buffer after both.
 
 **Interactive, not automated** — Joseph explicitly declined an autonomous/scheduled agent run for this (2026-08-14): do this in a live session with him present, same human-in-the-loop pattern as the rest of CARD-0096, not unattended.
 
@@ -2935,11 +2960,11 @@ Archived to `components/hiking-monitor/CLAUDE.md` on 2026-08-22 (CARD-0193) — 
 
 **If pursued, one option discussed:** run the database as its own container on the M8 (`photo-server`, `192.168.1.165`) rather than on the Pi, since HA's `recorder:` config accepts any reachable `db_url` — the M8 is already running Docker and is more capable than the Pi. Two real snags flagged, not yet resolved:
 1. HA's official Docker image doesn't bundle a PostgreSQL/MariaDB Python driver by default — would need a custom image or an init step to install one.
-2. Creates a new cross-device dependency that doesn't exist today — HA's recorder would go dark any time the M8 is unreachable, including the M8's own weekly scheduled reboot (Mon 4am) — worth checking that window against the Pi's own Monday 3am reboot stagger (see `jctsh-network.md`'s Scheduled Maintenance Windows table) if this is ever built, since the whole point of that stagger was avoiding a different false-down reading and a DB dependency adds a second reason to care about the timing.
+2. Creates a new cross-device dependency that doesn't exist today — HA's recorder would go dark any time the M8 is unreachable, including the M8's own weekly scheduled reboot (Mon 4am) — worth checking that window against the Pi's own Monday 3am reboot stagger (see `network/jctsh-network.md`'s Scheduled Maintenance Windows table) if this is ever built, since the whole point of that stagger was avoiding a different false-down reading and a DB dependency adds a second reason to care about the timing.
 
 **Done when (if ever picked up):** not yet defined — this card is parked as an idea, not scoped for Planning. Needs a real interview (which engine, where hosted, migration approach for existing history data, backup coverage) before any implementation starts.
 
-**Related:** `jctsh-network.md` (M8 host details, maintenance-window table).
+**Related:** `network/jctsh-network.md` (M8 host details, maintenance-window table).
 
 ---
 
@@ -3269,7 +3294,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 22500
 
 ---
 
-### CARD-0103 · [idea] [personal] Migrate 3 legacy Google Sites pages (Cochie Springs hike, Mustang, Karli's Summer) to the M8 webserver — low priority
+### CARD-0103 · [idea] [website] Migrate 3 legacy Google Sites pages (Cochie Springs hike, Mustang, Karli's Summer) to the M8 webserver — low priority
 **Status:** Backlog
 
 **Raised 2026-07-27**, during CARD-0093 (DNS cleanup). CARD-0093's original plan let `jctnet.com`'s Google Sites content go entirely (Joseph had called it unimportant), but revisiting surfaced that 3 specific pages are still wanted — dropping the `www` CNAME and `google-site-verification` TXT as part of CARD-0093 will break their reachability at `jctnet.com`/`www.jctnet.com`, even though the underlying Google Sites content itself isn't deleted by a DNS change (it stays live at its own `sites.google.com` URL, just unmapped from the custom domain).
@@ -3519,7 +3544,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 12923
 
 ---
 
-### CARD-0071 · [idea] [personal] Emergency Access preparation
+### CARD-0071 · [idea] [logseq] Emergency Access preparation
 **Status:** Planning
 
 **Notes:** Raised 2026-07-17, split out from CARD-0034's closure. Covers the "both Joseph and Robin unavailable at once" gap that the rest of `digital-identity-protection-checklist.md` doesn't — since both spouses already have the RoboForm master password memorized, each already has full independent access if something happens to the other, so Emergency Access only matters for the joint-unavailability case.
@@ -3924,7 +3949,7 @@ Archived to `components/hiking-monitor/CLAUDE.md` on 2026-09-16 (CARD-0193) — 
 
 ---
 
-### CARD-0072 · [idea] [personal] Digital Identity Checklist Version 2
+### CARD-0072 · [idea] [logseq] Digital Identity Checklist Version 2
 **Status:** Build
 
 **Notes:** Raised 2026-07-17, split out from CARD-0034's closure as the next layer of hardening on top of the v1-done core (phone/SIM-swap single point of failure closed). Works through `digital-identity-protection-checklist.md`'s remaining open items, targeting v3.0.
@@ -4109,7 +4134,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 7381B
 
 ---
 
-### CARD-0093 · [enhancement] [personal] Clean up DNS records on both `jctnet.com` and `jctnet.net` — RESOLVED 2026-07-27
+### CARD-0093 · [enhancement] [network] Clean up DNS records on both `jctnet.com` and `jctnet.net` — RESOLVED 2026-07-27
 **Status:** Done
 
 Archived to `tos/kanban-archive.md` on 2026-08-22 (CARD-0193) — 8063B, over the 5000B size threshold.
@@ -4331,7 +4356,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 16167
 
 ---
 
-### CARD-0034 · [idea] [personal] Complete digital-identity-protection-checklist.md — RESOLVED 2026-07-17
+### CARD-0034 · [idea] [logseq] Complete digital-identity-protection-checklist.md — RESOLVED 2026-07-17
 **Status:** Done
 
 **Notes:** Work through `digital-identity-protection-checklist.md` (repo root) — Joseph and Robin's personal security checklist closing single-point-of-failure risks (carrier port-out PIN, 2FA off SMS, credit freezes, password manager, household verification protocol, incident response plan). Almost entirely manual actions by Joseph/Robin themselves (phone calls to carriers/bureaus, account settings changes) — not something Claude Code can execute directly, but worth tracking to completion since it's currently all unchecked. Also has an "Open Items to Fill In" section (list specific banks/brokerages in use, confirm current password manager/2FA setup, set a 6-month review date) that needs input from Joseph before those parts can be finished.
@@ -4463,7 +4488,7 @@ Archived to `core/mqtt/CLAUDE.md` on 2026-08-22 (CARD-0193) — 7374B, over the 
 ### CARD-0059 · [idea] [netalertx] NetAlertX — self-hosted LAN device tracker with custom naming — RESOLVED 2026-07-12
 **Status:** Done
 
-**Notes:** Raised 2026-07-12. Motivated by the router (TP-Link Archer AXE75) listing most connected devices with meaningless names, with no built-in way to rename them — the JCTsh-managed fleet already has this solved via DHCP reservations + `jctsh-network.md`'s device table + ESPHome hostnames, but third-party/commercial devices (Ring, Ecobee, Cast devices, guest phones) aren't part of that convention and the router won't let their names be overridden.
+**Notes:** Raised 2026-07-12. Motivated by the router (TP-Link Archer AXE75) listing most connected devices with meaningless names, with no built-in way to rename them — the JCTsh-managed fleet already has this solved via DHCP reservations + `network/jctsh-network.md`'s device table + ESPHome hostnames, but third-party/commercial devices (Ring, Ecobee, Cast devices, guest phones) aren't part of that convention and the router won't let their names be overridden.
 
 **What it is:** NetAlertX (formerly Pi.Alert) — open-source, self-hosted LAN device scanner and presence tracker. Maintains its own device database independent of the router, so naming lives there regardless of what the router shows.
 
@@ -4630,7 +4655,7 @@ Runbook note added to `components/photo-server/heartbeat.md`: if storage alerts 
 
 Built `immich-update-check.py` (deployed to `/usr/local/bin/`) + `immich-update-check.service`/`.timer` (daily, 6:00 AM `America/Phoenix`), following the same MQTT dashboard-notification pattern as CARD-0036/CARD-0040: compares `/api/server/version` against `/api/server/version-check`, publishes `"Immich update available: <latest> (currently running <current>)"` (component `photo-server`, category `System`) when they differ. De-duplicated via a state file so the same pending update doesn't re-notify daily — only fires again if an even newer version appears after the first notice.
 
-First deploy attempt crashed on the state-file write (`/etc/jctsh/` isn't writable by the `jct` user, appropriately, since it holds credentials) — moved the state file to `/home/jct/.jctsh/` and added `os.makedirs`. Verified live 2026-07-10: first corrected run notified correctly (`v3.0.2` vs. running `v3.0.1`), confirmed on the dashboard; second run correctly skipped re-notifying for the same version. Added to `jctsh-network.md`'s Scheduled Maintenance Windows table (6:00 AM daily, no conflicts with existing jobs). Actual update application remains a deliberate manual step, not automated.
+First deploy attempt crashed on the state-file write (`/etc/jctsh/` isn't writable by the `jct` user, appropriately, since it holds credentials) — moved the state file to `/home/jct/.jctsh/` and added `os.makedirs`. Verified live 2026-07-10: first corrected run notified correctly (`v3.0.2` vs. running `v3.0.1`), confirmed on the dashboard; second run correctly skipped re-notifying for the same version. Added to `network/jctsh-network.md`'s Scheduled Maintenance Windows table (6:00 AM daily, no conflicts with existing jobs). Actual update application remains a deliberate manual step, not automated.
 
 ---
 
@@ -4709,7 +4734,7 @@ Live-tested 2026-07-08 by remounting `/mnt/photo-library` read-only (`mount -o r
 ### CARD-0033 · [idea] [architecture] Document Keep Connect configuration and schedule
 **Status:** Done
 
-**Resolution:** KeepConnect is a standalone router-rebooter device (Johnson Creative KeepConnect-27F8, not a JCTsh component). New dedicated doc `keepconnect.md` created at repo root with full device identity, network config, physical outlet-scoping rationale, and complete monitor/timing/schedule/notification configuration. Linked from `jctsh-network.md` devices table (IP 192.168.1.108, DHCP-reserved) and `ENVIRONMENT.md` Hub & Controller table; added to `README.md` repository layout. Remaining open item (scheduled Pi/Immich reboot via cron, separate from power-strip cycling) carried forward in `keepconnect.md` itself. 2026-07-08.
+**Resolution:** KeepConnect is a standalone router-rebooter device (Johnson Creative KeepConnect-27F8, not a JCTsh component). New dedicated doc `network/keepconnect.md` created with full device identity, network config, physical outlet-scoping rationale, and complete monitor/timing/schedule/notification configuration. Linked from `network/jctsh-network.md` devices table (IP 192.168.1.108, DHCP-reserved) and `ENVIRONMENT.md` Hub & Controller table; added to `README.md` repository layout. Remaining open item (scheduled Pi/Immich reboot via cron, separate from power-strip cycling) carried forward in `network/keepconnect.md` itself. 2026-07-08.
 
 ---
 
@@ -4855,14 +4880,14 @@ GPIO pulls the gate low (relative to source) → P-FET turns on → 3.3V flows t
 
 **Priority: low (deprioritized 2026-07-10) — accepted as a residual risk, not offloaded onto CARD-0003.**
 
-**Notes:** Raised 2026-07-10 during CARD-0003 (MQTT TLS) discussion. WPA2/3-Personal on `JCTnet1` only protects the radio hop and doesn't stop a device that's already authenticated on the LAN — anyone holding the shared PSK can capture another client's handshake and derive its session key, and more practically, any device on the same `192.168.1.x` subnet can ARP-spoof to MITM traffic between other devices, bypassing WiFi encryption entirely since that attack happens at L2/L3, not over the air. Right now there's no segmentation at all — every JCTsh device, guest device, and IoT gadget shares one flat subnet, confirmed via `jctsh-network.md` and `jctsh-security-hardening.md` (no VLAN/isolation findings from CARD-0022/0023's audit). Note HA's existing HTTPS proxy (nginx on 443, cert for `raspberrypi.tailfe828a.ts.net`) is Tailscale-only — it doesn't protect LAN-side access today (cert error on direct LAN hit).
+**Notes:** Raised 2026-07-10 during CARD-0003 (MQTT TLS) discussion. WPA2/3-Personal on `JCTnet1` only protects the radio hop and doesn't stop a device that's already authenticated on the LAN — anyone holding the shared PSK can capture another client's handshake and derive its session key, and more practically, any device on the same `192.168.1.x` subnet can ARP-spoof to MITM traffic between other devices, bypassing WiFi encryption entirely since that attack happens at L2/L3, not over the air. Right now there's no segmentation at all — every JCTsh device, guest device, and IoT gadget shares one flat subnet, confirmed via `network/jctsh-network.md` and `jctsh-security-hardening.md` (no VLAN/isolation findings from CARD-0022/0023's audit). Note HA's existing HTTPS proxy (nginx on 443, cert for `raspberrypi.tailfe828a.ts.net`) is Tailscale-only — it doesn't protect LAN-side access today (cert error on direct LAN hit).
 
-**Original proposed fix (not pursued — see Decision below):** put IoT/guest devices (SmartThings-paired gadgets, guest phones, anything not a trusted JCTsh host) on the router's built-in IoT/guest network with client isolation enabled, so they're on a separate broadcast domain and can't reach or ARP-spoof JCTsh devices (Pi, ESP32s, M8) at all. Router is a TP-Link Archer AXE75 (`jctsh-network.md`).
+**Original proposed fix (not pursued — see Decision below):** put IoT/guest devices (SmartThings-paired gadgets, guest phones, anything not a trusted JCTsh host) on the router's built-in IoT/guest network with client isolation enabled, so they're on a separate broadcast domain and can't reach or ARP-spoof JCTsh devices (Pi, ESP32s, M8) at all. Router is a TP-Link Archer AXE75 (`network/jctsh-network.md`).
 
 **Decision (2026-07-10) — deprioritized, not executed:** scoping this out surfaced that the original framing no longer fits current reality:
 - Guest phones already have their own separate network (existing Guest network, confirmed by Joseph) — the original guest-phone isolation target is already handled.
 - Joseph decided Ring, Ecobee, and Google Cast devices (Chromecast, Google TV, Google Home speakers, Nest Display, Pixel Tablet) should stay on the main network — moving them risks breaking phone-to-device casting (mDNS/SSDP needs same subnet), and their actual access pattern (Ring app, Ecobee app, SmartThings/Google Home integration) is cloud-to-cloud, not LAN-dependent, so isolating them buys little anyway.
-- The remaining alternative — inverting the approach to isolate the JCTsh devices themselves instead — was scoped and rejected: real, certain ongoing costs (re-IP the whole fleet in `jctsh-network.md`, update every ESPHome `secrets.yaml` MQTT broker address, update the DuckDNS port-forward target, lose casual LAN access to photo-server's web UI for Joseph/Robin, and require Joseph's laptop to temporarily join that network for every future OTA reflash) against a threat that's low-probability and low-consequence given the hardening already completed in CARD-0022/0023 (SSH key-only auth, HA TOTP MFA, Node-RED adminAuth, router admin password rotation, UPnP disabled).
+- The remaining alternative — inverting the approach to isolate the JCTsh devices themselves instead — was scoped and rejected: real, certain ongoing costs (re-IP the whole fleet in `network/jctsh-network.md`, update every ESPHome `secrets.yaml` MQTT broker address, update the DuckDNS port-forward target, lose casual LAN access to photo-server's web UI for Joseph/Robin, and require Joseph's laptop to temporarily join that network for every future OTA reflash) against a threat that's low-probability and low-consequence given the hardening already completed in CARD-0022/0023 (SSH key-only auth, HA TOTP MFA, Node-RED adminAuth, router admin password rotation, UPnP disabled).
 - Router capability is also limited: TP-Link Archer AXE75 has no VLAN support, and community reports (TP-Link forums) flag its Guest/IoT-network client isolation as sometimes leaky — any attempt would need empirical verification before being trusted, on top of the migration cost.
 
 **Risk analysis:** getting a hostile device onto `JCTnet1` at all requires either cracking a strong WPA2/3 PSK or a real exploited vulnerability in an existing IoT device — uncommon for a non-targeted residential home. Even if achieved, the highest-value JCTsh surfaces (SSH, HA, Node-RED) are already independently hardened (key-only auth, TOTP MFA, adminAuth). The only real remaining exposure is cleartext MQTT sensor telemetry on the LAN — low-stakes (salt %, temp, garage presence; the garage door itself is actuated via a Zigbee switch through SmartThings, not exposed via this MQTT path). Low probability × low consequence doesn't justify the migration cost, on its own — independent of CARD-0003.

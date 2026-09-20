@@ -63,7 +63,7 @@ All services run on the home Raspberry Pi. On the home network:
 
 Remote access via Tailscale: replace `pi1.local` with `100.70.162.24`.
 
-See [jctsh-access.md](jctsh-access.md) for the full access reference including RV and Tailscale setup.
+See [network/jctsh-access.md](network/jctsh-access.md) for the full access reference including RV and Tailscale setup.
 
 ---
 
@@ -108,9 +108,9 @@ jctsh/
 ├── DEVLOG.md                      Chronological record of decisions and incidents
 ├── ENVIRONMENT.md                 Physical device inventory for the home
 ├── SOFTWARE-ENVIRONMENT.md        What is installed and running on the Pi
-├── jctsh-network.md               IP address and MAC table for all devices
-├── jctsh-access.md                How to reach all services from any network
-├── keepconnect.md                 KeepConnect router rebooter — config, schedule, rationale
+├── network/jctsh-network.md       IP address and MAC table for all devices
+├── network/jctsh-access.md        How to reach all services from any network
+├── network/keepconnect.md         KeepConnect router rebooter — config, schedule, rationale
 ├── jctsh-parts-inventory.md       On-hand electronics parts
 ├── JCTsh-Build-Standards.md       Standards all components must follow
 ├── JCTsh-Component-Planning-Pattern.md  How new components are planned and built
@@ -167,6 +167,6 @@ Shared infrastructure not specific to any one component.
 | `testing.md` / `end-to-end-test.md` | Test procedures and pass/fail criteria | Component directory |
 | `integration.md` | How the component connects to HA, SmartThings, or other systems | Component directory |
 | `operations.md` | Day-to-day use and troubleshooting | Component directory |
-| `jctsh-network.md` | IP, hostname, and MAC for every device | Repo root |
-| `jctsh-access.md` | How to reach every service from home, remote, or RV | Repo root |
+| `network/jctsh-network.md` | IP, hostname, and MAC for every device | `network/` |
+| `network/jctsh-access.md` | How to reach every service from home, remote, or RV | `network/` |
 | `credentials.local.md` | All generated passwords — gitignored, never committed | Repo root |

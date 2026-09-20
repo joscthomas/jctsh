@@ -1000,7 +1000,7 @@ This pattern was established twice in the same build with an identical shape bot
 
 ### 9.5 Scheduled Maintenance Windows — Cross-Host Coordination
 
-Any new recurring job (cron or systemd timer) on any JCTsh host must be checked against the **Scheduled Maintenance Windows** table in `jctsh-network.md` before scheduling, and added to that table once deployed.
+Any new recurring job (cron or systemd timer) on any JCTsh host must be checked against the **Scheduled Maintenance Windows** table in `network/jctsh-network.md` before scheduling, and added to that table once deployed.
 
 **Rule of thumb:** at least one hour of clearance from any other recurring job on any host, especially where one job's MQTT publish depends on another host being reachable — e.g. the Pi/M8 reboot stagger exists specifically because the M8's heartbeat publishes to the Pi's broker, so overlapping reboots would produce a false "down" reading for the wrong reason.
 

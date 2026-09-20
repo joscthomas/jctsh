@@ -346,6 +346,6 @@ Once the bench phase above is complete, open a follow-on planning pass covering:
 - `rssi_dbm` is 0 for field-mode readings (no WiFi at time of logging) — same convention as hiking-monitor
 - MQTT account: create dedicated `air-quality-monitor` Mosquitto account before first flash
 - Add new account to credentials table in root `CLAUDE.md`
-- Record new device IP, hostname, and MAC in `jctsh-network.md` once ready to flash
+- Record new device IP, hostname, and MAC in `network/jctsh-network.md` once ready to flash
 - Update `jctsh-parts-inventory.md` at the end of the bench phase — deduct all used parts, record the Step 6 measured power-gate current
 - Bench-first: all bench steps must be confirmed complete before any install-phase work begins

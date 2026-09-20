@@ -45,7 +45,7 @@ Phase 2 is about hardware selection and integration design. These files are need
 | `CLAUDE.md` | repo root | Architecture, message flow, MQTT conventions, log format, SmartThings integration path, credentials patterns, and infrastructure details |
 | `ENVIRONMENT.md` | repo root | Full smart home device inventory — all hubs, sensors, switches, and integrations |
 | `JCTsh-Build-Standards.md` | repo root | Required build, integration, and documentation standards for all JCTsh components |
-| `jctsh-network.md` | repo root | DHCP reservations, hostname conventions, WiFi SSIDs, and all assigned device IPs and MACs. Required for network topology decisions and hostname/IP assignments. |
+| `network/jctsh-network.md` | `network/` | DHCP reservations, hostname conventions, WiFi SSIDs, and all assigned device IPs and MACs. Required for network topology decisions and hostname/IP assignments. |
 | `JCTsh-Parts-Inventory.md` | repo root | On-hand parts inventory. Must be loaded and scanned before any purchasing decisions are made or any BOM is finalized — on-hand parts must be identified before ordering anything. |
 | `README.md` for each existing component | `components/<name>/` | Full ecosystem picture — understanding what exists before designing what's new. Claude reads the root README to identify all listed components, then requests each component README. |
 
@@ -207,7 +207,7 @@ If something doesn't work as expected during execution, research and diagnose it
 
 **Property sensor pattern before hardware selection.** JCTsh-Property-Sensor-Pattern.md is a required Phase 1 context file for any property sensor build. It defines the invariant standard (what every sensor does identically), the variable dimensions (location type, power source, connectivity, offline handling), and a 12-item checklist that produces concrete firmware values before Phase 2 hardware selection begins. Work through the checklist in Phase 1 — decisions made there drive hardware choices in Phase 2.
 
-**Network context before topology decisions.** jctsh-network.md is a required Phase 2 context file. It contains DHCP reservations, hostname conventions, and all assigned device IPs and MACs. Without it, network topology decisions in Phase 3 and hostname/IP assignments in Phase 4 are made without visibility into what is already allocated.
+**Network context before topology decisions.** network/jctsh-network.md is a required Phase 2 context file. It contains DHCP reservations, hostname conventions, and all assigned device IPs and MACs. Without it, network topology decisions in Phase 3 and hostname/IP assignments in Phase 4 are made without visibility into what is already allocated.
 
 **Deliberate deferral.** Explicitly deciding what not to build yet is as important as deciding what to build. Future enhancements are documented so they aren't lost, but they don't complicate the current build.
 
@@ -356,7 +356,7 @@ Write approved additions and updates to `JCTsh-Build-Standards.md`. Bump the ver
 - MQTT account: create dedicated Mosquitto account before first flash —
   see JCTsh-Build-Standards.md Section 2.7 for commands and ownership gotcha
 - Add new account to credentials table in root CLAUDE.md
-- Record new device IP, hostname, and MAC in jctsh-network.md
+- Record new device IP, hostname, and MAC in network/jctsh-network.md
 - Consult JCTsh-Parts-Inventory.md before adding any item to the BOM
 - Update JCTsh-Parts-Inventory.md inventory update log at final step
 - Bench-first: all bench steps must be confirmed complete before any

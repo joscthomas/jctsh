@@ -84,4 +84,4 @@ Also check the JCTsh log dashboard (`http://pi1.local/`) for the `photo-server` 
 
 ## Related
 
-See `jctsh-network.md`'s **Scheduled Maintenance Windows** table for how this job's timing relates to the M8's own weekly reboot and other recurring jobs across the network. See `kanban-board.md` CARD-0030 (original cron re-enable), CARD-0040 (dashboard visibility, still pending live verification), and CARD-0046 (backup-drive health check gap).
+See `network/jctsh-network.md`'s **Scheduled Maintenance Windows** table for how this job's timing relates to the M8's own weekly reboot and other recurring jobs across the network. See `kanban-board.md` CARD-0030 (original cron re-enable), CARD-0040 (dashboard visibility, still pending live verification), and CARD-0046 (backup-drive health check gap).

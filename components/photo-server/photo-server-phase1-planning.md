@@ -242,7 +242,7 @@ Before beginning Phase 2 hardware selection, load:
 - `CLAUDE.md` (repo root)
 - `ENVIRONMENT.md` (repo root)
 - `JCTsh-Build-Standards.md` (repo root)
-- `jctsh-network.md` (repo root)
+- `network/jctsh-network.md`
 - `JCTsh-Parts-Inventory.md` (repo root)
 
 Phase 2 will confirm: OS installation approach, Docker Compose configuration, Immich version, immich-go version, network hostname and IP assignment, and any on-hand parts applicable to this build.

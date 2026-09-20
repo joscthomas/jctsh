@@ -5,7 +5,7 @@
 **Version description:** Initial release. Phase 1 complete.
 **Project:** JCTsh Van Sensor Suite
 **Status:** Phase 1 Complete — Ready for Phase 2
-**Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`, `jctsh-network.md`, `jctsh-parts-inventory.md`
+**Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`, `network/jctsh-network.md`, `jctsh-parts-inventory.md`
 
 ---
 
@@ -262,7 +262,7 @@ Inventory scan is a required Phase 2 first step — confirm on-hand quantities b
 
 Phase 1 is complete. Phase 2 (Hardware Selection) begins when:
 - `jctsh-parts-inventory.md` is loaded and inventory scan is complete
-- `CLAUDE.md`, `ENVIRONMENT.md`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, and `jctsh-network.md` are loaded for architecture and integration context
+- `CLAUDE.md`, `ENVIRONMENT.md`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, and `network/jctsh-network.md` are loaded for architecture and integration context
 - Open questions 1–6 above are resolved or at least framed enough to drive hardware decisions
 
 ---

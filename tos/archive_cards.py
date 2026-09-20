@@ -165,7 +165,10 @@ def discover_destinations():
     cross-cutting cards, a repo-root peer of components/core/hosts/tos, not
     a subdirectory of any of them) needs the same explicit entry `tos`
     already gets -- this function never walked the repo root generically,
-    so a new top-level directory is invisible to it until added here."""
+    so a new top-level directory is invisible to it until added here.
+
+    CARD-0316: `network` (DNS/domain-level concerns, another repo-root
+    peer) needs the same explicit entry, for the same reason."""
     dests = {}
     for p in COMPONENTS_DIR.iterdir():
         if p.is_dir():
@@ -179,6 +182,7 @@ def discover_destinations():
                 dests[p.name] = (f"{base}/{p.name}", p / "card-archive.md")
     dests["tos"] = ("tos", TOS_DIR / "card-archive.md")
     dests["architecture"] = ("architecture", REPO_ROOT / "architecture" / "card-archive.md")
+    dests["network"] = ("network", REPO_ROOT / "network" / "card-archive.md")
     return dests
 
 

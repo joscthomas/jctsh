@@ -290,7 +290,7 @@ Confirm every field exists in `core/data-pipeline/JCTsh-Environmental-Data-Archi
 - [ ] Dedicated Mosquitto account created (see `JCTsh-Build-Standards.md` §2.11)
 - [ ] `C:\esphome\<name>\` directory created
 - [ ] `components/<name>/secrets.yaml` created from template
-- [ ] DHCP reservation added on router; IP and MAC recorded in `jctsh-network.md`
+- [ ] DHCP reservation added on router; IP and MAC recorded in `network/jctsh-network.md`
 
 ---
 

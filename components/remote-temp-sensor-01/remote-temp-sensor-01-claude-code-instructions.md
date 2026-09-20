@@ -309,6 +309,6 @@ Only pursue if Step 6's quiescent-current measurement shows the AEDIKO module's 
 - Heartbeat and data publish share the same 5-minute wake cycle — no separate always-on interval timer
 - MQTT account: create dedicated Mosquitto account before first flash — see JCTsh-Build-Standards.md §2.7/§2.11
 - Add new account to credentials table in root `CLAUDE.md`
-- Record new device IP, hostname, and MAC in `jctsh-network.md` once ready to flash (deferred from Phase 3)
+- Record new device IP, hostname, and MAC in `network/jctsh-network.md` once ready to flash (deferred from Phase 3)
 - Update `jctsh-parts-inventory.md` at the end of the bench phase — deduct all used parts, and correct the AEDIKO module's inventory entry with the measured quiescent current from Step 6
 - Bench-first: all bench steps must be confirmed complete before any install-phase work begins

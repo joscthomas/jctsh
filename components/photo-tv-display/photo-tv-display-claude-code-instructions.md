@@ -283,7 +283,7 @@ Per `JCTsh-Build-Standards.md` §7, create the following in `components/photo-tv
    ```
    | [photo-tv-display](components/photo-tv-display/) | Ambient photo slideshow + phone controller for Google TV, backed by photo-server | Production |
    ```
-2. No `jctsh-network.md` changes needed — this component runs on the already-documented `photo-server` host and uses an already-reserved port
+2. No `network/jctsh-network.md` changes needed — this component runs on the already-documented `photo-server` host and uses an already-reserved port
 
 ---
 

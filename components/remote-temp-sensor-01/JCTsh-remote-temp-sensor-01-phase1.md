@@ -5,7 +5,7 @@
 **Version description:** Added Phase 3 — Architecture and Integration Design. Power-budget analysis, sleep-cycle firmware decision, MQTT/heartbeat/watchdog/SmartThings/LED checklist, timeout locations, bench/install boundary. Added GPIO sensor power-gating decision (P-FET, reusing hiking-monitor's CARD-0027 design) and a full test-and-mitigation plan for the AEDIKO charger module's unmeasured quiescent current, including the TPL5111-class nanopower timer contingency. Phase 4 (Claude Code instructions) written — see `remote-temp-sensor-01-claude-code-instructions.md`; sensor power switch resolved as an on-hand BC557B PNP transistor rather than a purchased P-FET.
 **Project:** JCTsh Remote Temp Sensor 01
 **Status:** Phase 1–4 Complete — Ready for Phase 5 (Execution)
-**Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`, `jctsh-network.md`, `jctsh-parts-inventory.md`, `house-lot-coordinates.md`, `components/front-porch-temp-sensor/`, `components/hiking-monitor/`
+**Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`, `network/jctsh-network.md`, `jctsh-parts-inventory.md`, `house-lot-coordinates.md`, `components/front-porch-temp-sensor/`, `components/hiking-monitor/`
 
 ---
 
@@ -129,7 +129,7 @@ Topics:
 - `jctsh/components/remote-temp-sensor-01/log`
 - `jctsh/components/remote-temp-sensor-01/heartbeat`
 
-Dedicated Mosquitto account `remote-temp-sensor-01` to be created per JCTsh-Build-Standards.md §2.11, added to CLAUDE.md credentials table. Hostname/IP reservation to be added to `jctsh-network.md` in Phase 3/4.
+Dedicated Mosquitto account `remote-temp-sensor-01` to be created per JCTsh-Build-Standards.md §2.11, added to CLAUDE.md credentials table. Hostname/IP reservation to be added to `network/jctsh-network.md` in Phase 3/4.
 
 ---
 
@@ -196,7 +196,7 @@ Dedicated Mosquitto account `remote-temp-sensor-01` to be created per JCTsh-Buil
 2. **Battery hatch fastening mechanism:** thumbscrew panel, friction-fit door, or something else — CAD-level decision once enclosure dimensions exist.
 3. **Vent insert adaptation:** hiking-monitor's louvered vent was sized for its own enclosure opening — dimensions need re-deriving for this enclosure's BME280 opening, not copied verbatim.
 4. **Screw length:** confirm actual M3 screw length needed once enclosure wall/insert dimensions exist (see Phase 2 BOM note) — do not assume the on-hand M3×6 kit screws are sufficient.
-5. **Hostname/IP reservation:** assign and record in `jctsh-network.md` once the device is ready to flash.
+5. **Hostname/IP reservation:** assign and record in `network/jctsh-network.md` once the device is ready to flash.
 6. **Measure AEDIKO 18650 charger+holder module's quiescent current** — required before the power budget above can be trusted; reuses the same bench tester-rig approach as hiking-monitor's CARD-0026 (break the battery's positive lead, multimeter in series, read steady-state current with the ESP32 in deep sleep).
 7. ~~P-FET sensor-gating circuit~~ **Resolved in Phase 4:** GPIO27 drives an on-hand BC557B PNP transistor as the high-side sensor power switch, substituting for a purchased P-FET. Buying a dedicated P-FET remains available as a future alternative if the BC557B proves inadequate during bench testing — not assumed necessary by default.
 

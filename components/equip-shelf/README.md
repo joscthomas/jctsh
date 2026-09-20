@@ -38,4 +38,4 @@ No further build documentation exists yet for these — added here as a real, if
 
 ## Related
 
-`automatic-garage-door-opener-closer` (the garage relay hardware hosted here), root `CLAUDE.md` (Pi/M8 infrastructure and services), `jctsh-network.md` (network topology).
+`automatic-garage-door-opener-closer` (the garage relay hardware hosted here), root `CLAUDE.md` (Pi/M8 infrastructure and services), `network/jctsh-network.md` (network topology).

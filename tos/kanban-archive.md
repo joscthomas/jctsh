@@ -220,7 +220,7 @@ Real nuance found while fixing it, though — reading the actual files (not just
 
 **Archived from `tos/kanban-board.md` on 2026-08-22 (CARD-0193)** — 8063B, over the 5000B size threshold.
 
-### CARD-0093 · [enhancement] [personal] Clean up DNS records on both `jctnet.com` and `jctnet.net` — RESOLVED 2026-07-27
+### CARD-0093 · [enhancement] [network] Clean up DNS records on both `jctnet.com` and `jctnet.net` — RESOLVED 2026-07-27
 **Status:** Done
 
 **Both originally-open decisions resolved 2026-07-27:** `jctnet.com`'s root `A`/parking records — full removal, domain goes fully dormant (Joseph opted for the simplest teardown, splitting the 3 still-wanted Google Sites pages out into **CARD-0103** instead of keeping any DNS around for them). `jctnet.net`'s dangling `google-site-verification` TXT — confirmed safe to remove; both `jctnet.com` and `jctnet.net` showed zero indexed pages in Search Console, so there was nothing live to lose, and `jctnet.com` isn't being re-verified in Search Console at all going forward (nothing left to index once it's parked).

@@ -23,7 +23,7 @@ Staggered one hour behind the Pi's own weekly reboot (Monday 3:00 AM) — the M8
 
 To check: `systemctl list-timers scheduled-reboot.timer`
 
-All containers on this host (Immich's four, NetAlertX, hike-izer-web, hike-izer-orchestrator, ring-mqtt) are on Docker's `restart: unless-stopped` policy and come back automatically after reboot — confirmed working 2026-07-08 after a manual power-cycle for outlet reconfiguration (see `keepconnect.md`).
+All containers on this host (Immich's four, NetAlertX, hike-izer-web, hike-izer-orchestrator, ring-mqtt) are on Docker's `restart: unless-stopped` policy and come back automatically after reboot — confirmed working 2026-07-08 after a manual power-cycle for outlet reconfiguration (see `network/keepconnect.md`).
 
 **Dashboard visibility (added 2026-07-08):** `scheduled-reboot.service` publishes
 `"Scheduled reboot about to occur."` (component `photo-server`, category `System`) to
@@ -41,4 +41,4 @@ via manual `systemctl start reboot-complete.service`.
 
 ## Router Reboot Coordination
 
-KeepConnect (the router rebooter — see `keepconnect.md`) resets the router on its own weekly schedule, currently landing on a day that has drifted from its original Wednesday setting. This is expected: KeepConnect's "every 7 days" timer appears to restart from *any* reset, scheduled or outage-triggered, so the weekday it lands on shifts over time and can't be relied on as fixed. The Pi and M8 reboot schedule above is intentionally not synchronized to it — a router reboot is a brief (~30 sec cut, ~4 min reconnect) network blip that both machines tolerate regardless of whether they happen to be mid-boot at the same time.
+KeepConnect (the router rebooter — see `network/keepconnect.md`) resets the router on its own weekly schedule, currently landing on a day that has drifted from its original Wednesday setting. This is expected: KeepConnect's "every 7 days" timer appears to restart from *any* reset, scheduled or outage-triggered, so the weekday it lands on shifts over time and can't be relied on as fixed. The Pi and M8 reboot schedule above is intentionally not synchronized to it — a router reboot is a brief (~30 sec cut, ~4 min reconnect) network blip that both machines tolerate regardless of whether they happen to be mid-boot at the same time.

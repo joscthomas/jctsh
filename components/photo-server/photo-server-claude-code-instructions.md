@@ -5,7 +5,7 @@
 **Version description:** Initial release.
 **Project:** JCTsh Photo Platform
 **Status:** Ready for execution
-**Related files:** `photo-server-phase1-planning.md`, `photo-server-phase2-planning.md`, `JCTsh-Build-Standards.md`, `jctsh-network.md`, `README.md`
+**Related files:** `photo-server-phase1-planning.md`, `photo-server-phase2-planning.md`, `JCTsh-Build-Standards.md`, `network/jctsh-network.md`, `README.md`
 
 ---
 
@@ -14,7 +14,7 @@
 Before any work begins, read:
 - `JCTsh-Build-Standards.md` (repo root) — documentation and integration standards apply even though this is not an ESP32 component
 - `photo-server-phase1-planning.md` and `photo-server-phase2-planning.md` (this component's planning history)
-- `jctsh-network.md` (repo root) — current device/IP table
+- `network/jctsh-network.md` — current device/IP table
 - `CLAUDE.md` (repo root) — existing JCTsh infrastructure, especially the DNS-pinning gotcha and Tailscale pattern
 
 This component has no relationship to the ESP32/MQTT/Node-RED ecosystem. Most of the ESP32-specific standards in `JCTsh-Build-Standards.md` do not apply. The standards that do apply: documentation completeness (§7), additive-first integration (§6.1), parts inventory check (already confirmed none apply), and git as the version record (no version suffix on files in this repo).
@@ -67,7 +67,7 @@ sudo apt install -y avahi-daemon
    ```
 2. Note the DHCP-assigned IP address and the interface's MAC address
 3. **Report the IP and MAC to Joseph** — he will reserve this IP on the router. Do not proceed to reserve it yourself; this is a router-side action outside Claude Code's scope.
-4. Once Joseph confirms the IP reservation, update `jctsh-network.md` (repo root) with a new row:
+4. Once Joseph confirms the IP reservation, update `network/jctsh-network.md` with a new row:
    ```
    | photo-server | <reserved IP> | photo-server.local | <MAC> | Immich photo server + photo-tv-display Node.js server; wired gigabit direct to router, DHCP-reserved |
    ```
@@ -89,7 +89,7 @@ sudo apt install -y avahi-daemon
    ```bash
    tailscale ip -4
    ```
-5. Update `jctsh-network.md` Tailscale table with the new entry:
+5. Update `network/jctsh-network.md` Tailscale table with the new entry:
    ```
    | photo-server | <tailscale IP> | Immich + photo-tv-display — reachable remotely for admin |
    ```
@@ -388,7 +388,7 @@ Per `JCTsh-Build-Standards.md` §7, create the following in `components/photo-se
 | `.env.example` | Template `.env` with placeholder values — never commit the real `.env` |
 | `setup.md` | This build's actual steps as executed — capture any deviations from this instruction set |
 | `migration.md` | Actual migration steps performed, including final photo counts and any errors encountered |
-| `network.md` | Final IP, hostname, MAC, Tailscale IP — cross-reference with `jctsh-network.md` |
+| `network.md` | Final IP, hostname, MAC, Tailscale IP — cross-reference with `network/jctsh-network.md` |
 | `operations.md` | How to check Immich is running, restart it, update it, check disk space on both USB HDDs, verify backup cron job is running |
 | `deletion-log-setup.md` | Apps Script source, Sheet ID (not the script's deployed URL/key — store that as a credential), local log file location |
 | `backup.md` | rsync backup script location, cron schedule, how to verify backup, capacity monitoring note for Momentus 640GB drive (flag at 550GB) |
@@ -403,7 +403,7 @@ Add `.env`, any API keys, and the Apps Script deployment URL/key to the gitignor
    ```
    | [photo-server](components/photo-server/) | Self-hosted Immich photo/video library on dedicated mini PC | Production |
    ```
-2. Confirm `jctsh-network.md` has been updated (Steps 2 and 3)
+2. Confirm `network/jctsh-network.md` has been updated (Steps 2 and 3)
 3. Add an entry to `jctsh-parts-inventory.md` inventory update log noting the hardware deployed:
    ```
    | <date> | photo-server | GMKtec M8 mini PC deployed (Immich server); Seagate Backup Plus 1TB USB HDD deployed (primary photo library); Seagate Momentus 640GB in Insignia enclosure deployed (local backup) |

@@ -550,7 +550,7 @@ Research questions for enclosure.md:
 Also do the following final housekeeping:
 1. Add `hiking-monitor` to root `README.md` Components list
 2. Add `hiking-monitor` to root `CLAUDE.md` credentials table (MQTT account)
-3. Add hiking-monitor IP, hostname `hiking-monitor.local`, and MAC to `jctsh-network.md` (obtain IP and MAC from ESPHome logs or router DHCP table)
+3. Add hiking-monitor IP, hostname `hiking-monitor.local`, and MAC to `network/jctsh-network.md` (obtain IP and MAC from ESPHome logs or router DHCP table)
 4. Update `JCTsh-Parts-Inventory.md` inventory update log (Step 13 above)
 
 **Joseph confirms:** README complete and accurate. All housekeeping items done.
@@ -600,7 +600,7 @@ Voice observations via Google Recorder → Google Docs → Apps Script → Hikin
 - **Pressure trend calculation:** Store a circular buffer of 16 pressure readings. Compare current reading to the reading 15 cycles ago (15 × 2 min = 30 min). Initialize all buffer slots to 0; guard against comparing to uninitialized slots (value == 0 means no history yet).
 - **Node-RED flow:** The wildcard `jctsh/components/+/data` handler is new infrastructure — it does not exist yet. Build it in Step 11. The existing `jctsh/+/+/log` and `jctsh/+/+/heartbeat` wildcard handlers already exist and catch the hiking monitor automatically.
 - **Apps Script auth:** The secret key in the URL query parameter is sufficient for this use case. No OAuth needed. URL format: `https://script.google.com/macros/s/<ID>/exec?key=<SECRET>`. Node-RED uses env vars for both.
-- **Network entry:** After first successful boot, retrieve hiking-monitor IP and MAC from the ESPHome log or router DHCP table. Add to jctsh-network.md. Reserve the DHCP IP on the router.
+- **Network entry:** After first successful boot, retrieve hiking-monitor IP and MAC from the ESPHome log or router DHCP table. Add to network/jctsh-network.md. Reserve the DHCP IP on the router.
 - **Bench-first rule:** Steps 14–18 (enclosure, field test) come after all bench steps are confirmed. Do not skip to enclosure before the full end-to-end test (Step 12) passes.
 - **Build Standards reference:** JCTsh-Build-Standards.md appears to have incorrect content (parts inventory instead of build standards). Standards are derived from existing component patterns (front-porch-temp-sensor, garage-radar) throughout these instructions. Joseph should investigate and restore the correct file.
 

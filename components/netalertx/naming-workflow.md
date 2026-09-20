@@ -20,7 +20,7 @@ Password: see `credentials.local.md` → NetAlertX (CARD-0059)
 1. **Open the dashboard** and check the device/presence list for anything flagged new or unknown since the last check.
 2. **For each new device:**
    - Check NetAlertX's own vendor guess (OUI-based, derived from the MAC prefix) as the first clue.
-   - Cross-reference the MAC against `jctsh-network.md`'s device table. If it matches a JCTsh-managed device (ESP32 fleet, Pi, M8, router, etc.), name it **identically** in NetAlertX — don't invent a second name for a device that already has one in the canonical table.
+   - Cross-reference the MAC against `network/jctsh-network.md`'s device table. If it matches a JCTsh-managed device (ESP32 fleet, Pi, M8, router, etc.), name it **identically** in NetAlertX — don't invent a second name for a device that already has one in the canonical table.
    - If it's not a JCTsh device, identify it from context (a new phone, a smart plug, a guest's device) where possible. If it can't be identified, rule out MAC randomization before assuming it's genuinely new (see gotcha below).
    - Assign a friendly name (and icon/group, if useful) in NetAlertX's UI.
 3. **Devices that can't be identified at all:** treat as worth a closer look, not a shrug-and-ignore — this is the actual security-relevant case NetAlertX exists to catch (an unrecognized device on the LAN).
@@ -38,6 +38,6 @@ Modern Android and iOS phones randomize their MAC address per network by default
 - Check that phone's WiFi settings for a per-network "Use randomized MAC" toggle.
 - Switch it to "Use device MAC" (or equivalent) for the home network specifically, so it gets one stable identity NetAlertX can actually track long-term.
 
-## Relationship to `jctsh-network.md`
+## Relationship to `network/jctsh-network.md`
 
-`jctsh-network.md` remains the canonical source for JCTsh-managed devices — DHCP reservations, ESPHome hostnames, MACs. NetAlertX is scoped to *everything else*: third-party/commercial devices the router won't let you rename (Ring, Ecobee, Cast devices, guest phones, etc. — the original motivation for CARD-0059). Don't let naming decisions drift between the two systems for the same device; NetAlertX mirrors the existing name for anything already in the canonical table, and only originates new names for devices that aren't.
+`network/jctsh-network.md` remains the canonical source for JCTsh-managed devices — DHCP reservations, ESPHome hostnames, MACs. NetAlertX is scoped to *everything else*: third-party/commercial devices the router won't let you rename (Ring, Ecobee, Cast devices, guest phones, etc. — the original motivation for CARD-0059). Don't let naming decisions drift between the two systems for the same device; NetAlertX mirrors the existing name for anything already in the canonical table, and only originates new names for devices that aren't.

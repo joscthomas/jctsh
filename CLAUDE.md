@@ -8,7 +8,9 @@ component (can it do X, is Y wired), check that component's own `README.md` firs
 **Files** table indexes the detail docs (`wiring.md`, `power-system.md`,
 `ESP32-project-pins.md`, `perfboard-layout.md`, etc.) — rather than inferring from a sibling
 component's build or from memory (`JCTsh-Operating-System.md`'s Engineering Discipline
-section). For what's installed and running on the Pi, see `SOFTWARE-ENVIRONMENT.md`.
+section). For what's installed and running on the Pi, see `SOFTWARE-ENVIRONMENT.md`. For
+what this repo (and every sibling repo under `Projects/`) is actually *for* — not the
+mechanical description, the real benefit and who it serves — see `tos/Repo-Purposes.md`.
 
 ## Session Start
 

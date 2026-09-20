@@ -6,9 +6,11 @@ description (that's `Projects/README.md`'s one-liner, and each repo's own `READM
 but the real benefit it serves and who it serves. Prompted by a sermon note (jctsh
 `tos/kanban-board.md` CARD-0320): "It's not just about the system, it is about the
 results, the benefits for people."
-**Version:** 1.2
-**Version description:** PB Blog's section written — all three repos now have a real,
-interviewed purpose section following the shared outline template.
+**Version:** 1.3
+**Version description:** Added `Rethinking Scripture Bible Study`'s section — a fourth
+repo under `Projects/`, created after this doc's first three entries. From v1.3 onward,
+writing this section is a standard step of `New-Repo-Setup-Protocol.md` (step 9) for any
+future repo, not something done after the fact.
 
 ---
 
@@ -86,9 +88,35 @@ forced) → Open question / where this is heading (if genuinely unresolved).
   archive, or Pastor Ben or his family compiling a book from the material. Who else
   might find it valuable isn't known, and that's fine — left open rather than forced.
 
+## Rethinking Scripture Bible Study
+
+- **Beneficiaries:** any Casas Church small group whose members have gone through
+  Pastor Glenn's "how to read the Bible" class — currently, Joseph's own small group,
+  beta-testing the material. Eventually intended for the small-group ministry and the
+  church more broadly.
+- **Origin:** Joseph's own participation in Casas Church leadership training, going
+  through Glenn's class multiple times, developed in partnership with the church's
+  small group ministry.
+- **Core value / how it works:** reinforces Glenn's class material through group
+  discussion — the study alone isn't sufficient to convey what the class covers, so
+  this exists to extend it. Not top-down teaching: each session's host facilitates
+  rather than teaches, and the actual value is in the discussion and interaction among
+  group members, not content delivery.
+- **Emergent/deeper purpose:** in service of Pastor Glenn's broader goal — changing the
+  church's culture around how people read and interpret the Bible. This material is one
+  instrument toward that larger cultural shift, not an end in itself.
+- **What this repo's toolset is actually for:** iterating on the material based on real
+  beta-test feedback — mostly informal notes from small-group discussion sessions, some
+  written notes from facilitators. Joseph believes this Claude Code toolset can help
+  process that feedback into the next improved version.
+- **Open question, not fully resolved:** ownership trajectory — expected to eventually
+  become official small-group-ministry material under the church's own ownership,
+  though Joseph may stay involved supporting it.
+
 ---
 
 **Related:** `Projects/README.md` (the one-line-per-repo quick-orient surface this
 deepens, not replaces), `tos/kanban-board.md` CARD-0320 (the card this doc fulfills),
 `tos/Protocol-Placement.md` (the shared-but-not-universal placement precedent this
-follows).
+follows), `tos/New-Repo-Setup-Protocol.md` (step 9 — writing a new repo's purpose
+section here is now a standard part of setting one up).

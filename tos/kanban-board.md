@@ -718,9 +718,11 @@ Archived to `tos/card-archive.md` on 2026-09-18 (CARD-0193) — 5758B, over the 
 
 **Open question, not yet resolved:** where cumulative elevation gain is sourced from on-device during a live hike (GPSLogger's own altitude field vs. barometric pressure via hiking-monitor's BME280) -- needs a real design pass before building, same as CARD-0208's own original design sketch.
 
-**Done when:** a real hike shows every whole-mile crossing announced audibly with both the mile count and a correct cumulative elevation-gain figure, cross-checked against hike-izer's own published elevation-gain stat for that hike.
+**Real dependency found, 2026-09-19 (CARD-0314) — this card's own reference value is currently wrong.** This card's "Interviewed" note above and its Done-when both anchor to "hike-izer's own published elevation-gain stat" — but CARD-0314 found that stat (`fetch_hike_data.py`'s `gain_ft`) is actually elevation *range* (`max − min`), not real cumulative ascent, and is getting fixed. **Don't build or validate this card against the current (buggy) figure** — wait for CARD-0314's corrected calculation, or this card's own on-device figure will "match" a wrong reference and both will be wrong together instead of one fixing the other.
 
-**Related:** CARD-0208 (Mile Announcer, the base this extends), `components/hiking-monitor/tasker/Mile-Announcement.prf.xml`, `components/hiking-monitor/hiking-monitor.yaml` (BME280 pressure/altitude sensor).
+**Done when:** a real hike shows every whole-mile crossing announced audibly with both the mile count and a correct cumulative elevation-gain figure, cross-checked against hike-izer's own published elevation-gain stat for that hike **(once CARD-0314's fix lands — see dependency above)**.
+
+**Related:** CARD-0208 (Mile Announcer, the base this extends), CARD-0314 (fixes the elevation-gain calculation this card depends on as its own reference/validation value), `components/hiking-monitor/tasker/Mile-Announcement.prf.xml`, `components/hiking-monitor/hiking-monitor.yaml` (BME280 pressure/altitude sensor).
 
 ---
 

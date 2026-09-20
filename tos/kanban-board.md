@@ -616,7 +616,7 @@ Wrote `tos/Portable-Kanban-Template.md` for the second piece of scope — card f
 
 ### CARD-0296 · [idea] [tos] Set up remote access for running Claude Code sessions away from the desktop
 
-**Status:** Backlog
+**Status:** Build
 
 **Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: "Set up remote access for Claude Code" — the finding body also carried a pasted walkthrough (from another assistant session, not a decision made here) proposing OpenSSH Server on the Windows machine + Tailscale + Termux on the Pixel, with a note that the author had no access to this repo and was guessing at the setup.
 
@@ -628,7 +628,7 @@ Wrote `tos/Portable-Kanban-Template.md` for the second piece of scope — card f
 3. **What "running Claude Code" actually needs to mean here** — a shell for git/status/commits only, versus genuinely doing editing work from a phone screen. These have very different setup costs and the walkthrough itself flags phone-screen editing as rough.
 4. **Whether the working tree should even live on the Windows box for this** — a session run from elsewhere against a different checkout raises the same concurrent-edit questions `CLAUDE.md`'s Concurrent Sessions section already covers, and CARD-0283 already tuned for.
 
-**Explicitly not started** — this card captures the goal and the open questions; no setup work has been done and no approach has been chosen.
+**In progress, 2026-09-20.** Joseph tried the Claude app on Android (2026-09-19) hoping to continue/drive a desktop Claude Code session from his phone, but it started its own new, disconnected session instead of connecting to one already running here — not yet the real answer to open question #1. Researching Claude Code's actual first-party remote mechanism (Remote Control vs. `claude.ai/code`) via the `claude-code-guide` agent before deciding an approach.
 
 **Done when:** a decided approach is written down (first-party remote vs. self-hosted SSH), and — if it needs building — a real Claude Code session has been run against this repo from the Pixel end to end, not just a shell login proven.
 

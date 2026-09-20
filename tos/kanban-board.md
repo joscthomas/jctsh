@@ -1038,6 +1038,8 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8255B, over th
 
 **Not yet scoped:** whether this script becomes throwaway (run once, findings folded into CARD-0232, script discarded) or worth keeping around for future re-benchmarking (e.g. if Plant.id is tried later) — decide at Build once the comparison is in hand.
 
+**Grass species called out as a specific thing to look for, 2026-09-19 (Joseph, via PR #100's auto-opened finding "grass species" — folded in here rather than landed as its own card, since it's a scoping note on this experiment, not a separate idea).** Grasses are a known-hard case for visual species ID (subtle, overlapping morphological differences) — worth specifically checking within the 64-photo comparison whether Pl@ntNet or Claude's existing captions actually distinguish grass species at all, or both just genericize to "grass"/"bunchgrass," rather than only noticing this gap after the benchmark is already done.
+
 **Related:** CARD-0232 (the design question this experiment resolves), `components/hike-izer-orchestrator/photo_captions.py` (the existing baseline this benchmarks against).
 
 ---

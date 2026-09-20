@@ -2,8 +2,8 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** Step-by-step checklist for reviewing and handling a PR opened against this repo by the auto-PR intake pipeline (`tos/README.md`).
-**Version:** 1.1
-**Version description:** Added the easily-satisfied-vs-save-for-later fork within the interview path (resolve immediately with permission and close, or land the card without working it right then), and a step to ask rather than guess when a finding's tag or target repo isn't obvious.
+**Version:** 1.2
+**Version description:** Made the "handle now vs. save for later" choice explicit for every real finding, not just ones Claude judges "easily satisfied" — found live 2026-09-19 reviewing PR #107, after noticing this same session had landed CARD-0311/0312/0313/0314 straight to Backlog without ever actually asking Joseph whether any of them should be worked immediately instead.
 
 ---
 
@@ -21,8 +21,9 @@
      1. Get Joseph's explicit go-ahead to proceed with this finding.
      2. Interview to fill in a real acceptance-criteria / "done" definition — not just the auto-opened title.
      3. Confirm the finished card text with Joseph.
-     4. **If the finding is easily satisfied** (a quick, low-risk fix, clear once interviewed) — ask Joseph's explicit permission to resolve it immediately. If he agrees, do the work, then run `python tos/land_pr_card.py --pr <N> --body path/to/card_body.md` with the card already written up as Done/RESOLVED, closing it out in the same pass.
-     5. **Otherwise** — land the card without working it right then: run `land_pr_card.py` with the confirmed text placed in whichever column (Backlog/Planning) actually reflects its state, and leave the work itself for a later session. Landing the card is not the same as resolving the finding — don't let "the card exists now" become an implicit decision to also do the work now.
+     4. **Ask explicitly whether Joseph wants it handled now or tracked for later — every time, not only when it looks easily satisfied.** Give an honest read on scope/effort as part of asking, but the decision is his to make, not Claude's to default. Don't let "this looks like real work" silently skip the question the way `land`-only handling would.
+     5. **If he says handle it now** — do the work, then run `python tos/land_pr_card.py --pr <N> --body path/to/card_body.md` with the card already written up as Done/RESOLVED (or Build, if it's not fully done in one pass), closing it out in the same session.
+     6. **Otherwise** — land the card without working it right then: run `land_pr_card.py` with the confirmed text placed in whichever column (Backlog/Planning) actually reflects its state, and leave the work itself for a later session. Landing the card is not the same as resolving the finding — don't let "the card exists now" become an implicit decision to also do the work now.
 
 4. **If the finding's tag (`[tos]`, `[hike-izer]`, etc.) or which repo it belongs to isn't obvious, ask — don't guess.** Some components now live in their own repos (e.g. `PB-Blog`, `LogSeq`, split out from `jctsh` per CARD-0298/CARD-0300/CARD-0305), so a finding can land on the wrong board entirely if the tag/repo is inferred rather than confirmed.
 

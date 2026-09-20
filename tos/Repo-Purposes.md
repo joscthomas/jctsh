@@ -6,11 +6,9 @@ description (that's `Projects/README.md`'s one-liner, and each repo's own `READM
 but the real benefit it serves and who it serves. Prompted by a sermon note (jctsh
 `tos/kanban-board.md` CARD-0320): "It's not just about the system, it is about the
 results, the benefits for people."
-**Version:** 1.1
-**Version description:** Restructured from narrative prose into a consistent outline
-(Joseph's call) — same template per repo, so entries stay scannable and comparable
-rather than requiring a full re-read each time. jctsh and LogSeq written; PB Blog still
-to come.
+**Version:** 1.2
+**Version description:** PB Blog's section written — all three repos now have a real,
+interviewed purpose section following the shared outline template.
 
 ---
 
@@ -66,7 +64,27 @@ forced) → Open question / where this is heading (if genuinely unresolved).
 
 ## PB Blog
 
-*Not yet written.*
+*Blog by Pastor Ben Walls, Sr. (pastorbenwalls.com). "Rethinking Scripture" is a separate repo (the new Bible study content, CARD-0317) — not this blog's title; corrected 2026-09-20 after conflating the two.*
+
+- **Beneficiaries:** blog readers, Pastor Ben, and Joseph himself — serving these
+  constituents while also learning through the editor role.
+- **Origin:** ~20 years serving as editor for Pastor Ben's devotional blog — learned
+  WordPress and the craft of editing/publishing itself first.
+- **Core value / satisfaction:** started as learning the craft of editing and
+  publishing; has grown into learning and using an increasingly augmented toolset
+  (Grammarly, and now Claude-assisted editing/formatting automation) — a genuine
+  learning bonus, echoing jctsh's AI-learning thread but in a different register: here
+  it's a welcome side benefit of the editorial work, not (yet) a deliberate central
+  direction the way it's become in jctsh.
+- **Real risk this repo addresses — not platform risk, key-person risk:** the concern
+  isn't WordPress disappearing, it's the risk of losing the person (Joseph) who's been
+  driving this for so many years. A clean, technology-independent representation of the
+  material — a real source of truth, per PB-Blog's own `kanban-board.md` CARD-0003 —
+  would outlast any one person's continued involvement, not just any one platform.
+- **Emergent purpose:** persisting Pastor Ben's legacy — a genuine service to him, with
+  benefit extending to his family. Possible futures this could enable: a searchable
+  archive, or Pastor Ben or his family compiling a book from the material. Who else
+  might find it valuable isn't known, and that's fine — left open rather than forced.
 
 ---
 

@@ -27,9 +27,11 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Not yet scoped:** what would actually need to live in a TOS repo if one existed (a shared Session Start template? a cross-repo card-numbering or PR-triage convention, like the one this exact session used to move findings between jctsh and LogSeq today?) — real examples exist now (this session lived them), but nothing has been abstracted into a reusable definition yet.
 
+**Second interim call, same discussion, 2026-09-19 — where to put the "protocol placement" meta-rule itself while this card stays open.** Wrote `tos/Protocol-Placement.md` (this repo) as the working answer for the still-open middle tier (protocols shared by *some* repos but not universal to every project Joseph works in) — **reusing `jctsh/tos/` as the pragmatic default for now** rather than inventing a new shared location before a second real need for one shows up, per Joseph's own call ("for now i thought we would keep using jctsh/tos unless we want to put it somewhere else"). Global `~/.claude/CLAUDE.md` now points at it. This is explicitly provisional — if this card ever produces a real dedicated shared location, `Protocol-Placement.md`'s own content (not just this card) would need to move too.
+
 **Done when:** not yet scoped — this card exists to hold the question, not to answer it prematurely.
 
-**Related:** CARD-0307 (created `tos/JCTsh-Session-Start.md`, the concrete example prompting this question), CARD-0301 (created the `Projects/` parent directory this card's "general session" concept would run at), CARD-0310 (the most recent addition to jctsh's own Session Start, itself a candidate for what a shared protocol might look like), `Projects/README.md` (today's lightweight, non-versioned answer to "orient a session starting at Projects/" — a stopgap this card's eventual answer might supersede).
+**Related:** CARD-0307 (created `tos/JCTsh-Session-Start.md`, the concrete example prompting this question), CARD-0301 (created the `Projects/` parent directory this card's "general session" concept would run at), CARD-0310 (the most recent addition to jctsh's own Session Start, itself a candidate for what a shared protocol might look like), `Projects/README.md` (today's lightweight, non-versioned answer to "orient a session starting at Projects/" — a stopgap this card's eventual answer might supersede), `tos/Protocol-Placement.md` (the interim middle-tier answer living here until/unless this card changes that).
 
 ---
 

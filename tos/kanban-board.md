@@ -9,7 +9,27 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0315 -->
+<!-- next-card-id: CARD-0316 -->
+
+---
+
+### CARD-0315 · [idea] [tos] Cross-repo protocol management — a general session that spans Projects/, and whether a dedicated TOS repo is eventually needed
+
+**Status:** Backlog
+
+**Raised 2026-09-19 (Joseph), out of a live discussion prompted by adding LogSeq's own editing-protocol rules.** While setting up a `tos/` directory for LogSeq (mirroring jctsh's own), Joseph asked how to reconcile what belongs in each repo's `tos/` versus something shared — noting that jctsh's 9-step Session Start (`tos/JCTsh-Session-Start.md`, CARD-0307) doesn't actually look jctsh-specific in its general shape (checking for uncommitted work, checking for a stray unmerged branch, reviewing open PRs) — it's a general "how does a Claude Code session start responsibly" pattern that LogSeq and PB-Blog would each plausibly want their own version of too.
+
+**The bigger picture Joseph is envisioning, not yet built:** a **general session that runs at the `Projects/` parent level and works across all three repos** — exactly the shape this session has actually been operating in today (jumping between jctsh, LogSeq, and back, handling the auto-PR intake queue, moving a finding to whichever repo it actually belongs on). Today that happened organically, session-by-session, with no standing definition of what such a session's own "start" procedure or cross-repo responsibilities should be.
+
+**Open question, deliberately not decided yet (Joseph: "I'm not sure at this point"):** whether this eventually warrants a **dedicated TOS repo** — a fourth repository (or some other durable, versioned location) holding protocols genuinely shared across jctsh/LogSeq/PB-Blog (and any future addition to this `Projects/` family), separate from truly universal preferences (which belong in the user's global `~/.claude/CLAUDE.md`, already established) and from protocols genuinely specific to one repo (which stay in that repo's own `tos/`).
+
+**Interim call made in the same discussion, not blocking this card:** a repo-specific rule found live this session ("steps/rules/protocols belong in dedicated `.md` files, never inlined in `CLAUDE.md` — `CLAUDE.md` only points at them") was judged to be a truly universal preference, not repo-specific, and destined for the global `~/.claude/CLAUDE.md` rather than repeated per-repo. This card is about the harder, still-open middle tier — protocols shared by *some* repos (or by a cross-repo session) but not universal to every project.
+
+**Not yet scoped:** what would actually need to live in a TOS repo if one existed (a shared Session Start template? a cross-repo card-numbering or PR-triage convention, like the one this exact session used to move findings between jctsh and LogSeq today?) — real examples exist now (this session lived them), but nothing has been abstracted into a reusable definition yet.
+
+**Done when:** not yet scoped — this card exists to hold the question, not to answer it prematurely.
+
+**Related:** CARD-0307 (created `tos/JCTsh-Session-Start.md`, the concrete example prompting this question), CARD-0301 (created the `Projects/` parent directory this card's "general session" concept would run at), CARD-0310 (the most recent addition to jctsh's own Session Start, itself a candidate for what a shared protocol might look like), `Projects/README.md` (today's lightweight, non-versioned answer to "orient a session starting at Projects/" — a stopgap this card's eventual answer might supersede).
 
 ---
 

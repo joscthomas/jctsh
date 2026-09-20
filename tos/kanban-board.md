@@ -9,7 +9,23 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0318 -->
+<!-- next-card-id: CARD-0319 -->
+
+---
+
+### CARD-0318 · [idea] [photo-server] Additional Immich widgets/automations — starting with a dynamic geofenced album
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #115, jctsh-core maintenance check).** Original finding text: "make a repo for photos." **Clarified 2026-09-19 (Joseph):** not a new repo — Immich already lives in `photo-server` (part of the photo-server cluster, alongside `photo-quality-review` and `photo-tv-display`). The actual idea is additional widgets/automations built on top of the existing Immich setup.
+
+**First concrete example given:** a dynamic album/folder that always contains photos falling within a certain geofence (a defined lat/lon boundary), updating automatically as new matching photos land in the library — rather than a manually-curated album.
+
+**Not yet interviewed:** whether this is meant as one specific geofence (e.g. the property itself, or a specific hiking area) or a general mechanism for defining any number of geofenced albums; how "always contains" should behave for photos already in the library before the geofence is defined (backfill vs. forward-only); and whether this uses Immich's own API (`find_or_create_album`-style, per CARD-0286's precedent) or some other mechanism.
+
+**Done when:** not yet scoped.
+
+**Related:** CARD-0286 (Immich album-creation precedent — `find_or_create_album`, the same API surface a geofenced album would likely reuse), `components/photo-server/`, `components/photo-tv-display/routes/immich.js` (existing proven Immich API endpoints).
 
 ---
 

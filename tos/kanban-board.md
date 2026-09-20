@@ -62,9 +62,11 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Not yet scoped:** what "Bible study" content actually consists of (notes, a specific study's materials, a recurring format), and whether it should follow the same portable-kanban-template pattern CARD-0301 built for LogSeq/PB-Blog.
 
-**Done when:** not yet scoped.
+**Prerequisite written 2026-09-19, folded in here (Joseph's call) rather than its own card** — `tos/New-Repo-Setup-Protocol.md`, the step-by-step procedure extracted from CARD-0297/CARD-0298's own execution (interview, secrets sweep, cruft cleanup, sync-service handling, backup-conflict check, `.gitignore` categories, kanban bootstrap, README, private GitHub repo, session note). This card's own execution should follow that protocol directly rather than rediscovering its steps.
 
-**Related:** CARD-0297 (LogSeq → repo, the precedent this follows), CARD-0298 (Pastor Ben blog → repo, same shape), CARD-0301 (created the `Projects/` parent directory and portable kanban template these repo-creation cards use).
+**Done when:** not yet scoped beyond following `tos/New-Repo-Setup-Protocol.md`'s own done-when checklist once this card's content questions are answered.
+
+**Related:** CARD-0297 (LogSeq → repo, the precedent this follows), CARD-0298 (Pastor Ben blog → repo, same shape), CARD-0301 (created the `Projects/` parent directory and portable kanban template these repo-creation cards use), `tos/New-Repo-Setup-Protocol.md` (the procedure this card's own execution should follow).
 
 ---
 
@@ -154,6 +156,7 @@ This is elevation **range**, not cumulative ascent. For any hike with rolling te
 1. Where the required GitHub PAT gets stored/scoped on the Pi (this repo already has a `GITHUB_PAT` pattern in `/etc/jctsh/github.env` for the maintenance-check auto-PR pipeline — likely reusable or a close precedent, not yet confirmed as directly reusable for read-only cross-repo fetches).
 2. Whether card IDs need a repo prefix in the rendered display to stay unambiguous (`CARD-0003` exists independently in both jctsh and LogSeq today).
 3. Whether Priority/status-marker badges (Auto verify/Watch for) apply the same way to LogSeq/PB-Blog cards, or whether those markers are jctsh-specific conventions not used on the simpler boards.
+4. **`[retracted]` cards on LogSeq's/PB-Blog's own boards need no special handling** — `_KANBAN_STATUS_RE` already silently skips any `**Status:**` value outside `Backlog`/`Planning`/`Build`/`Done`/`Defer` (`tos/New-Repo-Setup-Protocol.md`'s own finding, checked directly in `log_server.py`), so a retracted card on either board disappears from its swimlane the same way it already does on jctsh's — confirmed compatible, not something this card needs to add code for. Worth a real check against the live dashboard once swimlanes exist, not just trusted from this reasoning.
 
 **Scope folded in from PR #109, 2026-09-19 (Joseph's call — directly dependent on this card's own swimlane feature, not separate work).** Original finding: "enhance the combine board to be able to select the component" (garbled voice transcription — "combine board" = kanban board). Clarified: the dashboard should support **selecting by tag** (show only cards carrying a given tag) and **selecting a single swimlane** (once swimlanes exist per this card) — otherwise stack/show all swimlanes together, the default. Both are display/filter controls on top of the data-source work above, not a substitute for it.
 

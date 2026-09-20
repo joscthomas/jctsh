@@ -31,6 +31,9 @@ files themselves at any level (global, repo-root, or component).
   mature process home that exists, rather than inventing a new shared location
   preemptively. Revisit if `tos/kanban-board.md` CARD-0315's own open question (whether a
   dedicated shared/"TOS" location is eventually worth creating) ever gets a real answer.
+  **First real example: `tos/New-Repo-Setup-Protocol.md`** — the procedure for moving a
+  personal content domain into its own repo, applying to any `Projects/` repo, not jctsh
+  itself.
 
 **Related:** `tos/kanban-board.md` CARD-0315 (the open cross-repo protocol-management
 question this document's own placement is an interim answer to), `JCTsh-Operating-System.md`

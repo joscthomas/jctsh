@@ -28,6 +28,7 @@ here and how the pieces fit together — it doesn't repeat that content.
 | `JCTsh-Component-Session-Start.md` | Extended startup steps for a persistent component/cluster session, on top of `CLAUDE.md`'s general Session Start (CARD-0284/CARD-0290). |
 | `open_kanban_pr.py` | `open_finding_pr()` / `resolve_and_merge()` — opens a placeholder-stub PR against `kanban-board.md` for any finding/idea, and lands a reviewed PR as a real numbered card at merge time. Imported (as a sibling module) by `email-idea-check.py`, `pi-maintenance-check.py`, `maintenance-check.py`, and `hike-izer-orchestrator`'s `/webhook/idea` route. |
 | `land_pr_card.py` | Interactive-only script Claude runs (never automated) to land a PR as a fully-interviewed, real card — not just a renumbered stub. See its own docstring for the distinction from `resolve_and_merge()`. |
+| `pr-review-checklist.md` | Step-by-step checklist for reviewing/handling a PR from this pipeline — which merge-time path to use, the interview steps, and the confirm-before-landing step. Points at the scripts above for mechanics rather than repeating them. |
 | `email-idea-check.py` + `.service`/`.timer` | Polls `joscthomas+kbc@gmail.com` every 30 min for `jctsh-idea` emails (CARD-0151), calls `open_finding_pr()` for each. Deployed to the Pi. |
 | `kanban-pr-selftest.py` + `.service`/`.timer` | Daily self-test of the auto-PR intake pipeline itself (CARD-0192) — opens and closes a real PR against a test component so a broken pipeline is caught before a real finding needs it. |
 | `tasker-setup.md` | The `Log Idea` Tasker build steps — home-screen voice-capture widget feeding `/webhook/idea` (CARD-0241, moved here from `hike-izer-orchestrator`'s README since it's a TOS feature, not a hiking one). |
@@ -55,6 +56,8 @@ maintenance-check.py / pi-maintenance-check.py (scheduled findings) ──┘   
                                             (real interviewed card) — this is the only
                                             point that actually reads/writes kanban-board.md
 ```
+
+See `pr-review-checklist.md` for the step-by-step review/handling procedure.
 
 Nothing writes to `kanban-board.md` except at merge time, and only through
 one of the two merge-time functions above — see CARD-0190's card text for

@@ -9,7 +9,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0309 -->
+<!-- next-card-id: CARD-0310 -->
 
 ---
 
@@ -22,6 +22,26 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 **Not yet scoped:** whether an existing app/model does scat identification the way BirdNET Live does bird calls (an on-device classifier hike-izer could just parse the export from), or whether this needs a different mechanism entirely (e.g. an AI vision call inside hike-izer's own pipeline). A Planning-stage question, not decided here.
 
 **Related:** `components/hike-izer-orchestrator/birdnet-pipeline.md` (the audio-ID pattern this is modeled after), `components/hike-izer-orchestrator/birdnet.py`, `components/hike-izer-orchestrator/wildlife_life_list.py`.
+
+---
+
+### CARD-0309 · [enhancement] [tos] Add a PR review checklist for the auto-PR intake pipeline
+
+**Status:** Done — RESOLVED 2026-09-19
+
+**Raised and built 2026-09-19 (Joseph, direct instruction) — small enough to interview-by-instruction rather than a separate scoping pass.** Came out of a question about where the auto-PR intake pipeline's review/handling steps were documented — the answer was "scattered": the pipeline shape in `tos/README.md`, the merge-time mechanics in `open_kanban_pr.py`/`land_pr_card.py`'s own docstrings, and the interview-first policy rule in `JCTsh-Operating-System.md`, with no single place a reviewer lands to actually work through a PR.
+
+**Built:** new `tos/pr-review-checklist.md` — a step-by-step procedure (skip the `jctsh-pr-selftest` PR, read the raw finding, decide stub-vs-interview merge path, never merge without Joseph's go-ahead, confirm the landed result) that points at the existing scripts/docs for mechanics rather than duplicating them, per this document's own single-source-of-truth principle. Pointed at it from `tos/README.md` (file index + pipeline diagram) and `tos/JCTsh-Session-Start.md` step 4 (where open PRs actually get reviewed each session).
+
+**Done when:** the checklist file exists and is referenced from the places a reviewer would actually encounter the task. **Met, 2026-09-19.**
+
+**Committed and pushed** to `claude/pr-review-handling-t5b3ck` (not yet merged to `main`).
+
+**Follow-up, 2026-09-19 (Joseph, direct instruction) → checklist v1.1.** Added a fork the interview path didn't previously make explicit: once a finding is real enough to be interviewed and confirmed, decide whether it's easily satisfied — if so, ask Joseph's permission to resolve it immediately and close the card in the same pass; otherwise land the card without working it right then, saving the fix for later rather than treating "the card exists" as an implicit decision to also do the work now. Also added a step to ask rather than guess when a finding's tag or target repo isn't obvious, since some components now live in their own repos (`PB-Blog`, `LogSeq`) split out from `jctsh`.
+
+**Renumbered 2026-09-20 from a provisional CARD-0308 to the real CARD-0309** — this card was drafted on this feature branch before `main` had actually advanced, so its number was only ever provisional per this repo's own numbering design (real assignment happens at merge time, reading `main`'s marker fresh). PR #98 (the scat-identification finding) landed on `main` first and claimed CARD-0308 for real; this card is renumbered on merge with `main` to avoid the collision, per CARD-0128/CARD-0190's own stated rationale for why numbering is deferred rather than reserved at open time.
+
+**Related:** `tos/README.md` (pipeline description, now points here), `tos/pr-review-checklist.md`, `tos/open_kanban_pr.py`/`tos/land_pr_card.py` (mechanics this checklist points at instead of repeating), CARD-0304 (interview-first rule this checklist enforces), CARD-0128/CARD-0190/CARD-0192 (pipeline origin, zero-diff redesign, self-test exception), CARD-0298/CARD-0300/CARD-0305 (the repo splits behind the tag/repo-ambiguity step), CARD-0308 (the scat-identification card that claimed this card's original provisional number).
 
 ---
 

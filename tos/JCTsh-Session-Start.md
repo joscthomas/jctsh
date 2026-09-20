@@ -31,7 +31,9 @@ table for exactly which steps below get scoped, skipped, or run as-is.
    his go-ahead. **Exception: never surface the `jctsh-pr-selftest` PR** (CARD-0192's daily
    self-test of this same intake pipeline) — a PR from that component existing at all is a
    successful test result, not a finding needing a decision, and it closes itself
-   automatically on the next day's run. Skip it from the summary entirely.
+   automatically on the next day's run. Skip it from the summary entirely. See
+   `tos/pr-review-checklist.md` for the step-by-step review/handling procedure once Joseph
+   says how he wants a given PR handled.
 5. **Auto verify markers (date-based) — check for any card carrying an `Auto verify: <date>`
    marker whose date has already passed (CARD-0249, CARD-0251).** These mark a verification
    step that couldn't be done live at write time — usually because it depends on a future

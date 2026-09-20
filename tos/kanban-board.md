@@ -185,7 +185,9 @@ This is elevation **range**, not cumulative ascent. For any hike with rolling te
 
 **Done when:** met — both private repos' cards render in their own swimlanes on the live dashboard, repo isolation and per-swimlane tag filtering both work, verified live end-to-end (data-level and Joseph's own visual check), not just deployed.
 
-**Related:** `core/logging/log_server.py` (`_load_kanban_cards`, `_parse_kanban_board`, `_parse_kanban_board`'s new `simple` mode, `KANBAN_RAW_URL`), `/etc/jctsh/kanban-dashboard.env` (the new PAT), CARD-0301 (created the `Portable-Kanban-Template.md` both other boards share), CARD-0297/CARD-0298 (moved LogSeq/PB-Blog into their own repos), `tos/New-Repo-Setup-Protocol.md` (the retracted-card-compatibility finding this card confirmed live).
+**Extended 2026-09-20 (CARD-0317) — third repo added, same mechanism, no new architecture.** `Rethinking-Scripture-Bible-Study` added to `_KANBAN_PRIVATE_REPOS` and client-side `REPO_ORDER` (display label "Rethinking," Joseph's call). Joseph added the repo to the existing PAT's own repository access via the GitHub web UI himself (fine-grained PAT scope has no other edit path). Verified: PAT read access confirmed directly before touching code, live `/kanban/data` after deploy returned the expected 303+5+4+1=313 merge across all four repos.
+
+**Related:** `core/logging/log_server.py` (`_load_kanban_cards`, `_parse_kanban_board`, `_parse_kanban_board`'s new `simple` mode, `KANBAN_RAW_URL`), `/etc/jctsh/kanban-dashboard.env` (the new PAT), CARD-0301 (created the `Portable-Kanban-Template.md` both other boards share), CARD-0297/CARD-0298 (moved LogSeq/PB-Blog into their own repos), CARD-0317 (Rethinking Scripture Bible Study → repo, the third instance this card's mechanism was extended to), `tos/New-Repo-Setup-Protocol.md` (the retracted-card-compatibility finding this card confirmed live).
 
 ---
 

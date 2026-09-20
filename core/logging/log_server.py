@@ -62,6 +62,11 @@ _KANBAN_GITHUB_ENV = "/etc/jctsh/kanban-dashboard.env"
 _KANBAN_PRIVATE_REPOS = [
     ("LogSeq", "joscthomas/LogSeq"),
     ("PB-Blog", "joscthomas/PB-Blog"),
+    # CARD-0317: third repo, added to the same PAT's repository access via the
+    # GitHub web UI (Joseph, 2026-09-20) -- fine-grained PAT scope can't be
+    # edited any other way. "Rethinking" is a short display label; the actual
+    # repo is Rethinking-Scripture-Bible-Study.
+    ("Rethinking", "joscthomas/Rethinking-Scripture-Bible-Study"),
 ]
 
 # ── Shared state ─────────────────────────────────────────────────────────────
@@ -1330,14 +1335,14 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     { key: 'enhancement', label: 'Enhancement', varName: '--accent' },
     { key: 'idea', label: 'Idea', varName: '--idea' }
   ];
-  // CARD-0313: fixed order, not alphabetical or first-seen -- jctsh first
-  // since it's the original/primary board, the other two in the order they
-  // were actually split out (LogSeq, then PB-Blog). A repo with zero cards
-  // right now (including one whose fetch failed server-side, see
+  // CARD-0313/CARD-0317: fixed order, not alphabetical or first-seen -- jctsh
+  // first since it's the original/primary board, the rest in the order they
+  // were actually split out (LogSeq, PB-Blog, then Rethinking). A repo with
+  // zero cards right now (including one whose fetch failed server-side, see
   // _load_kanban_cards' soft-fail path) is simply absent from CARDS, so its
   // swimlane and filter-dropdown entry both disappear on their own --
   // nothing here needs to special-case that.
-  var REPO_ORDER = ['jctsh', 'LogSeq', 'PB-Blog'];
+  var REPO_ORDER = ['jctsh', 'LogSeq', 'PB-Blog', 'Rethinking'];
   var CARDS = [];
   var state = {
     q: '',

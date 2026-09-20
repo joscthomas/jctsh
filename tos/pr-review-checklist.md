@@ -2,8 +2,8 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** Step-by-step checklist for reviewing and handling a PR opened against this repo by the auto-PR intake pipeline (`tos/README.md`).
-**Version:** 1.2
-**Version description:** Made the "handle now vs. save for later" choice explicit for every real finding, not just ones Claude judges "easily satisfied" — found live 2026-09-19 reviewing PR #107, after noticing this same session had landed CARD-0311/0312/0313/0314 straight to Backlog without ever actually asking Joseph whether any of them should be worked immediately instead.
+**Version:** 1.3
+**Version description:** Step 2 now says to display the raw finding text verbatim before offering any interpretation — found live 2026-09-19 reviewing PR #109, after Claude's paraphrased guess at a garbled transcription ("combine board") turned out less useful than just showing Joseph the exact raw text so he could parse it himself.
 
 ---
 
@@ -13,7 +13,7 @@
 
 1. **Skip the self-test PR entirely.** If the PR is from `jctsh-pr-selftest` (CARD-0192's daily self-test of this same intake pipeline), it needs no review — its existence is a successful test result, not a finding needing a decision, and it closes itself on the next day's run. Don't merge, close, or otherwise act on it.
 
-2. **Read the raw finding.** The PR carries zero file diff — the finding's component and message live only in the PR's own title/body (CARD-0190). Read that, not `kanban-board.md`, which nothing touches until merge time.
+2. **Read the raw finding, then display it verbatim to Joseph before offering any interpretation.** The PR carries zero file diff — the finding's component and message live only in the PR's own title/body (CARD-0190). Read that, not `kanban-board.md`, which nothing touches until merge time. A voice-transcribed finding is often garbled — showing the exact raw text first (not a paraphrase or a guess dressed up as the finding) lets Joseph correct a misheard word himself rather than debugging Claude's interpretation of it.
 
 3. **Decide which merge-time path it needs — never a default:**
    - **Trivial / genuinely self-explanatory** (e.g. a routine container-image-update notice) → the auto-generated stub is fine. Run `resolve_and_merge()` (`tos/open_kanban_pr.py`), which renumbers the PR body straight into a card.

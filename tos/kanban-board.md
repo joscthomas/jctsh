@@ -2591,9 +2591,9 @@ Archived to `components/hiking-monitor/CLAUDE.md` on 2026-08-22 (CARD-0193) — 
 
 ---
 
-### CARD-0179 · [idea] [tos] Route captured voice notes to LogSeq, alongside the kanban PR pipeline — low priority
+### CARD-0179 · [idea] [tos] Route captured voice notes to LogSeq, alongside the kanban PR pipeline — RESOLVED 2026-09-20 15:22 MST
 
-**Status:** Backlog
+**Status:** Done
 
 **Priority:** Low — marked 2026-08-19 (Joseph). No hard deadline; revisit at Planning whenever Joseph wants to pick it up.
 
@@ -2620,9 +2620,11 @@ Real caveats before this becomes the plan (not yet resolved): unofficial/unsuppo
 
 **Real limitation, not solved by this decision:** alternative 1 only works when a Claude Code session is actually open and asked to do it — there's no unattended/automatic path (a voice note captured at 2am doesn't reach LogSeq until someone's next session). The original 2026-08-19 research (headless-LogSeq-in-Docker, or a hybrid where intake stays server-side but delivery is a scheduled desktop task) remains the answer *if* that gap ever becomes a real problem — deliberately not built now, per this project's own "build for the need in front of you" discipline, since today's actual pattern is idea capture happening in or near a live session anyway (the auto-PR intake pipeline's own review step, per `tos/pr-review-checklist.md`).
 
-**Done when:** met, for the alternative-1 mechanism — a Claude Code session with desktop access can write directly into `LogSeq`'s repo and have it reach every device via LogSeq Sync, confirmed live with three real examples 2026-09-19/20. The original "unattended automatic routing" scope is deliberately not pursued unless the limitation above becomes real; this card can move to Done on the mechanism question alone, or stay open if Joseph wants the unattended case tracked separately.
+**Done when:** met, for the alternative-1 mechanism — a Claude Code session with desktop access can write directly into `LogSeq`'s repo and have it reach every device via LogSeq Sync, confirmed live with three real examples 2026-09-19/20. The original "unattended automatic routing" scope is deliberately not pursued unless the limitation above becomes real.
 
-**Related:** CARD-0151 (email-to-kanban-card watcher this reuses/sits alongside), CARD-0173 (voice idea capture, Pixel to kanban PR — the existing pipeline this is *not* replacing), CARD-0297/CARD-0301 (created the git-backed LogSeq repo this mechanism depends on), `LogSeq/tos/Routing-Patterns.md` (the running log of what's actually been routed this way).
+**Closed 2026-09-20 (Joseph's call).** The unattended-routing gap noted above isn't being tracked as a separate open thread here — instead, `LogSeq/tos/kanban-board.md` CARD-0008 periodically reviews `Routing-Patterns.md`'s real routing instances and decides whether/when more automation (this card's original headless-LogSeq research, or something else) is actually justified. That's the live successor to this card's open question, not a reopening of it.
+
+**Related:** CARD-0151 (email-to-kanban-card watcher this reuses/sits alongside), CARD-0173 (voice idea capture, Pixel to kanban PR — the existing pipeline this is *not* replacing), CARD-0297/CARD-0301 (created the git-backed LogSeq repo this mechanism depends on), `LogSeq/tos/Routing-Patterns.md` (the running log of what's actually been routed this way), `LogSeq/tos/kanban-board.md` CARD-0008 (the live successor to this card's unattended-routing gap).
 
 ---
 

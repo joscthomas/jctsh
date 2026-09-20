@@ -24,7 +24,13 @@ files themselves at any level (global, repo-root, or component).
   of this pattern applied outside jctsh — see `LogSeq/tos/` once created.
 - **Genuinely universal, true regardless of the project** — belongs in Joseph's global
   `~/.claude/CLAUDE.md`, which already documents the general card/commit/push workflow
-  this same rule generalizes from.
+  this same rule generalizes from. That's the *pointer*'s home, per this doc's own opening
+  rule — the actual content still needs a discoverable, versioned file somewhere, and
+  nothing outside jctsh currently serves that role. **First real example:
+  `tos/Remote-Control-Setup.md`** (CARD-0296) — how to connect the Claude Android app to a
+  desktop session, genuinely unrelated to which project's repo happens to be open. Same
+  pragmatic call as the middle tier below: content lives in jctsh's `tos/` for now, for lack
+  of a better home, with a short pointer line added to the global `CLAUDE.md` itself.
 - **Shared by *some* projects but not universal to all of them** (e.g. a family of
   related personal repos under `Projects/`) — **no settled home yet.** Interim call,
   2026-09-19: reuse `jctsh/tos/` for this middle tier too, since it's already the most

@@ -16,6 +16,17 @@ table for exactly which steps below get scoped, skipped, or run as-is.
    up, summarize it to Joseph and ask how to handle it (commit now, stash and reconcile, or
    discard) before doing anything else that touches git — don't assume it's safe to ignore or
    work around silently.
+   **Also `git fetch` then `git branch -r --no-merged origin/main`, checking for remote
+   branches with real, complete work sitting unmerged (CARD-0310).** A mobile/cloud session
+   can commit and push finished, even Done-marked work to its own branch without ever merging
+   it back to `main` — found live 2026-09-19: CARD-0309 was built, verified, and marked Done
+   entirely on a branch (`claude/pr-review-handling-t5b3ck`) that nothing merged, undiscovered
+   until a routine `git fetch` happened to reveal it. **Exclude the auto-generated
+   `maintenance-alert/*` branches** (CARD-0128's intake pipeline) — those are expected to sit
+   unmerged until reviewed via `tos/pr-review-checklist.md`, not a sign of anything missed.
+   Anything else found is exactly this check's target: summarize it to Joseph, and if it looks
+   complete and Done, merge it in (checking for conflicts against any local work first, same
+   care as reconciling uncommitted local changes above) rather than leaving it stranded.
 2. The Build column of `tos/kanban-board.md` — what's actively in progress.
 3. Any card in `tos/kanban-board.md`, in any column, that's been updated in the last 7 days —
    catches recently-Done or recently-touched Backlog/Planning cards that Build alone would

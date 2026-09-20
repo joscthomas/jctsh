@@ -9,7 +9,23 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0310 -->
+<!-- next-card-id: CARD-0311 -->
+
+---
+
+### CARD-0310 · [enhancement] [tos] Session Start: check for unmerged remote branches with real work, not just local uncommitted changes
+
+**Status:** Done — RESOLVED 2026-09-19 18:47 MST
+
+**Raised 2026-09-19 (Joseph, direct instruction: "what can we do to make the mobile session work like it should," after "yes, add it" confirming the recommendation) — real incident-driven, not speculative.** CARD-0309 (a PR review checklist, genuinely built, verified, and marked Done) was completed entirely on a branch a mobile/cloud session pushed to (`claude/pr-review-handling-t5b3ck`) but never merged into `main`. Nothing in the existing Session Start checklist would have caught this — step 1's `git status --short` only sees the current session's own local working tree, not other branches sitting on `origin`. This session only found it by chance, via a `git fetch` run for an unrelated reason (reconciling a `next-card-id` collision with CARD-0308).
+
+**Root cause left genuinely open, not assumed:** whether the mobile session's branch-based workflow (instead of committing straight to `main`, as this desktop session does) is a fixable choice or an inherent platform behavior for mobile/cloud Claude Code sessions wasn't determined — out of scope for a repo-level doc to control either way. This card's fix is a **catch-it-every-session safety net**, not a prevention of the underlying cause.
+
+**Built:** extended `tos/JCTsh-Session-Start.md` step 1 with a second check — `git fetch` then `git branch -r --no-merged origin/main`, explicitly excluding the auto-generated `maintenance-alert/*` branches (CARD-0128's intake pipeline, expected to sit unmerged until reviewed via `tos/pr-review-checklist.md`, not a miss). Anything else found gets summarized to Joseph and merged in if it looks complete, same care as reconciling local uncommitted changes.
+
+**Done when:** the check is documented as a standing part of Session Start step 1. **Met, 2026-09-19.** (Real-world effectiveness — whether this actually catches the next stray branch — will only be confirmed the next time one exists; not a live-verified fix in the CARD-0279/0286 sense, since there's no stray branch to test against right now.)
+
+**Related:** CARD-0309 (the incident this responds to), CARD-0307 (created `tos/JCTsh-Session-Start.md` this card extends), CARD-0128/CARD-0190 (the `maintenance-alert/*` branch pattern this check must not false-positive on), `tos/pr-review-checklist.md` (where a real found branch/PR gets handled once surfaced).
 
 ---
 

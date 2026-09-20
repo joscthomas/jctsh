@@ -9,7 +9,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0317 -->
+<!-- next-card-id: CARD-0318 -->
+
+---
+
+### CARD-0317 · [idea] [tos] Create a new repo for Bible study content
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #110, jctsh-core maintenance check).** Original finding text: "create a repo for the Bible study and a tool that examines the questions for the feedback items I've received."
+
+**Scope:** create a new, separate repo for Bible study content — same pattern as CARD-0297 (LogSeq) and CARD-0298 (Pastor Ben blog), which each moved a distinct content domain into its own dedicated repo under `Projects/` rather than folding it into jctsh or an existing repo.
+
+**Note for whoever picks this up:** the original finding also mentions "a tool that examines the questions for the feedback items I've received" — not yet scoped or interviewed at all; captured here so it isn't lost, but it's a separate piece of work from the repo creation itself and needs its own interview before any building starts.
+
+**Not yet scoped:** what "Bible study" content actually consists of (notes, a specific study's materials, a recurring format), and whether it should follow the same portable-kanban-template pattern CARD-0301 built for LogSeq/PB-Blog.
+
+**Done when:** not yet scoped.
+
+**Related:** CARD-0297 (LogSeq → repo, the precedent this follows), CARD-0298 (Pastor Ben blog → repo, same shape), CARD-0301 (created the `Projects/` parent directory and portable kanban template these repo-creation cards use).
 
 ---
 

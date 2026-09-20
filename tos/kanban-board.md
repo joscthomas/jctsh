@@ -142,9 +142,9 @@ This is elevation **range**, not cumulative ascent. For any hike with rolling te
 
 ---
 
-### CARD-0313 · [enhancement] [tos] Add LogSeq and PB-Blog swimlanes to the live `/kanban` dashboard
+### CARD-0313 · [enhancement] [tos] Add LogSeq and PB-Blog swimlanes to the live `/kanban` dashboard — RESOLVED 2026-09-19
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-19, via the auto-PR intake pipeline (PR #103, jctsh-core maintenance check).** Original finding text: "create swimlanes for each additional repo on the kanban board." **Clarified 2026-09-19 (Joseph):** since LogSeq and PB-Blog now have their own separate `kanban-board.md` files (CARD-0297/CARD-0298/CARD-0301), the live `/kanban` dashboard should show all three repos' cards together, one swimlane per repo.
 
@@ -160,9 +160,26 @@ This is elevation **range**, not cumulative ascent. For any hike with rolling te
 
 **Scope folded in from PR #109, 2026-09-19 (Joseph's call — directly dependent on this card's own swimlane feature, not separate work).** Original finding: "enhance the combine board to be able to select the component" (garbled voice transcription — "combine board" = kanban board). Clarified: the dashboard should support **selecting by tag** (show only cards carrying a given tag) and **selecting a single swimlane** (once swimlanes exist per this card) — otherwise stack/show all swimlanes together, the default. Both are display/filter controls on top of the data-source work above, not a substitute for it.
 
-**Done when:** not yet scoped.
+**Interviewed 2026-09-19, remaining open questions resolved:**
+1. **PAT:** new, separate fine-grained PAT (`jctsh-kanban-dashboard-read`), Contents: Read-only, scoped to just `LogSeq`+`PB-Blog` — not a widened scope on the existing PR-write `jctsh` PAT, so a leak of one credential can't touch the other's capability. Deployed to `/etc/jctsh/kanban-dashboard.env`, `600 pi:pi` — verified against the live `jctsh-logging.service`'s actual `User=pi` directive first (not assumed), avoiding a repeat of the exact M8 `600 root-owned` permissions bug CARD-0128 hit once already for a different host.
+2. **No ID prefix** (Joseph's call) — swimlane grouping alone disambiguates `CARD-0003` in jctsh vs. LogSeq.
+3. **Marker badges apply as-is** — confirmed PB-Blog's own CARD-0001 already carries a plain-text `**Watch for:**` line; the shared parser picks it up and renders the badge correctly with zero extra code, verified live.
+4. **Retracted-card handling confirmed compatible live**, not just reasoned about (per the note above).
 
-**Related:** `core/logging/log_server.py` (`_load_kanban_cards`, `_parse_kanban_board`, `KANBAN_RAW_URL`), CARD-0301 (created the `Portable-Kanban-Template.md` both other boards share), CARD-0297/CARD-0298 (moved LogSeq/PB-Blog into their own repos).
+**Real architecture correction found during implementation, not assumed away either:** this card's own "shares jctsh's card format" claim was wrong — checked LogSeq's and PB-Blog's actual card headers directly and found a one-bracket `[type]` format (no `[tag]`), not jctsh's two-bracket `[type] [tag]`. jctsh's existing `_KANBAN_CARD_RE` would have matched **zero** cards on either board. Fixed with a second regex (`_KANBAN_CARD_RE_SIMPLE`) and a `simple=True` parse mode, `tag` left `None` rather than inventing one.
+
+**Built 2026-09-19:**
+- Server: `_load_kanban_cards()` fetches jctsh (public, required, unchanged) plus LogSeq/PB-Blog (private, best-effort via the new PAT + GitHub Contents API's raw-content Accept header) — a private-repo fetch failure just omits that swimlane (logged to the service's own journal), never takes the dashboard down, matching this codebase's existing soft-dependency philosophy for `GITHUB_PAT` (CARD-0128).
+- Client: `.board` now stacks one swimlane per repo present in the data (fixed order: jctsh, LogSeq, PB-Blog), each its own 5-column mini-board; a repo `<select>` isolates a single swimlane (PR #109). Tag filtering redesigned mid-build (Joseph's call, after seeing an initial single-global-dropdown version) into **one tag `<select>` embedded in each swimlane's own header**, scoped to that repo's own tags — filtering jctsh's cards no longer requires isolating it first or hiding LogSeq/PB-Blog.
+- Two real bugs caught and fixed before shipping: `data-id` wasn't repo-qualified (jctsh's and LogSeq's own `CARD-0001` would have cross-contaminated expand/collapse state — pure client bookkeeping, not the archive-lookup id, which correctly stayed bare); the tag badge rendered the literal string `"null"` for every LogSeq/PB-Blog card before being changed to render nothing when `card.tag` is falsy.
+
+**Verified, not just built:** local parser test against all three real files (303/5/4 cards, matching expectations) before any deployment; live `/kanban/data` on the Pi after deploy returned the same 303+5+4=312 merge; Joseph confirmed the rendered page directly — three swimlanes, repo isolation working, jctsh's swimlane (only) showing a tag dropdown, a card expanding correctly, and PB-Blog's `Watch for:` badge rendering.
+
+**Known follow-up, not this card's problem to solve:** Joseph noted LogSeq/PB-Blog cards will likely get real tags of their own soon — the current one-bracket "simple" parser has no tag-capture group at all, so that will need an explicit format decision (add a second bracket? repurpose something else?) when it actually happens, not assumed compatible with jctsh's own two-bracket convention.
+
+**Done when:** met — both private repos' cards render in their own swimlanes on the live dashboard, repo isolation and per-swimlane tag filtering both work, verified live end-to-end (data-level and Joseph's own visual check), not just deployed.
+
+**Related:** `core/logging/log_server.py` (`_load_kanban_cards`, `_parse_kanban_board`, `_parse_kanban_board`'s new `simple` mode, `KANBAN_RAW_URL`), `/etc/jctsh/kanban-dashboard.env` (the new PAT), CARD-0301 (created the `Portable-Kanban-Template.md` both other boards share), CARD-0297/CARD-0298 (moved LogSeq/PB-Blog into their own repos), `tos/New-Repo-Setup-Protocol.md` (the retracted-card-compatibility finding this card confirmed live).
 
 ---
 

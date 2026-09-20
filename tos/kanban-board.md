@@ -13,9 +13,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0320 · [idea] [tos] Think through and define the real purpose of each Projects/ repo — not just the system, the benefit to people
+### CARD-0320 · [idea] [tos] Think through and define the real purpose of each Projects/ repo — RESOLVED 2026-09-20
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-20 (Joseph), via jctsh's auto-PR intake pipeline (PR #123) — a note captured during a sermon, also already sitting in `LogSeq/journals/2026_09_20.md`'s own sermon notes.** Original finding text: "It's not just about the system, it is about the results, the benefits for people." **Clarified 2026-09-20:** this prompted a real question — think through and define the actual purpose of each repo under `Projects/` (jctsh, LogSeq, PB-Blog, and whatever comes next), not just what each one *is* mechanically, but what real benefit it's actually for.
 
@@ -27,11 +27,17 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Format restructured, 2026-09-20 (Joseph's call) — outline, not narrative prose.** Both entries rewritten against a consistent template (Primary beneficiary → Origin → Core value/satisfaction → Secondary beneficiaries → Emergent/secondary purpose → Open question), so entries stay scannable and comparable rather than each requiring a full re-read. `tos/Repo-Purposes.md` bumped to v1.1.
 
-**Not yet scoped:** PB-Blog's section — same interview approach, not yet done.
+**PB Blog's own section written, 2026-09-20, same interview approach.** Beneficiaries: blog readers, Pastor Ben, and Joseph himself. Real risk this repo addresses is key-person risk (losing Joseph, not losing WordPress), not platform risk. Emergent purpose: persisting Pastor Ben's legacy for his family and possible future use (a searchable archive, a compiled book). One real correction made along the way: initially mislabeled "Rethinking Scripture" as this blog's own title — it's actually a separate, fourth repo (`Rethinking-Scripture-Bible-Study`, CARD-0317's Bible study project) — caught and fixed before it propagated.
 
-**Done when:** all three repos (jctsh, LogSeq, PB-Blog) have a real, interviewed purpose section in `tos/Repo-Purposes.md`, following the same outline template. **jctsh and LogSeq met, 2026-09-20; PB-Blog still open.**
+**A fourth repo (`Rethinking Scripture Bible Study`, CARD-0317) already existed by the time this card was being worked — its own section written too, same interview approach.** Beneficiaries: Casas Church small groups whose members have gone through Pastor Glenn's "how to read the Bible" class. Core value: reinforces Glenn's class material through host-facilitated group discussion, not top-down teaching. Emergent purpose: in service of Glenn's broader goal of changing the church's culture around reading/interpreting scripture. This surfaced a real gap — that repo was created under `New-Repo-Setup-Protocol.md` v1.2, before a purpose-section step existed — fixed below.
 
-**Related:** CARD-0315 (the cross-repo protocol-placement precedent this reuses), `Projects/README.md` (the existing one-line-per-repo surface this deepens, not replaces), `tos/Protocol-Placement.md`, `tos/Repo-Purposes.md` (the doc this card produces).
+**Folded into `New-Repo-Setup-Protocol.md` v1.3, 2026-09-20 (Joseph: "include this process into the process of setting up a new repo").** Step 9 (`Write README.md`) now also covers interviewing for and writing the new repo's purpose section — every future repo gets this from the start, not discovered after the fact the way `Rethinking Scripture Bible Study` was.
+
+**Every repo's own `README.md`/`CLAUDE.md` now points at `tos/Repo-Purposes.md`, 2026-09-20 (Joseph: "does the README for each repo point at this?" — it didn't, for any of the four).** Fixed in jctsh's `CLAUDE.md`, LogSeq's `CLAUDE.md`, and PB Blog's/Rethinking Scripture's `README.md` (neither has its own `CLAUDE.md`). `Projects/README.md`'s own repo table also updated to list the fourth repo, which had been missing from it.
+
+**Done when:** every repo under `Projects/` has a real, interviewed purpose section in `tos/Repo-Purposes.md`, following the same outline template, and each repo's own README/CLAUDE.md points back at it. **Met, 2026-09-20 — all four repos (jctsh, LogSeq, PB Blog, Rethinking Scripture Bible Study).**
+
+**Related:** CARD-0315 (the cross-repo protocol-placement precedent this reuses), CARD-0317 (created the fourth repo this card also covers), `Projects/README.md` (the existing one-line-per-repo surface this deepens, not replaces), `tos/Protocol-Placement.md`, `tos/Repo-Purposes.md` (the doc this card produces), `tos/New-Repo-Setup-Protocol.md` (step 9, now includes this as a standard step for every future repo).
 
 ---
 

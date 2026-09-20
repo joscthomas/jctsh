@@ -31,7 +31,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ### CARD-0306 · [bug] [data-pipeline] Environmental Data pipeline overwrites a stationary device's own coordinates with the hiker's live GPS during a hike
 
-**Status:** Build — pipeline fix deployed and verified live (below); one outstanding manual step (historical data cleanup) before this is actually Done
+**Status:** Done — RESOLVED 2026-09-19 18:37 MST
 
 **Retitled 2026-09-19 (Joseph's question: "front porch sensor is stationary, why is it making GPS lookup calls?").** The original framing below (repeated HTTP 404s) turned out to be a minor symptom of a much more real problem this question surfaced — a stationary device's own correct coordinates silently getting overwritten by wherever the hiker currently is, whenever a hike happens to overlap in time. The 404 investigation is kept intact below as the thread that led here; the actual fix addresses the real bug, not the 404s.
 
@@ -72,9 +72,20 @@ All three timestamps fall well outside any hike window (front-porch-temp-sensor 
 
 **Built, 2026-09-19, following this repo's own established Apps Script deployment convention (confirmed via `card-archive.md`: no `clasp`/API tooling exists here — Claude cannot deploy or run Apps Script changes, Joseph has to paste-and-deploy manually, same as CARD-0215/CARD-0243 before it).** Added `fixFrontPorchCoordinates()` to `core/data-pipeline/environmental-data.gs`, same one-time-menu-item pattern as `cleanupDuplicateEnvironmentalData`/`cleanupDuplicateGpsTrack` right above it: iterates every `Environmental Data` row, and for any `front-porch-temp-sensor` row whose `lat`/`lon` doesn't already match the known-correct constant, overwrites just those two cells. Logs a summary (rows fixed / already correct / other sources untouched) via `Logger.log` and a UI alert. New menu item: **JCTsh → Fix Front-Porch-Temp-Sensor Coordinates (CARD-0306, one-time)**.
 
-**Outstanding — needs Joseph, same as every other Apps Script change in this repo:** paste the updated `environmental-data.gs` into the Apps Script editor, **Deploy → Manage deployments → pencil → Version: New version → Save**, reload the Sheet tab, then run **JCTsh menu → Fix Front-Porch-Temp-Sensor Coordinates (CARD-0306, one-time)** once. Expect the alert to report **569 fixed**. Safe to remove `fixFrontPorchCoordinates()` and its menu item afterward, same convention as the two cleanup functions beside it.
+**Deployed and run by Joseph, 2026-09-19.** One real gap caught along the way: the original build never bumped `SCRIPT_VERSION`, so there was no reliable way to confirm the paste-and-deploy had actually taken effect (Joseph: "not seeing the updated environmental-data.gs" — deploy had silently not landed yet). Fixed by bumping `SCRIPT_VERSION` to `2026-09-19.1-front-porch-coord-fix` and confirming `?action=version` returned it live before proceeding — exactly the tool this constant exists for, per its own comment. Once confirmed live, the menu item ran and reported:
+```
+Front-Porch-Temp-Sensor coordinate fix complete.
+Rows corrected: 569
+Already correct: 27137
+Other sources (untouched): 3467
+```
+**569 — matches this card's own predicted count exactly.**
 
-**Done when:** the forward-fix (met, see above) **and** the one-time historical correction has actually been run and confirmed (the menu's own alert reporting ~569 rows fixed, or a fresh `action=export` scan showing 0 remaining drifted rows) — not just built and waiting.
+**Independently re-verified against the live sheet, not just the alert text.** Re-ran the full `action=export` history scan (2026-06-14–2026-09-19, 27,687 front-porch-temp-sensor rows by now, more having landed since the original 27,625-row count): **0 rows remain drifted from the known-correct coordinate.** Both the forward fix (no new drift can occur) and the historical correction (no drift remains) are now confirmed live, independently, not inferred from either the deploy succeeding or the menu's own report alone.
+
+`fixFrontPorchCoordinates()` and its menu item left in place for now, same as `cleanupDuplicateEnvironmentalData`/`cleanupDuplicateGpsTrack` beside it — safe to remove, not yet done, matching actual practice on this file rather than the stated convention.
+
+**Done when:** the forward-fix (met, see above) **and** the one-time historical correction has actually been run and confirmed. **Both met, 2026-09-19.**
 
 **Related:** CARD-0279 (the retry/log mechanism that originally surfaced the 404s; same `env-data-gps-log-failure` node, now unreachable for this device), CARD-0258/CARD-0270/CARD-0275/CARD-0276 (the broader Apps-Script-under-load flakiness thread the 404s turned out not to really belong to), `core/data-pipeline/environmental-data.gs` (`doGet` action=lookup handler, `_gpsLookup`), `core/data-pipeline/environmental-data.flow.json` (`env-data-gps-prep`), `components/front-porch-temp-sensor/front-porch-temp-sensor.yaml` (the hardcoded coordinate this fix protects), `Node-RED-workflow.md` (the new API-patch deploy method this used), CARD-0215/CARD-0243 (the one-time-menu-item cleanup pattern `fixFrontPorchCoordinates` follows), CARD-0097 (the timezone-resolution consumer that's the only reason this data's correctness matters at all), CARD-0285 (confirms `hike-izer` never touches these rows, bounding this card's real-world impact).
 

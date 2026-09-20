@@ -9,7 +9,23 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0320 -->
+<!-- next-card-id: CARD-0321 -->
+
+---
+
+### CARD-0320 · [idea] [tos] Think through and define the real purpose of each Projects/ repo — not just the system, the benefit to people
+
+**Status:** Backlog
+
+**Raised 2026-09-20 (Joseph), via jctsh's auto-PR intake pipeline (PR #123) — a note captured during a sermon, also already sitting in `LogSeq/journals/2026_09_20.md`'s own sermon notes.** Original finding text: "It's not just about the system, it is about the results, the benefits for people." **Clarified 2026-09-20:** this prompted a real question — think through and define the actual purpose of each repo under `Projects/` (jctsh, LogSeq, PB-Blog, and whatever comes next), not just what each one *is* mechanically, but what real benefit it's actually for.
+
+**Where these definitions should live — not yet decided, Claude's recommendation given, Joseph hasn't confirmed:** `Projects/README.md` already holds a one-line purpose statement for each repo (from CARD-0307), but that file isn't version-tracked — `Projects/` itself isn't a git repo (CARD-0301). Recommended: a proper doc in `jctsh/tos/` for the deeper, reflective version (same interim "shared-but-not-universal lives in jctsh/tos/ for now" call `tos/Protocol-Placement.md` already made for CARD-0315), with `Projects/README.md`'s existing one-liners staying as the quick-orient surface and pointing to the fuller doc rather than being replaced by it.
+
+**Not yet scoped:** the actual content — what jctsh, LogSeq, and PB-Blog are each really *for*, beyond their mechanical descriptions, hasn't been thought through yet. This card is about deciding where that reflection lives and then doing it, not a substitute for doing it.
+
+**Done when:** not yet scoped.
+
+**Related:** CARD-0315 (the cross-repo protocol-placement precedent this reuses), `Projects/README.md` (the existing one-line-per-repo surface this would deepen, not replace), `tos/Protocol-Placement.md`.
 
 ---
 

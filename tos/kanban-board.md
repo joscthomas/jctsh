@@ -9,7 +9,23 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0311 -->
+<!-- next-card-id: CARD-0312 -->
+
+---
+
+### CARD-0311 · [enhancement] [hike-izer] Hike pages don't name the trail/trailhead, despite existing Overpass lookup infrastructure
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #99, jctsh-core maintenance check).** Original finding text (voice transcription, garbled): "make a Kaiser more spatially aware so of trailheads and names." **Clarified 2026-09-19 (Joseph): "Kaiser" = "hike-izer"** (a transcription artifact — the two are phonetically close). Interviewed the actual gap: hike-izer's published hike pages don't name the specific trail or trailhead a hike used.
+
+**Confirmed live, not assumed — checked today's real page.** `components/hike-izer-orchestrator/place_context.py` (CARD-0108) already exists specifically for this: its own module docstring states the base layer (OpenStreetMap Overpass, named park/school/trail features near the hike's coordinates) is "Always gathered (free, no cost) -- feeds the Location/Nearby Named Features page sections directly (CARD-0123), independent of whether narrative is on." But the real, just-published `2026-09-19_hike-summary.html` page has **no Location/Nearby Named Features section at all** — confirmed by direct inspection, not inferred.
+
+**Open question for Planning, not yet answered:** is `place_context.py` simply not being invoked for this page's generation tier (today's was explicitly a "data-only" summary, before photos/Gaia/bird data were staged — `hike-izer-orchestrator`'s own log message: "Ask for the rich version once photos/Gaia/bird data are staged"), or is it invoked but Overpass genuinely has no named trail/trailhead feature tagged near this hike's specific coordinates (a real OpenStreetMap data gap, not a code gap)? These have very different fixes — the first is a wiring gap in this pipeline, the second is either accepting the gap or falling back to something else (a manually-maintained trail-name lookup, e.g.) when OSM has nothing. Needs checking against the "rich" version of a recent hike (which does run the full pipeline) before assuming which case this is.
+
+**Done when:** not yet scoped — pending Planning's root-cause investigation above.
+
+**Related:** CARD-0108 (built the Overpass/Nominatim place-context infrastructure this gap sits inside), CARD-0123 (the Location/Nearby Named Features page section this should feed), `components/hike-izer-orchestrator/place_context.py`, `components/hike-izer-orchestrator/generation.py` (where the data-only vs. rich generation tiers diverge).
 
 ---
 

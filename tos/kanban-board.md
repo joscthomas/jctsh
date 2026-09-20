@@ -614,9 +614,9 @@ Wrote `tos/Portable-Kanban-Template.md` for the second piece of scope — card f
 
 ---
 
-### CARD-0296 · [idea] [tos] Set up remote access for running Claude Code sessions away from the desktop
+### CARD-0296 · [idea] [tos] Set up remote access for running Claude Code sessions away from the desktop — RESOLVED 2026-09-20
 
-**Status:** Build
+**Status:** Done
 
 **Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: "Set up remote access for Claude Code" — the finding body also carried a pasted walkthrough (from another assistant session, not a decision made here) proposing OpenSSH Server on the Windows machine + Tailscale + Termux on the Pixel, with a note that the author had no access to this repo and was guessing at the setup.
 
@@ -630,9 +630,9 @@ Wrote `tos/Portable-Kanban-Template.md` for the second piece of scope — card f
 
 **Approach decided, 2026-09-20 — first-party Remote Control**, resolving open question #1. Joseph's 2026-09-19 attempt (opening the Claude Android app cold) created a new, disconnected cloud session rather than reaching a desktop one — root cause confirmed via `claude-code-guide` research: Remote Control has to be started explicitly on the desktop side first (`/remote-control` inside an existing session, `claude --remote-control`, or standalone server mode) before the phone can see and connect to it. Full mechanics, multi-session behavior (yes — each session running `/remote-control` independently is reachable at once; server mode as a heavier pooling option not needed at this project's scale), and setup steps written up in `tos/Remote-Control-Setup.md`. `/remote-control` run inside this very session as the live test.
 
-**Not yet confirmed: the actual phone-side connection.** Enabling Remote Control on the desktop is only half of "done when" — still need Joseph to confirm he actually opened this session from the Android app and drove a message through it, not just that the desktop side is reachable.
+**Phone-side connection confirmed live, 2026-09-20** — Joseph connected to this exact session from the Android app and drove a message through it ("Yes, confirming now remotely"), received and acted on inside this same session. Real end-to-end proof, not just the desktop side being enabled.
 
-**Done when:** an approach is decided and written down (met — first-party Remote Control, `tos/Remote-Control-Setup.md`), and a real Claude Code session has been run against this repo from the Pixel end to end (not yet confirmed — desktop side enabled, phone-side connection still needs a real test).
+**Done when:** met. An approach is decided and written down (first-party Remote Control, `tos/Remote-Control-Setup.md`), and a real Claude Code session has been run against this repo from the Pixel end to end — confirmed live, both directions.
 
 **Related:** CARD-0128 (the auto-PR intake pipeline this was raised by), `CLAUDE.md` (Remote Access section — the existing Tailscale footprint any SSH approach would build on; Concurrent Sessions section), CARD-0283 (concurrent-session editing discipline, relevant if a second checkout enters the picture).
 

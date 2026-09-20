@@ -52,6 +52,17 @@ LOG_FILE    = os.path.join(LOG_DIR, "jctsh.log")
 STATE_FILE  = os.path.join(LOG_DIR, "state.json")
 MAX_ENTRIES = 1000
 KANBAN_RAW_URL = "https://raw.githubusercontent.com/joscthomas/jctsh/main/tos/kanban-board.md"
+# CARD-0313: LogSeq and PB-Blog got their own kanban-board.md once each moved
+# into its own repo (CARD-0297/CARD-0298) -- both private, so (unlike jctsh's
+# public raw-URL fetch above) reading them needs an authenticated GitHub
+# Contents API call. Deliberately a separate, read-only-scoped PAT from the
+# jctsh one already at /etc/jctsh/github.env (which has PR-write access) --
+# a leak of this one can only ever read two repos' kanban boards, nothing else.
+_KANBAN_GITHUB_ENV = "/etc/jctsh/kanban-dashboard.env"
+_KANBAN_PRIVATE_REPOS = [
+    ("LogSeq", "joscthomas/LogSeq"),
+    ("PB-Blog", "joscthomas/PB-Blog"),
+]
 
 # ── Shared state ─────────────────────────────────────────────────────────────
 _lock        = threading.Lock()
@@ -828,6 +839,17 @@ _KANBAN_COLUMNS = ["Backlog", "Planning", "Build", "Done", "Defer"]
 _KANBAN_CARD_RE = re.compile(
     r"^### CARD-(\d{4}) · \[(\w+)\] \[([\w-]+)\] (.+?)\s*$", re.MULTILINE
 )
+# CARD-0313: LogSeq/PB-Blog's boards (bootstrapped from
+# tos/Portable-Kanban-Template.md) use a simpler one-bracket header --
+# '[type]' only, no second '[tag]' bracket, since a single-purpose personal
+# repo has no per-directory tagging concept to record. Confirmed by reading
+# both repos' real files directly -- "shares jctsh's card format" (this
+# card's own earlier note) turned out to only be true for the Status/column
+# shape, not the header line; the original two-bracket regex matches zero
+# cards on either board.
+_KANBAN_CARD_RE_SIMPLE = re.compile(
+    r"^### CARD-(\d{4}) · \[(\w+)\] (.+?)\s*$", re.MULTILINE
+)
 # CARD-0114: a card's column now comes from its own '**Status:** X' line,
 # not from physical position under a '## ColumnName' section (that section
 # structure no longer exists in kanban-board.md at all -- every status
@@ -841,16 +863,27 @@ _KANBAN_STATUS_RE = re.compile(
 )
 
 
-def _parse_kanban_board(text):
-    """Parse kanban-board.md into a list of card dicts (id/type/tag/column/
-    title/notes/flag). Best-effort: only recognizes the file's established
-    '### CARD-XXXX · [type] [tag] Title' / '**Status:** ColumnName' (CARD-0114)
-    conventions — a card that doesn't match those, or that has no recognizable
-    Status line, is silently skipped, not an error."""
-    card_matches = list(_KANBAN_CARD_RE.finditer(text))
+def _parse_kanban_board(text, repo="jctsh", simple=False):
+    """Parse kanban-board.md into a list of card dicts (id/type/tag/repo/
+    column/title/notes/flag). Best-effort: only recognizes the file's
+    established '### CARD-XXXX · [type] [tag] Title' / '**Status:** ColumnName'
+    (CARD-0114) conventions — a card that doesn't match those, or that has no
+    recognizable Status line, is silently skipped, not an error.
+
+    CARD-0313: `simple=True` switches to the one-bracket header LogSeq/PB-Blog
+    actually use (see _KANBAN_CARD_RE_SIMPLE) and leaves `tag` as None -- those
+    boards have no per-directory tagging concept, so nothing is invented to
+    fill it. `repo` tags every card so the client can group them into
+    swimlanes; defaults to "jctsh" since that's the only caller that existed
+    before this card."""
+    card_re = _KANBAN_CARD_RE_SIMPLE if simple else _KANBAN_CARD_RE
+    card_matches = list(card_re.finditer(text))
     cards = []
     for j, m in enumerate(card_matches):
-        cid, ctype, ctag, title = m.group(1), m.group(2), m.group(3), m.group(4)
+        if simple:
+            cid, ctype, ctag, title = m.group(1), m.group(2), None, m.group(3)
+        else:
+            cid, ctype, ctag, title = m.group(1), m.group(2), m.group(3), m.group(4)
         body_start = m.end()
         body_end = (card_matches[j + 1].start() if j + 1 < len(card_matches)
                     else len(text))
@@ -863,7 +896,7 @@ def _parse_kanban_board(text):
         body = re.sub(r"(?m)^---\s*$", "", body).strip()
         body = re.sub(r"^\*\*Notes:\*\*\s*", "", body)
         card = {
-            "id": cid, "type": ctype, "tag": ctag,
+            "id": cid, "type": ctype, "tag": ctag, "repo": repo,
             "column": col_name, "title": title.strip(), "notes": body,
         }
         if re.search(r"(?m)^\*\*Blocked", body):
@@ -896,23 +929,59 @@ _kanban_cache_lock = threading.Lock()
 _kanban_cache = {"cards": None, "size": None, "fetched_at": 0.0}
 
 
+def _load_env(path):
+    """Same minimal KEY=value reader already used by tos/kanban-pr-selftest.py
+    and tos/email-idea-check.py -- no library needed for a one-line PAT file."""
+    env = {}
+    with open(path) as f:
+        for line in f:
+            if "=" in line:
+                k, v = line.strip().split("=", 1)
+                env[k] = v
+    return env
+
+
+def _fetch_private_kanban_text(repo_slug, pat):
+    """Fetch kanban-board.md's raw text from a private repo via the GitHub
+    Contents API (CARD-0313) -- the `application/vnd.github.raw+json` Accept
+    header returns the file's actual content directly, no base64 decode step
+    needed. Returns (text, size_in_bytes); raises on any failure (bad/expired
+    token, repo renamed, network issue, file missing) -- the caller decides
+    how to treat that (see _load_kanban_cards' per-repo try/except), so one
+    private repo being briefly unreachable doesn't take jctsh's own swimlane
+    down with it."""
+    url = f"https://api.github.com/repos/{repo_slug}/contents/kanban-board.md"
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {pat}",
+        "Accept": "application/vnd.github.raw+json",
+        "Cache-Control": "no-cache",
+    })
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        raw = resp.read()
+        return raw.decode("utf-8"), len(raw)
+
+
 def _load_kanban_cards():
-    """Pull kanban-board.md from GitHub (public repo) and parse it, with a
-    short TTL cache (CARD-0193) -- the /kanban page's own client JS polls
-    `/kanban/data` every 30s for as long as a tab stays open (see `load()`'s
-    `setInterval`), and this function used to re-fetch and re-parse the
-    entire raw file (1.15MB+ and growing) on every single one of those
-    calls, unconditionally, with no cache at all. A 20s TTL means repeat
-    polls from the same or multiple open tabs mostly hit the cache instead
-    of hammering GitHub raw + re-parsing every time, while staying well
-    under the client's own 30s poll interval so a real edit is never more
-    than one poll cycle stale. Freshness is still ultimately tied to
-    `git push`, not individual edits -- this only bounds how often that
-    push gets *checked for*, not how fresh a check can be. Returns
-    (cards, size_in_bytes), or (None, None) on any network failure
-    (offline, GitHub down, rate-limited, etc.); a failure does not fall
-    back to a stale cache -- same "surface the failure" behavior as
-    before, just added caching on the success path."""
+    """Pull kanban-board.md from jctsh (public repo, required) plus LogSeq and
+    PB-Blog (private repos, best-effort -- CARD-0313), and parse all three
+    into one combined card list, with a short TTL cache (CARD-0193) -- the
+    /kanban page's own client JS polls `/kanban/data` every 30s for as long
+    as a tab stays open (see `load()`'s `setInterval`), and this function
+    used to re-fetch and re-parse the entire raw file (1.15MB+ and growing)
+    on every single one of those calls, unconditionally, with no cache at
+    all. A 20s TTL means repeat polls from the same or multiple open tabs
+    mostly hit the cache instead of hammering GitHub raw + re-parsing every
+    time, while staying well under the client's own 30s poll interval so a
+    real edit is never more than one poll cycle stale. Freshness is still
+    ultimately tied to `git push`, not individual edits -- this only bounds
+    how often that push gets *checked for*, not how fresh a check can be.
+    Returns (cards, size_in_bytes), or (None, None) on any *jctsh* fetch
+    failure (offline, GitHub down, rate-limited, etc.) -- jctsh's own board
+    stays a hard requirement, same "surface the failure" behavior as before.
+    A LogSeq/PB-Blog fetch failure never triggers that None/None path -- it
+    just means that repo's swimlane is briefly absent, logged, not fatal, the
+    same soft-dependency philosophy the GITHUB_PAT read-side already uses
+    elsewhere in this codebase (CARD-0128)."""
     now = time.monotonic()
     with _kanban_cache_lock:
         if (_kanban_cache["cards"] is not None
@@ -929,8 +998,28 @@ def _load_kanban_cards():
     except (urllib.error.URLError, OSError, UnicodeDecodeError):
         return None, None
 
-    cards = _parse_kanban_board(text)
+    cards = _parse_kanban_board(text, repo="jctsh")
     size = len(raw)
+
+    try:
+        pat = _load_env(_KANBAN_GITHUB_ENV)["GITHUB_PAT"]
+    except (FileNotFoundError, KeyError):
+        pat = None
+    if pat:
+        for repo_name, repo_slug in _KANBAN_PRIVATE_REPOS:
+            try:
+                repo_text, repo_size = _fetch_private_kanban_text(repo_slug, pat)
+            except (urllib.error.URLError, urllib.error.HTTPError, OSError, UnicodeDecodeError) as e:
+                # Root logger, not _file_logger -- that one's formatter/handler is
+                # purpose-built for pre-formatted MQTT log entries (jctsh.log), not
+                # ad-hoc diagnostics. This goes to the service's own stderr, visible
+                # via `journalctl -u jctsh-logging` -- the right place for a rare,
+                # low-volume operational warning like this one.
+                logging.warning("kanban: %s fetch failed, omitted from dashboard: %s", repo_name, e)
+                continue
+            cards.extend(_parse_kanban_board(repo_text, repo=repo_name, simple=True))
+            size += repo_size
+
     with _kanban_cache_lock:
         _kanban_cache["cards"] = cards
         _kanban_cache["size"] = size
@@ -1122,7 +1211,27 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   .chip[aria-pressed="false"] { opacity: 0.55; }
   .chip .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--dot); opacity: 0.35; flex: none; }
   .chip:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .board { flex: 1; display: flex; gap: 1rem; padding: 1rem 1.5rem 1.25rem; overflow-x: auto; overflow-y: hidden; align-items: flex-start; }
+  /* CARD-0313: swimlane/tag filters, same visual language as .search/.chip above */
+  .filters { display: flex; gap: 0.4rem; }
+  .filters select {
+    font-family: var(--mono); font-size: 0.72rem; color: var(--ink);
+    background: var(--surface-2); border: 1px solid var(--line-strong);
+    border-radius: var(--radius); padding: 0.3rem 0.5rem; cursor: pointer;
+  }
+  /* CARD-0313: .board now stacks one section per repo (a "swimlane") vertically;
+     each swimlane keeps the original horizontal-scrolling column row inside it
+     via .swimlane__columns, so a single-repo view (or jctsh alone, before this
+     card) looks identical to the pre-swimlane layout. */
+  .board { flex: 1; display: flex; flex-direction: column; gap: 1.25rem; padding: 1rem 1.5rem 1.25rem; overflow-x: hidden; overflow-y: auto; }
+  .swimlane__head { display: flex; align-items: baseline; gap: 0.5rem; padding: 0 0.1rem; }
+  .swimlane__head .name { font-family: var(--mono); font-weight: 700; font-size: 0.9rem; letter-spacing: 0.02em; }
+  .swimlane__head .count { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-muted); }
+  .swimlane__head .swimlane-tag {
+    margin-left: auto; font-family: var(--mono); font-size: 0.68rem; color: var(--ink-muted);
+    background: var(--surface-2); border: 1px solid var(--line-strong);
+    border-radius: var(--radius); padding: 0.2rem 0.4rem; cursor: pointer;
+  }
+  .swimlane__columns { display: flex; gap: 1rem; overflow-x: auto; align-items: flex-start; }
   .column {
     flex: none; width: 21rem; display: flex; flex-direction: column; max-height: 100%;
     background: color-mix(in srgb, var(--surface) 55%, transparent);
@@ -1201,6 +1310,9 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       <input id="q" type="search" placeholder="Search cards, tags, notes…" autocomplete="off" />
     </div>
     <div class="chips" id="typeChips"></div>
+    <div class="filters">
+      <select id="repoFilter" title="Show one repo's swimlane only"></select>
+    </div>
   </div>
 </div>
 <div class="board" id="board"><div class="noresults">Loading…</div></div>
@@ -1218,11 +1330,25 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     { key: 'enhancement', label: 'Enhancement', varName: '--accent' },
     { key: 'idea', label: 'Idea', varName: '--idea' }
   ];
+  // CARD-0313: fixed order, not alphabetical or first-seen -- jctsh first
+  // since it's the original/primary board, the other two in the order they
+  // were actually split out (LogSeq, then PB-Blog). A repo with zero cards
+  // right now (including one whose fetch failed server-side, see
+  // _load_kanban_cards' soft-fail path) is simply absent from CARDS, so its
+  // swimlane and filter-dropdown entry both disappear on their own --
+  // nothing here needs to special-case that.
+  var REPO_ORDER = ['jctsh', 'LogSeq', 'PB-Blog'];
   var CARDS = [];
   var state = {
     q: '',
     types: { bug: true, enhancement: true, idea: true },
-    collapsed: { Done: true, Defer: true }
+    collapsed: { Done: true, Defer: true },
+    repo: '',
+    // CARD-0313 (Joseph's call, reworked from an earlier single-global-dropdown
+    // design): one tag filter per repo, not one global one -- each visible
+    // swimlane filters independently, so picking a tag for jctsh's swimlane
+    // doesn't hide or require isolating LogSeq's/PB-Blog's. Keyed by repo name.
+    tags: {}
   };
   try {
     var savedCollapsed = localStorage.getItem('jctsh-kanban-collapsed-v2');
@@ -1232,6 +1358,9 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     }
     var savedTypes = localStorage.getItem('jctsh-kanban-types');
     if (savedTypes) state.types = JSON.parse(savedTypes);
+    state.repo = localStorage.getItem('jctsh-kanban-repo') || '';
+    var savedTags = localStorage.getItem('jctsh-kanban-tags');
+    if (savedTags) state.tags = JSON.parse(savedTags);
   } catch (e) {}
   function escapeHtml(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1256,8 +1385,13 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   var flagLabels = { blocked: 'Blocked' };
   function cardMatches(card) {
     if (!state.types[card.type]) return false;
+    var repoTag = state.tags[card.repo];
+    if (repoTag && card.tag !== repoTag) return false;
     if (!state.q) return true;
-    var hay = (card.id + ' ' + card.title + ' ' + card.tag + ' ' + card.notes).toLowerCase();
+    // card.tag is null for LogSeq/PB-Blog cards (CARD-0313 -- their boards have
+    // no per-directory tagging concept) -- '' instead of the literal string
+    // "null" leaking into the search haystack.
+    var hay = (card.id + ' ' + card.title + ' ' + (card.tag || '') + ' ' + card.notes).toLowerCase();
     return hay.indexOf(state.q) !== -1;
   }
   function renderChips() {
@@ -1275,6 +1409,54 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
         render();
       });
     });
+  }
+  // CARD-0313 (PR #109's "select a single swimlane" request): repo options
+  // come from REPO_ORDER intersected with what's actually present in CARDS
+  // (see REPO_ORDER's own comment). Per-repo tag filtering lives in each
+  // swimlane's own header instead (see renderSwimlaneTagSelect below) --
+  // Joseph's call: tags are a jctsh-specific per-directory concept, so a
+  // single global tag dropdown either meant hiding the other swimlanes to
+  // use it, or showing a mostly-empty union across repos that mostly don't
+  // have tags at all.
+  var lastRepoKey = null;
+  function renderFilters() {
+    var repos = REPO_ORDER.filter(function (r) {
+      return CARDS.some(function (c) { return c.repo === r; });
+    });
+    var key = repos.join(',');
+    if (key === lastRepoKey) return;
+    lastRepoKey = key;
+    var repoEl = document.getElementById('repoFilter');
+    repoEl.innerHTML = '<option value="">All repos</option>' +
+      repos.map(function (r) { return '<option value="' + escapeHtml(r) + '">' + escapeHtml(r) + '</option>'; }).join('');
+    repoEl.value = repos.indexOf(state.repo) === -1 ? '' : state.repo;
+    if (repoEl.value !== state.repo) { state.repo = ''; try { localStorage.removeItem('jctsh-kanban-repo'); } catch (e) {} }
+  }
+  document.getElementById('repoFilter').addEventListener('change', function (e) {
+    state.repo = e.target.value;
+    try { localStorage.setItem('jctsh-kanban-repo', state.repo); } catch (err) {}
+    render();
+  });
+  // CARD-0313: distinct tags for one repo's swimlane header selector. Doesn't
+  // memoize like renderFilters/renderChips -- called once per swimlane per
+  // render() (at most 3x), cheap enough not to need it, and render() already
+  // has its own dirty-check gate in load() upstream.
+  function repoTags(repo) {
+    var tags = [];
+    CARDS.forEach(function (c) {
+      if (c.repo === repo && c.tag && tags.indexOf(c.tag) === -1) tags.push(c.tag);
+    });
+    return tags.sort();
+  }
+  function swimlaneTagSelectHtml(repo, tags) {
+    if (!tags.length) return '';
+    var current = state.tags[repo] || '';
+    return '<select class="swimlane-tag" data-repo="' + escapeHtml(repo) + '" title="Filter ' + escapeHtml(repo) + '\'s cards by tag">' +
+      '<option value="">All tags</option>' +
+      tags.map(function (t) {
+        return '<option value="' + escapeHtml(t) + '"' + (t === current ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
+      }).join('') +
+      '</select>';
   }
   // CARD-0193: a stub left by archive_cards.py reads "Archived to `<path>`
   // on ..." in its notes -- detect that shape to offer an on-demand fetch
@@ -1305,13 +1487,21 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       ? '<button type="button" class="archive-link" data-archive-path="' + escapeHtml(archiveMatch[1]) + '" data-archive-card="' + card.id + '">Show archived detail &rsaquo;</button>' +
         '<div class="archive-detail"></div>'
       : '';
+    // CARD-0313: data-id qualified by repo -- CARD-0001 exists independently
+    // in jctsh, LogSeq, and PB-Blog, and this attribute is purely a client-side
+    // open/collapsed-state key (see the openIds bookkeeping in render()), so an
+    // unqualified id would wrongly share expand-state across repos' same-numbered
+    // cards. Left card.id itself (and data-archive-card below) bare -- those
+    // still need to match jctsh's own archive_cards.py output exactly, a
+    // jctsh-only feature no other repo has.
+    var tagBadge = card.tag ? '<span class="ctag">[' + escapeHtml(card.tag) + ']</span>' : '';
     return (
-      '<details class="card" data-type="' + card.type + '" data-id="' + card.id + '">' +
+      '<details class="card" data-type="' + card.type + '" data-id="' + escapeHtml(card.repo) + '-' + card.id + '">' +
         '<summary>' +
           '<span class="cid">CARD-' + card.id + '</span>' +
           '<span class="ctype">' + card.type + '</span>' +
           '<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>' +
-          '<span class="ctag">[' + escapeHtml(card.tag) + ']</span>' +
+          tagBadge +
           '<span class="ctitle">' + escapeHtml(card.title) + '</span>' +
           (flags ? '<span class="cmeta">' + flags + '</span>' : '') +
         '</summary>' +
@@ -1321,6 +1511,42 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   }
   function allTypesOn() {
     return state.types.bug && state.types.enhancement && state.types.idea;
+  }
+  // CARD-0313: the original single-board COLUMNS.map(...) loop, extracted
+  // unchanged apart from taking its card lists as arguments instead of
+  // closing over module-level `visible`/`CARDS` -- called once per visible
+  // swimlane now instead of once for the whole page. `repoFiltered` decides
+  // whether to show the "n/total" fraction (search/type/tag filter active
+  // for *this* repo) instead of a global allTypesOn()+state.q check, since a
+  // tag filter is now per-repo, not a single page-wide toggle.
+  function renderColumnsHtml(repoVisible, repoAll, repoFiltered) {
+    return COLUMNS.map(function (col) {
+      // CARD-0251: a card carrying either Auto-verify-marker flavor (date-based
+      // `auto_verify` or event-based `watch_for`) is passively waiting on something
+      // outside this session's control -- it doesn't need attention right now, so it
+      // sorts after every other card in its column instead of competing for the top
+      // of the list on file-order alone. Array.sort is stable (ES2019+, every browser
+      // this page targets), so within each of the two groups the original file order
+      // -- which is what every other column already relies on -- is preserved.
+      var hasMarker = function (c) { return !!(c.auto_verify || c.watch_for); };
+      var cards = repoVisible.filter(function (c) { return c.column === col.key; })
+        .sort(function (a, b) { return (hasMarker(a) ? 1 : 0) - (hasMarker(b) ? 1 : 0); });
+      var total = repoAll.filter(function (c) { return c.column === col.key; }).length;
+      var collapsed = !!state.collapsed[col.key];
+      var body = cards.length
+        ? cards.map(cardHtml).join('')
+        : '<div class="column__empty">' + (total === 0 ? 'No cards here right now.' : 'No matches in this view.') + '</div>';
+      return (
+        '<section class="column" data-col="' + col.key + '" data-collapsed="' + collapsed + '">' +
+          '<button class="column__head" data-toggle="' + col.key + '">' +
+            '<span class="name">' + col.key + '</span>' +
+            '<span class="colcount">' + (repoFiltered ? cards.length + '/' + total : total) + '</span>' +
+          '</button>' +
+          '<div class="column__desc">' + col.desc + '</div>' +
+          '<div class="column__body">' + body + '</div>' +
+        '</section>'
+      );
+    }).join('');
   }
   function render() {
     var visible = CARDS.filter(cardMatches);
@@ -1334,38 +1560,42 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       openIds[d.getAttribute('data-id')] = true;
     });
     var scrollY = window.scrollY;
-    board.innerHTML = COLUMNS.map(function (col) {
-      // CARD-0251: a card carrying either Auto-verify-marker flavor (date-based
-      // `auto_verify` or event-based `watch_for`) is passively waiting on something
-      // outside this session's control -- it doesn't need attention right now, so it
-      // sorts after every other card in its column instead of competing for the top
-      // of the list on file-order alone. Array.sort is stable (ES2019+, every browser
-      // this page targets), so within each of the two groups the original file order
-      // -- which is what every other column already relies on -- is preserved.
-      var hasMarker = function (c) { return !!(c.auto_verify || c.watch_for); };
-      var cards = visible.filter(function (c) { return c.column === col.key; })
-        .sort(function (a, b) { return (hasMarker(a) ? 1 : 0) - (hasMarker(b) ? 1 : 0); });
-      var total = CARDS.filter(function (c) { return c.column === col.key; }).length;
-      var collapsed = !!state.collapsed[col.key];
-      var body = cards.length
-        ? cards.map(cardHtml).join('')
-        : '<div class="column__empty">' + (total === 0 ? 'No cards here right now.' : 'No matches in this view.') + '</div>';
+    // CARD-0313: one swimlane per repo that actually has cards right now,
+    // in REPO_ORDER's fixed order -- or just the one repo picked in
+    // repoFilter, if any. A repo whose fetch failed server-side (see
+    // _load_kanban_cards' soft-fail path) has no cards in CARDS at all, so
+    // its swimlane is simply absent here, no special-casing needed.
+    var repos = (state.repo ? [state.repo] : REPO_ORDER)
+      .filter(function (r) { return CARDS.some(function (c) { return c.repo === r; }); });
+    board.innerHTML = repos.map(function (repo) {
+      var repoAll = CARDS.filter(function (c) { return c.repo === repo; });
+      var repoVisible = visible.filter(function (c) { return c.repo === repo; });
+      var tags = repoTags(repo);
+      var repoFiltered = !!(state.q || !allTypesOn() || state.tags[repo]);
       return (
-        '<section class="column" data-col="' + col.key + '" data-collapsed="' + collapsed + '">' +
-          '<button class="column__head" data-toggle="' + col.key + '">' +
-            '<span class="name">' + col.key + '</span>' +
-            '<span class="colcount">' + (state.q || !allTypesOn() ? cards.length + '/' + total : total) + '</span>' +
-          '</button>' +
-          '<div class="column__desc">' + col.desc + '</div>' +
-          '<div class="column__body">' + body + '</div>' +
+        '<section class="swimlane" data-repo="' + escapeHtml(repo) + '">' +
+          '<div class="swimlane__head">' +
+            '<span class="name">' + escapeHtml(repo) + '</span>' +
+            '<span class="count">' + repoAll.length + ' card' + (repoAll.length === 1 ? '' : 's') + '</span>' +
+            swimlaneTagSelectHtml(repo, tags) +
+          '</div>' +
+          '<div class="swimlane__columns">' + renderColumnsHtml(repoVisible, repoAll, repoFiltered) + '</div>' +
         '</section>'
       );
-    }).join('');
+    }).join('') || '<div class="noresults">No repos to show.</div>';
     board.querySelectorAll('[data-toggle]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var k = btn.getAttribute('data-toggle');
         state.collapsed[k] = !state.collapsed[k];
         try { localStorage.setItem('jctsh-kanban-collapsed-v2', JSON.stringify(state.collapsed)); } catch (e) {}
+        render();
+      });
+    });
+    board.querySelectorAll('.swimlane-tag').forEach(function (sel) {
+      sel.addEventListener('change', function (e) {
+        var repo = sel.getAttribute('data-repo');
+        state.tags[repo] = e.target.value;
+        try { localStorage.setItem('jctsh-kanban-tags', JSON.stringify(state.tags)); } catch (err) {}
         render();
       });
     });
@@ -1434,6 +1664,7 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       lastDataStr = dataStr;
       CARDS = data.cards;
       renderChips();
+      renderFilters();
       render();
     }).catch(function (err) {
       document.getElementById('board').innerHTML = '<div class="noresults">Failed to load kanban-board.md: ' + err + '</div>';

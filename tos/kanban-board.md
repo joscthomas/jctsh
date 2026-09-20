@@ -9,7 +9,26 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0312 -->
+<!-- next-card-id: CARD-0313 -->
+
+---
+
+### CARD-0312 · [idea] [photo-server] Sync photo deletions from Google Photos to Immich
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #101, jctsh-core maintenance check).** Original finding text (voice transcription, garbled): "when I delete a photo out of Google photos I wanted to delete out of iMac as well." **Clarified 2026-09-19 (Joseph): "iMac" = Immich, "delete out of Immich too."** When a photo already imported into Immich is later deleted from Google Photos, it stays orphaned in Immich — nothing currently removes it.
+
+**Real gap confirmed, not assumed:** checked `components/photo-server/operations.md` — the existing `immich-go` integration is a **one-time Google Takeout migration** (a folder-upload batch job), not an ongoing sync. Nothing in this repo watches Google Photos for live changes (additions or deletions) at all.
+
+**Not yet scoped — open questions before Planning:**
+1. Is Google Photos still the active capture app for new photos day-to-day, or was it only ever the source of the original migration batch (i.e., is this "watch an actively-growing library for deletions" or "clean up strays from one historical import")? Very different scope depending on the answer.
+2. Does the Google Photos API expose a practical way to detect deletions at all (vs. only listing currently-existing items, requiring a diff against a prior snapshot)?
+3. Matching mechanism: how would a Google Photos item be reliably matched to its corresponding Immich asset (checksum, filename+timestamp, the `immich-go` import-batch tag already applied)?
+
+**Done when:** not yet scoped.
+
+**Related:** `components/photo-server/operations.md` (`immich-go`'s existing one-time migration, the closest precedent), `components/photo-server/migration.md`.
 
 ---
 

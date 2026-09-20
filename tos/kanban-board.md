@@ -9,7 +9,19 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0308 -->
+<!-- next-card-id: CARD-0309 -->
+
+---
+
+### CARD-0308 · [idea] [hike-izer] Scat identification from hike photos — analogous to BirdNET's audio wildlife ID
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #98, jctsh-core maintenance check).** Original finding text: "scat identification." Interviewed via PR review: Joseph wants automatic identification of animal scat photographed during a hike, analogous to how the existing BirdNET Live integration (CARD-0080, `birdnet-pipeline.md`) already does audio-based wildlife identification — the phone app does the actual classification, and hike-izer's pipeline just parses/renders the already-identified results into the hike page and the cross-hike Wildlife Life List.
+
+**Not yet scoped:** whether an existing app/model does scat identification the way BirdNET Live does bird calls (an on-device classifier hike-izer could just parse the export from), or whether this needs a different mechanism entirely (e.g. an AI vision call inside hike-izer's own pipeline). A Planning-stage question, not decided here.
+
+**Related:** `components/hike-izer-orchestrator/birdnet-pipeline.md` (the audio-ID pattern this is modeled after), `components/hike-izer-orchestrator/birdnet.py`, `components/hike-izer-orchestrator/wildlife_life_list.py`.
 
 ---
 

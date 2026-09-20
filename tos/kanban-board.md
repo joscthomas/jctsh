@@ -23,9 +23,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **jctsh's own section written, 2026-09-20 — via a real interview, not assumption.** Talked through who benefits (Joseph primarily, Robin secondarily), where it came from (a decade of general tech interest, accelerating sharply in the last year via ESP32/circuits/3D printing), what the actual satisfaction is (the multi-dimensional puzzle, problem-solving through to something working, a strong specific thread around building gadgets for hiking), and a second purpose that emerged from the first — ESP32 firmware work became the on-ramp to understanding AI-assisted development, now a deliberate direction in its own right ("using AI/Claude Code to build out a personal 'operating system'" — Joseph's own words, echoing this repo's `tos/` naming). See `tos/Repo-Purposes.md` for the full text.
 
-**Not yet scoped:** LogSeq's and PB-Blog's sections — same interview approach, not yet done.
+**LogSeq's own section written, 2026-09-20, same interview approach.** Primary beneficiary is Joseph; origin is a long-standing want to track notes across purposes, with LogSeq's own journal/tag/markdown model being what's actually worked. Core value: an ongoing pursuit central to Joseph's life (as a follower of Jesus, developing relationship with God, learning to love God and people), which the heaviest captured content resonates with — but explicitly not LogSeq's *only* purpose, just its most central thread. Open question, not yet resolved: how to actually leverage what accumulates here, not just capture and file it.
 
-**Done when:** all three repos (jctsh, LogSeq, PB-Blog) have a real, interviewed purpose section in `tos/Repo-Purposes.md`. **jctsh met, 2026-09-20; LogSeq and PB-Blog still open.**
+**Format restructured, 2026-09-20 (Joseph's call) — outline, not narrative prose.** Both entries rewritten against a consistent template (Primary beneficiary → Origin → Core value/satisfaction → Secondary beneficiaries → Emergent/secondary purpose → Open question), so entries stay scannable and comparable rather than each requiring a full re-read. `tos/Repo-Purposes.md` bumped to v1.1.
+
+**Not yet scoped:** PB-Blog's section — same interview approach, not yet done.
+
+**Done when:** all three repos (jctsh, LogSeq, PB-Blog) have a real, interviewed purpose section in `tos/Repo-Purposes.md`, following the same outline template. **jctsh and LogSeq met, 2026-09-20; PB-Blog still open.**
 
 **Related:** CARD-0315 (the cross-repo protocol-placement precedent this reuses), `Projects/README.md` (the existing one-line-per-repo surface this deepens, not replaces), `tos/Protocol-Placement.md`, `tos/Repo-Purposes.md` (the doc this card produces).
 

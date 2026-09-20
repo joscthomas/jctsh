@@ -6,14 +6,16 @@
 `Projects/` — extracted from CARD-0297 (LogSeq) and CARD-0298 (Pastor Ben blog), the two
 real instances that established this pattern, so the next one (e.g. CARD-0317, Bible study
 content) doesn't rediscover the same lessons from scratch.
-**Version:** 1.1
-**Version description:** Added a top-level "Confirmation gates" section and strengthened the
-`.gitignore` step (CARD-0317, 2026-09-20) — executing this protocol on a real third instance
-still skipped two things it already documented (visibility, card-migration confirmation) and
-one it hadn't (`.gitignore` as an explicit decision, not a silently-droppable step), because
-they were folded into the same general "yes, build this" that authorized the whole card.
-Writing a rule down once wasn't enough to survive contact with a real "just do it" instruction
-this same session already gave for the mechanical work.
+**Version:** 1.2
+**Version description:** Added step 13, optional `/kanban` dashboard onboarding (CARD-0317,
+2026-09-20) — folded into this doc rather than a separate one (Joseph's call): the procedure
+is small, jctsh-specific (not part of the new repo itself, hence "optional"), and has now
+happened three times in a row as the natural next step after repo creation.
+**Prior version (1.1):** added the "Confirmation gates" section and strengthened the
+`.gitignore` step, after this protocol's real third execution (CARD-0317) still skipped two
+things it already documented (visibility, card-migration confirmation) plus one it hadn't
+(`.gitignore` as an explicit decision) — all folded into the same general "yes, build this"
+that authorized the whole card.
 **Related:** `Protocol-Placement.md` (this doc's own placement — "shared by some projects,"
 interim home in jctsh's `tos/`), `Portable-Kanban-Template.md` (used in step 8), CARD-0297,
 CARD-0298 (the precedent), CARD-0301 (created `Projects/` itself and the portable template).
@@ -177,6 +179,28 @@ answers, any wrong-assumption corrections), what was cleaned up (with real count
 built, verification results, and a pointer to the new repo. This is the historical record —
 the new repo's own `README.md`/`kanban-board.md` don't need to repeat it.
 
+## 13. Optional: onboard to the live `/kanban` dashboard
+
+**Only if this repo's cards should actually show up on jctsh's own dashboard** — not every
+new repo needs this, and skipping it doesn't leave anything half-done. This is jctsh-specific
+tooling (it edits `core/logging/log_server.py`), not part of the new repo itself, which is why
+it's a separate optional step rather than folded into 8-11 above. Mechanism built by CARD-0313
+(added LogSeq+PB-Blog together), extended once since (CARD-0317, added Rethinking):
+
+1. Add `(<label>, <owner>/<repo>)` to `_KANBAN_PRIVATE_REPOS` and `<label>` to the client-side
+   `REPO_ORDER` in `core/logging/log_server.py`. `<label>` is a short display name for the
+   swimlane, Joseph's call — doesn't need to match the repo's own name (e.g. "Rethinking" for
+   `Rethinking-Scripture-Bible-Study`).
+2. **Joseph adds the new repo to the existing PAT's repository access** via the GitHub web UI
+   (Settings → Developer settings → Fine-grained tokens → the dashboard-read token) — scope on
+   a fine-grained PAT can't be edited any other way.
+3. Verify the PAT can actually read it *before* touching code — `curl` the Contents API
+   directly (see CARD-0313/CARD-0317 for the exact command) — don't assume the scope change
+   took effect.
+4. Deploy (`scp` + `sudo systemctl restart jctsh-logging` per `CLAUDE.md`'s standing
+   procedure), then verify live: `/kanban/data`'s per-repo card counts match what's actually
+   in each repo's `kanban-board.md`, not just that the service restarted cleanly.
+
 ## Done-when checklist
 
 - [ ] Interview questions (step 1) answered, not assumed
@@ -189,3 +213,5 @@ the new repo's own `README.md`/`kanban-board.md` don't need to repeat it.
 - [ ] `README.md` written, including the session-separation note
 - [ ] Private GitHub repo created and confirmed private, pushed
 - [ ] Originating jctsh card closed with a full summary
+- [ ] (Optional, step 13) `/kanban` dashboard onboarding — done, explicitly skipped, or
+      explicitly deferred; not just silently never mentioned

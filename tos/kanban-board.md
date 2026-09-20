@@ -9,7 +9,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0319 -->
+<!-- next-card-id: CARD-0320 -->
+
+---
+
+### CARD-0319 · [idea] [hike-izer] Add a photo curation step before sending hike photos to Claude for captioning
+
+**Status:** Backlog
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #116, jctsh-core maintenance check).** Original finding text (voice transcription, garbled): "curate the photos in Emmett before sending to Claude" — "Emmett" = Immich. **Clarified 2026-09-19 (Joseph):** create a curation step for hike pages, before that hike's photos get sent to Claude for captioning.
+
+**Real gap confirmed, not assumed.** Checked `components/hike-izer/fetch_hike_photos.py`'s `search_assets()` — selection is purely a time-window match against the hike's start/end (every Immich asset taken during that window), no quality/relevance filtering at all. Every photo in the window gets captioned and potentially published, with no step for Joseph to exclude a bad, irrelevant, or duplicate shot first.
+
+**Related existing infrastructure, not yet confirmed as directly reusable:** `components/photo-quality-review/` already does library-wide blur/duplicate/broken-image detection (czkawka + sharp) with its own review UI (keep/delete against Immich). That's a whole-library periodic groom, not scoped to one hike's photo set — whether this card should reuse its detection logic, present a similar review UI scoped to just one hike's candidate photos, or use a different mechanism entirely is an open Planning question, not decided here.
+
+**Not yet scoped:**
+1. What "curate" means in practice — deleting a photo from Immich outright, or just excluding it from this specific hike page while leaving it in the library?
+2. When curation happens — a manual step Joseph does after a hike (before the "rich version" is generated), or an automated pre-filter (blur/duplicate detection) with Joseph only reviewing edge cases?
+3. Whether this reuses `photo-quality-review`'s detection code or is a separate, hike-scoped mechanism.
+
+**Done when:** not yet scoped.
+
+**Related:** `components/hike-izer/fetch_hike_photos.py` (`search_assets`, the selection step this curation would sit in front of), `components/photo-quality-review/` (CARD-0028, the closest existing precedent for photo curation against Immich).
 
 ---
 

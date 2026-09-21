@@ -2224,7 +2224,9 @@ Once wired, the module's own onboard LED indicates charge status (charging vs. d
 ---
 
 ### CARD-0219 · [idea] [back-patio-temp-sensor] Build back patio temp sensor
-**Status:** Backlog
+**Status:** Build
+
+**Moved to Build 2026-09-21 (Joseph, explicit decision) — Design's Phase 4 Claude Code instruction set skipped, per the Observed Exception pattern (`JCTsh-Operating-System.md`): this is a proven, already-built design (front-porch-temp-sensor) with Planning's checklist resolved, not a novel build needing a separate instruction-writing pass first.
 
 **Raised 2026-08-27 (Joseph).** A duplicate of `front-porch-temp-sensor` (ESP32 + BME280 + BH1750, temperature-threshold notifications for opening/closing doors — see that component's README for the full existing design), monitoring the back patio instead of the front porch.
 
@@ -2232,9 +2234,25 @@ Once wired, the module's own onboard LED indicates charge status (charging vs. d
 - **Purpose:** same as front-porch-temp-sensor — warm/cool threshold notifications for door open/close decisions, just for the back patio location.
 - **Improvements over the original design:** deliberately left open. Joseph wants to "consider improvements" but has nothing specific in mind yet — a real look at `front-porch-temp-sensor`'s own design/card history (CARD-0165's Google Assistant work, any other lessons learned since it went to production) is worth doing at Planning, not guessed at here.
 
-**Done when:** not yet defined — Planning will need to interview further (back patio's own location/mounting/power specifics, what if any improvements get chosen, notification/automation scope) before real acceptance criteria exist.
+**Moved to Planning 2026-09-21 (Joseph).** No `components/back-patio-temp-sensor/` directory exists yet (correct per this board's own convention — appears at Build); this card's own body holds Planning content until then. Working `JCTsh-Property-Sensor-Pattern.md`'s New Sensor Checklist against the confirmed duplicate-of-front-porch design:
 
-**Related:** `components/front-porch-temp-sensor/` (the design this duplicates and the source of whatever improvements get considered), CARD-0165 (front-porch-temp-sensor's own Google Assistant voice-query work, worth checking whether the same pattern should extend here).
+- **Site confirmed live by Joseph, 2026-09-21:** back patio has genuine overhang coverage, an outlet within reach, and open-air mounting is fine — same siting profile as front-porch-temp-sensor (shade, no rain splash, near an outlet), no weatherproof enclosure needed.
+- **Location/geometry — resolved 2026-09-21 (Joseph measured on-site; corrected same day — the outlet sits *between* the patio's SW/SE corners, not past the SE corner).** `house-lot-coordinates.md`'s H1 ("Patio NW, rear-west corner") confirmed as the patio's actual physical NW corner (outer edge). Patio is 12 ft deep (H1 south to the house wall, where the SW/SE corners sit) × 28 ft long along that wall. From the SW corner: outlet at 16 ft east, SE corner at a further 12 ft east (28 ft total). Recorded in `house-lot-coordinates.md` as points **P1** (SW, 32.4614183/-111.1184924), **P2** (outlet, 32.4614183/-111.1184405), **P3** (SE, 32.4614183/-111.1184016), **P4** (NE, by closure, 32.4614512/-111.1184016). **Sensor mounts at the outlet — firmware hardcodes P2 (32.4614183, -111.1184405) as the fixed lat/lon (Joseph, 2026-09-21).**
+- **Power:** USB/mains, same as front-porch — no `battery_v` field, none of `JCTsh-Build-Standards.md` §2.14's battery-safety rules apply.
+- **Connectivity — resolved 2026-09-21 (Joseph checked on-site):** Home WiFi signal confirmed reaching the outlet mount point (P2). Home WiFi only, `pi1.local` broker.
+- **Offline handling:** none needed (always-connected, same as front-porch).
+- **Intervals:** defaults — 60s sensor read, 5 min data, 30 min heartbeat.
+- **Sensor complement:** BME280 (`temp_f`, `humidity_pct`, `pressure_hpa`) + BH1750 (`illuminance_lx`) — both already in the standard schema via front-porch, no new payload fields needed.
+- **Enclosure:** open standoff mount (default), consistent with confirmed site conditions.
+- **Custom automation — deliberately deferred to post-build (Joseph, 2026-09-21):** decide mirror-vs-new (and whether to extend CARD-0165's Google Assistant pattern, checking for a Google-side naming collision first, same as CARD-0165 hit with an unrelated SmartThings sensor) once the sensor itself is up and running, not during Planning.
+- **SmartThings exposure:** front-porch has none (voice access went through HA Cloud/Nabu Casa directly, no SmartThings involved) — default to none here too unless Joseph wants otherwise.
+- **Carried-over build gotchas from front-porch's own history:** BME280 VCC must be 3.3V not VIN/5V despite module silkscreen; BH1750 ADDR must tie to GND, never float; the mandatory `chown root:mosquitto` step after any `mosquitto_passwd` run (`JCTsh-Build-Standards.md` §2.11); Tucson sanity-check ranges (~70–115°F, ~925 hPa at ~750m elevation) for post-flash validation. Front-porch's original Podazz BME280 batch was counterfeit BMP280 (no humidity) — since resolved with a genuine module (confirmed working, Joseph 2026-09-21) — still worth verifying chip ID at flash time for whichever unit goes into this build, especially if sourced from the same listing.
+- **Parts — resolved 2026-09-21.** ESP32 DevKitC-32, BME280 (genuine GY-BME280, Bag 3), and BH1750 (GY-302, Bin C3) confirmed on hand and allocated to this card in `JCTsh-Parts-Inventory.md` (v2.32). Perfboard, M3 standoffs/screws/nuts, USB-C cable, and USB power adapter confirmed on hand by Joseph directly (not itemized in inventory). Prototyping stage skipped deliberately (Joseph, 2026-09-21) — going straight to perfboard, not breadboard, since this is a proven stable design already built once on front-porch-temp-sensor.
+- **Network/DHCP — deliberately deferred to testing (Joseph, 2026-09-21):** IP/hostname/MAC reservation in `network/jctsh-network.md` happens when the physical ESP32 is actually connected and its MAC is readable, not guessed at during Planning. Not a Planning item.
+
+**Done when:** the New Sensor Checklist above is resolved to the point Design/Build can start, and a Phase 4 Claude Code instruction set exists per `JCTsh-Component-Planning-Pattern.md`. Network/DHCP reservation and custom-automation scope are both explicitly deferred past Planning (to testing and post-build respectively) — neither is a Done-when blocker here.
+
+**Related:** `components/front-porch-temp-sensor/` (the design this duplicates and the source of whatever improvements get considered), CARD-0165 (front-porch-temp-sensor's own Google Assistant voice-query work, worth checking whether the same pattern should extend here), `house-lot-coordinates.md` (point P1, the new mount-point entry), `JCTsh-Property-Sensor-Pattern.md` (checklist being worked here).
 
 ---
 

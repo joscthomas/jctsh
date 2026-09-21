@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.31
-**Version description:** Added BK-1208 latching mini on/off switch ×50 (Bin D5), satisfying the part `components/air-quality-monitor/wiring.md` already called for but that was never logged as stocked.
+**Version:** 2.32
+**Version description:** Allocated ESP32 DevKitC-32, BME280 (GY-BME280), and BH1750 (GY-302) to back-patio-temp-sensor (CARD-0219, Planning) — parts confirmed on hand, not yet consumed.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -54,7 +54,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 
 | Component           | Description                                  | Qty | Location | Notes                                                                         |
 |---------------------|----------------------------------------------|-----|----------|-------------------------------------------------------------------------------|
-| ESP32 DevKitC-32    | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT; supplemented with a second 6-pack (ESP-32D, CP2102, 38-pin, STA/AP/STA+AP, WiFi+BT dual-core, Type-C), ASIN B0DSZBH9N9. https://www.amazon.com/dp/B0DSZBH9N9 | 7   | Bag 1    | 1 used: garage radar. 1 used: front-porch-temp-sensor. 1 used: hiking-monitor. 6 received 2026-07-13 (second 6-pack, merged into this row). **1 discarded 2026-07-14 (CARD-0026)** — confirmed defective, bad flash chip communication (`esptool`: "Failed to communicate with the flash chip"), ruled out as a cable/port/bootloader-entry issue by successfully flashing a second spare board on the same setup; thrown away rather than returned to stock. Qty 8 → 7. 1 currently allocated: CARD-0026 sleep-current test rig (temporary, not a permanent deployment). |
+| ESP32 DevKitC-32    | hiBCTR 6-pack, 38-pin, CP2102 USB-C, WiFi+BT; supplemented with a second 6-pack (ESP-32D, CP2102, 38-pin, STA/AP/STA+AP, WiFi+BT dual-core, Type-C), ASIN B0DSZBH9N9. https://www.amazon.com/dp/B0DSZBH9N9 | 7   | Bag 1    | 1 used: garage radar. 1 used: front-porch-temp-sensor. 1 used: hiking-monitor. 6 received 2026-07-13 (second 6-pack, merged into this row). **1 discarded 2026-07-14 (CARD-0026)** — confirmed defective, bad flash chip communication (`esptool`: "Failed to communicate with the flash chip"), ruled out as a cable/port/bootloader-entry issue by successfully flashing a second spare board on the same setup; thrown away rather than returned to stock. Qty 8 → 7. 1 currently allocated: CARD-0026 sleep-current test rig (temporary, not a permanent deployment). 1 allocated: back-patio-temp-sensor (CARD-0219). |
 | ESP32 (salt sensor) | Separate board, not from 6-pack              | 1   | Deployed | Deployed on salt sensor project.                                              |
 
 ---
@@ -74,9 +74,9 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | Component | Description | Qty | Location | Notes |
 |---|---|---|---|---|
 | HLK-LD2412 | EC Buying, 24GHz mmWave radar, UART, ±75°, 9m range | 0 | Discarded | 1 used: garage radar project. Bag 18 confirmed empty and discarded during the 2026-08-20 bag-to-bin reorg. |
-| BH1750 (GY-302) | hiBCTR 3-pack, illumination/light sensor, I2C | 5 | Bin C3 (was Bag 19) | 1 used: front-porch-temp-sensor. |
+| BH1750 (GY-302) | hiBCTR 3-pack, illumination/light sensor, I2C | 5 | Bin C3 (was Bag 19) | 1 used: front-porch-temp-sensor. 1 allocated: back-patio-temp-sensor (CARD-0219). |
 | BMP280 (sold as BME280) | Podazz 3-pack, counterfeit — pressure/temp only, no humidity, I2C, 5V | 2 | Bin B3 (was Bag 2) | 3 returned 2026-05-26. 2 spares removed from front-porch-temp-sensor. |
-| BME280 (GY-BME280) | 2PCS packs, genuine — temp/humidity/pressure, I2C/SPI, 5V breakout | 3 | Bag 3 | 1 deployed: front-porch-temp-sensor (2026-05-26). 1 used: hiking-monitor. 2 spares. |
+| BME280 (GY-BME280) | 2PCS packs, genuine — temp/humidity/pressure, I2C/SPI, 5V breakout | 3 | Bag 3 | 1 deployed: front-porch-temp-sensor (2026-05-26). 1 used: hiking-monitor. 2 spares. 1 allocated: back-patio-temp-sensor (CARD-0219). |
 | LTR390 UV Light Sensor | Adafruit #4831, STEMMA QT / Qwiic I2C, UV and ambient light, 3.3V/5V. https://www.amazon.com/dp/B0BPR31P59 | 1 | Bin B2 (was Bag 22) | 1 used: hiking-monitor. 1 spare. |
 | SparkFun SEN-23715 | Sensirion **SEN55** (corrected 2026-07-09 — was mislabeled SEN54; part number SEN-23715 is the genuine SEN55 per SparkFun's own product listing), particle (PM1/2.5/4/10), VOC, NOx, humidity, temperature, I2C/UART. | 1 | Plastic Box | Allocated: air-quality-monitor project. Matches the air-quality-monitor plan's SEN55 requirement (NOx included) — no substitution occurred. **Caveat:** this correction trusts that the physical item on hand actually carries part number SEN-23715, which hasn't been checked against the item's own label/silkscreen — worth a quick physical glance next time the box is open. |
 | Adafruit SEN54/SEN55 Adapter Breakout | STEMMA QT / Qwiic, I2C adapter breakout for Sensirion SEN54/SEN55. | 1 | Bag 25 | Allocated: air-quality-monitor project. |
@@ -309,3 +309,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-09-14 | Stock | AreMe 90° USB-C M-F adapter ×8 received as a 4-pack (ASIN B0H3JNGX1D, same item as the existing 2-pack B0B2NJ3P3L), Cables and Adapters, Bin D1 — qty 2 → 10 |
 | 2026-09-14 | Stock | Corrected HiLetgo CP2102 USB to TTL module physical location: Bin D4 → Bin C6 |
 | 2026-09-14 | Stock | Adhesive wall mount bracket for Ring Indoor Cam ×2 (ASIN B0DLB9YQ2J) received, added to Prototyping and Build Hardware, new Bag 40 |
+| 2026-09-21 | back-patio-temp-sensor | ESP32 DevKitC-32 (Bag 1), BME280/GY-BME280 (Bag 3), BH1750/GY-302 (Bin C3) allocated to CARD-0219 (Planning) — on hand, not yet consumed. Perfboard, standoffs, screws/nuts, USB-C cable, and USB power adapter confirmed on hand by Joseph directly, not checked here. |

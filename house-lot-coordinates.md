@@ -1,8 +1,8 @@
 # House & Lot Coordinates — 7172 W. Cape Final Trail
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Approximate lat/lon coordinates for property corners, house footprint corners, and edge midpoints, derived from the Pulte Homes plot plan (Plan 4215-3 A(R), Lot 324, Dove Mountain).
-**Version:** 1.1
-**Version description:** Renamed point H8's description from "Front notch, north step" to "Front Porch" (point ID unchanged).
+**Version:** 1.3
+**Version description:** Corrected the back-patio measurement from v1.2 — the outlet lies *between* the patio's SW and SE corners, not past the SE corner. Replaced the single (wrong) P1 point with four points: SW corner, outlet, SE corner, and NE corner (closure).
 
 ---
 
@@ -71,6 +71,21 @@ Corners are listed in order going around the footprint (clockwise from the rear-
 | H9 → H10 (notch, west side) | 32.4612915 | -111.1184416 |
 | H10 → H11 (porch front wall) | 32.4612833 | -111.1184670 |
 | H11 → H1 (west wall) | 32.4613673 | -111.1184924 |
+
+---
+
+## Other Named Points
+
+Points here are not footprint corners — added on demand for specific siting needs (e.g. a sensor mount), derived from Joseph's on-site tape-measurements offset from the nearest known footprint corner rather than the plan's pixel scale. Same approximate precision as the rest of this document.
+
+**Back Patio, corrected 2026-09-21 (Joseph, CARD-0219 Planning):** H1 is the patio's NW corner (existing point, at the patio's *outer* edge). The patio is 12 ft deep (H1 south to the house wall) — this is where the SW/SE corners below sit, at the actual wall the outlet is mounted on. The outlet lies 16 ft east of the SW corner along that wall, with the SE corner a further 12 ft east of the outlet (28 ft total SW→SE, matching the patio's known length). NE corner added by closure (same latitude as H1, same longitude as SE) — not independently measured.
+
+| Point | Description | Latitude | Longitude |
+|---|---|---|---|
+| P1 | Back Patio, SW corner (at house wall, 12 ft south of H1) | 32.4614183 | -111.1184924 |
+| P2 | Back Patio, outlet (16 ft east of P1 along the house wall) | 32.4614183 | -111.1184405 |
+| P3 | Back Patio, SE corner (12 ft east of P2 / 28 ft east of P1) | 32.4614183 | -111.1184016 |
+| P4 | Back Patio, NE corner (closure only — same latitude as H1, same longitude as P3) | 32.4614512 | -111.1184016 |
 
 ---
 

@@ -15,7 +15,7 @@ Confirm all sensor values updating every ~60 seconds in HA Overview page.
 - [x] Temperature — plausible (~70–115°F in Tucson)
 - [x] Pressure — ~13.4–13.5 psi (~925–930 hPa for Tucson elevation)
 - [x] Illuminance — changes with ambient light
-- [x] Humidity — shows Unknown (expected with BMP280 substitution)
+- [x] Humidity — plausible (%, genuine BME280 installed — resolved 2026-09-21, see `flashing.md`)
 
 ---
 

@@ -137,15 +137,17 @@ After flashing, confirm all of the following before proceeding to Step 6:
 | Sensor | Reading | Notes |
 |---|---|---|
 | Temperature | 85.5°F | Plausible for Tucson, May 25 |
-| Humidity | Unknown | BMP280 counterfeit — no humidity sensor. Restore when genuine BME280 arrives. |
+| Humidity | Unknown at the time — resolved 2026-09-21, see note below | BMP280 counterfeit — no humidity sensor. |
 | Pressure | 13.46 psi (~928 hPa) | HA displays in psi (US unit system). 928 hPa correct for Tucson ~750m elevation. |
 | Illuminance | 75.9 lx | Plausible shade reading |
 
-All entities visible in HA: yes (humidity shows Unknown — expected)
+All entities visible in HA: yes (humidity showed Unknown at the time of this test — resolved since, see below)
 Log messages visible in dashboard: yes
 Heartbeat visible in dashboard: yes — firing every 5 minutes
 
-**Deviations from expected:**
+**Resolved 2026-09-21 (Joseph):** genuine BME280 modules installed, replacing the counterfeit Podazz batch below. Humidity reads correctly; the YAML has run `platform: bme280_i2c` (not `bmp280_i2c`) since the swap.
+
+**Deviations from expected (as of this 2026-05-25 test — since resolved, above):**
 - Podazz BME280 3-pack (all 3 units) are counterfeit BMP280 — "Wrong chip ID" error on BME280 driver. Temporarily running `bmp280_i2c` platform. Genuine BME280 modules ordered; swap back documented in YAML comments.
 - First 1–2 heartbeats after boot report `temp: unavailable` — expected. BMP280 `update_interval: 60s` means the first reading hasn't completed before the 5-minute heartbeat fires immediately at boot. Third heartbeat correctly shows temperature.
 - `pi1.local` occasionally fails DNS resolution on first attempt (IPv6/mDNS issue). MQTT reconnects automatically via IP on retry — not a blocker.

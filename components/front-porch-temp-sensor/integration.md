@@ -10,7 +10,7 @@ ESPHome MQTT discovery registers the device automatically on first MQTT connect.
 
 Confirm in HA:
 - Settings → Devices & Services → MQTT → front-porch-temp-sensor
-- Entities present: Temperature, Pressure, Illuminance (Humidity shows Unknown — expected with BMP280 substitution)
+- Entities present: Temperature, Humidity, Pressure, Illuminance
 
 No manual HA configuration needed for discovery.
 
@@ -95,7 +95,7 @@ Add the front porch sensors to the HA Overview page:
 2. Add a favorite entity for each sensor:
    - Temperature (`sensor.front_porch_temp_sensor_temperature`)
    - Pressure (`sensor.front_porch_temp_sensor_pressure`)
-   - Humidity (`sensor.front_porch_temp_sensor_humidity`) — shows Unknown until genuine BME280 arrives
+   - Humidity (`sensor.front_porch_temp_sensor_humidity`)
    - Illuminance (`sensor.front_porch_temp_sensor_illuminance`)
 3. Customize summaries as desired
 

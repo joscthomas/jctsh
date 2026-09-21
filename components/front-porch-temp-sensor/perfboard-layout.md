@@ -7,9 +7,36 @@ Transfer the validated breadboard build to 5×7cm perfboard for permanent instal
 | Item | Spec |
 |---|---|
 | Perfboard | Chanzon FR4 double-sided, 5×7cm (~19×27 holes on 2.54mm grid) |
-| Female headers | Glarks 2.54mm single-row — two 19-pin strips for ESP32 DevKitC-32 (microcontroller), one 4-pin strip for BME280 (temp/pressure sensor), one 3-pin strip for BH1750 (light sensor) |
+| Female headers | Glarks 2.54mm single-row — two 19-pin strips for ESP32 DevKitC-32 (microcontroller), one 4-pin strip for BME280 (temp/pressure sensor), ~~one 3-pin strip~~ **one 5-pin strip** for BH1750 (light sensor) — see the correction note below |
 | Standoffs | Hilitchi M3 brass male-female, 10mm |
 | Wire | Solid core jumper wire for back-of-board bridges |
+
+---
+
+## ⚠️ Correction — BH1750 header size (found 2026-09-21)
+
+**This doc specified a 3-pin female header for the BH1750 (light sensor). It needs 5.** The
+BH1750 (GY-302) breakout has five pins — VCC, GND, SCL, SDA, ADDR — and this build wires
+all five: the Wire Bridges table below lists five BH1750 bridges, ADDR included. A 3-pin
+socket cannot seat a 5-pin module.
+
+**A transcription error in this file, not a design decision.** This component's own
+instruction set (`front-porch-temp-sensor-claude-code-instructions.md`, "BME280 and BH1750
+on female header strips sized to their pin counts") states the correct rule, so the plan
+and this doc disagreed — and this doc was wrong.
+
+**Found from the clone, not from this board.** `back-patio-temp-sensor` was created by
+copying this layout (CARD-0219) and inherited the same error, which surfaced there before
+soldering. Corrected in both.
+
+**What was NOT verified: the physical as-built header on the deployed front-porch board.**
+That unit is built, mounted, and running with the BH1750 publishing, so whatever is on it
+works — meaning the as-built necessarily differs from what this doc said, but nobody has
+looked to confirm whether it is a 5-pin strip, a 4-pin plus a flying ADDR lead, or
+something else. The 5-pin figure above is what the module requires, not an observation of
+this board. **Worth an eyeball next time the unit is accessible**, then replace this
+paragraph with what is actually there (`JCTsh-Operating-System.md`: as-built docs describe
+what is).
 
 ---
 
@@ -47,7 +74,7 @@ affect temperature readings if sensors are too close.
   1  [M]                                              [M]
   2
   3        [VC][GN][SD][SC] ← 4-pin BME280 header (cols C–F)
-  4        [VC][GN][SD][SC] ← 3-pin BH1750 header (cols C–E, shares SDA/SCL rail)
+  4        [VC][GN][SC][SD][AD] ← 5-pin BH1750 header (cols C–G, shares SDA/SCL rail; AD=ADDR→GND)
   5
   6
   7           [L]                    [R]   ← ESP32 pin 1 (3.3V / GND end)
@@ -74,7 +101,7 @@ affect temperature readings if sensors are too close.
 ```
 
 `[M]` = M3 standoff mounting hole. `[L]` = left ESP32 header row. `[R]` = right ESP32 header row.
-`[VC]` = VCC, `[GN]` = GND, `[SD]` = SDA, `[SC]` = SCL.
+`[VC]` = VCC, `[GN]` = GND, `[SD]` = SDA, `[SC]` = SCL, `[AD]` = ADDR (BH1750 only, tied to GND).
 
 > **Verify exact pin positions** before soldering wire bridges. Confirm GPIO21 and GPIO22
 > row numbers by counting from the USB end using `ESP32pins.png`.
@@ -123,10 +150,10 @@ Do not solder any component over these holes.
 - Place at rows 3, columns C–F
 - Solder all 4 pins
 
-**4. Solder the BH1750 (light sensor) 3-pin female header**
-- Place at row 4, columns C–E (VCC, GND, SDA) — SCL on a separate pin
+**4. Solder the BH1750 (light sensor) 5-pin female header**
+- Place at row 4, columns C–G — **VCC, GND, SCL, SDA, ADDR**, in the module's own pin order
 - Verify column positions match where bridges will run
-- Solder all pins
+- Solder all 5 pins
 
 **5. Solder wire bridges**
 - Cut wire segments to length — keep short and routed cleanly

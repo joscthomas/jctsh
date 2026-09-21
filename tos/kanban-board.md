@@ -2251,7 +2251,18 @@ Two follow-ons deliberately left outside this card: (1) `air-quality-monitor`'s 
 
 **Remaining after the swap:** re-verify per `testing.md`, then the two items below.
 
+**Folded in 2026-09-21 (Joseph's call, rather than opening a separate card): the BH1750 header-size error, fixed in both this component and `front-porch-temp-sensor`.** Not strictly this card's component, but this card is what surfaced it and the porch/patio cluster owns both.
+
+Both `perfboard-layout.md` files specified a **3-pin** female header for the BH1750 (light sensor). The GY-302 breakout has **five** pins — VCC, GND, SCL, SDA, ADDR — and both builds wire all five (each Wire Bridges table lists five BH1750 bridges, ADDR included). A 3-pin socket cannot seat a 5-pin module. Caught on back-patio *before* soldering, so it cost nothing but a different break point on a breakaway strip.
+
+**A transcription error, not a design decision** — `front-porch-temp-sensor-claude-code-instructions.md` already stated the correct rule ("female header strips sized to their pin counts"), so front-porch's plan and its own layout doc disagreed, and the layout doc was wrong. back-patio inherited it by cloning.
+
+Corrected in both files (materials row, placement diagram, legend, soldering step), struck through rather than deleted per the Documentation Structure mark-and-strike rule, each with a note explaining the finding.
+
+**One thing deliberately left unverified — front-porch's *physical* as-built header.** That unit is mounted and running with the BH1750 publishing, so whatever is fitted works, which means the as-built already differs from what its doc claimed. Nobody has looked to see whether it is a 5-pin strip, a 4-pin plus a flying ADDR lead, or something else. The corrected docs say 5-pin is what the module *requires* and flag the as-built as unobserved, rather than asserting a guess as fact — exactly the failure mode that produced the original error. **Open item: eyeball the front-porch board next time it is accessible and record what is actually there.**
+
 **Still genuinely open (not resolved anywhere yet, deliberately deferred):**
+- **Front-porch as-built header** (folded in, see above) — confirm physically what BH1750 header is on the deployed front-porch board, and replace the inferred note in `front-porch-temp-sensor/perfboard-layout.md` with the observed fact.
 - **Custom automation scope** — mirror front-porch's cool/warm notifications vs. something new; decide once the sensor is running (see `integration.md`'s deferral note).
 - ~~**Network/DHCP reservation**~~ — **RESOLVED 2026-09-21.** IP `192.168.1.188`, MAC `04:B2:47:97:DF:44`, hostname `back-patio-temp-sensor.local`; row added to `network/jctsh-network.md`. Reserved on the TP-Link Archer AXE75 by Joseph, then **verified live rather than assumed**: the device was restarted via its MQTT restart button (`jctsh/components/back-patio-temp-sensor/button/back_patio_temp_sensor_restart/command`), re-requested DHCP, and came back on `192.168.1.188` with MQTT reconnected and the BH1750 publishing again. One of this card's two originally-deferred open items — now closed.
 

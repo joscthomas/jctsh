@@ -19,7 +19,7 @@ Identical layout to `front-porch-temp-sensor` — same hardware, same component 
 
 **Inherited from `front-porch-temp-sensor/perfboard-layout.md`, which has the identical error** — it also says "3-pin strip" while listing five BH1750 bridges. Front-porch is built and working, so its *as-built* header must differ from what its doc says; the doc was never corrected to match (`JCTsh-Operating-System.md`: as-built docs describe what is, and this one doesn't). Corrected here to 5-pin, which is what the module physically requires.
 
-**Not corrected in `front-porch-temp-sensor/` from this session** — worth an eyeball at the physical front-porch board next time it's accessible, to record what was actually used there rather than inferring it.
+**Corrected in `front-porch-temp-sensor/perfboard-layout.md` too, 2026-09-21** — same session, since both components share this cluster. What remains unverified there is the *physical* as-built header on the deployed front-porch board: it is built and running, so whatever is fitted works, but nobody has looked to confirm whether it is a 5-pin strip, a 4-pin plus a flying ADDR lead, or something else. Worth an eyeball next time that unit is accessible.
 
 Headers are breakaway strips, so this costs nothing but a different break point — as long as it's caught before the 3-pin version is soldered down.
 

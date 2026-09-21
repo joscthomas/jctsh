@@ -9,7 +9,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0321 -->
+<!-- next-card-id: CARD-0322 -->
+
+---
+
+### CARD-0321 · [enhancement] [tos] Make the live `/kanban` tag selector match the Component/Cluster Registry's clusters
+
+**Status:** Backlog
+
+**Raised 2026-09-20 (Joseph, direct instruction).** CARD-0313's per-swimlane tag `<select>` (jctsh's swimlane only, since it's the only board with per-directory tags at all) currently lists raw individual tags exactly as they appear in card headers — `[m8]`, `[pi1]`, `[maintenance]`, `[docker]` show as four separate options, even though `JCTsh-Component-Session-Start.md`'s Component/Cluster Registry already groups those same four under one named "ops cluster." The dashboard's tag filter and the registry's cluster concept currently know nothing about each other.
+
+**Not yet scoped — open questions before Planning:**
+1. **Replace or add?** Should selecting "ops cluster" show the union of all four tags' cards instead of the current flat list, or should cluster options sit alongside the existing individual tags (both available, not one replacing the other)?
+2. **Where does the dashboard read cluster definitions from?** The registry lives as a markdown table in `JCTsh-Component-Session-Start.md`, meant for human/session reading, not machine parsing — `log_server.py` would need either a real parser for that table or a separate, simpler data source kept in sync with it (single-source-of-truth risk either way).
+3. **Scope to jctsh's swimlane only?** LogSeq/PB-Blog/Rethinking's own boards have no per-directory tags at all (per CARD-0313's `simple` parse mode) — clusters as a concept only exists for jctsh's own directory structure, so this likely doesn't touch the other three swimlanes.
+4. **Predefined-but-not-yet-initiated clusters** (most of the registry's rows) group directories that may have zero cards tagged that way today — does the tag selector show a cluster option with no matching cards, same "no cards here right now" treatment `renderColumnsHtml` already gives an empty column?
+
+**Done when:** not yet scoped.
+
+**Related:** CARD-0313 (built the per-swimlane tag selector this extends), CARD-0299 (built the Component/Cluster Registry this pulls from), `JCTsh-Component-Session-Start.md` (the registry's live location), `core/logging/log_server.py` (`renderFilters`, `repoTags`, `swimlaneTagSelectHtml` — the client-side functions this would change).
 
 ---
 

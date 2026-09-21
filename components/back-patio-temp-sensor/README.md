@@ -4,7 +4,7 @@ ESP32 environmental sensor for the back patio — monitors temperature, pressure
 light level. Duplicate of `front-porch-temp-sensor`'s design (CARD-0219), same hardware
 and firmware pattern, different location.
 
-**Status:** Build — perfboard assembly and flashing in progress
+**Status:** Build — perfboard assembled, bench-tested, and flashed (2026-09-21). WiFi, MQTT, and the BH1750 (light sensor) all confirmed live. Blocked on one part: the installed BME280 is a counterfeit BMP280 and is rejected by the firmware; genuine replacement ordered, swap is drop-in.
 **Hardware:** ESP32 + BME280 + BH1750
 
 ---
@@ -102,7 +102,8 @@ No custom threshold/notification automation exists yet — deliberately deferred
 | `perfboard-layout.md` | Perfboard build layout |
 | `flashing.md` | Flash procedure |
 | `integration.md` | HA entity setup; custom automation deferral notes |
-| `testing.md` | End-to-end test procedure |
+| `bench-test-plan.md` | Pre-flash bench worksheet — continuity, isolation, and power-on smoke test, derived from `wiring.md` |
+| `testing.md` | End-to-end test procedure (post-flash) |
 | `mounting.md` | Physical mounting instructions |
 | `mqtt-account-setup.md` | Dedicated Mosquitto account creation |
 | `CLAUDE.md` | Claude Code context — constraints and gotchas |

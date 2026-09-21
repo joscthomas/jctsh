@@ -7,9 +7,21 @@ Identical layout to `front-porch-temp-sensor` — same hardware, same component 
 | Item | Spec |
 |---|---|
 | Perfboard | Chanzon FR4 double-sided, 5×7cm (~19×27 holes on 2.54mm grid) |
-| Female headers | 2.54mm single-row — two 19-pin strips for ESP32 DevKitC-32 (microcontroller), one 4-pin strip for BME280 (temp/pressure sensor), one 3-pin strip for BH1750 (light sensor) |
+| Female headers | 2.54mm single-row — two 19-pin strips for ESP32 DevKitC-32 (microcontroller), one 4-pin strip for BME280 (temp/pressure sensor), ~~one 3-pin strip~~ **one 5-pin strip** for BH1750 (light sensor) — see the header-size warning below |
 | Standoffs | M3 brass male-female, 10mm |
 | Wire | Solid core jumper wire for back-of-board bridges |
+
+---
+
+## ⚠️ Header-size defect — read before soldering (found 2026-09-21)
+
+**This doc said the BH1750 (light sensor) needs a 3-pin female header. It needs 5.** The BH1750 (GY-302) breakout has five pins — VCC, GND, SCL, SDA, ADDR — and this build wires all five (`wiring.md`, and the Wire Bridges table below, which lists five BH1750 bridges including ADDR). A 3-pin socket cannot seat a 5-pin module.
+
+**Inherited from `front-porch-temp-sensor/perfboard-layout.md`, which has the identical error** — it also says "3-pin strip" while listing five BH1750 bridges. Front-porch is built and working, so its *as-built* header must differ from what its doc says; the doc was never corrected to match (`JCTsh-Operating-System.md`: as-built docs describe what is, and this one doesn't). Corrected here to 5-pin, which is what the module physically requires.
+
+**Not corrected in `front-porch-temp-sensor/` from this session** — worth an eyeball at the physical front-porch board next time it's accessible, to record what was actually used there rather than inferring it.
+
+Headers are breakaway strips, so this costs nothing but a different break point — as long as it's caught before the 3-pin version is soldered down.
 
 ---
 
@@ -43,7 +55,7 @@ Place BME280 (temp/pressure sensor) and BH1750 (light sensor) away from the ESP3
   1  [M]                                              [M]
   2
   3        [VC][GN][SD][SC] ← 4-pin BME280 header (cols C–F)
-  4        [VC][GN][SD][SC] ← 3-pin BH1750 header (cols C–E, shares SDA/SCL rail)
+  4        [VC][GN][SC][SD][AD] ← 5-pin BH1750 header (cols C–G, shares SDA/SCL rail; AD=ADDR→GND)
   5
   6
   7           [L]                    [R]   ← ESP32 pin 1 (3.3V / GND end)
@@ -70,7 +82,7 @@ Place BME280 (temp/pressure sensor) and BH1750 (light sensor) away from the ESP3
 ```
 
 `[M]` = M3 standoff mounting hole. `[L]` = left ESP32 header row. `[R]` = right ESP32 header row.
-`[VC]` = VCC, `[GN]` = GND, `[SD]` = SDA, `[SC]` = SCL.
+`[VC]` = VCC, `[GN]` = GND, `[SD]` = SDA, `[SC]` = SCL, `[AD]` = ADDR (BH1750 only, tied to GND).
 
 > **Verify exact pin positions** before soldering wire bridges. Confirm GPIO21 and GPIO22 row numbers by counting from the USB end using `ESP32pins.png`. Ground both sensor GND legs to pin 38, not pin 18 (see this build's `ESP32-project-pins.md` pin 18 note).
 
@@ -114,10 +126,10 @@ Hold the perfboard in final orientation. Mark the four corner mounting holes. Do
 - Place at rows 3, columns C–F
 - Solder all 4 pins
 
-**4. Solder the BH1750 (light sensor) 3-pin female header**
-- Place at row 4, columns C–E (VCC, GND, SDA) — SCL on a separate pin
+**4. Solder the BH1750 (light sensor) 5-pin female header**
+- Place at row 4, columns C–G — **VCC, GND, SCL, SDA, ADDR**, in the module's own pin order (confirm against the physical BH1750 before soldering; GY-302 boards are not all ordered identically)
 - Verify column positions match where bridges will run
-- Solder all pins
+- Solder all 5 pins
 
 **5. Solder wire bridges**
 - Cut wire segments to length — keep short and routed cleanly
@@ -126,22 +138,10 @@ Hold the perfboard in final orientation. Mark the four corner mounting holes. Do
 - Tie BH1750 ADDR to GND with a black wire
 
 **6. Continuity checks — do not skip**
-Before inserting any component, use a multimeter in continuity mode:
 
-| Check | Expected |
-|---|---|
-| BME280 (temp/pressure) VCC pin → ESP32 3.3V pin | Continuity |
-| BME280 (temp/pressure) GND pin → ESP32 GND pin (38) | Continuity |
-| BME280 (temp/pressure) SDA pin → ESP32 GPIO21 pin | Continuity |
-| BME280 (temp/pressure) SCL pin → ESP32 GPIO22 pin | Continuity |
-| BH1750 (light sensor) VCC pin → ESP32 3.3V pin | Continuity |
-| BH1750 (light sensor) GND pin → ESP32 GND pin (38) | Continuity |
-| BH1750 (light sensor) SDA pin → ESP32 GPIO21 pin | Continuity |
-| BH1750 (light sensor) SCL pin → ESP32 GPIO22 pin | Continuity |
-| BH1750 (light sensor) ADDR pin → ESP32 GND pin (38) | Continuity |
-| ESP32 3.3V pin → ESP32 GND pin | No continuity (short check) |
-| BME280 VCC pin → BME280 GND pin | No continuity (short check) |
-| SDA rail → SCL rail | No continuity (cross-wire check) |
+**Moved to `bench-test-plan.md` (2026-09-21).** The full procedure — meter prep and probing technique, power-rail isolation, the nine `wiring.md` continuity checks plus two shared-rail integrity checks, signal isolation, the 36-pair adjacent-pad sweep, the pin 18 confirmation, and a failure-triage table — lives there as a single runnable worksheet with result columns, rather than split between this doc's assembly sequence and the bench.
+
+Run `bench-test-plan.md` Sections 0–6 now, with nothing inserted, then return here for step 7.
 
 **Do not power on until all continuity checks pass.**
 

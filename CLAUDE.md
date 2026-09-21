@@ -247,6 +247,7 @@ Mosquitto requires auth (`allow_anonymous false`). Each component has its own ac
 | `hike-izer-orchestrator` | hike-izer-orchestrator container on `m8` (CARD-0086), publishes generation success/failure to `jctsh/hike-izer/publish/log` |
 | `ring-mqtt` | ring-mqtt container on `m8` (CARD-0146), RTSP gateway for Ring's live view |
 | `air-quality-monitor` | air-quality-monitor ESP32 sketch (CARD-0012) |
+| `back-patio-temp-sensor` | back-patio-temp-sensor ESPHome device (CARD-0219) |
 
 Passwords are stored in:
 - **Log server** — `/etc/jctsh/log-server.env` on the Pi (injected via systemd `EnvironmentFile`)

@@ -2238,9 +2238,22 @@ Once wired, the module's own onboard LED indicates charge status (charging vs. d
 
 Two follow-ons deliberately left outside this card: (1) `air-quality-monitor`'s own `ESP32-project-pins.md`/`wiring.md` still record pin 18's cause as unknown and misattribute the GPIO11 reference to hiking-monitor — same correction applies, but that component belongs to the hiking-monitor cluster, whose session owns the edit; (2) the board is silkscreened `NODEMCU` / `ESP-32S` / `V1.1` while ~20 references across this component (and `front-porch-temp-sensor`, `air-quality-monitor`, `JCTsh-Parts-Inventory.md`) call it "ESP32 DevKitC-32" — pin-compatible, nothing miswired, but the name doesn't match the part. Noted in `README.md`'s hardware row; a full rename is undecided.
 
+**Assembled, bench-tested, and flashed 2026-09-21 (Joseph at the bench, walked section by section).** Full record in `components/back-patio-temp-sensor/bench-test-plan.md`, a new worksheet derived from `wiring.md` (`perfboard-layout.md`'s old inline continuity list now points at it rather than keeping a second copy).
+
+- **Bench checks: all pass.** Power-rail isolation (3), continuity (9 + 2 shared-rail integrity), signal isolation (5), 36-pair adjacent-pad sweep, pin 18 isolation, shorts re-checked with modules seated, and a power-on smoke test reading 3.3 V at all three points. Enumerated as **COM7** (`Silicon Labs CP210x USB to UART Bridge`).
+- **MQTT account created and verified live** — `mosquitto_passwd` + the mandatory `chown root:mosquitto`, broker restarted clean, then the credential actually exercised with a real `mosquitto_pub` rather than inferred from the account existing. Row added to root `CLAUDE.md`; password and a new per-component OTA password recorded in `credentials.local.md`. `secrets.yaml` written (gitignored), flash directory staged at `C:\esphomeack-patio-temp-sensor\`.
+- **Flashed over USB, binary confirmed fresh** — compile `config_hash=0xf32d00da`, `build_time_str=2026-09-21 16:11:06 -0700`; the booted device reports that same timestamp, so no stale-upload (the failure mode `esphome upload` is known for).
+- **Live on first boot:** WiFi (`JCTnet1`), MQTT, safe_mode clean, and the **BH1750 publishing illuminance** (332.1 lx).
+
+**Blocked on one part — the installed BME280 is one of the counterfeit BMP280s** (Joseph confirmed; from Bin B3, not Bag 3). Firmware reports `Wrong chip ID or no response` and marks the component FAILED, so it publishes nothing — not even the temperature and pressure a BMP280 could actually provide, because ESPHome's `bme280_i2c` platform rejects any chip ID that isn't `0x60`. **Explicitly not a build defect:** the BH1750 shares SDA (pin 33), SCL (pin 36), 3V3 (pin 1) and GND (pin 38) and works, which proves the bus, the rails, and every solder joint on the shared path. This is exactly the failure `parts-list.md` warned about after front-porch's original batch — the predicted detector firing as designed.
+
+**Genuine BME280 ordered 2026-09-21.** Swap is drop-in (same pinout, same `0x76` address) — no firmware change, no reflash, just reseat and power-cycle. A `bmp280_i2c` shim to get temperature/pressure in the meantime was considered and is viable, but costs two firmware edits plus a revert (the DataPub lambda and JSON builder both reference `id(bme280_humidity)`, so removing the humidity sensor is a compile error, not a runtime null) — not done.
+
+**Remaining after the swap:** re-verify per `testing.md`, then the two items below.
+
 **Still genuinely open (not resolved anywhere yet, deliberately deferred):**
 - **Custom automation scope** — mirror front-porch's cool/warm notifications vs. something new; decide once the sensor is running (see `integration.md`'s deferral note).
-- **Network/DHCP reservation** — IP/hostname/MAC in `network/jctsh-network.md`, deferred to testing (needs the physical board's MAC, unreadable until connected).
+- ~~**Network/DHCP reservation**~~ — **RESOLVED 2026-09-21.** IP `192.168.1.188`, MAC `04:B2:47:97:DF:44`, hostname `back-patio-temp-sensor.local`; row added to `network/jctsh-network.md`. Reserved on the TP-Link Archer AXE75 by Joseph, then **verified live rather than assumed**: the device was restarted via its MQTT restart button (`jctsh/components/back-patio-temp-sensor/button/back_patio_temp_sensor_restart/command`), re-requested DHCP, and came back on `192.168.1.188` with MQTT reconnected and the BH1750 publishing again. One of this card's two originally-deferred open items — now closed.
 
 **Done when:** the component is built, flashed, mounted, and verified working per `testing.md` — plus the two open items above are resolved.
 

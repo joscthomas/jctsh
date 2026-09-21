@@ -66,12 +66,22 @@ Add the new row at the end of the existing table.
 
 ---
 
-## Checklist
+## Checklist — completed 2026-09-21 16:08 MST (CARD-0219)
 
-- [ ] Password chosen
-- [ ] `mosquitto_passwd` command run on Pi
-- [ ] `chown root:mosquitto` run immediately after
-- [ ] `systemctl restart mosquitto` run
-- [ ] `systemctl status mosquitto` confirms `active (running)`
-- [ ] Password stored securely (goes into `secrets.yaml`)
-- [ ] `back-patio-temp-sensor` row added to credentials table in root `CLAUDE.md`
+- [x] Password generated (24-char alphanumeric)
+- [x] `mosquitto_passwd` command run on Pi
+- [x] `chown root:mosquitto` run immediately after — confirmed `-rw-r----- root mosquitto`
+- [x] `systemctl restart mosquitto` run
+- [x] `systemctl is-active mosquitto` returns `active`; journal shows a clean config load
+- [x] Password stored in `secrets.yaml` (gitignored) and in `credentials.local.md`
+- [x] `back-patio-temp-sensor` row added to credentials table in root `CLAUDE.md`
+- [x] **Authentication verified live** — `mosquitto_pub` as `back-patio-temp-sensor` to
+      `jctsh/components/back-patio-temp-sensor/log` accepted by the broker. Not inferred
+      from the account existing; the credential was actually exercised.
+
+**Expected warning, not a failure.** `mosquitto_passwd` prints
+`Warning: File /etc/mosquitto/passwd group is not root. Future versions will refuse to load this file.`
+That is the inverse of this project's deliberate `chown root:mosquitto` — the file's group
+*must* be `mosquitto` for the broker to read it. Ignore the warning; do not "fix" it by
+setting the group back to root, which is exactly the failure the Ownership Gotcha above
+describes. Worth watching if Mosquitto ever does start refusing the file.

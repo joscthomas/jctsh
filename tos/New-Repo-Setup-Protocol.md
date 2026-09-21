@@ -172,7 +172,7 @@ what it's actually *for* — who benefits, where it came from, what the real sat
 or value is, and any emergent/secondary purpose or genuinely open question, following
 that doc's own template (Primary beneficiary → Origin → Core value/satisfaction →
 Secondary beneficiaries → Emergent purpose → Open question). Do this via a real
-interview, the same way jctsh's, LogSeq's, and PB Blog's own sections were written — not
+interview, the same way jctsh's, LogSeq's, and PB-Blog's own sections were written — not
 assumed or guessed from the README content alone.
 
 ## 10. Private GitHub repo, push

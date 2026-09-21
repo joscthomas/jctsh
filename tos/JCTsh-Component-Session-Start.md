@@ -2,8 +2,8 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** The startup steps a persistent component or cluster session (CARD-0284) actually runs instead of the general Session Start (`tos/JCTsh-Session-Start.md`) — some general steps scoped down, some skipped, some run unscoped, plus component-only steps with no general-session equivalent.
-**Version:** 1.14
-**Version description:** CARD-0315's third interim call — added `LogSeq`, `PB-Blog`, and `Rethinking Scripture Bible Study` as Component/Cluster Registry rows (whole sibling repos under `Projects/`, not jctsh-internal directories), only `LogSeq` actually Initiated; documented the real mismatch this surfaces between the 9-step table's jctsh-`kanban-board.md` assumptions and a cross-repo session's own board/git tree, without resolving CARD-0315's bigger open question.
+**Version:** 1.15
+**Version description:** Hiking-monitor cluster actually initiated, 2026-09-20 — Registry row flipped to Initiated: Yes / Active, via an in-place mid-conversation re-scope (Joseph asking an already-running hike-izer session to switch) rather than the clean new-terminal procedure; documented as a real variant of initiation the existing procedure text doesn't explicitly cover yet.
 **Version history:** `JCTsh-Component-Session-Start-History.md`
 
 ---
@@ -32,7 +32,7 @@ Added 2026-09-18 (CARD-0299, refined same day — Joseph: "this table identifies
 | LogSeq | `LogSeq` (whole separate repo, not a jctsh-internal directory) | Yes | Active |
 | PB-Blog | `PB-Blog` (whole separate repo, not a jctsh-internal directory) | No | — |
 | Rethinking Scripture Bible Study | `Rethinking-Scripture-Bible-Study` (whole separate repo, not a jctsh-internal directory) | No | — |
-| hiking-monitor cluster | `hiking-monitor`, `air-quality-monitor` | No | — |
+| hiking-monitor cluster | `hiking-monitor`, `air-quality-monitor` | Yes | Active |
 | garage cluster | `automatic-garage-door-opener-closer`, `garage-presence`, `garage-radar` | No | — |
 | HA automations cluster | `outdoor-presence-detection`, `traveling`, `core/homeassistant` | No | — |
 | network/infra-visibility cluster | `netalertx`, `core/mqtt`, `core/logging`, `core/node-red` | No | — |
@@ -45,7 +45,7 @@ Added 2026-09-18 (CARD-0299, refined same day — Joseph: "this table identifies
 | equip-shelf | `equip-shelf` | No | — |
 
 **Predefined clusters, added 2026-09-18 (Joseph: "add all the clusters... so they are predefined") — every component/core/host directory now has a home, none of them started yet.** Groupings are judgment calls based on real evidence of components' findings traveling together, same discipline as the three already-initiated clusters, not arbitrary:
-- **hiking-monitor cluster** — Session Card Selection's own top recommendation (CARD-0284's closing note): highest cross-work volume of any ungrouped component (41+4 tagged cards), and real shared history (the field-device three-signal framework in `JCTsh-Build-Standards.md` §2.14, the debug-UART investigation, battery/regulator-headroom physics hit both the same night).
+- **hiking-monitor cluster** — Session Card Selection's own top recommendation (CARD-0284's closing note): highest cross-work volume of any ungrouped component (41+4 tagged cards), and real shared history (the field-device three-signal framework in `JCTsh-Build-Standards.md` §2.14, the debug-UART investigation, battery/regulator-headroom physics hit both the same night). **Actually initiated 2026-09-20** — not via the clean "open a new terminal" procedure above, but by Joseph directly asking an already-running hike-izer session to re-scope itself mid-conversation, to pick up CARD-0259's Planning work. A real, if messier, instance of the same startup steps (git status/Build column/recent activity/markers re-run scoped to `hiking-monitor`+`air-quality-monitor`, both components' README.md/CLAUDE.md read in full) rather than a fresh terminal — the procedure above doesn't yet describe this in-place re-scoping path explicitly.
 - **garage cluster** — already documented as one system in `auto-garage-door-system.md`, referenced by both `automatic-garage-door-opener-closer/CLAUDE.md` and `garage-presence/CLAUDE.md`.
 - **HA automations cluster** — pure HA-native automation components (no dedicated hardware), sharing `automations.yaml` and the same HA infrastructure.
 - **network/infra-visibility cluster** — the "watch everything" layer: dashboard, broker, flows, network scanning.

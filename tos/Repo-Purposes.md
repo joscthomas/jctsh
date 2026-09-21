@@ -7,7 +7,7 @@ but the real benefit it serves and who it serves. Prompted by a sermon note (jct
 `tos/kanban-board.md` CARD-0320): "It's not just about the system, it is about the
 results, the benefits for people."
 **Version:** 1.3
-**Version description:** Added `Rethinking Scripture Bible Study`'s section — a fourth
+**Version description:** Added `Rethinking-Scripture-Bible-Study`'s section — a fourth
 repo under `Projects/`, created after this doc's first three entries. From v1.3 onward,
 writing this section is a standard step of `New-Repo-Setup-Protocol.md` (step 9) for any
 future repo, not something done after the fact.
@@ -64,7 +64,7 @@ forced) → Open question / where this is heading (if genuinely unresolved).
   repo and its tools (a Claude Code session operating directly in it, as this session
   has) may turn out to be part of how that gets figured out.
 
-## PB Blog
+## PB-Blog
 
 *Blog by Pastor Ben Walls, Sr. (pastorbenwalls.com). "Rethinking Scripture" is a separate repo (the new Bible study content, CARD-0317) — not this blog's title; corrected 2026-09-20 after conflating the two.*
 
@@ -88,7 +88,7 @@ forced) → Open question / where this is heading (if genuinely unresolved).
   archive, or Pastor Ben or his family compiling a book from the material. Who else
   might find it valuable isn't known, and that's fine — left open rather than forced.
 
-## Rethinking Scripture Bible Study
+## Rethinking-Scripture-Bible-Study
 
 - **Beneficiaries:** any Casas Church small group whose members have gone through
   Pastor Glenn's "how to read the Bible" class — currently, Joseph's own small group,

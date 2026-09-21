@@ -1,0 +1,257 @@
+# JCTsh Back Patio Temp Sensor — ESPHome Configuration
+# Hardware: ESP32 DevKitC-32 (38-pin, CP2102 USB-C, same batch as air-quality-monitor's —
+#   see ESP32-project-pins.md for that batch's known pin 18 GND anomaly, unused here) +
+#   GY-BME280 (I2C 0x76) + BH1750 (I2C 0x23)
+# Duplicate of front-porch-temp-sensor's design (CARD-0219) — identical wiring/firmware,
+# different location and coordinates.
+#
+# I2C wiring (shared bus):
+#   SDA → GPIO21    SCL → GPIO22
+#   BME280 VCC → 3.3V (not VIN — onboard regulator steps down from 5V label)
+#   BH1750 VCC → 3.3V    BH1750 ADDR → GND (sets address to 0x23)
+#
+# MQTT topics published (prefix: jctsh/components/back-patio-temp-sensor):
+#   .../sensor/temperature/state  — °F
+#   .../sensor/humidity/state     — %
+#   .../sensor/pressure/state     — hPa
+#   .../sensor/illuminance/state  — lx
+#   .../data                      — JSON environmental payload (pipeline, every 5 min)
+#   .../log                       — JSON log messages (Python log server wildcard)
+#   .../heartbeat                 — JSON heartbeat (Node-RED watchdog wildcard, every 30 min)
+#
+# Update interval: 60s (all sensors)
+# Data pipeline interval: 5 min
+# Heartbeat interval: 30 min
+
+esphome:
+  name: back-patio-temp-sensor
+  friendly_name: Back Patio Temp Sensor
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# ── WiFi ──────────────────────────────────────────────────────────────────────
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "back-patio-temp-sensor-fallback"
+    password: !secret ap_password
+
+captive_portal:
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logger:
+  level: INFO
+
+# ── OTA updates ───────────────────────────────────────────────────────────────
+# First flash: USB. All subsequent updates: OTA via ESPHome dashboard or CLI.
+#   esphome run back-patio-temp-sensor.yaml
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# ── MQTT ──────────────────────────────────────────────────────────────────────
+mqtt:
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  topic_prefix: jctsh/components/back-patio-temp-sensor
+  discovery: true
+  discovery_prefix: homeassistant
+  will_message:
+    topic: jctsh/components/back-patio-temp-sensor/log
+    payload: '{"component":"back-patio-temp-sensor","category":"MQTT","message":"MQTT disconnected"}'
+    retain: false
+    qos: 0
+  on_connect:
+    - delay: 500ms
+    - mqtt.publish:
+        topic: jctsh/components/back-patio-temp-sensor/log
+        payload: !lambda |-
+          char buf[256];
+          snprintf(buf, sizeof(buf),
+            "{\"component\":\"back-patio-temp-sensor\",\"category\":\"System\","
+            "\"message\":\"Back patio temp sensor online - ESPHome " ESPHOME_VERSION ", IP: %s\"}",
+            id(wifi_ip).state.c_str());
+          return std::string(buf);
+    - mqtt.publish:
+        topic: jctsh/components/back-patio-temp-sensor/log
+        payload: '{"component":"back-patio-temp-sensor","category":"MQTT","message":"MQTT connected"}'
+
+# ── NTP time sync ─────────────────────────────────────────────────────────────
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: America/Phoenix
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+
+# ── I2C ───────────────────────────────────────────────────────────────────────
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+  frequency: 10khz
+
+# ── Sensors ───────────────────────────────────────────────────────────────────
+sensor:
+  # BME280 — temperature, humidity, pressure
+  - platform: bme280_i2c
+    address: 0x76
+    update_interval: 60s
+    temperature:
+      name: "Temperature"
+      id: bme280_temp
+      filters:
+        - lambda: return x * 9.0/5.0 + 32.0;
+      unit_of_measurement: "°F"
+    humidity:
+      name: "Humidity"
+      id: bme280_humidity
+    pressure:
+      name: "Pressure"
+      id: bme280_pressure
+
+  # BH1750 — illuminance
+  - platform: bh1750
+    name: "Illuminance"
+    id: bh1750_lux
+    address: 0x23
+    update_interval: 60s
+
+  # Internal sensors used in heartbeat lambdas
+  - platform: uptime
+    id: uptime_sec
+    internal: true
+
+  - platform: wifi_signal
+    id: wifi_rssi
+    internal: true
+    update_interval: 60s
+
+# ── WiFi info (used in on_connect log message) ────────────────────────────────
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: wifi_ip
+      internal: true
+
+# ── Restart button ────────────────────────────────────────────────────────────
+button:
+  - platform: restart
+    name: "Back Patio Temp Sensor Restart"
+
+# ── Data pipeline + heartbeat intervals ───────────────────────────────────────
+interval:
+  # Environmental data pipeline — every 5 min to jctsh/components/+/data wildcard
+  # Node-RED wildcard handler routes to Google Sheets via Apps Script.
+  # lat/lon: P2 (back patio outlet mount point) per house-lot-coordinates.md
+  - interval: 5min
+    then:
+      - mqtt.publish:
+          topic: jctsh/components/back-patio-temp-sensor/data
+          payload: !lambda |-
+            ESPTime now = id(sntp_time).now();
+            if (!now.is_valid()) {
+              ESP_LOGW("DataPub", "NTP not synced — skipping data publish");
+              return std::string("");
+            }
+            time_t epoch = (time_t)now.timestamp;
+            struct tm utc_tm;
+            gmtime_r(&epoch, &utc_tm);
+            char ts[25];
+            strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
+
+            float temp  = id(bme280_temp).state;
+            float hum   = id(bme280_humidity).state;
+            float pres  = id(bme280_pressure).state;
+            float lux   = id(bh1750_lux).state;
+            int   rssi  = (int)id(wifi_rssi).state;
+
+            if (isnan(temp) || isnan(hum) || isnan(pres)) {
+              ESP_LOGW("DataPub", "BME280 read incomplete — skipping data publish");
+              return std::string("");
+            }
+
+            char buf[512];
+            if (isnan(lux)) {
+              snprintf(buf, sizeof(buf),
+                "{\"component\":\"back-patio-temp-sensor\","
+                "\"ts\":\"%s\","
+                "\"lat\":32.4614183,\"lon\":-111.1184405,"
+                "\"temp_f\":%.1f,\"humidity_pct\":%.1f,\"pressure_hpa\":%.1f,"
+                "\"rssi_dbm\":%d}",
+                ts, temp, hum, pres, rssi);
+            } else {
+              snprintf(buf, sizeof(buf),
+                "{\"component\":\"back-patio-temp-sensor\","
+                "\"ts\":\"%s\","
+                "\"lat\":32.4614183,\"lon\":-111.1184405,"
+                "\"temp_f\":%.1f,\"humidity_pct\":%.1f,\"pressure_hpa\":%.1f,"
+                "\"illuminance_lx\":%.1f,"
+                "\"rssi_dbm\":%d}",
+                ts, temp, hum, pres, lux, rssi);
+            }
+            return std::string(buf);
+
+  # Heartbeat — every 30 min to log + heartbeat topics
+  - interval: 30min
+    then:
+      - mqtt.publish:
+          topic: jctsh/components/back-patio-temp-sensor/log
+          payload: !lambda |-
+            uint32_t secs = (uint32_t)id(uptime_sec).state;
+            uint32_t h = secs / 3600;
+            uint32_t m = (secs % 3600) / 60;
+            int rssi = (int)id(wifi_rssi).state;
+            float temp = id(bme280_temp).state;
+            char buf[256];
+            if (isnan(temp)) {
+              snprintf(buf, sizeof(buf),
+                "{\"component\":\"back-patio-temp-sensor\",\"category\":\"System\","
+                "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, temp: unavailable\"}",
+                h, m, rssi);
+            } else {
+              snprintf(buf, sizeof(buf),
+                "{\"component\":\"back-patio-temp-sensor\",\"category\":\"System\","
+                "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, temp: %.1f\xc2\xb0""F\"}",
+                h, m, rssi, temp);
+            }
+            return std::string(buf);
+      - mqtt.publish:
+          topic: jctsh/components/back-patio-temp-sensor/heartbeat
+          payload: !lambda |-
+            uint32_t secs = (uint32_t)id(uptime_sec).state;
+            uint32_t h = secs / 3600;
+            uint32_t m = (secs % 3600) / 60;
+            int rssi = (int)id(wifi_rssi).state;
+            float temp = id(bme280_temp).state;
+            char buf[256];
+            if (isnan(temp)) {
+              snprintf(buf, sizeof(buf),
+                "{\"component\":\"back-patio-temp-sensor\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"temp\":null}",
+                h, m, rssi);
+            } else {
+              snprintf(buf, sizeof(buf),
+                "{\"component\":\"back-patio-temp-sensor\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"temp\":%.1f}",
+                h, m, rssi, temp);
+            }
+            return std::string(buf);
+      - if:
+          condition:
+            lambda: 'return isnan(id(bme280_temp).state);'
+          then:
+            - mqtt.publish:
+                topic: jctsh/components/back-patio-temp-sensor/log
+                payload: '{"component":"back-patio-temp-sensor","category":"Alert","message":"BME280 read failed — check I2C wiring (SDA GPIO21 / SCL GPIO22)"}'
+      - if:
+          condition:
+            lambda: 'return isnan(id(bh1750_lux).state);'
+          then:
+            - mqtt.publish:
+                topic: jctsh/components/back-patio-temp-sensor/log
+                payload: '{"component":"back-patio-temp-sensor","category":"Alert","message":"BH1750 read failed — check I2C wiring (SDA GPIO21 / SCL GPIO22)"}'

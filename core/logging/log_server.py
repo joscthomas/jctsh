@@ -52,6 +52,11 @@ LOG_FILE    = os.path.join(LOG_DIR, "jctsh.log")
 STATE_FILE  = os.path.join(LOG_DIR, "state.json")
 MAX_ENTRIES = 1000
 KANBAN_RAW_URL = "https://raw.githubusercontent.com/joscthomas/jctsh/main/tos/kanban-board.md"
+# CARD-0321: cluster definitions for the /kanban tag-filter's cluster options
+# live in the Component/Cluster Registry table inside this doc -- fetched raw
+# and parsed the same way kanban-board.md itself is, rather than duplicated
+# into a second data file (single-source-of-truth, JCTsh-Operating-System.md).
+COMPONENT_REGISTRY_RAW_URL = "https://raw.githubusercontent.com/joscthomas/jctsh/main/tos/JCTsh-Component-Session-Start.md"
 # CARD-0313: LogSeq and PB-Blog got their own kanban-board.md once each moved
 # into its own repo (CARD-0297/CARD-0298) -- both private, so (unlike jctsh's
 # public raw-URL fetch above) reading them needs an authenticated GitHub
@@ -929,6 +934,81 @@ def _parse_kanban_board(text, repo="jctsh", simple=False):
     return cards
 
 
+# CARD-0321: parses the Component/Cluster Registry table in
+# JCTsh-Component-Session-Start.md -- Cluster / Covered components / Initiated
+# / Status columns -- into [{"name": ..., "tags": [...]}, ...] for the
+# /kanban dashboard's cluster tag-filter. One leaf tag per covered directory
+# (e.g. `core/maintenance` -> `maintenance`), matching how kanban-board.md's
+# own card tags are written (per that document's own "multi-directory
+# clusters use per-directory tags" note). A row explicitly marked as a whole
+# separate repo (LogSeq, PB-Blog, Rethinking Scripture Bible Study) is
+# skipped -- those aren't jctsh directory tags at all, per CARD-0321's own
+# "jctsh swimlane only" scoping decision.
+# [ \t]* rather than \s* between columns -- \s* also matches a literal
+# newline, which let a lazy match span across the header-separator row
+# (|---|---|---|---|, no Yes/No in its own third column) into the next real
+# row instead of failing to match that line at all (found live, testing
+# this against the actual registry table).
+_CLUSTER_TABLE_ROW_RE = re.compile(
+    r"^\|[ \t]*(.+?)[ \t]*\|[ \t]*(.+?)[ \t]*\|[ \t]*(Yes|No)[ \t]*\|[ \t]*(.+?)[ \t]*\|[ \t]*$",
+    re.MULTILINE,
+)
+_CLUSTER_BACKTICK_RE = re.compile(r"`([^`]+)`")
+
+
+def _parse_cluster_registry(text):
+    header = "| Cluster | Covered components | Initiated | Status |"
+    table_start = text.find(header)
+    if table_start == -1:
+        return []
+    table_end = text.find("\n\n", table_start)
+    if table_end == -1:
+        table_end = len(text)
+    table_text = text[table_start:table_end]
+    clusters = []
+    for m in _CLUSTER_TABLE_ROW_RE.finditer(table_text):
+        name_cell, components_cell, _initiated, _status = m.groups()
+        if name_cell.strip() == "Cluster" or set(name_cell.strip()) <= {"-"}:
+            continue
+        if "whole separate repo" in components_cell:
+            continue
+        tags = [t.rsplit("/", 1)[-1] for t in _CLUSTER_BACKTICK_RE.findall(components_cell)]
+        if not tags:
+            continue
+        clusters.append({"name": name_cell.strip("`").strip(), "tags": tags})
+    return clusters
+
+
+_CLUSTER_CACHE_TTL = 20  # seconds, same cadence as _KANBAN_CACHE_TTL
+_cluster_cache_lock = threading.Lock()
+_cluster_cache = {"clusters": None, "fetched_at": 0.0}
+
+
+def _load_clusters():
+    """Best-effort, independently cached from kanban-board.md itself -- a
+    fetch/parse failure here just means the cluster dropdown is briefly
+    empty, never a reason to fail the whole /kanban/data response the way a
+    jctsh kanban-board.md fetch failure does."""
+    now = time.monotonic()
+    with _cluster_cache_lock:
+        if (_cluster_cache["clusters"] is not None
+                and now - _cluster_cache["fetched_at"] < _CLUSTER_CACHE_TTL):
+            return _cluster_cache["clusters"]
+    try:
+        req = urllib.request.Request(
+            COMPONENT_REGISTRY_RAW_URL, headers={"Cache-Control": "no-cache"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            text = resp.read().decode("utf-8")
+        clusters = _parse_cluster_registry(text)
+    except (urllib.error.URLError, OSError, UnicodeDecodeError):
+        clusters = []
+    with _cluster_cache_lock:
+        _cluster_cache["clusters"] = clusters
+        _cluster_cache["fetched_at"] = now
+    return clusters
+
+
 _KANBAN_CACHE_TTL = 20  # seconds
 _kanban_cache_lock = threading.Lock()
 _kanban_cache = {"cards": None, "size": None, "fetched_at": 0.0}
@@ -1344,6 +1424,11 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   // nothing here needs to special-case that.
   var REPO_ORDER = ['jctsh', 'LogSeq', 'PB-Blog', 'Rethinking'];
   var CARDS = [];
+  // CARD-0321: cluster definitions from the Component/Cluster Registry
+  // (JCTsh-Component-Session-Start.md), server-parsed into [{name, tags}].
+  // jctsh-only concept -- LogSeq/PB-Blog/Rethinking have no per-directory
+  // tags to cluster in the first place (Joseph's call).
+  var CLUSTERS = [];
   var state = {
     q: '',
     types: { bug: true, enhancement: true, idea: true },
@@ -1388,10 +1473,22 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     }).join('');
   }
   var flagLabels = { blocked: 'Blocked' };
+  // CARD-0321: a cluster selection is stored as 'cluster:<name>' (see
+  // swimlaneTagSelectHtml below) -- resolved here to its member tag list from
+  // CLUSTERS rather than an exact card.tag match. An unrecognized cluster
+  // name (CLUSTERS not loaded yet, or a stale localStorage value from a
+  // renamed/retired cluster) matches nothing, same as any other filter with
+  // no matching cards -- never falls back to showing everything.
+  function repoTagMatches(card, repoTag) {
+    if (repoTag.indexOf('cluster:') !== 0) return card.tag === repoTag;
+    var clusterName = repoTag.slice('cluster:'.length);
+    var cluster = CLUSTERS.filter(function (c) { return c.name === clusterName; })[0];
+    return !!cluster && cluster.tags.indexOf(card.tag) !== -1;
+  }
   function cardMatches(card) {
     if (!state.types[card.type]) return false;
     var repoTag = state.tags[card.repo];
-    if (repoTag && card.tag !== repoTag) return false;
+    if (repoTag && !repoTagMatches(card, repoTag)) return false;
     if (!state.q) return true;
     // card.tag is null for LogSeq/PB-Blog cards (CARD-0313 -- their boards have
     // no per-directory tagging concept) -- '' instead of the literal string
@@ -1453,14 +1550,24 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     });
     return tags.sort();
   }
+  // CARD-0321: cluster options sit alongside individual tags (not replacing
+  // them, Joseph's call), jctsh-only, in their own optgroup -- including a
+  // predefined-but-not-yet-initiated cluster with zero matching cards today,
+  // same "no cards here right now" treatment renderColumnsHtml already gives
+  // an empty column, rather than hiding it until a card actually uses it.
   function swimlaneTagSelectHtml(repo, tags) {
-    if (!tags.length) return '';
     var current = state.tags[repo] || '';
-    return '<select class="swimlane-tag" data-repo="' + escapeHtml(repo) + '" title="Filter ' + escapeHtml(repo) + '\'s cards by tag">' +
+    var clusterOptionsHtml = repo === 'jctsh' ? CLUSTERS.map(function (c) {
+      var value = 'cluster:' + c.name;
+      return '<option value="' + escapeHtml(value) + '"' + (value === current ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>';
+    }).join('') : '';
+    if (!tags.length && !clusterOptionsHtml) return '';
+    return '<select class="swimlane-tag" data-repo="' + escapeHtml(repo) + '" title="Filter ' + escapeHtml(repo) + '\'s cards by tag or cluster">' +
       '<option value="">All tags</option>' +
-      tags.map(function (t) {
+      (clusterOptionsHtml ? '<optgroup label="Clusters">' + clusterOptionsHtml + '</optgroup>' : '') +
+      (tags.length ? '<optgroup label="Tags">' + tags.map(function (t) {
         return '<option value="' + escapeHtml(t) + '"' + (t === current ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
-      }).join('') +
+      }).join('') + '</optgroup>' : '') +
       '</select>';
   }
   // CARD-0193: a stub left by archive_cards.py reads "Archived to `<path>`
@@ -1664,6 +1771,11 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       // Skip the rebuild entirely when the board hasn't actually changed since
       // the last poll — this is the common case (nothing edited in the last
       // 30s) and avoids any disruption at all, not just a preserved-state one.
+      // CARD-0321: assigned ahead of the dirty-check short-circuit below --
+      // the registry can change (a new/renamed cluster) on a poll where no
+      // card itself changed, and this assignment is cheap enough not to
+      // need its own dirty-check gate.
+      CLUSTERS = data.clusters || [];
       var dataStr = JSON.stringify(data.cards);
       if (dataStr === lastDataStr) return;
       lastDataStr = dataStr;
@@ -1923,7 +2035,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self.wfile.write(f"Could not fetch {KANBAN_RAW_URL}".encode("utf-8"))
                 return
             fetched = datetime.now(_TZ).strftime("%Y-%m-%d %H:%M %Z")
-            body = json.dumps({"cards": cards, "updated": fetched, "sizeBytes": size_bytes}).encode("utf-8")
+            clusters = _load_clusters()
+            body = json.dumps({"cards": cards, "clusters": clusters, "updated": fetched, "sizeBytes": size_bytes}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))

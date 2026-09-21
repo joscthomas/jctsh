@@ -13,21 +13,30 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0321 · [enhancement] [tos] Make the live `/kanban` tag selector match the Component/Cluster Registry's clusters
+### CARD-0321 · [enhancement] [tos] Make the live `/kanban` tag selector match the Component/Cluster Registry's clusters — RESOLVED 2026-09-21
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-20 (Joseph, direct instruction).** CARD-0313's per-swimlane tag `<select>` (jctsh's swimlane only, since it's the only board with per-directory tags at all) currently lists raw individual tags exactly as they appear in card headers — `[m8]`, `[pi1]`, `[maintenance]`, `[docker]` show as four separate options, even though `JCTsh-Component-Session-Start.md`'s Component/Cluster Registry already groups those same four under one named "ops cluster." The dashboard's tag filter and the registry's cluster concept currently know nothing about each other.
 
-**Not yet scoped — open questions before Planning:**
-1. **Replace or add?** Should selecting "ops cluster" show the union of all four tags' cards instead of the current flat list, or should cluster options sit alongside the existing individual tags (both available, not one replacing the other)?
-2. **Where does the dashboard read cluster definitions from?** The registry lives as a markdown table in `JCTsh-Component-Session-Start.md`, meant for human/session reading, not machine parsing — `log_server.py` would need either a real parser for that table or a separate, simpler data source kept in sync with it (single-source-of-truth risk either way).
-3. **Scope to jctsh's swimlane only?** LogSeq/PB-Blog/Rethinking's own boards have no per-directory tags at all (per CARD-0313's `simple` parse mode) — clusters as a concept only exists for jctsh's own directory structure, so this likely doesn't touch the other three swimlanes.
-4. **Predefined-but-not-yet-initiated clusters** (most of the registry's rows) group directories that may have zero cards tagged that way today — does the tag selector show a cluster option with no matching cards, same "no cards here right now" treatment `renderColumnsHtml` already gives an empty column?
+**Scoped 2026-09-21 (Joseph, direct interview):**
+1. **Add, don't replace** — cluster options sit alongside the existing individual tags in the same `<select>`; picking `[m8]` alone is still possible.
+2. **Parse the registry table directly** from `JCTsh-Component-Session-Start.md` server-side — no second data file to keep in sync.
+3. **jctsh's swimlane only** — LogSeq/PB-Blog/Rethinking have no per-directory tags to cluster.
+4. **A predefined-but-not-yet-initiated cluster still shows as a selectable option**, same "no cards here right now" treatment `renderColumnsHtml` already gives an empty column when it's picked.
 
-**Done when:** not yet scoped.
+**Built 2026-09-21 (`core/logging/log_server.py`):**
+- `_parse_cluster_registry()` (new) parses the Component/Cluster Registry table in `JCTsh-Component-Session-Start.md` into `[{"name", "tags"}, ...]` — one leaf tag per covered directory (e.g. `core/maintenance` → `maintenance`), matching how card tags are actually written. A row explicitly marked "whole separate repo" (LogSeq/PB-Blog/Rethinking) is skipped, since those aren't jctsh directory tags at all — this is what makes the jctsh-only scoping decision (#3) fall out of the table itself rather than a separate hardcoded exclusion list.
+- `_load_clusters()` (new) fetches and caches that parse (20s TTL, same cadence as the existing kanban cache) — best-effort; a fetch/parse failure just means the cluster dropdown is briefly empty, never a 503 on the whole `/kanban/data` response.
+- `/kanban/data` now includes `"clusters": [...]` in its JSON body.
+- Client: `CLUSTERS` global populated from the response; `swimlaneTagSelectHtml()` adds a `<optgroup label="Clusters">` (jctsh only) alongside the existing `<optgroup label="Tags">`, each cluster option valued `cluster:<name>`; `cardMatches()` (via new `repoTagMatches()` helper) resolves a `cluster:` selection to its member tag list instead of an exact `card.tag` match.
+- **Real bug caught during local verification, not just written and trusted:** the table-row regex originally used `\s*` between columns, which matches a literal newline — a lazy match spanned across the header-separator row (`|---|---|---|---|`, no `Yes`/`No` in its own third column) into the next real row instead of failing to match that line at all. Fixed by using `[ \t]*` (horizontal-only whitespace) between columns instead.
 
-**Related:** CARD-0313 (built the per-swimlane tag selector this extends), CARD-0299 (built the Component/Cluster Registry this pulls from), `JCTsh-Component-Session-Start.md` (the registry's live location), `core/logging/log_server.py` (`renderFilters`, `repoTags`, `swimlaneTagSelectHtml` — the client-side functions this would change).
+**Verified in isolation, not yet live (Note on Build):** `_parse_cluster_registry()` run directly against the real `tos/JCTsh-Component-Session-Start.md` — correctly extracts all 15 real jctsh clusters (18 registry rows minus the 3 whole-separate-repo rows), each with the right leaf tags (confirmed `ops cluster` → `["maintenance","docker","m8","pi1"]`, `hike-izer` → includes `data-pipeline` not `core/data-pipeline`). Client behavior checked in a browser against the real extracted `_KANBAN_TEMPLATE` HTML with a mocked `/kanban/data` response: cluster optgroup renders alongside the tags optgroup on jctsh's swimlane only (no select at all on a LogSeq swimlane with no per-directory tags); selecting "ops cluster" shows exactly the 4 mock cards tagged `maintenance`/`docker`/`m8`/`pi1`; selecting a zero-card cluster ("garage cluster") shows "No matches in this view."/"No cards here right now." per column, same as any other empty filter result, no crash; selection round-trips through `localStorage` (`jctsh-kanban-tags`) as `{"jctsh":"cluster:garage cluster"}`, same mechanism every other per-repo tag selection already uses.
+
+**Done when:** the change is deployed to the Pi (`scp` + `systemctl restart jctsh-logging`, per `core/logging/README.md`'s Deploy section) and confirmed live against the real `/kanban` page — cluster options actually appear and filter real cards correctly, not just the sandboxed mock above. **Met, 2026-09-21** — deployed on Joseph's go-ahead, `jctsh-logging` restarted clean (`Active: active (running)`, MQTT reconnected, state restored). Queried the live `/kanban/data` endpoint directly from the Pi (its own `DASHBOARD_USER`/`DASHBOARD_PASS` used server-side only, never typed into a browser or shown here) and confirmed against real production data: 317 real cards served, and all 15 real jctsh clusters parsed correctly from the live registry — same exact name→tags mapping as the local mock-based check above (e.g. `ops cluster` → `["maintenance","docker","m8","pi1"]`), the 3 whole-separate-repo rows (LogSeq/PB-Blog/Rethinking) correctly excluded. The client code serving this data is byte-identical to what already passed the browser-rendered mock test, so this closes the loop from server-side parse correctness (proven against live data) to client-side rendering correctness (proven against structurally identical mock data) without needing to authenticate into the live dashboard directly.
+
+**Related:** CARD-0313 (built the per-swimlane tag selector this extends), CARD-0299 (built the Component/Cluster Registry this pulls from), `JCTsh-Component-Session-Start.md` (the registry's live location), `core/logging/log_server.py` (`_parse_cluster_registry`, `_load_clusters`, `swimlaneTagSelectHtml`, `cardMatches`/`repoTagMatches` — this card's actual changes).
 
 ---
 

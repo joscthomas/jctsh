@@ -2,8 +2,8 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** The startup steps a persistent component or cluster session (CARD-0284) actually runs instead of the general Session Start (`tos/JCTsh-Session-Start.md`) — some general steps scoped down, some skipped, some run unscoped, plus component-only steps with no general-session equivalent.
-**Version:** 1.13
-**Version description:** CARD-0306 — updated the reference to the general Session Start list, which moved from being inlined in root `CLAUDE.md` to its own `tos/JCTsh-Session-Start.md` (same read-frequency-split principle this document's own history already applies to itself, per `JCTsh-Operating-System.md`'s Documentation Structure section). The 9-step numbering this document's table maps against is unchanged.
+**Version:** 1.14
+**Version description:** CARD-0315's third interim call — added `LogSeq`, `PB-Blog`, and `Rethinking Scripture Bible Study` as Component/Cluster Registry rows (whole sibling repos under `Projects/`, not jctsh-internal directories), only `LogSeq` actually Initiated; documented the real mismatch this surfaces between the 9-step table's jctsh-`kanban-board.md` assumptions and a cross-repo session's own board/git tree, without resolving CARD-0315's bigger open question.
 **Version history:** `JCTsh-Component-Session-Start-History.md`
 
 ---
@@ -29,6 +29,9 @@ Added 2026-09-18 (CARD-0299, refined same day — Joseph: "this table identifies
 | tos | `tos` | Yes | Active |
 | architecture | `architecture` | No | — |
 | photo-server cluster | `photo-server`, `photo-quality-review`, `photo-tv-display` | Yes | Active |
+| LogSeq | `LogSeq` (whole separate repo, not a jctsh-internal directory) | Yes | Active |
+| PB-Blog | `PB-Blog` (whole separate repo, not a jctsh-internal directory) | No | — |
+| Rethinking Scripture Bible Study | `Rethinking-Scripture-Bible-Study` (whole separate repo, not a jctsh-internal directory) | No | — |
 | hiking-monitor cluster | `hiking-monitor`, `air-quality-monitor` | No | — |
 | garage cluster | `automatic-garage-door-opener-closer`, `garage-presence`, `garage-radar` | No | — |
 | HA automations cluster | `outdoor-presence-detection`, `traveling`, `core/homeassistant` | No | — |
@@ -51,6 +54,7 @@ Added 2026-09-18 (CARD-0299, refined same day — Joseph: "this table identifies
 - **salt-sensor, p-w-firefly, jctsh-menu, front-porch-temp-sensor, equip-shelf** — each self-contained enough (no real recurring cross-work found with anything else) that forcing a grouping would be arbitrary; single-component clusters, not omissions.
 - **`core/offline-logger`** deliberately has no row — a reusable template (`sensor_logger.h`) copied into whichever sensor uses it, not a component with its own ongoing thread; it belongs to whichever cluster actually uses it at the time.
 - **architecture** — added 2026-09-18 (CARD-0294's tag reconciliation, once retagging `[infrastructure]` cards revealed a genuine residual bucket that needed a real directory): doc-only, not a component or host, same shape as `tos`'s own row — a single-"component" cluster where the covered "component" is the directory itself.
+- **LogSeq, PB-Blog, Rethinking Scripture Bible Study** — added 2026-09-20 (CARD-0315's third interim call, from a LogSeq-scoped session asking to run this document's startup), each a whole separate sibling repo under `Projects/`, not a jctsh-internal `components/`/`core/`/`hosts/` directory — same single-"component" shape as `tos`'s and `architecture`'s rows, just one level up (the repo itself is the "component"). **A real mismatch this extension doesn't paper over:** the 9-step table below (steps 1/2/3/5/6/9) was written assuming jctsh's own shared `kanban-board.md`/git tree — scoped to one of these three, those steps point at *that repo's own* `kanban-board.md`/git tree instead, which (at least for LogSeq/PB-Blog) uses a different one-bracket card format with no jctsh-style component tags to scope by (CARD-0313's finding), and steps 4/8 (jctsh's auto-PR intake, `archive_cards.py`) don't apply at all — no such pipeline/script exists in those repos. CARD-0315 stays open on the bigger question this is one instance of.
 Not yet checked against Joseph's own judgment — these are proposed groupings, corrigible like any other card content, not a final decision just because they're written down.
 
 **Reconciled against `kanban-board.md`'s actual tags, 2026-09-18 (CARD-0294's own closing step).** Every non-type tag currently in use that names a real `components/<name>/`, `core/<name>/`, or `hosts/<name>/` directory resolves to exactly one row above — no orphaned directory tag, and no directory claimed by two clusters. Three things this check deliberately did *not* try to reconcile, because they aren't directory tags at all: (1) tags for **planned components with no directory yet** (`vu-meter`, `shower-temp-sensor`, `back-patio-temp-sensor`, `garage-entry-hallway`, `presence`, `wildlife`) — correctly absent here, since this table tracks real components, not ideas; they'll get a row (new or joining an existing cluster) once actually built, per the same iterative/incremental discipline as everything else in this doc; (2) `personal` — non-project life-admin cards (DNS records, digital-identity checklists), not a component tag and never meant to have a cluster; (3) **multi-directory clusters use per-directory tags, not one unified cluster tag** — e.g. the ops cluster's four cards use `[m8]`/`[pi1]`/`[maintenance]`/`[docker]` individually, never `[ops]`, because `archive_cards.py` (CARD-0294) routes on the literal directory name. A cluster groups tags for session-scoping purposes; it doesn't rename or merge them.

@@ -1,8 +1,8 @@
 # JCT Smart Home (JCTsh) Component Planning Pattern
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the five-phase process for planning and building JCTsh smart home components, from discovery through execution.
-**Version:** 2.4
-**Version description:** Realigned with `JCTsh-Operating-System.md`: Phases 1–5 now all happen in Claude Code, not Claude chat. Chat is limited to informal, pre-card preliminary thinking and research that produces no planning documents — once there's a decision to build something, the transition is to Claude Code, where a card is created (Backlog) and Phases 1–5 proceed from there in one continuous tool.
+**Version:** 2.5
+**Version description:** Added "Cloning an Existing Component — Planning Shortcut" section (CARD-0219) — for a component that duplicates an already-built design, create its directory and write findings straight into real docs during Planning, rather than accumulating everything in the kanban card and migrating later.
 
 ---
 
@@ -60,6 +60,18 @@ Phase 2 is about hardware selection and integration design. These files are need
 ### How to load files
 
 Claude Code reads files directly from the repo via its file-read tools — no pasting or uploading needed. "Loaded" means read when needed, not read all at once; the phased structure above still governs *when* each file gets read, to keep context focused on what the current phase actually requires.
+
+---
+
+## Cloning an Existing Component — Planning Shortcut
+
+Added 2026-09-21 (Joseph, CARD-0219 — the back-patio-temp-sensor build) — a deliberate exception to the general "no `components/<name>/` directory until Build" default (`tos/kanban-board.md`'s tag-reconciliation note, `JCTsh-Component-Session-Start.md`), which assumes Planning is still exploratory and a build might not happen. That default doesn't fit a **clone**: a new component whose design is already fully decided because it duplicates an existing, already-built component (e.g. `front-porch-temp-sensor` → `back-patio-temp-sensor`).
+
+**What went wrong the first time (CARD-0219):** with no directory yet, every checklist finding (site conditions, coordinates, parts allocation, gotchas) got written straight into the kanban card instead — producing a long, increasingly redundant card that then had to be manually migrated into real component docs once Build started, and trimmed back down afterward. Pure overhead, avoidable from the start.
+
+**The rule for a clone, going forward:** as soon as the decision to clone is made (the card exists, moving Backlog → Planning), create the `components/<name>/` directory immediately and copy/adapt the source component's real docs (README, wiring, perfboard, flashing, testing, mounting, etc.) as Planning findings actually come in — a confirmed site condition goes straight into `mounting.md`, a measured coordinate straight into `house-lot-coordinates.md` and the new README, a parts decision straight into a `parts-list.md` (or wherever the source component's own BOM lives), and so on. The kanban card stays essence-only throughout — raise reason, purpose, and a pointer to the component directory for current state — never a second copy of the same findings.
+
+This doesn't change anything about the New Sensor Checklist itself (`JCTsh-Property-Sensor-Pattern.md`) or the Phase 1–5 structure — it only changes *where* each resolved answer gets written down, in favor of its real permanent home from the first moment it's known, for the specific case where that home is already known to exist because the design is a duplicate.
 
 ---
 

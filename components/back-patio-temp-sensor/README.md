@@ -92,6 +92,7 @@ No custom threshold/notification automation exists yet — deliberately deferred
 | File | Purpose |
 |---|---|
 | `back-patio-temp-sensor.yaml` | ESPHome firmware config |
+| `parts-list.md` | Consolidated bill of materials |
 | `secrets.yaml` | Credentials — gitignored, never commit |
 | `secrets.yaml.template` | Credential template |
 | `wiring.md` | Perfboard wiring checklist |

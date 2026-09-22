@@ -9,7 +9,39 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0329 -->
+<!-- next-card-id: CARD-0330 -->
+
+---
+
+### CARD-0329 · [bug] [tos] Full board sweep for `TZ=`-path timestamp contamination — six more found, dating back to 2026-08-14 — RESOLVED 2026-09-22 10:30 MST
+
+**Status:** Done
+
+**Raised 2026-09-22 10:15 MST (Joseph, "what must be done to fix this timestamp issue?"), after the porch/patio session found and fixed one bad stamp on CARD-0219** (`18:46 MST` written, `11:46 MST` true — `TZ=America/Phoenix date` silently returns UTC in this environment, no zoneinfo database, right zone label, wrong time, no error) and this session documented the mechanism in `tos/JCTsh-Session-Start.md`. One known instance raised the obvious question: was that the only casualty, or had the bug been running longer than today?
+
+**Method.** `git blame --date=format-local` every timestamp-bearing line in `tos/kanban-board.md`, compare each embedded `HH:MM MST` stamp against the *introducing commit's own local time* (git's author-date offset is always numeric and correct — established as ground truth earlier today). Flag any stamp **5–9 hours ahead** of its commit — the `TZ=` bug's exact signature, since git commits are unaffected but Bash-tool-generated prose stamps are. **Validated against the known-bad CARD-0219 case before trusting a zero result** (a first pass found nothing due to a blame-parsing bug, not a clean board — re-run after fixing the parser reproduced the known case exactly: 7.0h ahead, confirming the method before it was applied to the live file).
+
+**Six more contaminated stamps found, none from today — all pre-dating this session's own discovery of the bug:**
+
+| Card | Stamp written | True time | Commit | Commit local time |
+|---|---|---|---|---|
+| CARD-0295 | `2026-09-18 16:57 MST` | `09:57 MST` | `2b58ffc1` | `10:00` |
+| CARD-0202 | `2026-08-23 14:27 MST` | `07:27 MST` | `3c448118` | `07:45` |
+| CARD-0203 (×2) | `2026-08-23 14:27 MST` | `07:27 MST` | `3c448118` | `07:45` |
+| CARD-0200 | `2026-08-23 14:16 MST` | `07:16 MST` | `02461309` | `07:22` |
+| CARD-0168 (×2: title + resolution note) | `2026-08-15 02:28 MST` | `2026-08-14 19:28 MST` | `d5299bc0` | `19:29` |
+
+Every corrected time lands within 1–18 minutes *before* its own commit — the pattern expected if a session read the (broken) clock, wrote the stamp, then committed shortly after. **This has been live since at least 2026-08-14** — over five weeks — not a today-only defect; it simply took today's porch/patio finding to know to look.
+
+**Fixed in place, not silently rewritten** — each stamp corrected inline with a short `(corrected 2026-09-22 ... see CARD-0329)` note, per this document's "mark and strike through, don't silently delete" convention, rather than erasing the evidence a five-week-old bug existed.
+
+**Re-swept after fixing — zero suspects remain** in `tos/kanban-board.md`. Not extended to component `card-archive.md`/`kanban-archive.md` files or other repos (LogSeq/PB-Blog) this pass — same method applies if ever warranted, not done speculatively.
+
+**Done when:** met. Root cause and detection already documented in `tos/JCTsh-Session-Start.md` (this card's prerequisite, not its own scope); this card is the one-time retroactive sweep, complete, with zero remaining suspects confirmed by re-running the same detector against the corrected file.
+
+**Reflection.** A tool bug with no error output can run for weeks before anyone notices, because each individual stamp looks plausible in isolation — it took a *second* observer's arithmetic (porch/patio's own 1.4-vs-7-hour cross-check) to surface the first instance, and only a mechanical sweep, not casual review, found the other six. The generalizable point: once a systematic-but-silent corruption source is confirmed, check for its blast radius immediately rather than assuming a single caught instance was the only one — the same discipline `JCTsh-Operating-System.md`'s Engineering Discipline section already states ("verify a claimed completion directly"), applied here to a claim of scope ("that was the only one") rather than a claim of done-ness.
+
+**Related:** `tos/JCTsh-Session-Start.md` (root cause, detection method, and the timestamp rule this bug undermines), CARD-0219 (the first instance, found and fixed by the porch/patio session), CARD-0291 (this session's own three forward-estimated — not `TZ=`-caused — stamps, a related but distinct failure mode fixed the same morning).
 
 ---
 
@@ -923,7 +955,7 @@ Wrote `tos/Portable-Kanban-Template.md` for the second piece of scope — card f
 
 **Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: `Container image updates: home-assistant: 2026.9.3 available (running 2026.9.2)`.
 
-**Risk assessment, checked 2026-09-18 16:57 MST against the real upstream release notes (github.com/home-assistant/core/releases/tag/2026.9.3):** patch release, bug-fixes and dependency bumps only — no breaking changes, no database migrations. Notable fixes: EnergyZero market-price regression, Private BLE Device now requires an IRK in its config flow, Bond retains known-host info on repeated zeroconf announcements, Matter/Shelly cover-entity creation when the tilt attribute is null, Nest Climate `turn_on` made idempotent, Spotify reauth crash when a config entry lacks an `id` field, Airthings BLE duplicate device entries from incomplete reads, better DNS/API error handling for Google Tasks and WAQI, onboarding username validation. Dependency bumps: holidays, pylutron, hassil, waterfurnace, aioamazondevices, reolink_aio. Also redacts API keys in debug logs. **None of these touch an integration this install actually depends on** (SmartThings, Ring, MQTT, Matter/Cync, SamsungTV) — low-risk upgrade.
+**Risk assessment, checked 2026-09-18 09:57 MST (corrected 2026-09-22 — written `16:57`, 7h fast via the `TZ=` clock bug, see CARD-0329) against the real upstream release notes (github.com/home-assistant/core/releases/tag/2026.9.3):** patch release, bug-fixes and dependency bumps only — no breaking changes, no database migrations. Notable fixes: EnergyZero market-price regression, Private BLE Device now requires an IRK in its config flow, Bond retains known-host info on repeated zeroconf announcements, Matter/Shelly cover-entity creation when the tilt attribute is null, Nest Climate `turn_on` made idempotent, Spotify reauth crash when a config entry lacks an `id` field, Airthings BLE duplicate device entries from incomplete reads, better DNS/API error handling for Google Tasks and WAQI, onboarding username validation. Dependency bumps: holidays, pylutron, hassil, waterfurnace, aioamazondevices, reolink_aio. Also redacts API keys in debug logs. **None of these touch an integration this install actually depends on** (SmartThings, Ring, MQTT, Matter/Cync, SamsungTV) — low-risk upgrade.
 
 **Deploy per `CLAUDE.md`'s standing Pi rule (CARD-0266/CARD-0268/CARD-0269) — never `docker pull`/`docker compose pull` on this host** (hangs indefinitely on this Pi's Docker 29.6.1 via a confirmed OCI-referrers bug, and risks starving the live container's I/O on the Pi 3B+'s shared USB 2.0 bus):
 ```bash
@@ -2708,7 +2740,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 17031
 ### CARD-0202 · [idea] [hiking-monitor] Real solar_v sensing — wire up the ADC divider CARD-0017 designed but never built — RESOLVED 2026-09-10
 **Status:** Done
 
-**Raised 2026-08-23 14:27 MST (Joseph), broken out from CARD-0200's "proper fix" note.** CARD-0200 fixed the low-battery cutoff's immediate bug (gating it on `dock_detect`, which solar shares with USB, rather than real charging state) with a cheap firmware-only patch. The properly-designed fix — a real `solar_v` ADC reading compared against `battery_v` (`solar_v > battery_v + ~0.3V` = actually charging) — was already fully specified by **CARD-0017** (marked Done, 2026-06-15), but only the Sheets/Apps Script half of that card was ever built. Confirmed by grep: no `solar_v` sensor exists anywhere in `hiking-monitor.yaml`, and `power-system.md` documents no voltage divider on the solar panel's own output — only `battery_v` (via `BAT+`) and the digital-ish `dock_detect` divider exist today.
+**Raised 2026-08-23 07:27 MST (corrected 2026-09-22 — written `14:27`, 7h fast via the `TZ=` clock bug, see CARD-0329) (Joseph), broken out from CARD-0200's "proper fix" note.** CARD-0200 fixed the low-battery cutoff's immediate bug (gating it on `dock_detect`, which solar shares with USB, rather than real charging state) with a cheap firmware-only patch. The properly-designed fix — a real `solar_v` ADC reading compared against `battery_v` (`solar_v > battery_v + ~0.3V` = actually charging) — was already fully specified by **CARD-0017** (marked Done, 2026-06-15), but only the Sheets/Apps Script half of that card was ever built. Confirmed by grep: no `solar_v` sensor exists anywhere in `hiking-monitor.yaml`, and `power-system.md` documents no voltage divider on the solar panel's own output — only `battery_v` (via `BAT+`) and the digital-ish `dock_detect` divider exist today.
 
 **Confirmed, per Joseph's question this same session: yes, this is a version-2/perfboard-rewiring item, not a firmware-only fix.** Populating `solar_v` for real requires a *new* physical voltage divider circuit — tapping the panel's raw output (or the TP4056 `IN+` line) through a new resistor pair into a spare ADC-capable GPIO — which means opening the already-assembled, field-proven perfboard. That's the same category of cost CARD-0070 (LDO swap) and CARD-0201 (sleep rearchitecture, if it turns out to need rewiring) are being deliberately kept out of this build pass for. Filed in **Defer**, matching CARD-0070's precedent, not Backlog — this isn't next-in-line work, it's a deliberately-parked future hardware pass.
 
@@ -2730,11 +2762,11 @@ Archived to `components/hiking-monitor/CLAUDE.md` on 2026-09-16 (CARD-0193) — 
 ### CARD-0203 · [enhancement] [hiking-monitor] Longer-but-same-thickness LiPo — fit confirmed, candidate cell out of stock
 **Status:** Backlog
 
-**Raised 2026-08-23 14:27 MST (Joseph), broken out from CARD-0196 item 4** (and separately again from CARD-0196 immediately after CARD-0201 was split out) — this is physical research/procurement work, not firmware, and closes on a different timeline (Joseph's hands on the enclosure) than the firmware cards it was originally bundled with.
+**Raised 2026-08-23 07:27 MST (corrected 2026-09-22 — written `14:27`, 7h fast via the `TZ=` clock bug, see CARD-0329) (Joseph), broken out from CARD-0196 item 4** (and separately again from CARD-0196 immediately after CARD-0201 was split out) — this is physical research/procurement work, not firmware, and closes on a different timeline (Joseph's hands on the enclosure) than the firmware cards it was originally bundled with.
 
 **Goal:** a physically longer 3.7V LiPo (same thickness as the current EEMB 1100mAh cell) might fit the existing 3D-printed enclosure (CARD-0009) without a redesign, if there's clearance in an unused dimension — more capacity without touching the boost-converter inefficiency CARD-0070 would fix.
 
-**Sourcing done, 2026-08-23 14:27 MST — real candidate identified:** [EEMB LP603466](https://eemb.store/products/lp603466-3-7v-1400mah), 3.7V 1400mAh, 6.5×34.5×68mm, JST connector, PCM-protected (overcharge/overdischarge/overcurrent/short-circuit), UL-certified and UN 38.3 compliant — same safety profile as the current cell. Verified against the current cell's own real dimensions, [EEMB LP603449](https://eemb.store/products/lp603449) at 6.3×34.5×50mm/1100mAh: essentially identical thickness (6.5 vs 6.3mm — within normal manufacturing tolerance) and identical width (34.5mm both), **18mm longer for +27% capacity.** Same manufacturer/product family as the currently-deployed cell (`hiking-monitor-claude-code-instructions.md`, `JCTsh-hiking-monitor-phase1.md`), so no new supplier-trust question.
+**Sourcing done, 2026-08-23 07:27 MST (corrected 2026-09-22 — written `14:27`, 7h fast via the `TZ=` clock bug, see CARD-0329) — real candidate identified:** [EEMB LP603466](https://eemb.store/products/lp603466-3-7v-1400mah), 3.7V 1400mAh, 6.5×34.5×68mm, JST connector, PCM-protected (overcharge/overdischarge/overcurrent/short-circuit), UL-certified and UN 38.3 compliant — same safety profile as the current cell. Verified against the current cell's own real dimensions, [EEMB LP603449](https://eemb.store/products/lp603449) at 6.3×34.5×50mm/1100mAh: essentially identical thickness (6.5 vs 6.3mm — within normal manufacturing tolerance) and identical width (34.5mm both), **18mm longer for +27% capacity.** Same manufacturer/product family as the currently-deployed cell (`hiking-monitor-claude-code-instructions.md`, `JCTsh-hiking-monitor-phase1.md`), so no new supplier-trust question.
 
 **Fit confirmed, 2026-08-23 (Joseph) — the 68mm length fits the physical enclosure.**
 
@@ -2749,7 +2781,7 @@ Archived to `components/hiking-monitor/CLAUDE.md` on 2026-09-16 (CARD-0193) — 
 ### CARD-0200 · [bug] [hiking-monitor] Low-battery safety cutoff silently disabled by solar (shares dock-detect signal with USB) — cheap fix built and flashed — RESOLVED 2026-08-24
 **Status:** Done
 
-**Raised 2026-08-23 14:16 MST (Joseph), found during a discussion of how connecting the SUNYIMA solar panel affects hiking-monitor's firmware.** The 3.4V low-battery cutoff (`hiking-monitor.yaml`, the 2-min interval lambda) was gated on `!id(dock_detect).state` — but solar wires into the same `IN+`/`IN-` pads as USB (`power-system.md:17,24-25,138-139`), so `dock_detect` goes HIGH identically whether it's a stable USB charger or a ~55-80mA solar panel in variable field conditions. Net effect: **connecting solar while actively hiking silently disables the one safety net protecting the LiPo from over-discharge**, with no check on whether the panel is actually outpacing drain.
+**Raised 2026-08-23 07:16 MST (corrected 2026-09-22 — written `14:16`, 7h fast via the `TZ=` clock bug, see CARD-0329) (Joseph), found during a discussion of how connecting the SUNYIMA solar panel affects hiking-monitor's firmware.** The 3.4V low-battery cutoff (`hiking-monitor.yaml`, the 2-min interval lambda) was gated on `!id(dock_detect).state` — but solar wires into the same `IN+`/`IN-` pads as USB (`power-system.md:17,24-25,138-139`), so `dock_detect` goes HIGH identically whether it's a stable USB charger or a ~55-80mA solar panel in variable field conditions. Net effect: **connecting solar while actively hiking silently disables the one safety net protecting the LiPo from over-discharge**, with no check on whether the panel is actually outpacing drain.
 
 **Two fix paths identified, interviewed 2026-08-23:**
 1. **Cheap patch (built this session):** gate the cutoff on `in_field_mode` (switch on, MQTT not connected — the same bool CARD-0196's display throttle already computes) instead of `dock_detect`. Pure firmware, no new wiring — the safety net now stays active whenever genuinely out hiking, regardless of whether solar happens to be connected.
@@ -3190,7 +3222,7 @@ Archived to `tos/kanban-archive.md` on 2026-08-22 (CARD-0193) — 9049B, over th
 
 ---
 
-### CARD-0168 · [bug] [homeassistant] Remove deprecated `http:` YAML block, resync stale configuration.yaml — RESOLVED 2026-08-15 02:28 MST
+### CARD-0168 · [bug] [homeassistant] Remove deprecated `http:` YAML block, resync stale configuration.yaml — RESOLVED 2026-08-14 19:28 MST (corrected 2026-09-22, see CARD-0329 — written `2026-08-15 02:28`, 7h fast via the `TZ=` clock bug)
 **Status:** Done
 
 **Raised 2026-08-14, surfaced mid-CARD-0145 build** by a live HA repair warning: "HTTP YAML configuration is ignored after migration... this stops working in version 2027.2.0... remove the http: block from your configuration.yaml. Manage the HTTP configuration from the UI under Settings > System > Network."
@@ -3213,7 +3245,7 @@ This is the nginx reverse-proxy trust setting from CARD-0096/CARD-0141's HTTPS w
 
 **Done when:** the UI-side migration is confirmed correct, the `http:` block is gone from both the live Pi config and the repo's tracked copy, HA restarts clean, the nginx-fronted HTTPS login still works, and the repo's `configuration.yaml` matches the live file end-to-end.
 
-**Verified and resolved, 2026-08-15 02:28 MST.** Checked the live migrated config directly (`.storage/http` on the Pi, via `sudo cat`) before touching anything: `use_x_forwarded_for: true` and `trusted_proxies: ["127.0.0.1/32", "::1/128"]` both confirmed carried over correctly, `yaml_migration_done: true` — didn't just trust the warning text. Removed the `http:` block from the live `configuration.yaml`.
+**Verified and resolved, 2026-08-14 19:28 MST (corrected 2026-09-22 — written `2026-08-15 02:28`, 7h fast via the `TZ=` clock bug, see CARD-0329).** Checked the live migrated config directly (`.storage/http` on the Pi, via `sudo cat`) before touching anything: `use_x_forwarded_for: true` and `trusted_proxies: ["127.0.0.1/32", "::1/128"]` both confirmed carried over correctly, `yaml_migration_done: true` — didn't just trust the warning text. Removed the `http:` block from the live `configuration.yaml`.
 
 **Restart hit the known s6-supervised gotcha** (`docker restart` failed — "tried to kill container, but did not receive an exit event"; container exited but didn't auto-restart despite `unless-stopped`) — recovered with a plain `docker start`. Docker's own healthcheck reported `healthy` well before HA's actual startup finished (`/api/config` showed `state: NOT_RUNNING`, only 127 of the eventual 772 entities loaded, `automation.*` domain briefly empty) — waited for `state: RUNNING` before treating anything as confirmed, avoiding a false "it's broken" read on `automation.card_0145_ring_motion_announcement` mid-boot.
 

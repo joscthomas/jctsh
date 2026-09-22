@@ -133,9 +133,33 @@ def _ha_request(path, method="GET"):
         return json.loads(body) if body else None
 
 
-def _unavailable_count():
+def _entity_counts():
+    """Returns (unavailable, total).
+
+    The total matters as much as the unavailable count (CARD-0247,
+    2026-09-22). This check runs a few minutes after boot, and HA populates
+    its state machine progressively -- an integration whose entities have
+    not been registered yet contributes *nothing* to /api/states, so it
+    counts as absent, never as `unavailable`. That made the two very
+    different situations "boot really is clean" and "HA has barely started,
+    ask again later" serialize to the identical `unavailable_before: 0`,
+    with nothing in the published fact able to tell them apart.
+
+    Found live: the 2026-09-21 scheduled reboot published
+    `unavailable_before: 0` at 03:06 MST, while the same API read by hand
+    the next day reported 54 unavailable of 998 -- consistent with
+    CARD-0240's known-normal ~52-53 permanently-offline SmartThings-hub
+    baseline, and not something that could plausibly have been a genuine 0
+    six minutes after boot. Recording the total makes that distinguishable:
+    `0 of ~120` is obviously premature, `0 of ~998` would be real.
+
+    Deliberately records the number rather than judging it -- no
+    "total looks too low" threshold yet, because there is no history of
+    real per-boot totals to set one from, and this project's own
+    Engineering Discipline calls for a measured threshold over a guessed
+    one. This field is what starts collecting that history."""
     states = _ha_request("/api/states")
-    return sum(1 for s in states if s.get("state") == "unavailable")
+    return sum(1 for s in states if s.get("state") == "unavailable"), len(states)
 
 
 def _slow_loading_domains():
@@ -185,7 +209,7 @@ entity_check = None
 watch_domains = []
 if ha_status == "healthy" and env.get("HA_TOKEN") and env.get("HA_URL"):
     try:
-        before = _unavailable_count()
+        before, total_before = _entity_counts()
         slow_domains = _slow_loading_domains()
         auto_reloaded = {}
         for domain in AUTO_RELOAD_DOMAINS:
@@ -193,11 +217,13 @@ if ha_status == "healthy" and env.get("HA_TOKEN") and env.get("HA_URL"):
                 auto_reloaded[domain] = _reload_domain(domain)
         if auto_reloaded:
             time.sleep(15)  # let the reload actually resync before recounting
-        after = _unavailable_count() if auto_reloaded else before
+        after, total_after = _entity_counts() if auto_reloaded else (before, total_before)
         watch_domains = [d for d in WATCH_ONLY_DOMAINS if d in slow_domains]
         entity_check = {
             "unavailable_before": before,
+            "total_before": total_before,
             "unavailable_after": after,
+            "total_after": total_after,
             "auto_reloaded": auto_reloaded,
             "watch_domains": watch_domains,
         }
@@ -246,7 +272,8 @@ if watch_domains:
     _alert(
         f"Reboot health check: {', '.join(watch_domains)} slow to start "
         f"and not auto-reloaded -- may need a manual check "
-        f"({entity_check['unavailable_before']} unavailable entities at boot)."
+        f"({entity_check['unavailable_before']} of {entity_check['total_before']} "
+        f"entities unavailable at boot)."
     )
 elif entity_check and entity_check.get("error"):
     _alert(f"Reboot health check: entity-availability check failed ({entity_check['error']}).")

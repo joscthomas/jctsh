@@ -19,6 +19,7 @@ This directory holds docs about the **physical machine itself** — base setup, 
 
 | File | Purpose |
 |---|---|
+| `daemon.json` | CARD-0326 — this host's `/etc/docker/daemon.json` (DNS pinning + `log-driver: journald`). Tracked per host because the Pi's differs legitimately; see `core/docker/README.md` for the comparison and deploy steps |
 | `network.md` | Hostname, LAN/Tailscale IPs, MAC, the dual-ethernet-port gotcha |
 | `setup.md` | Base OS install facts |
 | `operations.md` | Scheduled reboot, router-reboot coordination |

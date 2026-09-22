@@ -45,3 +45,39 @@ Historical record of archived Done/Defer kanban cards for this component (CARD-0
 **Related:** CARD-0006 (the log-directory precedent this generalizes, same drive), CARD-0032/CARD-0048 (the mount-ordering-race incident class this is careful to avoid repeating a third time), CARD-0158 (the post-reboot health check that incidentally helps verify this card too), CARD-0130 (the HA update session this idea came up during).
 
 ---
+
+**Archived from `tos/kanban-board.md` on 2026-09-22 (CARD-0193)** — 6824B, over the 5000B size threshold.
+
+### CARD-0326 · [enhancement] [docker] Per-host Docker daemon config — the repo tracks only the Pi's, and the two hosts have genuinely diverged — RESOLVED ~~2026-09-22 09:50 MST~~ 2026-09-22 09:49 MST
+**Status:** Done
+
+**Raised 2026-09-22 09:40 MST (ops cluster session startup), answering a question `core/docker/README.md` had already written down but never resolved:** its closing note asked "worth confirming whether the two hosts' real configs have actually diverged, or whether this file simply needs updating to match." Checked live this session — **they have genuinely diverged, and correctly so:**
+
+| | Pi (`/etc/docker/daemon.json`) | M8 (`/etc/docker/daemon.json`) |
+|---|---|---|
+| `dns` | `8.8.8.8`, `8.8.4.4` | `8.8.8.8`, `8.8.4.4` |
+| `data-root` | `/mnt/jctsh-logs/docker` | *(absent)* |
+| `log-driver` | *(absent — Docker's default `json-file`)* | `journald` |
+
+Neither difference is drift to correct. `data-root` is Pi-only because it exists to keep Docker's bulk off the SD card (CARD-0159) — the M8 has no SD card and no such constraint. `log-driver: journald` is M8-only because CARD-0272 applied it M8-wide and never scoped the Pi (now CARD-0327). So **one file cannot represent both hosts** — and the live consequence is that the M8's real Docker daemon config is **not version-controlled at all**: no recovery copy if the M8's `/etc` is lost, and no diffable record of what CARD-0272 actually changed on disk.
+
+**Design decided 2026-09-22 09:40 MST (Joseph, via AskUserQuestion — per-host files under `hosts/`, chosen over suffixed files in `core/docker/` and over documenting the divergence in place):** each host's real config lives in its own `hosts/<host>/daemon.json`, matching the existing `hosts/<name>/` pattern and the unprefixed-filename convention (`JCTsh-Operating-System.md`'s Documentation Structure section — the path already disambiguates, so `daemon.pi1.json` would just repeat it). `core/docker/` keeps `containerd-config.toml` (genuinely Pi-only, no M8 counterpart) and its `README.md` becomes the shared explainer and deploy reference pointing at both. The "keep one file, document the divergence" option was rejected for the specific reason that it leaves the M8's config untracked — which is the actual defect here, not the documentation gap.
+
+**Explicitly not in scope:** changing either host's *running* config. This card moves and accurately records what is already live on each machine — it applies nothing and restarts nothing. Whether the Pi should also get `journald` is CARD-0327; whether the M8 should also pin `data-root` is a non-question (no SD card, no reason).
+
+**Done when:** `hosts/pi1/daemon.json` and `hosts/m8/daemon.json` each match that host's live `/etc/docker/daemon.json` (verified by a real `diff` against each host, not by assuming the copy is right), `core/docker/README.md`'s Files table and Deploy section name the correct per-host file and no longer carry the now-answered "not yet reflected here" open question, and the old single `core/docker/daemon.json` is gone with nothing still pointing at it — root `CLAUDE.md`'s Core Files list names it explicitly and must be updated in the same pass.
+
+**Built and verified live, ~~2026-09-22 09:50 MST~~ 2026-09-22 09:49 MST (corrected 2026-09-22 10:35 MST, this session's own timestamp-hazard check, per the TZ= sweep raised on CARD-0329) — all four "Done when" criteria met, each checked rather than assumed:**
+1. `hosts/pi1/daemon.json` and `hosts/m8/daemon.json` created by reading each host's live `/etc/docker/daemon.json` directly over SSH and writing the output verbatim — not hand-transcribed. Verified by piping each host's live file back through `diff` against its repo copy: **both `IDENTICAL`.** Both also confirmed to parse as valid JSON (the same pre-install validation CARD-0272 used, since a malformed `daemon.json` prevents dockerd from starting at all).
+2. `core/docker/README.md` rewritten: a per-host comparison table (which setting each host has and *why* the difference is correct, not drift), per-host deploy commands, and a `diff`-based "is the repo copy still accurate" check. The stale "Not yet reflected here" open question is gone — answered, not just deleted.
+3. Old `core/docker/daemon.json` removed via `git rm`. `core/docker/` now holds only `containerd-config.toml`, which is genuinely Pi-only and has no M8 counterpart.
+4. Every reference chased, not just the ones in this directory: root `CLAUDE.md`'s Core Files list (two separate mentions — the Files entry *and* the DNS-pinning paragraph) updated, plus new `Files` rows in `hosts/m8/README.md` and `hosts/pi1/README.md`. A repo-wide grep for `core/docker/daemon.json` across `*.md`/`*.py`/`*.yml` now returns **nothing** outside the card archives and this board (correctly — those are historical records, not live pointers).
+
+**Nothing on either host was touched** — no config written, no daemon restarted, no container recreated. This card only changed how the repo *records* what was already running, exactly as scoped.
+
+**Reflection — two things worth carrying forward, one of which is really the general lesson here.** The narrow one: the deploy steps now stage through `/tmp` + `sudo install` rather than `scp`ing straight to `/etc/...`, which simply doesn't work on either host (root-owned `/etc`, and neither host permits root SSH) — the old README's one-line `scp core/docker/daemon.json <host>:/etc/docker/daemon.json` could never have run as written. The general one, and the reason this card existed at all: **a "version-controlled copy" of a host config is only true as long as someone re-checks it against the host.** CARD-0272 changed the M8's real `daemon.json` and correctly documented *on its own card* that it had, while the repo copy silently stopped matching any host — and it stayed that way for 8 days, discovered only because a session happened to `cat` both files side by side. The durable fix isn't vigilance, it's the `diff` one-liner now in `core/docker/README.md`: a cheap, explicit way to ask "is this still true?" that didn't previously exist for these files. Worth considering the same treatment for the repo's other version-controlled-copy-of-a-live-file directories (`core/mqtt/`, `core/node-red/`, `core/homeassistant/`), which have exactly the same drift exposure and, as far as this card checked, no equivalent verification step either — not opened as a card yet, noted here rather than lost.
+
+**Related:** CARD-0272 (put `log-driver: journald` on the M8 without updating the repo copy — the immediate cause), CARD-0159 (put `data-root` on the Pi — the other half of the divergence), CARD-0327 (the Pi-journald question this deliberately split off), CARD-0096 (created `hosts/m8/` and `hosts/pi1/`, the pattern this follows).
+
+---
+

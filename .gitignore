@@ -22,8 +22,8 @@ Thumbs.db
 .idea/
 
 # Claude Code local settings and memory (machine-specific)
-.claude/settings.local.json
-.claude/memory/
+**/.claude/settings.local.json
+**/.claude/memory/
 
 # Hike-izer: extracted photo/video media (CARD-0084) - regenerated from
 # Immich on demand, not versioned; only the HTML/Markdown summaries are

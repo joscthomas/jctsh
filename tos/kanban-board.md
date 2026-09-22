@@ -9,7 +9,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0328 -->
+<!-- next-card-id: CARD-0329 -->
+
+---
+
+### CARD-0328 · [enhancement] [mqtt] [node-red] [homeassistant] Version-controlled-copy directories have no drift check — generalize CARD-0326's one-line diff
+
+**Status:** Backlog
+
+**Raised 2026-09-22 10:10 MST — found by the ops cluster session in CARD-0326's own reflection, routed here because no initiated session owns the affected directories.** `core/mqtt/`, `core/node-red/` and `core/homeassistant/` are each "version-controlled copy of a file that actually lives on the Pi" directories, and nothing verifies the copy still matches the live file. CARD-0326 just fixed exactly this exposure for Docker (splitting `daemon.json` per host), and its fix was a one-line `diff` command in the README — which generalizes to all three directly.
+
+**This drifts in practice, it isn't hypothetical:** CARD-0291's fourth pass found `core/docker/daemon.json` missing CARD-0272's `journald` logging-driver setting, which had been applied live on the M8 and never brought back to the repo. That is the same failure these three directories are currently unguarded against, and root `CLAUDE.md` already states the rule they're supposed to satisfy ("the repo is the source of truth... do not edit on the Pi directly or the repo will fall out of sync") with nothing checking it.
+
+**Ownership, stated because it isn't this session's:** `core/mqtt` and `core/node-red` belong to the network/infra-visibility cluster, `core/homeassistant` to the HA automations cluster (`JCTsh-Component-Session-Start.md`'s registry) — neither is initiated. Opened from the `tos` session because the board is where a finding goes when no session owns it yet, not because `tos` owns the work. Tagged per-directory rather than by cluster, per CARD-0294's convention.
+
+**Not scoped, deliberately:** whether a README `diff` line per directory is sufficient (cheap, matches CARD-0326's precedent, but only runs when someone remembers), or whether this wants one scripted check covering every version-controlled-copy directory at once — which would live in `core/maintenance/` and make it ops scope instead. That choice is the Planning question.
+
+**Done when:** not yet scoped — essence-only per CARD-0256 until Planning interviews it.
+
+**Related:** CARD-0326 (the per-host `daemon.json` split whose reflection found this, and the one-line diff pattern to generalize), CARD-0272 (the `journald` setting that drifted), CARD-0291 (pass 4, which caught that drift and honestly noted it rather than fixing it), CARD-0294 (per-directory tagging convention).
 
 ---
 

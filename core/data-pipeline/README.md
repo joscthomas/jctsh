@@ -6,10 +6,19 @@ app → the Google Sheets workbook that is the authoritative archive. Not a comp
 hardware of its own — it's the pipeline other components publish *into*, which is why it
 lives in `core/` rather than `components/`.
 
-**Status:** Production. Four components currently publish into it — `hiking-monitor`,
-`air-quality-monitor`, `front-porch-temp-sensor`, `back-patio-temp-sensor` — plus three
-phone-sourced HTTP pipelines (GPS Track, Hiking Observations, Hike Start Forecast) that
-reach the Apps Script directly, never through the broker.
+**Status:** Production. Four components are configured to publish into it —
+`hiking-monitor`, `air-quality-monitor`, `front-porch-temp-sensor`,
+`back-patio-temp-sensor` — plus three phone-sourced HTTP pipelines (GPS Track, Hiking
+Observations, Hike Start Forecast) that reach the Apps Script directly, never through the
+broker.
+
+> **`back-patio-temp-sensor` is configured but currently silent on `/data`** (measured by
+> the porch/patio session, 2026-09-22: 6.6 minutes subscribed, longer than the 5-minute
+> interval — 4 illuminance messages, zero `/data`). Its BME280 is one of the counterfeit
+> BMP280s (chip ID `0x58`, not `0x60`), so ESPHome's `bme280_i2c` marks the component
+> FAILED, temp/humidity/pressure all read NaN, and the publish lambda's
+> `if (isnan(...)) skip` guard suppresses the payload. A genuine BME280 is on order and
+> the swap is drop-in, so this is transient — the YAML and topic are correct.
 
 Payload schema, sheet schemas, Weather Underground integration, and the planned sensor
 family are defined in `JCTsh-Environmental-Data-Architecture.md`. **That document is the

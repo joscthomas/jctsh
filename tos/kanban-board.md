@@ -17,7 +17,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Status:** Backlog
 
-**Raised 2026-09-22 10:10 MST — found by the ops cluster session in CARD-0326's own reflection, routed here because no initiated session owns the affected directories.** `core/mqtt/`, `core/node-red/` and `core/homeassistant/` are each "version-controlled copy of a file that actually lives on the Pi" directories, and nothing verifies the copy still matches the live file. CARD-0326 just fixed exactly this exposure for Docker (splitting `daemon.json` per host), and its fix was a one-line `diff` command in the README — which generalizes to all three directly.
+**Raised 2026-09-22 10:04 MST — found by the ops cluster session in CARD-0326's own reflection, routed here because no initiated session owns the affected directories.** `core/mqtt/`, `core/node-red/` and `core/homeassistant/` are each "version-controlled copy of a file that actually lives on the Pi" directories, and nothing verifies the copy still matches the live file. CARD-0326 just fixed exactly this exposure for Docker (splitting `daemon.json` per host), and its fix was a one-line `diff` command in the README — which generalizes to all three directly.
 
 **This drifts in practice, it isn't hypothetical:** CARD-0291's fourth pass found `core/docker/daemon.json` missing CARD-0272's `journald` logging-driver setting, which had been applied live on the M8 and never brought back to the repo. That is the same failure these three directories are currently unguarded against, and root `CLAUDE.md` already states the rule they're supposed to satisfy ("the repo is the source of truth... do not edit on the Pi directly or the repo will fall out of sync") with nothing checking it.
 
@@ -83,7 +83,7 @@ Neither difference is drift to correct. `data-root` is Pi-only because it exists
 
 ---
 
-### CARD-0325 · [enhancement] [tos] Cross-session commit sweeps on `tos/kanban-board.md` — commit on completion, never ask, never wait — RESOLVED 2026-09-22 10:05 MST
+### CARD-0325 · [enhancement] [tos] Cross-session commit sweeps on `tos/kanban-board.md` — commit on completion, never ask, never wait — RESOLVED 2026-09-22 09:49 MST
 
 **Status:** Done
 
@@ -101,7 +101,7 @@ Neither difference is drift to correct. `data-root` is Pi-only because it exists
 
 **Why it's escalating, concretely:** this repo now routinely runs four or more named cluster sessions at once — `tos`, hike-izer, ops, and porch/patio were all active this morning — every one of them writing to the same single ~850KB board file. Instance frequency went from one in roughly four months to two within one hour.
 
-**Decided 2026-09-22 10:05 MST (Joseph: "i don't want to decide. i just want it to work") — the Board Commit Rule, now in `JCTsh-Operating-System.md` v1.21's Concurrent Sessions section.** A session finishing a bounded piece of work stages its own files plus `tos/kanban-board.md`, commits, and pushes immediately — no asking, no waiting on another session, and if the board carries another session's in-flight text it goes in too with a trailer saying so. Hunk-level board staging is ruled out as mechanically unavailable (instance 4), the lock file is rejected outright, and attribution drift is an accepted limitation.
+**Decided 2026-09-22 09:49 MST (Joseph: "i don't want to decide. i just want it to work") — the Board Commit Rule, now in `JCTsh-Operating-System.md` v1.21's Concurrent Sessions section.** A session finishing a bounded piece of work stages its own files plus `tos/kanban-board.md`, commits, and pushes immediately — no asking, no waiting on another session, and if the board carries another session's in-flight text it goes in too with a trailer saying so. Hunk-level board staging is ruled out as mechanically unavailable (instance 4), the lock file is rejected outright, and attribution drift is an accepted limitation.
 
 **The real finding wasn't the collisions — it was that four sessions each kept surfacing the same cosmetic problem to Joseph as a decision.** Every instance below cost exactly one wrong commit message and zero content; `Edit`'s string matching held every time. What actually cost anything was the deliberation: four sessions independently re-deriving the same judgment call and asking him to adjudicate commit timing, which is not his job. The fix is a rule that removes the decision, not machinery that removes the collision.
 
@@ -1021,7 +1021,7 @@ This confirms this card's own step 2 ("whether any *other* existing tags... also
 
 ---
 
-### CARD-0291 · [enhancement] [tos] Audit every component/core/host README.md and CLAUDE.md against what they're actually supposed to contain — ~~RESOLVED 2026-09-18~~ ~~REOPENED 2026-09-22 08:50 MST~~ RESOLVED 2026-09-22 10:20 MST
+### CARD-0291 · [enhancement] [tos] Audit every component/core/host README.md and CLAUDE.md against what they're actually supposed to contain — ~~RESOLVED 2026-09-18~~ ~~REOPENED 2026-09-22 08:50 MST~~ RESOLVED 2026-09-22 09:56 MST
 
 **Status:** Done
 
@@ -1089,7 +1089,9 @@ This confirms this card's own step 2 ("whether any *other* existing tags... also
 
 **Before this card can re-close:** nothing runtime — both changes are documentation, no deploy step — only Joseph's confirmation that the two files read correctly. The Reflection below still stands; this pass is one more instance of its own second durable pattern (a card's "Done"/completeness claim not holding when actually re-checked), which is precisely what CARD-0304's verify-a-claimed-completion item exists to catch.
 
-**Re-closed 2026-09-22 10:20 MST (Joseph: "close 291") — on a re-run of the completeness criterion, not on this pass's own say-so.** The whole reason this card reopened was a "Done when: met" claim nobody re-checked, so the sweep was actually re-run across all 34 `components/*`, `core/*`, `hosts/*` directories plus `tos/` before flipping the status. Seven directories still lack a `README.md`, a `CLAUDE.md`, or both — every one of them accounted for, none a new gap:
+**Timestamp correction 2026-09-22 09:56 MST, self-caught while verifying the porch/patio session's clock report.** Three stamps this session wrote (this card's closure, CARD-0325's decision and CARD-0328's raise) were **estimated forward rather than read from the clock** — 10–25 minutes ahead of the commits that actually carried them. Corrected to each commit's own local time (`git log --date=format-local`), which is the one unfalsifiable record. Different failure from the `TZ=` skew that prompted the check: not a broken tool, just writing a plausible-looking time instead of running `date`. Cheap to avoid and invisible once written, which is exactly why it's recorded rather than quietly fixed.
+
+**Re-closed 2026-09-22 09:56 MST (Joseph: "close 291") — on a re-run of the completeness criterion, not on this pass's own say-so.** The whole reason this card reopened was a "Done when: met" claim nobody re-checked, so the sweep was actually re-run across all 34 `components/*`, `core/*`, `hosts/*` directories plus `tos/` before flipping the status. Seven directories still lack a `README.md`, a `CLAUDE.md`, or both — every one of them accounted for, none a new gap:
 
 | Directory | Gap | Verdict |
 |---|---|---|

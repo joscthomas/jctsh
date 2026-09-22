@@ -97,6 +97,19 @@ table for exactly which steps below get scoped, skipped, or run as-is.
    A general session scans `/status` across every device; a component session (per
    `JCTsh-Component-Session-Start.md`) scans it for its own covered component(s) only.
 
+**How to get that time of day — verified 2026-09-22 09:56 MST, because the obvious method is broken on this workstation.**
+
+| Source | Verdict |
+|---|---|
+| `date` (bare, in the Bash tool) | **Correct — use this.** Verified against the Pi to the second: both read `10:08:13` MST. The `USMST` label is a POSIX `TZ` string, not a malfunction. |
+| `TZ=America/Phoenix date` | **Broken — never use.** Returns **UTC**, because `/usr/share/zoneinfo/` does not exist in this environment, so glibc silently falls back to UTC while `%Z` still prints the zone name you asked for. That combination — right label, wrong time, no error — is what makes it dangerous. Confirmed live: `17:08:13` returned when the true local time was `10:08:13`. |
+| `date -u` | Correct, but it's UTC — subtract 7 for MST, or just use bare `date`. |
+| `git log --date=format-local`, PowerShell `Get-Date`, `ls` mtimes, the Pi's own `date` over ssh | All correct, all agree with bare `date`. |
+
+**Real damage, both directions, on 2026-09-22.** CARD-0219 carried a `18:46 MST` Build-progress stamp that was actually `11:46 MST` — written via the broken `TZ=` path, exactly 7 hours ahead (found and fixed by the porch/patio session, `1c5fef2`). Separately, three stamps on CARD-0291/CARD-0325/CARD-0328 were **estimated forward instead of read at all**, landing 10–25 minutes ahead of the commits carrying them (found and fixed by the `tos` session). **So both failure modes are real here: a tool that lies, and not consulting the tool.** The diagnosis also went wrong on its first pass — the skew was initially reported as "bare `date` returns UTC labelled MST," which is the opposite of the truth and would have had sessions subtracting 7 hours from correct stamps. Verify against the Pi before acting on any claim that the clock is wrong.
+
+**When a stamp is already written and its accuracy is in doubt, the commit that carried it is the ground truth** — `git log --date=format-local:'%Y-%m-%d %H:%M' <sha>`. A card's own prose can drift; a commit timestamp can't.
+
 **Every timestamp written into `tos/kanban-board.md` (`Raised`, `RESOLVED`, `verified`, `Built`,
 `Decided`, status-line dates, anywhere else a date gets stamped) MUST include a time of day,
 local Phoenix time (`America/Phoenix`, MST, UTC-7, no DST) — e.g. `2026-08-03 14:32 MST`, never

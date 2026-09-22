@@ -9,7 +9,35 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0325 -->
+<!-- next-card-id: CARD-0326 -->
+
+---
+
+### CARD-0325 · [enhancement] [tos] `tos/kanban-board.md` cross-session commit sweeps — decide whether a session-scoped lock file is now warranted
+
+**Status:** Backlog
+
+**Raised 2026-09-22 09:30 MST (Joseph, "yes" to carding it), from three real instances — two of them inside one hour of this same morning.**
+
+1. **2026-09-18** — CARD-0291 pass 1's `netalertx-README.md` rename, staged by the `tos` session, landed in a concurrent hike-izer session's commit `575bcf0`. Recorded on CARD-0291 and cited in `JCTsh-Operating-System.md`'s Concurrent Sessions section as the reason for the "never `git add -A`" rule.
+2. **2026-09-22 09:05** — CARD-0291's reopening and fifth-pass items 1–5, written by the `tos` session, landed in the hike-izer session's `1a46550` ("read a component's operating doc at session start").
+3. **2026-09-22 ~09:20** — the fifth pass's item-4 amendment **and the note recording instance 2** landed in `32a0b9d` ("open CARD-0323 in Planning"). The record of the collision was itself collided.
+
+**Correction to carry forward:** CARD-0291's own collision note calls instance 2 the "third recorded instance." That overcounted — it treated CARD-0291 pass 1's finding and CARD-0303's citation of that same finding as two separate events, when both describe the single `575bcf0` sweep. The real count is the three listed above.
+
+**Why the existing guidance doesn't prevent it — neither session broke a rule.** `JCTsh-Operating-System.md`'s Concurrent Sessions section says to **commit `tos/kanban-board.md` as a whole at natural checkpoints** (explicitly not surgically per card) *and* to **never `git add -A`/`git add .`** — but naming the board file explicitly isn't a blanket add, and it still sweeps every other session's in-flight card edits. CARD-0283's reactive-reread rule also worked exactly as designed throughout: `Edit`'s exact-string match protects against **clobbering**, and no content was ever lost in any of the three instances. **The actual problem is narrow and worth stating precisely: content-safe, history-misleading.** A card's work lands under an unrelated card's commit message, so `git log` stops answering "which card produced this snapshot" — the one thing the Relationship to Commit / Push section says a commit note exists to do.
+
+**Why it's escalating, concretely:** this repo now routinely runs four or more named cluster sessions at once — `tos`, hike-izer, ops, and porch/patio were all active this morning — every one of them writing to the same single ~850KB board file. Instance frequency went from one in roughly four months to two within one hour.
+
+**Candidate levers, none decided:**
+- The **session-scoped lock file** the Concurrent Sessions section already names as "the next lever... not adopted yet" — claimed once per multi-edit pass rather than per edit.
+- **Commit-time discipline instead of a lock** — a session stages only its own card's hunks, which that same section currently discourages as over-surgical. The tension between those two pieces of its own guidance is arguably the real finding here.
+- **Accept and document** — treat attribution drift as cosmetic (independently what all three instances concluded in the moment) and write that down as a deliberate accepted limitation, so it stops being re-decided ad hoc every time.
+- **Check the `next-card-id` race during Planning** — the same collision's sharper edge. Two sessions claiming the same card number would be real data loss, not just misattribution; this morning saw CARD-0322 through CARD-0325 claimed by three different sessions within ~25 minutes, with no verified duplicate yet.
+
+**Done when:** not yet scoped — deliberately essence-only per CARD-0256 until a Planning pass actually interviews it. The decision this card exists to hold is "lock file vs. commit discipline vs. accept-and-document," and pre-answering it here would be exactly the assumption-first carding the process forbids.
+
+**Related:** CARD-0291 (all three instances hit it; its fifth pass carries the collision note this card corrects), CARD-0303 (moved Concurrent Sessions into `JCTsh-Operating-System.md`, and cited instance 1), CARD-0283 (reactive reread — the protection that does work, and why clobbering isn't the issue), CARD-0284 (cluster sessions — the practice whose own success created this load), `tos/JCTsh-Operating-System.md` (Concurrent Sessions section, and Relationship to Commit / Push's "commit note ties back to the card" purpose).
 
 ---
 

@@ -1,8 +1,8 @@
 # JCTsh Environmental Data Architecture
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the architecture for JCTsh environmental sensor data — the standard message payload, Google Sheets archive design, Node-RED data handler pattern, Weather Underground integration, and the planned environmental sensor family. All environmental sensor components must conform to this standard.
-**Version:** 1.5
-**Version description:** Added the `Hike Start Forecast` sheet and its Apps Script capture logic (CARD-0083) — a live weather-forecast snapshot captured on the first Hiking Observation of each day. New sheet in the Sheets Structure table and a new "Hike Start Forecast Architecture" section. No changes to the standard environmental payload schema from v1.4.
+**Version:** 1.6
+**Version description:** CARD-0291 (fifth pass) — Sheets Structure table reconciled against `environmental-data.gs`, which it had drifted from: added `GPS Track`, `Wildlife Detections`, `Timeline`, and `Correlation Debug` (all four really written by the script, none previously listed), marked `Lightning Events` as planned/not-yet-created (no code path writes it; `weather-station` isn't built), and labeled `Timeline`/`Correlation Debug` as derived/diagnostic rather than archive sheets so neither is mistaken for a source of record. No change to the payload schema, the handler pattern, or any sheet's own column schema.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`
 
@@ -105,14 +105,18 @@ The Apps Script web app URL and secret key are stored in Node-RED environment va
 
 ### Sheets Structure
 
-The workbook contains multiple sheets:
+The workbook contains multiple sheets. **Reconciled against `environmental-data.gs` 2026-09-22 08:50 MST (CARD-0291, fifth pass)** — four sheets the script really writes were missing from this table entirely, and the one sheet it listed that no code path writes is now marked planned:
 
 | Sheet | Contents |
 |---|---|
-| `Environmental Data` | One row per sensor reading — all environmental sensor sources |
+| `Environmental Data` | One row per sensor reading — all environmental sensor sources. The canonical archive. |
+| `GPS Track` | One row per GPS fix (timestamp, lat, lon, accuracy, altitude, bearing), posted straight to the script by GPSLogger on the phone via `?action=gps` — never through MQTT or Node-RED. Every other sheet's coordinate back-fill is resolved against this one (`?action=lookup`). |
 | `Hiking Observations` | One row per voice observation — see Hiking Observations Architecture section |
-| `Lightning Events` | One row per lightning strike event from weather station AS3935 detector |
 | `Hike Start Forecast` | One row per day a hike started — a live weather-forecast snapshot captured at that moment; see Hike Start Forecast Architecture section |
+| `Wildlife Detections` | One row per species per hike (`timestamp`, `hike_file_stem`, `common_name`, `scientific_name`, `count`, `best_confidence`, `lat`, `lon`) — posted by hike-izer's BirdNET pass, one call per detection, deduplicated on (hike, species). Self-provisioning: the script creates the sheet and its header row if absent (CARD-0229/CARD-0235). |
+| `Timeline` | **Derived view, not an archive** — `Environmental Data` + `Hiking Observations` merged into one human-readable sequence in each row's own local time (`timestamp_local`, `type`, `summary`, `categories`, `lat`, `lon`). Rebuilt from scratch on demand via the workbook's **JCTsh → Refresh Timeline** menu; nothing in the pipeline writes it, and clearing it loses nothing (CARD-0099). |
+| `Correlation Debug` | **Diagnostic, not an archive** — one row per GPS-correlation attempt (`logged_at`, `event_type`, `target_ts`, `best_diff_sec`), for checking how closely a reading actually matched a GPS fix. Self-provisioning. |
+| `Lightning Events` *(planned)* | One row per lightning strike event from the weather station's AS3935 detector. **Not yet created — no code path in `environmental-data.gs` writes it**, because `weather-station` isn't built; see MQTT Lightning Topic below. |
 
 ### Environmental Data Schema
 

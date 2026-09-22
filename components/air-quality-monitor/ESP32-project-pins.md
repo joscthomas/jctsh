@@ -27,7 +27,7 @@
 |                                 | 15 | GPIO13                        | GPIO2 ⚠️         | 24 | |
 |                                 | 16 | SD2 - GPIO9 ⛔                 | GPIO15 ⚠️        | 23 | |
 |                                 | 17 | SD3 - GPIO10 ⛔                | SD1 - GPIO8 ⛔    | 22 | |
-| Silkscreen prints GND, not GPIO11 — but NOT usable as a GND tap, see note below | 18 | GND (nonfunctional — see note) | SD0 - GPIO7 ⛔    | 21 | |
+| Silkscreened GND, but almost certainly GPIO11 (flash CMD) — never use, see note below | 18 | GND (silkscreen) / GPIO11 ⛔   | SD0 - GPIO7 ⛔    | 21 | |
 | **Unused — LDO bypasses this pin** | 19 | VIN (5V)                      | CLK - GPIO6 ⛔    | 20 | |
 
 ⛔ = connected to flash memory — do not use
@@ -35,4 +35,19 @@
 
 **VIN (pin 19) note:** on hiking-monitor, this pin receives the TP4056+boost module's 5V output. On air-quality-monitor, the LDO feeds `3V3` (pin 1) directly instead — `VIN`/pin 19 is intentionally unused. Don't wire anything to it; leaving it floating is correct, not an oversight.
 
-**Pin 18 note — corrected 2026-09-14, see `wiring.md`'s Physical Pin Summary for the full story.** The original 2026-08-19 version of this note claimed pin 18 was "verified against the silkscreen" as GND (vs. hiking-monitor's reference, which has GPIO11 here). The silkscreen print is confirmed still correct — but a bench continuity test during Step 9 found it is **not actually continuous with the GND rail**, reproduced on two separate boards with identical markings. Root cause not yet understood (unpopulated pin on this board variant? genuinely NC despite the print?). **Do not treat pin 18 as a usable GND tap** until this is resolved — see `wiring.md` for the live status.
+**Pin 18 note — root cause revisited 2026-09-22 (from the porch/patio cluster session, which hit the same anomaly on `back-patio-temp-sensor`); supersedes the 2026-09-14 "root cause not yet understood" version.** History: the original 2026-08-19 note claimed pin 18 was "verified against the silkscreen" as GND. The silkscreen print is confirmed correct — but a bench continuity test during Step 9 (2026-09-14) found pin 18 is **not actually continuous with the GND rail**, reproduced on two separate boards with identical markings.
+
+**Strong hypothesis, not yet directly confirmed: pin 18 is GPIO11 (SD_CMD / flash CMD), mis-silkscreened by the board vendor as GND.** Four pieces of evidence agree:
+
+1. **This component's own board photo** (`esp32_pins.jpg`) shows the underside silkscreen reading `GND` at that position — the print really does say GND, and really does disagree with the chip.
+2. **The generic 38-pin ESP32 reference puts GPIO11 / Flash CMD at pin 18.** The 2026-09-14 note framed this as "hiking-monitor's reference," implying some other board's documentation — **that framing was wrong.** `ESP32pins.png` is byte-identical across `hiking-monitor`, `front-porch-temp-sensor`, `garage-radar`, and `back-patio-temp-sensor`: it is the shared generic pinout for this board type, not a hiking-monitor-specific artifact.
+3. **The continuity result is exactly what GPIO11 would produce** — not connected to the ground plane because it was never ground. No unpopulated-pin or manufacturing-defect theory is needed to explain it.
+4. **Position fits.** Pin 18 sits directly below GPIO9 (SD2, pin 16) and GPIO10 (SD3, pin 17) and above VIN (pin 19) — exactly where GPIO11/SD_CMD completes that flash group in the standard pinout.
+
+**Why this matters more than the old framing:** "nonfunctional GND" implies a merely useless pin. A flash-bus pin is ⛔ — same class as GPIO6–10 — and driving it would interfere with SPI flash access. Treat pin 18 as **never usable for anything**, not as a GND tap whose status is pending.
+
+**Still a hypothesis, deliberately.** Inferred from a reference diagram plus a continuity result; pin 18 itself has never been probed for flash-bus activity. A scope or logic analyzer on it during a flash write would settle it — activity synchronous with the flash bus confirms GPIO11, a flat line does not. Not a blocker: this build never wires pin 18, and GND comes from pin 38 (`wiring.md`'s Physical Pin Summary).
+
+**Same conclusion recorded in `components/back-patio-temp-sensor/ESP32-project-pins.md`** — same board batch, same anomaly, reached independently there 2026-09-21 before the two were connected.
+
+**Cross-cluster edit.** `air-quality-monitor` belongs to the hiking-monitor cluster (`tos/JCTsh-Component-Session-Start.md`); this note was written from the porch/patio session at Joseph's explicit request, not by scope drift.

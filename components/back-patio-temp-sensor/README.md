@@ -21,7 +21,7 @@ open/close notifications) is deliberately undecided for now — see `integration
 
 | Component | Details |
 |---|---|
-| Microcontroller | ESP32 DevKitC-32, 38-pin, CP2102, USB-C — silkscreened `NODEMCU` / `ESP-32S` / `V1.1` on the underside (same board batch as air-quality-monitor's). All 38 silkscreen labels verified against `ESP32-project-pins.md` on 2026-09-21; see that file's pin 18 note for the one conflict found, unused by this build. |
+| Microcontroller | ESP32 DevKitC-32, 38-pin, CP2102, USB-C — silkscreened `NODEMCU` / `ESP-32S` / `V1.1` on the underside (same board batch as air-quality-monitor's). All 38 silkscreen labels verified against `ESP32-project-pins.md` on 2026-09-21 — **against a photo of a same-batch board, not this unit's own** (corrected 2026-09-22: `esp32-pins-photo.jpg` is byte-identical to `air-quality-monitor/esp32_pins.jpg` and originates from CARD-0012). Valid for the batch; this specific board's silkscreen has not been photographed. See that file's pin 18 note for the one conflict found, unused by this build. |
 | Temp / humidity / pressure | BME280 (genuine GY-BME280), I2C at GPIO21/22 |
 | Light | BH1750 (GY-302), I2C at GPIO21/22, ADDR pin → GND (address 0x23) |
 | Power | USB-C from back patio outlet |
@@ -98,7 +98,7 @@ No custom threshold/notification automation exists yet — deliberately deferred
 | `wiring.md` | Perfboard wiring checklist |
 | `ESP32-project-pins.md` | Full 38-pin assignment table |
 | `ESP32pins.png` | Generic 38-pin ESP32 reference pinout — **top view**, the orientation every pin number in this component is stated in |
-| `esp32-pins-photo.jpg` | Photo of this build's actual board silkscreen — the **underside**, so left/right are mirrored against the table and the reference above |
+| `esp32-pins-photo.jpg` | Board silkscreen photo, **underside** (so left/right are mirrored against the table and reference above). **A same-batch board, not this unit's own** — byte-identical copy of `air-quality-monitor/esp32_pins.jpg`. |
 | `perfboard-layout.md` | Perfboard build layout |
 | `flashing.md` | Flash procedure |
 | `integration.md` | HA entity setup; custom automation deferral notes |

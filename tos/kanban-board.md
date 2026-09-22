@@ -9,7 +9,39 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0324 -->
+<!-- next-card-id: CARD-0325 -->
+
+---
+
+### CARD-0324 · [bug] [logging] An alert-only component's `/status` row pins to its last failure forever — a recovered pipeline is indistinguishable from a still-broken one
+
+**Status:** Backlog
+
+**Raised 2026-09-22 09:30 MST (Joseph's direct instruction, "new card for jctsh-pr-selftest"), from a real misread made in this same session — the finding is the misread, not the thing misread.** The `/status` dashboard showed:
+
+```
+jctsh-pr-selftest | — | n/a | — | Kanban-PR intake pipeline self-test FAILED at 2026-09-11T04:32:43.058948+00:0… | 11d ago | — | —
+```
+
+Read straight, that says the auto-PR intake pipeline's own daily canary (CARD-0192) failed eleven days ago and has said nothing since — i.e. either the self-test is dead or the pipeline it watches is. It was reported to Joseph in exactly those terms ("dark for 11 days").
+
+**That reading is wrong, confirmed by checking the Pi directly rather than trusting the dashboard:**
+- `systemctl list-timers kanban-pr-selftest.timer` — enabled, active, **last ran 2026-09-22 00:00:00 MST**, next 2026-09-23 00:00:00 MST.
+- `systemctl status kanban-pr-selftest.service` — `code=exited, status=0/SUCCESS` on that run.
+
+The self-test is healthy and has been running daily the whole time.
+
+**Root cause, confirmed by reading `tos/kanban-pr-selftest.py`: `_publish_log()` is called only on the failure path.** A successful run publishes nothing to MQTT at all — it just records `last_success_at` in local state. So for any component that only speaks up when something is wrong, `/status`'s "Last Message" column is pinned to its most recent failure **permanently**, and its "ago" timestamp measures *time since that failure*, not *time since last check*. There is no rendering difference between:
+- a component that failed 11 days ago and is still broken, and
+- a component that failed 11 days ago, recovered the next day, and has run clean every day since.
+
+**Why this is worth a card rather than a note.** `/status` exists precisely so a session doesn't have to infer liveness from raw-log greps (CARD-0282 established it as the authority for "is X alive right now"). This is a real hole in that authority for one whole class of component — alert-only ones — and it produces **false alarms that look exactly like true ones**, which is the expensive direction to be wrong in. It already cost real investigation time in this session, and a future session reading the same row would reasonably reach the same wrong conclusion.
+
+**Scope deliberately left open — essence-only per CARD-0256, this is Backlog not Planning.** At least three plausible directions, not yet chosen and not yet interviewed: (a) have alert-only components publish a periodic success/heartbeat line so silence means something, (b) have `/status` render "last checked" separately from "last message" so a stale failure can't masquerade as current state, or (c) have the dashboard treat a known-scheduled component's timer/unit state as the liveness signal instead of its last MQTT message. Which of these is right depends on how general the problem is — worth first checking **which other components are alert-only**, since `jctsh-pr-selftest` is the one that happened to be noticed, not necessarily the only one affected.
+
+**Deliberately not in scope:** anything about the auto-PR intake pipeline itself, which is working. `tos/JCTsh-Session-Start.md` step 4's "never surface the `jctsh-pr-selftest` PR" rule is also unrelated — that's about PRs the self-test opens, not about this dashboard row.
+
+**Related:** CARD-0192 (built the self-test; `tos/kanban-pr-selftest.py`'s alert-only `_publish_log` is the mechanism here), CARD-0282 (`/status` as the authority for live component state — this is a limitation of that same page), CARD-0256 (essence-only Backlog scoping, why this card stops here), `core/logging/log_server.py` (`/status` rendering), `tos/kanban-pr-selftest.py`.
 
 ---
 
@@ -336,6 +368,14 @@ This is elevation **range**, not cumulative ascent. For any hike with rolling te
 **Raised 2026-09-19, via the auto-PR intake pipeline (PR #99, jctsh-core maintenance check).** Original finding text (voice transcription, garbled): "make a Kaiser more spatially aware so of trailheads and names." **Clarified 2026-09-19 (Joseph): "Kaiser" = "hike-izer"** (a transcription artifact — the two are phonetically close). Interviewed the actual gap: hike-izer's published hike pages don't name the specific trail or trailhead a hike used.
 
 **Confirmed live, not assumed — checked today's real page.** `components/hike-izer-orchestrator/place_context.py` (CARD-0108) already exists specifically for this: its own module docstring states the base layer (OpenStreetMap Overpass, named park/school/trail features near the hike's coordinates) is "Always gathered (free, no cost) -- feeds the Location/Nearby Named Features page sections directly (CARD-0123), independent of whether narrative is on." But the real, just-published `2026-09-19_hike-summary.html` page has **no Location/Nearby Named Features section at all** — confirmed by direct inspection, not inferred.
+
+**Open question ANSWERED 2026-09-22 09:30 MST (hike-izer cluster session), and the answer is neither of the two branches below — it's a third case.** Checked against a real *enriched* (step-2) page for the 2026-09-22 hike, which is exactly the check the open question below asks for:
+
+1. **Not a wiring gap.** `place_context.py` **is** invoked, and the Location section renders. The 2026-09-19 page this card examined was a **data-only step-1** page, which is why it had no Location section at all — step 1 doesn't run place context. Comparing a step-1 page against a feature that only exists on step-2 pages is what made this look like a wiring gap.
+2. **Not (yet) a proven OSM data gap either.** Overpass never returned an answer to be judged: every mirror and retry failed on infrastructure grounds — `504`, `429 Too Many Requests`, then read timeouts on the `kumi.systems` fallback, ending in `all mirrors/retries exhausted`. So "OSM has nothing tagged here" remains untested for this hike, not disproven. **That failure is now its own card, CARD-0323** (the retry logic ignores HTTP status codes entirely and the query cadence provokes the 429).
+3. **The thing this card actually wants is already on the page, from a different source.** Nominatim's reverse geocode — which succeeded — returned **`West Cape Final Trail, Marana, Pima County, Arizona, United States`**, rendered verbatim as the Location line. The trail name is *already being fetched and displayed today*; it just isn't surfaced as a named "Trail/Trailhead" field, and nothing in the page's structure calls it out as the trail.
+
+**What this changes about this card's likely shape, for whoever picks up Planning:** the expensive interpretation (build out Overpass-based trail/trailhead lookup) may not be needed at all. The cheap interpretation — parse/surface the trail name Nominatim already returns into a first-class field, and treat Overpass named-features as optional enrichment on top — should be evaluated first. Worth confirming across several hikes before relying on it, since Nominatim's `display_name` leading with a trail name depends on what OSM has nearest the queried point and won't always be a trail (it could equally be a road or an address).
 
 **Open question for Planning, not yet answered:** is `place_context.py` simply not being invoked for this page's generation tier (today's was explicitly a "data-only" summary, before photos/Gaia/bird data were staged — `hike-izer-orchestrator`'s own log message: "Ask for the rich version once photos/Gaia/bird data are staged"), or is it invoked but Overpass genuinely has no named trail/trailhead feature tagged near this hike's specific coordinates (a real OpenStreetMap data gap, not a code gap)? These have very different fixes — the first is a wiring gap in this pipeline, the second is either accepting the gap or falling back to something else (a manually-maintained trail-name lookup, e.g.) when OSM has nothing. Needs checking against the "rich" version of a recent hike (which does run the full pipeline) before assuming which case this is.
 
@@ -2302,6 +2342,20 @@ Once wired, the module's own onboard LED indicates charge status (charging vs. d
 **Joseph asked directly whether that means Defer, per the Accepted-limitation protocol's own point (1) — held off, real connection to CARD-0279 found first, 2026-09-17.** This card's own working theory (above) is that Node-RED's `action=lookup` handler gets overwhelmed by the burst of buffered readings replaying all at once — that's not a claim about *why* hiking-monitor rebooted, it's a claim about *Node-RED choking on a lookup burst*, and that's exactly the mechanism **CARD-0279** (built and deployed the same session, throttle + retry + log on that identical `action=lookup` call path) already addresses — independent of whatever causes a device to dump its buffer all at once. If CARD-0279's own still-open Watch for confirms the fix holds on a real hike, it would very plausibly prevent this card's specific failure shape from recurring too, without ever root-causing the 2026-08-29 reboot loop. **Decided: hold off on Defer.** Wait for CARD-0279's Watch for to resolve, then re-check this card against the real outcome: if a future hike's missing-GPS-correlation rate looks sane under load with CARD-0279's fix live, this closes as *fixed structurally via CARD-0279* rather than Defer; if the same failure shape still recurs despite CARD-0279 being live, that's real evidence the UART-only path was actually necessary, and Defer becomes the honest call then.
 
 **Related:** CARD-0197 (the correlation-debug instrumentation this diagnosis relies on, and the *different*, already-addressed race it was built to catch), CARD-0220 (the false-positive-hike fix whose regeneration surfaced this), CARD-0221 (the sibling Environmental Data gap finding from the same review -- now believed to share the same root cause, the MQTT reboot loop during replay), CARD-0226 (the actual owning investigation for that shared root cause -- see its own Watch for; this card and CARD-0221 both resolve once that one does), CARD-0258 (the sibling card the new Accepted-limitation closure protocol was actually built and applied against), CARD-0279 (the GPS-lookup throttle/retry/log fix that may resolve this card's actual failure mode structurally, without ever root-causing the reboot loop -- watch its own Watch for), `core/data-pipeline/environmental-data.gs` (`_gpsLookup`), `core/data-pipeline/environmental-data.flow.json` (the Node-RED lookup call).
+
+**New evidence 2026-09-22 09:30 MST (hike-izer cluster session) — CARD-0279's instrumentation now sees what this card couldn't, and it points away from this card's working theory.** The 2026-09-21 hike produced two real `Alert`s on the Pi's durable log, from the `env-data-gps-log-failure` node CARD-0279 added:
+
+```
+2026-09-21 07:58:06 MST | node-red | Alert | GPS lookup failed after 3 attempts for hiking-monitor reading @ 2026-09-21T14:49:43Z (status 404) -- publishing without coordinates.
+2026-09-21 07:58:35 MST | node-red | Alert | GPS lookup failed after 3 attempts for hiking-monitor reading @ 2026-09-21T13:47:36Z (status 404) -- publishing without coordinates.
+```
+
+**Why this matters to this card specifically:** this card's working theory above is that the `action=lookup` HTTP call *never completed* for the affected readings — inferred from the absence of `lookup_miss` rows in the Correlation Debug sheet, since `_gpsLookup()` logs a miss only if it actually ran. These Alerts show a different, now-directly-observed failure: the call **does** complete, and Apps Script answers **`404`**. A 404 response never reaches `_gpsLookup()`'s miss-logging path either, so it would produce *exactly* the same "no `lookup_miss` row" signature this card treated as evidence of a call that never completed. **The two are indistinguishable from the Correlation Debug sheet alone** — which means this card's central inference may have been reading an Apps Script 404 as a Node-RED-side non-completion.
+
+**Connects this card to an already-established pattern rather than a novel Node-RED bug.** Intermittent Apps Script `404`s on this same deployment are documented on CARD-0275 (sustained 45+ min window, read path), CARD-0276 (write path, same morning), and CARD-0258 (a 240s timeout on the same endpoint). A step-1 fetch on this very hike also timed out at 240s (`2026-09-21 07:59:37 MST`). If GPS-correlation misses share that root cause, the fix direction is retry/resilience against Apps Script flakiness — CARD-0279's throttle+retry was a first step — not chasing Node-RED HTTP-node behavior.
+
+**Not claiming this closes the card.** The 2026-08-29 hike this card is actually about coincided with CARD-0221's confirmed 10-reboot replay loop, which is a real and sufficient cause on its own for that specific hike's 84%. What's new is that "no `lookup_miss` row" no longer implies "the call never ran," so that piece of the reasoning needs re-examining before the working theory is trusted.
+
 
 ---
 

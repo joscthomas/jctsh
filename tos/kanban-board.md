@@ -1826,6 +1826,16 @@ Only that one stamp was affected. Every other time recorded for this card came f
 
 **Remaining after the swap:** re-verify per `testing.md`, then the two items below.
 
+**MQTT/WiFi reliability finding, 2026-09-22 (surfaced by the `general` session's routine log scan, confirmed independently against the Pi's `jctsh.log` by this session).** Two separate MQTT dropouts found in the log, neither previously recorded on this card:
+1. **2026-09-21 16:42:25 – 2026-09-22 08:35:19 MST (~15h53m)** — disconnected 5 minutes after the DHCP-reservation verification reconnect noted above, silent overnight, self-recovered the next morning with no manual intervention. Only one watchdog alert fired (`Component back-patio-temp-sensor silent for 35 minutes`, 17:12:02) — the watchdog alerts once at the 35-minute threshold and doesn't repeat while a device stays down, so that alert text badly understates how long this particular outage actually ran.
+2. **2026-09-22 14:44:12 – 15:39:04 MST (~55min)** — same pattern (disconnect, one 35-minute watchdog alert at 15:10:19, self-recovery), much shorter.
+
+RSSI in the heartbeats right before the second dropout ran -43 to -48dBm (weak-to-moderate) — a plausible but unconfirmed cause; nothing in the log directly implicates the router side vs. the device's own WiFi radio/antenna. **Recorded as an open reliability question, not a confirmed root cause.**
+
+Also worth noting: a single correlated failure of *both* sensors at once occurred at **2026-09-21 16:37:02 MST** (`BH1750 read failed` alongside `BME280 read failed`, same timestamp) — a one-off, BH1750 hasn't failed again since, but it means the "BH1750 proves the I2C bus is fine" framing above rests on BH1750 *mostly* working, not *never* failing — worth keeping in mind if the BME280 swap doesn't fully resolve the read-failure pattern.
+
+**Watch for:** a third WiFi/MQTT dropout on back-patio-temp-sensor — if the heartbeat immediately before it shows consistently weak RSSI (roughly below -47dBm, matching the pattern above), that's real evidence for a signal-strength cause worth addressing (relocate, external antenna, WiFi extender); if RSSI is fine right beforehand and it still drops, look elsewhere (router-side DHCP/ARP issue, power supply, or the ESPHome/MQTT stack itself).
+
 **Folded in 2026-09-21 (Joseph's call, rather than opening a separate card): the BH1750 header-size error, fixed in both this component and `front-porch-temp-sensor`.** Not strictly this card's component, but this card is what surfaced it and the porch/patio cluster owns both.
 
 Both `perfboard-layout.md` files specified a **3-pin** female header for the BH1750 (light sensor). The GY-302 breakout has **five** pins — VCC, GND, SCL, SDA, ADDR — and both builds wire all five (each Wire Bridges table lists five BH1750 bridges, ADDR included). A 3-pin socket cannot seat a 5-pin module. Caught on back-patio *before* soldering, so it cost nothing but a different break point on a breakaway strip.

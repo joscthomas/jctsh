@@ -29,24 +29,24 @@ Added 2026-09-18 (CARD-0299, refined same day — Joseph: "this table identifies
 
 | Cluster | Covered components | Initiated | Status |
 |---|---|---|---|
-| hike-izer | `hike-izer`, `hike-izer-orchestrator`, `hike-izer-web`, `core/data-pipeline` | Yes | Active |
-| tos | `tos` | Yes | Active |
 | architecture | `architecture` | No | — |
-| photo-server cluster | `photo-server`, `photo-quality-review`, `photo-tv-display` | Yes | Active |
-| LogSeq | `LogSeq` (whole separate repo, not a jctsh-internal directory) | Yes | Active |
-| PB-Blog | `PB-Blog` (whole separate repo, not a jctsh-internal directory) | No | — |
-| Rethinking Scripture Bible Study | `Rethinking-Scripture-Bible-Study` (whole separate repo, not a jctsh-internal directory) | No | — |
-| hiking-monitor cluster | `hiking-monitor`, `air-quality-monitor` | Yes | Active |
+| equip-shelf | `equip-shelf` | No | — |
 | garage cluster | `automatic-garage-door-opener-closer`, `garage-presence`, `garage-radar` | No | — |
 | HA automations cluster | `outdoor-presence-detection`, `traveling`, `core/homeassistant` | No | — |
+| hike-izer | `hike-izer`, `hike-izer-orchestrator`, `hike-izer-web`, `core/data-pipeline` | Yes | Active |
+| hiking-monitor cluster | `hiking-monitor`, `air-quality-monitor` | Yes | Active |
+| jctsh-menu | `jctsh-menu` | No | — |
+| LogSeq | `LogSeq` (whole separate repo, not a jctsh-internal directory) | Yes | Active |
 | network/infra-visibility cluster | `netalertx`, `core/mqtt`, `core/logging`, `core/node-red` | No | — |
 | ops cluster | `core/maintenance`, `core/docker`, `hosts/m8`, `hosts/pi1` | Yes | Active |
-| outdoor/backyard sensors cluster | `remote-temp-sensor-01`, `van-sensors`, `weather-station`, `bedside-clock` | Yes | Active |
-| salt-sensor | `salt-sensor` | No | — |
-| p-w-firefly | `p-w-firefly` | No | — |
-| jctsh-menu | `jctsh-menu` | No | — |
+| outdoor/backyard cluster | `remote-temp-sensor-01`, `weather-station` | Yes | Active |
+| PB-Blog | `PB-Blog` (whole separate repo, not a jctsh-internal directory) | No | — |
+| photo-server cluster | `photo-server`, `photo-quality-review`, `photo-tv-display` | Yes | Active |
 | porch/patio temp sensors | `front-porch-temp-sensor`, `back-patio-temp-sensor` | Yes | Active |
-| equip-shelf | `equip-shelf` | No | — |
+| Rethinking Scripture Bible Study | `Rethinking-Scripture-Bible-Study` (whole separate repo, not a jctsh-internal directory) | No | — |
+| salt-sensor | `salt-sensor` | No | — |
+| tos | `tos` | Yes | Active |
+| van cluster | `p-w-firefly`, `van-sensors`, `bedside-clock` | No | — |
 
 **Predefined clusters, added 2026-09-18 (Joseph: "add all the clusters... so they are predefined") — every component/core/host directory now has a home, none of them started yet.** Groupings are judgment calls based on real evidence of components' findings traveling together, same discipline as the three already-initiated clusters, not arbitrary:
 - **hiking-monitor cluster** — Session Card Selection's own top recommendation (CARD-0284's closing note): highest cross-work volume of any ungrouped component (41+4 tagged cards), and real shared history (the field-device three-signal framework in `JCTsh-Build-Standards.md` §2.14, the debug-UART investigation, battery/regulator-headroom physics hit both the same night). **Actually initiated 2026-09-20** — not via the clean "open a new terminal" procedure above, but by Joseph directly asking an already-running hike-izer session to re-scope itself mid-conversation, to pick up CARD-0259's Planning work. A real, if messier, instance of the same startup steps (git status/Build column/recent activity/markers re-run scoped to `hiking-monitor`+`air-quality-monitor`, both components' README.md/CLAUDE.md read in full) rather than a fresh terminal — the procedure above doesn't yet describe this in-place re-scoping path explicitly.
@@ -54,8 +54,9 @@ Added 2026-09-18 (CARD-0299, refined same day — Joseph: "this table identifies
 - **HA automations cluster** — pure HA-native automation components (no dedicated hardware), sharing `automations.yaml` and the same HA infrastructure.
 - **network/infra-visibility cluster** — the "watch everything" layer: dashboard, broker, flows, network scanning.
 - **ops cluster** — scheduled-job/host-management layer (reboots, backups, update checks) — distinct from `tos` itself, which owns the kanban/process system rather than physical host operations.
-- **outdoor/backyard sensors cluster** — all still Planning-stage, but `JCTsh-Build-Standards.md`'s power-architecture standards (§2.14) were written with exactly this class of device in mind; grouping now means the pattern gets applied consistently across all four (corrected from "three" — `bedside-clock` was added to this row's Covered components after this bullet was first written but the prose was never updated to match) from the start rather than independently rediscovered. **Initiated 2026-09-22** — startup steps run scoped to all four components; none has a `README.md`/`CLAUDE.md` yet (all still pre-Build, no directory has produced that split), so the component-only read steps covered each one's own planning doc(s) instead.
-- **salt-sensor, p-w-firefly, jctsh-menu, ~~front-porch-temp-sensor,~~ equip-shelf** — each self-contained enough (no real recurring cross-work found with anything else) that forcing a grouping would be arbitrary; single-component clusters, not omissions. **`front-porch-temp-sensor` struck 2026-09-21** — no longer self-contained once `back-patio-temp-sensor` was built as a direct clone of it; see the porch/patio bullet below.
+- **outdoor/backyard cluster** — all still Planning-stage, but `JCTsh-Build-Standards.md`'s power-architecture standards (§2.14) were written with exactly this class of device in mind; grouping means the pattern gets applied consistently from the start rather than independently rediscovered. **Initiated 2026-09-22** — startup steps ran scoped to the four components originally grouped here; none had a `README.md`/`CLAUDE.md` yet (all still pre-Build, no directory had produced that split), so the component-only read steps covered each one's own planning doc(s) instead. **Narrowed same day** — `van-sensors`/`bedside-clock` moved out into the new `van cluster` row (Joseph's table rearrangement); current membership is whatever the table above shows, not restated here so this bullet can't drift out of sync with it again.
+- **salt-sensor, jctsh-menu, ~~front-porch-temp-sensor,~~ ~~p-w-firefly,~~ equip-shelf** — each self-contained enough (no real recurring cross-work found with anything else) that forcing a grouping would be arbitrary; single-component clusters, not omissions. **`front-porch-temp-sensor` struck 2026-09-21** — no longer self-contained once `back-patio-temp-sensor` was built as a direct clone of it; see the porch/patio bullet below. **`p-w-firefly` struck 2026-09-22** — moved into the new `van cluster` row below (Joseph's table rearrangement).
+- **van cluster** — added 2026-09-22 (Joseph, table rearrangement): groups `p-w-firefly` with `van-sensors`/`bedside-clock`, all van-related per the cluster's own name. Not yet interviewed for a fuller rationale the way the other groupings above are — corrigible like any other row here, per the closing line below.
 - **porch/patio temp sensors cluster** — added 2026-09-21 (Joseph, at this cluster's own initiation), merging what had been a single-component `front-porch-temp-sensor` row with the newly-directoried `back-patio-temp-sensor`. The strongest "findings travel together" evidence of any grouping here, and not a judgment call the way the 2026-09-18 proposed groupings were: CARD-0219 defines back-patio explicitly as a duplicate of front-porch's design — same ESP32 DevKitC-32 / BME280 / BH1750 hardware, same I2C pin assignment, same ESPHome firmware pattern, same MQTT/Node-RED/Sheets path — so a wiring, flashing, or integration finding on either one applies to the other by construction, not by coincidence. The two differ only in location (points H8 vs. P2 in `house-lot-coordinates.md`) and in whether custom HA threshold automations exist yet (front-porch has two; back-patio's are deliberately deferred, `integration.md`).
 - **`core/offline-logger`** deliberately has no row — a reusable template (`sensor_logger.h`) copied into whichever sensor uses it, not a component with its own ongoing thread; it belongs to whichever cluster actually uses it at the time.
 - **architecture** — added 2026-09-18 (CARD-0294's tag reconciliation, once retagging `[infrastructure]` cards revealed a genuine residual bucket that needed a real directory): doc-only, not a component or host, same shape as `tos`'s own row — a single-"component" cluster where the covered "component" is the directory itself.

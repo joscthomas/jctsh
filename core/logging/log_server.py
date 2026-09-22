@@ -740,6 +740,26 @@ def _compute_status(entries):
     return result
 
 
+def _build_status_json():
+    """Credential-free liveness/freshness summary for /status.json (CARD-0330).
+
+    No log message content, no Alert text -- just enough for "is component X
+    alive right now" (CARD-0282's own framing), so a session can answer that
+    without the dashboard's Basic Auth password.
+    """
+    snap  = _snapshot()
+    comps = {c: r for c, r in _compute_status(snap).items() if c not in _EXCLUDED_COMPONENTS}
+    return {
+        comp: {
+            "freshness":  rec["freshness"],
+            "connection": rec["connection"],
+            "is_remote":  rec["is_remote"],
+            "last_seen":  rec["last_ts"],
+        }
+        for comp, rec in sorted(comps.items())
+    }
+
+
 def _build_status_html():
     snap   = _snapshot()
     comps  = {c: r for c, r in _compute_status(snap).items() if c not in _EXCLUDED_COMPONENTS}
@@ -1978,6 +1998,14 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if self.path == "/status.json":
+            body = json.dumps(_build_status_json()).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if not self._check_auth():
             self._send_auth_challenge()
             return

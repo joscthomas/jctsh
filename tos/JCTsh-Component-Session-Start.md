@@ -89,7 +89,7 @@ Not yet checked against Joseph's own judgment — these are proposed groupings, 
 | 6 | Watch for markers (event-based) | **Scoped** to this session's own component tag(s). |
 | 7 | Read `tos/JCTsh-Operating-System.md` | **Unscoped** — runs in full, exactly like a general session. Foundational process knowledge (columns, triggers, Engineering Discipline), not a per-component data scan. |
 | 8 | Periodic `archive_cards.py` dry-run check | **Skipped** — whole-board file-size housekeeping, unrelated to any specific component. |
-| 9 | `/status` device-health check (CARD-0282) | **Scoped** to this session's own covered component(s)/device(s), not the whole fleet. |
+| 9 | `/status` device-health check (CARD-0282) | **Scoped** to this session's own covered component(s)/device(s), not the whole fleet. The freshness/connection part needs no credential — `/status.json` (CARD-0330) — the fuller Alert/log scan still needs `DASHBOARD_PASS` from Joseph. |
 
 **Any card-related request made mid-session, not just the automated steps above, defaults to this session's own component tag(s)** unless Joseph asks for the whole board explicitly (Real miss, 2026-09-17: a "list the open cards" request during the `tos` component session was answered against the whole board instead, because the prior wording only covered the automatic startup sweep, not requests made later in the session). Same default applies to the `/status` check (row 9) for any ad hoc device-health question asked mid-session.
 

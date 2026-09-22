@@ -94,6 +94,14 @@ table for exactly which steps below get scoped, skipped, or run as-is.
    — it can look silent for months while the device is actually fine, the exact false alarm
    CARD-0281 hit. `/status` reflects real, current per-component connection/freshness state
    directly; use the raw log for "what did component X say recently," not "is it alive now."
+   **The freshness/connection check itself needs no credential (CARD-0330) — `/status.json`
+   is a separate, unauthenticated endpoint returning just per-component `freshness`/
+   `connection`/`last_seen`, no log content.** The rest of this step (scanning for `Alert`
+   messages and anything else that looks wrong) still needs the authenticated `/status`/`/log`
+   dashboard — `DASHBOARD_PASS` isn't something a session can pull non-interactively (Claude
+   Code's own credential-materialization guard blocks reading it from the Pi's env file or
+   curling the authenticated endpoints), so ask Joseph for it when that fuller scan is
+   actually needed, rather than treating a blocked attempt as something to work around.
    A general session scans `/status` across every device; a component session (per
    `JCTsh-Component-Session-Start.md`) scans it for its own covered component(s) only.
 

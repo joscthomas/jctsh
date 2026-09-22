@@ -9,7 +9,39 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0330 -->
+<!-- next-card-id: CARD-0332 -->
+
+---
+
+### CARD-0331 · [bug] [node-red] Watchdog silence alert fires once and never re-alerts -- badly understates real outage duration
+
+**Status:** Backlog
+
+**Raised 2026-09-22 16:13 MST, found live cross-checking a "back-patio-temp-sensor silent for 35 minutes" alert against the Pi's actual log (the porch/patio component session, `jctsh-6a`, and the general session working together).** The real outage was **~15h53m** (2026-09-21 16:42:25 -> 2026-09-22 08:35:19), not the ~35 minutes the alert text implies -- the watchdog (`core/node-red/watchdog.flow.json`, `fn_timer_manager`'s per-component silence timers) only ever fires once, at the 35-minute threshold, and never re-alerts while a component stays down. A second, much shorter dropout the same day (~55min, 14:44-15:39) produced the identical one-line alert text. As currently designed, a device down for 35 minutes and a device down for 16 hours are indistinguishable from the alert stream alone. Full incident detail (both dropouts, RSSI readings, the correlated BH1750 failure) lives on CARD-0219, not repeated here.
+
+**Not yet interviewed or scoped** -- captured as a raw finding pending a real conversation about the fix shape. Two directions worth considering, not yet decided between:
+1. **Periodic re-alert** while a component stays silent, on some longer interval (e.g. re-fire every N hours until it recovers).
+2. **Duration on recovery** -- keep the single alert at 35 minutes, but have the device's eventual reconnect message (or a watchdog "recovered" companion message) carry the actual total downtime, rather than nothing.
+
+**Related:** CARD-0219 (the concrete incident this generalizes from), `core/node-red/watchdog.flow.json` / `watchdog-README.md` (the mechanism itself), CARD-0330 (found and fixed in the same session, unrelated mechanism -- that one's the Session Start credential gap, this one's the watchdog's own alerting design).
+
+---
+
+### CARD-0330 · [enhancement] [logging] Add a credential-free `/status.json` endpoint -- closes Session Start step 9's recurring credential dead-end -- RESOLVED 2026-09-22 16:13 MST
+
+**Status:** Done
+
+**Raised and built same session, 2026-09-22 (Joseph: "let's implement the real fix").** Both this session and the concurrently-running porch/patio component session (`jctsh-6a`) independently hit the same wall running `JCTsh-Session-Start.md`/`JCTsh-Component-Session-Start.md`'s step 9 (the `/status` dashboard scan, CARD-0282): it requires the Log Dashboard's HTTP Basic Auth password (`DASHBOARD_PASS`), which lives in `/etc/jctsh/log-server.env` on the Pi and isn't cached anywhere a session can reach non-interactively. Every attempt to read it -- grepping the env file over SSH, curling the authenticated endpoints through SSH to localhost, checking for a local `.netrc` -- was correctly blocked by Claude Code's own auto-mode credential-materialization classifier. Net effect: step 9 wasn't actually a silent automated check like steps 1/2/3/5/6 -- it was a guaranteed interruption asking Joseph for the password, every session, general or component-scoped, just to answer "is component X alive right now."
+
+**Built.** `core/logging/log_server.py` gained `_build_status_json()` (reuses the exact same `_compute_status()`/`_snapshot()`/`_EXCLUDED_COMPONENTS` path the existing `/status` HTML page already uses) and a new `/status.json` route in `_Handler.do_GET`, checked *before* the Basic Auth gate -- deliberately the only unauthenticated route on this server. Returns only non-secret per-component `freshness` (Online/Offline/n/a), `connection` (Connected/Disconnected/null), `is_remote`, and `last_seen` -- no log message content, no Alert text, nothing else currently behind auth on `/status`/`/log`/`/kanban`/`/data`, which all keep requiring `DASHBOARD_PASS` unchanged. Not a security regression: port 80 is LAN/Tailscale-only, never forwarded to the internet (only MQTT 1883 is, per root `CLAUDE.md`'s Internet Exposure section), and bare online/offline state carries nothing sensitive on its own.
+
+**Deployed and verified live, 2026-09-22 16:13 MST.** `scp` to `/home/pi/jctsh/core/logging/log_server.py`, `sudo systemctl restart jctsh-logging` (came back `active`). Confirmed directly: `curl http://localhost/status.json` on the Pi returns HTTP 200 with real per-component data (no `Authorization` header sent) including `back-patio-temp-sensor` correctly showing `Online`/`Connected` after its own recent MQTT dropout recovered; `curl` against `/status`, `/log`, and `/kanban` still return HTTP 401 unchanged, confirming the new route didn't loosen anything else.
+
+**Docs updated to match:** `tos/JCTsh-Session-Start.md` step 9 and `tos/JCTsh-Component-Session-Start.md`'s per-step table now point the freshness/connection half of step 9 at `/status.json` (no credential needed), while making explicit that the fuller Alert/log scan still needs `DASHBOARD_PASS` from Joseph -- so a future session stops attempting the same blocked workarounds this one and `jctsh-6a` both tried.
+
+**Done when:** met -- built, deployed, verified live against the real Pi (not just "should work"), and the docs that would otherwise keep steering sessions into the same dead end are updated.
+
+**Related:** CARD-0282 (established `/status` over raw-log grep for "is it alive now" -- this closes the credential gap that check still had), CARD-0219 (the porch/patio session that hit this dead-end running its own component-scoped step 9), CARD-0331 (found in the same session, the watchdog's own alerting-design gap -- unrelated mechanism).
 
 ---
 

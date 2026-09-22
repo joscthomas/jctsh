@@ -47,6 +47,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 import anthropic
 
@@ -68,8 +70,36 @@ USER_AGENT = "jctsh-hike-izer/1.0 (personal project, https://hikes.jctnet.com)"
 # distinct photo locations combined) and paces them -- found necessary
 # against a real hike (2026-07-29) where an uncapped, back-to-back run
 # tripped Overpass's own "Too Many Requests" almost immediately.
-MAX_NAMED_FEATURE_QUERIES = 5
-NAMED_FEATURE_QUERY_DELAY_S = 3
+# Widened 2026-09-22 (CARD-0323) -- even this cap+pace combination (5
+# requests in ~12s from one IP) drew a real 429 from overpass-api.de on
+# a later hike. Cadence is the cause, not just something to handle better
+# once it happens, so both move: fewer requests, more spacing between them.
+MAX_NAMED_FEATURE_QUERIES = 4
+NAMED_FEATURE_QUERY_DELAY_S = 6
+
+
+def _retry_after_seconds(headers, default):
+    """Parses an HTTP `Retry-After` response header (delay-seconds, or an
+    HTTP-date -- RFC 9110 allows either) into a sleep duration, falling
+    back to `default` when the header is absent or malformed (CARD-0323:
+    a server-supplied wait is better information than a guess, but there
+    must always be a floor for when the server doesn't supply one)."""
+    value = headers.get("Retry-After") if headers else None
+    if not value:
+        return default
+    try:
+        return max(0, int(value))
+    except ValueError:
+        pass
+    try:
+        dt = parsedate_to_datetime(value)
+        if dt is None:
+            return default
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return max(0, (dt - datetime.now(timezone.utc)).total_seconds())
+    except (TypeError, ValueError):
+        return default
 
 
 def _first_gps_point(hike_data):
@@ -135,19 +165,37 @@ def _dedupe_locations(points, precision=4):
 
 
 def _nominatim_reverse(lat, lon):
-    """Raw Nominatim reverse-geocode call -- one HTTP request, used for both
-    the display_name (fallback location context) and the region key (county/
-    state, for regional-context caching), so a single hike costs one
-    Nominatim call, not two, out of respect for their free-tier usage
-    policy. Returns the parsed response body, or None."""
+    """Raw Nominatim reverse-geocode call -- one HTTP request on the happy
+    path, used for both the display_name (fallback location context) and
+    the region key (county/state, for regional-context caching), so a
+    single hike costs one Nominatim call, not two, out of respect for
+    their free-tier usage policy. Retries once on genuine failure only
+    (CARD-0323, closing this function's prior single-point-of-failure gap)
+    -- this is resilience against a transient drop, never a second routine
+    call, so a successful first attempt never triggers a retry. Returns
+    the parsed response body, or None."""
     url = f"{NOMINATIM_URL}?lat={lat}&lon={lon}&format=jsonv2&zoom=16&addressdetails=1"
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except (urllib.error.URLError, urllib.error.HTTPError, ValueError, TimeoutError) as e:
-        print(f"_nominatim_reverse failed: {e}", file=sys.stderr)
-        return None
+    last_error = None
+    for attempt in range(2):
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            last_error = e
+            print(f"_nominatim_reverse attempt {attempt + 1} failed: HTTP {e.code} {e.reason}", file=sys.stderr)
+            if attempt == 0:
+                # Nominatim's usage policy caps requests at ~1/s -- honor a
+                # server-supplied Retry-After if given, else a fixed pause
+                # that alone already respects that policy for one retry.
+                time.sleep(_retry_after_seconds(e.headers, default=2))
+        except (urllib.error.URLError, ValueError, TimeoutError) as e:
+            last_error = e
+            print(f"_nominatim_reverse attempt {attempt + 1} failed: {e}", file=sys.stderr)
+            if attempt == 0:
+                time.sleep(2)
+    print(f"_nominatim_reverse failed after retry: {last_error}", file=sys.stderr)
+    return None
 
 
 def _region_key(nominatim_body):
@@ -190,6 +238,13 @@ out tags center;
     # not a guarantee -- free public Overpass access has no SLA, and the
     # real safety net is the [] graceful-degradation path below, not this
     # loop succeeding every time.
+    #
+    # Status-aware since CARD-0323: a 429 means *this* client is being
+    # throttled, so a same-host retry cannot succeed and only deepens the
+    # rate-limit window -- that case abandons the mirror immediately
+    # instead of burning attempt #2 on it. Any other HTTP error still gets
+    # one same-host retry, honoring the server's own Retry-After when it
+    # sends one instead of guessing at a fixed 3s.
     body = None
     last_error = None
     for url in OVERPASS_URLS:
@@ -199,7 +254,14 @@ out tags center;
                 with urllib.request.urlopen(req, timeout=35) as resp:
                     body = json.loads(resp.read().decode("utf-8"))
                 break
-            except (urllib.error.URLError, urllib.error.HTTPError, ValueError, TimeoutError) as e:
+            except urllib.error.HTTPError as e:
+                last_error = e
+                print(f"named_features: {url} attempt {attempt + 1} failed: HTTP {e.code} {e.reason}", file=sys.stderr)
+                if e.code == 429:
+                    break
+                if attempt == 0:
+                    time.sleep(_retry_after_seconds(e.headers, default=3))
+            except (urllib.error.URLError, ValueError, TimeoutError) as e:
                 last_error = e
                 print(f"named_features: {url} attempt {attempt + 1} failed: {e}", file=sys.stderr)
                 if attempt == 0:

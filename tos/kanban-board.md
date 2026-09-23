@@ -123,6 +123,7 @@ Every corrected time lands within 1–18 minutes *before* its own commit — the
 4. Documented in the `core/maintenance` README and each covered directory's README (how it's checked, how to run it by hand).
 
 **Open Planning questions:** how the Pi gets the repo copy to compare against (a checkout on the Pi vs. fetching raw files from GitHub `main`); the Node-RED comparison mechanism; dedupe so one persistent drift doesn't open a PR every run; how the ops session and (later) the HA cluster session pick this up.
+
 **Build started 2026-09-23 11:34 MST (Joseph: "build it") -- Planning's open questions answered by reading existing code, not by asking:**
 - **Repo copy:** fetched from GitHub `main` with the Pi's existing `/etc/jctsh/github.env` token via `open_kanban_pr._get_file_text` (size-safe raw fetch) -- no checkout needed on the Pi.
 - **Node-RED comparison:** read the live `/home/pi/.node-red/flows.json` file and compare node-by-node by id (editor x/y ignored); also reports live tabs/config nodes present in *no* repo flow file, using every `*.flow.json` in the repo as the reference set so other components' flows aren't false orphans.

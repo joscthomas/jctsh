@@ -158,7 +158,59 @@ def _post_wildlife_detection(row, file_stem):
         raise RuntimeError(f"Apps Script rejected wildlife-detection POST: {result}")
 
 
+def _post_hike_cost(file_stem, run_type, tracker):
+    """CARD-0270: posts one generation run's real API cost to the
+    dedicated "Hike-izer Costs" sheet, via the same Apps Script doPost
+    every other component already posts to -- structured and queryable
+    (a plain SUM formula for "total cost to date"), instead of a substring
+    buried in a free-text notification message. Same dedup-on-the-server
+    pattern as wildlife-detection: "duplicate" (the (file_stem, run_type)
+    guard) counts as success here too, protecting against a retried
+    generation run (GENERATION_MAX_ATTEMPTS) double-posting the same run's
+    cost. Never raises to the caller -- see the three call sites below,
+    which treat a failure here as non-fatal telemetry, not a reason to
+    fail an otherwise-successful publish."""
+    payload = {
+        "component": "hike-izer-cost",
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "file_stem": file_stem,
+        "run_type": run_type,
+        "dollars": round(tracker.dollars, 4),
+        "calls": tracker.calls,
+        "input_tokens": tracker.input_tokens,
+        "output_tokens": tracker.output_tokens,
+        "web_searches": tracker.web_searches,
+    }
+    url = _env("APPS_SCRIPT_URL") + "?key=" + _env("APPS_SCRIPT_KEY")
+    req = urllib.request.Request(
+        url, method="POST", data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        result = json.loads(resp.read())
+    if result.get("status") not in ("ok", "duplicate"):
+        raise RuntimeError(f"Apps Script rejected hike-izer-cost POST: {result}")
+
+
+def _post_hike_cost_and_log(file_stem, run_type, tracker):
+    """Wraps _post_hike_cost() so a Sheet-write failure (Apps Script
+    flakiness, per CARD-0275/0276's own established pattern) can never
+    turn an otherwise-successful hike-summary publish into a failure --
+    this is enrichment/telemetry, not core functionality, same
+    graceful-degradation principle place_context.py's own module docstring
+    states for its layer. Logs an Alert so a persistent gap is still
+    visible on the dashboard, rather than failing silently."""
+    try:
+        _post_hike_cost(file_stem, run_type, tracker)
+    except Exception as e:
+        mqtt_log.publish_log(
+            "Alert",
+            f"Failed to post hike-izer-cost for {file_stem} ({run_type}) to Sheets: {e}",
+        )
+
+
 WILDLIFE_ARCHIVE_RETRY_ATTEMPTS = 3
+
 WILDLIFE_ARCHIVE_RETRY_DELAY_SEC = 10
 
 
@@ -1002,6 +1054,7 @@ def run_and_log(payload):
                 f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
                 f"(API cost: {tracker.summary()}). Ask for the rich version once photos/Gaia/bird data are staged.",
             )
+            _post_hike_cost_and_log(file_stem, "step1", tracker)
             ha_notify.send_push(
                 "Hike-izer",
                 f"Hike summary published: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
@@ -1044,6 +1097,7 @@ def run_step2_and_log(file_stem, with_narrative=False):
                 f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
                 f"(API cost: {tracker.summary()}).",
             )
+            _post_hike_cost_and_log(file_stem, "step2", tracker)
             ha_notify.send_push(
                 "Hike-izer",
                 f"Enriched hike summary published: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
@@ -1116,6 +1170,7 @@ def run_daily_refresh_and_log():
                     f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
                     f"(API cost: {tracker.summary()}).",
                 )
+                _post_hike_cost_and_log(file_stem, "daily-refresh", tracker)
             except Exception as e:
                 print(f"Daily refresh failed for {file_stem} (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}): {e}", file=sys.stderr, flush=True)
                 if attempt < GENERATION_MAX_ATTEMPTS:

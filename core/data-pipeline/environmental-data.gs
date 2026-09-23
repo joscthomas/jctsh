@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-19.1-front-porch-coord-fix';
+var SCRIPT_VERSION = '2026-09-22.1-hike-izer-cost-sheet';
 
 // ---------------------------------------------------------------------------
 // _relayLog -- CARD-0225: MQTT-dashboard visibility for GPS Track/Hiking
@@ -229,6 +229,66 @@ function doPost(e) {
       } finally {
         lock.releaseLock();
       }
+
+    } else if (payload.component === 'hike-izer-cost') {
+      // CARD-0270: structured, queryable per-hike API cost data -- a
+      // dedicated sheet instead of a substring inside a free-text
+      // notification message. Self-provisioning + dedup-before-appendRow +
+      // _relayLog, same pattern as the wildlife-detection branch above.
+      var costLock = LockService.getScriptLock();
+      costLock.waitLock(30000);
+      try {
+        var costSheet = ss.getSheetByName('Hike-izer Costs');
+        if (!costSheet) {
+          costSheet = ss.insertSheet('Hike-izer Costs');
+          costSheet.appendRow([
+            'ts', 'file_stem', 'run_type', 'dollars', 'calls',
+            'input_tokens', 'output_tokens', 'web_searches'
+          ]);
+        }
+        // CARD-0235's exact bare-date-string bug applies here too --
+        // file_stem ("2026-09-22"/"2026-09-22-2") is the same shape that
+        // silently became a real Date cell on the wildlife-detection
+        // sheet. Same double defense: force column B to Plain Text and
+        // prefix the value with a literal apostrophe.
+        costSheet.getRange('B:B').setNumberFormat('@');
+
+        // Dedup on (file_stem, run_type) -- decided 2026-09-14, same
+        // reasoning as GPS Track/Hiking Observations/wildlife-detection's
+        // own guards: protects against a retried generation run
+        // (GENERATION_MAX_ATTEMPTS) double-posting the same run's cost.
+        // Columns: B=file_stem (leading apostrophe stripped on read),
+        // C=run_type.
+        var isCostDuplicate = false;
+        if (costSheet.getLastRow() > 1) {
+          var existingCostKeys = costSheet.getRange(2, 2, costSheet.getLastRow() - 1, 2).getValues();
+          for (var ck = 0; ck < existingCostKeys.length; ck++) {
+            if (String(existingCostKeys[ck][0]) === String(payload.file_stem) &&
+                String(existingCostKeys[ck][1]) === String(payload.run_type)) {
+              isCostDuplicate = true;
+              break;
+            }
+          }
+        }
+
+        if (isCostDuplicate) {
+          // finally below still runs (and releases the lock) on this
+          // return path -- do not release it here too.
+          return ContentService
+            .createTextOutput(JSON.stringify({status: 'duplicate', file_stem: payload.file_stem, run_type: payload.run_type}))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+
+        costSheet.appendRow([
+          payload.ts, "'" + payload.file_stem, payload.run_type,
+          payload.dollars, payload.calls, payload.input_tokens,
+          payload.output_tokens, payload.web_searches
+        ]);
+        SpreadsheetApp.flush();
+      } finally {
+        costLock.releaseLock();
+      }
+      _relayLog('hike-izer-cost', 'System', 'Logged hike-izer generation cost for ' + payload.file_stem + ' (' + payload.run_type + ').');
 
     } else {
       var envSheet = ss.getSheetByName('Environmental Data');

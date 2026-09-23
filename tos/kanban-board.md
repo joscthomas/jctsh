@@ -852,7 +852,7 @@ Archived to `hosts/m8/card-archive.md` on 2026-09-22 (CARD-0193) — 8491B, over
 ---
 
 ### CARD-0270 · [enhancement] [hike-izer-orchestrator] Structured, queryable per-hike API cost data — a dedicated Sheet, not a substring in a notification message
-**Status:** Planning
+**Status:** Build
 
 **Raised 2026-09-14 (Joseph)**, after asking for the real total API cost of all hike-photo captioning to date and finding the number effectively unavailable.
 
@@ -872,7 +872,14 @@ Archived to `hosts/m8/card-archive.md` on 2026-09-22 (CARD-0193) — 8491B, over
 
 **Not yet scoped:** whether `run_type` needs finer granularity than step1/step2/daily-refresh.
 
+**Built, 2026-09-22 (hike-izer cluster session).** `environmental-data.gs`: new `doPost` branch for `payload.component === 'hike-izer-cost'`, mirroring the wildlife-detection branch's own pattern exactly -- self-provisions the `Hike-izer Costs` sheet (`ts`/`file_stem`/`run_type`/`dollars`/`calls`/`input_tokens`/`output_tokens`/`web_searches`), applies the same CARD-0235 bare-date-string defense (file_stem is the identical shape that bug hit), dedups on `(file_stem, run_type)` before `appendRow`, then `_relayLog(...)`. `SCRIPT_VERSION` bumped. `generation.py`: new `_post_hike_cost()` helper (POSTs the tracker's real fields, treats `"duplicate"` as success same as wildlife-detection) plus `_post_hike_cost_and_log()`, a non-fatal wrapper -- a Sheet-write failure logs an `Alert` but never turns an otherwise-successful hike-summary publish into a failure, same graceful-degradation principle as `place_context.py`. Wired into all three call sites (`run_and_log`/step1, `run_step2_and_log`/step2, `run_daily_refresh_and_log`/daily-refresh), alongside their existing `mqtt_log.publish_log(...)` calls, exactly as scoped -- not replacing them.
+
+**Verified so far:** `generation.py` compiles clean (`py_compile`); a synthetic smoke test (mocked HTTP layer) confirms the payload shape matches the sheet's columns exactly, `"duplicate"` is treated as success, a real Apps Script rejection raises, and the non-fatal wrapper swallows a connection failure and logs an `Alert` instead of propagating. `environmental-data.gs`'s new branch checked for balanced braces/parens across the whole file (no Node/clasp available in this environment for a real syntax check).
+
+**Not yet done -- a real ordering dependency, not just "remaining work":** the Apps Script change requires Joseph to paste it into the bound editor and redeploy (this repo's own established process -- no automated deploy path exists) *before* `generation.py` goes live on the M8. Deploying the Python side first would mean every `hike-izer-cost` POST falls through to `doPost`'s final `else` (the general Environmental Data branch, since `payload.component` wouldn't match anything yet) and writes a garbage row into the real Environmental Data sheet -- checked directly against that branch's own logic, not assumed. Sequence: (1) Joseph deploys `environmental-data.gs`, verified via `?action=version` showing `2026-09-22.1-hike-izer-cost-sheet`; (2) `generation.py` deployed to the M8 orchestrator; (3) backfill the ~9 recoverable historical cost figures from `jctsh.log` (2026-09-03 onward) via the now-live endpoint; (4) verified against a real generation run writing a real row, confirmed directly in the Sheet.
+
 **Done when:** a real hike-izer generation run writes a real row to the `Hike-izer Costs` sheet with correct fields, confirmed via the Sheet directly (not just "the POST returned 200"), and a "total cost to date" figure can be computed with a plain Sheets formula (e.g. `SUM`) rather than log-parsing.
+
 
 **Related:** CARD-0246 (the Pi log durability this card initially, incorrectly, thought needed re-solving — it doesn't), `core/data-pipeline/environmental-data.gs` (`doPost`, the `wildlife-detection` branch this new branch mirrors), `components/hike-izer-orchestrator/cost_tracking.py`, `components/hike-izer-orchestrator/generation.py` (`mqtt_log.publish_log` call sites this adds a Sheet POST alongside), CARD-0232 (the investigation that surfaced this gap while trying to answer "how much has captioning cost so far").
 

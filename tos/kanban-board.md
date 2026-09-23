@@ -9,10 +9,21 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0332 -->
+<!-- next-card-id: CARD-0333 -->
 
 ---
 
+### CARD-0332 · [bug] [node-red] Home Assistant access token sits in plaintext in a world-readable `flows.json`
+
+**Status:** Backlog
+
+**Raised 2026-09-23 12:09 MST, found by CARD-0328's drift-check work.** Node-RED's own `global-config` node stores its environment variables in `/home/pi/.node-red/flows.json` in plaintext, including a long-lived Home Assistant access token, and that file is `-rw-r--r--` (readable by any local user on the Pi). Separately, a diagnostic command run during CARD-0328 printed that node in full, so the same token also appeared in a Claude Code session transcript on Joseph's workstation. Essence-only until Planning interviews it -- open questions: whether to rotate the token (at minimum, given the transcript exposure), whether the token should live in `/home/pi/.node-red/environment` only (`watchdog-README.md` already describes it being read from there) rather than also in the flow file's env, and whether `flows.json`'s permissions should be tightened (Node-RED runs as `pi`).
+
+**Not part of CARD-0328:** that card's script never compares or shows `global-config`, so it is unaffected either way.
+
+**Related:** CARD-0328 (found it), CARD-0331 / `core/node-red/watchdog-README.md` (the watchdog is the consumer of this token).
+
+---
 ### CARD-0331 · [bug] [node-red] Watchdog silence alert fires once and never re-alerts -- badly understates real outage duration
 
 **Status:** Done — RESOLVED 2026-09-23
@@ -145,6 +156,16 @@ Every corrected time lands within 1–18 minutes *before* its own commit — the
 - **Not yet done:** deploy + enable the timer, and the deliberate-drift live test. Deploying means the first scheduled run will open a PR for the three items above unless they're resolved first -- Joseph's call on order.
 **Pre-existing drift fixed, 2026-09-23 12:02 MST (Joseph: "fix the three drift items first") -- first clean run:** (1) `jctsh.conf` and (2) `mqtt-tls.conf`: repo copy deployed to the Pi (both were comment-only differences, repo had the better content; backups of the old live files in `/tmp/drift-fix-backup` on the Pi; Mosquitto deliberately not restarted -- its `ActiveEnterTimestamp` is still 2026-09-21). (3) `local.conf`: the reverse direction -- live-only, so brought *into* the repo (`0a35db4`), documented in `core/mqtt/README.md`, added to the script's manifest. Re-ran `--dry-run` on the Pi against `main`: **`No drift.`**, exit 0. Note the write to `/etc/mosquitto/conf.d/` was run by Joseph in his own shell -- the auto-mode classifier denied it from this session, and it wasn't worked around.
 **Deployed and enabled, 2026-09-23 12:04 MST (Joseph: "deploy it and enable the timer"):** `config-drift-check.py` -> `/usr/local/bin/` (sha256 matches the repo copy), `.service`/`.timer` -> `/etc/systemd/system/`, `systemctl enable --now config-drift-check.timer`; next scheduled run Thu 2026-09-24 09:00 MST. Ran the installed service once via `systemctl start` to prove the real systemd path (root, deployed `open_kanban_pr.py` import, GitHub token): `Result=success`, journal `No drift.`, no state file written (clean run, nothing to throttle), no PR. Files committed with this update. **Still open for Done:** the deliberate-drift live test (Done-when 3), then Reflection.
+**Live drift test PASSED, 2026-09-23 12:09 MST (Joseph: "add the one line change, run it now"):** first added the check's own script and both units to `MANIFEST` (a live edit to the checker itself must not go unnoticed; pushed to `main` before redeploying, or it would flag itself). Then, on the real Pi via the installed systemd service: (1) baseline `No drift.`; (2) appended a harmless comment to the live `/etc/mosquitto/conf.d/jctsh.conf`; (3) real run -> `Opened kanban PR: .../pull/128` + `Notified: Config drift: 1 item(s) ...`, and the PR body showed exactly the one added line, nothing else; (4) immediate second run -> `Same drift already notified -- next reminder in 6d.`, **no second PR**; (5) reverted the comment, next run -> `No drift.` and the state file reset to `{}`; (6) closed PR #128 and deleted its branch. Mosquitto's `ActiveEnterTimestamp` unchanged throughout (2026-09-21) -- never restarted. Done-when 1, 2, 3 met; 4 met (READMEs for `core/maintenance`, `core/mqtt`, `core/homeassistant`, and a new `core/node-red/README.md` -- that directory previously had none).
+
+**Reflection (2026-09-23 12:09 MST):**
+- **A drift check that only walks the tracked side can never see the other direction.** The first design iterated repo files, so a config that exists only on the Pi (`local.conf`, which held the 1883 listener and auth settings) was structurally invisible -- found only because path-verification happened to list the directory. Any future "repo vs live" check needs both directions (repo file missing live, live file missing from repo), for Node-RED tabs as well as files.
+- **"Nothing secret can be in this file" was asserted from how the tool is documented, not checked -- and was false.** Node-RED's `global-config` node keeps its env (incl. an HA token) in plaintext in `flows.json`. Same class as the Engineering Discipline rule "verify, don't guess": read the actual live data before designing the masking. A diagnostic command then printed that node in full into the session (token exposed in the transcript, not recorded here) -- when inspecting live config on this Pi, print ids/types/keys, never whole nodes.
+- **Real-data dry-runs before deploy paid off twice.** Synthetic fixtures (all passing) missed two false-positive classes only the real Pi produced: Node-RED load-time default props (`inputs: 0`) and tab-id mismatches between repo and live. Fixtures now cover both, but the lesson is that a green fixture suite is not a green check.
+- **Tool gotchas for this workstation:** (1) Windows OpenSSH (PowerShell) rejects `~/.ssh/id_ed25519` on ACL grounds where Git Bash's ssh (the `Bash` tool, and Joseph's `!` shell) works -- use Bash for Pi access. (2) `C:\Shared` is a junction, so the `Read`/`Write`/`Glob` tools refuse it; PowerShell reads/writes fine. (3) The `!` shell can't answer an ssh host-key prompt -- use `-o StrictHostKeyChecking=accept-new` after comparing the fingerprint against the already-trusted `pi1.local` key. (4) The auto-mode classifier denied a `sudo` write to `/etc/mosquitto/conf.d/` from a session; Joseph ran it in his own shell, and later `/etc` installs for this card's own deployment were allowed once explicitly requested.
+- **Process slip worth naming:** one commit was pushed before its test result was read (a stale fixture, not a script bug -- `local.conf` had become tracked). The chain was written as `commit; push` with no gate on the test output. Gate pushes of code on the test result.
+
+**Auto verify: 2026-09-24 09:30 MST** -- the daily timer's first real scheduled firing (`config-drift-check.timer`, 09:00): `ssh pi@pi1.local "sudo journalctl -u config-drift-check.service --since '2026-09-24 08:55' --no-pager -o cat"` should show a `No drift.` run near 09:00. Everything else was verified live above by starting the installed service manually; only the timer itself firing unattended is unobserved. On a clean result, resolve per the marker protocol (edit this line to `**Auto verify (RESOLVED <date>, see below):**`) and move the card to Done.
 **Related:** CARD-0326 (the per-host `daemon.json` split whose reflection found this, and the one-line diff pattern to generalize), CARD-0272 (the `journald` setting that drifted), CARD-0291 (pass 4, which caught that drift and honestly noted it rather than fixing it), CARD-0294 (per-directory tagging convention).
 
 ---

@@ -39,3 +39,10 @@ ssh pi@pi1.local "docker restart homeassistant"
 
 A `docker-compose.yml` change needs `docker compose up -d` from the host's actual
 compose project directory, not just a restart.
+
+## Drift Check
+
+`automations.yaml`, `configuration.yaml`, `docker-compose.yml` (live at `/home/pi/docker-compose.yml`,
+not in the HA config directory), `container-update-check.py` and `pi-heartbeat.py` are checked daily against
+their live copies by `core/maintenance/config-drift-check.py` (CARD-0328); a live edit that never came
+back here opens a kanban PR. By hand: `ssh pi@pi1.local "sudo python3 /usr/local/bin/config-drift-check.py --dry-run"`.

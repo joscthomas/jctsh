@@ -67,3 +67,9 @@ guarding. Same reporting path as the update checks: an `Alert` to the log dashbo
 | File | Purpose |
 |---|---|
 | `pi-heartbeat.py`/`.service`/`.timer` | Publishes the Pi's own container-health heartbeat (extend the script's `CONTAINERS` list for more than `homeassistant`) |
+
+**Adding a file to the drift check:** add a `(repo path, live path, "file")` row to `MANIFEST` in
+`config-drift-check.py`, redeploy the script, and confirm `--dry-run` still says `No drift.` A version-controlled copy
+that isn't in `MANIFEST` is invisible to the check. The check also watches its own script and units, so redeploying
+it means pushing the new version to `main` *first*, or it flags itself. Only `/etc/mosquitto/conf.d/*.conf` is
+scanned for live-only files; add a `LIVE_ONLY_DIRS` row to cover another directory.

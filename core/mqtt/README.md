@@ -38,3 +38,12 @@ for the full path and how to check it's healthy.
 Config changes are edited here, then hand-copied to `/etc/mosquitto/conf.d/` on the Pi
 and applied with `sudo systemctl reload mosquitto` (or `restart` for changes that need a
 full reload, e.g. `persistence_location`).
+
+## Drift Check
+
+Every file in this directory is checked daily against its live copy on the Pi by
+`core/maintenance/config-drift-check.py` (CARD-0328) — it also flags any `*.conf` in
+`/etc/mosquitto/conf.d/` that isn't tracked here (that's how `local.conf` was found).
+Changes made live without coming back here open a kanban PR. To check by hand:
+`ssh pi@pi1.local "sudo python3 /usr/local/bin/config-drift-check.py --dry-run"`. Adding a new
+file here means adding it to that script's `MANIFEST` too.

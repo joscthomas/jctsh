@@ -45,7 +45,13 @@ _REMOTE_COMPONENTS     = {"coachproxyos"}
 # list (same shape as _REMOTE_COMPONENTS above), not a naming-convention
 # guess (e.g. a "-test" suffix rule), since that'd be a surprising trap for
 # any future real component that happens to share the pattern.
-_EXCLUDED_COMPONENTS   = {"hiking-monitor-test"}
+_EXCLUDED_COMPONENTS   = {
+    "hiking-monitor-test",
+    # CARD-0324: one-off test rigs that linger because last_seen is persisted and never
+    # expires. aqm-minimal-test was the misleading one -- a bench sketch showing
+    # "Disconnected" beside real devices reads as an outage.
+    "cardtest-0225", "cardtest-0225-direct", "aqm-minimal-test",
+}
 _HOME_HB_THRESHOLD_MIN = 70   # hourly beat + 10 min grace
 LOG_DIR     = "/mnt/jctsh-logs"
 LOG_FILE    = os.path.join(LOG_DIR, "jctsh.log")

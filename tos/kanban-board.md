@@ -88,7 +88,7 @@ Every corrected time lands within 1–18 minutes *before* its own commit — the
 
 ### CARD-0328 · [enhancement] [mqtt] [node-red] [homeassistant] Version-controlled-copy directories have no drift check — generalize CARD-0326's one-line diff
 
-**Status:** Planning
+**Status:** Build
 
 **Raised 2026-09-22 10:04 MST — found by the ops cluster session in CARD-0326's own reflection, routed here because no initiated session owns the affected directories.** `core/mqtt/`, `core/node-red/` and `core/homeassistant/` are each "version-controlled copy of a file that actually lives on the Pi" directories, and nothing verifies the copy still matches the live file. CARD-0326 just fixed exactly this exposure for Docker (splitting `daemon.json` per host), and its fix was a one-line `diff` command in the README — which generalizes to all three directly.
 
@@ -123,6 +123,17 @@ Every corrected time lands within 1–18 minutes *before* its own commit — the
 4. Documented in the `core/maintenance` README and each covered directory's README (how it's checked, how to run it by hand).
 
 **Open Planning questions:** how the Pi gets the repo copy to compare against (a checkout on the Pi vs. fetching raw files from GitHub `main`); the Node-RED comparison mechanism; dedupe so one persistent drift doesn't open a PR every run; how the ops session and (later) the HA cluster session pick this up.
+**Build started 2026-09-23 11:34 MST (Joseph: "build it") -- Planning's open questions answered by reading existing code, not by asking:**
+- **Repo copy:** fetched from GitHub `main` with the Pi's existing `/etc/jctsh/github.env` token via `open_kanban_pr._get_file_text` (size-safe raw fetch) -- no checkout needed on the Pi.
+- **Node-RED comparison:** read the live `/home/pi/.node-red/flows.json` file and compare node-by-node by id (editor x/y ignored); also reports live tabs/config nodes present in *no* repo flow file, using every `*.flow.json` in the repo as the reference set so other components' flows aren't false orphans.
+- **Dedup:** same fingerprint + 7-day reminder throttle (same as every other check); a clean run resets it. `open_finding_pr` alone would re-open a PR every run once the previous one was closed.
+- **Secrets:** diffs rendered from a masked copy (bcrypt hashes, `credentialSecret`/password/token-style values); a secret-only difference is reported as "content withheld".
+- **Schedule:** daily 09:00 on the Pi (1hr clear of the Pi's 1st-of-month 08:00 OS check; row added to `network/jctsh-network.md`'s Maintenance Windows table).
+- **Ops-cluster coordination:** the ops session is not live (`ListAgents` 2026-09-23 showed only general/porch-patio/hike-izer peers), so nothing to notify; the files land in `core/maintenance` and the ops session should be told at its next startup.
+
+**Built offline, NOT yet deployed or verified live** -- `core/maintenance/config-drift-check.py` + `.service` + `.timer`, README section, Maintenance Windows row. 18 synthetic fixture checks pass (identical->quiet, CRLF-only ignored, file/flow/orphan drift found, secrets never in message, message capped, missing live file and repo-fetch failure surface as findings rather than crashes). **Synthetic is not the Done bar** (Done-when 3 requires the real thing). Files held uncommitted pending Joseph's review -- runtime code, per the commit rules.
+
+**Still to do, all needing the Pi:** (a) verify the live paths in `MANIFEST` (three are unverified guesses: the cert-deploy-hook filename, `docker-compose.yml`'s location, and whether `open_kanban_pr.py`/`github.env` are present in `/usr/local/bin`/`/etc/jctsh`); (b) `--dry-run` on the Pi and report any pre-existing drift to Joseph rather than fixing it; (c) deploy script/service/timer, enable the timer; (d) the live drift test from Done-when 3. **Blocked right now:** SSH from this workstation to the Pi's Tailscale IP fails host-key verification and `pi1.local` doesn't resolve off-LAN.
 
 **Related:** CARD-0326 (the per-host `daemon.json` split whose reflection found this, and the one-line diff pattern to generalize), CARD-0272 (the `journald` setting that drifted), CARD-0291 (pass 4, which caught that drift and honestly noted it rather than fixing it), CARD-0294 (per-directory tagging convention).
 

@@ -543,9 +543,17 @@ script:
                   count);
                 id(mqtt_client).publish("jctsh/components/air-quality-monitor/log",
                                         std::string(log_buf), 0, false);
+                // QoS 1 (2026-09-22, hike-izer cluster session): QoS 0 gives zero
+                // delivery confirmation, so a reading can silently fail to reach the broker
+                // during a still-recovering connection while aqm_log_clear() below still
+                // truncates the buffer unconditionally right after this loop finishes --
+                // same replay-integrity gap CARD-0226 documented on hiking-monitor's
+                // identical hike_log_replay_stream pattern. QoS 1 alone does not add
+                // per-record ack tracking before the clear() call (a real, if narrower,
+                // remaining gap) -- verify against a real replay's coverage numbers.
                 aqm_log_replay_stream([](const std::string& line) {
                   id(mqtt_client).publish("jctsh/components/air-quality-monitor/data",
-                                          line, 0, false);
+                                          line, 1, false);
                   App.feed_wdt();
                   delay(50);
                 });

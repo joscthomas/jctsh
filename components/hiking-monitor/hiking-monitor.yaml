@@ -645,6 +645,21 @@ binary_sensor:
                     - binary_sensor.is_off: slide_switch
                 then:
                   - wifi.enable:
+                  # Mirrors wifi.enable above -- ESPHome's mqtt: component keeps its
+                  # own independent reconnect logic running regardless of radio state
+                  # (confirmed live on air-quality-monitor, Step 9, 2026-09-14: a debug-UART
+                  # capture showed mqtt still retrying/failing DNS resolution with WiFi
+                  # correctly disabled the whole time). Without this, MQTT stays "enabled"
+                  # and attempting the entire time WiFi is off, which is very likely both
+                  # the periodic current draw behind CARD-0226's battery-dip finding and
+                  # (via the reboot_timeout investigation on the same card) a contributing
+                  # cause of the reboot loop itself. reboot_timeout itself is deliberately
+                  # left at ESPHome's default here, not set to 0s yet -- see CARD-0226,
+                  # 2026-09-22: this device has no physical power-cycle path in the field
+                  # (VOUT+ feeds VIN unconditionally, per README.md), so that timer stays
+                  # as the only self-recovery mechanism until this mirroring fix is
+                  # confirmed live to make it unnecessary.
+                  - mqtt.enable:
             - if:
                 condition:
                   binary_sensor.is_off: slide_switch   # USB plugged in while running — only log if switch is off
@@ -795,6 +810,9 @@ interval:
             lambda: 'return id(wifi_disable_pending);'
           then:
             - wifi.disable:
+            - mqtt.disable:  # mirrors wifi.disable above -- see the matching mqtt.enable
+                             # comment near dock_detect's on_state handler for the full
+                             # reasoning (CARD-0226, 2026-09-22)
             - lambda: 'id(wifi_disable_pending) = false;'
       # CARD-0224: on_connect only fires once per connection event -- if the
       # MQTT link stays persistently up after a replay was deferred for low

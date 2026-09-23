@@ -1,7 +1,8 @@
 # JCTsh Node-RED Watchdog
 
 Monitors all JCTsh component heartbeats. Sends a push notification to the Pixel
-if any component goes silent for 35 minutes.
+if any component goes silent for 35 minutes, then re-alerts every 2 hours for
+as long as it stays silent (CARD-0331).
 
 ---
 
@@ -10,10 +11,16 @@ if any component goes silent for 35 minutes.
 1. All ESP32 components publish a heartbeat every 5 minutes to `jctsh/+/+/heartbeat`
 2. The watchdog MQTT In node subscribes to that wildcard — all components are caught
    automatically, no flow changes needed when new components are added
-3. On each heartbeat receipt, a per-component 35-minute setTimeout is reset
+3. On each heartbeat receipt, a per-component 35-minute setTimeout is reset, and any
+   active re-alert interval (see step 5) is cleared — the component is back
 4. If 35 minutes pass with no heartbeat from a component:
    - Push notification sent to Pixel 10 Pro XL via HA companion app
    - Alert logged to `jctsh/core/watchdog/log`
+5. **CARD-0331:** if the component is still silent, a follow-up alert re-fires every
+   2 hours after that, carrying the accumulated downtime (e.g. "down 2h15m"), until
+   either a heartbeat arrives (step 3 clears it) or it stays down indefinitely. Without
+   this, a 35-minute outage and a 16-hour outage were indistinguishable in the alert
+   stream — found live 2026-09-22 cross-checking an alert against the Pi's actual log.
 
 The 35-minute window = 5-minute heartbeat interval × 7, giving 6 missed heartbeats
 before alerting. This tolerates brief MQTT disconnects and device reboots without
@@ -40,15 +47,26 @@ jctsh/+/+/heartbeat  ──► Timer manager (per component) ──► [35-min t
 
 ## Alert Message
 
-**Push notification (Pixel 10 Pro XL):**
+**Initial alert, push notification (Pixel 10 Pro XL):**
 ```
 Title: JCTsh Watchdog
 Message: JCTsh alert: <component> has not reported in 35 minutes
 ```
 
-**Log message (`jctsh/core/watchdog/log`):**
+**Initial alert, log message (`jctsh/core/watchdog/log`):**
 ```json
 { "component": "watchdog", "category": "Alert", "message": "Component <name> silent for 35 minutes" }
+```
+
+**Repeat alert (CARD-0331), every 2h while still silent — push notification:**
+```
+Title: JCTsh Watchdog
+Message: JCTsh alert: <component> still silent -- down 2h15m
+```
+
+**Repeat alert, log message:**
+```json
+{ "component": "watchdog", "category": "Alert", "message": "Component <name> still silent -- down 2h15m" }
 ```
 
 ---
@@ -84,10 +102,14 @@ a heartbeat every 5 minutes to `jctsh/components/<name>/heartbeat`.
 3. Wait 35 minutes from the last heartbeat
 4. Confirm push notification arrives on the Pixel
 5. Confirm alert appears in log dashboard under component `watchdog`
-6. Power ESP32 back on — watchdog timer resets on the next heartbeat (no further alerts)
+6. Leave it off and confirm a repeat alert arrives 2 hours later, with the accumulated
+   downtime in the message (CARD-0331)
+7. Power ESP32 back on — watchdog timer resets on the next heartbeat, repeat interval
+   is cleared, no further alerts
 
-To test without waiting 35 minutes: temporarily edit the `fn_timer_manager` function
-node to use a shorter timeout (e.g. 2 minutes), deploy, test, then restore to 35.
+To test without waiting 35 minutes / 2 hours: temporarily edit the `fn_timer_manager`
+function node to use shorter durations (e.g. 2-minute initial timeout, 1-minute repeat
+interval), deploy, test, then restore to 35 minutes / 2 hours.
 
 ---
 

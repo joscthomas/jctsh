@@ -88,7 +88,7 @@ Every corrected time lands within 1–18 minutes *before* its own commit — the
 
 ### CARD-0328 · [enhancement] [mqtt] [node-red] [homeassistant] Version-controlled-copy directories have no drift check — generalize CARD-0326's one-line diff
 
-**Status:** Backlog
+**Status:** Planning
 
 **Raised 2026-09-22 10:04 MST — found by the ops cluster session in CARD-0326's own reflection, routed here because no initiated session owns the affected directories.** `core/mqtt/`, `core/node-red/` and `core/homeassistant/` are each "version-controlled copy of a file that actually lives on the Pi" directories, and nothing verifies the copy still matches the live file. CARD-0326 just fixed exactly this exposure for Docker (splitting `daemon.json` per host), and its fix was a one-line `diff` command in the README — which generalizes to all three directly.
 
@@ -98,7 +98,31 @@ Every corrected time lands within 1–18 minutes *before* its own commit — the
 
 **Not scoped, deliberately:** whether a README `diff` line per directory is sufficient (cheap, matches CARD-0326's precedent, but only runs when someone remembers), or whether this wants one scripted check covering every version-controlled-copy directory at once — which would live in `core/maintenance/` and make it ops scope instead. That choice is the Planning question.
 
-**Done when:** not yet scoped — essence-only per CARD-0256 until Planning interviews it.
+**Interviewed 2026-09-23 11:27 MST (Joseph, network/infra-visibility session) -- moved Backlog -> Planning; three scope decisions:**
+1. **Approach: one scripted check, not per-README `diff` lines.** Covers every version-controlled-copy directory in scope at once. The README-line option was rejected as the exact weakness the card names (only runs when someone remembers) and because it cannot cleanly handle Node-RED (below).
+2. **Runs on the Pi, unattended, via a systemd timer** -- same pattern as the existing `core/maintenance` timers (`pi-maintenance-check`, `container-update-check-*`).
+3. **On drift: auto-open a kanban PR** through CARD-0128's `tos/open_kanban_pr.py` intake, same as container-update findings, reviewed via `tos/pr-review-checklist.md`. Not a log-only Alert, not report-only.
+4. **Directories in scope: `core/mqtt`, `core/node-red`, `core/homeassistant`** -- exactly the three named above. `core/docker`/`hosts/` are already covered by CARD-0326's one-line diffs and stay out.
+
+**Findings from Planning's first pass (2026-09-23, before any design):**
+- **`core/mqtt` maps 1:1** onto `/etc/mosquitto/` (`mosquitto.conf`; `jctsh.conf` and `mqtt-tls.conf` in `conf.d/`; the cert hook at `/etc/letsencrypt/renewal-hooks/deploy/`) -- a plain file diff works.
+- **`core/node-red` does not map 1:1.** The repo holds separate `core.flow.json`/`watchdog.flow.json` (plus component flows elsewhere, e.g. `components/netalertx/netalertx.flow.json`); live Node-RED keeps everything merged in one `/home/pi/.node-red/flows.json`. A file diff can't work -- the comparison has to be per flow tab/node set (e.g. via the Node-RED admin API or by splitting `flows.json` by tab). `settings.js` is 1:1 but holds a bcrypt hash, so it needs a hash-aware or exclude rule, not a blind diff-and-PR of its contents.
+- **Ownership wrinkle:** the script itself would live in `core/maintenance` (ops cluster's directory, already-initiated session) while two of the three directories it checks belong to this cluster and the third to the not-yet-initiated HA automations cluster. Build should be coordinated with the ops session rather than done unilaterally from here.
+- Live paths are unverified: SSH from this workstation to the Pi's Tailscale IP failed host-key verification and `pi1.local` didn't resolve (off-LAN at the time), so nothing above about *live* file locations has been read from the Pi yet.
+
+**Non-goals (stated so scope can't drift back in):**
+- No auto-sync or auto-deploy in either direction -- the check detects drift and opens a PR for a person to decide; it never overwrites the repo or the Pi.
+- Not a general config-management system, and no new file-watching daemon -- a timer-driven comparison only.
+- Not replacing CARD-0326's `daemon.json` diffs for `core/docker`/`hosts/`.
+- Doesn't decide *which side is right* when they differ (repo says "source of truth", but a live hotfix may be the correct one) -- that's the PR reviewer's call.
+
+**Done when:** (scoped 2026-09-23 -- refine in Planning)
+1. A script in `core/maintenance` compares the live Pi files against the repo copies for `core/mqtt`, `core/node-red` and `core/homeassistant`, handling Node-RED's merged `flows.json` correctly and excluding/handling secrets (`settings.js` hash, tokens, credential files) without ever putting them in a PR body.
+2. A systemd timer on the Pi runs it on a schedule; on drift it opens a kanban PR via `open_kanban_pr.py` naming the directory, the file, and the diff; no drift means no PR and no noise.
+3. **Verified live, not synthetically:** deliberately introduce a real drift on the Pi (e.g. a harmless comment in a live conf), confirm exactly one PR opens, revert it, confirm the next run stays quiet -- plus a first clean run against today's real state, with any *pre-existing* drift it finds reported to Joseph rather than silently fixed.
+4. Documented in the `core/maintenance` README and each covered directory's README (how it's checked, how to run it by hand).
+
+**Open Planning questions:** how the Pi gets the repo copy to compare against (a checkout on the Pi vs. fetching raw files from GitHub `main`); the Node-RED comparison mechanism; dedupe so one persistent drift doesn't open a PR every run; how the ops session and (later) the HA cluster session pick this up.
 
 **Related:** CARD-0326 (the per-host `daemon.json` split whose reflection found this, and the one-line diff pattern to generalize), CARD-0272 (the `journald` setting that drifted), CARD-0291 (pass 4, which caught that drift and honestly noted it rather than fixing it), CARD-0294 (per-directory tagging convention).
 

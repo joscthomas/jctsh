@@ -2,8 +2,8 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** The startup steps a persistent component or cluster session (CARD-0284) actually runs instead of the general Session Start (`tos/JCTsh-Session-Start.md`) — some general steps scoped down, some skipped, some run unscoped, plus component-only steps with no general-session equivalent.
-**Version:** 1.19
-**Version description:** Added component-only step 3 (2026-09-22, Joseph's direct go-ahead) — read each covered component's own *operating* doc in full, above all `.claude/skills/<name>/SKILL.md`, plus any procedural sibling runbook, before operating that component. Closes a real structural hole found live: `SKILL.md` sits outside `components/<name>/`, so a correctly-executed startup (steps 1–2, both README.md and CLAUDE.md read) never surfaced hike-izer's standing opt-in-only `--narrative` cost rule, and a generic "do the second pass" was reasoned into `--narrative` and had to be stopped mid-run. Also states the generalizable half: where an operating doc names a default for an ambiguous request, that default governs — ambiguity never resolves toward the costlier or less reversible option.
+**Version:** 1.20
+**Version description:** Network/infra-visibility cluster initiated, 2026-09-23 (Joseph: "component session start up for network/infra-visibility cluster") -- Component/Cluster Registry row flipped from `No`/-- to `Yes`/Active. Step 3's reconciliation check found the intended scope (`netalertx`, `core/mqtt`, `core/logging`, `core/node-red`) matches the existing row exactly, so no scope change was needed.
 **Version history:** `JCTsh-Component-Session-Start-History.md`
 
 ---
@@ -37,7 +37,7 @@ Added 2026-09-18 (CARD-0299, refined same day — Joseph: "this table identifies
 | hiking-monitor cluster | `hiking-monitor`, `air-quality-monitor` | Yes | Active |
 | jctsh-menu | `jctsh-menu` | No | — |
 | LogSeq | `LogSeq` (whole separate repo, not a jctsh-internal directory) | Yes | Active |
-| network/infra-visibility cluster | `netalertx`, `core/mqtt`, `core/logging`, `core/node-red` | No | — |
+| network/infra-visibility cluster | `netalertx`, `core/mqtt`, `core/logging`, `core/node-red` | Yes | Active |
 | ops cluster | `core/maintenance`, `core/docker`, `hosts/m8`, `hosts/pi1` | Yes | Active |
 | outdoor/backyard cluster | `remote-temp-sensor-01`, `weather-station` | Yes | Active |
 | PB-Blog | `PB-Blog` (whole separate repo, not a jctsh-internal directory) | No | — |

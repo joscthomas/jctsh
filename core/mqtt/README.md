@@ -15,6 +15,7 @@ truth, deployed by hand-copying into `conf.d/`.
 |---|---|
 | `mosquitto.conf` | Base config — persistence location, logging, `include_dir` for `conf.d/` |
 | `jctsh.conf` | Adds ISO 8601 log timestamps, required for fail2ban's log parsing |
+| `local.conf` | The plaintext LAN listener (port 1883) and auth settings — `listener 1883`, `allow_anonymous false`, `password_file /etc/mosquitto/passwd`. Existed live from the original install and was never tracked here; brought into the repo by CARD-0328's drift check, which found it Pi-only. No secrets in it (only the password file's path) |
 | `mqtt-tls.conf` | TLS listener (CARD-0003) for internet-facing MQTT — only devices that leave the home network (hiking-monitor, air-quality-monitor) use this; stationary devices stay on the plaintext LAN-only listener from `jctsh.conf` |
 | `mosquitto-cert-deploy-hook.sh` | Certbot deploy-hook for `jctsh.duckdns.org` — copies renewed certs into `/etc/mosquitto/certs` and reloads Mosquitto, installed at `/etc/letsencrypt/renewal-hooks/deploy/` |
 | `monitoring.md` | How to check each layer of the DuckDNS → port forward → Mosquitto → fail2ban stack when debugging connectivity |

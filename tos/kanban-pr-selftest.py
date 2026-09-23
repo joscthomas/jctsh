@@ -17,6 +17,9 @@ day's run always attempts a genuinely fresh open, and this script's own state
 file (not open_finding_pr()'s state parameter) is what remembers the PR
 number to close next time.
 
+Publishes a System line on success as well as an Alert on failure (CARD-0324) -- an
+alert-only component's /status row otherwise stays pinned to its last failure.
+
 State file: STATE_PATH below (create the containing directory before first
 deploy: sudo mkdir -p /var/lib/jctsh && sudo chown jct:jct /var/lib/jctsh,
 or root:pi on the Pi -- matches this repo's other mutable-state files, not
@@ -112,6 +115,19 @@ try:
         "last_success_at": now.isoformat(),
     })
     print(f"Self-test OK: {pr_url}")
+
+    # CARD-0324: this script used to publish *only* on failure, so /status's Last
+    # Reading for this component stayed pinned to its last failure forever -- a
+    # recovered pipeline looked identical to a still-broken one (found live
+    # 2026-09-22, misread as "dark for 11 days" when the timer had run daily the
+    # whole time). A normal System line on success replaces it. Deliberately not
+    # "Heartbeat - " wording, which would make /status expect a 70-minute cadence
+    # from a once-a-day job and show it Offline. Its own try: a failed publish here
+    # must never fall into the except below and raise a false pipeline-failure Alert.
+    try:
+        _publish_log("System", f"Kanban-PR intake pipeline self-test passed -- PR #{pr_number} opened and confirmed.")
+    except Exception as mqtt_err:
+        print(f"Self-test passed but couldn't publish the success line: {mqtt_err}", file=sys.stderr)
 
 except Exception as e:
     last_success = state.get("last_success_at", "unknown -- no prior successful run recorded")

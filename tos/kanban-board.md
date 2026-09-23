@@ -205,7 +205,7 @@ Archived to `tos/card-archive.md` on 2026-09-22 (CARD-0193) — 9827B, over the 
 
 ### CARD-0324 · [bug] [logging] An alert-only component's `/status` row pins to its last failure forever — a recovered pipeline is indistinguishable from a still-broken one
 
-**Status:** Backlog
+**Status:** Build
 
 **Raised 2026-09-22 09:30 MST (Joseph's direct instruction, "new card for jctsh-pr-selftest"), from a real misread made in this same session — the finding is the misread, not the thing misread.** The `/status` dashboard showed:
 
@@ -231,6 +231,21 @@ The self-test is healthy and has been running daily the whole time.
 
 **Deliberately not in scope:** anything about the auto-PR intake pipeline itself, which is working. `tos/JCTsh-Session-Start.md` step 4's "never surface the `jctsh-pr-selftest` PR" rule is also unrelated — that's about PRs the self-test opens, not about this dashboard row.
 
+**Interviewed 2026-09-23 12:26 MST (Joseph, network/infra-visibility session) -- moved Backlog -> Planning -> Build in one pass ("build straight through"); three decisions:**
+1. **Approach: a success line at the source** -- each alert-only component logs a normal `System` message on a clean run. No `log_server.py` change. Rejected: a retained "Last Check" MQTT state + new `/status` column (right shape, CARD-0127/0158 pattern, but new topic convention + column for a class of two), and a render-only "no successes reported" label (stops the misread but can't show the check is still running).
+2. **Scope: both alert-only components** -- `jctsh-pr-selftest` and `watchdog`.
+3. **Wording rule:** the success lines must not start with `Heartbeat - ` or `Watchdog: ` -- `log_server` treats those as heartbeats (`_compute_status`'s `is_hb`) and would expect one every ~70 minutes, showing a daily job Offline.
+
+**Survey answering this card's own "which other components are alert-only?" question (2026-09-23, from the Pi's durable log, ~35k lines across `jctsh.log` + 4 rotations):** exactly two components have *only* `Alert` messages in their whole history -- `jctsh-pr-selftest` (1 message: the 2026-09-11 failure) and `watchdog` (109 `Alert` lines, all "X silent for 35 minutes"). Every other non-heartbeat component (`gps-track`, `hike-*`, `scat-detection`, `node-red`, `hike-izer-orchestrator`) also logs ordinary `System` events, so a failure can't stay pinned the same way. The problem is a class of two today, not a broad one. Adjacent, **not this card:** `cardtest-0225`, `cardtest-0225-direct`, `livecheck` and `aqm-minimal-test` are leftover dev rows still on `/status` (CARD-0139's exclusion list only holds `hiking-monitor-test`).
+
+**Built, part 1 -- `jctsh-pr-selftest`: DONE and verified live, 2026-09-23 12:26 MST.** `tos/kanban-pr-selftest.py` now publishes `Kanban-PR intake pipeline self-test passed -- PR #N opened and confirmed.` (category `System`) after a confirmed-good run, in its own inner `try` so a failed publish can never fall into the failure branch and raise a false pipeline-failure Alert. Deployed to `/usr/local/bin/` (sha256 matches the repo copy), then ran the installed service once by hand: `Result=success`, opened PR #129 (closing #126 as designed), and the live `/status.json` row's `last_seen` moved from `2026-09-10` (the pinned failure) to `12:23:01` today, freshness still `n/a` as intended. **Ownership:** this script belongs to the `tos` cluster and that session wasn't live to sign off -- it needs telling at its next startup.
+
+**Built, part 2 -- `watchdog`: BUILT, NOT YET DEPLOYED.** `core/node-red/watchdog.flow.json` gains, additively (`fn_timer_manager`, the alerting path, is untouched): `fn_track_heartbeats` (a third output on the existing heartbeat subscription, recording last-heartbeat time per component in flow context) and `inject_daily_check` (cron `00 07 * * *`) -> `fn_daily_check` -> the existing `mqtt_out_watchdog_log`, which logs e.g. `Daily check: 6 components reporting, 1 silent (hiking-monitor)` as a `System` line. Also a dead-man's switch: if Node-RED dies the line stops appearing. Components unheard-from for 7 days are dropped from the count.
+- **Why undeployed:** the Node-RED Admin API needs the admin login, and the auto-mode classifier blocked reading it from `credentials.local.md` in this session ("Credential Materialization"); it then also blocked a plain `node --version`, so the two function nodes have not been exercised locally either. Not worked around. Added `core/node-red/deploy_flow.py` instead: run in Joseph's own terminal, it prompts for the password (never written anywhere), shows add/change/remove by node id, asks to confirm, PUTs only that tab, re-fetches and verifies every function node's code, and can fire the daily inject once (`--trigger inject_daily_check`).
+- **Held out of `main` on purpose:** `watchdog.flow.json` stays uncommitted until deployed. If it reached `main` first, CARD-0328's drift check (daily 09:00) would flag repo != live and open a PR, and would muddy that card's own "No drift." verification.
+- **Side effect to expect on deploy:** replacing the tab restarts that flow, so the watchdog's in-memory silence timers reset and re-arm on each component's next heartbeat (same as CARD-0331's deploy). A component already silent at that moment gets no alert until it next heartbeats.
+
+**Still to do:** (a) Joseph runs the deploy helper; (b) confirm the first `Daily check` line reaches the dashboard (trigger it once with `--trigger`), and that the drift check then reports `No drift.` with the flow file committed; (c) update `watchdog-README.md` for the daily check; (d) tell the `tos` session about the self-test change; (e) Reflection, then Done. **Watch for / Auto verify:** the first 07:00 scheduled `Daily check` line, once deployed.
 **Related:** CARD-0192 (built the self-test; `tos/kanban-pr-selftest.py`'s alert-only `_publish_log` is the mechanism here), CARD-0282 (`/status` as the authority for live component state — this is a limitation of that same page), CARD-0256 (essence-only Backlog scoping, why this card stops here), `core/logging/log_server.py` (`/status` rendering), `tos/kanban-pr-selftest.py`.
 
 ---

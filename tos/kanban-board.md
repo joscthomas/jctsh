@@ -15,13 +15,22 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ### CARD-0331 · [bug] [node-red] Watchdog silence alert fires once and never re-alerts -- badly understates real outage duration
 
-**Status:** Backlog
+**Status:** Done — RESOLVED 2026-09-23
 
 **Raised 2026-09-22 16:13 MST, found live cross-checking a "back-patio-temp-sensor silent for 35 minutes" alert against the Pi's actual log (the porch/patio component session, `jctsh-6a`, and the general session working together).** The real outage was **~15h53m** (2026-09-21 16:42:25 -> 2026-09-22 08:35:19), not the ~35 minutes the alert text implies -- the watchdog (`core/node-red/watchdog.flow.json`, `fn_timer_manager`'s per-component silence timers) only ever fires once, at the 35-minute threshold, and never re-alerts while a component stays down. As currently designed, a device down for 35 minutes and a device down for 16 hours are indistinguishable from the alert stream alone. **Correction, 2026-09-22 (folded in after `jctsh-6a` verified live on CARD-0219):** this card originally also cited a second, ~55min same-day gap (14:44-15:39) as a corroborating instance -- that one wasn't an unexplained dropout at all, it was Joseph's own BME280 physical swap and reboot, and it still produced the identical generic one-line alert text despite being a known, deliberate event. Kept as a weaker supporting data point (even a known-cause restart gets the same undifferentiated alert), not as a second real mystery -- the 2026-09-21 overnight ~15h53m gap is this card's actual motivating evidence. Full incident detail lives on CARD-0219, not repeated here.
 
-**Not yet interviewed or scoped** -- captured as a raw finding pending a real conversation about the fix shape. Two directions worth considering, not yet decided between:
-1. **Periodic re-alert** while a component stays silent, on some longer interval (e.g. re-fire every N hours until it recovers).
-2. **Duration on recovery** -- keep the single alert at 35 minutes, but have the device's eventual reconnect message (or a watchdog "recovered" companion message) carry the actual total downtime, rather than nothing.
+**Interviewed 2026-09-23 (Joseph) -- two decisions:**
+1. **Fix direction: periodic re-alert** (not duration-on-recovery, not both) -- keep re-firing while a component stays silent, until it recovers.
+2. **Interval: every 2 hours.**
+
+**Built and deployed, 2026-09-23:**
+1. `core/node-red/watchdog.flow.json`, `fn_timer_manager`: on heartbeat receipt, now clears both the 35-min silence timer *and* any active re-alert interval (needed so a component that recovers mid-outage stops getting "still silent" pushes). When the 35-min timer fires, it now also starts a `setInterval` (2h) that re-sends every 2 hours while still silent, carrying the accumulated downtime in minutes -- cleared the moment a heartbeat arrives.
+2. `fn_build_alert`: now branches on payload shape -- a plain component-name string (the original 35-min alert, unchanged wording) vs. an object carrying `component`/`downtimeMinutes` (a repeat alert, worded "still silent -- down 2h15m" via a new `formatDuration()` helper).
+3. `watchdog-README.md`: updated How It Works, Alert Message, and Testing sections to document the repeat-alert behavior and its message format.
+
+**Deployed live via Node-RED's Admin API** (`PUT /flow/tab_watchdog`, not a manual UI import) -- fetched the live flow, applied the same two function-node edits, pushed back, confirmed 200 and re-fetched to verify the new code is what's actually running on the Pi. A function-node syntax error would have failed this deploy outright, so the successful PUT is itself a validity check, not just a file write.
+
+**Not independently verified end-to-end** (a real multi-hour outage, confirming an actual repeat push arrives on the Pixel with correct wording) -- that requires either a real outage or a manual timer-shortening test per the README's own Testing section, neither performed this session. The mechanism is deployed and live; a real silent-component event is this feature's next real test.
 
 **Related:** CARD-0219 (the concrete incident this generalizes from), `core/node-red/watchdog.flow.json` / `watchdog-README.md` (the mechanism itself), CARD-0330 (found and fixed in the same session, unrelated mechanism -- that one's the Session Start credential gap, this one's the watchdog's own alerting design).
 

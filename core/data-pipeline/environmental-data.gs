@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-22.1-hike-izer-cost-sheet';
+var SCRIPT_VERSION = '2026-09-22.2-hike-izer-cost-dedup-fix';
 
 // ---------------------------------------------------------------------------
 // _relayLog -- CARD-0225: MQTT-dashboard visibility for GPS Track/Hiking
@@ -253,18 +253,31 @@ function doPost(e) {
         // prefix the value with a literal apostrophe.
         costSheet.getRange('B:B').setNumberFormat('@');
 
-        // Dedup on (file_stem, run_type) -- decided 2026-09-14, same
-        // reasoning as GPS Track/Hiking Observations/wildlife-detection's
-        // own guards: protects against a retried generation run
-        // (GENERATION_MAX_ATTEMPTS) double-posting the same run's cost.
-        // Columns: B=file_stem (leading apostrophe stripped on read),
-        // C=run_type.
+        // CARD-0270 follow-on, found live 2026-09-22: dedup on
+        // (file_stem, run_type) alone was too coarse -- a *legitimate*
+        // second step2 run on the same hike (e.g. a manual re-run for
+        // verification) shares that key with the first, and would have
+        // silently discarded a genuinely different second cost figure,
+        // not just protected against an accidental resend. The real risk
+        // this guard exists for is a client resending the *exact same*
+        // event after a read-timeout-but-server-actually-wrote scenario
+        // (CARD-0276's own established failure class) -- so match on
+        // every cost field too, not just the two identifying ones. Only
+        // an exact content match (same file_stem, run_type, AND identical
+        // dollars/calls/tokens/web_searches) counts as a duplicate; a
+        // second real run with a different cost always gets its own row.
         var isCostDuplicate = false;
         if (costSheet.getLastRow() > 1) {
-          var existingCostKeys = costSheet.getRange(2, 2, costSheet.getLastRow() - 1, 2).getValues();
-          for (var ck = 0; ck < existingCostKeys.length; ck++) {
-            if (String(existingCostKeys[ck][0]) === String(payload.file_stem) &&
-                String(existingCostKeys[ck][1]) === String(payload.run_type)) {
+          var existingCostRows = costSheet.getRange(2, 2, costSheet.getLastRow() - 1, 7).getValues();
+          for (var ck = 0; ck < existingCostRows.length; ck++) {
+            var er = existingCostRows[ck];
+            if (String(er[0]) === String(payload.file_stem) &&
+                String(er[1]) === String(payload.run_type) &&
+                Number(er[2]) === Number(payload.dollars) &&
+                Number(er[3]) === Number(payload.calls) &&
+                Number(er[4]) === Number(payload.input_tokens) &&
+                Number(er[5]) === Number(payload.output_tokens) &&
+                Number(er[6]) === Number(payload.web_searches)) {
               isCostDuplicate = true;
               break;
             }

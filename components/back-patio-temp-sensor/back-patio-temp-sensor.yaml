@@ -61,6 +61,13 @@ mqtt:
   topic_prefix: jctsh/components/back-patio-temp-sensor
   discovery: true
   discovery_prefix: homeassistant
+  # CARD-0219: back-patio's sensor names (Temperature/Humidity/Pressure/Illuminance)
+  # collide with front-porch-temp-sensor's under ESPHome's default legacy
+  # discovery_unique_id_generator (id = entity type + name only, not the device),
+  # so HA silently dropped every one of back-patio's discovery messages. Safe to
+  # switch to mac here since back-patio has no live HA registrations to orphan
+  # (unlike front-porch, which CARD-0186 left on legacy for exactly that reason).
+  discovery_unique_id_generator: mac
   will_message:
     topic: jctsh/components/back-patio-temp-sensor/log
     payload: '{"component":"back-patio-temp-sensor","category":"MQTT","message":"MQTT disconnected"}'

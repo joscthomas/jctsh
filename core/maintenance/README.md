@@ -25,6 +25,23 @@ dashboard and, via `open_kanban_pr.py` (CARD-0128), opens a placeholder PR again
 | `pi-maintenance-check.py` | Pi OS/firmware — apt-upgradable packages, stale running kernel (CARD-0125, `maintenance-check.py`'s Pi sibling; the M8-side script itself lives in `hosts/m8/`) |
 | `immich-update-check.service`/`.timer` | Runs `components/photo-server/immich-update-check.py` — Immich exposes its own `/api/server/version-check` API directly, more authoritative than a GitHub tag, so it doesn't use `container_update_check.py`'s generic path |
 
+## Config Drift Check
+
+Notify-only (CARD-0328) — detects when a live Pi file has drifted from its version-controlled copy on
+GitHub `main`, the exact failure root `CLAUDE.md`'s "repo is the source of truth" rule had nothing
+guarding. Same reporting path as the update checks: an `Alert` to the log dashboard plus a kanban PR via
+`open_kanban_pr.py`. Never writes to the repo or the Pi, and doesn't decide which side is right.
+
+| File | Purpose |
+|---|---|
+| `config-drift-check.py`/`.service`/`.timer` | Daily 9:00 AM on the Pi. Compares `core/mqtt/*`, `core/node-red/{settings.js,core.flow.json,watchdog.flow.json}` and `core/homeassistant/*` (its `MANIFEST` list is the authoritative file-to-live-path mapping) against `main`. |
+
+- **Node-RED** is compared node-by-node by id against the merged live `flows.json` (editor x/y positions
+  ignored), and live tabs/config nodes that no repo flow file contains are reported too.
+- **Secrets** (bcrypt hashes, `credentialSecret`/password/token-style values) are masked in every diff;
+  a change confined to one is reported as "content withheld".
+- **Throttle:** the same drift re-notifies at most every 7 days; a clean run resets it.
+- **Run it by hand** (prints findings, sends nothing): `sudo python3 /usr/local/bin/config-drift-check.py --dry-run`
 ## Reboots
 
 | File | Purpose |

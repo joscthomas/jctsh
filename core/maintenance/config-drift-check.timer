@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily config-drift check, 9:00 AM (JCTsh maintenance, Pi) -- 1hr after the Pi's monthly OS check
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+Unit=config-drift-check.service
+
+[Install]
+WantedBy=timers.target

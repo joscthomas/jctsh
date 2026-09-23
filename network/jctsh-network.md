@@ -57,6 +57,7 @@ Consolidated view across all recurring reboot/backup jobs, so a new one can be s
 | M8 OS/firmware maintenance check | Monthly, 1st at 7:00 AM | M8 | `kanban-board.md` CARD-0095 |
 | Pi container-image update check | Daily, 6:30 AM | Pi | `kanban-board.md` CARD-0126 |
 | Pi OS maintenance check | Monthly, 1st at 8:00 AM | Pi | `kanban-board.md` CARD-0125 |
+| Pi config-drift check | Daily, 9:00 AM | Pi | `core/maintenance/README.md` (CARD-0328) |
 | Pi watchdog heartbeat | Hourly | Pi | `CLAUDE.md` |
 | Pi email-idea check | Every 30 min | Pi | `kanban-board.md` CARD-0151 |
 | Pi1 backup to M8 (rsync, HA + Mosquitto) | Weekly, Sun 3:00 AM | Pi (pushes to M8) | `kanban-board.md` CARD-0177 |

@@ -1,0 +1,8 @@
+[Unit]
+Description=Check the Pi's live config files against the repo's main branch and report drift (CARD-0328)
+After=network-online.target mosquitto.service
+Wants=network-online.target mosquitto.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/config-drift-check.py

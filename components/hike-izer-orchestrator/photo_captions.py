@@ -49,16 +49,36 @@ PROMPT = (
     "subject is animal scat (droppings), and you're genuinely confident "
     "which species it's from, name it in both fields (e.g. "
     "scat_common_name=\"Coyote\", scat_scientific_name=\"Canis latrans\"). "
-    "Photo-based scat identification is inherently harder than identifying "
-    "the animal itself -- leave both fields empty unless you're truly "
-    "confident, and always leave both empty if the photo isn't of scat at "
-    "all. Don't guess and don't force an identification. These two fields "
-    "are separate from caption above -- caption is what's shown to the "
-    "reader; these are structured data for a separate per-species tracking "
-    "page, so a confidently-identified scat photo should normally have "
-    "both a caption (e.g. \"Coyote scat\") and these two fields filled in "
-    "together, not one without the other."
+    "{location_clause}Photo-based scat identification is inherently harder "
+    "than identifying the animal itself -- leave both fields empty unless "
+    "you're truly confident, and always leave both empty if the photo "
+    "isn't of scat at all. Don't guess and don't force an identification. "
+    "These two fields are separate from caption above -- caption is what's "
+    "shown to the reader; these are structured data for a separate "
+    "per-species tracking page, so a confidently-identified scat photo "
+    "should normally have both a caption (e.g. \"Coyote scat\") and these "
+    "two fields filled in together, not one without the other."
 )
+
+_LOCATION_CLAUSE = (
+    "This hike was near {location}. Before naming a species, weigh "
+    "whether it's genuinely plausible for that specific area based on "
+    "known species ranges -- if the animal you'd otherwise guess doesn't "
+    "actually occur there, leave both fields empty rather than name it "
+    "anyway. "
+)
+
+
+def _prompt_for(location_hint):
+    """CARD-0308 follow-up: gives the vision call something to weigh
+    plausibility against -- confirmed live 2026-09-23 (Joseph) that
+    without this it will confidently misidentify scat as a species that
+    doesn't range in the area at all (American Black Bear on a Tucson-area
+    hike). Deliberately just a location hint for the model's own
+    knowledge of species ranges, not a curated whitelist -- Joseph's call,
+    watch how much this alone helps before building anything heavier."""
+    clause = _LOCATION_CLAUSE.format(location=location_hint) if location_hint else ""
+    return PROMPT.format(location_clause=clause)
 
 
 class PhotoObservation(BaseModel):
@@ -68,7 +88,7 @@ class PhotoObservation(BaseModel):
     scat_scientific_name: str
 
 
-def _caption_one(client, thumb_path, cost_tracker=None):
+def _caption_one(client, thumb_path, cost_tracker=None, location_hint=None):
     with open(thumb_path, "rb") as f:
         data = base64.standard_b64encode(f.read()).decode("utf-8")
     response = client.messages.parse(
@@ -81,7 +101,7 @@ def _caption_one(client, thumb_path, cost_tracker=None):
             "role": "user",
             "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": data}},
-                {"type": "text", "text": PROMPT},
+                {"type": "text", "text": _prompt_for(location_hint)},
             ],
         }],
         output_format=PhotoObservation,
@@ -96,7 +116,7 @@ def _caption_one(client, thumb_path, cost_tracker=None):
     )
 
 
-def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None):
+def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None, location_hint=None):
     """Adds 'caption' (shown to the reader) and 'sign_text' (not shown --
     raw text transcribed from a sign/plaque in the photo, captured for
     CARD-0108's later search step) to each image asset in photos_manifest
@@ -133,7 +153,7 @@ def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None):
         try:
             (asset["caption"], asset["sign_text"],
              asset["scat_common_name"], asset["scat_scientific_name"]) = _caption_one(
-                client, thumb_path, cost_tracker=cost_tracker
+                client, thumb_path, cost_tracker=cost_tracker, location_hint=location_hint
             )
         except Exception as e:
             # A captioning failure shouldn't block the rest of the gallery --

@@ -311,6 +311,28 @@ def _log_birdnet_parse_outcome(staging_dir, file_stem, birdnet_rows):
     )
 
 
+def _scat_location_hint(hike_data):
+    """CARD-0308 follow-up: a plain-language anchor for photo_captions.py's
+    vision prompt to weigh scat-species plausibility against, built from
+    this hike's own first GPS point (place_context.py's own
+    _first_gps_point() pattern -- not imported from there since it's a
+    3-line dict lookup, not worth a cross-module dependency for). Raw
+    coordinates only, deliberately no Nominatim reverse-geocoding call --
+    step 1 doesn't otherwise touch place_context.py at all, and Claude's
+    vision call already reasons fine about species ranges from a lat/lon
+    pair alone. None if the hike has no GPS track yet (step 1, right after
+    a hike start, before any points have logged)."""
+    gps_rows = hike_data.get("gps_track") or []
+    if not gps_rows:
+        return None
+    sorted_rows = sorted(gps_rows, key=lambda r: r.get("timestamp") or "")
+    point = sorted_rows[0]
+    lat, lon = point.get("lat"), point.get("lon")
+    if lat is None or lon is None:
+        return None
+    return f"{lat:.4f}, {lon:.4f}"
+
+
 def _scat_rows_from_manifest(photos_manifest):
     """CARD-0308: photo-based equivalent of birdnet.parse_detections() --
     builds detection rows (common_name/scientific_name/count/
@@ -915,7 +937,8 @@ def run(payload):
         photos_manifest = _fetch_photos(hike_data_path, photos_dir, file_stem)
         if photos_manifest:
             photos_manifest = photo_captions.caption_photos(
-                photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker
+                photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker,
+                location_hint=_scat_location_hint(hike_data),
             )
 
         # CARD-0308: photo-based scat identification -- independent of
@@ -979,6 +1002,7 @@ def run(payload):
             birdnet_rows=birdnet_rows, birdnet_occurrences=birdnet_occurrences,
             life_list=wildlife_life_list.load(),
             xeno_canto_key=os.environ.get("XENO_CANTO_API_KEY"),
+            scat_rows=scat_rows, scat_species_list=scat_life_list.load(),
         )
 
         with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
@@ -1084,7 +1108,8 @@ def run_step2(file_stem, with_narrative=False):
     photos_manifest = _fetch_photos(hike_data_path, photos_dir, file_stem)
     if photos_manifest:
         photos_manifest = photo_captions.caption_photos(
-            photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker
+            photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker,
+            location_hint=_scat_location_hint(hike_data),
         )
 
     # CARD-0308: photo-based scat identification -- same "must run before
@@ -1163,6 +1188,7 @@ def run_step2(file_stem, with_narrative=False):
         birdnet_occurrences=birdnet_occurrences,
         life_list=wildlife_life_list.load(),
         xeno_canto_key=os.environ.get("XENO_CANTO_API_KEY"),
+        scat_rows=scat_rows, scat_species_list=scat_life_list.load(),
     )
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:

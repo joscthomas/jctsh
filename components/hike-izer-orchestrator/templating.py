@@ -1046,10 +1046,35 @@ def _stat_card(label, value, na=False):
     return f'<div class="stat"><div class="stat__label">{_esc(label)}</div><div class="{cls}">{_esc(value)}</div></div>'
 
 
+def scat_table_rows(scat_rows, offset_delta, scat_species_list=None, file_stem=None):
+    """CARD-0308 follow-up: minimal per-hike table equivalent of
+    birdnet_table_rows() -- found live 2026-09-23 (Joseph) that scat
+    identifications only ever surfaced as scattered photo captions, with
+    no on-page summary the way BirdNET gets one, despite CARD-0308 having
+    been explicitly scoped to "use the birdnet pattern." Deliberately
+    leaner than birdnet_table_rows -- no click-to-sort JS, no audio widget
+    (bird-specific) -- same "leaner v1, add more only once it's proven
+    needed" call already made for build_scat_index.py vs.
+    build_wildlife_index.py."""
+    scat_species_list = scat_species_list or {}
+    return [
+        {
+            "species": r["common_name"],
+            "scientific_name": r["scientific_name"],
+            "wikipedia_url": build_wildlife_index.wikipedia_url(r["scientific_name"]),
+            "count": r["count"],
+            "time": format_time_local(r["first_timestamp"], offset_delta),
+            "is_new": scat_species_list.get(r["scientific_name"], {}).get("first_identified_file_stem") == file_stem,
+        }
+        for r in scat_rows
+    ]
+
+
 def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None,
                  gaia_embed_html=None, file_stem=None, birdnet_rows=None,
                  address=None, named_features=None, thunderforest_api_key=None,
-                 birdnet_occurrences=None, life_list=None, xeno_canto_key=None):
+                 birdnet_occurrences=None, life_list=None, xeno_canto_key=None,
+                 scat_rows=None, scat_species_list=None):
     offset_delta = _parse_offset(offset_str)
     coverage = hike_data["coverage"]
     stats = hike_data["stats"]
@@ -1487,6 +1512,38 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   </script>
   {xeno_canto.render_player_widget_script("birdnet-table")}"""
 
+    # CARD-0308 follow-up: lean static table (no sort JS, no audio) --
+    # see scat_table_rows() docstring for why this exists and why it's
+    # deliberately simpler than birdnet_section above.
+    scat_section = ""
+    if scat_rows:
+        new_species_badge = ' <span class="new-species-badge">NEW</span>'
+        scat_html_rows = "".join(
+            f"<tr><td>"
+            f"<a href=\"{r['wikipedia_url']}\" target=\"_blank\" rel=\"noopener\">{_esc(r['species'])}</a>"
+            f"{new_species_badge if r['is_new'] else ''}"
+            f" <em>({_esc(r['scientific_name'])})</em></td>"
+            f"<td>{_esc(r['count'])}</td>"
+            f"<td>{_esc(r['time'])}</td></tr>"
+            for r in scat_table_rows(scat_rows, offset_delta, scat_species_list, file_stem)
+        )
+        scat_section = f"""
+  <section>
+    <div class="section-header">
+      <h2>Scat Identified</h2>
+      <a class="nav-link" href="scat.html">Life List &rarr;</a>
+    </div>
+    <p class="data-source">from photo identification -- see individual photo captions above for detail</p>
+    <table class="obs-table">
+      <thead><tr>
+        <th>Species</th>
+        <th>Count</th>
+        <th>Time ({_esc(offset_label(offset_str))})</th>
+      </tr></thead>
+      <tbody>{scat_html_rows}</tbody>
+    </table>
+  </section>"""
+
     # CARD-0134: vendored Leaflet, same relative path CARD-0082 already
     # deployed to ~/hike-izer-web-app/srv/vendor/leaflet/ -- this pipeline
     # writes its HTML into that same srv/ directory, so no new deployment
@@ -1532,6 +1589,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   {obs_section}
   {photos_section}
   {birdnet_section}
+  {scat_section}
   <footer>hike-izer-orchestrator</footer>
 </main>
 </body>

@@ -22,6 +22,19 @@ as long as it stays silent (CARD-0331).
    this, a 35-minute outage and a 16-hour outage were indistinguishable in the alert
    stream — found live 2026-09-22 cross-checking an alert against the Pi's actual log.
 
+6. **CARD-0324 — daily check line.** Every day at 07:00 the watchdog also logs a normal `System`
+   line, e.g. `Daily check: 6 components reporting, 1 silent (hiking-monitor)`. Without it the
+   watchdog only ever spoke when something was wrong, so its `/status` row showed its last outage
+   indefinitely and its silence couldn't be told apart from Node-RED itself being down. Now the
+   line replaces the stale alert as its last message, and if it stops appearing the watchdog (or
+   Node-RED) is what died. It is fed by `fn_track_heartbeats`, a separate function on the same
+   heartbeat subscription that records each component's last heartbeat time in flow context —
+   `fn_timer_manager`, the alerting path, is untouched. "Silent" uses the same 35-minute threshold;
+   components unheard-from for 7 days drop out of the count. Flow context resets on a Node-RED
+   restart, so a check right after one reports few components until heartbeats resume (~5 minutes).
+   The wording deliberately isn't `Heartbeat - ` or `Watchdog: `, which `log_server.py` treats as
+   heartbeats and would expect every ~70 minutes.
+
 The 35-minute window = 5-minute heartbeat interval × 7, giving 6 missed heartbeats
 before alerting. This tolerates brief MQTT disconnects and device reboots without
 false alarms.

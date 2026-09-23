@@ -36,7 +36,10 @@ def call(host, method, path, token=None, body=None, form=None):
     req = urllib.request.Request(f"http://{host}:1880{path}", data=data, method=method, headers=headers)
     with urllib.request.urlopen(req, timeout=20) as resp:
         raw = resp.read()
-        return resp.status, (json.loads(raw) if raw else None)
+        try:
+            return resp.status, (json.loads(raw) if raw else None)
+        except ValueError:   # e.g. POST /inject answers with plain text, not JSON
+            return resp.status, raw.decode(errors="replace")
 
 
 def _differs(repo_node, live_node):

@@ -78,6 +78,10 @@ MANIFEST = [
     ("core/homeassistant/docker-compose.yml", "/home/pi/docker-compose.yml", "file"),
     ("core/homeassistant/container-update-check.py", "/usr/local/bin/container-update-check.py", "file"),
     ("core/homeassistant/pi-heartbeat.py", "/usr/local/bin/pi-heartbeat.py", "file"),
+    # -- this check's own files: a live edit to the checker itself must not go unnoticed --
+    ("core/maintenance/config-drift-check.py", "/usr/local/bin/config-drift-check.py", "file"),
+    ("core/maintenance/config-drift-check.service", "/etc/systemd/system/config-drift-check.service", "file"),
+    ("core/maintenance/config-drift-check.timer", "/etc/systemd/system/config-drift-check.timer", "file"),
 ]
 
 # Live directories where a file that exists on the Pi but not in the repo is itself drift

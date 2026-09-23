@@ -26,11 +26,12 @@ from pydantic import BaseModel
 MODEL = "claude-opus-4-8"
 
 PROMPT = (
-    "This photo was taken during a hike. Two separate things:\n\n"
+    "This photo was taken during a hike. Three separate things:\n\n"
     "1. caption: a short caption (under 12 words) naming the clear focal "
-    "subject -- a specific plant or wildlife species, or a landmark -- but "
-    "ONLY if that identification adds something a viewer can't already see "
-    "for themselves in the photo. Do NOT just repeat or paraphrase text "
+    "subject -- a specific plant or wildlife species, a landmark, or an "
+    "identifiable wildlife sign such as tracks or scat -- but ONLY if that "
+    "identification adds something a viewer can't already see for "
+    "themselves in the photo. Do NOT just repeat or paraphrase text "
     "that's already legible on a sign, plaque, or label in the photo -- "
     "restating visible text is redundant with what the photo already shows, "
     "not a real caption. If the photo's clear subject is a sign/plaque and "
@@ -43,13 +44,28 @@ PROMPT = (
     "clear subject, transcribe its text here as accurately as you can. This "
     "is NOT shown to the reader as a caption -- it's captured as raw "
     "material for a later search step that looks up what the named place or "
-    "thing actually is. Leave empty if there's no such text in the photo."
+    "thing actually is. Leave empty if there's no such text in the photo.\n\n"
+    "3. scat_common_name / scat_scientific_name: if the photo's clear "
+    "subject is animal scat (droppings), and you're genuinely confident "
+    "which species it's from, name it in both fields (e.g. "
+    "scat_common_name=\"Coyote\", scat_scientific_name=\"Canis latrans\"). "
+    "Photo-based scat identification is inherently harder than identifying "
+    "the animal itself -- leave both fields empty unless you're truly "
+    "confident, and always leave both empty if the photo isn't of scat at "
+    "all. Don't guess and don't force an identification. These two fields "
+    "are separate from caption above -- caption is what's shown to the "
+    "reader; these are structured data for a separate per-species tracking "
+    "page, so a confidently-identified scat photo should normally have "
+    "both a caption (e.g. \"Coyote scat\") and these two fields filled in "
+    "together, not one without the other."
 )
 
 
 class PhotoObservation(BaseModel):
     caption: str
     sign_text: str
+    scat_common_name: str
+    scat_scientific_name: str
 
 
 def _caption_one(client, thumb_path, cost_tracker=None):
@@ -72,7 +88,12 @@ def _caption_one(client, thumb_path, cost_tracker=None):
     )
     if cost_tracker:
         cost_tracker.record(response)
-    return response.parsed_output.caption.strip(), response.parsed_output.sign_text.strip()
+    return (
+        response.parsed_output.caption.strip(),
+        response.parsed_output.sign_text.strip(),
+        response.parsed_output.scat_common_name.strip(),
+        response.parsed_output.scat_scientific_name.strip(),
+    )
 
 
 def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None):
@@ -110,7 +131,10 @@ def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None):
             continue
         thumb_path = os.path.join(photos_dir, asset["thumb"])
         try:
-            asset["caption"], asset["sign_text"] = _caption_one(client, thumb_path, cost_tracker=cost_tracker)
+            (asset["caption"], asset["sign_text"],
+             asset["scat_common_name"], asset["scat_scientific_name"]) = _caption_one(
+                client, thumb_path, cost_tracker=cost_tracker
+            )
         except Exception as e:
             # A captioning failure shouldn't block the rest of the gallery --
             # same "never let an optional enrichment step break the pipeline"
@@ -119,6 +143,8 @@ def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None):
             print(f"Caption failed for {asset['thumb']}: {e}", file=sys.stderr)
             asset["caption"] = ""
             asset["sign_text"] = ""
+            asset["scat_common_name"] = ""
+            asset["scat_scientific_name"] = ""
 
     try:
         manifest_path = os.path.join(photos_dir, "manifest.json")

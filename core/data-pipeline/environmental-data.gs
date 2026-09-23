@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-22.2-hike-izer-cost-dedup-fix';
+var SCRIPT_VERSION = '2026-09-22.3-scat-detection-sheet';
 
 // ---------------------------------------------------------------------------
 // _relayLog -- CARD-0225: MQTT-dashboard visibility for GPS Track/Hiking
@@ -302,6 +302,67 @@ function doPost(e) {
         costLock.releaseLock();
       }
       _relayLog('hike-izer-cost', 'System', 'Logged hike-izer generation cost for ' + payload.file_stem + ' (' + payload.run_type + ').');
+
+    } else if (payload.component === 'scat-detection') {
+      // CARD-0308: one row per species per hike, structural mirror of the
+      // wildlife-detection branch above (own sheet, own dedup, own
+      // _relayLog) -- deliberately a separate sheet, not merged into
+      // "Wildlife Detections", since audio-based bird ID and photo-based
+      // scat ID are different evidence qualities (2026-09-22 interview).
+      var scatLock = LockService.getScriptLock();
+      scatLock.waitLock(30000);
+      try {
+        var scatSheet = ss.getSheetByName('Scat Detections');
+        if (!scatSheet) {
+          scatSheet = ss.insertSheet('Scat Detections');
+          scatSheet.appendRow([
+            'timestamp', 'hike_file_stem', 'common_name', 'scientific_name',
+            'count', 'lat', 'lon'
+          ]);
+        }
+        // CARD-0235's bare-date-string bug applies here too -- hike_file_stem
+        // is the identical shape that bug hit on the wildlife sheet. Same
+        // double defense: force column B to Plain Text and prefix the
+        // value with a literal apostrophe.
+        scatSheet.getRange('B:B').setNumberFormat('@');
+
+        // Dedup on (hike_file_stem, scientific_name) -- same identity-based
+        // key as wildlife-detection's own guard (CARD-0276), not the
+        // full-content match CARD-0270's cost-tracking sheet needed. The
+        // two data models differ: a hike has exactly one canonical count
+        // for a given species (last-processed-wins, same as
+        // scat_life_list.py's own update_from_hike()), so identity dedup
+        // is the semantically correct guard here, not too coarse the way
+        // it was for repeatable independent cost-tracking events.
+        var isScatDuplicate = false;
+        if (scatSheet.getLastRow() > 1) {
+          var existingScatKeys = scatSheet.getRange(2, 2, scatSheet.getLastRow() - 1, 3).getValues();
+          for (var sk = 0; sk < existingScatKeys.length; sk++) {
+            if (String(existingScatKeys[sk][0]) === String(payload.hike_file_stem) &&
+                String(existingScatKeys[sk][2]) === String(payload.scientific_name)) {
+              isScatDuplicate = true;
+              break;
+            }
+          }
+        }
+
+        if (isScatDuplicate) {
+          // finally below still runs (and releases the lock) on this
+          // return path -- do not release it here too.
+          return ContentService
+            .createTextOutput(JSON.stringify({status: 'duplicate', hike_file_stem: payload.hike_file_stem, scientific_name: payload.scientific_name}))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+
+        scatSheet.appendRow([
+          payload.ts, "'" + payload.hike_file_stem, payload.common_name,
+          payload.scientific_name, payload.count, payload.lat, payload.lon
+        ]);
+        SpreadsheetApp.flush();
+      } finally {
+        scatLock.releaseLock();
+      }
+      _relayLog('scat-detection', 'System', 'Logged scat detection for ' + payload.hike_file_stem + ': ' + payload.common_name + '.');
 
     } else {
       var envSheet = ss.getSheetByName('Environmental Data');

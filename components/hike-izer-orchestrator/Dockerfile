@@ -40,9 +40,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # source, not a deployed copy; runs as a background thread app.py starts.
 COPY app.py generation.py narrative.py templating.py mqtt_log.py ha_notify.py \
      photo_captions.py place_context.py cost_tracking.py birdnet.py \
-     wildlife_life_list.py backstop_check.py \
+     wildlife_life_list.py scat_life_list.py backstop_check.py \
      fetch_hike_data.py fetch_hike_photos.py build_calendar_index.py \
      build_hike_map.py build_hike_chart.py build_wildlife_index.py \
+     build_scat_index.py \
      build_battery_trend_index.py \
      xeno_canto.py open_kanban_pr.py SKILL.md \
      /app/

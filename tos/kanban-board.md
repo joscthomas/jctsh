@@ -393,7 +393,7 @@ Archived to `tos/card-archive.md` on 2026-09-22 (CARD-0193) — 8422B, over the 
 
 ### CARD-0308 · [idea] [hike-izer] Scat identification from hike photos — analogous to BirdNET's audio wildlife ID
 
-**Status:** Backlog
+**Status:** Planning
 
 **Raised 2026-09-19, via the auto-PR intake pipeline (PR #98, jctsh-core maintenance check).** Original finding text: "scat identification." Interviewed via PR review: Joseph wants automatic identification of animal scat photographed during a hike, analogous to how the existing BirdNET Live integration (CARD-0080, `birdnet-pipeline.md`) already does audio-based wildlife identification — the phone app does the actual classification, and hike-izer's pipeline just parses/renders the already-identified results into the hike page and the cross-hike Wildlife Life List.
 

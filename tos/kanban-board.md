@@ -2117,8 +2117,21 @@ This is literally CARD-0186 recurring: that card fixed this same legacy-generato
 - **False alarm, for the record:** the `silent for 35 minutes` alert at 15:25:35 was the 15:12 power move restarting the 30-minute heartbeat cadence (14:50:35 → 15:42:06 = 51 min > 35), not a fault.
 - **Cause still unknown.** Only reproducible failure so far is the front-porch plug (2 of 2), so the next step is to reproduce it there — ideally with the laptop and serial capture to read the reset reason; if it survives, treat as intermittent and rely on the watchdog's every-2h re-alerts (CARD-0331) to catch a recurrence.
 
+**Side-by-side against front-porch, 2026-09-24 16:45 MST (Joseph's call — "get a feel for it before moving it to the back patio").** The board was plugged in at the front-porch plug at 16:00:57, adjacent to the front-porch sensor, and did **not** repeat the 09-23 failure there: still connected 40+ minutes later with no broker timeout, answering pings. Readings matched within 90 s, settled window 16:31–16:40 (n = 9–10; the first ~30 min were still converging from desk temperature — over the whole window the temperature offset averages only +0.1°F, with the first minutes at -5.7°F):
+
+| Back patio minus front porch | Mean | Range | Reading |
+|---|---|---|---|
+| Temperature | +0.7°F | +0.3 to +1.1°F | within BME280 tolerance (~±1°C) |
+| Humidity | +1.6% RH | +1.1 to +1.9% | within tolerance (~±3% RH) |
+| Pressure | -0.02 psi (~-1.4 hPa) | steady | within tolerance (~±1 hPa); supports the replacement being a genuine BME280 |
+| Illuminance | +650 lx (611 vs 13.5 lx at 16:40) | +598 to +706 lx | ~45× apart, both falling with evening light — placement/exposure (bare board vs. a shaded front-porch sensor), not a fault; BH1750 demonstrably tracks light (57 lx at the desk earlier) |
+
+Caveats: ~10 settled minutes at one time of day; the board is bare while front-porch may sit in a housing, so a sub-1°F fixed offset could be partly placement. A rerun over a longer/overnight window (light differences drop out) would give a cleaner offset. No correction factor applied or needed for now.
+
+**Outage status:** heat, adapter, outlet, WiFi position, and handling (wiggle test) have each been tested or ruled out without reproducing the failure; it worked at the same porch plug on the same adapter that it died on twice on 09-23. Best description is **intermittent, cause unknown** (leading candidates unchanged: a marginal physical/power connection, or something that only shows after a long heat-soaked run — both untested hypotheses). Deploying to the back patio is reasonable on that basis, with the watchdog's `still silent -- down Nh` re-alerts (CARD-0331) as the detector; if it dies there, the timing after mounting is the new evidence.
+
 **Still genuinely open (not resolved anywhere yet, deliberately deferred):**
-- **Back-patio offline / boot-then-vanish pattern** (above) — ~~physical check of power (outlet live/GFCI, adapter temperature, LED)~~ heat/sun ruled out, see the correction note; remaining question is adapter vs. outlet vs. WiFi position (swap test described there). The RSSI-focused Watch for above stays as-is.
+- **Back-patio offline / boot-then-vanish pattern** (above) — ~~physical check of power, adapter vs. outlet vs. WiFi position swap test~~ all tested without reproducing (see the diagnosis and side-by-side notes); **intermittent, cause unknown.** Remaining action is deployment plus watching for a recurrence; the RSSI-focused Watch for above stays as-is.
 - ~~**MQTT discovery collision** (found above) — pick a fix option and apply it, then re-verify `testing.md`'s Sensor Validation step actually shows values in HA.~~ **RESOLVED 2026-09-22 18:33 MST**, see above.
 - **Front-porch as-built header** (folded in, see above) — confirm physically what BH1750 header is on the deployed front-porch board, and replace the inferred note in `front-porch-temp-sensor/perfboard-layout.md` with the observed fact.
 - **Custom automation scope** — mirror front-porch's cool/warm notifications vs. something new; decide once the sensor is running (see `integration.md`'s deferral note).

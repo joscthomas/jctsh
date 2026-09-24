@@ -216,8 +216,8 @@ mqtt:
   # CARD-0180 (2026-08-19): discovery enabled for HA integration, but scoped
   # narrowly -- every existing sensor/entity below stays `internal: true`,
   # which ESPHome excludes from discovery (and the native API) entirely, not
-  # just hides in HA. Only the restart button below (not internal) is meant
-  # to actually appear in HA. See JCTsh-Build-Standards.md §1.7 -- this is
+  # just hides in HA. Only the restart button and the Replay Hike Log button
+  # below (not internal) are meant to actually appear in HA. See JCTsh-Build-Standards.md §1.7 -- this is
   # the accessible-reboot mechanism CARD-0180/CARD-0181 exist to provide.
   discovery: true
   discovery_prefix: homeassistant
@@ -368,6 +368,20 @@ globals:
     type: uint32_t
     restore_value: true
     initial_value: '0'
+  # CARD-0226 (2026-09-24): the SPIFFS hike log used to be truncated right
+  # after the replay publish loop, with no delivery confirmation. A real
+  # hike lost ~80% of its readings downstream (Apps Script write path, since
+  # fixed) and the device's copy was already gone, so nothing could be
+  # recovered. Now the log survives the replay: this flag records "the
+  # current log contents have been replayed", so the connect/interval paths
+  # don't replay it again, and the log is only cleared when the next hike
+  # starts (slide_switch turning ON), never on upload. restore_value: true
+  # -- a plain global would reset on the deep-sleep reboot that always
+  # separates a hike ending from the next dock/connect.
+  - id: hike_log_replayed
+    type: bool
+    restore_value: true
+    initial_value: 'false'
 
 # ── Low battery safety cutoff ─────────────────────────────────────────────────
 # Below 3.4V, force deep sleep to protect the LiPo from over-discharge damage,
@@ -402,7 +416,7 @@ script:
   - id: attempt_hike_replay
     then:
       - lambda: |-
-          if (hike_log_has_data()) {
+          if (hike_log_has_data() && !id(hike_log_replayed)) {
             int count = hike_log_count();
             if (count > 0) {
               if (!isnan(id(battery_voltage).state) && id(battery_voltage).state < 3.4f) {
@@ -446,7 +460,11 @@ script:
                 id(mqtt_client).publish("jctsh/components/hiking-monitor/log",
                   std::string("{\"component\":\"hiking-monitor\",\"category\":\"System\","
                              "\"message\":\"Hike log replay complete.\"}"), 0, false);
-                hike_log_clear();
+                // CARD-0226: do NOT clear here -- keep the log until the next
+                // hike starts so a lossy upload can be repeated (the Replay
+                // Hike Log button). Re-sending is safe: Apps Script rejects an
+                // exact (ts, source) duplicate.
+                id(hike_log_replayed) = true;
 
                 id(upload_duration_ms) = millis() - id(upload_start_ms);
                 id(upload_display_state) = 3;  // Done -- stays until switch-on or dock-removed
@@ -458,8 +476,9 @@ script:
 
 # ── Remote Reboot (CARD-0180) ───────────────────────────────────────────────────
 # On-demand reboot triggered from Home Assistant, without disassembling the
-# enclosure. The only entity on this device that isn't `internal: true` --
-# deliberately the sole thing exposed via the discovery: true flip above.
+# enclosure. Together with the Replay Hike Log button below (CARD-0226), one
+# of the only two entities on this device that isn't `internal: true` --
+# deliberately the only things exposed via the discovery: true flip above.
 #
 # `platform: template`, not `platform: restart` -- found live, 2026-08-19:
 # the restart platform's own press_action() reboots immediately and does not
@@ -481,6 +500,24 @@ button:
           payload: '{"component":"hiking-monitor","category":"System","message":"Manual reboot triggered from Home Assistant"}'
       - delay: 500ms  # give the log publish time to actually reach the broker before rebooting
       - lambda: 'App.safe_reboot();'
+
+  # CARD-0226 (2026-09-24): re-send the last hike's log. The log now survives
+  # the upload (cleared only when the next hike starts), so if readings went
+  # missing downstream this recovers them without a reflash. Safe to press
+  # any number of times -- Apps Script rejects an exact (ts, source)
+  # duplicate. No-op when offline or when the log is empty (already cleared
+  # by a new hike).
+  - platform: template
+    name: "Replay Hike Log"
+    id: hiking_monitor_replay
+    icon: "mdi:upload"
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(mqtt_client).is_connected() && hike_log_has_data();'
+          then:
+            - lambda: 'id(hike_log_replayed) = false;'
+            - script.execute: attempt_hike_replay
 
 # ── Sensors ───────────────────────────────────────────────────────────────────
 sensor:
@@ -587,6 +624,16 @@ binary_sensor:
             # upload display state (e.g. "Upload complete" from a prior
             # dock session) so the display goes back to live readings.
             - lambda: 'id(upload_display_state) = 0;'
+            # CARD-0226: a new hike is starting -- now (and only now) it is
+            # safe to discard the previous hike's log, but only if it was
+            # actually replayed. An unreplayed log (battery-deferred replay,
+            # never docked) is kept and the new hike appends to it, so it
+            # still gets uploaded on the next connect instead of destroyed.
+            - lambda: |-
+                if (id(hike_log_replayed)) {
+                  hike_log_clear();
+                  id(hike_log_replayed) = false;
+                }
             - component.update: hiking_display
 
   # Dock detect: TP4056 IN+ (USB VBUS) → 68kΩ → midpoint → 100kΩ → GND; midpoint to GPIO32.

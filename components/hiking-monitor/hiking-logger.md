@@ -102,12 +102,23 @@ documented exception to the "no `id(mqtt_client).publish()` in raw lambdas" rule
 §2.7 of `JCTsh-Build-Standards.md`), because native `mqtt.publish` actions cannot be
 called from inside a streaming callback.
 
-1. `hike_log_has_data()` — skip entirely if log is empty
+1. `hike_log_has_data()` and `!hike_log_replayed` — skip entirely if the log is empty or
+   has already been replayed
 2. `hike_log_count()` — get line count without loading data into RAM
 3. Publish "Replaying N hike readings..." to log topic
 4. `hike_log_replay_stream(callback)` — for each line: publish to data topic, delay 50ms
 5. Publish "Hike log replay complete." to log topic
-6. `hike_log_clear()` — truncate the log file
+6. Set `hike_log_replayed = true` (a `restore_value` flag, survives deep sleep). **The log
+   is NOT cleared here** (CARD-0226, 2026-09-24).
+
+The log is truncated only when the next hike starts: the intent switch turning ON calls
+`hike_log_clear()` and resets the flag, but only if `hike_log_replayed` is true. An
+unreplayed log (battery-deferred replay, never docked) is kept and the new hike appends
+to it. Why: a real hike lost ~80% of its replayed readings downstream (Apps Script write
+path, since fixed) and the device's copy was already gone, so nothing could be recovered.
+Keeping the log until the next hike makes any future loss repairable: the exposed
+**Replay Hike Log** button in Home Assistant clears the flag and re-runs the replay. It is
+safe to press repeatedly because Apps Script rejects an exact (ts, source) duplicate.
 
 The 50ms inter-publish delay prevents the MQTT broker from being flooded on reconnect.
 At 50ms per reading, a 180-reading (6-hour) hike replays in ~9 seconds.

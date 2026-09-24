@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-22.3-scat-detection-sheet';
+var SCRIPT_VERSION = '2026-09-24.1-env-write-lock';
 
 // ---------------------------------------------------------------------------
 // _relayLog -- CARD-0225: MQTT-dashboard visibility for GPS Track/Hiking
@@ -401,52 +401,78 @@ function doPost(e) {
       // why a duplicate publish happened. CARD-0211's own specific cause
       // (a task-watchdog reset loop) is already fixed at the firmware
       // level; this guards the sheet itself against any future cause of
-      // a repeated publish, not just that one. Reads only columns A/B
-      // (not the full row) to keep this check cheap as the sheet grows.
+      // a repeated publish, not just that one.
+      //
+      // CARD-0226 (2026-09-24): this check + appendRow used to run with NO
+      // lock and scanned every row in the sheet (33k+ rows by now). A real
+      // 5-hop test (121-reading replay burst) landed only ~20% of the rows
+      // while ~2/3 of the calls still answered "ok" -- concurrent
+      // executions were overwriting each other's appendRow, and the
+      // full-column scan made every execution slow enough to overlap.
+      // Fixed both: (1) serialize check+append with the same LockService
+      // pattern the other branches already use; (2) only scan the most
+      // recent DEDUP_WINDOW_ROWS rows -- a duplicate is a retry or re-replay
+      // of a *recent* reading, so the scan no longer grows with the sheet
+      // (~350 rows/day from the porch sensors plus each hike's replay, so
+      // 2000 rows is several days of history). A lock timeout throws into
+      // the outer catch below, which returns {status:'error'} -- a real
+      // JSON failure Node-RED's POST queue now retries instead of ignoring.
+      var DEDUP_WINDOW_ROWS = 2000;
       var tsVal = v('ts');
       var srcVal = v('source');
-      if (tsVal !== '' && envSheet.getLastRow() > 1) {
-        var keyCols = envSheet.getRange(2, 1, envSheet.getLastRow() - 1, 2).getValues();
-        var tsStr = String(tsVal);
-        for (var i = 0; i < keyCols.length; i++) {
-          var existingTs = keyCols[i][0];
-          existingTs = (existingTs instanceof Date) ? existingTs.toISOString() : String(existingTs);
-          if (existingTs === tsStr && String(keyCols[i][1]) === String(srcVal)) {
-            return ContentService
-              .createTextOutput(JSON.stringify({status: 'duplicate', ts: tsVal, source: srcVal}))
-              .setMimeType(ContentService.MimeType.JSON);
+      var envLock = LockService.getScriptLock();
+      envLock.waitLock(30000);
+      try {
+        var envLastRow = envSheet.getLastRow();
+        if (tsVal !== '' && envLastRow > 1) {
+          var scanFrom = Math.max(2, envLastRow - DEDUP_WINDOW_ROWS + 1);
+          var keyCols = envSheet.getRange(scanFrom, 1, envLastRow - scanFrom + 1, 2).getValues();
+          var tsStr = String(tsVal);
+          for (var i = 0; i < keyCols.length; i++) {
+            var existingTs = keyCols[i][0];
+            existingTs = (existingTs instanceof Date) ? existingTs.toISOString() : String(existingTs);
+            if (existingTs === tsStr && String(keyCols[i][1]) === String(srcVal)) {
+              // finally below still runs (and releases the lock) on this
+              // return path -- do not release it here too.
+              return ContentService
+                .createTextOutput(JSON.stringify({status: 'duplicate', ts: tsVal, source: srcVal}))
+                .setMimeType(ContentService.MimeType.JSON);
+            }
           }
         }
-      }
 
-      envSheet.appendRow([
-        v('ts'),              // A  timestamp
-        v('source'),          // B  source
-        v('lat'),             // C  lat
-        v('lon'),             // D  lon
-        v('temp_f'),          // E  temp_f
-        v('humidity_pct'),    // F  humidity_pct
-        v('pressure_hpa'),    // G  pressure_hpa
-        v('dew_point_f'),     // H  dew_point_f
-        v('heat_index_f'),    // I  heat_index_f
-        v('uv_index'),        // J  uv_index
-        v('irradiance_wm2'),  // K
-        v('wind_speed_mph'),  // L
-        v('wind_dir_deg'),    // M
-        v('rain_tips'),       // N
-        v('rainin'),          // O
-        v('dailyrainin'),     // P
-        v('battery_v'),       // Q
-        v('rssi_dbm'),        // R
-        v('pm1_ug_m3'),       // S
-        v('pm25_ug_m3'),      // T
-        v('pm4_ug_m3'),       // U
-        v('pm10_ug_m3'),      // V
-        v('voc_index'),        // W
-        v('nox_index'),        // X
-        v('illuminance_lx'),  // Y
-        v('solar_v')          // Z
-      ]);
+        envSheet.appendRow([
+          v('ts'),              // A  timestamp
+          v('source'),          // B  source
+          v('lat'),             // C  lat
+          v('lon'),             // D  lon
+          v('temp_f'),          // E  temp_f
+          v('humidity_pct'),    // F  humidity_pct
+          v('pressure_hpa'),    // G  pressure_hpa
+          v('dew_point_f'),     // H  dew_point_f
+          v('heat_index_f'),    // I  heat_index_f
+          v('uv_index'),        // J  uv_index
+          v('irradiance_wm2'),  // K
+          v('wind_speed_mph'),  // L
+          v('wind_dir_deg'),    // M
+          v('rain_tips'),       // N
+          v('rainin'),          // O
+          v('dailyrainin'),     // P
+          v('battery_v'),       // Q
+          v('rssi_dbm'),        // R
+          v('pm1_ug_m3'),       // S
+          v('pm25_ug_m3'),      // T
+          v('pm4_ug_m3'),       // U
+          v('pm10_ug_m3'),      // V
+          v('voc_index'),        // W
+          v('nox_index'),        // X
+          v('illuminance_lx'),  // Y
+          v('solar_v')          // Z
+        ]);
+        SpreadsheetApp.flush();
+      } finally {
+        envLock.releaseLock();
+      }
     }
 
     return ContentService

@@ -159,7 +159,7 @@
     "y": 140,
     "wires": [
       [
-        "env-data-http-post"
+        "env-data-post-queue"
       ]
     ]
   },
@@ -167,13 +167,70 @@
     "id": "env-data-http-post",
     "type": "http request",
     "z": "873111e004dc4435",
-    "name": "POST to Apps Script",
+    "name": "POST to Apps Script (no redirect follow)",
     "method": "use",
     "ret": "txt",
     "paytoqs": "ignore",
     "url": "",
     "x": 1520,
     "y": 140,
+    "wires": [
+      [
+        "env-data-resolve"
+      ]
+    ]
+  },
+  {
+    "id": "env-data-post-queue",
+    "type": "function",
+    "z": "873111e004dc4435",
+    "name": "POST queue -- serial, retry, alert (CARD-0226)",
+    "func": "// CARD-0226 (2026-09-24): serial POST queue. Readings used to be POSTed to\n// Apps Script concurrently (2/s after the GPS throttle) and any failure was\n// invisible -- a real 121-reading replay landed only ~20% of its rows with\n// zero alerts. Now: one POST in flight at a time; every reply is checked\n// (see \"Check response\"); anything that isn't ok/duplicate is retried with\n// backoff (safe -- Apps Script rejects an exact (ts, source) duplicate), and\n// a reading that still fails is reported as an Alert instead of vanishing.\n// Two inputs on this one node: a new reading (from \"Compute derived fields +\n// build POST\") or a result (msg._queueDone, from \"Check response\").\n// Output 1 -> POST to Apps Script, output 2 -> log Alert.\nvar st = context.get('st');\nif (!st) { st = { q: [], busy: false, cur: null, seq: 0, timer: null }; context.set('st', st); }\nvar MAX_ATTEMPTS = 5;\nvar BACKOFF_MS = [0, 3000, 8000, 15000, 30000];\nvar WATCHDOG_MS = 150000;\n\nfunction alertMsg(text) {\n    return { payload: JSON.stringify({ component: 'node-red', category: 'Alert', message: text }) };\n}\nfunction describe(item) {\n    var ts = '?';\n    try { ts = JSON.parse(item.msg.payload).ts; } catch (e) {}\n    return item.msg._component + ' reading @ ' + ts;\n}\nfunction dispatch(item) {\n    st.busy = true;\n    st.cur = item;\n    item.waiting = false;\n    st.seq += 1;\n    item.seq = st.seq;\n    var out = RED.util.cloneMessage(item.msg);\n    out._seq = item.seq;\n    out._attempt = item.attempt;\n    out.followRedirects = false;\n    clearTimeout(st.timer);\n    var seq = item.seq;\n    st.timer = setTimeout(function () {\n        if (st.cur && st.cur.seq === seq && !st.cur.waiting) {\n            settle(item, 'retry', 'no response within ' + (WATCHDOG_MS / 1000) + 's');\n        }\n    }, WATCHDOG_MS);\n    node.send([out, null]);\n}\nfunction next() {\n    st.busy = false;\n    st.cur = null;\n    if (st.q.length > 0) dispatch(st.q.shift());\n}\nfunction settle(item, result, detail) {\n    clearTimeout(st.timer);\n    if (result === 'ok' || result === 'duplicate') { next(); return; }\n    if (result === 'rejected') {\n        node.send([null, alertMsg('Environmental Data POST rejected for ' + describe(item) + ' -- ' + detail)]);\n        next();\n        return;\n    }\n    if (item.attempt < MAX_ATTEMPTS) {\n        var wait = BACKOFF_MS[item.attempt] || 30000;\n        item.attempt += 1;\n        item.waiting = true;\n        st.timer = setTimeout(function () { dispatch(item); }, wait);\n        return;\n    }\n    node.send([null, alertMsg('Environmental Data POST failed for ' + describe(item) + ' after ' +\n        MAX_ATTEMPTS + ' attempts (' + detail + ') -- reading NOT written to the sheet.')]);\n    next();\n}\n\nif (msg._queueDone) {\n    if (!st.cur || st.cur.waiting || st.cur.seq !== msg._seq) return null;\n    settle(st.cur, msg._result, msg._detail || '');\n    return null;\n}\nst.q.push({ msg: msg, attempt: 1 });\nif (!st.busy) dispatch(st.q.shift());\nreturn null;",
+    "outputs": 2,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1420,
+    "y": 260,
+    "wires": [
+      [
+        "env-data-http-post"
+      ],
+      [
+        "env-data-log-success"
+      ]
+    ]
+  },
+  {
+    "id": "env-data-resolve",
+    "type": "function",
+    "z": "873111e004dc4435",
+    "name": "Follow Apps Script redirect (CARD-0226)",
+    "func": "// CARD-0226: Apps Script answers every POST with a redirect to the real\n// response. Node-RED used to follow it with POST (-> a useless 405 that was\n// treated as success). \"POST queue\" now disables redirect-following, so the\n// first reply is the 302 -- fetch its Location with a plain GET to read the\n// script's actual JSON. Anything that is not a redirect (network error,\n// direct 200) skips the GET and goes straight to \"Check response\".\nvar s = msg.statusCode;\nvar loc = msg.headers && (msg.headers.location || msg.headers.Location);\nif ((s === 301 || s === 302 || s === 303 || s === 307 || s === 308) && loc) {\n    return [{\n        _seq: msg._seq, _attempt: msg._attempt, _component: msg._component,\n        url: loc, method: 'GET', headers: {}, followRedirects: true\n    }, null];\n}\nreturn [null, msg];",
+    "outputs": 2,
+    "x": 1640,
+    "y": 260,
+    "wires": [
+      [
+        "env-data-http-get"
+      ],
+      [
+        "env-data-check-response"
+      ]
+    ]
+  },
+  {
+    "id": "env-data-http-get",
+    "type": "http request",
+    "z": "873111e004dc4435",
+    "name": "Get Apps Script result",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "x": 1860,
+    "y": 260,
     "wires": [
       [
         "env-data-check-response"
@@ -186,12 +243,12 @@
     "z": "873111e004dc4435",
     "name": "Check response",
     "outputs": 1,
-    "func": "var component = msg._component || 'unknown';\nvar payload = (typeof msg.payload === 'string') ? msg.payload : JSON.stringify(msg.payload);\nvar status = msg.statusCode || 0;\n\n// 405 = Google redirect chain completed (POST redirected to output URL, row was appended)\nif (status === 405 || status === 302) {\n    return null;\n}\n\ntry {\n    var resp = JSON.parse(payload);\n    if (resp.status === 'ok') {\n        return null;\n    } else {\n        msg.payload = JSON.stringify({component:'node-red',category:'Alert',message:'Sheets error for ' + component + ': ' + (resp.message || payload)});\n        return msg;\n    }\n} catch(e) {\n    if (payload.indexOf('Page Not Found') >= 0 || payload.indexOf('unable to open') >= 0) {\n        msg.payload = JSON.stringify({component:'node-red',category:'Alert',message:'Sheets URL unreachable for ' + component});\n        return msg;\n    }\n    return null;\n}",
+    "func": "// CARD-0226: classify the script's REAL reply (fetched by \"Get Apps Script\n// result\") and hand it back to the POST queue, which retries or alerts.\n// ok / duplicate = written (or already there); rejected = out-of-range sensor\n// values, deliberate, not retried; anything else (lock timeout -> status\n// 'error', an HTML error page, a network error, no JSON) = retry.\nvar status = msg.statusCode || 0;\nvar payload = (typeof msg.payload === 'string') ? msg.payload : JSON.stringify(msg.payload);\nvar out = { _queueDone: true, _seq: msg._seq, _component: msg._component || 'unknown' };\nvar resp = null;\ntry { resp = JSON.parse(payload); } catch (e) {}\nif (resp && (resp.status === 'ok' || resp.status === 'duplicate')) {\n    out._result = resp.status;\n} else if (resp && resp.status === 'rejected') {\n    out._result = 'rejected';\n    out._detail = payload.slice(0, 150);\n} else {\n    out._result = 'retry';\n    out._detail = 'HTTP ' + status + ': ' + String(payload).replace(/\\s+/g, ' ').slice(0, 120);\n}\nreturn out;",
     "x": 1740,
     "y": 140,
     "wires": [
       [
-        "env-data-log-success"
+        "env-data-post-queue"
       ]
     ]
   },

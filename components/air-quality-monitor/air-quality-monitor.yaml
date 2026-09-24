@@ -543,17 +543,15 @@ script:
                   count);
                 id(mqtt_client).publish("jctsh/components/air-quality-monitor/log",
                                         std::string(log_buf), 0, false);
-                // QoS 1 (2026-09-22, hike-izer cluster session): QoS 0 gives zero
-                // delivery confirmation, so a reading can silently fail to reach the broker
-                // during a still-recovering connection while aqm_log_clear() below still
-                // truncates the buffer unconditionally right after this loop finishes --
-                // same replay-integrity gap CARD-0226 documented on hiking-monitor's
-                // identical hike_log_replay_stream pattern. QoS 1 alone does not add
-                // per-record ack tracking before the clear() call (a real, if narrower,
-                // remaining gap) -- verify against a real replay's coverage numbers.
+                // QoS 0 on purpose (CARD-0226, 2026-09-24): a QoS 1 change tried here
+                // on 2026-09-22 was reverted -- hiking-monitor's identical replay lost
+                // ~80% of its readings, and an end-to-end test traced that to the Apps
+                // Script write path (fixed), not QoS 0. QoS 1 also can't tell the clear
+                // below what actually arrived, and makes the ESP32 hold every unacked
+                // message during a 50 ms burst that already needed watchdog fixes.
                 aqm_log_replay_stream([](const std::string& line) {
                   id(mqtt_client).publish("jctsh/components/air-quality-monitor/data",
-                                          line, 1, false);
+                                          line, 0, false);
                   App.feed_wdt();
                   delay(50);
                 });

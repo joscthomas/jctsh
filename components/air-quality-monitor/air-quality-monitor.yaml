@@ -341,6 +341,20 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
+  # CARD-0226 carry-over from hiking-monitor (2026-09-24): the SPIFFS log used
+  # to be truncated right after the replay loop with no delivery
+  # confirmation, so a lossy upload was unrecoverable (a real hiking-monitor
+  # hike lost ~80% of its readings downstream and nothing could be
+  # recovered; root cause since fixed in Apps Script/Node-RED). Now the log
+  # survives the replay: this flag records "the current log has been
+  # replayed", gates the connect/interval replay paths, and the log is only
+  # cleared when the next field run starts (Intent switch turning ON), never
+  # on upload. restore_value: true so it survives a reboot between the
+  # replay and the next run.
+  - id: aqm_log_replayed
+    type: bool
+    restore_value: true
+    initial_value: 'false'
   # STEP 8 fix (2026-09-09, real bug found on first bench test): a CRC
   # failure on the SEN55 I2C read leaves sensor.state at its last
   # successfully-published value rather than NaN -- an isnan() check alone
@@ -494,6 +508,22 @@ mqtt:
         id(wifi_attempt_in_progress) = false;
         id(wifi_last_attempt_end_ms) = 0;  // clear backoff -- a real connection succeeded
     - script.execute: attempt_aqm_replay
+  # CARD-0226: manual re-replay. Publish anything to
+  # jctsh/components/air-quality-monitor/command/replay while the device is
+  # connected (docked, Intent off) to clear the replayed flag and re-send the
+  # retained log -- recovers a lossy upload without a reflash. Safe to repeat
+  # (Apps Script rejects an exact (ts, source) duplicate). A command topic
+  # rather than an HA button because discovery stays off (no HA integration,
+  # Phase 3 decision). No-op when the log is empty (already cleared by a new run).
+  on_message:
+    - topic: jctsh/components/air-quality-monitor/command/replay
+      then:
+        - if:
+            condition:
+              lambda: 'return aqm_log_has_data();'
+            then:
+              - lambda: 'id(aqm_log_replayed) = false;'
+              - script.execute: attempt_aqm_replay
 
 # ── I2C ───────────────────────────────────────────────────────────────────────
 i2c:
@@ -523,7 +553,7 @@ script:
   - id: attempt_aqm_replay
     then:
       - lambda: |-
-          if (aqm_log_has_data()) {
+          if (aqm_log_has_data() && !id(aqm_log_replayed)) {
             int count = aqm_log_count();
             if (count > 0) {
               if (!isnan(id(battery_voltage).state) && id(battery_voltage).state < 3.5f) {
@@ -558,7 +588,11 @@ script:
                 id(mqtt_client).publish("jctsh/components/air-quality-monitor/log",
                   std::string("{\"component\":\"air-quality-monitor\",\"category\":\"System\","
                              "\"message\":\"Buffered-data replay complete.\"}"), 0, false);
-                aqm_log_clear();
+                // CARD-0226: do NOT clear here -- keep the log until the next field
+                // run starts so a lossy upload can be repeated (see the
+                // command/replay topic below). Re-sending is safe: Apps Script
+                // rejects an exact (ts, source) duplicate.
+                id(aqm_log_replayed) = true;
                 id(replay_deferred_pending) = false;
               }
             }
@@ -700,6 +734,17 @@ binary_sensor:
     name: "Intent Switch"
     id: intent_switch
     internal: true
+    # CARD-0226: a new field run is starting -- now (and only now) it is safe
+    # to discard the previous run's log, but only if it was actually
+    # replayed. An unreplayed log (battery-deferred replay, never docked) is
+    # kept and the new run appends to it, so it still gets uploaded on the
+    # next connect instead of destroyed.
+    on_press:
+      - lambda: |-
+          if (id(aqm_log_replayed)) {
+            aqm_log_clear();
+            id(aqm_log_replayed) = false;
+          }
 
   # Dock detect: TP4056 IN+ (or solar) -> 68kΩ -> midpoint -> 100kΩ -> GND;
   # midpoint to GPIO32. HIGH = docked/charging or solar connected.

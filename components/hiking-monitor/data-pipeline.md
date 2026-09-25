@@ -39,8 +39,9 @@ Node-RED publishes a log message to MQTT on error only, not on every successful 
 
 **Workbook created (2026-06-04):**
 - Name: JCTsh Environmental Data
-- URL: `https://docs.google.com/spreadsheets/d/1aEgW3NDlu43uUM4Wtx1Hq3LjKm6hz2Lpc82LQZRO8L8/edit`
-- Spreadsheet ID: `1aEgW3NDlu43uUM4Wtx1Hq3LjKm6hz2Lpc82LQZRO8L8`
+- URL: `https://docs.google.com/spreadsheets/d/1zBzeLocOp4VNW99Neh6JKOW8WHQ1evW2-5HYKJP70_g/edit`
+- Spreadsheet ID: `1zBzeLocOp4VNW99Neh6JKOW8WHQ1evW2-5HYKJP70_g`
+- **Moved 2026-09-25 (CARD-0226 incident):** the original spreadsheet (`1aEgW3NDlu43uUM4Wtx1Hq3LjKm6hz2Lpc82LQZRO8L8`) became unopenable from Apps Script; the data now lives in this spreadsheet and the Apps Script opens it by id (`SPREADSHEET_ID` in `environmental-data.gs`, same web app URL). The old spreadsheet is kept as a read-only fallback.
 
 ### Environmental Data Sheet
 

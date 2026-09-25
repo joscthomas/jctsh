@@ -106,7 +106,7 @@ This test confirms onboard flash logging and replay work correctly with original
 
 **Check:** Environmental Data sheet accumulating correct rows.
 
-Open the [JCTsh Environmental Data spreadsheet](https://docs.google.com/spreadsheets/d/1aEgW3NDlu43uUM4Wtx1Hq3LjKm6hz2Lpc82LQZRO8L8/edit).
+Open the [JCTsh Environmental Data spreadsheet](https://docs.google.com/spreadsheets/d/1zBzeLocOp4VNW99Neh6JKOW8WHQ1evW2-5HYKJP70_g/edit).
 
 Confirm for recent rows:
 

@@ -135,7 +135,7 @@ Confirm a new row appeared in the "GPS Track" sheet before configuring GPSLogger
 
 ### Add the Sheet
 
-1. Open the [JCTsh Environmental Data spreadsheet](https://docs.google.com/spreadsheets/d/1aEgW3NDlu43uUM4Wtx1Hq3LjKm6hz2Lpc82LQZRO8L8/edit)
+1. Open the [JCTsh Environmental Data spreadsheet](https://docs.google.com/spreadsheets/d/1zBzeLocOp4VNW99Neh6JKOW8WHQ1evW2-5HYKJP70_g/edit)
 2. Click **+** (add sheet) at the bottom
 3. Rename it to exactly: `GPS Track`
 

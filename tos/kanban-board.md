@@ -9,7 +9,43 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0338 -->
+<!-- next-card-id: CARD-0340 -->
+
+---
+
+### CARD-0339 · [bug] [node-red] AQM buffered event lines (`wifi_attempt_start`) were mistaken for readings -- surfaced as "undefined reading @ undefined" alerts
+
+**Status:** Build
+
+**Found 2026-09-25 (Joseph: "do we have a card?" after the AQM capture test).** During the CARD-0226 incident, two `node-red` Alerts read `GPS lookup failed ... for undefined reading @ undefined` (11:35) and `Environmental Data POST failed for undefined reading @ undefined` (13:05). The first was timed to the AQM's replay at 11:29:45 (three 2-minute GPS-lookup timeouts later). A live capture on 2026-09-25 16:18 MST -- subscribing to `jctsh/components/air-quality-monitor/#`, then publishing to the AQM's `command/replay` topic -- showed the AQM's buffered log holds **`{"event":"wifi_attempt_start"}` event lines, not readings**, which its replay publishes on `/data`. The Node-RED router (`env-data-route-skip-reset`) only knew the hiking-monitor's `skip`/`reset`/`display_refresh` events, so an AQM event fell through as a reading with no `component` or `ts`.
+
+**Fixed and deployed 2026-09-25 (commit `eee0b70`):** the router now turns *any* `{"event": ...}` record into a System log line on that component's own `/log` topic (`Device event: {...}`), and drops anything that has neither an event nor `component` + `ts` with an Alert naming the topic and the first 140 characters of the payload (readings carry no secrets), instead of letting it travel the pipeline. Mock-tested across the AQM event, the three hiking-monitor events, a good reading, and a reading with no `ts`. Side result of the same capture: the AQM's `command/replay` topic and log retention work (`Replaying 2 buffered readings...` after an earlier replay, then `Buffered-data replay complete.`).
+
+**Watch for:** the AQM's next replay after a connect (or a `command/replay`) logging `Device event: {"event":"wifi_attempt_start"}` as **System** lines on its own log with **no** `Dropped a /data message` Alert -- that confirms the live deploy; not yet observed after the second deploy.
+
+**Related:** CARD-0226 (the incident that exposed it), CARD-0012 (the AQM's own log-retention port, flashed 2026-09-25), `core/data-pipeline/environmental-data.flow.json`.
+
+---
+
+### CARD-0338 · [enhancement] [data-pipeline] Early-warning health probe for the environmental Sheet
+
+**Status:** Backlog
+
+**Raised 2026-09-25 (Joseph: "write up the health probe card"), after the CARD-0226 outage.** The Sheet stopped accepting writes at ~10:07 MST and nobody knew for hours: the only signal was Node-RED's write-failure alert (one per 30 minutes, worded as a queue problem), and heavy jobs on the M8 (the daily backstop export, the 5 PM refresh) kept hitting the sick document. A recurrence should be caught within minutes, by something whose only job is to notice.
+
+**Proposed design (not built):**
+1. **Apps Script `action=health`:** open the spreadsheet by id, read one cell (and `getLastRow()` of `Environmental Data`), return `{status:'ok', ms: <elapsed>}`. Deliberately far cheaper than any export; distinct from `action=version`, which never touches the spreadsheet and so cannot detect this failure.
+2. **A probe, every 5 minutes** (Node-RED inject node, or a small M8 cron -- to be decided), one call in flight at a time with a ~30 s client timeout, so a hung probe cannot pile up against a struggling backend.
+3. **State machine, not a stream of alerts:** alert on the first failure or on a response slower than ~10 s; re-alert at most every 30 min while it stays bad; send a "recovered after N min" line when it clears.
+4. **Downstream behavior:** the M8's daily refresh and backstop check skip (and log why) when the last probe failed, so heavy exports don't land on a struggling document.
+
+**Open questions:** where the probe runs (Node-RED is already the writer and knows the queue; the M8 is independent of the Pi); what "slow" threshold avoids noise (normal `action=version` is ~1 s, a 33k-row export ~10 s); whether the health line should also appear on the log dashboard's `/status`.
+
+**Done when:** a simulated failure (probe pointed at an unreachable target, or its timeout forced to a few ms) raises exactly one alert within 10 minutes and a recovery line when restored, and the M8 refresh skips while it is failing.
+
+**Not in this card, but listed in `core/data-pipeline/RUNBOOK-sheets-outage.md` as recovery accelerators:** the spreadsheet id in Script Properties (cutover without a redeploy), a weekly automatic standby copy, a durable local queue in front of Sheets.
+
+**Related:** CARD-0226 (the incident and the write-path fixes), CARD-0337 (keep the sheet small), `core/data-pipeline/RUNBOOK-sheets-outage.md`.
 
 ---
 
@@ -2077,6 +2113,8 @@ Relayed together at 07:59 MST on reconnect (58 buffered hike readings replayed).
 **Incident resolved 2026-09-25 ~15:50 MST -- migrated to a new spreadsheet; root cause of the original document's failure is NOT known.** Bisect (Joseph running diagnostic functions in the Apps Script editor): Google's Spreadsheet service was healthy (a brand-new spreadsheet was created/written/read in <1 s); `SpreadsheetApp.openById()` on the original document *and on a plain "Make a copy" of it* hung to the 6-min cap, even with the three formula-driven View tabs deleted from the copy; but right-clicking the `Environmental Data` tab -> Copy to -> New spreadsheet produced a document that opened in 191 ms (33,049 rows intact). So the fault was the document, not its data, size (only 1.7 MB), traffic, our lock, or the sorted tabs. **Fix:** every data path in `environmental-data.gs` now goes through `_ss()` -> `SpreadsheetApp.openById(SPREADSHEET_ID)` (new spreadsheet `1zBzeLoc...HQ1evW2-5HYKJP70_g`), deployed by Joseph as a new *version* of the existing web app deployment, so the URL and every client (Node-RED, M8, phone) were unchanged (commit `74700bc`, `SCRIPT_VERSION 2026-09-25.1-new-spreadsheet`). Verified: full Environmental Data export of 33k rows in ~10 s (was minutes/timeouts), GPS lookup 1.7 s, all tabs resolve, the real 9/24 hike pipeline reproduced identical counts (23 env / 1 obs / 401 GPS / 2 forecast) at $0. **The old spreadsheet then recovered on its own** (opens in 241 ms as of 15:42) and, in the window before cutover, had received Node-RED's 89 held readings (18:47Z-22:28Z); Joseph ran a one-time dry-run-then-real `reconcileEnv()` that appended exactly those 89 rows to the new tab (33,149 rows, 0 duplicate (ts, source) keys, porch/patio series continuous since 17:00Z). **Remaining gap:** ~8 readings per porch/patio sensor from 18:03Z to 18:43Z (11:03-11:43 MST) were dropped by the queue's old give-up-after-5-attempts behavior before the hold fix; they exist only in Home Assistant's history. Not migrated: the three View tabs (formula views over the full tabs) and the `Timeline` tab needs its leading-space name (`" Timeline"`) fixed. The M8 daily-refresh timer is running again. Old spreadsheet kept as a read-only fallback. **Open:** why it failed and why it recovered (unknown; Google reported no incident); the `undefined reading @ undefined` alert source; the bounded dedup window assumes new rows are at the bottom of the tab, which Joseph's manual Z->A sorts violate (scan both ends, or stop sorting the live tab).
 
 **Incident closing notes, 2026-09-25 evening (Joseph's decisions):** (1) **The old spreadsheet is the script's home** -- Joseph is renaming it `SCRIPTS JCTsh Environmental Data`; the Apps Script project is container-bound to it, so it is edited/deployed from there (update the existing deployment's version, never create a new deployment). Its data tabs are stale; **Joseph: they can be deleted eventually** -- before doing so, re-run the `diagCounts` comparison so nothing unique remains, and wait until the new spreadsheet has been stable across at least Saturday's hike. (2) **The 18:03Z-18:43Z porch/patio gap was backfilled** from Home Assistant's history: 14 readings (7 per sensor, front-porch slots :08:50-:38:50 and back-patio :07:58-:37:58, 18:xxZ), values read as the HA state in effect just after each slot (temperature/humidity/illuminance as recorded, pressure converted from HA's psi to hPa and rounded to 0.1), published through the normal Node-RED path; `rssi_dbm` left blank (HA has no equivalent), dew point/heat index recomputed by the pipeline. Timestamps are the sensors' own fixed schedule (:50 / :58 seconds), not HA's arrival times. Both series now show every 5-min slot since 17:00Z. (3) **Joseph will not sort the live tab** (so the bounded dedup window's assumption holds; no change made). (4) **The View tabs are not being rebuilt** unless Joseph needs them.
+
+**Root cause closed as "unexplained, mitigated" (Joseph, 2026-09-25).** Not pursued further: no Google incident, the document recovered on its own, and the Executions/version-history evidence was judged not worth chasing. Mitigations now in place: a fresh spreadsheet, bounded/narrow reads, a Node-RED queue that holds readings through an outage instead of dropping them, and  so a recurrence is a short procedure; early warning is CARD-0338. **The  alerts are explained and fixed** -- CARD-0339 (the AQM buffers  event lines that ride its  replay; found by a live  capture; router fixed, commit ). Also verified in that capture: the AQM's log retention and  topic work on hardware.
 
 **Kept open independent of CARD-0259 (hiking-monitor v2), 2026-09-10 — Joseph's call.** This is the actual motivating problem behind v2, but worth continuing to chase root cause on the current hardware in parallel, in case it turns out fixable without a full rebuild — not automatically superseded by v2's longer timeline.
 

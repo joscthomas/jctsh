@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.38
-**Version description:** LiPo rows corrected 2026-09-25: 503035 500mAh is qty 1, allocated to CARD-0188; 503450 1000mAh replaces the EEMB 1100mAh 603449 in hiking-monitor/AQM (planned).
+**Version:** 2.39
+**Version description:** 503450 1000mAh LiPo swap plan dropped 2026-09-25 — hiking-monitor and air-quality-monitor stay on the EEMB 603449; the 503450s are unassigned stock.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -95,9 +95,9 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 18650 Battery Charger Module + Holder | AEDIKO 5-pack (charger + holder pairs), fast charge boost, PCB protection | 10 | Bag 4 | No project assigned. |
 | EVE INR18650/33V Cell | 18650BatteryStore.com, standard Li-ion (INR/NMC chemistry, corrected 2026-09-09 — was mislabeled "3.3V", confirmed via manufacturer specs 3.6V nominal/4.2V peak, not LiFePO4; "33V" is a model-code suffix, not the actual voltage), 3200mAh, 10A, flat top. https://www.18650batterystore.com/products/eve-18650-33v | 5 | Bag 5 | No project assigned. Candidate cell for CARD-0256 (robust solar+swappable-battery pattern) — standard TP4056 charging applies, no LiFePO4-specific charger needed. |
 | Mini Solar Panel | SUNYIMA, 5.5V 80mA, 2.36"×2.36", DIY photovoltaic | 10 | Bag 6 | No project assigned. |
-| LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 3 | Bag 7 | 1 in service: hiking-monitor. Hiking-monitor's original cell failed in the field (2026-07-03) and was replaced from this stock — physical recount confirmed 2 still remaining in Bag 7 afterward; trust this physical count over prior used/remaining math. Planned (2026-09-25): hiking-monitor's and air-quality-monitor's cells to be replaced by the 503450 1000mAh cells (row below) and these returned to stock. |
+| LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 3 | Bag 7 | 1 in service: hiking-monitor. Hiking-monitor's original cell failed in the field (2026-07-03) and was replaced from this stock — physical recount confirmed 2 still remaining in Bag 7 afterward; trust this physical count over prior used/remaining math. |
 | LiPo Battery 503035 | AKZYTUE, 3.7V 500mAh 503035, JST PH2.0mm 2-pin connector, PCM-protected. https://www.amazon.com/dp/B07S84SBV3 — confirm polarity before use. | 1 | Unknown | Allocated: shower-temp-sensor (CARD-0188, decided 2026-08-20). Never entered in this inventory until backfilled 2026-09-25; location not yet given. |
-| LiPo Battery 503450 | 3.7V 1000mAh 503450, JST PH2.0mm 2-pin connector. https://www.amazon.com/dp/B0GHR5J34D — confirm polarity before use. | 2 | Not yet located | Planned (Joseph, 2026-09-25): replace the EEMB 1100mAh 603449 cells in hiking-monitor and air-quality-monitor, returning those to stock. Note these are 1000mAh, lower than the 1100mAh they'd replace, and a different package (503450 vs 603449). Not yet assigned to a card. |
+| LiPo Battery 503450 | 3.7V 1000mAh 503450, JST PH2.0mm 2-pin connector. https://www.amazon.com/dp/B0GHR5J34D — confirm polarity before use. | 2 | Not yet located | No project assigned. Bought 2026-09-25 as a possible replacement for the EEMB 1100mAh 603449 cells in hiking-monitor/air-quality-monitor; that swap was dropped the same day (these are 1000mAh, lower than the 1100mAh they'd replace, and a different package). |
 | TP4056 Battery Charger Modules | USB TP4056, 3.7V–4.2V to 9V/5V, 2A, charge/discharge integrated step-up. https://www.amazon.com/dp/B098989NRZ | 5 | Bin A4 (was Bag 8) | 1 used: hiking-monitor. |
 | DC Buck Converter 12V→5V 3A | 2pcs, 15W, USB-C output, compatible with Raspberry Pi 4. https://www.amazon.com/dp/B0CMZWN7WS | 2 | Bag 21 | No project assigned. |
 | Power Supply Module 3.3V/5V | HiLetgo, dual output 3.3V and 5V, breadboard-compatible. | 5 | Music Response bin | No project assigned. |
@@ -320,3 +320,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-09-25 | Stock | LiPo Battery 3.7V 1000mAh 503450, JST PH2.0mm 2-pin ×2 added to Power Components (ASIN B0GHR5J34D). Joseph's plan: use them in hiking-monitor and air-quality-monitor and return the existing cells to inventory — not yet done, no quantities changed for the existing cells. |
 | 2026-09-25 | Stock | BME280 (GY-BME280) ×4 added to Sensors as its own row (ASIN B0F6L8G7G3), Bin A6. Separate from the Bag 3 row, whose quantity is still unresolved. |
 | 2026-09-25 | Stock | LiPo Battery 3.7V 500mAh 503035 backfilled (ASIN B07S84SBV3), qty 1, allocated to CARD-0188 (shower-temp-sensor); never inventoried when bought. Earlier same-day entries wrongly tied it to hiking-monitor/AQM — Joseph corrected: those run the EEMB 1100mAh 603449, and the planned swap is 603449 → 503450. |
+| 2026-09-25 | Stock | Swap plan dropped (Joseph: "change back to the original batteries"): hiking-monitor and air-quality-monitor stay on the EEMB 1100mAh 603449. The 503450 1000mAh ×2 remain in inventory, no project assigned. |

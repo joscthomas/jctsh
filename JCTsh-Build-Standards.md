@@ -1,8 +1,8 @@
 # JCTsh Build Standards
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines the required build, integration, and documentation standards for all JCTsh smart home components. Claude Code consults this file before beginning any component build.
-**Version:** 1.39
-**Version description:** CARD-0303 — merged root `CLAUDE.md`'s richer content into the canonical sections it was duplicating, then trimmed `CLAUDE.md` to pointers: §4.2 gained the fuller MQTT log-category table and a new Event-time convention (missing here entirely before); §5 gained a note flagging that its own opening line contradicted §6.4's later SmartThings-Free policy (struck through, not deleted); new §5.7 for SmartThings sensor-exposure; §10.5 gained the full risk-accounting detail (mitigations, risks accepted, LAN security); §2.6's GPIO exclusion list was reconciled with `CLAUDE.md`'s separate list, which had genuinely diverged (each missing pins the other correctly excluded) — now one complete, correct list.
+**Version:** 1.40
+**Version description:** CARD-0333 — §4.1 gained a required boot-time heartbeat: the 30-minute interval counts from boot, so any reboot more than ~5 minutes after a heartbeat left a gap longer than the watchdog's 35-minute timeout and raised a false `silent` alert. Conditions (after the first valid reading, only once MQTT is connected, same guards as the regular heartbeat) and a reference ESPHome snippet are included. §2.5 gained the OTA-rollback gotcha: never reboot within ~60 s of a flash, and verify the device's *reported* config hash before drawing conclusions.
 **Version history:** `JCTsh-Build-Standards-History.md`
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, CLAUDE.md, JCTsh-Component-Planning-Pattern.md, JCTsh-Parts-Inventory.md, `JCTsh-Build-Standards-History.md` (full version-change history), `tos/JCTsh-Operating-System.md` (process/policy/workflow — see the reconciliation note below for how the two relate)
@@ -138,6 +138,8 @@ All WiFi credentials and MQTT broker addresses must use `!secret` references in 
 ### 2.5 Firmware Updates
 
 First flash via USB. All subsequent updates via ESPHome OTA. Document the OTA update command in the component flashing.md.
+
+**Do not reboot within ~60 s of an OTA flash, and verify what is actually running (CARD-0333, 2026-09-24).** ESP32 OTA has automatic rollback: if the new image reboots before it is marked valid (~60 s — the `safe_mode` log line `Boot seems successful; resetting boot loop counter`), the bootloader silently reverts to the previous firmware while every tool still reports success. A restart-button press, power cycle, or second flash inside that window undoes the update. After flashing, wait past 60 s, then confirm the device's *reported* config hash — the `sw` field of its retained discovery message (`homeassistant/sensor/<name>/<entity>/config`, e.g. `2026.4.5 (config hash 0x…)`) — equals the build's `config_hash` before concluding anything from the device's behavior. Found live: two front-porch flashes were rolled back by restart presses 12 s and 19 s after upload, and the "new" firmware was diagnosed for half an hour while the old one was running.
 
 ### 2.6 GPIO Assignment
 
@@ -605,6 +607,38 @@ payload: { "component": "<name>", "uptime": "Xh Xm", "rssi": -XX, "<state-key>":
 ```
 
 Both are published on the same 30-minute interval. The log topic entry makes the heartbeat visible in the dashboard. The heartbeat topic is what the Node-RED watchdog monitors.
+
+**Boot-time heartbeat (required — CARD-0333, 2026-09-24).** The 30-minute interval counts from *boot*, so on its own the first heartbeat after a reboot arrives ~30 minutes after boot — up to ~60 minutes after the previous one, past the 35-minute watchdog timeout. Any reboot (OTA, power cycle, restart button) that lands more than ~5 minutes after a heartbeat therefore raises a false `silent for 35 minutes` alert, which teaches everyone that silence alerts are noise. Every component **also sends one heartbeat shortly after each boot**, under three conditions:
+
+1. **After the first valid sensor reading.** Delay at least the longest poll interval plus a margin (reference build: 90 s for 60 s polling), so the read-failed Alerts that ride on the heartbeat are meaningful instead of firing on every boot.
+2. **Only once MQTT is connected** (`wait_until: mqtt.connected` after the delay). `mqtt.publish` silently drops when disconnected, and a post-boot reconnect has been observed to take ~54 s on a weak-signal device.
+3. **Same guards as the regular heartbeat** — e.g. the *Heartbeat pattern (home-mode-only guard)* earlier in this document for devices with a field mode.
+
+Implement it as **one shared script called by both the interval and the boot trigger**, so the two payloads cannot drift apart:
+
+```yaml
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - delay: 90s
+      - wait_until:
+          mqtt.connected:
+      - script.execute: send_heartbeat
+
+interval:
+  - interval: 30min
+    then:
+      - script.execute: send_heartbeat
+
+script:
+  - id: send_heartbeat
+    mode: single
+    then:
+      # the log-topic publish, the heartbeat-topic publish, and any read-failed Alerts
+```
+
+A boot loop shorter than the delay never sends one, by design. Components that deliberately use a longer interval (see the rationale above) still send the boot heartbeat. Reference implementations: `components/front-porch-temp-sensor/front-porch-temp-sensor.yaml` and `components/back-patio-temp-sensor/back-patio-temp-sensor.yaml`; retrofitting the other ESPHome components is the follow-up on CARD-0333.
 
 > **Critical:** The log topic heartbeat message **must begin with `"Heartbeat - "`** (with a space and hyphen). The log server uses this prefix to collapse consecutive same-state heartbeats into a single dashboard row showing count and time range. Any other prefix causes each heartbeat to appear as a separate row, filling the dashboard with noise.
 

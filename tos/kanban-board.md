@@ -9,12 +9,46 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0334 -->
+<!-- next-card-id: CARD-0335 -->
 
 ---
 
-### CARD-0333 · [enhancement] [front-porch-temp-sensor] [back-patio-temp-sensor] Boot-time heartbeat — every reboot of a 30-minute-heartbeat device raises a false watchdog alert
-**Status:** Build
+### CARD-0334 · [bug] [tos] [mqtt] [homeassistant] [node-red] Rotate credentials printed into a 2026-09-24 session transcript, and adopt a never-print / always-REDACT rule for sessions
+**Status:** Backlog
+**Priority:** High — real exposure, not hygiene; the rotation policy in `credentials.local.md` treats a known transcript exposure as a rotation trigger.
+
+**Raised 2026-09-24 18:54 MST (Joseph: "open a card for the password rotation (rule: do not print passwords, always REDACT them)").** *This card deliberately contains no secret values — credentials are named, never quoted.*
+
+**What happened.** While working CARD-0219/CARD-0333, a Claude session printed secrets into its transcript (the local transcript file and the API traffic behind it) by four routes:
+1. **Reading `credentials.local.md` sections to find a token:** the Home Assistant long-lived token (`HA_TOKEN`) and the Node-RED admin password; the Mosquitto accounts table (`jctsh-log-server`, `hiking-monitor`, `photo-server`, `netalertx`, `ring-mqtt`, `air-quality-monitor`); and, via a keyword grep of the same file, the `hike-izer-orchestrator` MQTT password and `hiking-monitor`'s device `mqtt_password`.
+2. **Diffing two generated `main.cpp` files** (to compare compiled builds): printed both `front-porch-temp-sensor`'s and `back-patio-temp-sensor`'s MQTT passwords and OTA passwords.
+3. **Pasting secret literals into commands:** `HA_TOKEN` (many times) and the `jctsh-log-server` MQTT password appeared in the command text itself, so they are in the transcript regardless of what the commands output.
+4. Separately noted: front-porch's OTA password is a trivially guessable value, weak independent of this exposure; and `credentials.local.md` records some ESP32 secrets as shared across all four ESP32 components' `secrets.yaml`, so rotating one may mean all four.
+
+Not exposed: the Log Dashboard password (two attempts to read it were blocked by the harness's credential guard, correctly).
+
+**The rule (Joseph, 2026-09-24): never print a password, token, key, or secret — always REDACT.** In practice:
+- **Never `cat`/`sed`/`grep`/`diff`/`git diff`/`Read` a file that can hold secrets** — `credentials.local.md`, `secrets.yaml`, `secrets.h`, generated `.esphome/build/**/main.cpp`, `.env` files, `/etc/jctsh/*.env`, `/etc/mosquitto/passwd` — without masking values first. Prefer checks that cannot leak: existence, length, a hash, or a masking filter such as `sed -E 's/((pass(word)?|token|key|secret|auth)[A-Za-z_]*[:=] *).*/\1[REDACTED]/I'`.
+- **Never put a secret literal in a command.** Read it inside the command (`TOKEN=$(grep ... | cut ...)`) so it appears in neither the command text nor the output.
+- **Anything that surfaces one anyway is an incident:** say so immediately, name the credential (not the value), and open or extend a rotation card — the way this card came about.
+- The rule applies to everything a session writes too: cards, commit messages, docs, chat.
+
+**Rotation.** Follow `credentials.local.md`'s Credential Rotation Cadence tiers and the CARD-0076 precedent (itself a botched redaction). Suggested order by blast radius; **each credential's decision — rotate now, defer, or accept, with the reason — is Joseph's, recorded here:**
+1. **HA long-lived token** — widest (Node-RED, photo-tv-display, hike-izer-orchestrator); use the CARD-0280 rotation checklist, which lists every place it lives.
+2. **Node-RED admin password.**
+3. **Mosquitto accounts** — the six above plus `hike-izer-orchestrator`, `front-porch-temp-sensor`, `back-patio-temp-sensor`. Each needs the broker change *and* the consumer's config; mind the `chown root:mosquitto /etc/mosquitto/passwd` gotcha, and that Home Assistant's own MQTT credentials are UI-only config.
+4. **ESP32 OTA/MQTT secrets** (front-porch, back-patio, hiking-monitor) — need a reflash. Tier 3 in the policy is "incident-driven only", and this is the incident. Check first whether the four components really share values.
+
+**Done when:** (1) every credential listed above is either rotated and verified live, or explicitly decided against with the reason written here; (2) the rule is in a durable place every session reads — root `CLAUDE.md`'s Credentials section — not only in a session's memory; (3) `credentials.local.md`'s rotation table shows last-rotated dates (dates only, never values); (4) a mechanical guard has been considered and a yes/no recorded — e.g. a Claude Code permission rule or hook that blocks reading the files above unmasked — since a rule that depends on a session remembering it has already failed once.
+
+**Non-goals:** no change to the credential storage scheme; no rotation of credentials not listed; no attempt to scrub the transcript.
+
+**Related:** CARD-0076 (same failure class, first instance), CARD-0280 (HA token rotation checklist), CARD-0333 (where this happened), root `CLAUDE.md` Credentials section, `credentials.local.md` §Credential Rotation Cadence.
+
+---
+
+### CARD-0333 · [enhancement] [front-porch-temp-sensor] [back-patio-temp-sensor] Boot-time heartbeat — every reboot of a 30-minute-heartbeat device raises a false watchdog alert — RESOLVED 2026-09-24 18:54 MST
+**Status:** Done
 
 **Raised 2026-09-24 17:10 MST (Joseph: "yes, open a card for it, then do it for both"), moved straight to Build on the same explicit decision** — the plan is small and fully specified below, no separate Planning pass needed.
 
@@ -35,7 +69,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Front-porch continuity:** all four sensor entities keep their entity ids and update normally; the warm/close and cool/open automations are untouched.
 - **Reflection — an OTA gotcha that cost real time here: do not reboot a device within ~60 s of flashing it.** ESP32 OTA has automatic rollback: if the new image reboots before it is marked valid (~60 s, the `safe_mode` "Boot seems successful" line), the bootloader silently reverts to the previous firmware. I pressed restart on front-porch 12 s and then 19 s after two flashes, so it rolled back to its original firmware (`0xbd1d7376`) both times; every "front-porch didn't send a heartbeat" observation in between was the OLD firmware, and an `on_connect`-triggered variant I tried in that window was never actually running — untested, not disproven, and reverted in favor of the design that was verified on back-patio. Verify the *reported* config hash after every flash and wait past the ~60 s mark before restarting. Recorded in both components' `flashing.md`.
 
-**Auto verify: 2026-09-24 18:45 MST** — confirm front-porch's own 30-minute interval heartbeat arrived around 18:38:47 (`grep 'front-porch-temp-sensor | System   | Heartbeat' /mnt/jctsh-logs/jctsh.log*` on the Pi, or `/status.json` `last_seen` advancing), i.e. that moving the heartbeat into a script did not break the regular cadence there. If it did, `interval: 30min` → `script.execute` is the suspect. Once confirmed, edit this marker line so it stops matching, and move the card to Done.
+**Auto verify (RESOLVED 2026-09-24 18:54 MST, see the resolution note below):** — confirm front-porch's own 30-minute interval heartbeat arrived around 18:38:47 (`grep 'front-porch-temp-sensor | System   | Heartbeat' /mnt/jctsh-logs/jctsh.log*` on the Pi, or `/status.json` `last_seen` advancing), i.e. that moving the heartbeat into a script did not break the regular cadence there. If it did, `interval: 30min` → `script.execute` is the suspect. Once confirmed, edit this marker line so it stops matching, and move the card to Done.
+
+**Resolution, 2026-09-24 18:54 MST.** The Auto verify passed: front-porch's own 30-minute beat landed at 18:38:50 (its restart at 18:08:47 + 30:00) and back-patio's at 18:37:57 (17:37:56 + 30:01), so moving the heartbeat into a script did not disturb the regular cadence. All five Done-when criteria are met, and the two devices' reported config hashes (`0x5921875a` front-porch, `0x8e2c0226` back-patio) equal the builds of the committed YAMLs. **The standards question is answered and landed:** `JCTsh-Build-Standards.md` v1.40 §4.1 now requires the boot-time heartbeat (with its three conditions and a reference snippet), and §2.5 carries the OTA-rollback gotcha. Still open, deliberately not this card: retrofitting the other ESPHome devices that use a 30-minute heartbeat (`garage-radar`, `salt-sensor`, `hiking-monitor`, `air-quality-monitor`, and any other) — the standard now makes that a compliance gap rather than a discovery.
 
 **Follow-up (not this card):** check `garage-radar`, `salt-sensor`, `hiking-monitor`, `air-quality-monitor` and any other ESPHome device with a `30min` heartbeat interval for the same gap. **Standards question raised by Joseph ("do we want this to be a standard?") — recommendation: yes, add to `JCTsh-Build-Standards.md` §4.1** (first heartbeat shortly after boot, after the first valid sensor reading and once MQTT is connected; same guards as the regular heartbeat; deep-sleep devices need a note) **plus a line about the OTA-rollback gotcha above** — pending Joseph's go-ahead, since §4.1 is read by every session.
 

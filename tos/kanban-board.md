@@ -9,7 +9,42 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0337 -->
+<!-- next-card-id: CARD-0338 -->
+
+---
+
+### CARD-0337 · [enhancement] [data-pipeline] Keep the Environmental Data sheet small: archive old rows and make the export read only what it needs
+
+**Status:** Planning
+
+**Raised 2026-09-25 (Joseph: "let's do planning for option 1"), following the 2026-09-25 outage recorded on CARD-0226.** Every Apps Script call that touches the spreadsheet began hanging or hitting Google's ~93 s per-Spreadsheet-call limit (executions Failed at ~93 s / ~187 s, Timed Out at the 6-min cap; none completing from ~10:07 MST, one doPost finally completing after 307 s at 13:43). Google reported no Sheets/Apps Script incident, and big reads on this tab had already been timing out on the M8 for at least a day (the daily backstop probe's 5-day export timed out at 05:04 MST 2026-09-25, and the same the day before). **Root cause is not proven** -- the tab's size is the leading suspect, not a confirmed cause. This card is the cheap, reversible mitigation (option 1 of three discussed: keep Sheets small; a durable local store in front of Sheets; move off Sheets). **Planning only -- nothing built.**
+
+**Facts established (from code and today's data):**
+- `Environmental Data` had ~32,976 rows x 26 columns (~860k cells) in one tab on 2026-09-24. Total cells across the whole spreadsheet is unknown (Google's documented ceiling is 10M per spreadsheet; not the issue).
+- **Every full-tab read pulls all 26 columns of every row:** `_exportSheet()` (`getDataRange().getValues()` then filters by timestamp in JS -- used by hike-izer's `fetch_hike_data.py` on every generation, the daily refresh, and the backstop probe), `refreshTimeline()` (menu-triggered, reads the whole tab plus Hiking Observations and rewrites the `Timeline` tab), and the two one-time cleanup functions.
+- **Writes (`doPost`) already only scan the last 2000 rows** (CARD-0226, 2026-09-24) and take a lock, so ingest cost no longer grows with the tab -- but a slow spreadsheet backend still slows the append itself.
+- **Consumers that need *old* rows:** regenerating an old hike page (`generation.py --step2 <stem>`) re-fetches that hike's date range from the sheet, so **archived ranges must stay exportable**, not just deleted. `refreshTimeline()` builds the Timeline from the whole tab. The architecture doc (`JCTsh-Environmental-Data-Architecture.md`, "One archive, many sources") frames this sheet as *the* environmental archive.
+- Rows are mostly, but not strictly, chronological (hiking-monitor replays land out of order), so the tab cannot be range-read by row position.
+
+**Design requirements that follow:**
+1. **No data loss.** Copy -> verify counts/content -> only then delete from the live tab; take a full "Make a copy" of the spreadsheet first (Joseph). Invariant: live + archived rows == original rows.
+2. **Export keeps working for any date range**, live or archived, with the same JSON shape (`fetch_hike_data.py` must not change).
+3. **Export reads narrowly:** read column A (timestamps) only, find the matching row indices, then read just those rows (~1/26th of today's cells for a hike-sized range), instead of `getDataRange().getValues()`.
+4. **The move itself is a heavy operation on an unhealthy document** -- run it only after the sheet has recovered, with writes held (Node-RED's queue already holds readings through an outage), in chunks, from the editor.
+5. `refreshTimeline()`, the one-time cleanup functions and `_gpsLookup()` (which reads `GPS Track`, a separate tab that may deserve the same treatment) must be checked against the new layout.
+
+**Proposed phases (each independently useful and reversible):**
+0. **Measure first, once the sheet responds:** per-tab row counts and total cells; time `getLastRow()`, a 2000-row read, one `appendRow`, and a full-tab read. Without this we are guessing which tab/operation is the problem.
+1. **Narrow the export** (requirement 3) -- no data movement, benefits every hike-izer fetch immediately. Verify parity: identical rows for a known range (e.g. the 2026-09-19 and 2026-09-24 hikes) before/after, and regenerate one old page as a regression.
+2. **One-time archive** of rows older than the chosen window (chunked copy-verify-delete), after a backup copy.
+3. **Recurring archive** (time-driven trigger or a menu action) so the live tab stays bounded.
+4. Only if phase 0/1 show the problem is document-level rather than tab-level: revisit the option 2 (local durable store in front of Sheets) discussed on 2026-09-25.
+
+**Open decisions -- interview with Joseph pending:** (a) where archived rows live (monthly tabs in the same spreadsheet, a separate archive spreadsheet, or files on the M8) -- monthly tabs do not shrink the *document*, only each tab; (b) live-window length (30/60/90 days); (c) whether browsing old data in the Sheets UI matters; (d) whether `GPS Track` and `Correlation Debug` (12k+ rows) are in scope now.
+
+**Not doing here:** a database migration, changing what the phone-side pipelines (GPSLogger, Tasker) post to, or the Node-RED queue (CARD-0226).
+
+**Related:** CARD-0226 (the outage, the write-path fixes, the held-readings queue), CARD-0336 is unrelated. `core/data-pipeline/environmental-data.gs`, `components/hike-izer/fetch_hike_data.py`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`.
 
 ---
 

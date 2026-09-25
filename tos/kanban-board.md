@@ -31,7 +31,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ### CARD-0338 · [enhancement] [data-pipeline] Early-warning health probe for the environmental Sheet
 
-**Status:** Backlog
+**Status:** Done -- RESOLVED 2026-09-25 16:37 MST
 
 **Raised 2026-09-25 (Joseph: "write up the health probe card"), after the CARD-0226 outage.** The Sheet stopped accepting writes at ~10:07 MST and nobody knew for hours: the only signal was Node-RED's write-failure alert (one per 30 minutes, worded as a queue problem), and heavy jobs on the M8 (the daily backstop export, the 5 PM refresh) kept hitting the sick document. A recurrence should be caught within minutes, by something whose only job is to notice.
 
@@ -49,6 +49,16 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Related:** CARD-0226 (the incident and the write-path fixes), CARD-0337 (keep the sheet small), `core/data-pipeline/RUNBOOK-sheets-outage.md`.
 
+
+**Built, deployed and verified live 2026-09-25 (Joseph: push to Pixel + log; alert on failure or >10 s).** As designed, with two refinements found while building:
+- **`action=health`** in `environmental-data.gs` (`0260643`, `SCRIPT_VERSION 2026-09-25.2-health-action`, deployed by Joseph): opens the spreadsheet by id, reads one real cell, returns `{status, ms, lastRow}` (~400 ms healthy).
+- **Probe in Node-RED, its own "Sheet Health" tab** (`core/data-pipeline/sheet-health.flow.json`, live flow id `b2a86771d1f90aaf`; deliberately a separate tab so it cannot disturb the Environmental Data write queue): every 5 min, one probe in flight, 30 s request timeout, 45 s hard stop, URL-free alert text. **Alerts on two consecutive bad checks, not one** -- Google throws transient 404s (seen all day on 2026-09-25, including as the very first sign of the outage), so a single-failure rule would have sent false pushes; worst-case detection is ~10 minutes. Re-alerts every 30 min while bad; a `recovered after N min` System line + push when it clears; a failed HA push is itself logged.
+- **M8:** `sheet_health.check()` gates the unattended **daily refresh** (re-checks 3x, 10 min apart, then skips with an Alert saying to re-run `generation.py --daily-refresh` by hand -- an outright skip would let a morning hike fall out of the 30 h lookback) and the **backstop check** (skips for the day); manual `--step2` is not gated; fails open if the script predates `action=health` (`b0d3060`).
+- **Test hook:** the `TEST: force next 2 probes to fail` inject node arms two forced failures, so the whole alert -> push -> recovery path can be exercised on demand (click it, then click `every 5 min` twice, then once more for recovery -- or just wait ~15 min).
+
+**Verified:** 14 mock checks of the state machine (transient failure silent, two in a row alerts, 30-min re-alert, recovery, slow responses, hung probe, stale replies, no URL/key in text); live: a forced two-failure run produced the Alert log line (16:36:44), a `recovered` System line (16:36:53), and **both pushes arrived on Joseph's Pixel**. Note: the log server holds its most recent entry until another arrives, so the newest line can look missing for a moment.
+
+**Not done (listed in the runbook as recovery accelerators, separate cards if wanted):** spreadsheet id in Script Properties, a weekly automatic standby copy, a durable local queue in front of Sheets.
 ---
 
 ### CARD-0337 · [enhancement] [data-pipeline] Keep the Environmental Data sheet small: archive old rows and make the export read only what it needs

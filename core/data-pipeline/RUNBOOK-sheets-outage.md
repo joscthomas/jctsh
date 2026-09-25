@@ -5,6 +5,13 @@ Written 2026-09-25 after the CARD-0226 incident. Symptoms: node-red Alerts such 
 hike pages built with no environmental data, Apps Script Executions showing `Timed Out`
 (360 s) or `Failed` (~93 s / ~187 s).
 
+**You will normally hear about it first from the Sheet Health probe** (Node-RED tab "Sheet Health", CARD-0338):
+a push to the Pixel and a log line from component `sheet-health` after two consecutive bad or >10 s checks
+(~10 minutes worst case), a repeat every 30 minutes while it stays bad, and a `recovered after N min` line.
+To exercise it: click the `TEST: force next 2 probes to fail` inject in that tab, then `every 5 min` twice, then once more.
+The unattended daily refresh and backstop on the M8 skip themselves while the Sheet is unhealthy (a skipped daily
+refresh must be re-run by hand: `docker exec hike-izer-orchestrator python3 generation.py --daily-refresh`).
+
 ## 0. Nothing is being lost -- don't rush
 
 - **Node-RED holds readings** (serial queue, one POST in flight, retries every 5 min, alerts at

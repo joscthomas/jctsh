@@ -14,7 +14,20 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-24.1-env-write-lock';
+var SCRIPT_VERSION = '2026-09-25.1-new-spreadsheet';
+
+// 2026-09-25 (CARD-0226 incident): the original spreadsheet became unopenable
+// from Apps Script -- SpreadsheetApp.openById() on it, and on a plain copy of
+// it, hung until the 6-minute cap, while a brand-new spreadsheet (even one
+// holding a copy of the 33k-row Environmental Data tab) opened in ~200 ms.
+// The document's internal state, not its data, was the problem. This script
+// project is bound to the old spreadsheet, so getActiveSpreadsheet() would
+// keep pointing at it; every data path now opens the new one by id instead,
+// which also keeps this web app's URL (and every client of it) unchanged.
+var SPREADSHEET_ID = '1zBzeLocOp4VNW99Neh6JKOW8WHQ1evW2-5HYKJP70_g';
+function _ss() {
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
+}
 
 // ---------------------------------------------------------------------------
 // _relayLog -- CARD-0225: MQTT-dashboard visibility for GPS Track/Hiking
@@ -67,7 +80,7 @@ function doPost(e) {
     }
 
     var payload = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = _ss();
 
     if (payload.component === 'hiking-observations') {
       var obsSheet = ss.getSheetByName('Hiking Observations');
@@ -518,7 +531,7 @@ function onOpen() {
 // recurrence.
 
 function cleanupDuplicateEnvironmentalData() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = _ss();
   var sheet = ss.getSheetByName('Environmental Data');
   var data = sheet.getDataRange().getValues();
   var header = data[0];
@@ -585,7 +598,7 @@ function cleanupDuplicateEnvironmentalData() {
 // recurring job; the permanent protection lives in doGet itself.
 
 function cleanupDuplicateGpsTrack() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = _ss();
   var sheet = ss.getSheetByName('GPS Track');
   var data = sheet.getDataRange().getValues();
   var header = data[0];
@@ -649,7 +662,7 @@ function fixFrontPorchCoordinates() {
   var CORRECT_LAT = 32.4612997;
   var CORRECT_LON = -111.1184154;
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = _ss();
   var sheet = ss.getSheetByName('Environmental Data');
   var data = sheet.getDataRange().getValues();
 
@@ -689,7 +702,7 @@ function fixFrontPorchCoordinates() {
 // resolved per-row via each row's own lat/lon, same as CARD-0097's fix.
 
 function refreshTimeline() {
-  var ss           = SpreadsheetApp.getActiveSpreadsheet();
+  var ss           = _ss();
   var envSheet     = ss.getSheetByName('Environmental Data');
   var obsSheet     = ss.getSheetByName('Hiking Observations');
   var timelineSheet = ss.getSheetByName('Timeline');
@@ -1046,7 +1059,7 @@ function _exportSheet(sheetName, startParam, endParam) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = _ss();
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
     return ContentService
@@ -1140,7 +1153,7 @@ function doGet(e) {
       }
       var tsISO = tsDate.toISOString();
 
-      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var ss = _ss();
       var gpsSheet = ss.getSheetByName('GPS Track');
 
       // CARD-0243: reject an exact-timestamp duplicate before it ever
@@ -1189,7 +1202,7 @@ function doGet(e) {
 
     } else if (action === 'lookup') {
       var ts = e.parameter.ts;
-      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var ss = _ss();
       var coords = _gpsLookup(ss, ts);
       return ContentService
         .createTextOutput(JSON.stringify(coords))

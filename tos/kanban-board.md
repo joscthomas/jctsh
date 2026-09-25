@@ -40,11 +40,17 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 3. **Recurring archive** (time-driven trigger or a menu action) so the live tab stays bounded.
 4. Only if phase 0/1 show the problem is document-level rather than tab-level: revisit the option 2 (local durable store in front of Sheets) discussed on 2026-09-25.
 
-**Open decisions -- interview with Joseph pending:** (a) where archived rows live (monthly tabs in the same spreadsheet, a separate archive spreadsheet, or files on the M8) -- monthly tabs do not shrink the *document*, only each tab; (b) live-window length (30/60/90 days); (c) whether browsing old data in the Sheets UI matters; (d) whether `GPS Track` and `Correlation Debug` (12k+ rows) are in scope now.
+**Interviewed 2026-09-25 (Joseph) -- four decisions:**
+1. **Archive home: a separate archive spreadsheet** (not monthly tabs in the live spreadsheet) -- so the live document actually shrinks. The script reaches it with `SpreadsheetApp.openById()` (one new id constant); inside it, one tab per month keeps each tab modest (proposed detail, not yet confirmed).
+2. **Live window: 30 days** (~11-12k rows at today's ~350 rows/day plus hike days, down from ~33k). Regenerating any hike older than 30 days therefore goes through the archive path -- the export must handle it transparently.
+3. **Browsing old data in Sheets: rarely -- export is fine.** Archived data does not need to be a convenient tab to browse; it only needs to stay exportable (hike regeneration, ad-hoc queries).
+4. **Scope: Environmental Data only.** `GPS Track` and `Correlation Debug` are measured in phase 0 and decided on then, not built here.
+
+**Consequences for the design:** the export's date-range logic becomes: range entirely newer than the live window -> live tab only; older -> archive spreadsheet month tab(s); straddling -> both, merged in timestamp order, same JSON shape out. `refreshTimeline()` is limited to the live tab (Timeline is a recent-activity view; confirm with Joseph before Build that a Timeline covering only the last 30 days is acceptable). The recurring archive job (phase 3) moves rows older than 30 days in chunks, copy-verify-delete, and can be a menu action first and a time-driven trigger later. **Plan is ready for Joseph's review; not yet moved to Build.**
 
 **Not doing here:** a database migration, changing what the phone-side pipelines (GPSLogger, Tasker) post to, or the Node-RED queue (CARD-0226).
 
-**Related:** CARD-0226 (the outage, the write-path fixes, the held-readings queue), CARD-0336 is unrelated. `core/data-pipeline/environmental-data.gs`, `components/hike-izer/fetch_hike_data.py`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`.
+**Related:** CARD-0226 (the outage, the write-path fixes, the held-readings queue). `core/data-pipeline/environmental-data.gs`, `components/hike-izer/fetch_hike_data.py`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`.
 
 ---
 

@@ -1,8 +1,8 @@
 # JCTsh Parts Inventory
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** On-hand parts inventory for JCTsh smart home component projects. Update quantities after each project build.
-**Version:** 2.34
-**Version description:** Bag 3 (genuine GY-BME280) could not be located 2026-09-21 — location marked NOT FOUND, qty unknown, replacements ordered. Also recorded a systemic finding behind it: the 2026-08-20 bag-to-bin reorg logged only 5 of its moves while at least 4 more appear in rows with no log entry, so 14 rows still citing a bare "Bag N" are unverified since that reorg.
+**Version:** 2.35
+**Version description:** LiPo 503450 1000mAh ×2 added to Power Components (2026-09-25), planned for hiking-monitor and air-quality-monitor.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** README.md, JCTsh-Component-Planning-Pattern.md
 
@@ -95,6 +95,7 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | EVE INR18650/33V Cell | 18650BatteryStore.com, standard Li-ion (INR/NMC chemistry, corrected 2026-09-09 — was mislabeled "3.3V", confirmed via manufacturer specs 3.6V nominal/4.2V peak, not LiFePO4; "33V" is a model-code suffix, not the actual voltage), 3200mAh, 10A, flat top. https://www.18650batterystore.com/products/eve-18650-33v | 5 | Bag 5 | No project assigned. Candidate cell for CARD-0256 (robust solar+swappable-battery pattern) — standard TP4056 charging applies, no LiFePO4-specific charger needed. |
 | Mini Solar Panel | SUNYIMA, 5.5V 80mA, 2.36"×2.36", DIY photovoltaic | 10 | Bag 6 | No project assigned. |
 | LI-ION Polymer Battery | EEMB, 3.7V 1100mAh 603449, JST connector. https://www.amazon.com/dp/B08VRYS8FT — confirm polarity before use. | 3 | Bag 7 | 1 in service: hiking-monitor. Hiking-monitor's original cell failed in the field (2026-07-03) and was replaced from this stock — physical recount confirmed 2 still remaining in Bag 7 afterward; trust this physical count over prior used/remaining math. |
+| LiPo Battery 503450 | 3.7V 1000mAh 503450, JST PH2.0mm 2-pin connector. https://www.amazon.com/dp/B0GHR5J34D — confirm polarity before use. | 2 | Not yet located | Planned: hiking-monitor and air-quality-monitor (Joseph, 2026-09-25: almost the same form factor as the existing cells). Not yet assigned to a card. |
 | TP4056 Battery Charger Modules | USB TP4056, 3.7V–4.2V to 9V/5V, 2A, charge/discharge integrated step-up. https://www.amazon.com/dp/B098989NRZ | 5 | Bin A4 (was Bag 8) | 1 used: hiking-monitor. |
 | DC Buck Converter 12V→5V 3A | 2pcs, 15W, USB-C output, compatible with Raspberry Pi 4. https://www.amazon.com/dp/B0CMZWN7WS | 2 | Bag 21 | No project assigned. |
 | Power Supply Module 3.3V/5V | HiLetgo, dual output 3.3V and 5V, breadboard-compatible. | 5 | Music Response bin | No project assigned. |
@@ -314,3 +315,4 @@ An acrylic lid panel (cut to perfboard footprint, held by the same standoffs) ma
 | 2026-09-21 | Stock | Purchase links added from Joseph: BH1750/GY-302 hiBCTR 3-pack (ASIN B0FDLDG2TD, Bin C3) and the counterfeit Podazz BMP280-sold-as-BME280 (ASIN B0DCFXRZ1F, Bin B3, flagged do-not-reorder). Genuine GY-BME280 (Bag 3) remains the only sensor row without a link. |
 | 2026-09-21 | Stock | **Open discrepancy, no change made:** genuine GY-BME280 quantity disagrees across four sources — Update Log arithmetic = 2, row Notes = 2, row Qty cell = 3, `weather-station` planning doc = 6. Needs a physical count of Bag 3 to settle; not corrected from arithmetic alone since the docs disagreeing doesn't reveal which way the error went (miscount vs. unlogged receipt). BH1750 Qty 5 has the same weakness — a "3-pack" with no receipt line — so count Bin C3 at the same time. |
 | 2026-09-21 | back-patio-temp-sensor | ESP32 DevKitC-32 (Bag 1), BME280/GY-BME280 (Bag 3), BH1750/GY-302 (Bin C3) allocated to CARD-0219 (Planning) — on hand, not yet consumed. Perfboard, standoffs, screws/nuts, USB-C cable, and USB power adapter confirmed on hand by Joseph directly, not checked here. |
+| 2026-09-25 | Stock | LiPo Battery 3.7V 1000mAh 503450, JST PH2.0mm 2-pin ×2 added to Power Components (ASIN B0GHR5J34D). Joseph's plan: use them in hiking-monitor and air-quality-monitor and return the existing cells to inventory — not yet done, no quantities changed for the existing cells. |

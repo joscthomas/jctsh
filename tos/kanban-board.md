@@ -9,7 +9,28 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0333 -->
+<!-- next-card-id: CARD-0334 -->
+
+---
+
+### CARD-0333 · [enhancement] [front-porch-temp-sensor] [back-patio-temp-sensor] Boot-time heartbeat — every reboot of a 30-minute-heartbeat device raises a false watchdog alert
+**Status:** Build
+
+**Raised 2026-09-24 17:10 MST (Joseph: "yes, open a card for it, then do it for both"), moved straight to Build on the same explicit decision** — the plan is small and fully specified below, no separate Planning pass needed.
+
+**Problem.** Both ESPHome devices publish their heartbeat from `interval: 30min`, which counts from *boot*. The Node-RED watchdog alerts at 35 minutes without one. So any reboot that lands more than ~5 minutes after a heartbeat leaves a gap of up to ~60 minutes before the next one, and a `silent for 35 minutes` alert fires even though the device is up. Not theoretical — three false alerts on 2026-09-24 alone, each landing exactly heartbeat + 35 min after a deliberate reboot/move of the back-patio board (15:25:35, 16:17:06, 17:05:53), each verified against pings and the broker log as a healthy, connected device. Same mechanism also leaves `/status` showing `Offline` for up to 30 minutes after every reboot, and buried the real 2026-09-21 outage by teaching everyone that these alerts are noise.
+
+**Fix.** Move the heartbeat publishes (log line, `.../heartbeat` topic, and the two read-failed Alerts) into an ESPHome `script`, called from both the existing 30-minute `interval` and a new `esphome: on_boot` that waits 90 s first. 90 s is deliberate: the BME280/BH1750 poll every 60 s, so by then a real reading exists and the read-failed Alerts stay meaningful instead of firing on every boot. Net effect: the first heartbeat arrives ~90 s after boot instead of ~30 min, and the 30-minute cadence continues unchanged after that.
+
+**Scope.** `front-porch-temp-sensor.yaml` and `back-patio-temp-sensor.yaml` — they share the heartbeat block apart from names and coordinates, verified by diff. Both get OTA-flashed. Front-porch is a production device (it drives the warm/close-door and cool/open-door notifications), so its flash is checked for entity continuity afterward.
+
+**Non-goals.** No change to the watchdog flow or its 35-minute threshold; no change to the 30-minute cadence; no change to heartbeat payload formats; no change to front-porch's discovery `unique_id`s (they stay on the legacy generator, per CARD-0186's reasoning about orphaning live entities). Other ESPHome devices very likely have the same gap — not touched here, see follow-up.
+
+**Done when:** (1) both devices flashed and the new firmware confirmed running (reported config hash matches the build); (2) after a deliberate reboot of each, a heartbeat appears in the durable log within ~2 minutes and `/status.json` reports `Online` without waiting 30 minutes, with no watchdog alert following; (3) the 30-minute cadence still continues afterward; (4) front-porch's four HA entities are unchanged — same entity ids, still updating; (5) both YAMLs committed.
+
+**Follow-up (not this card):** check `garage-radar`, `salt-sensor`, `hiking-monitor`, `air-quality-monitor` and any other ESPHome device with a `30min` heartbeat interval for the same gap.
+
+**Related:** CARD-0219 (found while diagnosing back-patio's outage; the false alerts are documented there), CARD-0331 (watchdog re-alert gap — the sibling watchdog finding), CARD-0186 (why front-porch's `unique_id`s are left alone).
 
 ---
 

@@ -88,6 +88,8 @@ If the device does not appear within 2 minutes of MQTT connecting, confirm
 
 ## Subsequent Flashes — OTA
 
+> **Do not reboot the device within ~60 s of an OTA flash (added 2026-09-24, CARD-0333).** ESP32 OTA has automatic rollback: if the new image reboots before it is marked valid (about 60 s, when the log prints `Boot seems successful; resetting boot loop counter`), the bootloader silently reverts to the previous firmware. A restart button press, a power-cycle, or a second flash inside that window undoes the update while every tool still reports success. After flashing, wait past the 60 s mark, then confirm the device's *reported* config hash (the `sw` field of its retained discovery message, `homeassistant/sensor/<name>/temperature/config`) matches the build's `config_hash`.
+
 After the first USB flash, all future updates can be done wirelessly:
 
 ```

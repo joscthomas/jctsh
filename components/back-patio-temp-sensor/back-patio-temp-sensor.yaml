@@ -26,6 +26,18 @@
 esphome:
   name: back-patio-temp-sensor
   friendly_name: Back Patio Temp Sensor
+  # CARD-0333: without this the first heartbeat only arrives 30 min after boot, so any reboot
+  # more than ~5 min after a heartbeat trips the watchdog's 35-min silence alert. 90 s lets the
+  # sensors (60 s poll) produce a real reading first, so the read-failed Alerts stay meaningful.
+  on_boot:
+    priority: -100
+    then:
+      - delay: 90s
+      # mqtt.publish silently drops when not connected, and a reconnect after boot has been seen
+      # to take ~54 s -- wait for the session rather than lose the one heartbeat this exists for.
+      - wait_until:
+          mqtt.connected:
+      - script.execute: send_heartbeat
 
 esp32:
   board: esp32dev
@@ -205,8 +217,15 @@ interval:
             }
             return std::string(buf);
 
-  # Heartbeat — every 30 min to log + heartbeat topics
+  # Heartbeat — every 30 min, and once ~90 s after boot (esphome: on_boot above)
   - interval: 30min
+    then:
+      - script.execute: send_heartbeat
+
+# ── Heartbeat script (log line, heartbeat topic, read-failed Alerts) ──────────
+script:
+  - id: send_heartbeat
+    mode: single
     then:
       - mqtt.publish:
           topic: jctsh/components/back-patio-temp-sensor/log

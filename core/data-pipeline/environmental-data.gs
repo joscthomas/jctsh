@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-25.1-new-spreadsheet';
+var SCRIPT_VERSION = '2026-09-25.2-health-action';
 
 // 2026-09-25 (CARD-0226 incident): the original spreadsheet became unopenable
 // from Apps Script -- SpreadsheetApp.openById() on it, and on a plain copy of
@@ -1210,6 +1210,19 @@ function doGet(e) {
 
     } else if (action === 'export') {
       return _exportSheet(e.parameter.sheet, e.parameter.start, e.parameter.end);
+
+    } else if (action === 'health') {
+      // CARD-0338: early-warning probe. Unlike action=version (which never
+      // touches the spreadsheet, so it stayed fast throughout the 2026-09-25
+      // outage), this opens the spreadsheet and reads one real cell -- the
+      // exact operation that hung. Deliberately far cheaper than any export.
+      var healthStart = Date.now();
+      var healthSheet = _ss().getSheetByName('Environmental Data');
+      var healthLastRow = healthSheet ? healthSheet.getLastRow() : -1;
+      if (healthSheet) healthSheet.getRange(1, 1).getValue();
+      return ContentService
+        .createTextOutput(JSON.stringify({status: 'ok', ms: Date.now() - healthStart, lastRow: healthLastRow, version: SCRIPT_VERSION}))
+        .setMimeType(ContentService.MimeType.JSON);
 
     } else if (action === 'version') {
       return ContentService

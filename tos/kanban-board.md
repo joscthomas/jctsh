@@ -9,7 +9,32 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0340 -->
+<!-- next-card-id: CARD-0341 -->
+
+---
+
+### CARD-0340 · [bug] [garage-presence] [homeassistant] `switch.garage_presence_vswitch` never turns on -- HA reports success but state stays `off`, and every SmartThings entity in HA looks frozen since 2026-09-21
+**Status:** Backlog
+
+**Raised 2026-09-25 16:47 MST (Joseph: "open a card for the vswitch finding"), found by accident while live-testing garage-radar's new firmware for CARD-0335. Joseph then said "don't chase the vswitch right now" -- so everything below is what was observed in about ten minutes of read-only inspection, nothing was fixed or tried, and the cause is unknown.** Priority not set (Joseph's call) -- but see "Why it matters."
+
+**Observed, 2026-09-25 16:41-16:42 MST (read-only, via HA's own in-page state/WebSocket in Joseph's signed-in Chrome; nothing in HA was changed):**
+- Joseph walked in front of the radar. Presence went ON at 16:41:24.7 on MQTT and in HA within the same second; "Garage Presence - Restart timer on activity" ran and started the 900 s timer. **`switch.garage_presence_vswitch` stayed `off`.**
+- That run's trace shows both actions finished with no error: `timer.start` (duration 900) and `switch.turn_on` on the vswitch. HA believes the command succeeded; the entity's state never followed. The two earlier radar-triggered runs today (16:06:29, 16:08:37) left it `off` too.
+- `switch.garage_presence_vswitch` is a **SmartThings-platform** entity (registry `platform: smartthings`). Its last state change was **2026-09-21 17:10:00 MST**, an `off` by "Garage Presence - Timer expired". The logbook shows no `on` since 2026-09-21 08:15:44.
+- The other SmartThings garage switches are equally stale: `garage_door_auto_close_enable_vswitch` = on (last changed 09-21 03:08:07), `garage_door_open_vswitch` = off (09-21 16:55:24), `open_close_garage_door` = off (09-21 08:03:06).
+- **Across the whole integration:** 195 SmartThings-platform entities, **71 `unavailable`/`unknown`**, and the newest `last_updated` on any of them is **2026-09-21 21:40:35 MST** (`sensor.ecobee_guest_room_temperature`). The single config entry ("Home Main") reports `state: loaded`.
+- The radar's yellow LED mirrors the vswitch via `jctsh/components/garage-presence-vswitch/state`, so it is also off while someone is present.
+
+**Why it matters -- a hypothesis, not a verified fact:** per `components/automatic-garage-door-opener-closer/auto-garage-door-system.md`, the SmartThings auto-close routine fires on `enable = ON AND door open = ON AND presence vswitch = OFF`. If the vswitch is stuck `off` in SmartThings as well as in HA, the "someone is in the garage" interlock the whole system exists for is defeated -- the door could close on a person. **Not established either way**, because the ST-side state was not looked at, and whether the door has been opened since 09-21 is unknown (the door-open vswitch is itself frozen).
+
+**Not checked (deliberately stopped):** (1) what SmartThings itself holds for the presence vswitch; (2) whether ST->HA events are reaching HA at all vs. HA->ST commands failing silently; (3) whether the garage door has actually been opened/closed since 09-21; (4) what happened around 2026-09-21 17:10-21:40 MST -- an HA restart, a token/OAuth/Nabu Casa event, or the SmartThings API change from CARD-0164; (5) whether reloading the config entry recovers it (root `CLAUDE.md`'s CARD-0240 note documents exactly this "`loaded` but not re-synced" failure mode and its reload fix -- **not tried**).
+
+**Proposed Done when (to be confirmed in the interview, not yet agreed):** (a) the cause of the freeze is identified and recorded; (b) the vswitch follows presence again -- radar presence turns it `on`, timer expiry turns it `off` -- confirmed by a live walk-through, not a synthetic test; (c) the ST->HA sync is confirmed live for the other garage entities; (d) the auto-close interlock is confirmed to hold with the door open and someone present (or explicitly documented as unverifiable).
+
+**Non-goals:** no change to the auto-close routine's logic, no migration off SmartThings (that is CARD-0164/CARD-0260), no change to the radar firmware (verified fine on this card's trigger date).
+
+**Related:** CARD-0335 (found while verifying it), CARD-0164 (SmartThings API cutoff; Auto verify 2026-10-02), CARD-0260 (rebuilding the garage routines HA-natively), CARD-0055 (earlier presence/lights reconciliation), CARD-0240 (post-update "loaded but not synced" reload fix), `components/garage-presence/CLAUDE.md`, `components/automatic-garage-door-opener-closer/auto-garage-door-system.md`.
 
 ---
 

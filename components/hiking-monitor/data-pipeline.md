@@ -41,7 +41,7 @@ Node-RED publishes a log message to MQTT on error only, not on every successful 
 - Name: JCTsh Environmental Data
 - URL: `https://docs.google.com/spreadsheets/d/1zBzeLocOp4VNW99Neh6JKOW8WHQ1evW2-5HYKJP70_g/edit`
 - Spreadsheet ID: `1zBzeLocOp4VNW99Neh6JKOW8WHQ1evW2-5HYKJP70_g`
-- **Moved 2026-09-25 (CARD-0226 incident):** the original spreadsheet (`1aEgW3NDlu43uUM4Wtx1Hq3LjKm6hz2Lpc82LQZRO8L8`) became unopenable from Apps Script; the data now lives in this spreadsheet and the Apps Script opens it by id (`SPREADSHEET_ID` in `environmental-data.gs`, same web app URL). The old spreadsheet is kept as a read-only fallback.
+- **Moved 2026-09-25 (CARD-0226 incident):** the original spreadsheet (`1aEgW3NDlu43uUM4Wtx1Hq3LjKm6hz2Lpc82LQZRO8L8`) became unopenable from Apps Script; the data now lives in this spreadsheet and the Apps Script opens it by id (`SPREADSHEET_ID` in `environmental-data.gs`, same web app URL). The old spreadsheet is renamed **SCRIPTS JCTsh Environmental Data** (Joseph's call) and stays because it is the Apps Script project's container -- edit and deploy the script from *its* Extensions -> Apps Script, and update the existing deployment's version (never create a new deployment, which would change the URL). Its data tabs are stale and nothing reads them; they can be deleted once the new spreadsheet has proven stable.
 
 ### Environmental Data Sheet
 

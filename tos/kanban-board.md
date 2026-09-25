@@ -9,7 +9,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0341 -->
+<!-- next-card-id: CARD-0342 -->
+
+---
+
+### CARD-0341 · [bug] [salt-sensor] [homeassistant] `switch.salt_critical_alert` can never stay on -- its `turn_on` action is followed by a `turn_off` that undoes it, and it has no `turn_off` action
+**Status:** Backlog
+
+**Raised 2026-09-25 16:57 MST (Joseph: "open a card for Salt critical-alert helper bug"), found while verifying CARD-0335's salt-sensor firmware.** Salt is at 6% (41.7 cm, well under the 15% critical threshold) yet `switch.salt_critical_alert` reads `off`. Joseph asked for it to be fixed; the fix was attempted and **blocked by the permission classifier as a "Modify Shared Resources" action** (an edit to HA's configuration), so nothing in HA was changed. Not retried by another route. Priority not set (Joseph's call) -- but the salt tank is at 6% and the critical alert cannot currently fire.
+
+**Root cause, read directly from HA's `core.config_entries` on the Pi (filtered to the two salt template entries; nothing else printed):** the **Salt Critical Alert** template-switch helper (config entry `01M2B72651P7WQJZMCYQXKGSDX`, backed by `input_boolean.salt_critical_alert_state`) has
+
+`turn_on: [ input_boolean.turn_on, input_boolean.turn_off ]` -- both on the same backing boolean, in that order -- and **no `turn_off` action at all.**
+
+The second `turn_on` step undoes the first, so the switch turns on and immediately off again. **Salt Low Alert is built correctly** (`turn_on` = `input_boolean.turn_on`, `turn_off` = `input_boolean.turn_off`).
+
+**Confirmed live, 2026-09-25 16:51:09 MST:** a `switch.turn_on` on `switch.salt_critical_alert` (from Joseph's HA session, salt at 6%, test mode off) logged `on` then `off` in the same second under the same call-service context -- i.e. the switch itself reverted, not another user or automation. `switch.salt_low_alert` was left off (correct for the critical zone -- the flow deliberately clears it once critical).
+
+**Why nothing noticed:** Node-RED's `Threshold logic` node only sends the alert on a *transition* (`criticalSent`), and its HA call returns 200 either way -- `fn_ha_log` logs an Alert only for a non-200/207, so "CRITICAL -- salt at N%. Alert sent to HA." is logged whether or not the switch stays on. CARD-0280's 2026-09-17 end-to-end test read exactly that log line as success. Once `criticalSent` is true it never retries, so a critical level that started while the helper was broken stays silent until the level changes state or Full Reset is pressed.
+
+**Not established:** (1) *when* the helper became wrong -- the stored config is only its current form (it may have been mis-edited any time after CARD-0261 built the helpers on 2026-09-12, or been wrong from the start); (2) whether the Google Home routine keyed to this switch fires on the brief transient `on` (Joseph's 16:51 test may or may not have triggered it -- unknown); (3) what turned *both* alert switches `off` at 2026-09-24 13:42:49 (Joseph thinks it was testing) -- not needed to fix this bug.
+
+**The fix (ready, not applied):** in HA, Settings -> Devices & services -> Helpers -> Salt Critical Alert -> Template options: `turn_on` = only `input_boolean.turn_on` on `input_boolean.salt_critical_alert_state`; `turn_off` = `input_boolean.turn_off` on the same entity. (Or the same edit through HA's options-flow API once explicitly permitted -- the entry has only `name`, `template_type`, `turn_on`, `value_template` as options, so an options-flow submit of those plus the new `turn_off` loses nothing.)
+
+**Done when:** (a) the helper's `turn_on`/`turn_off` match Salt Low Alert's shape; (b) with salt still critical, `switch.salt_critical_alert` is `on` and *stays* on, confirmed by re-reading it after a delay, not by the call returning; (c) the Google Home critical routine is confirmed to fire (or its absence understood); (d) the "`criticalSent` never retries" behavior is decided explicitly -- accept it, or reconcile the switch against the level on each reading -- and recorded, not left implicit.
+
+**Non-goals:** no change to the 15%/33% thresholds (Joseph, 2026-09-25: "leave it the way it is"), no change to the salt-sensor firmware (CARD-0335, verified fine).
+
+**Related:** CARD-0261 (built these helpers), CARD-0280 (its end-to-end test read the 200-anyway log line as success), CARD-0335 (found while verifying it), `components/salt-sensor/README.md` (HA-Native Switches).
 
 ---
 

@@ -120,7 +120,8 @@ appropriate for your installation. Values take effect within 60 seconds of being
 ## After Editing the Flow
 1. In Node-RED, import `jctsh/core/node-red/core.flow.json` first (broker config) if not already present
 2. Import `salt-sensor.flow.json` → Replace existing nodes
-3. Re-enter `HA_TOKEN` in Node-RED environment variables (Node-RED UI → Settings → Environment)
+3. `HA_TOKEN` is read from the systemd-level `/home/pi/.node-red/environment` (CARD-0280) — do
+   not re-enter it as a tab-scoped Environment Variable (a manual paste corrupted it once, CARD-0261)
 4. Deploy
 
 ## After Editing the YAML
@@ -135,10 +136,9 @@ First flash must be via USB (select the COM port when prompted). All subsequent 
 can go over OTA (same command, once the device is on the network). Three rapid LED
 flashes at boot confirm a successful reboot (same as the old Arduino version).
 
-## Next Steps
-- Flash and field-verify this migration (USB first flash, confirm LED self-test, confirm
-  MQTT data/status/log/heartbeat all work end-to-end) — see CARD-0004.
-- Confirm Home Assistant role (SmartThings bridge vs. other) before deeper JCTsh integration.
+## Open Work
+- CARD-0335 — boot-time heartbeat retrofit (Build Standards §4.1).
+- CARD-0067 — 3D-printed enclosure (Planning).
 
 ---
 

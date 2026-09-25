@@ -1,7 +1,8 @@
 # Salt Sensor
 
 ESP32-based ultrasonic salt level monitor for a residential water softener — measures
-salt percentage and sends low/critical alerts to SmartThings.
+salt percentage and raises low/critical alerts through Home Assistant (alert switches
+voice-exposed to Google Assistant).
 
 **Status:** Production
 **Hardware:** ESP32 + JSN-SR04T waterproof ultrasonic sensor + three status LEDs
@@ -11,8 +12,8 @@ salt percentage and sends low/critical alerts to SmartThings.
 ## What It Solves
 
 A water softener runs out of salt silently — there's no indicator until the water stops
-being softened. This sensor measures the salt level every 12 hours and sends SmartThings
-alerts before the tank runs out, giving time to refill without service interruption.
+being softened. This sensor measures the salt level every 12 hours and raises alerts
+before the tank runs out, giving time to refill without service interruption.
 Calibration is done in Home Assistant with no reflash required.
 
 ---
@@ -23,9 +24,9 @@ Calibration is done in Home Assistant with no reflash required.
 |---|---|
 | Microcontroller | ESP32 Dev Module |
 | Sensor | JSN-SR04T waterproof ultrasonic — mounts at top of salt tank facing down |
-| Red LED | GPIO2, 220Ω — critical level |
-| Yellow LED | GPIO15, 220Ω — low level |
-| Green LED | GPIO4, 220Ω — good level |
+| Red LED | GPIO32, 220Ω — critical level |
+| Yellow LED | GPIO33, 220Ω — low level |
+| Green LED | GPIO27, 220Ω — good level |
 | Power | 5V USB wall charger |
 
 ### Wiring
@@ -35,7 +36,7 @@ Calibration is done in Home Assistant with no reflash required.
 | JSN-SR04T VCC → ESP32 VIN (5V) | Sensor requires 5V |
 | JSN-SR04T Trig → GPIO5 | |
 | JSN-SR04T Echo → 1kΩ → GPIO18 → 2kΩ → GND | Voltage divider required — sensor outputs 5V, ESP32 GPIO is 3.3V only |
-| LEDs → GPIO2/15/4 via 220Ω → GND | |
+| LEDs → GPIO32/33/27 (red/yellow/green) via 220Ω → GND | |
 
 See [ESP32-project-pins.md](ESP32-project-pins.md) for the full pin table.
 
@@ -56,7 +57,7 @@ Mosquitto broker (Raspberry Pi)
       │      ├── Reads calibration from HA input_number helpers
       │      ├── Calculates salt percentage
       │      ├── Applies alert thresholds
-      │      ├── Controls HA virtual switches → SmartThings alerts
+      │      ├── Controls HA-native alert switches → Google Assistant
       │      └── Publishes status back to ESP32 → drives LEDs
       │
       └──► Log dashboard
@@ -72,7 +73,8 @@ Mosquitto broker (Raspberry Pi)
 3. Flash via USB (first time): `cd C:\esphome\salt-sensor && esphome run salt-sensor.yaml`
 4. All subsequent updates: same command, over OTA once the device is on the network
 5. Import `salt-sensor.flow.json` into Node-RED (import `core.flow.json` first)
-6. Set `HA_TOKEN` in Node-RED: Settings → Environment Variables
+6. Make sure `HA_TOKEN` is set in `/home/pi/.node-red/environment` on the Pi (systemd-level, CARD-0280) —
+   not as a tab-scoped Node-RED Environment Variable
 7. Create HA helpers and virtual switches — see Configuration below
 
 ---
@@ -174,15 +176,15 @@ const CRITICAL_PERCENT = 15.0;
 
 ### Test Mode
 
-Turn ON `Salt Test Mode` in SmartThings. Node-RED simulates two readings:
-- Step 1: ~27% — yellow LED, warning alert to SmartThings
-- Step 2: 0% — red LED, critical alert to SmartThings
+Turn ON `switch.salt_test_mode` in Home Assistant. Node-RED simulates two readings:
+- Step 1: ~27% — yellow LED, `switch.salt_low_alert` on
+- Step 2: 0% — red LED, `switch.salt_critical_alert` on
 
 Turn OFF the switch to clear all alerts and return to `ok`.
 
 ### Reset After Refilling
 
-Turn ON `Salt Full Reset` in SmartThings. Node-RED clears both alert switches, publishes
+Turn ON `switch.salt_full_reset` (HA, or by voice via Google Home). Node-RED clears both alert switches, publishes
 `ok` to the ESP32 (green LED goes solid), and turns the reset switch back OFF
 automatically.
 
@@ -227,10 +229,9 @@ Three rapid LED flashes at boot confirm a successful reboot.
 
 ## Known Behaviors and Limitations
 
-- **GPIO2 and GPIO15 are strapping pins:** Carried over unchanged from the Arduino
-  version. ESPHome logs a boot-time warning about both (and about GPIO5) but the device
-  boots and runs correctly with this wiring. If a future reflash ever fails to boot, the
-  fix is physical — rewire the LEDs to GPIO32/GPIO33 on the breadboard.
+- **GPIO5 (ultrasonic Trig) is a strapping pin:** ESPHome logs a boot-time warning about
+  it, but the device boots and runs correctly. The LEDs were moved off the GPIO2/GPIO15
+  strapping pins onto GPIO32/33/27 for the perfboard build (CARD-0049).
 - **Compile from `C:\esphome\salt-sensor\`, not the repo path:** spaces in
   `JCT Documents` break the ESP-IDF compiler. Copy `salt-sensor.yaml` and `secrets.yaml`
   there after any edit.

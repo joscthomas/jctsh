@@ -101,7 +101,7 @@ The **yellow LED** mirrors `switch.garage_presence_vswitch` via MQTT subscriptio
 
 | Automation | Trigger | Action |
 |---|---|---|
-| Restart timer on activity | `garage_radar_presence` off→on | Start 15-min timer; turn on vswitch |
+| Restart timer on activity | `garage_radar_presence` off→on | Start timer (`input_number.garage_timer_duration`, default 20 min); turn on vswitch |
 | Radar keepalive | Every 5 min while presence on | Restart timer; confirm vswitch on |
 | Timer expired | `timer.garage_presence_timer` finished | Turn off vswitch → lights off |
 
@@ -118,7 +118,7 @@ trigger won't re-fire if someone stays motionless for longer than the timer dura
 
 ### Heartbeat
 
-Every 5 minutes the device publishes to `.../log` (uptime, RSSI, presence state) and
+Every 30 minutes the device publishes to `.../log` (uptime, RSSI, presence state) and
 `.../heartbeat` (JSON). The Node-RED watchdog alerts via push notification if silent for
 more than 35 minutes.
 
@@ -156,7 +156,7 @@ more than 35 minutes.
 ## Known Behaviors and Limitations
 
 - **Door false positive:** Closing the garage door sweeps through the radar cone,
-  triggering a brief presence detection. Harmless with a 15-minute timer.
+  triggering a brief presence detection. Harmless — the 20-minute default timer absorbs it.
 - **ESPHome 2026.x nested binary sensor:** `id(presence).state` returns unreliable
   values for binary sensors inside the `ld2412:` component. Green LED uses
   `detection_distance` + manual holdoff as a workaround.

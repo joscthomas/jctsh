@@ -62,8 +62,9 @@ Both created via HA UI: Settings → Devices & Services → Helpers.
 
 ## How It Works
 
-Any garage activity — motion, door state change, camera motion, or radar presence —
-restarts the countdown timer. The timer duration is read from
+Radar presence restarts the countdown timer. The legacy motion, door, camera and acceleration
+sensors still trigger the same automation, but a template condition blocks them unless the radar
+is `unavailable`/`unknown` — they are a fallback, not peers. The timer duration is read from
 `input_number.garage_timer_duration` at the moment each trigger fires. When the timer
 expires without a new trigger, `switch.garage_presence_vswitch` is turned off, which
 fires a SmartThings routine that turns off the garage lights and closes the door.

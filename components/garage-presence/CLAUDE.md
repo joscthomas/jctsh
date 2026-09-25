@@ -16,7 +16,10 @@ See `jctsh/CLAUDE.md` for monorepo-wide conventions.
 - Path to SmartThings: HA REST API → SmartThings integration (see jctsh/CLAUDE.md)
 
 ## How It Works
-1. Any garage activity (motion, door, camera) restarts the HA timer
+1. Radar presence (`binary_sensor.garage_radar_presence` off→on, plus the 5-minute keepalive) restarts the HA timer.
+   The legacy motion/door/camera/acceleration sensors still fire the same automation, but a template
+   condition blocks their action unless the radar is `unavailable`/`unknown` — they are a fallback only
+   (see "Legacy sensors" below).
 2. Timer duration is read from `input_number.garage_timer_duration` (default 20 min)
 3. Timer expiry is available as a `timer.finished` event — consumed by other automations
 
@@ -34,6 +37,8 @@ Both created via HA UI (Settings → Devices & Services → Helpers). Not in con
 | Garage Sensor (motion) | eae7580a-66cb-476f-b5a5-f0672b2a76aa | `binary_sensor.garage_motion_motion` | Trigger ✅ — PIR heat detector; may stay stuck `on` in hot Arizona summers, preventing `off`→`on` transition trigger from firing |
 | Back Door Sensor (door) | 15597627-aec7-4e51-baec-7d106c7ee092 | `binary_sensor.back_door_door` | Trigger — SmartThings → HA sync unreliable for real-time state triggers; state_changed events fire but automation trigger doesn't always catch them |
 | Garage Cam (motion) | b11a8e19-87da-4ca3-b062-a8a95254548b | `binary_sensor.garage_cam_motion` | Trigger — PIR heat detector; unreliable in hot garage (same issue as motion sensor) |
+
+| Back Door Acceleration | (not recorded) | `binary_sensor.back_door_acceleration` | Fourth legacy trigger, added to the automation after the original three — same fallback-only gating |
 
 Note: Garage Timer Duration (ST 49a4fa15-940d-45e8-a644-acbd4c0d3b67) was not exposed
 as an HA entity by the SmartThings integration. Replaced by `input_number.garage_timer_duration`.
@@ -58,6 +63,13 @@ this in mind when diagnosing unexpected door closures. Confirmed cause on 2026-0
 HA MQTT integration lost credentials after password rotation, ESPHome entities went
 unavailable, presence dropped, Vswitch turned off, ST routine fired.
 
+## Legacy sensors — fallback only, by a template condition (not removed)
+The four SmartThings-synced sensors above are still listed as triggers on "Restart timer on activity", but
+its `condition: template` lets an action through only when the trigger was `binary_sensor.garage_radar_presence`
+**or** the radar is `unavailable`/`unknown`. Deliberate: radar is the primary signal, and the legacy sensors
+become a real fallback if the radar is down. Live source of truth is `core/homeassistant/automations.yaml`;
+see `../automatic-garage-door-opener-closer/auto-garage-door-system.md` for the full picture.
+
 ## HA Automations
 All created via HA UI (Settings → Automations & Scenes → Edit in YAML).
 
@@ -73,9 +85,18 @@ triggers:
   - entity_id: binary_sensor.garage_cam_motion
     to: "on"
     trigger: state
+  - entity_id: binary_sensor.back_door_acceleration
+    to: "on"
+    trigger: state
   - entity_id: binary_sensor.garage_radar_presence
     to: "on"
     trigger: state
+conditions:
+  - condition: template
+    value_template: >
+      {{ trigger.entity_id == 'binary_sensor.garage_radar_presence'
+         or is_state('binary_sensor.garage_radar_presence', 'unavailable')
+         or is_state('binary_sensor.garage_radar_presence', 'unknown') }}
 actions:
   - target:
       entity_id: timer.garage_presence_timer
@@ -106,7 +127,8 @@ mode: single
 **Garage Presence - Sync timer to vswitch** (`mode: single`)
 
 Recovery automation for HA restart only. If HA restarts while the Garage Presence
-Vswitch is on and the timer is idle, this starts the timer. The vswitch-on trigger
+Vswitch is on, this starts the timer. (The live automation has no `timer: idle` condition —
+it restarts the timer on every vswitch off→on as well as on HA start.) The vswitch-on trigger
 is not used for real-time SmartThings events (ST → HA sync is unreliable).
 
 ```yaml
@@ -121,9 +143,6 @@ conditions:
   - condition: state
     entity_id: switch.garage_presence_vswitch
     state: "on"
-  - condition: state
-    entity_id: timer.garage_presence_timer
-    state: idle
 actions:
   - target:
       entity_id: timer.garage_presence_timer
@@ -160,6 +179,24 @@ actions:
     target:
       entity_id: switch.garage_presence_vswitch
 mode: single
+```
+
+**Garage Presence Vswitch → MQTT** (`mode: single`)
+
+Mirrors the vswitch to `jctsh/components/garage-presence-vswitch/state` (`ON`/`OFF`, retained) on every
+state change. Consumed by garage-radar's yellow LED.
+
+```yaml
+triggers:
+  - entity_id: switch.garage_presence_vswitch
+    trigger: state
+actions:
+  - action: mqtt.publish
+    data:
+      topic: jctsh/components/garage-presence-vswitch/state
+      payload: "{{ 'ON' if trigger.to_state.state == 'on' else 'OFF' }}"
+      retain: true
+      qos: 0
 ```
 
 ## Adding More Triggers

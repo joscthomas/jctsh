@@ -103,10 +103,10 @@ Real ST-paired garage door position sensor ──▶ garage_door_open_vswitch (O
 - **A radar keepalive** re-fires every 5 minutes while radar still shows presence, so a
   single long, continuous stay doesn't let the timer expire just because the radar's own
   `to: "on"` trigger only fires once at the start of a visit.
-- **A newer addition, found live in `automations.yaml` but not yet in this component's own
-  CLAUDE.md** — the presence vswitch's state is now also mirrored to MQTT
-  (`jctsh/components/garage-presence-vswitch/state`), presumably for dashboard visibility.
-  Worth folding into `garage-presence/CLAUDE.md` at some point (not done as part of this doc).
+- **The presence vswitch's state is also mirrored to MQTT**
+  (`jctsh/components/garage-presence-vswitch/state`, consumed by garage-radar's yellow LED).
+  ~~Found live in `automations.yaml` but not yet in `garage-presence/CLAUDE.md`~~ — folded in there
+  2026-09-25 (along with the fourth legacy trigger and the legacy-sensor gating below).
 
 ### Legacy Sensors — real code, but effectively inert now
 

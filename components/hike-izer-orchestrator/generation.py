@@ -53,7 +53,6 @@ import narrative
 import photo_captions
 import place_context as place_context_module
 import templating
-import scat_life_list
 import sheet_health
 import wildlife_life_list
 
@@ -69,7 +68,6 @@ FETCH_DATA_SCRIPT = "/app/fetch_hike_data.py"
 FETCH_PHOTOS_SCRIPT = "/app/fetch_hike_photos.py"
 BUILD_CALENDAR_SCRIPT = "/app/build_calendar_index.py"
 BUILD_WILDLIFE_SCRIPT = "/app/build_wildlife_index.py"
-BUILD_SCAT_SCRIPT = "/app/build_scat_index.py"
 BUILD_BATTERY_TREND_SCRIPT = "/app/build_battery_trend_index.py"
 # CARD-0174: build_wildlife_index.py used to be pure computation (fast,
 # no network) -- the 30s timeout below was generous for that. It now does
@@ -312,9 +310,11 @@ def _log_birdnet_parse_outcome(staging_dir, file_stem, birdnet_rows):
     )
 
 
-def _scat_location_hint(hike_data):
-    """CARD-0308 follow-up: a plain-language anchor for photo_captions.py's
-    vision prompt to weigh scat-species plausibility against, built from
+def _hike_location_hint(hike_data):
+    """A plain-language anchor for photo_captions.py's vision prompt to weigh
+    species plausibility against when captioning wildlife or wildlife sign
+    (kept from CARD-0308 after the structured scat feature was removed --
+    CARD-0336), built from
     this hike's own first GPS point (place_context.py's own
     _first_gps_point() pattern -- not imported from there since it's a
     3-line dict lookup, not worth a cross-module dependency for). Raw
@@ -332,131 +332,6 @@ def _scat_location_hint(hike_data):
     if lat is None or lon is None:
         return None
     return f"{lat:.4f}, {lon:.4f}"
-
-
-def _scat_rows_from_manifest(photos_manifest):
-    """CARD-0308: photo-based equivalent of birdnet.parse_detections() --
-    builds detection rows (common_name/scientific_name/count/
-    first_timestamp/lat/lon) from a captioned photos_manifest, one row per
-    distinct scientific_name found across this hike's photos. count is how
-    many distinct photos carried a confident identification for that
-    species; first_timestamp/lat/lon come from whichever of those photos
-    has the earliest takenAt. Only ever reads assets already carrying
-    scat_common_name/scat_scientific_name (set by
-    photo_captions.caption_photos(), empty string when not confidently
-    identified) -- never calls the vision model itself, same "consume
-    already-captioned data" split every other caller of a captioned
-    manifest already follows."""
-    if not photos_manifest or not photos_manifest.get("assets"):
-        return []
-
-    by_species = {}
-    for asset in photos_manifest["assets"]:
-        common = asset.get("scat_common_name")
-        sci = asset.get("scat_scientific_name")
-        if not common or not sci:
-            continue
-        entry = by_species.setdefault(sci, {
-            "common_name": common, "scientific_name": sci,
-            "count": 0, "first_timestamp": None, "lat": None, "lon": None,
-        })
-        entry["count"] += 1
-        ts = asset.get("takenAt")
-        if ts and (entry["first_timestamp"] is None or ts < entry["first_timestamp"]):
-            entry["first_timestamp"] = ts
-            entry["lat"] = asset.get("lat")
-            entry["lon"] = asset.get("lon")
-
-    return list(by_species.values())
-
-
-def _post_scat_detection(row, file_stem):
-    """CARD-0308: archives one species-per-hike row to the "Scat
-    Detections" sheet -- structural mirror of _post_wildlife_detection(),
-    same Apps Script doPost, same "duplicate" (the server's own
-    (hike_file_stem, scientific_name) dedup guard) counting as success,
-    not failure."""
-    payload = {
-        "component": "scat-detection",
-        "ts": row["first_timestamp"],
-        "hike_file_stem": file_stem,
-        "common_name": row["common_name"],
-        "scientific_name": row["scientific_name"],
-        "count": row["count"],
-        "lat": row.get("lat"),
-        "lon": row.get("lon"),
-    }
-    url = _env("APPS_SCRIPT_URL") + "?key=" + _env("APPS_SCRIPT_KEY")
-    req = urllib.request.Request(
-        url, method="POST", data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        result = json.loads(resp.read())
-    if result.get("status") not in ("ok", "duplicate"):
-        raise RuntimeError(f"Apps Script rejected scat-detection POST: {result}")
-
-
-def _archive_new_scat_detections(file_stem, scat_rows):
-    """CARD-0308: best-effort archive of this hike's scat detections to
-    Sheets -- structural mirror of _archive_new_wildlife_detections(),
-    same per-row bounded retry (reusing the existing
-    WILDLIFE_ARCHIVE_RETRY_ATTEMPTS/_DELAY_SEC tuning -- no reason for a
-    second, separately-tuned retry policy for an identical failure class),
-    same "only rows that actually succeed get reported back for
-    scat_life_list.update_from_hike() to mark archived" discipline that
-    keeps a failed row retry-eligible on a later pass rather than silently
-    marked done."""
-    if not scat_rows:
-        return set()
-
-    life_list = scat_life_list.load()
-    new_rows = [
-        row for row in scat_rows
-        if not any(
-            h["file_stem"] == file_stem and h.get("archived", True)
-            for h in life_list.get(row["scientific_name"], {}).get("hikes", [])
-        )
-    ]
-    if not new_rows:
-        return set()
-
-    archived_species = set()
-    failed = []
-    for row in new_rows:
-        last_error = None
-        for attempt in range(1, WILDLIFE_ARCHIVE_RETRY_ATTEMPTS + 1):
-            try:
-                _post_scat_detection(row, file_stem)
-                last_error = None
-                break
-            except Exception as e:
-                last_error = e
-                if attempt < WILDLIFE_ARCHIVE_RETRY_ATTEMPTS:
-                    time.sleep(WILDLIFE_ARCHIVE_RETRY_DELAY_SEC)
-        if last_error is None:
-            archived_species.add(row["scientific_name"])
-        else:
-            failed.append((row["common_name"], last_error))
-
-    if archived_species:
-        mqtt_log.publish_log(
-            "System",
-            f"Archived {len(archived_species)} scat detection(s) for {file_stem} to Scat Detections.",
-        )
-    if failed:
-        detail = "; ".join(f"{name}: {err}" for name, err in failed)
-        mqtt_log.publish_log(
-            "Alert",
-            f"Failed to archive {len(failed)} scat detection(s) for {file_stem} to Sheets "
-            f"after {WILDLIFE_ARCHIVE_RETRY_ATTEMPTS} attempts each: {detail}",
-        )
-    return archived_species
-
-
-def _scat_index_cmd():
-    return [sys.executable, BUILD_SCAT_SCRIPT,
-            "--life-list", scat_life_list.LIFE_LIST_PATH, "--srv-dir", SRV_DIR]
 
 
 def _wildlife_index_cmd():
@@ -772,10 +647,7 @@ def _fetch_photos(hike_data_path, photos_dir, file_stem):
                 prior_manifest = json.load(f)
             for asset in prior_manifest.get("assets", []):
                 if "caption" in asset:
-                    prior_captions[asset["id"]] = (
-                        asset["caption"], asset.get("sign_text", ""),
-                        asset.get("scat_common_name", ""), asset.get("scat_scientific_name", ""),
-                    )
+                    prior_captions[asset["id"]] = (asset["caption"], asset.get("sign_text", ""))
         except (OSError, json.JSONDecodeError):
             pass  # no usable prior manifest -- treat this as a first pass
 
@@ -794,8 +666,7 @@ def _fetch_photos(hike_data_path, photos_dir, file_stem):
             manifest = json.load(f)
         for asset in manifest.get("assets", []):
             if asset["id"] in prior_captions:
-                (asset["caption"], asset["sign_text"],
-                 asset["scat_common_name"], asset["scat_scientific_name"]) = prior_captions[asset["id"]]
+                asset["caption"], asset["sign_text"] = prior_captions[asset["id"]]
         return manifest if manifest.get("assets") else None
     except subprocess.CalledProcessError as e:
         # Photos are a nice-to-have (CARD-0084) -- never let a photo-fetch
@@ -945,16 +816,8 @@ def run(payload):
         if photos_manifest:
             photos_manifest = photo_captions.caption_photos(
                 photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker,
-                location_hint=_scat_location_hint(hike_data),
+                location_hint=_hike_location_hint(hike_data),
             )
-
-        # CARD-0308: photo-based scat identification -- independent of
-        # birdnet_rows below (no staging file, no audio export needed, just
-        # whatever caption_photos() already found in photos_manifest).
-        # Same "must run before update_from_hike() mutates the local
-        # cache" ordering as the wildlife archive call just below.
-        scat_rows = _scat_rows_from_manifest(photos_manifest)
-        archived_scat_species = _archive_new_scat_detections(file_stem, scat_rows)
 
         # CARD-0135: same best-effort spirit as the photos fetch above --
         # cheap to check, and now that current_or_latest_file_stem() lets a
@@ -995,9 +858,6 @@ def run(payload):
         # No-op if birdnet_rows is empty, same "no empty scaffolding"
         # convention as the Photos section.
         wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows, archived_species=archived_species)
-        # CARD-0308: same merge-before-render reasoning as above, same
-        # no-op-if-empty convention.
-        scat_life_list.update_from_hike(file_stem, date_str, scat_rows, archived_species=archived_scat_species)
 
         # CARD-0134: thunderforest_api_key passed here too (not just step 2) --
         # the Route Map + Elevation & Speed chart need no manual staging, unlike
@@ -1009,7 +869,6 @@ def run(payload):
             birdnet_rows=birdnet_rows, birdnet_occurrences=birdnet_occurrences,
             life_list=wildlife_life_list.load(),
             xeno_canto_key=os.environ.get("XENO_CANTO_API_KEY"),
-            scat_rows=scat_rows, scat_species_list=scat_life_list.load(),
         )
 
         with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
@@ -1045,11 +904,6 @@ def run(payload):
         # merged above -- no-op if birdnet_rows is empty.
         if birdnet_rows:
             subprocess.run(_wildlife_index_cmd(), check=True, timeout=WILDLIFE_INDEX_TIMEOUT)
-
-        # CARD-0308: same convention, rebuild scat.html only if this hike
-        # actually contributed something.
-        if scat_rows:
-            subprocess.run(_scat_index_cmd(), check=True, timeout=WILDLIFE_INDEX_TIMEOUT)
 
         # CARD-0207: rebuild the battery-trend page unconditionally, unlike
         # wildlife -- every hike's own hike_data.json (just written above)
@@ -1116,14 +970,8 @@ def run_step2(file_stem, with_narrative=False):
     if photos_manifest:
         photos_manifest = photo_captions.caption_photos(
             photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker,
-            location_hint=_scat_location_hint(hike_data),
+            location_hint=_hike_location_hint(hike_data),
         )
-
-    # CARD-0308: photo-based scat identification -- same "must run before
-    # update_from_hike() mutates the local cache" ordering as the wildlife
-    # archive call just below.
-    scat_rows = _scat_rows_from_manifest(photos_manifest)
-    archived_scat_species = _archive_new_scat_detections(file_stem, scat_rows)
 
     staged = _read_staging(file_stem)
 
@@ -1176,9 +1024,6 @@ def run_step2(file_stem, with_narrative=False):
     # story. This was the second half of the same live bug (both step 1 and
     # step 2 had the render-then-merge ordering).
     wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows, archived_species=archived_species)
-    # CARD-0308: same convention, no-op if scat_rows is empty.
-    scat_life_list.update_from_hike(file_stem, date_str, scat_rows, archived_species=archived_scat_species)
-
 
     # CARD-0134: gaia_embed_html deliberately not passed anymore -- the
     # native Route Map (CARD-0082) replaced it as this pipeline's default,
@@ -1195,7 +1040,6 @@ def run_step2(file_stem, with_narrative=False):
         birdnet_occurrences=birdnet_occurrences,
         life_list=wildlife_life_list.load(),
         xeno_canto_key=os.environ.get("XENO_CANTO_API_KEY"),
-        scat_rows=scat_rows, scat_species_list=scat_life_list.load(),
     )
 
     with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
@@ -1208,9 +1052,6 @@ def run_step2(file_stem, with_narrative=False):
 
     if birdnet_rows:
         subprocess.run(_wildlife_index_cmd(), check=True, timeout=WILDLIFE_INDEX_TIMEOUT)
-
-    if scat_rows:
-        subprocess.run(_scat_index_cmd(), check=True, timeout=WILDLIFE_INDEX_TIMEOUT)
 
     # CARD-0207: same unconditional rebuild as step 1 -- step 2 reads the
     # same persisted hike_data.json step 1 already wrote (run_step2's own

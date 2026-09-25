@@ -26,7 +26,7 @@ from pydantic import BaseModel
 MODEL = "claude-opus-4-8"
 
 PROMPT = (
-    "This photo was taken during a hike. Three separate things:\n\n"
+    "This photo was taken during a hike. Two separate things:\n\n"
     "1. caption: a short caption (under 12 words) naming the clear focal "
     "subject -- a specific plant or wildlife species, a landmark, or an "
     "identifiable wildlife sign such as tracks or scat -- but ONLY if that "
@@ -39,44 +39,32 @@ PROMPT = (
     "empty. Also leave it empty if nothing is confidently identifiable, or "
     "the photo is self-explanatory with no specific subject (a general "
     "view, a person, an unremarkable trail shot). Don't guess and don't "
-    "force a caption where there's nothing to add.\n\n"
+    "force a caption where there's nothing to add. {location_clause}\n\n"
     "2. sign_text: if a sign, plaque, or other readable text is the photo's "
     "clear subject, transcribe its text here as accurately as you can. This "
     "is NOT shown to the reader as a caption -- it's captured as raw "
     "material for a later search step that looks up what the named place or "
-    "thing actually is. Leave empty if there's no such text in the photo.\n\n"
-    "3. scat_common_name / scat_scientific_name: if the photo's clear "
-    "subject is animal scat (droppings), and you're genuinely confident "
-    "which species it's from, name it in both fields (e.g. "
-    "scat_common_name=\"Coyote\", scat_scientific_name=\"Canis latrans\"). "
-    "{location_clause}Photo-based scat identification is inherently harder "
-    "than identifying the animal itself -- leave both fields empty unless "
-    "you're truly confident, and always leave both empty if the photo "
-    "isn't of scat at all. Don't guess and don't force an identification. "
-    "These two fields are separate from caption above -- caption is what's "
-    "shown to the reader; these are structured data for a separate "
-    "per-species tracking page, so a confidently-identified scat photo "
-    "should normally have both a caption (e.g. \"Coyote scat\") and these "
-    "two fields filled in together, not one without the other."
+    "thing actually is. Leave empty if there's no such text in the photo."
 )
 
 _LOCATION_CLAUSE = (
-    "This hike was near {location}. Before naming a species, weigh "
-    "whether it's genuinely plausible for that specific area based on "
-    "known species ranges -- if the animal you'd otherwise guess doesn't "
-    "actually occur there, leave both fields empty rather than name it "
-    "anyway. "
+    "This hike was near {location}. When the subject is a wild animal or "
+    "its sign (tracks, scat), only name a species you are confident of AND "
+    "that genuinely occurs in that specific area; otherwise describe it "
+    "generically (for example \"Animal scat on a desert trail\") rather "
+    "than guess a species -- identifying an animal from scat or tracks in "
+    "a single photo is unreliable."
 )
 
 
 def _prompt_for(location_hint):
-    """CARD-0308 follow-up: gives the vision call something to weigh
-    plausibility against -- confirmed live 2026-09-23 (Joseph) that
-    without this it will confidently misidentify scat as a species that
-    doesn't range in the area at all (American Black Bear on a Tucson-area
-    hike). Deliberately just a location hint for the model's own
-    knowledge of species ranges, not a curated whitelist -- Joseph's call,
-    watch how much this alone helps before building anything heavier."""
+    """Adds the hike's location so the model can weigh geographic
+    plausibility before naming a species in a caption. Kept from CARD-0308's
+    scat-identification work after that feature itself was removed
+    (2026-09-25, CARD-0336): a confidently wrong species in a caption is
+    still worth avoiding (an American Black Bear on a hike where none
+    range was the original bug), and abstaining to a generic caption is
+    preferable to a guess."""
     clause = _LOCATION_CLAUSE.format(location=location_hint) if location_hint else ""
     return PROMPT.format(location_clause=clause)
 
@@ -84,8 +72,6 @@ def _prompt_for(location_hint):
 class PhotoObservation(BaseModel):
     caption: str
     sign_text: str
-    scat_common_name: str
-    scat_scientific_name: str
 
 
 def _caption_one(client, thumb_path, cost_tracker=None, location_hint=None):
@@ -111,8 +97,6 @@ def _caption_one(client, thumb_path, cost_tracker=None, location_hint=None):
     return (
         response.parsed_output.caption.strip(),
         response.parsed_output.sign_text.strip(),
-        response.parsed_output.scat_common_name.strip(),
-        response.parsed_output.scat_scientific_name.strip(),
     )
 
 
@@ -151,8 +135,7 @@ def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None, loca
             continue
         thumb_path = os.path.join(photos_dir, asset["thumb"])
         try:
-            (asset["caption"], asset["sign_text"],
-             asset["scat_common_name"], asset["scat_scientific_name"]) = _caption_one(
+            asset["caption"], asset["sign_text"] = _caption_one(
                 client, thumb_path, cost_tracker=cost_tracker, location_hint=location_hint
             )
         except Exception as e:
@@ -163,8 +146,6 @@ def caption_photos(photos_manifest, photos_dir, api_key, cost_tracker=None, loca
             print(f"Caption failed for {asset['thumb']}: {e}", file=sys.stderr)
             asset["caption"] = ""
             asset["sign_text"] = ""
-            asset["scat_common_name"] = ""
-            asset["scat_scientific_name"] = ""
 
     try:
         manifest_path = os.path.join(photos_dir, "manifest.json")

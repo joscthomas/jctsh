@@ -76,7 +76,7 @@ Mosquitto broker (Raspberry Pi)
 | Setting | Where | Notes |
 |---|---|---|
 | WiFi / MQTT credentials | `secrets.yaml` | Template: `secrets.yaml.template` |
-| Presence timer duration | `input_number.garage_timer_duration` | Default 20 min — set in HA Helpers |
+| Presence timer duration | `input_number.garage_timer_duration` | Set in HA Helpers — 15 min as of 2026-09-25 (helper default 20) |
 
 ---
 
@@ -101,7 +101,7 @@ The **yellow LED** mirrors `switch.garage_presence_vswitch` via MQTT subscriptio
 
 | Automation | Trigger | Action |
 |---|---|---|
-| Restart timer on activity | `garage_radar_presence` off→on | Start timer (`input_number.garage_timer_duration`, default 20 min); turn on vswitch |
+| Restart timer on activity | `garage_radar_presence` off→on | Start timer (`input_number.garage_timer_duration`, 15 min as of 2026-09-25); turn on vswitch |
 | Radar keepalive | Every 5 min while presence on | Restart timer; confirm vswitch on |
 | Timer expired | `timer.garage_presence_timer` finished | Turn off vswitch → lights off |
 
@@ -114,7 +114,7 @@ trigger won't re-fire if someone stays motionless for longer than the timer dura
 |---|---|---|
 | 30 seconds | ESPHome `delayed_off` | Smooths momentary detection gaps |
 | 5 minutes | HA keepalive | Resets timer during continuous still presence |
-| 20 minutes | HA timer (default) | Presence decision; turns off vswitch on expiry |
+| 15 minutes | HA timer (`input_number.garage_timer_duration`, as of 2026-09-25) | Presence decision; turns off vswitch on expiry |
 
 ### Heartbeat
 
@@ -156,7 +156,7 @@ more than 35 minutes.
 ## Known Behaviors and Limitations
 
 - **Door false positive:** Closing the garage door sweeps through the radar cone,
-  triggering a brief presence detection. Harmless — the 20-minute default timer absorbs it.
+  triggering a brief presence detection. Harmless — the presence timer (15 min as of 2026-09-25) absorbs it.
 - **ESPHome 2026.x nested binary sensor:** `id(presence).state` returns unreliable
   values for binary sensors inside the `ld2412:` component. Green LED uses
   `detection_distance` + manual holdoff as a workaround.

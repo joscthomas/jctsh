@@ -1,0 +1,129 @@
+[
+  {
+    "id": "tab_sheet_health",
+    "type": "tab",
+    "label": "Sheet Health",
+    "disabled": false,
+    "info": "CARD-0338: probes the environmental Sheet's action=health every 5 minutes and alerts (log + Pixel push) on the first failure or a response slower than 10 s, re-alerts every 30 min while bad, and reports recovery. Independent of the Environmental Data tab's write queue."
+  },
+  {
+    "id": "sh_tick",
+    "type": "inject",
+    "z": "tab_sheet_health",
+    "name": "every 5 min",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "300",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "20",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 140,
+    "y": 100,
+    "wires": [
+      [
+        "sh_probe"
+      ]
+    ]
+  },
+  {
+    "id": "sh_probe",
+    "type": "function",
+    "z": "tab_sheet_health",
+    "name": "Sheet health state machine",
+    "func": "// CARD-0338: early-warning probe for the environmental Google Sheet.\n// One node, two kinds of input: a tick (from the inject node -- start a probe) and a\n// response (msg._health, from the HTTP request node -- evaluate it).\n// Outputs: [0] the probe request, [1] a log line, [2] a push to the Pixel.\n//\n// Why a probe of its own: on 2026-09-25 the Sheet stopped accepting writes at ~10:07 MST\n// and the only signal was the write queue's alert, throttled to one per 30 minutes.\n// action=version never touches the spreadsheet, so it stayed fast the whole time;\n// action=health opens the spreadsheet and reads a real cell.\n//\n// One probe in flight at a time, 30 s request timeout, 45 s hard stop -- a hung probe must\n// never pile up against a backend that is already struggling.\nvar st = context.get('st');\nif (!st) { st = { inFlight: false, seq: 0, startedAt: 0, timer: null, bad: false, badSince: 0, lastAlert: 0 }; context.set('st', st); }\nvar SLOW_MS = 10000;\nvar REALERT_MS = 30 * 60 * 1000;\nvar HARD_STOP_MS = 45000;\n\nfunction stripUrls(s) { return String(s).replace(/https?:\\/\\/\\S+/g, '<url>').replace(/\\s+/g, ' ').slice(0, 100); }\nfunction fmtMin(ms) { var m = Math.round(ms / 60000); return m + ' min'; }\n\nfunction notify(text, category) {\n    var logMsg = { payload: JSON.stringify({ component: 'sheet-health', category: category, message: text }) };\n    var HA_TOKEN = env.get('HA_TOKEN') || flow.get('haToken') || global.get('haToken');\n    var pushMsg = {\n        url: 'http://localhost:8123/api/services/notify/mobile_app_pixel_10_pro_xl',\n        method: 'POST',\n        headers: { 'Authorization': 'Bearer ' + HA_TOKEN, 'Content-Type': 'application/json' },\n        payload: JSON.stringify({ message: text, title: 'JCTsh Sheet health' })\n    };\n    return [null, logMsg, pushMsg];\n}\n\nfunction handle(ok, ms, detail) {\n    var now = Date.now();\n    var bad = !ok || ms > SLOW_MS;\n    var why = !ok ? detail : ('health call slow (' + Math.round(ms / 1000) + ' s)');\n    if (bad && !st.bad) {\n        st.bad = true; st.badSince = now; st.lastAlert = now;\n        return notify('Sheet health: ' + why + ' -- the environmental Sheet is failing or slow; readings are being held by the write queue.', 'Alert');\n    }\n    if (bad && st.bad) {\n        if (now - st.lastAlert > REALERT_MS) {\n            st.lastAlert = now;\n            return notify('Sheet health: still bad after ' + fmtMin(now - st.badSince) + ' (' + why + ').', 'Alert');\n        }\n        return null;\n    }\n    if (!bad && st.bad) {\n        var mins = fmtMin(now - st.badSince);\n        st.bad = false; st.badSince = 0; st.lastAlert = 0;\n        return notify('Sheet health: recovered after ' + mins + ' (health call took ' + (ms / 1000).toFixed(1) + ' s).', 'System');\n    }\n    return null;\n}\n\nif (!msg._health) {\n    if (st.inFlight && Date.now() - st.startedAt < HARD_STOP_MS + 5000) return null;\n    st.inFlight = true;\n    st.startedAt = Date.now();\n    st.seq += 1;\n    var seq = st.seq;\n    clearTimeout(st.timer);\n    st.timer = setTimeout(function () {\n        if (st.inFlight && st.seq === seq) {\n            st.inFlight = false;\n            var out = handle(false, HARD_STOP_MS, 'no response within ' + (HARD_STOP_MS / 1000) + ' s');\n            if (out) node.send(out);\n        }\n    }, HARD_STOP_MS);\n    var url = env.get('APPS_SCRIPT_URL') + '?key=' + encodeURIComponent(env.get('APPS_SCRIPT_KEY')) + '&action=health';\n    return [{ _health: true, _seq: seq, url: url, method: 'GET', requestTimeout: 30000 }, null, null];\n}\n\nif (!st.inFlight || msg._seq !== st.seq) return null;\nst.inFlight = false;\nclearTimeout(st.timer);\nvar ms = Date.now() - st.startedAt;\nvar body = null;\ntry { body = JSON.parse(msg.payload); } catch (e) {}\nvar ok = msg.statusCode === 200 && body && body.status === 'ok';\nvar detail = ok ? '' : ('HTTP ' + msg.statusCode + ': ' + stripUrls(body && body.message ? body.message : msg.payload));\nreturn handle(ok, ms, detail);",
+    "outputs": 3,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 400,
+    "y": 100,
+    "wires": [
+      [
+        "sh_http"
+      ],
+      [
+        "sh_log"
+      ],
+      [
+        "sh_ha_push"
+      ]
+    ]
+  },
+  {
+    "id": "sh_http",
+    "type": "http request",
+    "z": "tab_sheet_health",
+    "name": "GET action=health",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "x": 660,
+    "y": 60,
+    "wires": [
+      [
+        "sh_probe"
+      ]
+    ]
+  },
+  {
+    "id": "sh_log",
+    "type": "mqtt out",
+    "z": "tab_sheet_health",
+    "name": "Log sheet-health",
+    "topic": "jctsh/core/log-server/log",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker",
+    "x": 680,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "sh_ha_push",
+    "type": "http request",
+    "z": "tab_sheet_health",
+    "name": "HA notify (Pixel 10 Pro XL)",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "x": 680,
+    "y": 180,
+    "wires": [
+      [
+        "sh_fn_log_ha"
+      ]
+    ]
+  },
+  {
+    "id": "sh_fn_log_ha",
+    "type": "function",
+    "z": "tab_sheet_health",
+    "name": "Log HA push failure",
+    "func": "// A failed push must not vanish silently.\nif (msg.statusCode !== 200 && msg.statusCode !== 201) {\n    return { payload: JSON.stringify({ component: 'sheet-health', category: 'Alert',\n        message: 'HA push for a Sheet-health alert failed (HTTP ' + msg.statusCode + ') -- the Pixel may not have been notified.' }) };\n}\nreturn null;",
+    "outputs": 1,
+    "x": 930,
+    "y": 180,
+    "wires": [
+      [
+        "sh_log"
+      ]
+    ]
+  }
+]

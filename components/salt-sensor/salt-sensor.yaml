@@ -37,9 +37,20 @@ esphome:
   name: salt-sensor
   friendly_name: Salt Sensor
   on_boot:
-    priority: -100
-    then:
-      - script.execute: led_self_test
+    - priority: -100
+      then:
+        - script.execute: led_self_test
+    # CARD-0335 / CARD-0333 / Build Standards §4.1: without a boot-time heartbeat the first one only
+    # arrives 30 min after boot, so any reboot more than ~5 min after a heartbeat trips the watchdog's
+    # 35-min silence alert. 90 s lets WiFi/MQTT settle first.
+    - priority: -100
+      then:
+      - delay: 90s
+      # mqtt.publish silently drops when not connected -- wait for the session rather than lose the
+      # one heartbeat this exists for (a post-boot reconnect has been seen to take ~54 s).
+      - wait_until:
+          mqtt.connected:
+      - script.execute: send_heartbeat
 
 esp32:
   board: esp32dev
@@ -215,6 +226,37 @@ output:
 
 # ── Scripts ───────────────────────────────────────────────────────────────────
 script:
+  # Heartbeat body — called by the 30-min interval and once ~90 s after boot (esphome: on_boot above)
+  - id: send_heartbeat
+    mode: single
+    then:
+      - mqtt.publish:
+          topic: jctsh/sensors/salt-sensor/log
+          payload: !lambda |-
+            uint32_t secs = (uint32_t)id(uptime_sec).state;
+            uint32_t h = secs / 3600;
+            uint32_t m = (secs % 3600) / 60;
+            int rssi = (int)id(wifi_rssi).state;
+            char buf[256];
+            snprintf(buf, sizeof(buf),
+              "{\"component\":\"salt-sensor\",\"category\":\"System\","
+              "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, status: %s\"}",
+              h, m, rssi, id(current_status).c_str());
+            return std::string(buf);
+      - mqtt.publish:
+          topic: jctsh/sensors/salt-sensor/heartbeat
+          payload: !lambda |-
+            uint32_t secs = (uint32_t)id(uptime_sec).state;
+            uint32_t h = secs / 3600;
+            uint32_t m = (secs % 3600) / 60;
+            int rssi = (int)id(wifi_rssi).state;
+            char buf[256];
+            snprintf(buf, sizeof(buf),
+              "{\"component\":\"salt-sensor\",\"uptime\":\"%uh %um\",\"rssi\":%d,"
+              "\"status\":\"%s\",\"last_distance_cm\":%.1f}",
+              h, m, rssi, id(current_status).c_str(), id(last_distance_cm));
+            return std::string(buf);
+
   # Boot sequence: sequential red/yellow/green on (600ms apart), then 4x all-blink
   # (300ms), then 3x rapid triple-flash — matches the original sketch's self-test +
   # OTA-reboot-confirmation sequence exactly. Hands off to the status loop after.
@@ -350,32 +392,7 @@ interval:
     then:
       - script.execute: take_salt_reading
 
-  # Heartbeat — every 30 min to log + heartbeat topics
+  # Heartbeat — every 30 min, and once ~90 s after boot (esphome: on_boot above)
   - interval: 30min
     then:
-      - mqtt.publish:
-          topic: jctsh/sensors/salt-sensor/log
-          payload: !lambda |-
-            uint32_t secs = (uint32_t)id(uptime_sec).state;
-            uint32_t h = secs / 3600;
-            uint32_t m = (secs % 3600) / 60;
-            int rssi = (int)id(wifi_rssi).state;
-            char buf[256];
-            snprintf(buf, sizeof(buf),
-              "{\"component\":\"salt-sensor\",\"category\":\"System\","
-              "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, status: %s\"}",
-              h, m, rssi, id(current_status).c_str());
-            return std::string(buf);
-      - mqtt.publish:
-          topic: jctsh/sensors/salt-sensor/heartbeat
-          payload: !lambda |-
-            uint32_t secs = (uint32_t)id(uptime_sec).state;
-            uint32_t h = secs / 3600;
-            uint32_t m = (secs % 3600) / 60;
-            int rssi = (int)id(wifi_rssi).state;
-            char buf[256];
-            snprintf(buf, sizeof(buf),
-              "{\"component\":\"salt-sensor\",\"uptime\":\"%uh %um\",\"rssi\":%d,"
-              "\"status\":\"%s\",\"last_distance_cm\":%.1f}",
-              h, m, rssi, id(current_status).c_str(), id(last_distance_cm));
-            return std::string(buf);
+      - script.execute: send_heartbeat

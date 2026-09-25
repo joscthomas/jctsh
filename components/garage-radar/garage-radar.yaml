@@ -35,8 +35,8 @@ esphome:
   name: garage-radar
   friendly_name: Garage Radar
   on_boot:
-    priority: -100
-    then:
+    - priority: -100
+      then:
       - delay: 2s
       - repeat:
           count: 3
@@ -47,6 +47,17 @@ esphome:
             - output.turn_off: led_green
             - output.turn_off: led_yellow
             - delay: 200ms
+    # CARD-0335 / CARD-0333 / Build Standards §4.1: without a boot-time heartbeat the first one only
+    # arrives 30 min after boot, so any reboot more than ~5 min after a heartbeat trips the watchdog's
+    # 35-min silence alert. 90 s lets WiFi/MQTT settle first.
+    - priority: -100
+      then:
+      - delay: 90s
+      # mqtt.publish silently drops when not connected -- wait for the session rather than lose the
+      # one heartbeat this exists for (a post-boot reconnect has been seen to take ~54 s).
+      - wait_until:
+          mqtt.connected:
+      - script.execute: send_heartbeat
 
 esp32:
   board: esp32dev
@@ -152,6 +163,38 @@ output:
 
 # ── LED scripts ───────────────────────────────────────────────────────────────
 script:
+  # Heartbeat body — called by the 30-min interval and once ~90 s after boot (esphome: on_boot above)
+  - id: send_heartbeat
+    mode: single
+    then:
+      - mqtt.publish:
+          topic: jctsh/components/garage-radar/log
+          payload: !lambda |-
+            uint32_t secs = (uint32_t)id(uptime_sec).state;
+            uint32_t h = secs / 3600;
+            uint32_t m = (secs % 3600) / 60;
+            int rssi = (int)id(wifi_rssi).state;
+            const char* pres_str = id(presence_active) ? "ON" : "OFF";
+            char buf[256];
+            snprintf(buf, sizeof(buf),
+              "{\"component\":\"garage-radar\",\"category\":\"System\","
+              "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, presence: %s\"}",
+              h, m, rssi, pres_str);
+            return std::string(buf);
+      - mqtt.publish:
+          topic: jctsh/components/garage-radar/heartbeat
+          payload: !lambda |-
+            uint32_t secs = (uint32_t)id(uptime_sec).state;
+            uint32_t h = secs / 3600;
+            uint32_t m = (secs % 3600) / 60;
+            int rssi = (int)id(wifi_rssi).state;
+            const char* pres_str = id(presence_active) ? "ON" : "OFF";
+            char buf[256];
+            snprintf(buf, sizeof(buf),
+              "{\"component\":\"garage-radar\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"presence\":\"%s\"}",
+              h, m, rssi, pres_str);
+            return std::string(buf);
+
   - id: led_green_moving
     mode: restart
     then:
@@ -285,34 +328,8 @@ text_sensor:
       internal: true
 
 # ── Intervals ─────────────────────────────────────────────────────────────────
-# 30min — heartbeat to /log (dashboard) and /heartbeat (Node-RED watchdog)
+# 30min — heartbeat to /log (dashboard) and /heartbeat (Node-RED watchdog); also once ~90 s after boot
 interval:
   - interval: 30min
     then:
-      - mqtt.publish:
-          topic: jctsh/components/garage-radar/log
-          payload: !lambda |-
-            uint32_t secs = (uint32_t)id(uptime_sec).state;
-            uint32_t h = secs / 3600;
-            uint32_t m = (secs % 3600) / 60;
-            int rssi = (int)id(wifi_rssi).state;
-            const char* pres_str = id(presence_active) ? "ON" : "OFF";
-            char buf[256];
-            snprintf(buf, sizeof(buf),
-              "{\"component\":\"garage-radar\",\"category\":\"System\","
-              "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, presence: %s\"}",
-              h, m, rssi, pres_str);
-            return std::string(buf);
-      - mqtt.publish:
-          topic: jctsh/components/garage-radar/heartbeat
-          payload: !lambda |-
-            uint32_t secs = (uint32_t)id(uptime_sec).state;
-            uint32_t h = secs / 3600;
-            uint32_t m = (secs % 3600) / 60;
-            int rssi = (int)id(wifi_rssi).state;
-            const char* pres_str = id(presence_active) ? "ON" : "OFF";
-            char buf[256];
-            snprintf(buf, sizeof(buf),
-              "{\"component\":\"garage-radar\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"presence\":\"%s\"}",
-              h, m, rssi, pres_str);
-            return std::string(buf);
+      - script.execute: send_heartbeat

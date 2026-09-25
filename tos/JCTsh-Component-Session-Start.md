@@ -2,8 +2,8 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** The startup steps a persistent component or cluster session (CARD-0284) actually runs instead of the general Session Start (`tos/JCTsh-Session-Start.md`) — some general steps scoped down, some skipped, some run unscoped, plus component-only steps with no general-session equivalent.
-**Version:** 1.20
-**Version description:** Network/infra-visibility cluster initiated, 2026-09-23 (Joseph: "component session start up for network/infra-visibility cluster") -- Component/Cluster Registry row flipped from `No`/-- to `Yes`/Active. Step 3's reconciliation check found the intended scope (`netalertx`, `core/mqtt`, `core/logging`, `core/node-red`) matches the existing row exactly, so no scope change was needed.
+**Version:** 1.21
+**Version description:** Garage cluster initiated, 2026-09-25 (Joseph: "component session start up for garage cluster") -- Component/Cluster Registry row flipped from `No`/-- to `Yes`/Active. Step 3's reconciliation check found the intended scope (`automatic-garage-door-opener-closer`, `garage-presence`, `garage-radar`, `salt-sensor`) matches the existing row exactly, so no scope change was needed.
 **Version history:** `JCTsh-Component-Session-Start-History.md`
 
 ---
@@ -31,7 +31,7 @@ Added 2026-09-18 (CARD-0299, refined same day — Joseph: "this table identifies
 |---|---|---|---|
 | architecture | `architecture` | No | — |
 | equip-shelf | `equip-shelf` | No | — |
-| garage cluster | `automatic-garage-door-opener-closer`, `garage-presence`, `garage-radar`, `salt-sensor` | No | — |
+| garage cluster | `automatic-garage-door-opener-closer`, `garage-presence`, `garage-radar`, `salt-sensor` | Yes | Active |
 | HA automations cluster | `outdoor-presence-detection`, `traveling`, `core/homeassistant` | No | — |
 | hike-izer | `hike-izer`, `hike-izer-orchestrator`, `hike-izer-web`, `core/data-pipeline` | Yes | Active |
 | hiking-monitor cluster | `hiking-monitor`, `air-quality-monitor` | Yes | Active |

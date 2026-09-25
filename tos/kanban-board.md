@@ -9,7 +9,42 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0336 -->
+<!-- next-card-id: CARD-0337 -->
+
+---
+
+### CARD-0336 · [bug] [hike-izer] Photo-based scat identification is unreliable -- same photo gets different species across models and runs
+
+**Status:** Backlog
+
+**Raised 2026-09-24 (Joseph: "the scat identified horse dung. that's a false positive... not doing so well with scat recognition"; then "is this current state and experiment in a card? make it so. no action now").** CARD-0308 (photo-based scat ID, Done 2026-09-23) has now produced a second wrong species in two hikes. Recording current state and the experiment so far; **no fix decided or built.**
+
+**Current state (CARD-0308's pipeline, as deployed).** `photo_captions.py` makes one vision call per photo (`MODEL = "claude-opus-4-8"`, `max_tokens=400`), returning `caption`/`sign_text`/`scat_common_name`/`scat_scientific_name`; a species is reported whenever the model names one ("don't guess" is the only gate, no numeric confidence). CARD-0308's 2026-09-23 follow-up added the hike's GPS coordinates to the prompt so the model weighs geographic plausibility. Deliberately no species whitelist (Joseph, 2026-09-23: "location context first, watch it, no whitelist yet").
+
+**The false positives so far.**
+1. **2026-09-19, American Black Bear** -- no black bears in the Tucson/Marana area. Also the same physical pile as a photo already (correctly, per Joseph) identified as coyote, 6 s apart: two species for one object, no cross-photo consistency. The location hint fixed this one -- bear became implausible.
+2. **2026-09-24 (15:12Z), "Horse dung"** -- Joseph: not horse ("everyone knows what horse scat looks like"), and **not cow either.** Looking at the photo: one dark, wet-looking, fibrous mass with ants, no separate balls. The location hint cannot help here (horse and cattle are both plausible locally). **Ground truth is unknown -- open question for Joseph: what was it?** Javelina is a strong candidate (two of the three models below say so; common in that desert) but that is unconfirmed.
+
+**Experiment, 2026-09-24 -- three newer models on the same 10 scat-flagged photos (9/19 and 9/24), same prompt + location hint, run on the M8 via a standalone script against the thumbnails already on disk (no manifest/Sheet/page writes).** Baseline is the stored `claude-opus-4-8` result.
+- **Not stable run to run.** Across two runs, Opus 5.5 said "none" then "Coyote" for `937777ae`, and Fable said "Coyote" then "none" for the same photo. Single-photo scat ID is close to a coin flip on hard cases; results shift with sampling, not just model.
+- **Agreement (all three models, second run):** rabbit pellets -> desert cottontail (or rabbit-family); Coyote for `3aa57d64`, `053391e0`, `23312305`.
+- **Disagreement:** horse photo `90184f24` -> Opus 5.5 and Fable "Javelina (Collared Peccary)", Sonnet 5 "Coyote", none "Horse"; the 9/19 coyote/"bear" pile (`88f129c4`, `15008cea`) -> Fable "Javelina", Opus 5.5 none, Sonnet 5 "Coyote"; `13c8eb5c` -> Sonnet 5 "Javelina", the other two none.
+- **Opus 5.5 abstains most** (none on 5 of 10) and named no species I could identify as wrong -- consistent with "don't guess".
+- **Gotcha:** the current `max_tokens=400` truncates the newer models (they spend part of it on reasoning before the answer) -- the first run hit `EOF while parsing` / `parsed_output is None` on many photos for exactly that reason and was discarded; the numbers above are from the rerun at `max_tokens=3000`. Any switch to a newer model must raise the cap.
+- **Cost:** not priced (no dollar figures for the newer models on hand). Tokens for the 10 photos: Opus 5.5 47k in / 4k out, Fable 5.1 47k / 5k, Sonnet 5 47k / 2.8k. Input dominates (~4.7k tokens per photo image).
+
+**Ideas discussed, none chosen:**
+1. **Two stages** -- stage 1 stays as today but only flags "this is scat" (cheap); stage 2 runs only on flagged photos (~5 per hike) with a scat-specific prompt. Needed because a required "describe the scat first" field on the existing single call would be paid on *every* photo (Joseph: scat isn't known until the photo has been analyzed).
+2. **Consensus** -- in stage 2, N independent calls (different models); report a species only when all agree, else leave it blank and caption "Animal scat". Applied retroactively to the 10 photos above, it would have suppressed the horse, the bear pair, and `13c8eb5c`, and kept the cottontail and the three agreed coyotes. ~15 extra calls per hike.
+3. **Livestock** -- the prompt never mentions cattle/horses, which graze/ride locally; and whether domestic livestock dung belongs on the scat list at all is a Joseph decision (CARD-0308's page is framed as wildlife).
+4. **Manual override file** (like the hiking-observations overrides) so Joseph can correct a wrong ID once and have the page and life list follow.
+5. **Describe-before-naming** prompt field, applied in stage 2 only.
+
+**Open questions:** (a) what the 9/24 horse photo actually is, and whether the cottontail and the other coyote calls are right (needed as ground truth to evaluate any of the above); (b) whether livestock dung is in or out of scope; (c) accept consensus-abstention as the answer, or invest in a stronger single pass.
+
+**Data currently on the published pages (not corrected):** 2026-09-24's scat table lists Horse (1), and the Scat Detections Sheet/`scat_life_list.json` carry that row. Fix once the true ID is known.
+
+**Related:** CARD-0308 (the pipeline this concerns, Done), `components/hike-izer-orchestrator/photo_captions.py`, `scat_life_list.py`, `generation.py`'s `_scat_location_hint()`.
 
 ---
 

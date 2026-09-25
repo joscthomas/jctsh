@@ -8,7 +8,9 @@ as long as it stays silent (CARD-0331).
 
 ## How It Works
 
-1. All ESP32 components publish a heartbeat every 5 minutes to `jctsh/+/+/heartbeat`
+1. All ESP32 components publish a heartbeat to `jctsh/+/+/heartbeat` — every 30 minutes for
+   `garage-radar`, `salt-sensor`, `front-porch-temp-sensor` and `back-patio-temp-sensor`; every 5
+   minutes for `hiking-monitor` and `air-quality-monitor` (`JCTsh-Build-Standards.md` §4.1)
 2. The watchdog MQTT In node subscribes to that wildcard — all components are caught
    automatically, no flow changes needed when new components are added
 3. On each heartbeat receipt, a per-component 35-minute setTimeout is reset, and any
@@ -35,9 +37,11 @@ as long as it stays silent (CARD-0331).
    The wording deliberately isn't `Heartbeat - ` or `Watchdog: `, which `log_server.py` treats as
    heartbeats and would expect every ~70 minutes.
 
-The 35-minute window = 5-minute heartbeat interval × 7, giving 6 missed heartbeats
-before alerting. This tolerates brief MQTT disconnects and device reboots without
-false alarms.
+The 35-minute window is sized for the slowest heartbeat, 30 minutes + a 5-minute margin
+(`JCTsh-Build-Standards.md` §4.1) — for the 5-minute devices that is 6 missed heartbeats before
+alerting. A 30-minute-interval device would otherwise trip it on any reboot, since its interval
+counts from boot; those devices therefore also send a heartbeat ~90 s after every boot
+(CARD-0333, CARD-0335), so a reboot no longer raises a false alert.
 
 ---
 
@@ -104,7 +108,8 @@ name in HA (Settings → Companion App). If the Pixel device name changes, updat
 
 Nothing to do. The wildcard `jctsh/+/+/heartbeat` picks up any component that
 publishes a heartbeat to that topic pattern. Ensure new ESP32 components publish
-a heartbeat every 5 minutes to `jctsh/components/<name>/heartbeat`.
+a heartbeat to `jctsh/components/<name>/heartbeat` (5 or 30 minutes; a 30-minute device also needs
+the ~90 s boot-time heartbeat, §4.1).
 
 ---
 

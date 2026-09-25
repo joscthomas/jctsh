@@ -147,11 +147,19 @@ JCTsh Environmental Archive 2027   (created when 2027 data first ages out)
 ---
 
 ### CARD-0335 · [enhancement] [garage-radar] [salt-sensor] Retrofit the boot-time heartbeat (Build Standards §4.1) onto the two remaining 30-minute-heartbeat ESPHome devices
-**Status:** Backlog
+**Status:** Build
 
 **Raised 2026-09-24 19:04 MST (Joseph: "open card for Retrofitting the other ESPHome devices"), as the follow-up CARD-0333 named.** CARD-0333 proved the pattern on `front-porch-temp-sensor` and `back-patio-temp-sensor` and landed it as a standard (`JCTsh-Build-Standards.md` §4.1); this card applies it where the standard now says it is required.
 
-**Current state, 2026-09-24 19:08 MST: Backlog — no work started, no device touched** (Joseph: "no action now"). Everything below is the scoping and procedure, ready for whenever the card is picked up.
+**Build progress, 2026-09-25 16:27 MST (Joseph: "then 335", then "flash salt sensor first" / "flash garage radar"). Both devices flashed and verified live; two Done-when items still open.**
+- **Built:** each YAML's `on_boot:` converted to a two-entry list (existing LED sequence untouched as entry 1; new entry 2 = `delay: 90s` → `wait_until: mqtt.connected` → `script.execute: send_heartbeat`). The heartbeat publishes moved verbatim into a shared `send_heartbeat` script that the 30-min `interval:` also calls — payloads unchanged. Compiled from `C:\esphome\<name>\` with ESPHome 2026.4.5 via `python -m esphome` (`esphome` is not on PATH), stale `.esphome` caches deleted first; deployed copies were byte-identical to committed HEAD beforehand. Build hashes: `garage-radar` `0xa946c0bf` (759 s compile), `salt-sensor` `0xde762c83` (583 s).
+- **salt-sensor, verified live:** OTA 16:10:27; reported retained discovery `sw` = `2026.4.5 (config hash 0xde762c83)` (equals build). Boot heartbeat 16:11:57 (~84 s after boot). Deliberate restart via the MQTT restart button: pressed 16:21:18, online 16:21:25, heartbeat 16:22:49 (`uptime 0h 1m`, `status: critical`, `last_distance_cm: 41.7` — a real reading, the first heartbeat is not misleading).
+- **garage-radar, verified live:** OTA ~16:24:06; reported `sw` = `2026.4.5 (config hash 0xa946c0bf)` (equals build); boot heartbeat 16:25:36 (`uptime 0h 1m`, `presence: OFF`). Flashed by Joseph's explicit go-ahead; not yet exercised with the restart button (the OTA reboot took the same boot path).
+- **Reconciled (Done-when 5):** `core/node-red/watchdog-README.md`'s "every 5 minutes / × 7" statements now name both cadences and the boot-time heartbeat.
+- **Method notes worth keeping:** the reported-hash check works by subscribing to `homeassistant/+/<node>/+/config` (ESPHome discovery has *four* topic levels — `homeassistant/+/+/config` misses it and matches NetAlertX's device trackers instead) and reading `dev.sw`; MQTT creds were read from the device's own `secrets.yaml` inside the script and never printed (CARD-0334). Foreground `Start-Sleep` is blocked in this harness — wait with a background poll. A one-line polling bug (compared against 16:12:00 when the heartbeat landed 16:11:57) burned 10 min of loop but not correctness.
+- **Still open:** (a) **30-minute cadence continues** — expect the next heartbeats ~16:51 (salt-sensor, restarted 16:21:18) and ~16:54 (garage-radar, boot ~16:24:06); (b) **consumers unchanged in HA** — garage-radar's presence entities/automations and salt-sensor's HA switches and Node-RED thresholds, not yet checked against HA itself (no HA token in this session); (c) firmware YAML commit — runtime code, held for Joseph's offer-and-wait.
+
+**Prior state, 2026-09-24 19:08 MST: Backlog — no work started, no device touched** (Joseph: "no action now"). Everything below is the scoping and procedure, ready for whenever the card is picked up.
 
 **Scope, worked out rather than assumed — the false watchdog alert needs 2 × the heartbeat interval + reboot downtime > 35 min, i.e. an interval above ~15 min:**
 | Device | Heartbeat | Verdict |

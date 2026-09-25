@@ -46,7 +46,22 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 3. **Browsing old data in Sheets: rarely -- export is fine.** Archived data does not need to be a convenient tab to browse; it only needs to stay exportable (hike regeneration, ad-hoc queries).
 4. **Scope: Environmental Data only.** `GPS Track` and `Correlation Debug` are measured in phase 0 and decided on then, not built here.
 
-**Consequences for the design:** the export's date-range logic becomes: range entirely newer than the live window -> live tab only; older -> archive spreadsheet month tab(s); straddling -> both, merged in timestamp order, same JSON shape out. `refreshTimeline()` is limited to the live tab (Timeline is a recent-activity view; confirm with Joseph before Build that a Timeline covering only the last 30 days is acceptable). The recurring archive job (phase 3) moves rows older than 30 days in chunks, copy-verify-delete, and can be a menu action first and a time-driven trigger later. **Plan is ready for Joseph's review; not yet moved to Build.**
+**Settled 2026-09-25 (Joseph): Timeline covering only the last 30 days is fine** -- `refreshTimeline()` reads the live tab only.
+
+**Archive layout, approved 2026-09-25 (Joseph: "per year is fine, record it"): one archive spreadsheet per year, one tab per month.**
+```
+JCTsh Environmental Archive 2026   (its own spreadsheet)
+  _index   one row per month tab: first/last timestamp, row count, archived-at
+  _log     one row per archive run: rows moved, ranges, verification result
+  2026-06, 2026-07, ...   same 26 columns + header as the live tab, rows verbatim
+JCTsh Environmental Archive 2027   (created when 2027 data first ages out)
+```
+- **Why per year:** at today's rate (~350 rows/day from the porch sensors plus hikes) a month is ~12k rows / ~300k cells, ~3.5-4M cells/year, so one archive spreadsheet forever would reach Google's 10M-cell ceiling in ~2.5 years (estimate from current rates; the AQM will speed it up). A spreadsheet per year keeps each well under the ceiling and quick to read. The script holds a small year -> spreadsheet-id map (new constant). One archive forever was the alternative; cost is a forced split around 2029.
+- **Why monthly tabs:** each tab stays ~12k rows; a hike export reads one or two small tabs. **Month boundaries are UTC** (timestamps are UTC), so a hike spanning midnight on the 1st can span two tabs -- harmless because the export merges; approved.
+- **Export logic:** range newer than the 30-day cutoff -> live tab only; older -> the matching month tab(s); straddling -> both, merged by `(timestamp, source)` (also removes the transient duplicates while an archive run is mid-flight) and sorted by time. Same JSON shape out, so `fetch_hike_data.py` does not change. `_index` tells it which month tabs exist without scanning.
+- **Archive run (per month, writes held):** copy that month's rows to its tab -> verify count + a checksum of timestamp/source values against what was selected -> only then delete from the live tab -> log in `_log`. A run stopped partway leaves rows in both places, which the merge tolerates. After the first run the live tab holds only the last 30 days. The recurring job (phase 3) does the same for rows crossing the 30-day cutoff, as a menu action first and a time-driven trigger later.
+
+**Plan approved for the layout; not yet moved to Build** -- Build starts with phase 0 (measure) once the sheet responds, and needs Joseph's full-spreadsheet backup copy before phase 2.
 
 **Not doing here:** a database migration, changing what the phone-side pipelines (GPSLogger, Tasker) post to, or the Node-RED queue (CARD-0226).
 

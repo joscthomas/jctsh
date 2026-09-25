@@ -9,7 +9,38 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0335 -->
+<!-- next-card-id: CARD-0336 -->
+
+---
+
+### CARD-0335 · [enhancement] [garage-radar] [salt-sensor] Retrofit the boot-time heartbeat (Build Standards §4.1) onto the two remaining 30-minute-heartbeat ESPHome devices
+**Status:** Backlog
+
+**Raised 2026-09-24 19:04 MST (Joseph: "open card for Retrofitting the other ESPHome devices"), as the follow-up CARD-0333 named.** CARD-0333 proved the pattern on `front-porch-temp-sensor` and `back-patio-temp-sensor` and landed it as a standard (`JCTsh-Build-Standards.md` §4.1); this card applies it where the standard now says it is required.
+
+**Scope, worked out rather than assumed — the false watchdog alert needs 2 × the heartbeat interval + reboot downtime > 35 min, i.e. an interval above ~15 min:**
+| Device | Heartbeat | Verdict |
+|---|---|---|
+| `garage-radar` | 30 min | **Retrofit.** Has an `on_boot` already (priority -100: 2 s delay, then 3 LED blinks) — the new boot trigger has to coexist with it, which means converting `on_boot:` to a list of two entries. Heartbeat state key is `presence`. |
+| `salt-sensor` | 30 min | **Retrofit.** Has an `on_boot` (runs the `led_self_test` script). Publishes under `jctsh/sensors/salt-sensor/…`, not `components/` (the watchdog wildcard `jctsh/+/+/heartbeat` covers it). Its reading interval is 12 h, so check what `current_status` holds at boot+90 s so the first heartbeat does not report something misleading. |
+| `hiking-monitor` | 5 min | **Exempt.** Worst-case gap ≈ 10 min + downtime, well inside 35. (Home/upload-mode gating and deep sleep make its `on_boot` delicate — another reason not to touch it without need.) |
+| `air-quality-monitor` | 5 min | **Exempt**, same reasoning; same delicate `on_boot`. |
+| `photo-server`, `p-w-firefly` (non-ESP32, systemd timers) | 30 min | **Already compliant** — `OnBootSec=2min` + `OnUnitActiveSec=30min`. An independent precedent for the pattern. |
+
+**Found while scoping — a documentation conflict to reconcile in this card:** `core/node-red/watchdog-README.md` says every ESP32 component publishes a heartbeat *every 5 minutes* and that the 35-minute window is "5-minute interval × 7", while `JCTsh-Build-Standards.md` §4.1 says 30 minutes and derives 35 as 30 + 5. Reality is both: four devices at 30 min, two at 5 min. The README's statement is stale and should say so.
+
+**Procedure (each step exists because it went wrong on CARD-0333):**
+1. Compile and flash from **native PowerShell**, never Git Bash (ESP-IDF refuses MSYS), in the space-free flash directory `C:\esphome\<name>\`, with the ESPHome pip package **pinned to 2026.4.5** (2026.9.0 broke the compile), using `--no-logs` so the command exits after upload.
+2. **Both flash directories already hold old `.esphome` build caches** (from before the `jcthomas` → `Joe` profile change); front-porch's identical situation failed with `Access is denied` on the old profile path. Delete `C:\esphome\<name>\.esphome` (regenerable) before compiling.
+3. Implement as CARD-0333 did: move the heartbeat publishes into a shared `script`, called by the `interval` and by a boot trigger that does `delay: 90s` → `wait_until: mqtt.connected` → `script.execute`.
+4. **After flashing, wait past ~60 s before touching the device** (OTA rollback silently reverts an image that reboots inside that window), then confirm the device's *reported* config hash (retained discovery `sw` field) equals the build's `config_hash`.
+5. Verify with a deliberate restart (button over MQTT): heartbeat at boot + ~90 s, no watchdog alert, 30-minute cadence continues, entities unchanged. **Compare builds by hash — never diff generated source** (CARD-0334's rule; a `main.cpp` diff is what printed device passwords last time).
+
+**Non-goals:** no change to the heartbeat payload, the 30-minute cadence, or the watchdog flow; the two 5-minute devices and the two timer-based hosts are left alone.
+
+**Done when:** (1) both devices flashed, the new firmware confirmed by reported hash; (2) after a deliberate restart of each, the heartbeat arrives ~90 s after boot with no watchdog alert, and the 30-minute cadence is seen to continue; (3) each device's HA/MQTT entities and consumers are unchanged (garage-radar's presence entities and automations; salt-sensor's HA switches and the Node-RED flow that owns its thresholds); (4) both YAMLs committed; (5) `watchdog-README.md`'s "every 5 minutes / × 7" statement reconciled with §4.1.
+
+**Related:** CARD-0333 (pattern, evidence, and the OTA-rollback lesson), CARD-0331 (watchdog re-alert), CARD-0334 (never print secrets — applies to the flashing work), `JCTsh-Build-Standards.md` §4.1 v1.41.
 
 ---
 
@@ -27,11 +58,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 Not exposed: the Log Dashboard password (two attempts to read it were blocked by the harness's credential guard, correctly).
 
+**How secrets are managed today — as-is, verified 2026-09-24 19:04 MST** (paths and variable names only; no values):
+- **One plaintext master list:** `credentials.local.md` at the repo root — gitignored (`.gitignore` line 4; `git ls-files` confirms it is not tracked), 16 sections covering SSH, Mosquitto accounts, Apps Script, Log Dashboard, NetAlertX, Node-RED, Home Assistant, router, DuckDNS, the hiking-monitor hotspot, ESPHome OTA, hiking-monitor secrets, Thunderforest, Xeno-canto, and the rotation cadence. It is a human lookup, not read by any code — but one `cat` or `sed` of it dumps most of the estate at once, which is exactly what happened.
+- **Runtime copies:** on the Pi, `/etc/jctsh/log-server.env` (systemd `EnvironmentFile`: the log server's MQTT password and `DASHBOARD_PASS`), `/home/pi/.node-red/environment` (`HA_TOKEN` for Node-RED), Node-RED's encrypted broker credentials, `/etc/mosquitto/passwd` (hashed), and Home Assistant's own MQTT credentials (UI-only config, held inside HA). On the M8 / photo-server, gitignored `.env` files (photo-tv-display, hike-izer-orchestrator; `.env.example` is committed) and `/etc/jctsh/heartbeat.env`; hike-izer-web's Cloudflare Tunnel credentials (gitignored).
+- **Devices:** ESPHome `components/<name>/secrets.yaml` and Arduino `secrets.h` (gitignored; `secrets.yaml.template` committed). Because ESP-IDF cannot build in a path with a space, each device's `secrets.yaml` is **copied again** into `C:\esphome\<name>\`, and the values are **compiled into the firmware and into the generated `main.cpp`** — including build trees under `components/*/.esphome/` inside the repo directory.
+- **Identity model:** one Mosquitto account per component (`allow_anonymous false`), SSH by key from the workstation, per-service tokens where they exist. **Rotation policy:** `credentials.local.md` §Credential Rotation Cadence (Tier 1 tokens 180 d, Tier 2 passwords 365 d, Tier 3 device secrets incident-driven) and per-credential checklists such as CARD-0280's.
+- **Guardrails today:** the gitignore rules and a written convention (root `CLAUDE.md`: "kept off-disk and out of source control"). **Nothing mechanical in the Claude Code layer:** `.claude/settings.local.json` has 196 allow rules, **0 deny rules, no hooks**, and it is gitignored and per-machine — there is no checked-in project `.claude/settings.json`, so no guard would travel with the repo.
+
+**What the inventory shows — the actual gaps:**
+1. The written convention is inaccurate: secrets *are* on disk (plaintext, gitignored), not "off-disk".
+2. A single plaintext master file is a single point of total exposure.
+3. Generated `main.cpp` with compiled-in secrets sits inside the repo tree, where a recursive grep or a diff surfaces it.
+4. Sessions have no way to *use* a credential without *seeing* it: in this session every helper (HA calls, `mosquitto_sub`) took the value as a literal in the command.
+5. The harness's auto-mode classifier blocked two attempts to read `DASHBOARD_PASS` from the Pi but not the reads of `credentials.local.md` — an inconsistent control that cannot be relied on.
+6. Blast radius is larger than it needs to be: one `HA_TOKEN` is shared by Node-RED, photo-tv-display, hike-izer-orchestrator and Claude Code (and sits in plaintext in a world-readable `flows.json`, CARD-0332); and the tracked `core/mqtt/mosquitto.conf` defines **no ACLs**, so any authenticated account can read and write every topic — an exposed device password is a password to the whole bus.
+7. Some ESP32 secrets are shared identically across all four original components (`credentials.local.md` records this), and front-porch's OTA password is trivially guessable.
+
 **The rule (Joseph, 2026-09-24): never print a password, token, key, or secret — always REDACT.** In practice:
 - **Never `cat`/`sed`/`grep`/`diff`/`git diff`/`Read` a file that can hold secrets** — `credentials.local.md`, `secrets.yaml`, `secrets.h`, generated `.esphome/build/**/main.cpp`, `.env` files, `/etc/jctsh/*.env`, `/etc/mosquitto/passwd` — without masking values first. Prefer checks that cannot leak: existence, length, a hash, or a masking filter such as `sed -E 's/((pass(word)?|token|key|secret|auth)[A-Za-z_]*[:=] *).*/\1[REDACTED]/I'`.
 - **Never put a secret literal in a command.** Read it inside the command (`TOKEN=$(grep ... | cut ...)`) so it appears in neither the command text nor the output.
 - **Anything that surfaces one anyway is an incident:** say so immediately, name the credential (not the value), and open or extend a rotation card — the way this card came about.
 - The rule applies to everything a session writes too: cards, commit messages, docs, chat.
+
+**How we will stop exposing secrets — proposed plan (Joseph to confirm or adjust before any Build).** Principle: sessions should never need to *see* a secret in order to *use* it, and the unsafe path should be mechanically hard, not merely discouraged.
+- **Phase 1 — mechanical guardrails (small, do first).** (a) A checked-in project `.claude/settings.json` with `permissions.deny` on Read/Edit of `credentials.local.md`, `**/secrets.yaml`, `**/secrets.h`, `**/.env`, and `**/.esphome/**`, plus Bash/PowerShell deny patterns for the obvious dumps — best-effort only, since a shell has too many ways round a pattern, hence (b). (b) A `PreToolUse` hook on Bash, PowerShell, Read and Grep that blocks commands touching those paths or carrying secret-shaped literals (JWTs, `Bearer …`, `-P <value>`, `password=…`) and says where the safe helper is. (c) A `PostToolUse` tripwire that compares tool output with salted *fingerprints* of the current secrets (never the values) and secret-shaped patterns; it cannot un-print, but it ends silent exposure by telling the session at once — name the credential, open an incident. (d) Delete the build trees under `components/*/.esphome/` and keep builds in `C:\esphome\`.
+- **Phase 2 — use without seeing.** A small helper under `tos/` backed by a store outside the repo tree: `sec run <cmd>` injects named secrets into the child process only and masks every known value and secret-shaped pattern in its output; `sec has|fingerprint <name>` answer without revealing. On top of it, wrappers for the recurring needs that caused this incident — Home Assistant API calls, Pi-side MQTT peeks with the log-server account, and an ESPHome `build-info`/reported-hash comparison that prints hashes and versions only. `credentials.local.md` shrinks to a **values-free index** (name, owner, where it lives, last-rotated date) plus Joseph's own recovery copy. *Store choice is Joseph's call:* the Windows Credential Manager (DPAPI-backed; no new software; my recommendation for a Windows workstation) or a KeePass/1Password vault if he already uses one.
+- **Phase 3 — shrink the blast radius (each is its own card).** One HA token per consumer, individually revocable; per-account Mosquitto ACLs (a device writes its own prefix and reads its own command topic; the log server reads all; HA gets the discovery prefix); fix CARD-0332; unique, strong OTA and MQTT secrets per device.
+- **Phase 4 — process.** Put the rule in root `CLAUDE.md`'s Credentials section (correcting the "off-disk" claim) and in `JCTsh-Operating-System.md`'s Engineering Discipline; write the incident procedure (this card's pattern: name the credential, rotate by tier, Tier 1 within a day).
+- **Suggested order:** Phase 1 first (about an hour, stops recurrence), then rotation, then Phase 2; Phase 3 as separate cards. **Decisions needed from Joseph:** (1) the store for Phase 2; (2) rotate-now vs defer per tier; (3) approval of Phase 1's hooks — they change what *every* session may read, so they need a documented bypass for Joseph himself; (4) whether Phases 2–4 become their own cards.
 
 **Rotation.** Follow `credentials.local.md`'s Credential Rotation Cadence tiers and the CARD-0076 precedent (itself a botched redaction). Suggested order by blast radius; **each credential's decision — rotate now, defer, or accept, with the reason — is Joseph's, recorded here:**
 1. **HA long-lived token** — widest (Node-RED, photo-tv-display, hike-izer-orchestrator); use the CARD-0280 rotation checklist, which lists every place it lives.
@@ -39,7 +93,7 @@ Not exposed: the Log Dashboard password (two attempts to read it were blocked by
 3. **Mosquitto accounts** — the six above plus `hike-izer-orchestrator`, `front-porch-temp-sensor`, `back-patio-temp-sensor`. Each needs the broker change *and* the consumer's config; mind the `chown root:mosquitto /etc/mosquitto/passwd` gotcha, and that Home Assistant's own MQTT credentials are UI-only config.
 4. **ESP32 OTA/MQTT secrets** (front-porch, back-patio, hiking-monitor) — need a reflash. Tier 3 in the policy is "incident-driven only", and this is the incident. Check first whether the four components really share values.
 
-**Done when:** (1) every credential listed above is either rotated and verified live, or explicitly decided against with the reason written here; (2) the rule is in a durable place every session reads — root `CLAUDE.md`'s Credentials section — not only in a session's memory; (3) `credentials.local.md`'s rotation table shows last-rotated dates (dates only, never values); (4) a mechanical guard has been considered and a yes/no recorded — e.g. a Claude Code permission rule or hook that blocks reading the files above unmasked — since a rule that depends on a session remembering it has already failed once.
+**Done when:** (1) every credential listed above is either rotated and verified live, or explicitly decided against with the reason written here; (2) the rule is in a durable place every session reads — root `CLAUDE.md`'s Credentials section — not only in a session's memory; (3) `credentials.local.md`'s rotation table shows last-rotated dates (dates only, never values); (4) the fix plan above is delivered or each phase explicitly deferred by Joseph — at minimum Phase 1's deny rules and hooks, because a rule that depends on a session remembering it has already failed once; (5) the as-is inventory above is kept current somewhere sessions read (and root `CLAUDE.md`'s inaccurate "off-disk" statement corrected).
 
 **Non-goals:** no change to the credential storage scheme; no rotation of credentials not listed; no attempt to scrub the transcript.
 

@@ -56,6 +56,7 @@ from pathlib import Path
 
 import generation
 import mqtt_log
+import sheet_health
 
 # CARD-0121: not yet confirmed against real-world firing frequency --
 # daily is the card's own stated starting assumption. Scheduled for
@@ -168,6 +169,14 @@ def run_once():
     later, potentially-overlapping session in the same pass is checked --
     not expected to matter in practice (real hikes don't overlap) but
     cheap to get right."""
+    # CARD-0338: the probe below is a multi-day full-range export -- don't send it to a
+    # Sheet that is already struggling. It runs daily, so tomorrow's pass covers the window.
+    healthy, detail = sheet_health.check(generation._env("APPS_SCRIPT_URL"), generation._env("APPS_SCRIPT_KEY"))
+    if not healthy:
+        print(f"Backstop check: skipped, Sheet not healthy ({detail})", file=sys.stderr)
+        mqtt_log.publish_log("Alert", f"Backstop check skipped: the environmental Sheet is not healthy ({detail}).")
+        return
+
     try:
         sessions = _probe_recent_sessions()
     except Exception as e:

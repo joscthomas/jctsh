@@ -54,6 +54,7 @@ import photo_captions
 import place_context as place_context_module
 import templating
 import scat_life_list
+import sheet_health
 import wildlife_life_list
 
 SRV_DIR = "/srv/hike-izer"
@@ -625,6 +626,12 @@ def latest_file_stem():
 # cron firing and the next, so a hike published right before or right after
 # a firing still gets exactly one refresh pass either way.
 DAILY_REFRESH_LOOKBACK_HOURS = 30
+# CARD-0338: the unattended refresh re-checks the Sheet's health this many times,
+# this far apart, before giving up for the day. Skipping outright would be unsafe:
+# the lookback above is only 30 h, so a hike published in the morning is out of
+# range of the *next* day's 17:00 run and would never be refreshed.
+SHEET_HEALTH_CHECKS = 3
+SHEET_HEALTH_RETRY_SEC = 600
 
 
 def _stems_recently_published(within_hours=DAILY_REFRESH_LOOKBACK_HOURS):
@@ -1338,6 +1345,24 @@ def run_daily_refresh_and_log():
     hike's retries don't delay checking the others on this run (Joseph's
     call, since this job already loops over multiple independent hikes,
     unlike the single-hike paths above)."""
+    # CARD-0338: don't pile a full-range export onto a Sheet that is already
+    # struggling (2026-09-25 outage). A manually-requested --step2 is not gated.
+    for check_no in range(1, SHEET_HEALTH_CHECKS + 1):
+        healthy, detail = sheet_health.check(_env("APPS_SCRIPT_URL"), _env("APPS_SCRIPT_KEY"))
+        if healthy:
+            break
+        print(f"run_daily_refresh: Sheet not healthy ({detail}), check {check_no}/{SHEET_HEALTH_CHECKS}", flush=True)
+        if check_no < SHEET_HEALTH_CHECKS:
+            time.sleep(SHEET_HEALTH_RETRY_SEC)
+    else:
+        mqtt_log.publish_log(
+            "Alert",
+            f"Hike-izer daily refresh SKIPPED: the environmental Sheet stayed unhealthy across "
+            f"{SHEET_HEALTH_CHECKS} checks ({detail}). Re-run it by hand once the Sheet responds -- "
+            f"generation.py --daily-refresh -- or a morning hike falls out of tomorrow's lookback.",
+        )
+        return
+
     stems = _stems_recently_published()
     if not stems:
         print("run_daily_refresh: no recently-published hikes -- nothing to do", flush=True)

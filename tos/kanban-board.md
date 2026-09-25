@@ -15,16 +15,18 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ### CARD-0339 · [bug] [node-red] AQM buffered event lines (`wifi_attempt_start`) were mistaken for readings -- surfaced as "undefined reading @ undefined" alerts
 
-**Status:** Build
+**Status:** Done -- RESOLVED 2026-09-25 16:22 MST
 
 **Found 2026-09-25 (Joseph: "do we have a card?" after the AQM capture test).** During the CARD-0226 incident, two `node-red` Alerts read `GPS lookup failed ... for undefined reading @ undefined` (11:35) and `Environmental Data POST failed for undefined reading @ undefined` (13:05). The first was timed to the AQM's replay at 11:29:45 (three 2-minute GPS-lookup timeouts later). A live capture on 2026-09-25 16:18 MST -- subscribing to `jctsh/components/air-quality-monitor/#`, then publishing to the AQM's `command/replay` topic -- showed the AQM's buffered log holds **`{"event":"wifi_attempt_start"}` event lines, not readings**, which its replay publishes on `/data`. The Node-RED router (`env-data-route-skip-reset`) only knew the hiking-monitor's `skip`/`reset`/`display_refresh` events, so an AQM event fell through as a reading with no `component` or `ts`.
 
 **Fixed and deployed 2026-09-25 (commit `eee0b70`):** the router now turns *any* `{"event": ...}` record into a System log line on that component's own `/log` topic (`Device event: {...}`), and drops anything that has neither an event nor `component` + `ts` with an Alert naming the topic and the first 140 characters of the payload (readings carry no secrets), instead of letting it travel the pipeline. Mock-tested across the AQM event, the three hiking-monitor events, a good reading, and a reading with no `ts`. Side result of the same capture: the AQM's `command/replay` topic and log retention work (`Replaying 2 buffered readings...` after an earlier replay, then `Buffered-data replay complete.`).
 
-**Watch for:** the AQM's next replay after a connect (or a `command/replay`) logging `Device event: {"event":"wifi_attempt_start"}` as **System** lines on its own log with **no** `Dropped a /data message` Alert -- that confirms the live deploy; not yet observed after the second deploy.
+**Watch for (RESOLVED 2026-09-25 16:22 MST, see below):** the AQM's next replay after a connect (or a `command/replay`) logging `Device event: {"event":"wifi_attempt_start"}` as **System** lines on its own log with **no** `Dropped a /data message` Alert -- that confirms the live deploy; not yet observed after the second deploy.
 
 **Related:** CARD-0226 (the incident that exposed it), CARD-0012 (the AQM's own log-retention port, flashed 2026-09-25), `core/data-pipeline/environmental-data.flow.json`.
 
+
+**Verified live 2026-09-25 16:22 MST:** a second `command/replay` capture after the final router deploy showed the AQM's two `wifi_attempt_start` lines arriving on `/data` and appearing on its own log as `Device event: {"event":"wifi_attempt_start"}` (category System) with no `Dropped a /data message` Alert.
 ---
 
 ### CARD-0338 · [enhancement] [data-pipeline] Early-warning health probe for the environmental Sheet

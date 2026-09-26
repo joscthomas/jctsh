@@ -382,6 +382,13 @@ globals:
     type: bool
     restore_value: true
     initial_value: 'false'
+  # 2026-09-26 diagnostic (CARD-0226): how many log lines the slide-switch-ON clear below
+  # discarded on this boot (-1 = no clear ran). Reported in the boot_state event so a
+  # hike whose log turns up empty can be told apart: wiped by the clear, vs. never written.
+  - id: boot_cleared_lines
+    type: int
+    restore_value: false
+    initial_value: '-1'
 
 # ── Low battery safety cutoff ─────────────────────────────────────────────────
 # Below 3.4V, force deep sleep to protect the LiPo from over-discharge damage,
@@ -472,6 +479,18 @@ script:
                 id(replay_deferred_pending) = false;
               }
             }
+          } else {
+            // Diagnostic (2026-09-26, CARD-0226): the empty-log hike produced NO replay line
+            // and no way to tell "log empty" from "log present but marked replayed" -- say
+            // which, on every connect.
+            char note[200];
+            snprintf(note, sizeof(note),
+              "{\"component\":\"hiking-monitor\",\"category\":\"System\","
+              "\"message\":\"Hike log at connect: %d line(s), replayed flag %s -- %s\"}",
+              hike_log_count(), id(hike_log_replayed) ? "SET" : "clear",
+              (hike_log_has_data() && id(hike_log_replayed))
+                ? "not replaying (press Replay Hike Log to resend)" : "nothing to replay");
+            id(mqtt_client).publish("jctsh/components/hiking-monitor/log", std::string(note), 0, false);
           }
 
 # ── Remote Reboot (CARD-0180) ───────────────────────────────────────────────────
@@ -631,6 +650,7 @@ binary_sensor:
             # still gets uploaded on the next connect instead of destroyed.
             - lambda: |-
                 if (id(hike_log_replayed)) {
+                  id(boot_cleared_lines) = hike_log_count();
                   hike_log_clear();
                   id(hike_log_replayed) = false;
                 }
@@ -834,6 +854,19 @@ interval:
             lambda: 'return id(reset_reason_pending);'
           then:
             - lambda: |-
+                // Diagnostic (2026-09-26, CARD-0226): the log's state at this boot, taken
+                // before the reset event below is appended. Rides the same replay as the
+                // reset event; Node-RED's router turns any {"event":...} into a System log
+                // line ("Device event: ..."). lines = lines already in the log, replayed =
+                // the persisted flag, cleared = lines the switch-on clear just discarded
+                // (-1 = no clear ran), up_s = seconds since this boot (a 25 s reboot loop
+                // shows up as a small number).
+                char sbuf[160];
+                snprintf(sbuf, sizeof(sbuf),
+                  "{\"event\":\"boot_state\",\"lines\":%d,\"replayed\":%d,\"cleared\":%d,\"up_s\":%u}",
+                  hike_log_count(), id(hike_log_replayed) ? 1 : 0, id(boot_cleared_lines),
+                  (unsigned)(millis() / 1000));
+                hike_log_write(std::string(sbuf));
                 char buf[192];
                 snprintf(buf, sizeof(buf),
                   "{\"event\":\"reset\",\"reason\":\"%s\"}",

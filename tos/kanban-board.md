@@ -9,7 +9,23 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0344 -->
+<!-- next-card-id: CARD-0345 -->
+
+---
+
+### CARD-0344 · [idea] [architecture] Software inventory: what tools and versions are we running, and what versions do we want to be on
+
+**Status:** Backlog
+
+**Raised 2026-09-26 12:45 MST, from auto-opened PR #136** (voice/finding capture, raw text: "what software tools are we using and what versions do we want to be on"). Landed in Backlog at Joseph's direction ("land it in backlog"); **not yet interviewed** — essence only, per CARD-0256's convention that Backlog cards stay thin until Planning needs the detail.
+
+**Essence.** Two questions: (1) what software the JCTsh ecosystem actually runs, and at what versions, across the Pi, the M8, the Windows workstation, and the ESP32 firmware toolchain; (2) which versions we *want* to be on, i.e. a deliberate target rather than whatever `stable`/`latest` happens to be. Related existing material: `SOFTWARE-ENVIRONMENT.md` (what's installed on the Pi) and the container-image update checks on both hosts. Known pins that already exist for a reason: ESPHome held at 2026.4.5 (2026.9.0 broke the compile, CARD-0333/CARD-0335), and Docker on the Pi 29.6.1 (pull hang, CARD-0266).
+
+**Open questions for Planning, not answered here:** scope (which hosts/toolchains); whether "want to be on" means pinned versions, a policy, or just a report of drift; and whether this extends `SOFTWARE-ENVIRONMENT.md` or replaces it. Tag `[architecture]` is a guess (cross-cutting, no single component), corrigible.
+
+**Done when:** not yet scoped.
+
+**Related:** `SOFTWARE-ENVIRONMENT.md`, CARD-0266 (Docker pull hang / version pin), CARD-0333, CARD-0335 (ESPHome pin).
 
 ---
 

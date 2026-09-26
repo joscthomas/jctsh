@@ -9,7 +9,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0346 -->
+<!-- next-card-id: CARD-0347 -->
+
+---
+
+### CARD-0346 · [enhancement] [hiking-monitor] [air-quality-monitor] Hike readiness -- both devices ready for the next hike, all known problems addressed
+
+**Status:** Build
+
+**Raised 2026-09-26 (Joseph: "goal: the hiking monitor and aqm are ready to go (all known problems addressed) for the next hike").** A tracking card: what went wrong on the 9/26 hike, what is fixed and verified, and what still has to be true before the next one.
+
+**Known problems and status (2026-09-26 ~14:45):**
+1. **AQM recorded nothing (cold boot, no clock).** FIXED and verified on the bench, three runs (CARD-0343: readings kept tagged by uptime, resolved to exact times at the dock replay, waits up to 5 min for SNTP). The 9/26 hike itself was one continuous boot, so this firmware would have saved it.
+2. **AQM re-replayed old runs / log never cleared.** FIXED and verified (CARD-0345: cleared at the next run's Intent-ON, an unreplayed log kept). Two earlier runs where it didn't clear remain unexplained; diagnostic events stay in.
+3. **AQM docs.** `operations.md` rewritten for the new behavior (the Clock section, the dock-and-wait-5-minutes step, verify in the Sheet).
+4. **Sheet write path / outage.** FIXED (lock, serial queue that holds readings through an outage, tail-first export, health probe two-strike alert, runbook). Root cause of the 9/25 outage "unexplained, mitigated". Pipeline healthy as of 14:20: no alerts since noon, M8 orchestrator + daily-refresh timer up.
+5. **hiking-monitor recorded nothing on the 9/26 hike (empty log at dock; no `Replaying` line at 09:15).** **NOT explained, NOT fixed.** Bench runs log and replay fine (10:44: 7 lines, incl. a one-off blank-reason reboot 25 s after switch-ON). Diagnostic build flashed (`boot_state` event, `Hike log at connect` line) so the next failure says what happened. This is the blocker.
+6. **hiking-monitor docked hang (10:58-11:57, ports dead, MQTT down, ping alive).** Unexplained; needed a physical reset. Stable 2 h since (through 14:09). Possibly related to 5 -- both fit a stalled or resetting app loop. History: CARD-0217 (270-reboot brownout storm), CARD-0259 (v2 rebuild) are the same failure family.
+7. **hiking-monitor docs.** `operations.md` updated (log kept after upload, Replay Hike Log, `Hike log at connect`, verify in the Sheet).
+
+**Needed before the hike -- rehearsal (Joseph's call on timing):** a real walk with **both devices in the pack, moving**, ~45-60 min (motion matters: an intermittent battery connector or brownout under vibration would not show on the bench), started exactly as on hike day (AQM: docked and connected, then unplug + Intent ON, Power Switch untouched; hiking-monitor: switch ON), then dock both and verify from the Sheet: expected ~25-30 rows per device, no gaps. Pass = both devices deliver. If the hiking-monitor delivers nothing again, the diagnostic events (reset events, `boot_state`) and `Hike log at connect` say why and this card stays open.
+
+**Hike-day checklist (also in each device's operations guide):** both docked overnight, AQM `Air quality monitor online` seen and Power Switch left ON; both batteries >= 4.0 V; hiking-monitor switch ON at the trailhead, AQM Intent ON; after the hike dock both (AQM Intent OFF), leave the AQM docked >= 5 min, confirm rows in the Sheet for both before unplugging or resetting anything.
+
+**Not before the hike:** Home Assistant (CARD-0295) and Immich (CARD-0274) updates -- parked until after (Joseph's call), cloudflared (CARD-0257) stays on hold.
+
+**Done when:** a real hike (or the walking rehearsal, if Joseph accepts it as the proof) delivers both devices' readings to the Sheet with correct timestamps and no gaps; if item 5 recurs, its cause is identified from the diagnostic events. Then close this card, CARD-0012, and CARD-0226's Watch for.
+
+**Related:** CARD-0226, CARD-0343, CARD-0345, CARD-0012, CARD-0259, CARD-0217, `components/air-quality-monitor/operations.md`, `components/hiking-monitor/operations.md`.
 
 ---
 

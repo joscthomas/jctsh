@@ -149,8 +149,11 @@ start/end step, the automatic Hike-izer pipeline) see `phone-workflow.md`.
 1. Plug in USB charger — no switch action needed
 2. Device auto-wakes (upload mode) and connects to JCTnet1
 3. Accumulated data replays automatically to Google Sheets
-4. Log dashboard shows `Hike log replay complete.` when upload finishes
-5. Unplug USB — device returns to deep sleep
+4. Log dashboard shows `Replaying N hike readings...` then `Hike log replay complete.` when upload finishes. **No `Replaying` line means the device's log was empty** -- on 2026-09-26 that happened after a real hike and is still unexplained (CARD-0226); tell Claude rather than assuming it worked.
+5. **Check the Sheet, not just the dashboard:** the `hiking-monitor` rows for the hike's time window should be there (about one every 2 minutes).
+6. Unplug USB — device returns to deep sleep
+
+**The log is kept after upload** (CARD-0226, 2026-09-24): it is cleared only when the *next* hike starts (switch ON), and only if it was already replayed. On every connect the log dashboard shows `Hike log at connect: N line(s), replayed flag SET|clear`. If readings are missing downstream, press **Replay Hike Log** in Home Assistant (safe to repeat -- duplicates are rejected) to re-send it without a reflash.
 
 ### Storage (multi-week or longer)
 1. Confirm all data has been uploaded (check Sheets or log dashboard)

@@ -60,11 +60,10 @@ Unlike hiking-monitor (which conflates "docked" with "session over"), this devic
 The AQM has **no real-time-clock hardware.** Its only source of time is an SNTP sync over WiFi, and the sync only ever happens while it is docked with Intent OFF (the WiFi gate below). Consequences:
 
 - **The time is valid only until the next power-cycle.** Any reset or a Power Switch off/on erases it; a device that boots away from WiFi has *no* valid time until it is next docked.
-- **With no valid clock the device skips every reading** -- it logs a `{"event":"skip","reason":"clock_invalid"}` line each 2-minute cycle instead of a reading, and the run's data is gone (CARD-0343). This is exactly what happened on the first real field run, 2026-09-26: the AQM was powered on at the garage right after unplugging it, so it cold-booted with no sync, and all 98 cycles of the hike were skipped.
-- **So: don't power-cycle it right before a hike.** The device should already be running, and must have connected at least once since it was last powered on. Confirm with the `Air quality monitor online` line on the log dashboard (or the blue "connected" flash), then unplug and turn Intent ON -- leave the Power Switch alone.
+- **A reading taken with no clock is now kept, not thrown away** (CARD-0343, 2026-09-26). It is stored with no timestamp but with the seconds since boot and a per-boot id. When you dock it, the replay waits for the clock (usually under a minute, up to 5 minutes), then converts every reading from **the same boot** to its exact real time, and they land in the Sheet like any other reading. Before this fix the first real field run (2026-09-26) recorded nothing: the AQM was powered on at the garage, never got a clock, and all 98 cycles of the hike were skipped.
+- **Readings from an earlier boot cannot be timed.** If the device was power-cycled (or reset in the field) after they were taken, they are kept but stay untimed: they are never written to the Sheet, and instead appear in the log dashboard as `Unresolved-time reading kept in log: {...}` with their uptime and boot id, so the data is not lost and can be anchored later by hand.
+- **So still: don't power-cycle it before or during a hike.** Leave the Power Switch ON. The device should already be running; confirm with the `Air quality monitor online` line on the log dashboard (or the blue "connected" flash), then unplug and turn Intent ON.
 - **After any power-cycle** (forced restart, storage, a dead battery), dock it with Intent OFF and wait for it to connect before the next hike.
-
-An accidental reset or brownout in the field still loses the time and the run; firmware fixes for that are on CARD-0343 (keep readings tagged by uptime, a bounded start-of-run WiFi attempt, or an RTC).
 
 ---
 
@@ -148,6 +147,7 @@ Both index values take a while to "learn" a baseline after power-on, so readings
 1. Turn Intent OFF.
 2. If not already connected to power, dock it (USB into TP4056).
 3. Once battery is ≥3.5V, the device connects and replays automatically — no manual trigger needed.
+4. **Leave it docked and on for at least 5 minutes, and don't touch the Power Switch.** If the run began from a cold boot the replay waits for the clock before it uploads, so the readings can take a few minutes to appear. Then confirm the run reached the Sheet (`air-quality-monitor` rows for the hike's time window). The log dashboard also shows the `intent_on` line (how many old lines were cleared or kept) and, if any, `Unresolved-time reading kept in log` lines.
 
 ### Storage
 1. Turn Intent OFF.

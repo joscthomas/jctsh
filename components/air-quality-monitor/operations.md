@@ -40,6 +40,7 @@ Unlike hiking-monitor (which conflates "docked" with "session over"), this devic
 - True zero-draw — nothing runs, nothing drains.
 - TP4056 still charges the battery in this state (charging is upstream of the Power Switch) — leaving it off in storage with USB connected still tops off the battery.
 - Also the way to force a cold restart if the device ever hangs or loops: switch off, then on.
+- **Normally leave the Power Switch ON** -- it is not part of the routine start/stop cycle (Intent is). Every power-cycle also erases the device's clock (see "The Clock" below).
 
 ### Collecting (Intent ON)
 - SEN55 duty-cycles every 2 minutes: warms into full Measurement mode (~40s), takes a reading, drops back to low-power RHT/Gas-Only mode until the next cycle.
@@ -51,6 +52,19 @@ Unlike hiking-monitor (which conflates "docked" with "session over"), this devic
 - No sensor duty-cycling.
 - If Power Connected and battery is healthy (≥3.5V), the device attempts WiFi/MQTT and replays anything buffered. See Upload Behavior below for the exact gate and retry timing.
 - If Power Connected but battery is still low, WiFi is deliberately not attempted — see Battery & Charging below.
+
+---
+
+## The Clock (no RTC) -- read this before a hike
+
+The AQM has **no real-time-clock hardware.** Its only source of time is an SNTP sync over WiFi, and the sync only ever happens while it is docked with Intent OFF (the WiFi gate below). Consequences:
+
+- **The time is valid only until the next power-cycle.** Any reset or a Power Switch off/on erases it; a device that boots away from WiFi has *no* valid time until it is next docked.
+- **With no valid clock the device skips every reading** -- it logs a `{"event":"skip","reason":"clock_invalid"}` line each 2-minute cycle instead of a reading, and the run's data is gone (CARD-0343). This is exactly what happened on the first real field run, 2026-09-26: the AQM was powered on at the garage right after unplugging it, so it cold-booted with no sync, and all 98 cycles of the hike were skipped.
+- **So: don't power-cycle it right before a hike.** The device should already be running, and must have connected at least once since it was last powered on. Confirm with the `Air quality monitor online` line on the log dashboard (or the blue "connected" flash), then unplug and turn Intent ON -- leave the Power Switch alone.
+- **After any power-cycle** (forced restart, storage, a dead battery), dock it with Intent OFF and wait for it to connect before the next hike.
+
+An accidental reset or brownout in the field still loses the time and the run; firmware fixes for that are on CARD-0343 (keep readings tagged by uptime, a bounded start-of-run WiFi attempt, or an RTC).
 
 ---
 
@@ -122,8 +136,9 @@ Both index values take a while to "learn" a baseline after power-on, so readings
 ## Standard Workflows
 
 ### Before outdoor use
-1. Confirm the Power Switch is on.
-2. Turn Intent ON — collection begins within 2 minutes.
+1. The device should already be powered on and running from the dock -- **do not switch the Power Switch off and on right before leaving** (that erases the clock; see "The Clock").
+2. Confirm it has connected since it was last powered on: the `Air quality monitor online` line on the log dashboard, or the blue "connected" flash.
+3. Unplug it and turn Intent ON — collection begins within 2 minutes. Leave the Power Switch alone.
 
 ### During use
 - No action needed — the device duty-cycles automatically, charging (if plugged into a power bank or solar) doesn't interrupt anything.
@@ -137,6 +152,7 @@ Both index values take a while to "learn" a baseline after power-on, so readings
 ### Storage
 1. Turn Intent OFF.
 2. Switch the Power Switch off (true zero-draw) — battery still charges normally if left plugged in.
+3. When taking it out of storage, switch the Power Switch on **while docked**, leave Intent OFF, and wait for it to connect (that re-syncs the clock) before the next hike.
 
 ---
 

@@ -1476,7 +1476,7 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8287B, over th
 
 ### CARD-0274 · [enhancement] [photo-server] Immich update available — v3.2.0 → v3.2.2
 
-**Status:** Backlog
+**Status:** Done
 
 **Auto-opened 2026-09-15 from photo-server's maintenance check (CARD-0128).** Raw finding: Immich update available: v3.2.1 (currently running v3.2.0).
 
@@ -1492,6 +1492,8 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8287B, over th
 
 
 **Re-notification 2026-09-25 (PR #127, photo-server, open since 2026-09-23): the same pending v3.2.0 → v3.2.2 update, folded into this card rather than landed separately.** Still Backlog; the v3.2.2 risk assessment above stands. **Hold until after Saturday's 2026-09-26 hike (Joseph, 2026-09-25):** hike generation reads the hike's photos from Immich, and an Immich restart during or right after a hike would delay the first generation pass. Apply afterwards, one stack at a time, with the Done-when checks above.
+
+**Applied 2026-09-26 ~14:32 MST (Joseph: "apply the updates before the rehearsal, one at a time in recommended order"; "confirm that each is low risk or let's talk about it").** Risk re-verified first against current sources: upstream latest still v3.2.2 (nothing newer), v3.2.2 = one face-reassign fix, v3.2.1 = bug fixes plus "vacuum after migrations, concurrent reindex" (the one DB-touching item), no reported regressions. Safeguards: nightly Immich DB backup from 02:01 the same day (586 MB) plus a fresh `pg_dumpall` taken immediately before (`~/immich-app/pre-v3.2.2-20260926T143058.sql.gz`, 584 MB, gzip verified, ~1 min). `docker compose pull && docker compose up -d` in `~/immich-app` on the M8. Result: `/api/server/version` = 3.2.2; all four containers healthy (server + machine-learning recreated, postgres/redis untouched); server log shows "Finished running migrations" on both processes and no errors (one benign `path-to-regexp` route-conversion WARN); `/api/server/ping` = pong; the `hike-izer-orchestrator` container reaches Immich (`pong`). Not exercised: a UI login/browse spot-check, and hike generation against the new version (the 17:00 daily refresh and the next hike will). Rollback if needed: restore the pre-update dump and pin `IMMICH_VERSION=v3.2.0`. The pre-update dump can be deleted once the next hike generates cleanly.
 ---
 
 ### CARD-0273 · [enhancement] [hike-izer-orchestrator] hike-izer-orchestrator: split print() output into stdout (routine) vs. stderr (worth a look)

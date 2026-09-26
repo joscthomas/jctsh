@@ -560,6 +560,20 @@ output:
 script:
   - id: attempt_aqm_replay
     then:
+      # CARD-0343 (2026-09-26, found by the first cold-boot bench test): this script is
+      # triggered by MQTT-connected, ~2 s after Wi-Fi comes up -- before SNTP has synced.
+      # If THIS boot buffered uptime-tagged readings (boot_id assigned), give the clock up to
+      # 60 s to become valid so they can be resolved to real timestamps; without it the
+      # replay ran with no clock and forwarded every reading still tagged. Times out and
+      # replays anyway, so a failed sync never blocks the upload.
+      - if:
+          condition:
+            lambda: 'return id(boot_id) != 0 && !id(sntp_time).now().is_valid();'
+          then:
+            - wait_until:
+                condition:
+                  lambda: 'return id(sntp_time).now().is_valid();'
+                timeout: 60s
       - lambda: |-
           if (aqm_log_has_data() && !id(aqm_log_replayed)) {
             int count = aqm_log_count();

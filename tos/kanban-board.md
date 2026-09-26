@@ -9,7 +9,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0345 -->
+<!-- next-card-id: CARD-0346 -->
+
+---
+
+### CARD-0345 · [bug] [air-quality-monitor] AQM buffer log is not cleared at the start of a new run -- old runs are re-replayed on every dock
+
+**Status:** Build
+
+**Raised 2026-09-26 (Joseph: "yes, new card?", from CARD-0343's bench tests).** The AQM keeps its log after a replay and is meant to clear it only when the next run starts (Intent switch turned ON, and only if already replayed -- CARD-0226's design). In two consecutive cold-boot bench tests the previous boots' lines were **not** cleared and were replayed again at every dock: the third test's replay was 41 lines (10 from boot `4c051ab7`, 11 from `f700d525`, plus this run's), all re-sent and re-logged. Harmless for the Sheet (resolved rows dedupe on (ts, source); unresolved lines are never written) but the log grows without bound and every dock re-sends history.
+
+**Suspected cause (unconfirmed).** The clear lives only in the Intent switch's `on_press`. If the AQM is powered on with Intent already ON, the switch's initial state fires `on_press` during setup, before the `restore_value` `aqm_log_replayed` flag has been restored, so it sees "not replayed" and clears nothing. Whether Joseph's runs powered on with Intent already ON was not recorded, so an ordinary OFF->ON press failing is not ruled out either.
+
+**Built 2026-09-26 (compiled, config_hash 0x6cfe91ff; not yet flashed).** (a) A check at boot (`on_boot`, priority -100, after globals are restored and the switch state is known): if Intent is ON and the log was already replayed, clear it and reset the flag. (b) A diagnostic event from both paths -- `{"event":"boot_intent_on"|"intent_on","had_lines":N,"replayed":R,"cleared":C}` -- written after the clear so the next replay shows what happened and which path fired. Shows up in the Pi log as `Device event: {...}`.
+
+**Done when:** verified on the bench that (1) power-cycling with Intent ON, and (2) switching Intent OFF then ON while running, each clear a previously replayed log (the next replay's line count drops to just this run plus the diagnostic event), and an **un**replayed log is kept and appended to.
+
+**Not in scope:** readings that can't be timed when the device is power-cycled between run and dock, or resets mid-run (CARD-0343 options 3, 4, 6). Rare now that the docs say to leave the Power Switch ON, and the readings are kept, just untimed -- raise a card if it actually happens.
+
+**Related:** CARD-0343 (where it was found), CARD-0226 (the keep-log-until-next-run design), CARD-0012, `components/air-quality-monitor/air-quality-monitor.yaml`.
 
 ---
 

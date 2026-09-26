@@ -96,6 +96,27 @@ esphome:
         # can call wifi.disable() directly, right here, within milliseconds
         # of boot -- not after the ~60-80s the SEN55/LED sequence below
         # would otherwise take if the gate check waited until after it.
+        # CARD-0345 (2026-09-26): powered on with the Intent switch ALREADY ON is a new run
+        # starting, so clear an already-replayed previous log exactly as the switch's on_press
+        # does. on_press alone missed this case in bench tests (earlier runs' lines were
+        # re-replayed on every dock); suspected cause, not yet confirmed: its boot-time firing
+        # happens during setup, before the restore_value flag is restored. Runs at priority -100,
+        # after globals are restored and the switch state is known. Always records an event so
+        # the next replay shows what happened.
+        - lambda: |-
+            if (id(intent_switch).state) {
+              int had = aqm_log_count();
+              bool was_replayed = id(aqm_log_replayed);
+              if (was_replayed) {
+                aqm_log_clear();
+                id(aqm_log_replayed) = false;
+              }
+              char ibuf[112];
+              snprintf(ibuf, sizeof(ibuf),
+                "{\"event\":\"boot_intent_on\",\"had_lines\":%d,\"replayed\":%d,\"cleared\":%d}",
+                had, was_replayed ? 1 : 0, was_replayed ? 1 : 0);
+              aqm_log_write(std::string(ibuf));
+            }
         - component.update: battery_voltage
         - if:
             condition:
@@ -798,10 +819,18 @@ binary_sensor:
     # next connect instead of destroyed.
     on_press:
       - lambda: |-
-          if (id(aqm_log_replayed)) {
+          int had = aqm_log_count();
+          bool was_replayed = id(aqm_log_replayed);
+          if (was_replayed) {
             aqm_log_clear();
             id(aqm_log_replayed) = false;
           }
+          // CARD-0345: record that the press fired and what it saw (see the boot-time check).
+          char ibuf[112];
+          snprintf(ibuf, sizeof(ibuf),
+            "{\"event\":\"intent_on\",\"had_lines\":%d,\"replayed\":%d,\"cleared\":%d}",
+            had, was_replayed ? 1 : 0, was_replayed ? 1 : 0);
+          aqm_log_write(std::string(ibuf));
 
   # Dock detect: TP4056 IN+ (or solar) -> 68kΩ -> midpoint -> 100kΩ -> GND;
   # midpoint to GPIO32. HIGH = docked/charging or solar connected.

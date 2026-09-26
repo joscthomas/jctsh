@@ -121,7 +121,7 @@ The second `turn_on` step undoes the first, so the switch turns on and immediate
 
 ### CARD-0337 · [enhancement] [data-pipeline] Keep the Environmental Data sheet small: archive old rows and make the export read only what it needs
 
-**Status:** Planning
+**Status:** Build
 
 **Raised 2026-09-25 (Joseph: "let's do planning for option 1"), following the 2026-09-25 outage recorded on CARD-0226.** Every Apps Script call that touches the spreadsheet began hanging or hitting Google's ~93 s per-Spreadsheet-call limit (executions Failed at ~93 s / ~187 s, Timed Out at the 6-min cap; none completing from ~10:07 MST, one doPost finally completing after 307 s at 13:43). Google reported no Sheets/Apps Script incident, and big reads on this tab had already been timing out on the M8 for at least a day (the daily backstop probe's 5-day export timed out at 05:04 MST 2026-09-25, and the same the day before). **Root cause is not proven** -- tab size was the initial suspect but see the 2026-09-25 correction below; it is now doubtful. This card is the cheap, reversible mitigation (option 1 of three discussed: keep Sheets small; a durable local store in front of Sheets; move off Sheets). **Planning only -- nothing built.**
 
@@ -177,11 +177,16 @@ JCTsh Environmental Archive 2027   (created when 2027 data first ages out)
 
 **Related:** CARD-0226 (the outage, the write-path fixes, the held-readings queue). `core/data-pipeline/environmental-data.gs`, `components/hike-izer/fetch_hike_data.py`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`.
 
+
+**Build started 2026-09-25 (Joseph: "do 337").** Phases 0-1 first, then decide phases 2-3 from measured numbers.
+- **Phase 0 baseline (new spreadsheet, via the web app):** a hike-sized `Environmental Data` export (9/24 hike, 71 rows) takes **8.6 s**; GPS Track (401 rows) 2.5 s; Hiking Observations (1 row) 1.9 s; `action=health` ~0.4-0.6 s; a full-range export of the whole tab ~10-12 s. The cost is reading every row and column to return a handful.
+- **Phase 1 built, not yet deployed** (commit above, `SCRIPT_VERSION 2026-09-25.3-narrow-export`): `_exportSheet` now reads column A only, picks the matching rows, then reads just those (one `getRange` per contiguous run; past 40 runs, one bounding-block read). Same JSON out, same row order. The old full-read implementation is kept as `_exportSheetFull`, reachable with `&full=1` (parity testing; a rollback that needs no redeploy). Mock parity test on the Pi: narrow == full across chronological data, out-of-order replay rows, junk/blank timestamps, Date objects, >40 runs, empty ranges, header-only sheet.
+- **Next:** Joseph deploys; then live parity (narrow vs `&full=1`) across tabs and ranges plus timings; then decide phases 2-3 (archive) on whether an ~8 s -> ~1-2 s export makes the archive unnecessary.
 ---
 
 ### CARD-0336 · [bug] [hike-izer] Photo-based scat identification is unreliable -- same photo gets different species across models and runs
 
-**Status:** Backlog
+**Status:** Done -- RESOLVED 2026-09-25 (feature removed)
 
 **Raised 2026-09-24 (Joseph: "the scat identified horse dung. that's a false positive... not doing so well with scat recognition"; then "is this current state and experiment in a card? make it so. no action now").** CARD-0308 (photo-based scat ID, Done 2026-09-23) has now produced a second wrong species in two hikes. Recording current state and the experiment so far; **no fix decided or built.**
 
@@ -212,6 +217,8 @@ JCTsh Environmental Archive 2027   (created when 2027 data first ages out)
 
 **Related:** CARD-0308 (the pipeline this concerns, Done), `components/hike-izer-orchestrator/photo_captions.py`, `scat_life_list.py`, `generation.py`'s `_scat_location_hint()`.
 
+
+**Decision, 2026-09-25 (Joseph): "let's keep the hint in for the photo caption, but remove the feature otherwise."** Not sure what is right for all the cases; unconvinced of the reliability. **Removed** (commit `1eac562`, deployed to the M8): the `scat_common_name`/`scat_scientific_name` vision fields and their prompt instruction; the Scat Detections Sheet posts; `scat_life_list.py`; `build_scat_index.py` and `scat.html`; the per-hike "Scat Identified" table and its render/generation wiring. **Kept:** the hike-location hint in the caption prompt (`_hike_location_hint`, formerly `_scat_location_hint`), now worded to prefer a generic caption ("Animal scat ...") over guessing a species, since a scat/tracks species from one photo is unreliable. The 2026-09-19 and 2026-09-24 hike pages were regenerated ($0.00) and no longer mention scat; `scat.html` was deleted from the M8. **Left in place as inert data:** the `Scat Detections` tab in the Sheet, `scat_life_list.json`, the `scat_*` keys in existing photo manifests, and the Apps Script `scat-detection` branch (harmless; removing it needs a redeploy). **Not changed:** existing captions already written by earlier runs still name species -- e.g. 2026-09-24's "Horse dung on a rocky desert trail" (Joseph: not horse, not cow) stays on that page until re-captioned or blanked; re-captioning one photo with the new prompt would cost one vision call.
 ---
 
 ### CARD-0335 · [enhancement] [garage-radar] [salt-sensor] Retrofit the boot-time heartbeat (Build Standards §4.1) onto the two remaining 30-minute-heartbeat ESPHome devices — RESOLVED 2026-09-25 17:02 MST
@@ -906,6 +913,8 @@ Archived to `tos/card-archive.md` on 2026-09-22 (CARD-0193) — 8422B, over the 
 
 **Related:** `components/hike-izer-orchestrator/birdnet-pipeline.md` (the audio-ID pattern this is modeled after), `components/hike-izer-orchestrator/birdnet.py`, `components/hike-izer-orchestrator/wildlife_life_list.py`.
 
+
+**Superseded 2026-09-25: this feature was removed** (CARD-0336, commit `1eac562`) after two wrong species in two hikes and run-to-run instability; only the caption prompt's location hint survives. The history above describes what was built and why it was withdrawn.
 ---
 
 ### CARD-0309 · [enhancement] [tos] Add a PR review checklist for the auto-PR intake pipeline

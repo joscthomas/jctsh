@@ -29,6 +29,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Related:** CARD-0343 (where it was found), CARD-0226 (the keep-log-until-next-run design), CARD-0012, `components/air-quality-monitor/air-quality-monitor.yaml`.
 
+
+**Bench Test 1 (power-cycle with Intent already ON), 2026-09-26 13:43-13:53 -- PASSED, but not for the reason suspected.** Flashed 0x6cfe91ff, unplugged USB, Intent ON, power-cycled (boot ~13:43), ~8 min on battery, plugged back in Intent OFF. The replay (13:52:55, after waiting ~1.5 min for the clock) was **5 lines, not 41+**: `{"event":"intent_on","had_lines":41,"replayed":1,"cleared":1}` (the switch's `on_press` fired after boot, saw the log of 41 lines flagged replayed, and cleared it), `wifi_attempt_start`, and 3 readings that resolved on-device to real times and landed in the Sheet (2026-09-26T20:45:22Z, 20:47:22Z, 20:49:21Z = 13:45:22-13:49:21 MST). **The new boot-time check never wrote its `boot_intent_on` event**, so at `on_boot` (priority -100) the Intent switch state was not yet valid and that check is dead code; the on_press path is what cleared the log, with the flag already restored. That contradicts the suspected cause, and the two earlier bench runs (where the same on_press did not clear the old lines) remain **unexplained** -- the diagnostic events stay in to catch it if it recurs. Remaining: Test 2 (Intent ON while running, no power-cycle); then decide whether to delete the dead boot-time check.
 ---
 
 ### CARD-0344 · [enhancement] [maintenance] Extend the update checks to the software they don't cover (Node-RED, ring-mqtt, matter-server, orchestrator deps, Immich sidecars, Tailscale, ESPHome)

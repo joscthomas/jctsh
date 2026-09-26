@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-25.3-narrow-export';
+var SCRIPT_VERSION = '2026-09-25.4-narrow-export-blocks';
 
 // 2026-09-25 (CARD-0226 incident): the original spreadsheet became unopenable
 // from Apps Script -- SpreadsheetApp.openById() on it, and on a plain copy of
@@ -1059,9 +1059,15 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
 // those rows. Same input, same JSON out, same row order. The full-read implementation
 // is kept below as _exportSheetFull and reachable with &full=1 (parity testing, and a
 // rollback that needs no redeploy).
-var EXPORT_MAX_RUNS = 40;
+// Pass 2 strategy (measured 2026-09-25: one getRange call costs ~0.3-0.5 s, so many small
+// runs are slower than one wide read): read the bounding block once when it is modest;
+// only when the rows are spread across a huge block but few runs, read per run.
+var EXPORT_BLOCK_MAX_ROWS = 5000;
+var EXPORT_MAX_RUNS = 6;
 
-function _exportSheet(sheetName, startParam, endParam) {
+function _exportSheet(sheetName, startParam, endParam, withTiming) {
+  var T0 = Date.now(), tm = {};
+  function mark(k) { tm[k] = Date.now() - T0; }
   if (!sheetName) {
     return ContentService
       .createTextOutput(JSON.stringify({status: 'error', message: 'missing sheet parameter'}))
@@ -1070,6 +1076,7 @@ function _exportSheet(sheetName, startParam, endParam) {
 
   var ss = _ss();
   var sheet = ss.getSheetByName(sheetName);
+  mark('open_ms');
   if (!sheet) {
     return ContentService
       .createTextOutput(JSON.stringify({status: 'error', message: 'unknown sheet: ' + sheetName}))
@@ -1078,7 +1085,7 @@ function _exportSheet(sheetName, startParam, endParam) {
 
   function emptyOk() {
     return ContentService
-      .createTextOutput(JSON.stringify({status: 'ok', sheet: sheetName, count: 0, rows: []}))
+      .createTextOutput(JSON.stringify(withTiming ? {status: 'ok', sheet: sheetName, count: 0, rows: [], timing: tm} : {status: 'ok', sheet: sheetName, count: 0, rows: []}))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -1086,12 +1093,15 @@ function _exportSheet(sheetName, startParam, endParam) {
   var lastCol = sheet.getLastColumn();
   if (lastRow < 2 || lastCol < 1) return emptyOk();
 
+  mark('dims_ms');
   var headers   = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   var startTime = startParam ? new Date(startParam).getTime() : -Infinity;
   var endTime   = endParam ? new Date(endParam).getTime() : Infinity;
+  mark('header_ms');
 
   // Pass 1: the timestamp column only.
   var tsCol = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  mark('read_ts_col_ms');
   var match = [];  // 1-based sheet row numbers, in sheet order
   for (var i = 0; i < tsCol.length; i++) {
     var tsRaw = tsCol[i][0];
@@ -1102,6 +1112,7 @@ function _exportSheet(sheetName, startParam, endParam) {
     if (t < startTime || t > endTime) continue;
     match.push(i + 2);
   }
+  mark('scan_ts_ms');
   if (!match.length) return emptyOk();
 
   // Pass 2: read only the matching rows, one call per contiguous run. Rows are mostly
@@ -1114,16 +1125,18 @@ function _exportSheet(sheetName, startParam, endParam) {
     else runs.push([r, r]);
   }
   var byRow = {};
-  if (runs.length <= EXPORT_MAX_RUNS) {
+  var minR = match[0], maxR = match[match.length - 1];
+  var blockRows = maxR - minR + 1;
+  if (runs.length > 1 && blockRows > EXPORT_BLOCK_MAX_ROWS && runs.length <= EXPORT_MAX_RUNS) {
     for (var u = 0; u < runs.length; u++) {
       var vals = sheet.getRange(runs[u][0], 1, runs[u][1] - runs[u][0] + 1, lastCol).getValues();
       for (var k = 0; k < vals.length; k++) byRow[runs[u][0] + k] = vals[k];
     }
   } else {
-    var minR = match[0], maxR = match[match.length - 1];
-    var block = sheet.getRange(minR, 1, maxR - minR + 1, lastCol).getValues();
+    var block = sheet.getRange(minR, 1, blockRows, lastCol).getValues();
     for (var q = 0; q < match.length; q++) byRow[match[q]] = block[match[q] - minR];
   }
+  mark('read_rows_ms');
 
   var rows = [];
   for (var x = 0; x < match.length; x++) {
@@ -1137,8 +1150,11 @@ function _exportSheet(sheetName, startParam, endParam) {
     rows.push(obj);
   }
 
+  mark('build_ms');
   return ContentService
-    .createTextOutput(JSON.stringify({status: 'ok', sheet: sheetName, count: rows.length, rows: rows}))
+    .createTextOutput(JSON.stringify(withTiming
+      ? {status: 'ok', sheet: sheetName, count: rows.length, rows: rows, timing: tm, runs: runs.length, blockRows: blockRows}
+      : {status: 'ok', sheet: sheetName, count: rows.length, rows: rows}))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -1300,7 +1316,7 @@ function doGet(e) {
 
     } else if (action === 'export') {
       if (e.parameter.full === '1') return _exportSheetFull(e.parameter.sheet, e.parameter.start, e.parameter.end);
-      return _exportSheet(e.parameter.sheet, e.parameter.start, e.parameter.end);
+      return _exportSheet(e.parameter.sheet, e.parameter.start, e.parameter.end, e.parameter.timing === '1');
 
     } else if (action === 'health') {
       // CARD-0338: early-warning probe. Unlike action=version (which never

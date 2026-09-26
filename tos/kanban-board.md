@@ -1101,6 +1101,8 @@ Optionally add `--schedule "<time>"` to defer it to the Mon 3 AM reboot window; 
 
 **Related:** CARD-0266 (the immediately prior HA update, 2026.9.1 → 2026.9.2, same shape), CARD-0269 (`pi-image-pull.py`, the required pull mechanism), CARD-0268 (the I/O-contention rationale behind it), CARD-0240 (the post-update entity-availability check this card inherits), CARD-0128 (the auto-PR intake pipeline this was raised by), `core/homeassistant/docker-compose.yml`.
 
+
+**Re-notification 2026-09-25 (PR #134, jctsh-core): the same pending 2026.9.2 → 2026.9.3 update, folded into this card rather than landed separately.** Still Backlog, still low risk per the assessment above. **Hold until after Saturday's 2026-09-26 hike (Joseph, 2026-09-25):** HA carries the Sheet-health and watchdog pushes to the Pixel and the hiking-monitor's Replay Hike Log / Restart buttons, and Saturday is the first real test of two firmware changes -- no extra restarts of things the hike depends on. Apply afterwards with `pi-image-pull.py` as above, then the post-update entity-availability check.
 ---
 
 ### CARD-0294 · [enhancement] [tos] Reconcile kanban-board.md tags against the real directory structure, retiring the [infrastructure] tag
@@ -1365,6 +1367,8 @@ Archived to `tos/kanban-archive.md` on 2026-09-16 (CARD-0193) — 8287B, over th
 
 **Related:** `components/photo-server/operations.md` (the Immich Update Check mechanism that raised this), `components/photo-server/immich-update-check.py`, CARD-0128 (`open_finding_pr()`, the auto-open mechanism).
 
+
+**Re-notification 2026-09-25 (PR #127, photo-server, open since 2026-09-23): the same pending v3.2.0 → v3.2.2 update, folded into this card rather than landed separately.** Still Backlog; the v3.2.2 risk assessment above stands. **Hold until after Saturday's 2026-09-26 hike (Joseph, 2026-09-25):** hike generation reads the hike's photos from Immich, and an Immich restart during or right after a hike would delay the first generation pass. Apply afterwards, one stack at a time, with the Done-when checks above.
 ---
 
 ### CARD-0273 · [enhancement] [hike-izer-orchestrator] hike-izer-orchestrator: split print() output into stdout (routine) vs. stderr (worth a look)
@@ -1697,7 +1701,7 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-18 (CARD-0193) —
 
 ---
 
-### CARD-0257 · [enhancement] [m8] cloudflared container update available: 2026.8.3 → 2026.9.1 — deliberately deferred pending tunnel-failure reports
+### CARD-0257 · [enhancement] [m8] cloudflared container update available: 2026.8.3 → 2026.9.3 — deliberately deferred pending tunnel-failure reports
 **Status:** Backlog
 
 **Raised via automated maintenance finding (PR #71, photo-server), 2026-09-10.** Routine container-version-bump finding from the scheduled maintenance check (CARD-0126): cloudflared 2026.9.0 available, running 2026.8.3.
@@ -1727,6 +1731,8 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-18 (CARD-0193) —
 
 **Related:** CARD-0126 (container-image update-visibility check that raised this), CARD-0227 (the Cloudflare Tunnel setup for `hikes.jctnet.com` this update would touch), CARD-0128 (the auto-PR intake pipeline), CARD-0274 (the Immich supersession this card's target-bump now matches).
 
+
+**Fourth duplicate finding, 2026-09-25 (PR #133, photo-server) -- target bumped to 2026.9.3; still holding, and the evidence hasn't moved.** Two new releases shipped on 2026-09-24, 30 minutes apart (2026.9.2 at 15:44Z, 2026.9.3 at 16:14Z); **both release pages are empty apart from checksums.** Checked the code instead of the notes (`gh api repos/cloudflare/cloudflared/compare/2026.9.1...2026.9.3`): 27 commits, 45 files -- almost entirely a new Quick Tunnel authentication feature set (TUN-10798 through TUN-10805: browser-bound login state, callback authorization, JWKS caching), hardening chores (response-size limit, header protection, no request-body logging), a gRPC bump and a dependency update. **No file in the range mentions `quic-go`, and `go.mod`'s changes are version bumps only -- the vendored quic-go fork that [cloudflared#1737](https://github.com/cloudflare/cloudflared/issues/1737) crashes in is untouched.** #1737 is still open, 0 comments, no maintainer response (last updated 2026-09-11). The M8's deployment shape (Docker bridge network, `restart: unless-stopped`) is unchanged, so the same exposure applies. **Also held for a second, independent reason: not before Saturday's 2026-09-26 hike (Joseph, 2026-09-25)** -- this tunnel carries the GPSLogger hike-end trigger, the hike pages and the idea/step2/pipeline-log webhooks; a flapping tunnel during a hike is the exact failure this card exists to avoid. Nothing further to do until #1737 moves or a release touches quic-go. PR #133 folded into this card, not landed separately.
 ---
 
 ### CARD-0256 · [idea] [architecture] Standard robust solar+swappable-battery power pattern for backyard devices

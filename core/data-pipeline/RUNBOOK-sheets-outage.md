@@ -116,8 +116,10 @@ The tab's live id and node ids differ from the repo copy's readable ids; match b
   spreadsheet, and a copy made with tab-level **Copy to**, opened in ~200 ms.
 - Apps Script spreadsheet calls fail at ~93 s each (two in a row = ~187 s), the execution cap is 360 s.
 - Write path: the Environmental Data branch of `doPost` takes `LockService`, scans only the last 2000
-  rows for duplicates (assumes new rows are at the bottom -- **do not sort the live tab**), then
-  `appendRow`. Node-RED never follows Apps Script's redirect with POST; it fetches the Location with GET
+  rows for duplicates (assumes new rows are at the bottom -- **do not sort the live tab descending**; for
+  newest-first browsing use a Filter view), then `appendRow`. `action=export` scans only the newest 15,000
+  timestamps when the tab is ascending and the request is recent (CARD-0337), else the whole column;
+  `&tail=0` / `&full=1` force the slower paths, `&timing=1` reports where the time goes. Node-RED never follows Apps Script's redirect with POST; it fetches the Location with GET
   to read the real JSON reply.
 - Related: CARD-0226 (incident record), CARD-0337 (keep the sheet small -- optional tidy-up),
   the health-probe card (early warning).

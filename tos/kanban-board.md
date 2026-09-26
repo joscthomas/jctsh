@@ -9,7 +9,30 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0342 -->
+<!-- next-card-id: CARD-0343 -->
+
+---
+
+### CARD-0342 · [enhancement] [salt-sensor] [homeassistant] Audible or push alert when salt goes critical -- today the critical alert only flips a switch and writes a dashboard line
+**Status:** Backlog
+
+**Raised 2026-09-25 20:34 MST (Joseph: "open a card for it, leave in backlog"), from CARD-0341's finding that "nothing played" when `switch.salt_critical_alert` turned on -- which is by design, not a bug.** Backlog only: captured, not scoped, no interview yet, no work started.
+
+**Facts established (2026-09-25, from CARD-0341's investigation):**
+- **What a critical (<15%) or low (15-33%) reading delivers today:** the alert switch goes `on` (visible in the Google Home app, answerable by voice query -- both alert switches are exposed to `cloud.google_assistant`, also `cloud.alexa` and `conversation`), and Node-RED writes an `Alert`-category line to the log dashboard. **Nothing plays and nothing is pushed.** CARD-0261's own design says the switches are "visibility only... no routine reacts to them"; live HA confirms it (2026-09-25 20:31 MST: `search/related` on `switch.salt_critical_alert` returned no automations, scripts or scenes).
+- **Why this matters now:** the salt sensor read **4% (42.1 cm)** at 2026-09-25 20:27, and the critical alert had been unable to hold on until CARD-0341 fixed the helper that same afternoon -- i.e. the tank got to critical with no way for anyone to be told.
+- **Since CARD-0341 (deployed 2026-09-25 20:27), the switch is re-asserted on every reading** (every 12 h and on every device reboot), so a trigger keyed to the switch turning `on` would fire on the first critical reading and again whenever the switch had been turned off and the next reading turns it back on.
+- **Precedents already in the repo:** the watchdog pushes to Joseph's Pixel through the HA companion app (`core/node-red/watchdog-README.md`); `automations.yaml` already targets a Google speaker (`media_player.garage_speaker`); CARD-0145 built a Ring-motion announcement on Google Home.
+
+**Options (not chosen, to be worked out in the interview):** (a) an HA automation on `switch.salt_critical_alert` -> `on` that announces on a Google speaker; (b) the same automation sending a companion-app push; (c) a Google Home routine keyed to the switch, built in the Google Home app (outside the repo -- unversioned, like the SmartThings routines CARD-0164/0260 are about); (d) logic in Node-RED calling HA's notify/TTS service directly, since the root architecture puts logic in Node-RED and treats HA as the integration layer; (e) a combination.
+
+**Questions the interview has to answer:** who is told (Joseph, Robin, both) and by which channel; which speaker(s), and quiet hours for an announcement; warning as well as critical, or critical only; repeat behavior -- once per crossing, or nag every 12 h while critical, or escalate; how it is acknowledged (turning the switch off? `salt_full_reset` after refilling?) without the re-assert on the next reading simply re-triggering it; where the logic lives (HA automation vs. Node-RED) and how that stays in the repo (`automations.yaml` is version-controlled; a Google Home routine is not).
+
+**Non-goals (provisional):** no change to the 15%/33% thresholds (Joseph, 2026-09-25: "leave it the way it is"); no change to the salt-sensor firmware or to CARD-0341's switch/re-assert behavior; no SmartThings involvement (CARD-0261 removed it).
+
+**Done when:** to be written from the interview -- at minimum, a real critical reading produces the notification the interview settles on, confirmed live rather than by a synthetic test.
+
+**Related:** CARD-0341 (found here; the switch now holds and is re-asserted), CARD-0261 (built the alert switches as visibility-only), CARD-0280 (the earlier end-to-end test), CARD-0145 (Ring motion announcement -- an audible-alert precedent), `components/salt-sensor/README.md` (HA-Native Switches), `core/node-red/watchdog-README.md` (the push-notification pattern).
 
 ---
 

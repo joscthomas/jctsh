@@ -13,20 +13,31 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0344 · [idea] [architecture] Software inventory: what tools and versions are we running, and what versions do we want to be on
+### CARD-0344 · [enhancement] [maintenance] Extend the update checks to the server-side software they don't cover (Node-RED, ring-mqtt, matter-server, orchestrator deps, Immich sidecars, Tailscale)
 
-**Status:** Backlog
+**Status:** Planning
 
-**Raised 2026-09-26 12:45 MST, from auto-opened PR #136** (voice/finding capture, raw text: "what software tools are we using and what versions do we want to be on"). Landed in Backlog at Joseph's direction ("land it in backlog"); **not yet interviewed** — essence only, per CARD-0256's convention that Backlog cards stay thin until Planning needs the detail.
+**Raised 2026-09-26 12:45 MST, from auto-opened PR #136** (raw finding: "what software tools are we using and what versions do we want to be on"). Landed in Backlog, then interviewed the same day (Joseph) and moved to Planning. **Planning only: no work started, nothing built or deployed.**
 
-**Essence.** Two questions: (1) what software the JCTsh ecosystem actually runs, and at what versions, across the Pi, the M8, the Windows workstation, and the ESP32 firmware toolchain; (2) which versions we *want* to be on, i.e. a deliberate target rather than whatever `stable`/`latest` happens to be. Related existing material: `SOFTWARE-ENVIRONMENT.md` (what's installed on the Pi) and the container-image update checks on both hosts. Known pins that already exist for a reason: ESPHome held at 2026.4.5 (2026.9.0 broke the compile, CARD-0333/CARD-0335), and Docker on the Pi 29.6.1 (pull hang, CARD-0266).
+**Interview outcome, 2026-09-26.** Joseph's point: the Pi and M8 software is already covered by daily notify-only update checks that open a kanban PR (`core/maintenance/README.md`: OS/firmware/kernel on both hosts, the Home Assistant, NetAlertX, Caddy and cloudflared containers, Immich via its own version API, plus the config-drift check). So the card is **only the gaps in that coverage, using the existing notify-only pattern** (`container_update_check.py`'s `check_services()` / `open_kanban_pr.py`), not a new inventory document, not a dashboard, not a pinned-versions table.
 
-**Open questions for Planning, not answered here:** scope (which hosts/toolchains); whether "want to be on" means pinned versions, a policy, or just a report of drift; and whether this extends `SOFTWARE-ENVIRONMENT.md` or replaces it. Tag `[architecture]` is a guess (cross-cutting, no single component), corrigible.
+**The gaps, verified 2026-09-26 by `docker ps` on both hosts and the repo (not from memory):**
+| Software | Where | Why it's uncovered |
+|---|---|---|
+| Node-RED (v4.1.10, Node 22) and its palette nodes (`node-red-node-*`, `node-red-contrib-*`) | Pi | installed with npm, so the apt check never sees them |
+| `ring-mqtt` (`tsightler/ring-mqtt:latest`) | M8 | not in `hosts/m8/container-update-check.py`'s `SERVICES` |
+| `matter-server` (`python-matter-server:stable`) | Pi | not in `core/homeassistant/container-update-check.py`'s `SERVICES` (HA only) |
+| `hike-izer-orchestrator` (own image) | M8 | `requirements.txt` has `anthropic` and `paho-mqtt` unpinned, so a rebuild takes whatever is newest; base image unchecked |
+| Immich sidecars: `immich_postgres` (vectorchord/pgvectors pinned tag), `immich_redis` (`valkey:9`) | M8 | Immich's own check covers the server version only |
+| Tailscale (1.102.2) | Pi (M8 not checked) | covered by apt only if installed from Tailscale's apt repo; not verified |
 
-**Done when:** not yet scoped.
+**Explicitly out of scope (Joseph, 2026-09-26): workstation and firmware tooling** (the ESPHome pip package pinned at 2026.4.5, the ESPHome version each flashed device runs, Python, Git, `gh`, Claude Code, ESP-IDF). Recorded because ESPHome is the one that has already broken a build (2026.9.0, CARD-0333/CARD-0335), so this exclusion is a decision to revisit, not a finding that it doesn't matter.
 
-**Related:** `SOFTWARE-ENVIRONMENT.md`, CARD-0266 (Docker pull hang / version pin), CARD-0333, CARD-0335 (ESPHome pin).
+**Open questions for Planning, not answered here:** whether each gap gets a `SERVICES` entry (containers) or needs a different mechanism (npm for Node-RED; dependency pins for the orchestrator); whether `:latest` images like ring-mqtt can be checked at all without a pinned tag to compare against; whether Tailscale needs a check or is already covered through apt; which existing check each new one belongs in, given `JCTsh-Build-Standards.md` §9.5's 1-hour clearance between maintenance jobs.
 
+**Done when:** not yet scoped. Planning must first settle the open questions above.
+
+**Related:** `core/maintenance/README.md` (the existing checks), `core/maintenance/container_update_check.py`, `tos/open_kanban_pr.py`, CARD-0126 (container update checks), CARD-0095 (OS/firmware check), CARD-0266 (Docker pull hang / Pi Docker pin), CARD-0333, CARD-0335 (ESPHome pin), `SOFTWARE-ENVIRONMENT.md`.
 ---
 
 ### CARD-0343 · [bug] [air-quality-monitor] AQM records nothing in the field after a cold boot -- no valid clock, every reading skipped as `clock_invalid`

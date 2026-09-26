@@ -355,6 +355,14 @@ globals:
     type: bool
     restore_value: true
     initial_value: 'false'
+  # CARD-0343 (2026-09-26): identifies this boot in readings buffered while the clock is invalid,
+  # so a replay can tell "same boot as the run -- convert uptimes to real times exactly" from
+  # "an earlier boot -- leave the reading tagged". 0 = not yet assigned (set by the first such
+  # reading); never persisted, so every boot gets a fresh one.
+  - id: boot_id
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
   # STEP 8 fix (2026-09-09, real bug found on first bench test): a CRC
   # failure on the SEN55 I2C read leaves sensor.state at its last
   # successfully-published value rather than NaN -- an isnan() check alone
@@ -580,8 +588,39 @@ script:
                 // below what actually arrived, and makes the ESP32 hold every unacked
                 // message during a 50 ms burst that already needed watchdog fixes.
                 aqm_log_replay_stream([](const std::string& line) {
+                  std::string out = line;
+                  // CARD-0343: a reading buffered with no valid clock carries "ts":null,
+                  // the seconds since boot, and a per-boot id. If this replay is still the
+                  // SAME boot and the clock is now valid (docked and synced), its real
+                  // time is exact: now - (uptime_now - uptime_at_reading). A reading from
+                  // an EARLIER boot (the device was power-cycled between the run and the
+                  // dock) cannot be resolved here and is forwarded still tagged, for the
+                  // Node-RED router to keep in the log rather than write to the Sheet.
+                  size_t tp = out.find("\"ts\":null");
+                  if (tp != std::string::npos) {
+                    ESPTime rnow = id(sntp_time).now();
+                    size_t up_at = out.find("\"uptime_s\":");
+                    size_t boot_at = out.find("\"boot\":\"");
+                    unsigned up_s = 0;
+                    char cur[9];
+                    snprintf(cur, sizeof(cur), "%08x", (unsigned) id(boot_id));
+                    if (rnow.is_valid() && id(boot_id) != 0 &&
+                        up_at != std::string::npos && boot_at != std::string::npos &&
+                        sscanf(out.c_str() + up_at, "\"uptime_s\":%u", &up_s) == 1 &&
+                        out.compare(boot_at + 8, 8, cur) == 0) {
+                      unsigned up_now = (unsigned)(millis() / 1000);
+                      if (up_now >= up_s) {
+                        time_t epoch = (time_t) rnow.timestamp - (time_t)(up_now - up_s);
+                        struct tm utc_tm;
+                        gmtime_r(&epoch, &utc_tm);
+                        char iso[25];
+                        strftime(iso, sizeof(iso), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
+                        out.replace(tp, 9, std::string("\"ts\":\"") + iso + "\"");
+                      }
+                    }
+                  }
                   id(mqtt_client).publish("jctsh/components/air-quality-monitor/data",
-                                          line, 0, false);
+                                          out, 0, false);
                   App.feed_wdt();
                   delay(50);
                 });
@@ -997,15 +1036,20 @@ interval:
                       float batt = id(battery_voltage).state;
 
                       // Build ISO 8601 UTC timestamp from the NTP-synced
-                      // clock, same pattern as hiking-monitor -- skip
-                      // (buffered) if not yet synced.
+                      // clock, same pattern as hiking-monitor. CARD-0343
+                      // (2026-09-26): a reading taken with NO valid clock is
+                      // no longer thrown away -- the first real field run
+                      // lost all 98 cycles of a hike to a cold boot with no
+                      // sync. It is buffered with "ts":null plus the seconds
+                      // since boot and a per-boot id, so the data survives
+                      // and can be given a real time later (exactly, at the
+                      // dock, if this is still the same boot -- see the
+                      // replay callback below).
                       ESPTime now = id(sntp_time).now();
+                      bool clock_ok = now.is_valid();
                       bool reading_is_fresh = id(sen55_last_update_ms) >= id(duty_cycle_read_start_ms);
 
-                      if (!now.is_valid()) {
-                        aqm_log_write("{\"event\":\"skip\",\"reason\":\"clock_invalid\"}");
-                        ESP_LOGW("DutyCycle", "Skipped -- clock not yet synced (expected with WiFi off)");
-                      } else if (!reading_is_fresh) {
+                      if (!reading_is_fresh) {
                         // STEP 8 fix: the read attempt never produced a
                         // genuine new publish this cycle (most likely a
                         // CRC failure) -- pm25/temp/hum below may be
@@ -1017,11 +1061,20 @@ interval:
                         aqm_log_write("{\"event\":\"skip\",\"reason\":\"nan_sensor\"}");
                         ESP_LOGW("DutyCycle", "Skipped -- pm25=%.1f temp=%.1f hum=%.1f (NaN present)", pm25, temp, hum);
                       } else {
-                        time_t epoch = (time_t)now.timestamp;
-                        struct tm utc_tm;
-                        gmtime_r(&epoch, &utc_tm);
-                        char ts[25];
-                        strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
+                        char ts_field[72];
+                        if (clock_ok) {
+                          time_t epoch = (time_t)now.timestamp;
+                          struct tm utc_tm;
+                          gmtime_r(&epoch, &utc_tm);
+                          char ts[25];
+                          strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
+                          snprintf(ts_field, sizeof(ts_field), "\"ts\":\"%s\"", ts);
+                        } else {
+                          if (id(boot_id) == 0) id(boot_id) = esp_random() | 1u;
+                          snprintf(ts_field, sizeof(ts_field), "\"ts\":null,\"uptime_s\":%u,\"boot\":\"%08x\"",
+                                   (unsigned)(millis() / 1000), (unsigned)id(boot_id));
+                          ESP_LOGW("DutyCycle", "Clock not synced -- buffering uptime-tagged reading (%s)", ts_field);
+                        }
 
                         char pm1_s[16], pm25_s[16], pm4_s[16], pm10_s[16], voc_s[16], nox_s[16];
                         if (isnan(pm1))  strcpy(pm1_s, "null");  else snprintf(pm1_s, sizeof(pm1_s), "%.1f", pm1);
@@ -1035,10 +1088,10 @@ interval:
                         char batt_s[16];
                         if (isnan(batt)) strcpy(batt_s, "null"); else snprintf(batt_s, sizeof(batt_s), "%.2f", batt);
 
-                        char payload[400];
+                        char payload[460];
                         snprintf(payload, sizeof(payload),
                           "{\"component\":\"air-quality-monitor\","
-                          "\"ts\":\"%s\","
+                          "%s,"
                           "\"lat\":null,\"lon\":null,"
                           "\"temp_f\":%.1f,"
                           "\"humidity_pct\":%.1f,"
@@ -1050,9 +1103,12 @@ interval:
                           "\"nox_index\":%s,"
                           "\"battery_v\":%s,"
                           "\"rssi_dbm\":%d}",
-                          ts, temp, hum, pm1_s, pm25_s, pm4_s, pm10_s, voc_s, nox_s, batt_s, rssi);
+                          ts_field, temp, hum, pm1_s, pm25_s, pm4_s, pm10_s, voc_s, nox_s, batt_s, rssi);
 
-                        if (id(mqtt_client).is_connected()) {
+                        // A reading with no valid clock is never published live
+                        // (an unresolved time must not reach the Sheet); it is
+                        // buffered and reconciled at replay.
+                        if (clock_ok && id(mqtt_client).is_connected()) {
                           id(mqtt_client).publish("jctsh/components/air-quality-monitor/data",
                                                   std::string(payload), 0, false);
                           ESP_LOGW("DutyCycle", "Published live: %s", payload);

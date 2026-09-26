@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-25.2-health-action';
+var SCRIPT_VERSION = '2026-09-25.3-narrow-export';
 
 // 2026-09-25 (CARD-0226 incident): the original spreadsheet became unopenable
 // from Apps Script -- SpreadsheetApp.openById() on it, and on a plain copy of
@@ -1052,7 +1052,97 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
 // Params: sheet=<name> (required), start=<ISO ts> (optional), end=<ISO ts> (optional)
 // Returns: {status:'ok', sheet, count, rows: [{header: value, ...}, ...]}
 
+// CARD-0337 phase 1 (2026-09-25): the export used to read every row and every column
+// of the tab (getDataRange().getValues()) and filter by timestamp in JavaScript -- for
+// Environmental Data that is ~860k cells to return a hike's ~70 rows (8.6 s measured).
+// This reads only column A (the timestamp), picks the matching rows, then reads just
+// those rows. Same input, same JSON out, same row order. The full-read implementation
+// is kept below as _exportSheetFull and reachable with &full=1 (parity testing, and a
+// rollback that needs no redeploy).
+var EXPORT_MAX_RUNS = 40;
+
 function _exportSheet(sheetName, startParam, endParam) {
+  if (!sheetName) {
+    return ContentService
+      .createTextOutput(JSON.stringify({status: 'error', message: 'missing sheet parameter'}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  var ss = _ss();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    return ContentService
+      .createTextOutput(JSON.stringify({status: 'error', message: 'unknown sheet: ' + sheetName}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  function emptyOk() {
+    return ContentService
+      .createTextOutput(JSON.stringify({status: 'ok', sheet: sheetName, count: 0, rows: []}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return emptyOk();
+
+  var headers   = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var startTime = startParam ? new Date(startParam).getTime() : -Infinity;
+  var endTime   = endParam ? new Date(endParam).getTime() : Infinity;
+
+  // Pass 1: the timestamp column only.
+  var tsCol = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  var match = [];  // 1-based sheet row numbers, in sheet order
+  for (var i = 0; i < tsCol.length; i++) {
+    var tsRaw = tsCol[i][0];
+    if (!tsRaw) continue;
+    var tsDate = new Date(tsRaw);
+    if (isNaN(tsDate.getTime())) continue;
+    var t = tsDate.getTime();
+    if (t < startTime || t > endTime) continue;
+    match.push(i + 2);
+  }
+  if (!match.length) return emptyOk();
+
+  // Pass 2: read only the matching rows, one call per contiguous run. Rows are mostly
+  // chronological but a device replay can land out of order, so a range can be several
+  // runs; past EXPORT_MAX_RUNS runs, one read of the bounding block is cheaper.
+  var runs = [];
+  for (var m = 0; m < match.length; m++) {
+    var r = match[m];
+    if (runs.length && r === runs[runs.length - 1][1] + 1) runs[runs.length - 1][1] = r;
+    else runs.push([r, r]);
+  }
+  var byRow = {};
+  if (runs.length <= EXPORT_MAX_RUNS) {
+    for (var u = 0; u < runs.length; u++) {
+      var vals = sheet.getRange(runs[u][0], 1, runs[u][1] - runs[u][0] + 1, lastCol).getValues();
+      for (var k = 0; k < vals.length; k++) byRow[runs[u][0] + k] = vals[k];
+    }
+  } else {
+    var minR = match[0], maxR = match[match.length - 1];
+    var block = sheet.getRange(minR, 1, maxR - minR + 1, lastCol).getValues();
+    for (var q = 0; q < match.length; q++) byRow[match[q]] = block[match[q] - minR];
+  }
+
+  var rows = [];
+  for (var x = 0; x < match.length; x++) {
+    var row = byRow[match[x]];
+    var obj = {};
+    for (var c = 0; c < headers.length; c++) {
+      var val = row[c];
+      if (val instanceof Date) val = val.toISOString();
+      obj[headers[c]] = val;
+    }
+    rows.push(obj);
+  }
+
+  return ContentService
+    .createTextOutput(JSON.stringify({status: 'ok', sheet: sheetName, count: rows.length, rows: rows}))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function _exportSheetFull(sheetName, startParam, endParam) {
   if (!sheetName) {
     return ContentService
       .createTextOutput(JSON.stringify({status: 'error', message: 'missing sheet parameter'}))
@@ -1209,6 +1299,7 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
 
     } else if (action === 'export') {
+      if (e.parameter.full === '1') return _exportSheetFull(e.parameter.sheet, e.parameter.start, e.parameter.end);
       return _exportSheet(e.parameter.sheet, e.parameter.start, e.parameter.end);
 
     } else if (action === 'health') {

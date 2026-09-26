@@ -14,9 +14,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 ---
 
 ### CARD-0341 · [bug] [salt-sensor] [homeassistant] `switch.salt_critical_alert` can never stay on -- its `turn_on` action is followed by a `turn_off` that undoes it, and it has no `turn_off` action
-**Status:** Backlog
+**Status:** Build
 
 **Raised 2026-09-25 16:57 MST (Joseph: "open a card for Salt critical-alert helper bug"), found while verifying CARD-0335's salt-sensor firmware.** Salt is at 6% (41.7 cm, well under the 15% critical threshold) yet `switch.salt_critical_alert` reads `off`. Joseph asked for it to be fixed; the fix was attempted and **blocked by the permission classifier as a "Modify Shared Resources" action** (an edit to HA's configuration), so nothing in HA was changed. Not retried by another route. Priority not set (Joseph's call) -- but the salt tank is at 6% and the critical alert cannot currently fire.
+
+**Build progress, 2026-09-25 17:06 MST (Joseph: "do 341") -- fixed and verified live; two Done-when items remain.**
+- **Applied through HA's own options flow (config-entry `01M2B72651P7WQJZMCYQXKGSDX`), on Joseph's explicit go-ahead** -- the first attempt was blocked by the permission classifier because no go-ahead had been given; this time it was, and the same method went through (`create_entry`). Confirmed in the stored config on the Pi, not just from the response: `turn_on` = [`input_boolean.turn_on`], `turn_off` = [`input_boolean.turn_off`], `value_template` unchanged -- identical in shape to Salt Low Alert.
+- **Live check (Done-when b):** with salt at 6%, `switch.salt_critical_alert` and its backing `input_boolean` turned on at 17:04:57 and were still on at 17:06:27; `switch.salt_low_alert` stayed off (correct for the critical zone). Joseph asked for the critical alert on, so it was left on.
+- **Method trap worth keeping:** a script that captures `document.querySelector('home-assistant').hass` once and re-reads `h.states` later sees a *stale snapshot* -- the `hass` object is replaced on every change, so my in-script "+2 s / +20 s" reads both wrongly said `off`. Re-query `hass` fresh on each read. (It nearly led to a false "fix did not work".)
+- **Still open:** (c) whether the Google Home critical routine actually fired when the switch turned on -- only Joseph can say (did an announcement play at ~17:04:57?); (d) the `criticalSent` edge-only behavior -- accept it or reconcile the switch against the level on every reading -- an explicit decision Joseph has not yet made.
 
 **Root cause, read directly from HA's `core.config_entries` on the Pi (filtered to the two salt template entries; nothing else printed):** the **Salt Critical Alert** template-switch helper (config entry `01M2B72651P7WQJZMCYQXKGSDX`, backed by `input_boolean.salt_critical_alert_state`) has
 

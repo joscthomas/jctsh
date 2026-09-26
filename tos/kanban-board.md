@@ -13,13 +13,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0344 · [enhancement] [maintenance] Extend the update checks to the server-side software they don't cover (Node-RED, ring-mqtt, matter-server, orchestrator deps, Immich sidecars, Tailscale)
+### CARD-0344 · [enhancement] [maintenance] Extend the update checks to the software they don't cover (Node-RED, ring-mqtt, matter-server, orchestrator deps, Immich sidecars, Tailscale, ESPHome)
 
 **Status:** Planning
 
 **Raised 2026-09-26 12:45 MST, from auto-opened PR #136** (raw finding: "what software tools are we using and what versions do we want to be on"). Landed in Backlog, then interviewed the same day (Joseph) and moved to Planning. **Planning only: no work started, nothing built or deployed.**
 
-**Interview outcome, 2026-09-26.** Joseph's point: the Pi and M8 software is already covered by daily notify-only update checks that open a kanban PR (`core/maintenance/README.md`: OS/firmware/kernel on both hosts, the Home Assistant, NetAlertX, Caddy and cloudflared containers, Immich via its own version API, plus the config-drift check). So the card is **only the gaps in that coverage, using the existing notify-only pattern** (`container_update_check.py`'s `check_services()` / `open_kanban_pr.py`), not a new inventory document, not a dashboard, not a pinned-versions table.
+**Interview outcome, 2026-09-26.** Joseph's point: the Pi and M8 software is already covered by daily notify-only update checks that open a kanban PR (`core/maintenance/README.md`: OS/firmware/kernel on both hosts, the Home Assistant, NetAlertX, Caddy and cloudflared containers, Immich via its own version API, plus the config-drift check). So the card is **only the gaps in that coverage (ESPHome added to scope later the same day, below), using the existing notify-only pattern** (`container_update_check.py`'s `check_services()` / `open_kanban_pr.py`), not a new inventory document, not a dashboard, not a pinned-versions table.
 
 **The gaps, verified 2026-09-26 by `docker ps` on both hosts and the repo (not from memory):**
 | Software | Where | Why it's uncovered |
@@ -30,10 +30,11 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 | `hike-izer-orchestrator` (own image) | M8 | `requirements.txt` has `anthropic` and `paho-mqtt` unpinned, so a rebuild takes whatever is newest; base image unchecked |
 | Immich sidecars: `immich_postgres` (vectorchord/pgvectors pinned tag), `immich_redis` (`valkey:9`) | M8 | Immich's own check covers the server version only |
 | Tailscale (1.102.2) | Pi (M8 not checked) | covered by apt only if installed from Tailscale's apt repo; not verified |
+| **ESPHome** (added to scope 2026-09-26, Joseph): the pip package on the Windows workstation, pinned by hand at 2026.4.5, and the version each flashed device runs | workstation + 6 field devices | no check of either. The pin is deliberate (2026.9.0 broke the compile, CARD-0333/CARD-0335) so it never gets revisited unless someone remembers; the per-device versions are recorded nowhere except each device's own boot line |
 
-**Explicitly out of scope (Joseph, 2026-09-26): workstation and firmware tooling** (the ESPHome pip package pinned at 2026.4.5, the ESPHome version each flashed device runs, Python, Git, `gh`, Claude Code, ESP-IDF). Recorded because ESPHome is the one that has already broken a build (2026.9.0, CARD-0333/CARD-0335), so this exclusion is a decision to revisit, not a finding that it doesn't matter.
+**Scope decision, 2026-09-26 (Joseph):** the rest of the workstation tooling (Python, Git, `gh`, Claude Code, ESP-IDF) is **out of scope**. **ESPHome is in scope**, because it is the one tool that has already broken a build (2026.9.0). What the log shows today: each device reports its ESPHome version in its "online - ESPHome X" boot line, and all six devices (`air-quality-monitor`, `back-patio-temp-sensor`, `front-porch-temp-sensor`, `garage-radar`, `hiking-monitor`, `salt-sensor`) most recently report 2026.4.5; `back-patio-temp-sensor` has one boot line reporting 2026.9.0 among 19 at 2026.4.5. So the running version is already observable without touching a device.
 
-**Open questions for Planning, not answered here:** whether each gap gets a `SERVICES` entry (containers) or needs a different mechanism (npm for Node-RED; dependency pins for the orchestrator); whether `:latest` images like ring-mqtt can be checked at all without a pinned tag to compare against; whether Tailscale needs a check or is already covered through apt; which existing check each new one belongs in, given `JCTsh-Build-Standards.md` §9.5's 1-hour clearance between maintenance jobs.
+**Open questions for Planning, not answered here:** for ESPHome, what "out of date" should mean given the pin is deliberate (a check that reports the latest release against the pin, one that flags devices running different versions from each other, or both), and where a check would run given the pip package lives on the workstation, not on a host; whether each gap gets a `SERVICES` entry (containers) or needs a different mechanism (npm for Node-RED; dependency pins for the orchestrator); whether `:latest` images like ring-mqtt can be checked at all without a pinned tag to compare against; whether Tailscale needs a check or is already covered through apt; which existing check each new one belongs in, given `JCTsh-Build-Standards.md` §9.5's 1-hour clearance between maintenance jobs.
 
 **Done when:** not yet scoped. Planning must first settle the open questions above.
 

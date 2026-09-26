@@ -9,7 +9,35 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0343 -->
+<!-- next-card-id: CARD-0344 -->
+
+---
+
+### CARD-0343 · [bug] [air-quality-monitor] AQM records nothing in the field after a cold boot -- no valid clock, every reading skipped as `clock_invalid`
+
+**Status:** Backlog
+
+**Raised 2026-09-26 (Joseph: "yes, write up the AQM clock card") from the AQM's first real field run.** On the 2026-09-26 hike (05:57-09:19 MST, carried with the hiking-monitor) the AQM produced **zero usable readings**. Its dock-time replay was 101 buffered lines: **98 `{"event":"skip","reason":"clock_invalid"}` events** (one per 2-minute duty cycle, ~3.3 h, i.e. the whole hike) plus three `wifi_attempt_start` events. Nothing reached the Environmental Data Sheet for `air-quality-monitor`. The data cannot be recovered: skipped cycles were never stored, only the fact that they were skipped.
+
+**Cause (established from the code and Joseph's account, not just inferred).** The AQM has **no RTC** (`air-quality-monitor.yaml`: "No RTC hardware. Timestamps for buffered field-mode readings are built from this clock" -- `time: platform: sntp`). SNTP only becomes valid after a Wi-Fi connection since the last boot, and the AQM only attempts Wi-Fi when **docked (dock-detect HIGH) with the Intent switch OFF and battery >= 3.5 V** (the three-signal power model, `JCTsh-Build-Standards.md` §2.14). On 2026-09-26 Joseph started the run from the garage by unplugging it from the dock, powering it on, and turning Intent ON -- a **cold boot with no Wi-Fi window**, so the clock never became valid and the duty-cycle check (`if (!now.is_valid())`, ~line 1002) skipped every reading, logging only the skip event. **Why it was never seen before:** every earlier AQM run (bench and the 9/22-9/25 tests) began from a device that was docked and had already synced, and ESP32 time survives a running session; this is the first time it was rebooted with no sync opportunity before leaving. (The hiking-monitor is believed to be protected differently -- its time should persist across its deep sleep, not verified here -- but a cold boot with no sync would hit it the same way.)
+
+**Not the only problem from this hike:** the hiking-monitor also delivered nothing (empty log, cause unexplained) -- tracked on CARD-0226, separate from this card.
+
+**Options (none chosen; each is a real design change to a device whose power model is deliberately tight):**
+1. **Never discard a reading: store it with an uptime tag instead of skipping it.** When the clock is invalid, log the reading as `{... "ts": null, "uptime_s": N, "boot": <id>}` (or with `millis()`), so the sensor data survives even if the wall-clock time is reconstructed later or only approximately. Smallest change and worth doing regardless: it converts "run lost" into "run present, timestamps pending". Needs Node-RED/Apps Script to cope with a null `ts` until reconciled (the router now drops a reading with no `ts` -- CARD-0339 -- so this needs a deliberate carve-out).
+2. **Reconcile timestamps at the next sync.** At dock the device syncs SNTP; if it has stayed powered since the run started, `absolute = sync_time - (uptime_now - uptime_at_reading)` is exact for every stored reading, so replay can publish real timestamps. Works only if the AQM is **not power-cycled between the run and the dock** (a second cold boot loses the reference) -- which is how it was used on 9/26 (powered on at dock: `reset reason: power-on event` at 09:16:29).
+3. **A bounded Wi-Fi attempt at the start of a run when the clock is invalid** (JCTnet1 at the garage, the Pixel hotspot at a trailhead), ~2 minutes then radio off, to get SNTP before the run begins. Solves cold boots directly; **it relaxes the "docked + Intent off + >= 3.5 V" Wi-Fi gate for one bounded attempt**, so it needs a real decision against §2.14's battery reasoning, and needs the hotspot on at a trailhead.
+4. **An I2C RTC module** (ESPHome has RTC time platforms; a DS3231-class part on the existing I2C bus, with its coin cell). Robust against every reboot and brownout, not just this one; costs enclosure space, a part, and a small draw. Most complete answer, most hardware.
+5. **Procedure only:** sync while docked, then flip Intent ON *without* cutting power; never power-cycle away from a sync. No code, but fragile -- any brownout or accidental reset in the field reproduces this.
+6. **Anchor to an external clock:** hike-izer already knows the session's start/stop from GPSLogger; readings tagged by uptime could be aligned to the hike window approximately (best effort, ~minutes of error) when nothing else is available.
+
+**Recommendation to discuss:** option 1 immediately (stop losing runs), plus either 3 (fixes the cold-boot case in firmware) or 4 (fixes it and everything like it) -- 2 and 6 are complements, not substitutes, since they depend on power continuity or approximations. Procedure (5) should be written into the device's docs either way.
+
+**Not yet interviewed or scoped.** Open questions for Joseph: (a) is a power-cycle at the start of every hike the expected workflow (it determines whether 2 is viable)? (b) is a phone hotspot normally on at the trailhead (option 3)? (c) appetite for an RTC part and enclosure change (option 4)? (d) should reconstructed/approximate timestamps be marked in the Sheet so they are distinguishable from real ones?
+
+**Done when:** an AQM run begun from a cold boot with no Wi-Fi produces stored readings whose timestamps are correct (or clearly marked approximate) after the dock replay -- verified on a real or bench run, not just compiled.
+
+**Related:** CARD-0012 (the AQM build; its 2026-09-25 log-retention port is what retained the `clock_invalid` skip events that made this diagnosable), CARD-0226 (the hike on which this appeared, and the hiking-monitor's separate empty-log problem), CARD-0339 (the `/data` router that drops a reading with no `component`/`ts`), `components/air-quality-monitor/air-quality-monitor.yaml`, `JCTsh-Build-Standards.md` §2.14.
 
 ---
 

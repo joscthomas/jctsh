@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-25.5-export-tail-first';
+var SCRIPT_VERSION = '2026-09-25.6-export-tail-early-out';
 
 // 2026-09-25 (CARD-0226 incident): the original spreadsheet became unopenable
 // from Apps Script -- SpreadsheetApp.openById() on it, and on a plain copy of
@@ -1122,7 +1122,16 @@ function _exportSheet(sheetName, startParam, endParam, withTiming, useTail) {
   // rows are appended chronologically, with only a device replay landing slightly out of order --
   // is the one the doPost dedup window already makes (do not sort the live tab).
   var tsCol, scanFrom = 2, tailUsed = false;
+  // Cheap early-out (one two-cell read): a descending tab (row 2 newer than row 3) can never take
+  // the tail path, so don't pay for reading the tail first (found live 2026-09-25: the Z->A-sorted
+  // Environmental Data tab made every failed attempt cost 1-3 s).
+  var startsAscending = false;
   if (useTail !== false && isFinite(startTime) && lastRow - 1 > EXPORT_TAIL_ROWS) {
+    var firstTwo = sheet.getRange(2, 1, 2, 1).getValues();
+    var f0 = _exportTsMillis(firstTwo[0][0]), f1 = _exportTsMillis(firstTwo[1][0]);
+    startsAscending = (f0 !== null && f1 !== null && f0 <= f1);
+  }
+  if (startsAscending) {
     var tailFrom = lastRow - EXPORT_TAIL_ROWS + 1;
     var tailVals = sheet.getRange(tailFrom, 1, EXPORT_TAIL_ROWS, 1).getValues();
     var firstTs = _exportTsMillis(sheet.getRange(2, 1).getValue());

@@ -14,7 +14,7 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-25.4-narrow-export-blocks';
+var SCRIPT_VERSION = '2026-09-25.5-export-tail-first';
 
 // 2026-09-25 (CARD-0226 incident): the original spreadsheet became unopenable
 // from Apps Script -- SpreadsheetApp.openById() on it, and on a plain copy of
@@ -1062,10 +1062,22 @@ function _maybeCaptureHikeStartForecast(ss, tsISO, coords) {
 // Pass 2 strategy (measured 2026-09-25: one getRange call costs ~0.3-0.5 s, so many small
 // runs are slower than one wide read): read the bounding block once when it is modest;
 // only when the rows are spread across a huge block but few runs, read per run.
+// Tail-first scan (2026-09-25, CARD-0337): measured server-side, reading the timestamp column is
+// 85-95% of a hike-sized export's time (2.7-4.8 s for 33k rows) and grows faster than the row
+// count. Nearly every request is for recent data and the tab is chronological, so read only the
+// newest EXPORT_TAIL_ROWS timestamps -- but only when that is provably safe (see _exportTsMillis
+// use in _exportSheet); otherwise fall back to the full column. &tail=0 forces the full column.
+var EXPORT_TAIL_ROWS = 15000;
 var EXPORT_BLOCK_MAX_ROWS = 5000;
 var EXPORT_MAX_RUNS = 6;
 
-function _exportSheet(sheetName, startParam, endParam, withTiming) {
+function _exportTsMillis(v) {
+  if (!v) return null;
+  var t = new Date(v).getTime();
+  return isNaN(t) ? null : t;
+}
+
+function _exportSheet(sheetName, startParam, endParam, withTiming, useTail) {
   var T0 = Date.now(), tm = {};
   function mark(k) { tm[k] = Date.now() - T0; }
   if (!sheetName) {
@@ -1099,18 +1111,40 @@ function _exportSheet(sheetName, startParam, endParam, withTiming) {
   var endTime   = endParam ? new Date(endParam).getTime() : Infinity;
   mark('header_ms');
 
-  // Pass 1: the timestamp column only.
-  var tsCol = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  // Pass 1: the timestamp column only -- the newest EXPORT_TAIL_ROWS of it when that is provably
+  // enough. It is enough only if (a) the request has a real start bound, (b) the tab is long
+  // enough for it to matter, (c) the tab's very first data row is older than every timestamp in
+  // the tail (an ascending tab; a Z->A-sorted or shuffled tab fails this and falls back),
+  // (d) the request starts after the tail's oldest timestamp, so no matching row can sit before
+  // the tail, and (e) the row immediately before the tail is no newer than the tail's oldest
+  // timestamp (any disorder at the boundary means the chronological assumption is doubtful).
+  // Any doubt -> read the whole column, exactly as before. The assumption this rests on --
+  // rows are appended chronologically, with only a device replay landing slightly out of order --
+  // is the one the doPost dedup window already makes (do not sort the live tab).
+  var tsCol, scanFrom = 2, tailUsed = false;
+  if (useTail !== false && isFinite(startTime) && lastRow - 1 > EXPORT_TAIL_ROWS) {
+    var tailFrom = lastRow - EXPORT_TAIL_ROWS + 1;
+    var tailVals = sheet.getRange(tailFrom, 1, EXPORT_TAIL_ROWS, 1).getValues();
+    var firstTs = _exportTsMillis(sheet.getRange(2, 1).getValue());
+    var tailMin = Infinity;
+    for (var a = 0; a < tailVals.length; a++) {
+      var tv = _exportTsMillis(tailVals[a][0]);
+      if (tv !== null && tv < tailMin) tailMin = tv;
+    }
+    var boundTs = _exportTsMillis(sheet.getRange(tailFrom - 1, 1).getValue());
+    if (firstTs !== null && boundTs !== null && tailMin !== Infinity &&
+        firstTs <= tailMin && boundTs <= tailMin && startTime > tailMin) {
+      tailUsed = true; scanFrom = tailFrom; tsCol = tailVals;
+    }
+  }
+  if (!tailUsed) tsCol = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
   mark('read_ts_col_ms');
   var match = [];  // 1-based sheet row numbers, in sheet order
   for (var i = 0; i < tsCol.length; i++) {
-    var tsRaw = tsCol[i][0];
-    if (!tsRaw) continue;
-    var tsDate = new Date(tsRaw);
-    if (isNaN(tsDate.getTime())) continue;
-    var t = tsDate.getTime();
+    var t = _exportTsMillis(tsCol[i][0]);
+    if (t === null) continue;
     if (t < startTime || t > endTime) continue;
-    match.push(i + 2);
+    match.push(scanFrom + i);
   }
   mark('scan_ts_ms');
   if (!match.length) return emptyOk();
@@ -1153,7 +1187,7 @@ function _exportSheet(sheetName, startParam, endParam, withTiming) {
   mark('build_ms');
   return ContentService
     .createTextOutput(JSON.stringify(withTiming
-      ? {status: 'ok', sheet: sheetName, count: rows.length, rows: rows, timing: tm, runs: runs.length, blockRows: blockRows}
+      ? {status: 'ok', sheet: sheetName, count: rows.length, rows: rows, timing: tm, runs: runs.length, blockRows: blockRows, tail: tailUsed}
       : {status: 'ok', sheet: sheetName, count: rows.length, rows: rows}))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -1316,7 +1350,7 @@ function doGet(e) {
 
     } else if (action === 'export') {
       if (e.parameter.full === '1') return _exportSheetFull(e.parameter.sheet, e.parameter.start, e.parameter.end);
-      return _exportSheet(e.parameter.sheet, e.parameter.start, e.parameter.end, e.parameter.timing === '1');
+      return _exportSheet(e.parameter.sheet, e.parameter.start, e.parameter.end, e.parameter.timing === '1', e.parameter.tail !== '0');
 
     } else if (action === 'health') {
       // CARD-0338: early-warning probe. Unlike action=version (which never

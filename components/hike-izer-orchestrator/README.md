@@ -33,14 +33,13 @@ identically every time:
 - **`generate(file_stem)`** — always re-fetches Environmental Data/GPS/
   Hiking Observations fresh (late-arriving Sheet data is exactly what a
   later pass exists to catch) and re-checks Immich for photos (captioning
-  only genuinely new ones). It skips only the CARD-0311 place-naming and
-  Nearby Named Features Overpass lookups once a prior pass already got a
-  real answer — the one rate-limited, worth-not-repeating step — tracked
+  only genuinely new ones). It skips only the CARD-0311 place-naming
+  Overpass lookup once a prior pass already got a real answer — tracked
   in a small `<file_stem>_places_state.json` sidecar in `PRIVATE_DIR`
-  (`{"ok": bool, "places": {...}, "named_features": [...]}`). `ok` is
-  all-or-nothing across both lookups, not tracked per-call: simpler, and
-  the cost of one extra free Overpass call for the half that already
-  succeeded is negligible.
+  (`{"ok": bool, "places": {...}}`). CARD-0348, same day: the separate
+  Nearby Named Features Overpass lookup this used to run alongside was
+  retired outright (see "Location naming" below) — one lookup now, so
+  there's no second flag to keep in sync.
 
 `generate()` is called by the webhook's own first pass (via bootstrap), by
 the daily systemd-timer catch-up (`run_daily_refresh_and_log`, CARD-0214,
@@ -205,11 +204,13 @@ already went out before generation started (see `app.py`'s background
 thread), so a failure here is only visible via logs/MQTT, not an HTTP
 error.
 
-## Location naming (CARD-0311)
+## Location naming (CARD-0311/CARD-0348)
 
-Step 2's Location section names, for the hike, the **town/county/state**, the **area**
-(park/preserve), the **trailhead**, and the **trails in the order hiked** (arrows between
-them, no distances). `hike_places.py` does it with **one Overpass call** for the hike's
+The hike-intro block at the top of every page (CARD-0348, 2026-09-27 -- moved here from a
+separate `Location` section further down, per Joseph's own redesign request) names, for the
+hike, the **town/county/state**, the **area** (park/preserve), the **trailhead**, and the
+**trails in the order hiked** (arrows between them, no distances), read top to bottom as
+Time -> Location -> Distance -> Elevation Gain. `hike_places.py` does it with **one Overpass call** for the hike's
 bounding box: `is_in()` at 10 points along the track picks the area (the named park polygon
 containing the most of them) and the town/county/state; every path-type way in the box is
 matched against the GPS track (25 m) to get the trails; the trailhead is a named
@@ -222,12 +223,21 @@ walked, in order, labeled "Streets"; no trailhead is claimed unless OSM tags a r
 `highway=trailhead`. Known OSM typos (`Tral`) are corrected by a
 token map at the top of `hike_places.py`. Any failure just omits the lines.
 
+**Nearby Named Features (place_context.py's own separate Overpass lookup) retired
+2026-09-27, CARD-0348.** It queried named parks/schools/hiking-routes near a few sampled
+points and rendered as its own table below the Location block. Across all 10 real hikes
+published before this change it returned a result exactly once, and that one result only
+duplicated the hike's own trail -- already named better by the lookup above (Joseph: "the
+value of nearby features seems dubious... a nearby feature that describes the same thing is
+not desireable"). `place_context.py` now holds only the shared Nominatim/Overpass-retry
+helpers `hike_places.py` itself depends on.
+
 `known-places.json` (deployed with the `.py` files) holds Joseph's own names for spots he
 hikes: a trailhead coordinate + radius (default 150 m) and any of `trailhead`, `area`, `trail`
 (with `osm_trail` naming the OSM trail it renames). An entry applies when the track passes within
 its radius, and overrides OSM's names for the fields it defines. Add a spot by adding an entry.
 
-## Staging data for step 2
+## Staging data for the generation pass
 
 See `staging.md` for the day-to-day runbook: where the Gaia GPS embed
 snippet and BirdNET Live exports go, how to find the right hike's staging

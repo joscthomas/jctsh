@@ -41,25 +41,30 @@ NA = "not available"
 # webhook payload at trigger time, not a hardcoded Arizona assumption.
 # ---------------------------------------------------------------------------
 
-def places_lines(places):
-    """CARD-0311: Where / Area / Trailhead / Trail(s) paragraphs, broad to
-    narrow, each omitted when absent. Trails are in the order hiked; a hike in
-    a town or city (route_kind "street") lists the streets walked instead."""
+def _location_masthead(places):
+    """CARD-0311/CARD-0348: the hike-intro block's Location content -- Where
+    (small eyebrow caption), Area (headline), Trailhead/Trail(s) (detail
+    lines), broad to narrow. Omitted entirely when there's nothing to say,
+    same convention as every other optional section on this page. Trails
+    are in the order hiked; a hike in a town or city (route_kind "street")
+    lists the streets walked instead."""
     if not places:
         return ""
-    lines = []
-    if places.get("where"):
-        lines.append(("Where", _esc(places["where"])))
-    if places.get("area"):
-        lines.append(("Area", _esc(places["area"])))
+    where_html = f'<p class="hike-intro__where">{_esc(places["where"])}</p>' if places.get("where") else ""
+    area_html = f'<h2 class="hike-intro__place">{_esc(places["area"])}</h2>' if places.get("area") else ""
+    meta = []
     if places.get("trailhead"):
         th = _esc(places["trailhead"])
-        lines.append(("Trailhead", f"near {th} (street)" if places.get("trailhead_kind") == "street" else th))
+        th_value = f"near {th} (street)" if places.get("trailhead_kind") == "street" else th
+        meta.append(f'<p class="hike-intro__meta"><strong>Trailhead:</strong> {th_value}</p>')
     trails = places.get("trails") or []
     if trails:
         noun = "Street" if places.get("route_kind") == "street" else "Trail"
-        lines.append((noun + ("s" if len(trails) > 1 else ""), " &rarr; ".join(_esc(t) for t in trails)))
-    return "".join(f"<p><strong>{label}:</strong> {value}</p>" for label, value in lines)
+        label = noun + ("s" if len(trails) > 1 else "")
+        meta.append(f'<p class="hike-intro__meta"><strong>{label}:</strong> {" &rarr; ".join(_esc(x) for x in trails)}</p>')
+    if not (where_html or area_html or meta):
+        return ""
+    return f'<div class="hike-intro__location">{where_html}{area_html}{"".join(meta)}</div>'
 
 
 def _parse_offset(offset_str):
@@ -713,6 +718,32 @@ _HTML_STYLE = """
   }
   .top-nav a:hover { background: var(--surface-2); }
   .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; margin-bottom: 2rem; }
+  /* CARD-0348, 2026-09-27: the hike-intro block -- Time, then Location
+     (Where/Area/Trailhead/Trail), then a Distance/Elevation Gain stat
+     pair, as one integrated panel at the top of the page, in place of the
+     old plain 3-card stat row plus a separate Location section further
+     down. */
+  .hike-intro {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 1.35rem 1.5rem 1.5rem; margin-bottom: 2rem;
+  }
+  .hike-intro__time { font-size: 1.15rem; font-weight: 600; margin: 0; }
+  .hike-intro__time--na { font-weight: 400; color: var(--ink-faint); font-style: italic; }
+  .hike-intro__location {
+    padding-top: 1.05rem; margin-top: 1.05rem; border-top: 1px solid var(--line);
+  }
+  .hike-intro__where {
+    font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--ink-muted); margin: 0 0 0.3rem;
+  }
+  .hike-intro__place { font-size: 1.55rem; font-weight: 700; color: var(--accent); margin: 0 0 0.45rem; line-height: 1.2; }
+  .hike-intro__meta { margin: 0 0 0.2rem; font-size: 0.95rem; color: var(--ink-muted); }
+  .hike-intro__meta strong { color: var(--ink); font-weight: 600; }
+  .hike-intro__stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1.5rem; padding-top: 1.05rem; margin-top: 1.05rem; border-top: 1px solid var(--line);
+  }
+  .hike-intro__stats .stat { background: none; border: none; box-shadow: none; padding: 0; }
   .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 0.85rem 1rem; }
   .stat__label { font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); margin-bottom: 0.3rem; }
   .stat__value { font-size: 1.35rem; font-weight: 700; }
@@ -1070,7 +1101,7 @@ def _stat_card(label, value, na=False):
 
 def render_html(hike_data, date_str, offset_str, photos_manifest=None,
                  gaia_embed_html=None, file_stem=None, birdnet_rows=None,
-                 places=None, named_features=None, thunderforest_api_key=None,
+                 places=None, thunderforest_api_key=None,
                  birdnet_occurrences=None, life_list=None, xeno_canto_key=None):
     offset_delta = _parse_offset(offset_str)
     coverage = hike_data["coverage"]
@@ -1087,11 +1118,23 @@ def render_html(hike_data, date_str, offset_str, photos_manifest=None,
     distance = distance_display(stats)
     elevation_gain = elevation_gain_display(stats)
 
-    stat_row = "".join([
-        _stat_card("Time", time_value, na=time_na),
+    # CARD-0348, 2026-09-27: Time/Location/Distance/Elevation Gain unified
+    # into one hike-intro block at the top of the page (was a plain 3-card
+    # stat row here, with Location as its own separate section much further
+    # down) -- Joseph's explicit reading order: date (the page's own <h1>,
+    # untouched), then time, then location, then distance/elevation gain.
+    time_html = f'<p class="hike-intro__time{" hike-intro__time--na" if time_na else ""}">{_esc(time_value)}</p>'
+    location_html = _location_masthead(places)
+    intro_stats = "".join([
         _stat_card("Distance", f"{distance} mi" if distance != NA else NA, na=(distance == NA)),
         _stat_card("Elevation Gain", f"{elevation_gain} ft" if elevation_gain != NA else NA, na=(elevation_gain == NA)),
     ])
+    hike_intro_html = f"""
+  <section class="hike-intro">
+    {time_html}
+    {location_html}
+    <div class="hike-intro__stats">{intro_stats}</div>
+  </section>"""
 
     callout = ""
     if not hike_confirmed:
@@ -1187,31 +1230,14 @@ def render_html(hike_data, date_str, offset_str, photos_manifest=None,
   </div>"""
 
     # CARD-0123: Location/Nearby Named Features -- previously only ever woven
-    # into narrative prose (and so invisible whenever narrative was off).
-    # Both come from place_context.py's deterministic, free layers
-    # (Overpass named features, hike_places.py's area/trail/trailhead lookup),
-    # gathered regardless of whether narrative is on. CARD-0311: the raw
-    # Nominatim address line is replaced by Where/Area/Trailhead/Trail lines
-    # (no distances). Omit-when-empty, same convention as every other
-    # optional section on this page.
-    location_section = ""
-    places_html = places_lines(places)
-    if places_html or named_features:
-        features_html = ""
-        if named_features:
-            feature_rows = "".join(
-                f"<tr><td>{_esc(f['name'])}</td><td>{_esc(f.get('type') or NA)}</td>"
-                f"<td>{_esc(f.get('operator') or NA)}</td></tr>"
-                for f in named_features
-            )
-            features_html = f"""
-    <table><thead><tr><th>Name</th><th>Type</th><th>Operator</th></tr></thead>
-    <tbody>{feature_rows}</tbody></table>"""
-        location_section = f"""
-  <section>
-    <h2>Location</h2>
-    {places_html}{features_html}
-  </section>"""
+    # CARD-0348, 2026-09-27: Location moved into hike_intro_html at the top
+    # of the page (see above); the Nearby Named Features table that used to
+    # render alongside it was retired outright -- across all 10 real hikes
+    # published before this change it returned a result exactly once, and
+    # that result only duplicated what the intro block's own Trail line
+    # already names better (Joseph: "the value of nearby features seems
+    # dubious... a nearby feature that describes the same thing is not
+    # desireable").
 
     # CARD-0176: "Data Summary" renamed "Environmental Data Tracking" and
     # made omit-when-empty (checked against the underlying stats, same
@@ -1522,7 +1548,7 @@ def render_html(hike_data, date_str, offset_str, photos_manifest=None,
   <h1>Hike Summary for {_esc(format_date_display(date_str))}</h1>
   <p class="subtitle">Generated automatically by JCTsh hike-izer-orchestrator</p>
   <div class="top-nav"><a href="index.html">&larr; All Hikes</a></div>
-  <div class="stat-row">{stat_row}</div>
+  {hike_intro_html}
   <section>
     <h2>Weather Forecast at Hike Start</h2>
     <p class="data-source">from Open-Meteo</p>
@@ -1532,7 +1558,6 @@ def render_html(hike_data, date_str, offset_str, photos_manifest=None,
   {rejected_section}
   {hike_visuals_section}{gps_trackpoints_section}
   {gaia_section}
-  {location_section}
   {env_tracking_section}
   <section>
     <h2>Sun Position</h2>

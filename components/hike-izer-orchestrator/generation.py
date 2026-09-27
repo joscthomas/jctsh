@@ -14,10 +14,9 @@ generate() always re-fetches Environmental Data/Hiking Observations/GPS
 fresh from the Apps Script (CARD-0214: late-arriving Sheet data is exactly
 what a later pass exists to catch) and re-checks Immich for photos
 (captioning only genuinely new ones); it skips only the place-naming
-(CARD-0311) and Nearby Named Features Overpass lookups once a prior pass
-already got a real answer for this hike (see the places-state cache in
-generate() itself) -- the one rate-limited, worth-not-repeating step here.
-Safe to call any number of times.
+(CARD-0311) Overpass lookup once a prior pass already got a real answer
+for this hike (see the places-state cache in generate() itself). Safe to
+call any number of times.
 
 _bootstrap_from_webhook() is the one genuinely first-pass-only piece: it
 parses the webhook payload, detects the session window, allocates the
@@ -56,7 +55,6 @@ import ha_notify
 import mqtt_log
 import photo_captions
 import hike_places
-import place_context as place_context_module
 import templating
 import sheet_health
 import wildlife_life_list
@@ -836,12 +834,11 @@ def generate(file_stem):
     daily timer, or a manual re-run). Always re-fetches sensor data and
     photos fresh, since catching whatever's synced since the last pass is
     the whole point of running this more than once; skips only the
-    place-naming (CARD-0311) and Nearby Named Features Overpass lookups
-    once a prior pass already got a real answer for this hike (see the
-    places-state cache below) -- the one genuinely rate-limited, worth-
-    not-repeating step here. Everything else is either cheap (local file
-    reads, an idempotent photo-caption merge) or needs to run every time by
-    design (the Sheet fetch itself)."""
+    place-naming (CARD-0311) Overpass lookup once a prior pass already got
+    a real answer for this hike (see the places-state cache below).
+    Everything else is either cheap (local file reads, an idempotent
+    photo-caption merge) or needs to run every time by design (the Sheet
+    fetch itself)."""
     tracker = cost_tracking.CostTracker()
     date_str = _date_str_from_stem(file_stem)
 
@@ -892,25 +889,24 @@ def generate(file_stem):
     # cache -- see that function's own docstring for why.
     archived_species = _archive_new_wildlife_detections(file_stem, birdnet_rows)
 
-    # CARD-0311/CARD-0348: area/trail(s)/trailhead/town (hike_places.py) and
-    # the Nearby Named Features table (place_context.py) -- both one-time,
-    # rate-limited Overpass lookups. Run once; if either didn't get a real
-    # answer, retry BOTH together on a later pass rather than tracking
-    # partial success per-call -- simpler, and the cost of one extra free
-    # Overpass call for the half that already succeeded is negligible.
+    # CARD-0311/CARD-0348: area/trail(s)/trailhead/town, one rate-limited
+    # Overpass lookup. Skipped on a later pass once it already got a real
+    # answer for this hike (CARD-0348's places-state cache). CARD-0348,
+    # 2026-09-27: the Nearby Named Features table this used to run
+    # alongside (place_context.py) was retired outright -- across all 10
+    # real hikes published before this change it had returned a result
+    # exactly once, and that result only duplicated what this lookup
+    # already names better (Joseph's call: "the value of nearby features
+    # seems dubious... a nearby feature that describes the same thing is
+    # not desireable"). One lookup left means nothing to keep in sync
+    # against a second one's own success/failure -- no more all-or-nothing
+    # tradeoff to make here at all.
     places_state = _load_places_state(file_stem)
     if places_state and places_state.get("ok"):
         places = places_state["places"]
-        named_features_list = places_state["named_features"]
     else:
         places, places_ok = hike_places.gather_hike_places(hike_data)
-        place_context, features_ok = place_context_module.gather_place_context(hike_data, photos_manifest)
-        named_features_list = place_context.get("named_features")
-        _save_places_state(file_stem, {
-            "ok": places_ok and features_ok,
-            "places": places,
-            "named_features": named_features_list,
-        })
+        _save_places_state(file_stem, {"ok": places_ok, "places": places})
 
     # CARD-0142: idempotent -- a hike already recorded by a prior pass just
     # re-adds its own file_stem to each species' hikes list rather than
@@ -922,7 +918,7 @@ def generate(file_stem):
         hike_data, date_str, offset_str, photos_manifest,
         file_stem=file_stem,
         birdnet_rows=birdnet_rows,
-        places=places, named_features=named_features_list,
+        places=places,
         thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
         birdnet_occurrences=birdnet_occurrences,
         life_list=wildlife_life_list.load(),
@@ -1142,9 +1138,9 @@ def main():
     ap.add_argument(
         "--step2", metavar="FILE_STEM",
         help="Force an immediate regeneration of an already-published hike (photos, "
-             "place naming, Nearby Named Features), instead of waiting for the next "
-             "automatic daily catch-up pass -- e.g. 2026-07-29 or 2026-07-29-2 for a "
-             "second same-day hike. Safe to run any number of times.",
+             "place naming), instead of waiting for the next automatic daily catch-up "
+             "pass -- e.g. 2026-07-29 or 2026-07-29-2 for a second same-day hike. Safe "
+             "to run any number of times.",
     )
     ap.add_argument(
         "--daily-refresh", action="store_true",

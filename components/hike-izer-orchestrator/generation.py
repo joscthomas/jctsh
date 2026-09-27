@@ -1,37 +1,42 @@
 #!/usr/bin/env python
 """
-Hike-izer generation pipeline (CARD-0086 stage 2, split into two steps by
-CARD-0112).
+Hike-izer generation pipeline (CARD-0086 stage 2; unified into one process
+by CARD-0348, 2026-09-27 -- Joseph: "the process should be identical for
+both the initial and the 1700 run").
 
-Step 1 (run/run_and_log) fires automatically on a real GPSLogger "stopped"
-event and publishes a **data-only** page immediately -- no narrative, since
-photos (Immich's own background-upload delay), a Gaia GPS embed (a manual
-per-hike step Joseph does himself), and BirdNET bird-ID data (CARD-0080) are
-all things this pipeline can't force or reliably predict the timing of.
-Trying to retry/backfill around each of those individually fights the
-actual limitation; publishing what's genuinely available right now and
-enriching later doesn't.
+One generation pass (generate(), below), called identically every time:
+right after a real hike (the webhook-triggered first pass), automatically
+again that evening (run_daily_refresh_and_log, the systemd-timer-fired
+catch-up pass, CARD-0214), and on demand (run_step2_and_log, a forced
+regeneration -- the JCTsh Menu's "Run Step 2" entry, kept under that name
+for Tasker's sake, not because the underlying process still differs).
+generate() always re-fetches Environmental Data/Hiking Observations/GPS
+fresh from the Apps Script (CARD-0214: late-arriving Sheet data is exactly
+what a later pass exists to catch) and re-checks Immich for photos
+(captioning only genuinely new ones); it skips only the place-naming
+(CARD-0311) and Nearby Named Features Overpass lookups once a prior pass
+already got a real answer for this hike (see the places-state cache in
+generate() itself) -- the one rate-limited, worth-not-repeating step here.
+Safe to call any number of times.
 
-Step 2 (run_step2) re-fetches everything live -- Environmental Data/Hiking
-Observations from the Apps Script (CARD-0214: no longer just reusing step
-1's persisted hike_data.json, since that's exactly what left the hiking-
-monitor's own late-arriving data stranded off a real published page --
-see CARD-0211/CARD-0214), photos (merging in whatever a prior pass already
-captioned, only paying to caption genuinely new ones), the staging
-directory, and -- if asked -- the one narrative-generation call. It's
-triggered two ways, both calling this identical function so there's one
-gap-filling operation, not two: conversationally, whenever Joseph asks for
-"the rich version" of a hike (with_narrative=True is only ever this path);
-and automatically, once a day (run_daily_refresh_and_log, CARD-0214),
-which re-runs it with_narrative=False for every hike published recently,
-in case something synced since the last pass. Both are safe to call any
-number of times -- run_step2 only pays for what's actually new each time.
+_bootstrap_from_webhook() is the one genuinely first-pass-only piece: it
+parses the webhook payload, detects the session window, allocates the
+hike's file stem, decides whether a real hike was even confirmed, and
+writes its first meta.json -- there's no way to make that part identical
+to a later re-run of an already-published hike, since a later run starts
+from a file stem that already exists.
 
 Determines "today" from the webhook payload's own local_datetime (never
 Arizona-hardcoded) -- a hike can happen anywhere Joseph is carrying his
-phone. CARD-0214's daily refresh pass follows the same discipline: it
-finds hikes to refresh by file recency, not by computing "today" against
-the M8 server's own fixed TZ -- see _stems_recently_published.
+phone. The daily catch-up pass follows the same discipline: it finds hikes
+to refresh by file recency, not by computing "today" against the M8
+server's own fixed TZ -- see _stems_recently_published.
+
+CARD-0348 also retired the narrative-generation pipeline (narrative.py,
+place_context.py's Claude+web_search research layers, the --narrative
+flag) -- opt-in-only from the start (CARD-0123) and Joseph won't use it
+again. Every published page is now the page that used to require asking
+for "the rich version."
 """
 
 import glob
@@ -49,7 +54,6 @@ import birdnet
 import cost_tracking
 import ha_notify
 import mqtt_log
-import narrative
 import photo_captions
 import hike_places
 import place_context as place_context_module
@@ -64,7 +68,6 @@ SRV_DIR = "/srv/hike-izer"
 # here instead, a directory never mounted into the `web` service at all,
 # rather than relying on a Caddyfile exclusion rule for every internal file.
 PRIVATE_DIR = "/srv/hike-izer-private"
-SKILL_MD_PATH = "/app/SKILL.md"
 FETCH_DATA_SCRIPT = "/app/fetch_hike_data.py"
 FETCH_PHOTOS_SCRIPT = "/app/fetch_hike_photos.py"
 BUILD_CALENDAR_SCRIPT = "/app/build_calendar_index.py"
@@ -227,8 +230,8 @@ def _archive_new_wildlife_detections(file_stem, birdnet_rows):
     see wildlife_life_list's own "archived" flag, CARD-0276) for this
     file_stem, checked against the local life-list cache *before*
     wildlife_life_list.update_from_hike() (called right after this, by
-    both callers) mutates it -- run_step2() can re-run for the same hike
-    on every CARD-0214 daily refresh pass, and a plain unconditional
+    both callers) mutates it -- generate() can re-run for the same hike
+    on every CARD-0214 daily catch-up pass, and a plain unconditional
     appendRow would duplicate rows on each one. The local cache already
     tracks "which species were recorded on which hikes" for exactly this
     idempotency reason, so this reuses it rather than adding a second,
@@ -602,9 +605,9 @@ def _claim_pending_birdnet(date_str, staging_dir):
 
 
 def _fetch_hike_data(start_iso, end_iso, hike_data_path):
-    """CARD-0214: extracted so step 1 (run()) and every later gap-filling
-    pass (run_step2()) call the identical query, not step 1's original
-    inline subprocess call duplicated a second time. fetch_hike_data.py is a
+    """CARD-0214/CARD-0348: extracted so every generate() call -- the first
+    pass and every later catch-up pass alike -- issues the identical query,
+    not one inline subprocess call duplicated across two separate functions. fetch_hike_data.py is a
     pure, stateless query against the Apps Script/Sheet for a fixed window
     -- safe and correct to re-run any number of times; a later call just
     naturally picks up whatever rows have landed in the Sheet since the
@@ -694,7 +697,7 @@ def _read_staging(file_stem):
             staged["gaia_embed_html"] = f.read()
     # BirdNET Live export(s) (CARD-0080): not a fixed filename like the two
     # keys above -- birdnet.parse_detections() scans this same staging_dir
-    # itself for any .zip/.json export, called directly from run_step2()
+    # itself for any .zip/.json export, called directly from generate()
     # rather than threaded through this dict.
     return staged
 
@@ -727,167 +730,92 @@ def _apply_observation_overrides(hike_data, file_stem):
         print(f"Applied {applied} observation override(s) for {file_stem}", flush=True)
 
 
-def run(payload):
-    """Step 1 (CARD-0112): fully automatic, unchanged trigger (CARD-0086's
-    GPSLogger 'stopped' webhook). Publishes a data-only page immediately --
-    no place_context, no narrative call. Photos still get a best-effort
-    attempt (cheap, in case they happen to already be uploaded), but the
-    real photo pass is step 2's job."""
-    tracker = cost_tracking.CostTracker()
+def _places_state_path(file_stem):
+    return os.path.join(PRIVATE_DIR, f"{file_stem}_places_state.json")
+
+
+def _load_places_state(file_stem):
+    try:
+        with open(_places_state_path(file_stem), "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _save_places_state(file_stem, state):
+    with open(_places_state_path(file_stem), "w", encoding="utf-8") as f:
+        json.dump(state, f)
+
+
+def _bootstrap_from_webhook(payload):
+    """Everything genuinely specific to a brand-new hike, triggered by
+    GPSLogger's 'stopped' webhook (CARD-0086): parse the payload, detect
+    the session window, allocate this hike's own file stem, decide whether
+    a real hike was even confirmed, and write its first meta.json + staging
+    directory. Returns the new file_stem, or None if no hike was confirmed
+    (nothing to generate -- e.g. GPSLogger ran during a car errand).
+
+    Distinct from generate() below on purpose (CARD-0348): a file_stem has
+    to exist, with a meta.json describing its query window, before
+    generate() has anything to operate on -- there's no way to make this
+    part identical between a brand-new hike and a later re-run of one
+    that's already published. Once this returns, every later pass over the
+    same hike (this same webhook's own first call, the daily catch-up, a
+    manual re-run) is the identical generate(file_stem) call."""
     local_datetime = payload.get("local_datetime")
     if not local_datetime:
         raise ValueError("payload missing local_datetime -- cannot determine which day to generate")
     date_str, offset_str = _local_date_and_offset(local_datetime)
 
     # CARD-0113: query window is scoped to this specific session (not the
-    # full calendar day) -- see _detect_session_window for why. date_str/
-    # offset_str themselves are unaffected; they still name and localize
-    # the output the same way regardless of query width.
+    # full calendar day) -- see _detect_session_window for why.
     start_iso, end_iso = _detect_session_window(payload, date_str, offset_str)
 
     os.makedirs(SRV_DIR, exist_ok=True)
     os.makedirs(PRIVATE_DIR, exist_ok=True)
-    # CARD-0113: a day can produce more than one hike-summary now -- decide
-    # this run's own file stem ('<date>' for the first, '<date>-2' etc. for
-    # any later same-day hike) before anything gets written, so every output
-    # path (HTML, meta.json, photos dir) uses it consistently.
+    # CARD-0113: a day can produce more than one hike-summary -- decide this
+    # run's own file stem ('<date>' for the first, '<date>-2' etc. for any
+    # later same-day hike) before anything gets written.
     file_stem = _next_file_stem(date_str)
 
     # CARD-0135: set before any slow work starts, cleared in the finally
     # below regardless of how this run ends -- see current_or_latest_file_stem()
-    # for why this needs to exist at all (a file staged while this run is
-    # still in flight has nothing published yet to attach to otherwise).
+    # for why this needs to exist at all.
     _set_in_progress_stem(file_stem)
     try:
-        # CARD-0112: persisted in PRIVATE_DIR (never web-exposed, see that
-        # constant's own comment), not /tmp -- so step 2 can reuse it hours or
-        # days later, even across a container restart, without re-querying the
-        # Apps Script for data that can't have changed since the hike happened.
         hike_data_path = os.path.join(PRIVATE_DIR, f"{file_stem}_hike_data.json")
         _fetch_hike_data(start_iso, end_iso, hike_data_path)
         with open(hike_data_path, "r", encoding="utf-8") as f:
             hike_data = json.load(f)
-        _apply_observation_overrides(hike_data, file_stem)
 
-        # CARD-0100: don't spend a real Claude API call or publish a live page
-        # for a day with no confirmed hike (e.g. GPSLogger left running during a
-        # car errand) -- fetch_hike_data.py's own classification already knows
-        # this, the automatic path just wasn't checking it before doing real
-        # work. This gate is specific to the automatic webhook path; the
-        # interactive Skill correctly still reports "no hike" when Joseph
-        # explicitly asks, since that's a wanted answer, not a bug.
+        # CARD-0100: don't publish a live page for a day with no confirmed
+        # hike (e.g. GPSLogger left running during a car errand).
         if not hike_data["coverage"]["gps_track"]["hike_confirmed"]:
             print(f"No hike confirmed for {file_stem} -- skipping generation", flush=True)
             mqtt_log.publish_log(
                 "System",
                 f"GPSLogger stopped, no hike confirmed for {file_stem} -- skipped generation.",
             )
-            os.remove(hike_data_path)  # nothing for step 2 to ever reuse for this non-hike
-            return None, tracker
+            os.remove(hike_data_path)  # nothing for a later pass to ever reuse for this non-hike
+            return None
 
-        # CARD-0112: staging directory created up front (even though nothing's
-        # in it yet) so Joseph's SSHFS-Win-mounted drive shows a real folder to
-        # drop files into immediately, rather than needing to create it himself
-        # before staging anything for this hike.
-        #
-        # CARD-0119: this process runs as root inside the container, so a plain
-        # os.makedirs() defaults to owner-only write (0755) -- the SSHFS-Win
-        # mount connects as the `jct` Linux user, which isn't root and isn't in
-        # its group, so it could read/traverse but never actually drop a file
-        # in via the mount (confirmed live 2026-07-30). chmod explicitly,
-        # rather than passing mode= to makedirs(), since mode= is masked by the
-        # container's umask and doesn't reliably produce 0o777 either way.
-        _staging_dir = os.path.join(SRV_DIR, f"{file_stem}_staging")
-        os.makedirs(_staging_dir, exist_ok=True)
-        os.chmod(_staging_dir, 0o777)
+        # CARD-0112: staging directory created up front so Joseph's
+        # SSHFS-Win-mounted drive shows a real folder to drop files into
+        # immediately. CARD-0119: chmod explicitly -- a plain os.makedirs()
+        # defaults to owner-only write inside this root-run container, and
+        # the SSHFS-Win mount connects as `jct`, who could read/traverse but
+        # never actually drop a file in via the mount otherwise.
+        staging_dir = os.path.join(SRV_DIR, f"{file_stem}_staging")
+        os.makedirs(staging_dir, exist_ok=True)
+        os.chmod(staging_dir, 0o777)
 
         # CARD-0136: claim anything the BirdNET stage-file webhook parked
         # for this calendar date before this run's own file_stem existed to
-        # attach to (a share arriving ahead of this very webhook -- confirmed
-        # live 2026-08-03). Keyed by date_str, not file_stem, since the
-        # pending side can't know yet whether this'll be the day's first
-        # hike or a later one.
-        _claim_pending_birdnet(date_str, _staging_dir)
+        # attach to. Keyed by date_str, not file_stem, since the pending
+        # side can't know yet whether this'll be the day's first hike or a
+        # later one.
+        _claim_pending_birdnet(date_str, staging_dir)
 
-        # hike_confirmed is true past this point (checked above). Photos: best-
-        # effort only -- CARD-0111 confirmed Immich's own upload almost never
-        # happens this fast, but it costs nothing to check.
-        photos_dir = os.path.join(SRV_DIR, f"{file_stem}_photos")
-        photos_manifest = _fetch_photos(hike_data_path, photos_dir, file_stem)
-        if photos_manifest:
-            photos_manifest = photo_captions.caption_photos(
-                photos_manifest, photos_dir, _env("ANTHROPIC_API_KEY"), cost_tracker=tracker,
-                location_hint=_hike_location_hint(hike_data),
-            )
-
-        # CARD-0135: same best-effort spirit as the photos fetch above --
-        # cheap to check, and now that current_or_latest_file_stem() lets a
-        # file staged mid-run correctly target this hike, worth checking
-        # rather than always leaving bird data to step 2. Rare that anything
-        # is here yet (the common case is still step 2), but no harm either
-        # way -- parse_detections()/parse_occurrences() both just return
-        # empty when the staging dir has no BirdNET export in it.
-        birdnet_rows = birdnet.parse_detections(_staging_dir)
-        birdnet_occurrences = birdnet.parse_occurrences(_staging_dir)
-        _log_birdnet_parse_outcome(_staging_dir, file_stem, birdnet_rows)
-        # CARD-0229: must run before update_from_hike() below mutates the
-        # local cache -- see that function's own docstring for why.
-        archived_species = _archive_new_wildlife_detections(file_stem, birdnet_rows)
-
-        # CARD-0112: no place_context, no narrative call in step 1 -- mechanical
-        # rendering only. templating.render_html omits the whole narrative
-        # section when narrative_paragraphs is empty, same convention as the
-        # Photos section's own omit-when-empty handling.
-        # CARD-0134: thunderforest_api_key passed here too (not just step 2) --
-        # the Route Map + Elevation & Speed chart need no manual staging, unlike
-        # the Gaia embed they replaced, so every automatically-published page
-        # gets a real map/chart from this very first publish.
-        # CARD-0176: merge this hike's species into the cross-hike life list
-        # BEFORE rendering, not after -- real bug found live 2026-08-16 (the
-        # 8/15 hike's 18 genuinely-new species all rendered with no "NEW"
-        # badge). The previous ordering here (render first, merge after) was
-        # justified by a comment claiming it "doesn't matter for
-        # correctness" because is_new checks first_heard_file_stem against
-        # this hike's own file_stem, a stable fact -- true once a species is
-        # already IN the life list, but wrong on a species' very first-ever
-        # render: life_list.get(scientific_name) returns nothing at all yet
-        # (this hike's own update_from_hike() call hadn't run), so is_new
-        # was unconditionally False for every brand-new species on its own
-        # debut hike. Merging first means wildlife_life_list.load() below
-        # already reflects this hike's own species, so first_heard_file_stem
-        # correctly matches file_stem on the very render where it should.
-        # No-op if birdnet_rows is empty, same "no empty scaffolding"
-        # convention as the Photos section.
-        wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows, archived_species=archived_species)
-
-        # CARD-0134: thunderforest_api_key passed here too (not just step 2) --
-        # the Route Map + Elevation & Speed chart need no manual staging, unlike
-        # the Gaia embed they replaced, so every automatically-published page
-        # gets a real map/chart from this very first publish.
-        html_text = templating.render_html(
-            hike_data, [], date_str, offset_str, photos_manifest, file_stem=file_stem,
-            thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
-            birdnet_rows=birdnet_rows, birdnet_occurrences=birdnet_occurrences,
-            life_list=wildlife_life_list.load(),
-            xeno_canto_key=os.environ.get("XENO_CANTO_API_KEY"),
-        )
-
-        with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.html"), "w", encoding="utf-8") as f:
-            f.write(html_text)
-
-        # CARD-0092: sidecar manifest for the calendar home page. Always
-        # hike_confirmed: true here -- CARD-0100 already returned early above
-        # for any day that isn't a confirmed hike, so this automatic path only
-        # ever reaches this point on a real hike. offset_str is carried along so
-        # step 2 (run hours/days later, from just a file stem) doesn't need to
-        # re-derive it. start_ts (CARD-0118) is the earliest confirmed session's
-        # raw UTC start, so build_calendar_index.py can label this hike's
-        # calendar-cell link with its actual local start time. query_start_iso/
-        # query_end_iso (CARD-0214) are the exact fixed window _detect_session_window
-        # resolved above -- persisted so a later gap-filling pass (run_step2)
-        # can re-issue the identical Environmental Data/GPS query without
-        # re-running session detection, and so it stays byte-identical to
-        # step 1's own window rather than drifting.
         confirmed_sessions = [s for s in hike_data["coverage"]["gps_track"]["sessions"] if s["is_hike"]]
         start_ts = min((s["start"] for s in confirmed_sessions), default=None)
         with open(os.path.join(SRV_DIR, f"{file_stem}_hike-summary.meta.json"), "w", encoding="utf-8") as f:
@@ -896,46 +824,24 @@ def run(payload):
                 "query_start_iso": start_iso, "query_end_iso": end_iso,
             }, f)
 
-        subprocess.run(
-            [sys.executable, BUILD_CALENDAR_SCRIPT, "--srv-dir", SRV_DIR],
-            check=True, timeout=30,
-        )
-
-        # CARD-0142: rebuild wildlife.html against the life list already
-        # merged above -- no-op if birdnet_rows is empty.
-        if birdnet_rows:
-            subprocess.run(_wildlife_index_cmd(), check=True, timeout=WILDLIFE_INDEX_TIMEOUT)
-
-        # CARD-0207: rebuild the battery-trend page unconditionally, unlike
-        # wildlife -- every hike's own hike_data.json (just written above)
-        # already has stats.battery_window_crossing_min computed by
-        # fetch_hike_data.py, no birdnet-style optional data source to gate
-        # on.
-        subprocess.run(
-            [sys.executable, BUILD_BATTERY_TREND_SCRIPT, "--srv-dir", SRV_DIR, "--private-dir", PRIVATE_DIR],
-            check=True, timeout=30,
-        )
-
-        print(f"Step 1 complete for {file_stem} -- {tracker.summary()}", flush=True)
-        return file_stem, tracker
+        return file_stem
     finally:
         _clear_in_progress_stem()
 
 
-def run_step2(file_stem, with_narrative=False):
-    """The gap-filling operation (CARD-0112, re-scoped by CARD-0214): re-
-    fetches Environmental Data/Hiking Observations/GPS fresh from the Apps
-    Script (not just step 1's persisted hike_data.json -- CARD-0211/CARD-0214
-    found that left the hiking-monitor's own late-arriving buffered readings
-    permanently stranded off an already-published page), re-fetches photos
-    (captioning only ones a prior pass hasn't already captioned), reads
-    staging, runs place_context (always the free deterministic layers; the
-    research layers + the narrative call only if with_narrative, CARD-0123
-    -- off by default), and republishes the full page. Called two ways --
-    conversationally when Joseph asks for "the rich version" of a hike, and
-    automatically once a day (run_daily_refresh_and_log) -- both hit this
-    same function, so there's one idempotent, safely-repeatable operation,
-    not two different ones."""
+def generate(file_stem):
+    """The one, idempotent, safely-repeatable hike-page generation pass
+    (CARD-0348) -- called identically whether this is the very first pass
+    right after a hike (from the webhook) or a later catch-up pass (the
+    daily timer, or a manual re-run). Always re-fetches sensor data and
+    photos fresh, since catching whatever's synced since the last pass is
+    the whole point of running this more than once; skips only the
+    place-naming (CARD-0311) and Nearby Named Features Overpass lookups
+    once a prior pass already got a real answer for this hike (see the
+    places-state cache below) -- the one genuinely rate-limited, worth-
+    not-repeating step here. Everything else is either cheap (local file
+    reads, an idempotent photo-caption merge) or needs to run every time by
+    design (the Sheet fetch itself)."""
     tracker = cost_tracking.CostTracker()
     date_str = _date_str_from_stem(file_stem)
 
@@ -945,13 +851,12 @@ def run_step2(file_stem, with_narrative=False):
     offset_str = meta["offset_str"]
 
     hike_data_path = os.path.join(PRIVATE_DIR, f"{file_stem}_hike_data.json")
-    # CARD-0214: re-issue the same query step 1 ran, using its persisted
-    # exact window -- picks up anything that's landed in the Sheet since
-    # (or since the last gap-filling pass). query_start_iso/query_end_iso
-    # won't exist in meta.json for a hike published before this card;
-    # fall back to a full local-day window in that case (wider than the
-    # original session-padded window, but correct), and backfill meta.json
-    # right now so every later pass on this same file uses the tight window.
+    # CARD-0214: re-issue the same query the first pass ran, using its
+    # persisted exact window -- picks up anything that's landed in the
+    # Sheet since. query_start_iso/query_end_iso won't exist in meta.json
+    # for a hike published before this card; fall back to a full local-day
+    # window in that case, and backfill meta.json right now so every later
+    # pass on this same file uses the tight window.
     if "query_start_iso" not in meta:
         start_iso = f"{date_str}T00:00:00{offset_str}"
         end_iso = f"{date_str}T23:59:59{offset_str}"
@@ -965,7 +870,10 @@ def run_step2(file_stem, with_narrative=False):
         hike_data = json.load(f)
     _apply_observation_overrides(hike_data, file_stem)
 
-    # Real photo fetch this time, not step 1's best-effort attempt.
+    # Photos: merges in whatever a prior pass already downloaded/captioned,
+    # only paying to caption genuinely new ones (photo_captions.caption_photos'
+    # own job) -- safe and cheap to redo every pass, since Immich's own
+    # upload-sync timing is exactly what a later pass exists to catch.
     photos_dir = os.path.join(SRV_DIR, f"{file_stem}_photos")
     photos_manifest = _fetch_photos(hike_data_path, photos_dir, file_stem)
     if photos_manifest:
@@ -974,82 +882,47 @@ def run_step2(file_stem, with_narrative=False):
             location_hint=_hike_location_hint(hike_data),
         )
 
-    staged = _read_staging(file_stem)
-
-    # CARD-0080: parsing only, no API call -- see birdnet.py for why no
-    # location correlation is attempted (Joseph's call: table only).
     staging_dir = os.path.join(SRV_DIR, f"{file_stem}_staging")
     birdnet_rows = birdnet.parse_detections(staging_dir)
-    # CARD-0133: separate, per-occurrence view of the same staged export(s)
-    # -- for the Route Map's bird markers, which do need a real (if
-    # approximate, interpolated) position per sighting, unlike the table
-    # above. Only ever populated here in step 2, same as birdnet_rows itself
-    # -- step 1 never has a staged BirdNET export to read yet.
+    # CARD-0133: per-occurrence view of the same staged export(s), for the
+    # Route Map's bird markers.
     birdnet_occurrences = birdnet.parse_occurrences(staging_dir)
     _log_birdnet_parse_outcome(staging_dir, file_stem, birdnet_rows)
-    # CARD-0229: must run before update_from_hike() below mutates the
-    # local cache -- see that function's own docstring for why.
+    # CARD-0229: must run before update_from_hike() below mutates the local
+    # cache -- see that function's own docstring for why.
     archived_species = _archive_new_wildlife_detections(file_stem, birdnet_rows)
 
+    # CARD-0311/CARD-0348: area/trail(s)/trailhead/town (hike_places.py) and
+    # the Nearby Named Features table (place_context.py) -- both one-time,
+    # rate-limited Overpass lookups. Run once; if either didn't get a real
+    # answer, retry BOTH together on a later pass rather than tracking
+    # partial success per-call -- simpler, and the cost of one extra free
+    # Overpass call for the half that already succeeded is negligible.
+    places_state = _load_places_state(file_stem)
+    if places_state and places_state.get("ok"):
+        places = places_state["places"]
+        named_features_list = places_state["named_features"]
+    else:
+        places, places_ok = hike_places.gather_hike_places(hike_data)
+        place_context, features_ok = place_context_module.gather_place_context(hike_data, photos_manifest)
+        named_features_list = place_context.get("named_features")
+        _save_places_state(file_stem, {
+            "ok": places_ok and features_ok,
+            "places": places,
+            "named_features": named_features_list,
+        })
 
-    # CARD-0311: area/trail(s)/trailhead/town for the Location section -- one
-    # Overpass call, free, never raises (returns {} on any failure). Runs
-    # BEFORE place_context's own Overpass calls below (not just before them
-    # in the old order) -- both hit the same two mirrors, and a live run
-    # (2026-09-26) showed place_context's up to 3 named_features() calls
-    # exhausting the shared rate limit before this one even got a chance
-    # (429 on its first attempt). No dependency the other way: place_context
-    # is only consulted afterward, as a Nominatim fallback if this call's own
-    # admin-polygon lookup came back empty.
-    places = hike_places.gather_hike_places(hike_data)
-
-    # CARD-0108/CARD-0112: runs after photo captioning so sign_text (if any)
-    # is already on the manifest, and now with real photo locations
-    # available to ground named_features() along the actual route (see
-    # place_context.py's own CARD-0112 fix) rather than just the hike's
-    # first GPS point. include_research=with_narrative (CARD-0123): the
-    # deterministic address/named-features layers always run (free, feed
-    # the Location/Nearby Named Features sections below either way) -- only
-    # the Claude+web_search research layers are gated.
-    place_context = place_context_module.gather_place_context(
-        hike_data, photos_manifest, _env("ANTHROPIC_API_KEY"),
-        regional_cache_path=os.path.join(SRV_DIR, "regional_context_cache.json"),
-        cost_tracker=tracker, include_research=with_narrative,
-    )
-    if not places.get("where"):
-        places["where"] = hike_places.nominatim_where(place_context.get("nominatim_address"))
-
-    # CARD-0123: narrative off by default -- SKILL.md is only ever read for
-    # narrative writing, so skip that too when it's not needed.
-    paragraphs = []
-    if with_narrative:
-        with open(SKILL_MD_PATH, "r", encoding="utf-8") as f:
-            skill_md_text = f.read()
-        narrative_facts = place_context_module.flatten_for_narrative(place_context)
-        paragraphs = narrative.generate_narrative(
-            hike_data, skill_md_text, _env("ANTHROPIC_API_KEY"), place_context=narrative_facts, cost_tracker=tracker
-        )
-
-    # CARD-0142: same life-list merge as step 1 -- idempotent, so a hike
-    # already recorded by step 1's best-effort pass just re-adds its own
-    # file_stem to each species' hikes list rather than duplicating it.
-    # CARD-0176: moved to run BEFORE render_html() below, same fix and same
-    # reasoning as step 1's own call site -- see that comment for the full
-    # story. This was the second half of the same live bug (both step 1 and
-    # step 2 had the render-then-merge ordering).
+    # CARD-0142: idempotent -- a hike already recorded by a prior pass just
+    # re-adds its own file_stem to each species' hikes list rather than
+    # duplicating it. Runs BEFORE render_html() below so a brand-new
+    # species' own debut hike correctly shows its "NEW" badge (CARD-0176).
     wildlife_life_list.update_from_hike(file_stem, date_str, birdnet_rows, archived_species=archived_species)
 
-    # CARD-0134: gaia_embed_html deliberately not passed anymore -- the
-    # native Route Map (CARD-0082) replaced it as this pipeline's default,
-    # since it needs no manual staging. _read_staging() above still reads
-    # gaia_embed.txt if present (untouched), but this call no longer uses
-    # it; templating.render_html's gaia_section stays available for a
-    # future caller, just unused by this one now.
     html_text = templating.render_html(
-        hike_data, paragraphs, date_str, offset_str, photos_manifest,
+        hike_data, date_str, offset_str, photos_manifest,
         file_stem=file_stem,
         birdnet_rows=birdnet_rows,
-        places=places, named_features=place_context.get("named_features"),
+        places=places, named_features=named_features_list,
         thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
         birdnet_occurrences=birdnet_occurrences,
         life_list=wildlife_life_list.load(),
@@ -1063,26 +936,25 @@ def run_step2(file_stem, with_narrative=False):
         [sys.executable, BUILD_CALENDAR_SCRIPT, "--srv-dir", SRV_DIR],
         check=True, timeout=30,
     )
-
     if birdnet_rows:
         subprocess.run(_wildlife_index_cmd(), check=True, timeout=WILDLIFE_INDEX_TIMEOUT)
-
-    # CARD-0207: same unconditional rebuild as step 1 -- step 2 reads the
-    # same persisted hike_data.json step 1 already wrote (run_step2's own
-    # top), which already carries battery_window_crossing_min from
-    # fetch_hike_data.py's compute_stats(), so there's nothing new to
-    # recompute here, just re-render the index against it.
+    # CARD-0207: rebuild the battery-trend page unconditionally -- this
+    # hike's own hike_data.json (just re-fetched above) always carries
+    # stats.battery_window_crossing_min, no optional data source to gate on.
     subprocess.run(
         [sys.executable, BUILD_BATTERY_TREND_SCRIPT, "--srv-dir", SRV_DIR, "--private-dir", PRIVATE_DIR],
         check=True, timeout=30,
     )
 
-    print(f"Step 2 complete for {file_stem} -- {tracker.summary()}", flush=True)
+    print(f"Generation complete for {file_stem} -- {tracker.summary()}", flush=True)
     return file_stem, tracker
 
 
 def run_and_log(payload):
-    """Step 1's entry point -- called by app.py on every real webhook.
+    """The webhook's own entry point -- called by app.py on every real
+    GPSLogger 'stopped' event. Bootstraps the new hike (see
+    _bootstrap_from_webhook), then runs the identical generate() every
+    later pass also runs.
 
     CARD-0258: retries a failure up to GENERATION_MAX_ATTEMPTS times,
     GENERATION_RETRY_INTERVAL_SEC apart, before alerting -- runs in its own
@@ -1090,17 +962,20 @@ def run_and_log(payload):
     time.sleep() for up to an hour costs nothing else."""
     for attempt in range(1, GENERATION_MAX_ATTEMPTS + 1):
         try:
-            file_stem, tracker = run(payload)
+            file_stem = _bootstrap_from_webhook(payload)
             if file_stem is None:
-                # CARD-0100: no hike confirmed -- run() already published its own
-                # quiet skip log, nothing more to do here.
+                # CARD-0100: no hike confirmed -- _bootstrap_from_webhook
+                # already published its own quiet skip log.
                 return
+            file_stem, tracker = generate(file_stem)
             print(f"Publishing MQTT log line for {file_stem}...", flush=True)
             mqtt_log.publish_log(
                 "System",
-                f"Published data-only hike summary for {file_stem}: "
+                f"Published hike summary for {file_stem}: "
                 f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
-                f"(API cost: {tracker.summary()}). Ask for the rich version once photos/Gaia/bird data are staged.",
+                f"(API cost: {tracker.summary()}). A daily catch-up pass runs automatically "
+                f"at 17:00 to pick up anything that syncs later (new photos, late sensor "
+                f"readings); use \"Run Step 2\" on the JCTsh Menu to force it sooner.",
             )
             _post_hike_cost_and_log(file_stem, "step1", tracker)
             ha_notify.send_push(
@@ -1110,96 +985,97 @@ def run_and_log(payload):
             )
             return
         except Exception as e:
-            print(f"Step 1 generation failed (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}): {e}", file=sys.stderr)
+            print(f"Hike summary generation failed (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}): {e}", file=sys.stderr)
             if attempt < GENERATION_MAX_ATTEMPTS:
                 mqtt_log.publish_log(
                     "System",
-                    f"Hike summary step 1 generation failed (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}), "
+                    f"Hike summary generation failed (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}), "
                     f"retrying in 15 min: {e}",
                 )
                 time.sleep(GENERATION_RETRY_INTERVAL_SEC)
             else:
                 mqtt_log.publish_log(
                     "Alert",
-                    f"Hike summary step 1 generation failed after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
+                    f"Hike summary generation failed after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
                 )
                 ha_notify.send_push(
                     "Hike-izer", f"Hike summary generation failed after {GENERATION_MAX_ATTEMPTS} attempts: {e}"
                 )
 
 
-def run_step2_and_log(file_stem, with_narrative=False):
-    """Step 2's entry point -- called from the CLI (see main()) when Joseph
-    asks, conversationally, for the rich version of a specific hike, and
-    from app.py's /webhook/step2 background thread.
+def run_step2_and_log(file_stem):
+    """Force an immediate re-run of generate() for an already-published
+    hike, instead of waiting for the next automatic catch-up pass -- called
+    from the CLI (`--step2 FILE_STEM`, see main()) and from app.py's
+    /webhook/step2 (the JCTsh Menu's "Run Step 2" entry). Kept under this
+    name/flag/URL for compatibility with the Tasker task that calls it and
+    with Joseph's own muscle memory -- the underlying process is identical
+    to every other call to generate(), CARD-0348.
 
     CARD-0258: same retry-before-alert treatment as run_and_log -- see its
     docstring. Still re-raises after the final failed attempt so a direct
     CLI invocation exits non-zero."""
     for attempt in range(1, GENERATION_MAX_ATTEMPTS + 1):
         try:
-            file_stem, tracker = run_step2(file_stem, with_narrative=with_narrative)
+            file_stem, tracker = generate(file_stem)
             mqtt_log.publish_log(
                 "System",
-                f"Published enriched hike summary for {file_stem}: "
+                f"Published hike summary for {file_stem} (regenerated on request): "
                 f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
                 f"(API cost: {tracker.summary()}).",
             )
             _post_hike_cost_and_log(file_stem, "step2", tracker)
             ha_notify.send_push(
                 "Hike-izer",
-                f"Enriched hike summary published: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
+                f"Hike summary regenerated: https://hikes.jctnet.com/{file_stem}_hike-summary.html",
                 url=f"https://hikes.jctnet.com/{file_stem}_hike-summary.html",
             )
             return
         except Exception as e:
-            print(f"Step 2 generation failed for {file_stem} (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}): {e}", file=sys.stderr)
+            print(f"Hike summary regeneration failed for {file_stem} (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}): {e}", file=sys.stderr)
             if attempt < GENERATION_MAX_ATTEMPTS:
                 mqtt_log.publish_log(
                     "System",
-                    f"Hike summary step 2 generation failed for {file_stem} "
+                    f"Hike summary regeneration failed for {file_stem} "
                     f"(attempt {attempt}/{GENERATION_MAX_ATTEMPTS}), retrying in 15 min: {e}",
                 )
                 time.sleep(GENERATION_RETRY_INTERVAL_SEC)
             else:
                 mqtt_log.publish_log(
                     "Alert",
-                    f"Hike summary step 2 generation failed for {file_stem} "
+                    f"Hike summary regeneration failed for {file_stem} "
                     f"after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
                 )
                 ha_notify.send_push(
                     "Hike-izer",
-                    f"Hike summary generation failed for {file_stem} after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
+                    f"Hike summary regeneration failed for {file_stem} after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
                 )
                 raise
 
 
 def run_daily_refresh_and_log():
-    """CARD-0214's second, time-triggered pass -- entry point for the daily
-    systemd timer (kanban-pr-selftest-style oneshot; see
-    tos/hike-izer-daily-refresh.service/.timer). Re-runs run_step2 (without
-    narrative -- narrative stays opt-in-only, CARD-0123, never automatic)
-    for every hike published in the last DAILY_REFRESH_LOOKBACK_HOURS, so
-    anything that synced since the GPSLogger-triggered first pass (or since
-    yesterday's refresh) gets picked up without anyone having to ask.
+    """CARD-0214's time-triggered catch-up pass -- entry point for the
+    daily systemd timer (see tos/hike-izer-daily-refresh.service/.timer).
+    Runs the identical generate() (CARD-0348) for every hike published in
+    the last DAILY_REFRESH_LOOKBACK_HOURS, so anything that synced since
+    the webhook-triggered first pass (or since yesterday's catch-up) gets
+    picked up without anyone having to ask -- and, per generate()'s own
+    places-state cache, without re-running an Overpass lookup that already
+    succeeded.
 
-    Deliberately quieter than the conversational path: a routine day with
+    Deliberately quieter than a manual regenerate: a routine day with
     nothing new to add still logs a System line per hike (dashboard/audit
     visibility), but doesn't push an HA notification on success -- this
-    runs unattended every day and most days are genuinely a no-op, unlike a
-    manually-requested step 2, which Joseph triggered because he expects
-    something changed. A failure on any individual hike still gets a real
-    Alert + push, same as every other unattended job in this codebase --
-    this loops per-hike so one failure doesn't stop the rest from being
-    checked.
+    runs unattended every day and most days are genuinely a no-op. A
+    failure on any individual hike still gets a real Alert + push, same as
+    every other unattended job in this codebase -- this loops per-hike so
+    one failure doesn't stop the rest from being checked.
 
     CARD-0258: unlike run_and_log/run_step2_and_log's own per-call retry,
     this runs every hike due for a check in one pass first, then retries
     only the ones that failed as a group, GENERATION_RETRY_INTERVAL_SEC
     apart, up to GENERATION_MAX_ATTEMPTS each -- so one persistently-failing
-    hike's retries don't delay checking the others on this run (Joseph's
-    call, since this job already loops over multiple independent hikes,
-    unlike the single-hike paths above)."""
+    hike's retries don't delay checking the others."""
     # CARD-0338: don't pile a full-range export onto a Sheet that is already
     # struggling (2026-09-25 outage). A manually-requested --step2 is not gated.
     for check_no in range(1, SHEET_HEALTH_CHECKS + 1):
@@ -1212,7 +1088,7 @@ def run_daily_refresh_and_log():
     else:
         mqtt_log.publish_log(
             "Alert",
-            f"Hike-izer daily refresh SKIPPED: the environmental Sheet stayed unhealthy across "
+            f"Hike-izer daily catch-up SKIPPED: the environmental Sheet stayed unhealthy across "
             f"{SHEET_HEALTH_CHECKS} checks ({detail}). Re-run it by hand once the Sheet responds -- "
             f"generation.py --daily-refresh -- or a morning hike falls out of tomorrow's lookback.",
         )
@@ -1228,27 +1104,27 @@ def run_daily_refresh_and_log():
         still_failing = {}
         for file_stem, attempt in pending.items():
             try:
-                file_stem, tracker = run_step2(file_stem, with_narrative=False)
-                print(f"Daily refresh complete for {file_stem} -- {tracker.summary()}", flush=True)
+                file_stem, tracker = generate(file_stem)
+                print(f"Daily catch-up complete for {file_stem} -- {tracker.summary()}", flush=True)
                 mqtt_log.publish_log(
                     "System",
-                    f"Daily refresh pass complete for {file_stem}: "
+                    f"Daily catch-up pass complete for {file_stem}: "
                     f"https://hikes.jctnet.com/{file_stem}_hike-summary.html "
                     f"(API cost: {tracker.summary()}).",
                 )
                 _post_hike_cost_and_log(file_stem, "daily-refresh", tracker)
             except Exception as e:
-                print(f"Daily refresh failed for {file_stem} (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}): {e}", file=sys.stderr, flush=True)
+                print(f"Daily catch-up failed for {file_stem} (attempt {attempt}/{GENERATION_MAX_ATTEMPTS}): {e}", file=sys.stderr, flush=True)
                 if attempt < GENERATION_MAX_ATTEMPTS:
                     still_failing[file_stem] = attempt + 1
                 else:
                     mqtt_log.publish_log(
                         "Alert",
-                        f"Hike-izer daily refresh failed for {file_stem} after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
+                        f"Hike-izer daily catch-up failed for {file_stem} after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
                     )
                     ha_notify.send_push(
                         "Hike-izer",
-                        f"Daily hike-summary refresh failed for {file_stem} after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
+                        f"Daily hike-summary catch-up failed for {file_stem} after {GENERATION_MAX_ATTEMPTS} attempts: {e}",
                     )
         pending = still_failing
         if pending:
@@ -1265,22 +1141,17 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--step2", metavar="FILE_STEM",
-        help="Run step 2 (photos + place context +, if --narrative, the researched "
-             "narrative prose) for an already-published file stem, e.g. 2026-07-29 or "
-             "2026-07-29-2 for a second same-day hike.",
-    )
-    ap.add_argument(
-        "--narrative", action="store_true",
-        help="CARD-0123: include full narrative generation -- place-context research "
-             "(Claude + web_search) plus the Claude-written prose paragraphs. Opt-in, "
-             "real added cost; off by default leaves only photo-caption cost.",
+        help="Force an immediate regeneration of an already-published hike (photos, "
+             "place naming, Nearby Named Features), instead of waiting for the next "
+             "automatic daily catch-up pass -- e.g. 2026-07-29 or 2026-07-29-2 for a "
+             "second same-day hike. Safe to run any number of times.",
     )
     ap.add_argument(
         "--daily-refresh", action="store_true",
-        help="CARD-0214: run the gap-filling pass (run_step2, no narrative) against every "
-             "hike published in the last DAILY_REFRESH_LOOKBACK_HOURS. Normally fired by the "
-             "daily systemd timer, but safe to run manually any number of times -- it only "
-             "ever processes what's actually new since the last pass.",
+        help="CARD-0214: run the catch-up pass against every hike published in the last "
+             "DAILY_REFRESH_LOOKBACK_HOURS. Normally fired by the daily systemd timer, but "
+             "safe to run manually any number of times -- it only ever pays for what's "
+             "actually new since the last pass.",
     )
     args = ap.parse_args()
     if args.daily_refresh:
@@ -1288,7 +1159,7 @@ def main():
         return
     if not args.step2:
         ap.error("nothing to do -- pass --step2 <file_stem> or --daily-refresh")
-    run_step2_and_log(args.step2, with_narrative=args.narrative)
+    run_step2_and_log(args.step2)
 
 
 if __name__ == "__main__":

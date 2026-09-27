@@ -359,7 +359,7 @@ once Joseph has tested it.
 - `components/hike-izer-orchestrator/birdnet.py` — parsing, most complete
   inline design rationale in its own module docstring.
 - `components/hike-izer-orchestrator/generation.py` — `_read_staging()`,
-  `pending_birdnet_dir()`, `_claim_pending_birdnet()`, `run()`/`run_step2()`.
+  `pending_birdnet_dir()`, `_claim_pending_birdnet()`, `generate()` (CARD-0348, formerly `run()`/`run_step2()`).
 - `components/hike-izer-orchestrator/app.py` — `_handle_stage_file()`
   (the webhook receiver).
 - `components/hike-izer-orchestrator/templating.py` — `birdnet_table_rows()`,

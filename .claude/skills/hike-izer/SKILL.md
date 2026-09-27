@@ -1,11 +1,11 @@
 ---
 name: hike-izer
-description: Generate a narrative HTML summary of a JCTsh hiking trip from sensor, GPS, and observation data (Google Sheets). Use when Joseph asks to summarize, narrate, recap, or review a specific hike or hiking trip by date -- e.g. "summarize the June 15 hike", "write up last week's trip", "how did the hiking monitor do on the camping trip".
+description: Generate an HTML summary of a JCTsh hiking trip from sensor, GPS, and observation data (Google Sheets). Use when Joseph asks to summarize, narrate, recap, or review a specific hike or hiking trip by date -- e.g. "summarize the June 15 hike", "write up last week's trip", "how did the hiking monitor do on the camping trip".
 ---
 
 # Hike-izer
 
-Generates a narrative HTML summary of a hiking trip using JCTsh's hiking-monitor
+Generates an HTML summary of a hiking trip using JCTsh's hiking-monitor
 data pipeline (Environmental Data, Hiking Observations, GPS Track, Hike Start
 Forecast -- all in the "JCTsh Environmental Data" Google Sheets workbook).
 CARD-0073 on `kanban-board.md` is this skill's tracking card; its v1 scope note
@@ -16,46 +16,38 @@ specifically (step 4 below). **HTML is the sole output format** (CARD-0091,
 once CARD-0088 gave the HTML output a real public URL and made it unambiguously
 the deliverable Joseph actually reads/shares.
 
-## Most hikes: use the orchestrator's step 1/step 2, not the manual flow below
+## Most hikes: check the published page first, don't re-run the manual flow below
 
-**CARD-0086/CARD-0112 already automated most of this.** For any hike where
+**CARD-0086/CARD-0348 already automate all of this.** For any hike where
 GPSLogger's `stopped` webhook fired (the normal case whenever the hiking-monitor
-phone workflow was used), **step 1 has already run automatically** and published
-a data-only page at `https://hikes.jctnet.com/<date>_hike-summary.html`
-(`<date>-2`, `-3`, ... for additional same-day sessions, CARD-0113's naming) --
-check there first before falling back to this skill's own manual
-`fetch_hike_data.py` flow below, which duplicates work step 1 already did and
-risks producing a second, inconsistent copy.
+phone workflow was used), a full page -- photos, place naming, Nearby Named
+Features -- has already been published automatically at
+`https://hikes.jctnet.com/<date>_hike-summary.html` (`<date>-2`, `-3`, ... for
+additional same-day sessions, CARD-0113's naming), and a daily catch-up pass
+at 17:00 automatically re-checks it for anything that synced late (new
+photos, late sensor readings). Check there first before falling back to this
+skill's own manual `fetch_hike_data.py` flow below, which duplicates work
+already done and risks producing a second, inconsistent copy.
 
-**"Run step 2" / "finish the hike page" / "do the enrichment step" for an
-already-published hike means, on the M8:**
+**"Regenerate the hike page now" / "force it to re-check" for an
+already-published hike, instead of waiting for the 17:00 pass, means, on the M8:**
 
 ```
 ssh jct@100.111.16.14 "docker exec hike-izer-orchestrator python3 generation.py --step2 <date-stem>"
 ```
 
-This re-fetches photos (now that Immich has presumably synced), captions them,
-runs the free deterministic enrichment (Nominatim/Overpass Location + Named
-Features tables, extended Sun Position table), and republishes -- reusing the
-`hike_data.json` step 1 already persisted, no need to re-fetch from the
-Environmental Data sheets.
-
-**Never add `--narrative` unless Joseph explicitly asks for it, for that
-specific hike, every single time (CARD-0123, and Joseph's direct correction
-2026-08-13).** Narrative generation is a real, opt-in-only added cost
-(~$0.5-0.8+/hike vs. ~$0.06 for the no-narrative default) -- deliberately made
-opt-in specifically because Joseph doesn't want to pay for it by default, and
-he has removed narrative from published pages before for exactly that reason.
-A generic "run step 2," a past hike having had narrative, or CARD-0112's own
-title/description (which predates and was superseded by CARD-0123's opt-in
-change) are **not** permission -- if it's not clearly and explicitly requested
-for this hike, run `--step2 <date-stem>` alone. If Joseph does ask for the
-rich/narrative version: `--step2 <date-stem> --narrative`.
+(Kept under the `--step2` name for compatibility with the JCTsh Menu's own
+"Run Step 2" Tasker entry -- CARD-0348 unified what used to be two separate
+processing paths into one, so this now runs the identical, complete
+generation pass every other trigger runs, not a distinct "step 2.")
 
 The fully manual flow below (steps 1-7, calling `fetch_hike_data.py` directly)
 is for hikes with **no automatic trigger at all** -- historical/backfill hikes,
 or ones where the webhook didn't fire -- not the normal path for a recent,
-already-triggered hike.
+already-triggered hike. Narrative generation (a Claude-written prose story)
+was retired CARD-0348, 2026-09-27 -- opt-in-only from the start (CARD-0123)
+and Joseph won't use it again; this skill (manual or automatic) no longer
+produces one.
 
 ## Core model: a hiking event is a detected hike session, not a calendar day
 
@@ -92,7 +84,7 @@ contain more than one real session.
   through the current time rather than the full calendar day. Expected on
   essentially every same-day-generated page; CARD-0176 dropped the prose
   caveat that used to call this out explicitly (Joseph's call, cluttered the
-  page without being genuinely informative) -- no narrative or table
+  page without being genuinely informative) -- no special
   treatment needed, just don't be surprised by a lower-than-usual expected
   count on a same-day page.
 
@@ -166,55 +158,10 @@ section.
    re-derive any of this by hand. **Feet is the primary and only unit for
    elevation/altitude in Hike-izer's output -- never report meters.**
 
-4. **Write the narrative.** First check `coverage.gps_track.hike_confirmed` --
+4. **Render the page sections.** First check `coverage.gps_track.hike_confirmed` --
    if `false`, follow "What counts as a hike" above instead of the normal
    structure below. Otherwise, produce the HTML output with the following
-   parts, in this order. **Target roughly 250 words total across all
-   paragraphs (added 2026-07-29, after review of a real 471-word narrative
-   that restated several tables and gave a tangential landmark a full
-   paragraph)** -- a tight, well-chosen set of observations beats an
-   exhaustive one; if it's running long, cut before padding. **Tables and prose
-   must not repeat each other -- including
-   paraphrased restatement.** The data table/summary (part b) is where the raw
-   numbers and ranges live. The narrative (part a) should read those numbers as
-   context to build the story from, not restate them -- interpret, connect, and
-   draw conclusions instead ("the trail climbed steadily through the afternoon"
-   rather than "elevation ranged from X ft to Y ft, see table"; "conditions
-   stayed comfortably mild all day" rather than restating the exact temperature
-   range that's already in the table two sections down). **Restating a number in
-   softer words is still restating it** -- "wrapped up in a little over half an
-   hour" for a 32-minute duration, or "roughly two miles of ground" for a 2.0 mi
-   distance, tell the reader nothing they can't already see in the stat row
-   above; avoiding digits doesn't make a sentence an exception to this rule. The
-   Weather Forecast at Hike Start section (below) is its own table too --
-   don't re-describe conditions ("cool and calm," "no chance of rain") in the
-   narrative just because it's phrased as prose there instead of numbers; the
-   same non-redundancy rule applies across section boundaries, not just within
-   one table.
-   Before including a sentence built from a table number, ask: does this connect
-   the number to something else -- what it felt like, why it happened, what it
-   enabled or prevented -- or does it just describe the number in prose? If it's
-   the latter, cut it. **This applies to empty-data reporting too, more strictly
-   than before (tightened 2026-07-29):** if a data source came back empty, the
-   Environmental Data Tracking table (CARD-0176, formerly "Data Summary") and
-   the GPS Trackpoints note near the Route Map already show that plainly (a
-   blank "not available" cell, an actual/expected count of zero) -- don't add
-   a prose sentence that just restates the absence ("the sensor logged
-   nothing this session, so there's no temperature story to tell" tells the
-   reader nothing the table doesn't already show). Only mention an empty data
-   source in prose if there's something genuinely narrative to say *about
-   why*, not just *that* it's empty. Never point ahead to "detailed further
-   down the page" -- that data already exists and speaks for itself; a
-   forward-reference like that is a tell that the sentence shouldn't be in
-   the narrative at all. Same principle for GPS confirmation: don't
-   editorialize that the GPS track "confirmed a steady walking pace" or
-   similar -- `hike_confirmed: true` is exactly what put the page in this
-   normal narrative path rather than the `false` path above, so it's already
-   implied, and trackpoint coverage itself belongs in the GPS Trackpoints
-   note near the Route Map (step 5), not the story. Detailed pace/speed
-   commentary is reserved for the "Pace &
-   Elevation Detail" stat block and the Elevation & Speed chart (CARD-0110,
-   step 5 below) -- don't repeat those figures in prose here.
+   parts, in this order.
 
    **Weather forecast at hike start (added 2026-07-24, CARD-0083)** -- shown
    before part (a), since it's context the reader wants before the story
@@ -241,51 +188,7 @@ section.
    available" convention as the hero stat row, not the gallery-omission
    convention; see `html-template.html`'s comments.
 
-   **a. Narrative story of the hike** -- a genuinely readable account of the day
-   using the real data: how conditions evolved, elevation change described
-   qualitatively (climbing, descending, flat) rather than by restating the exact
-   figures, sun position at key moments described the same qualitative way (e.g.,
-   "the sun was still low in the eastern sky, casting long morning light" rather
-   than quoting the exact elevation degrees -- those now live in the Data
-   Summary table's Sun Elevation Range / Sun Direction rows, CARD-0109 --
-   or note if a stretch happened after sunset -- `daylight: false` in a sun
-   sample), and the hiker's own voice observations woven in chronologically
-   (they're already categorized -- vegetation, wildlife, weather, sky, trail,
-   etc. -- use that). Write this as a story, not a data dump. **Sun position and
-   route shape are optional color, not required beats (added 2026-07-29)** --
-   include them only if there's something genuinely worth saying (a notably
-   dramatic light or an unusual route shape); a routine "gently undulating loop"
-   or "the sun climbed gradually over the half hour" adds length without adding
-   anything the reader couldn't guess. When in doubt, cut it rather than include
-   it for completeness.
-
-   **Place context (added 2026-07-28, CARD-0108)** -- `place_context` is a flat
-   list of independently-true facts about where the hike happened: named
-   park/school/trail and its operator, researched history, answers to things
-   the hiker wondered aloud. Gathered before this call specifically so it can
-   be woven into the story, not bolted on as a separate section -- weave it in,
-   don't list it. If an observation is a genuine open question (e.g. "wonder
-   what that stands for"), don't report that the question was asked -- it's
-   already visible in the Full Observations Log table -- just answer it, tied
-   to that moment in the story. Apply the same non-redundancy discipline here
-   as with the data tables: never state the same fact twice, even phrased
-   differently or arrived at from two different original sources (e.g. an
-   operator confirmed by both the location data and a researched fact appears
-   once, not twice). **Weight space by how central a fact is to *this* hike's
-   actual route, not by how much material was found about it (added 2026-07-29,
-   after a real narrative gave a full paragraph -- founding year, mascot
-   history -- to a school from a *different* day's hike from the same starting
-   point, while the school actually passed today got one clause).** A
-   well-documented public landmark with lots of searchable history is not
-   automatically more relevant than an obscure one that's actually on today's
-   path -- if it's uncertain whether something was genuinely encountered versus
-   just nearby the start, say less about it, not more. (`place_context.py`'s own
-   accuracy here is tracked separately, CARD-0112 -- this is the writing-side
-   guard regardless of how good the underlying data gets.) If `place_context` is empty, say nothing about it --
-   unlike the weather forecast, there's no standing reader expectation that
-   this exists for every hike, so there's nothing to report the absence of.
-
-   **b. Environmental Data Tracking (CARD-0176, renamed from "Data
+   **Environmental Data Tracking (CARD-0176, renamed from "Data
    Summary")** -- the actual sensor numbers: temperature range, humidity
    range, pressure range (`stats.pressure_hpa`, in hPa -- found missing from
    this table entirely, CARD-0204, 2026-08-24), UV index range, battery
@@ -317,8 +220,7 @@ section.
    day** (temperature/humidity/pressure/UV/battery all null) -- same "no
    empty scaffolding" convention Photos follows, checked against the
    underlying stats, not against a formatted "not available" string. This is
-   where precise figures belong -- the narrative shouldn't need to repeat
-   them.
+   where precise figures belong, not restated anywhere else on the page.
 
    **Environmental Data (CARD-0204, renamed from "Environmental Data
    Chart" and moved into `.hike-visuals-col`, stacked with Elevation &
@@ -350,10 +252,7 @@ section.
    not the sheet's raw UTC), Observation (the raw text as logged, don't
    paraphrase or clean it up), and Categories (comma-joined, or an em dash if
    the categories array is empty). One row per observation, in chronological
-   order. This is the raw record the narrative draws its color from -- the
-   narrative interprets and weaves a selection of these into a story (per the
-   non-redundant rule above), but the table is where the complete, unabridged
-   list lives. Include this table whenever `hiking_observations` is
+   order. This is the complete, unabridged list of that day's observations. Include this table whenever `hiking_observations` is
    non-empty, including on the `hike_confirmed: false` path -- it's exactly
    the kind of "other data that does exist" that path already calls for
    reporting. **Observation count by category (CARD-0176, moved here from

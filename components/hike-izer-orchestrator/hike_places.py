@@ -361,6 +361,22 @@ def _trailhead(anchors_xy, project, features, ways, urban=False):
 # known places (Joseph's own names)
 # ---------------------------------------------------------------------------
 
+_NOMINATIM_CACHE = {}
+
+
+def _nominatim_address(point):
+    """Reverse-geocodes once per (rounded) coordinate per process, not once
+    per gather_hike_places() call -- harmless to share across hikes in the
+    same run (a daily-refresh pass checks several), and keeps this module's
+    own Nominatim usage as light as place_context.py's separate call for
+    the same point, not doubled needlessly."""
+    key = (round(point["lat"], 5), round(point["lon"], 5))
+    if key not in _NOMINATIM_CACHE:
+        body = pc._nominatim_reverse(point["lat"], point["lon"])
+        _NOMINATIM_CACHE[key] = (body or {}).get("address") or {}
+    return _NOMINATIM_CACHE[key]
+
+
 def _load_known_places(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -406,15 +422,26 @@ def nominatim_where(address):
 # entry point
 # ---------------------------------------------------------------------------
 
-def gather_hike_places(hike_data, nominatim_address=None, known_places_path=KNOWN_PLACES_PATH):
-    """-> {'where', 'area', 'trails': [names in hiked order], 'trailhead',
-    'trailhead_kind': 'trailhead'|'street'|None}, or {} if there is nothing to
-    say. Never raises: place naming is enrichment, never allowed to block
-    the pipeline."""
+def gather_hike_places(hike_data, known_places_path=KNOWN_PLACES_PATH):
+    """-> (result, ok). result is {'where', 'area', 'trails': [names in
+    hiked order], 'trailhead', 'trailhead_kind': 'trailhead'|'street'|None},
+    or {} if there is nothing to say. Never raises: place naming is
+    enrichment, never allowed to block the pipeline.
+
+    ok (CARD-0348) is this call's own success signal, independent of
+    place_context.py's: True if the one Overpass call answered (even with
+    nothing found) or there were fewer than 2 GPS points to look up in the
+    first place (permanently resolved, nothing to retry); False only if
+    Overpass itself failed or an unexpected error was caught -- the only
+    case worth trying again on a later pass. A caller that gets ok=False
+    may still get a real, fully-populated result THIS call (known-places
+    and the Nominatim fallback below don't depend on Overpass at all) --
+    ok only governs whether to bother re-running the lookup later, not
+    whether this run's own result is usable."""
     try:
         points = [p for p in pc._hike_session_points(hike_data) if p.get("lat") is not None and p.get("lon") is not None]
         if len(points) < 2:
-            return {}
+            return {}, True
         project = _projector(points[0]["lat"])
         track_xy = [project(p["lat"], p["lon"]) for p in points]
         pad = 0.001
@@ -431,16 +458,17 @@ def gather_hike_places(hike_data, nominatim_address=None, known_places_path=KNOW
             result["area"], area_key = _area(areas)
             urban = area_key is None
             if urban:
-                result["area"] = _neighborhood(areas) or _nominatim_neighborhood(nominatim_address)
+                result["area"] = _neighborhood(areas) or _nominatim_neighborhood(_nominatim_address(points[0]))
                 result["route_kind"] = "street"
             result["trails"] = _trails(track_xy, ways, urban)
             if area_key is not None:
                 anchor = _entry_point(track_xy, boundaries.get(area_key, [])) or anchor
             anchors = [anchor] if anchor == track_xy[0] else [anchor, track_xy[0]]
             result["trailhead"], result["trailhead_kind"] = _trailhead(anchors, project, features, ways, urban)
-        result["where"] = result["where"] or nominatim_where(nominatim_address)
+        result["where"] = result["where"] or nominatim_where(_nominatim_address(points[0]))
         _apply_known(result, track_xy, project, _load_known_places(known_places_path))
-        return result if any(result[k] for k in ("where", "area", "trails", "trailhead")) else {}
+        result = result if any(result[k] for k in ("where", "area", "trails", "trailhead")) else {}
+        return result, body is not None
     except Exception as e:
         print(f"hike_places: failed, page will omit these lines: {type(e).__name__}: {e}", file=sys.stderr)
-        return {}
+        return {}, False

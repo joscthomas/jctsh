@@ -4,11 +4,13 @@ Hike-izer mechanical output builder (CARD-0086 stage 2).
 
 Ports the field-by-field mapping described in
 .claude/skills/hike-izer/SKILL.md and components/hike-izer/html-template.html
-to Python, for everything except the narrative prose. Given fetch_hike_data.py's
-JSON, a list of narrative paragraphs (from the one Claude API call), the local
-calendar date being summarized, and the hike's local UTC offset (never
-hardcoded Arizona -- see CARD-0086), produces the same HTML a human following
-the interactive Skill would produce by hand.
+to Python. Given fetch_hike_data.py's JSON, the local calendar date being
+summarized, and the hike's local UTC offset (never hardcoded Arizona -- see
+CARD-0086), produces the same HTML a human following the interactive Skill
+would produce by hand. CARD-0348, 2026-09-27: the narrative-prose pipeline
+this used to also render (a list of paragraphs from one Claude API call)
+has been retired -- opt-in-only from the start (CARD-0123) and Joseph won't
+use it again.
 
 CARD-0134 (2026-08-01): the Route Map (CARD-0082) and Elevation & Speed chart
 (CARD-0110) are ported here the same way -- build_hike_map.py/build_hike_chart.py
@@ -984,7 +986,6 @@ _HTML_STYLE = """
      text, so it doesn't compete with the uppercase/letter-spaced heading
      style above. */
   .data-source { color: var(--ink-muted); font-size: 0.78rem; font-style: italic; margin: -0.6rem 0 1rem; }
-  .narrative p { margin: 0 0 1rem; font-size: 1.02rem; }
   /* CARD-0278: same fix as wildlife.html's own table rule -- position:
      sticky on <th> is broken in Chromium under border-collapse: collapse
      (found from a real screenshot on wildlife.html; this table shares the
@@ -1067,7 +1068,7 @@ def _stat_card(label, value, na=False):
     return f'<div class="stat"><div class="stat__label">{_esc(label)}</div><div class="{cls}">{_esc(value)}</div></div>'
 
 
-def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None,
+def render_html(hike_data, date_str, offset_str, photos_manifest=None,
                  gaia_embed_html=None, file_stem=None, birdnet_rows=None,
                  places=None, named_features=None, thunderforest_api_key=None,
                  birdnet_occurrences=None, life_list=None, xeno_canto_key=None):
@@ -1107,19 +1108,6 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
         _stat_card("Humidity", f"{forecast['humidity_pct']}%" if forecast['humidity_pct'] != NA else NA, na=(forecast['humidity_pct'] == NA)),
         _stat_card("UV Index", forecast['uv_index'], na=(forecast['uv_index'] == NA)),
     ])
-
-    # CARD-0112: step 1 publishes with no narrative at all yet -- omit the
-    # whole section rather than show an empty "The Hike" heading over
-    # nothing, same convention as the Photos section's own omit-when-empty
-    # handling. Step 2 re-renders with real paragraphs once they exist.
-    narrative_section = ""
-    if narrative_paragraphs:
-        narrative_html = "".join(f"<p>{_esc(p)}</p>" for p in narrative_paragraphs)
-        narrative_section = f"""
-  <section class="narrative">
-    <h2>The Hike</h2>
-    {narrative_html}
-  </section>"""
 
     # CARD-0112/CARD-0104: Gaia GPS embed, staged by Joseph and inserted by
     # step 2 -- right after the hero stat-row, before Weather Forecast, per
@@ -1545,7 +1533,6 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
   {hike_visuals_section}{gps_trackpoints_section}
   {gaia_section}
   {location_section}
-  {narrative_section}
   {env_tracking_section}
   <section>
     <h2>Sun Position</h2>

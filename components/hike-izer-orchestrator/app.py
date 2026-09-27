@@ -9,8 +9,8 @@ pipeline in a background thread -- the HTTP response returns immediately so
 Tasker's own request timeout doesn't fire while fetch/Immich/Claude calls
 that can take well over 10 seconds are still running.
 
-Unlike fetch_hike_data.py, this file (and generation.py/narrative.py/
-mqtt_log.py) needs pip packages (anthropic, paho-mqtt) -- see Dockerfile.
+Unlike fetch_hike_data.py, this file (and generation.py/mqtt_log.py)
+needs pip packages (anthropic, paho-mqtt) -- see Dockerfile.
 
 Expected POST body (JSON), matching GPSLogger's own broadcast extras plus
 the phone's local date/time as a single ISO 8601 string with UTC offset

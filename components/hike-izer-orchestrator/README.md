@@ -13,14 +13,45 @@ Stage 1 (trigger + connectivity) was proven end-to-end with a real
 GPSLogger stop event before stage 2 was built. Stage 2 adds the actual
 generation pipeline (`generation.py`): on a real `stopped` event, it runs
 `fetch_hike_data.py`/`fetch_hike_photos.py` exactly as the interactive
-Skill's steps 3/6 do, builds the mechanical HTML output
-(`templating.py`, a direct port of `html-template.html`'s field mapping),
-makes one Claude API call for just the narrative paragraphs
-(`narrative.py`, reading the deployed `SKILL.md` copy at call time so
-future edits to the real Skill apply here too), and writes the result
-straight into `srv/` — no `scp` step, since the orchestrator and the served
-directory are on the same host. Publishes success/failure to
+Skill's steps 3/6 do, builds the mechanical HTML output (`templating.py`,
+a direct port of `html-template.html`'s field mapping), and writes the
+result straight into `srv/` — no `scp` step, since the orchestrator and the
+served directory are on the same host. Publishes success/failure to
 `jctsh/hike-izer/publish/log` (`mqtt_log.py`).
+
+## One process, not two (CARD-0348, 2026-09-27)
+
+Originally split into a fast "step 1" (mechanical, webhook-triggered) and a
+richer "step 2" (photos/place-naming/narrative, asked for or run nightly) —
+retired in favor of one process, `generation.generate(file_stem)`, called
+identically every time:
+
+- **`_bootstrap_from_webhook()`** — the one genuinely first-time-only piece.
+  Parses the webhook payload, detects the session window, allocates the
+  hike's file stem, decides whether a real hike was even confirmed, and
+  writes its first `meta.json`. Then calls `generate()`.
+- **`generate(file_stem)`** — always re-fetches Environmental Data/GPS/
+  Hiking Observations fresh (late-arriving Sheet data is exactly what a
+  later pass exists to catch) and re-checks Immich for photos (captioning
+  only genuinely new ones). It skips only the CARD-0311 place-naming and
+  Nearby Named Features Overpass lookups once a prior pass already got a
+  real answer — the one rate-limited, worth-not-repeating step — tracked
+  in a small `<file_stem>_places_state.json` sidecar in `PRIVATE_DIR`
+  (`{"ok": bool, "places": {...}, "named_features": [...]}`). `ok` is
+  all-or-nothing across both lookups, not tracked per-call: simpler, and
+  the cost of one extra free Overpass call for the half that already
+  succeeded is negligible.
+
+`generate()` is called by the webhook's own first pass (via bootstrap), by
+the daily systemd-timer catch-up (`run_daily_refresh_and_log`, CARD-0214,
+unchanged trigger), and on demand (`run_step2_and_log`/`--step2`/
+`/webhook/step2` — kept under that name for the Tasker task and Joseph's
+own muscle memory, even though it now runs the identical process as every
+other call, not a separate "step 2"). Narrative generation (`narrative.py`,
+place_context.py's Claude+web_search research layers, `--narrative`) was
+retired in the same change — opt-in-only from the start (CARD-0123), and
+Joseph won't use it again. Every published page is now the page that used
+to require asking for "the rich version."
 
 ## How it's deployed
 
@@ -100,7 +131,7 @@ date/time/offset variables — one unambiguous field:
 
 Only `gpsloggerevent=stopped` triggers anything; `started`/`fileuploaded`
 are logged and ignored. Wrong/missing `key` gets a 401. `local_datetime`
-(parseable via Python's `datetime.fromisoformat`) is what stage 2 will use
+(parseable via Python's `datetime.fromisoformat`) is what `generate()` uses
 to determine "today" for the hike and to render every timestamp in the
 output as explicit local time, rather than hardcoding `America/Phoenix` the
 way the stationary-sensor pipeline (`environmental-data.gs`) does.
@@ -124,13 +155,14 @@ failures, not a silent drop. On success: `{"status": "ok", "pr_url":
 
 `POST https://hikes.jctnet.com/webhook/step2?key=<WEBHOOK_SECRET>`
 
-CARD-0239: a phone-only, no-SSH way to re-run CARD-0214's step-2 gap-fill
-pass against the current hike. No request body. Resolves the target hike
-via `generation.current_or_latest_file_stem()` (same helper `stage-file`
-uses) and runs `run_step2_and_log(file_stem, with_narrative=False)` in a
-background thread — same reasoning as `hike-end`, the Sheet/Nominatim/
-Overpass/Immich calls inside step 2 aren't fast enough to hold the HTTP
-response open. Wrong/missing `key` gets a 401; no published hike yet gets
+CARD-0239: a phone-only, no-SSH way to force an immediate regeneration of
+the current hike (CARD-0348: the same `generate()` every other trigger
+calls) instead of waiting for the daily catch-up pass. No request body.
+Resolves the target hike via `generation.current_or_latest_file_stem()`
+(same helper `stage-file` uses) and runs `run_step2_and_log(file_stem)` in
+a background thread — same reasoning as `hike-end`, the Sheet/Nominatim/
+Overpass/Immich calls inside `generate()` aren't fast enough to hold the
+HTTP response open. Wrong/missing `key` gets a 401; no published hike yet gets
 a 409; a real request gets an immediate `{"status": "ok", "file_stem":
 "...", "message": "step2 started"}` — the actual gap-fill result (success
 or failure) shows up afterward via `run_step2_and_log`'s own MQTT
@@ -208,7 +240,8 @@ directory, and the SSHFS-Win mount that gets them there from Windows.
 - CARD-0007 (Hiking Observations pipeline — the Tasker HTTP-POST pattern this profile copies)
 - CARD-0084 (photo integration — `fetch_hike_photos.py`, same behavior reused here)
 - CARD-0082 / CARD-0110 / CARD-0134 (Route Map + Elevation & Speed chart — `templating.py` imports `build_hike_map.py`/`build_hike_chart.py` directly, same deployed-copy pattern as `fetch_hike_data.py`; CARD-0134 wired them into this pipeline, replacing the Gaia embed as this pipeline's default map)
-- `.claude/skills/hike-izer/SKILL.md` (the narrative-writing rules `narrative.py` calls Claude with, and the mechanical-output rules `templating.py` ports)
+- `.claude/skills/hike-izer/SKILL.md` (the mechanical-output rules `templating.py` ports)
+- CARD-0348 (retired narrative generation; unified step 1/step 2 into one idempotent `generate()`)
 - `components/hike-izer/fetch_hike_data.py` / `fetch_hike_photos.py` / `build_hike_map.py` / `build_hike_chart.py` (run as subprocesses or imported directly by `generation.py`/`templating.py`)
 - `components/hike-izer/vendor/leaflet/` (deployed once to `~/hike-izer-web-app/srv/vendor/leaflet/` by CARD-0082 — this pipeline's pages reference it by the same relative path, no separate deployment needed here)
 - `components/hike-izer/html-template.html` (the styling `templating.py`'s `_HTML_STYLE` constant ports verbatim)

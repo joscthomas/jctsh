@@ -1,8 +1,8 @@
-# Staging data for Hike-izer's enriched (step 2) pass
+# Staging data for Hike-izer's generation pass
 
 Operational runbook for getting Gaia GPS's embed snippet and a BirdNET Live
-export into the right hike's staging directory, so step 2 (`run_step2` —
-the enriched narrative/photos/bird-table pass, CARD-0112) can pick them up.
+export into the right hike's staging directory, so `generate()` (CARD-0348,
+the photos/bird-table pass, formerly "step 2", CARD-0112) can pick them up.
 For the mechanics of *why* this exists, see CARD-0112 (designed the
 `<file_stem>_staging/` directory), CARD-0119 (this doc, plus the SSHFS-Win
 mount), and CARD-0122 (BirdNET's automatic phone-to-server path).
@@ -105,7 +105,7 @@ anything re-staged — it's already there from last time.
 - CARD-0122 (BirdNET's automatic phone → `/webhook/stage-file` path)
 - CARD-0104 (Gaia embed, the first staged-resource type)
 - CARD-0080 (BirdNET export, the second staged-resource type)
-- `components/hike-izer-orchestrator/generation.py` (`_read_staging()`, `run_step2()`)
+- `components/hike-izer-orchestrator/generation.py` (`_read_staging()`, `generate()`)
 - `components/hike-izer-orchestrator/birdnet.py` (`parse_detections()`)
 - `components/hike-izer-orchestrator/app.py` (`_handle_stage_file`)
 - `components/hike-izer-orchestrator/birdnet-pipeline.md` — what happens to a

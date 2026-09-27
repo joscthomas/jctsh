@@ -392,7 +392,7 @@ def _apply_known(result, track_xy, project, known):
     return result
 
 
-def _nominatim_where(address):
+def nominatim_where(address):
     """Fallback Where line from Nominatim's structured address, used only
     when the Overpass call gave no admin polygons (or failed outright)."""
     if not address:
@@ -438,7 +438,7 @@ def gather_hike_places(hike_data, nominatim_address=None, known_places_path=KNOW
                 anchor = _entry_point(track_xy, boundaries.get(area_key, [])) or anchor
             anchors = [anchor] if anchor == track_xy[0] else [anchor, track_xy[0]]
             result["trailhead"], result["trailhead_kind"] = _trailhead(anchors, project, features, ways, urban)
-        result["where"] = result["where"] or _nominatim_where(nominatim_address)
+        result["where"] = result["where"] or nominatim_where(nominatim_address)
         _apply_known(result, track_xy, project, _load_known_places(known_places_path))
         return result if any(result[k] for k in ("where", "area", "trails", "trailhead")) else {}
     except Exception as e:

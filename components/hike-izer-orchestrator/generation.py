@@ -992,6 +992,17 @@ def run_step2(file_stem, with_narrative=False):
     archived_species = _archive_new_wildlife_detections(file_stem, birdnet_rows)
 
 
+    # CARD-0311: area/trail(s)/trailhead/town for the Location section -- one
+    # Overpass call, free, never raises (returns {} on any failure). Runs
+    # BEFORE place_context's own Overpass calls below (not just before them
+    # in the old order) -- both hit the same two mirrors, and a live run
+    # (2026-09-26) showed place_context's up to 3 named_features() calls
+    # exhausting the shared rate limit before this one even got a chance
+    # (429 on its first attempt). No dependency the other way: place_context
+    # is only consulted afterward, as a Nominatim fallback if this call's own
+    # admin-polygon lookup came back empty.
+    places = hike_places.gather_hike_places(hike_data)
+
     # CARD-0108/CARD-0112: runs after photo captioning so sign_text (if any)
     # is already on the manifest, and now with real photo locations
     # available to ground named_features() along the actual route (see
@@ -1005,10 +1016,8 @@ def run_step2(file_stem, with_narrative=False):
         regional_cache_path=os.path.join(SRV_DIR, "regional_context_cache.json"),
         cost_tracker=tracker, include_research=with_narrative,
     )
-
-    # CARD-0311: area/trail(s)/trailhead/town for the Location section --
-    # one Overpass call, free, never raises (returns {} on any failure).
-    places = hike_places.gather_hike_places(hike_data, nominatim_address=place_context.get("nominatim_address"))
+    if not places.get("where"):
+        places["where"] = hike_places.nominatim_where(place_context.get("nominatim_address"))
 
     # CARD-0123: narrative off by default -- SKILL.md is only ever read for
     # narrative writing, so skip that too when it's not needed.

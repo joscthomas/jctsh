@@ -1002,7 +1002,7 @@ Archived to `tos/card-archive.md` on 2026-09-22 (CARD-0193) — 8422B, over the 
 
 ### CARD-0311 · [enhancement] [hike-izer] Hike pages don't name the trail/trailhead, despite existing Overpass lookup infrastructure
 
-**Status:** Backlog
+**Status:** Planning
 
 **Raised 2026-09-19, via the auto-PR intake pipeline (PR #99, jctsh-core maintenance check).** Original finding text (voice transcription, garbled): "make a Kaiser more spatially aware so of trailheads and names." **Clarified 2026-09-19 (Joseph): "Kaiser" = "hike-izer"** (a transcription artifact — the two are phonetically close). Interviewed the actual gap: hike-izer's published hike pages don't name the specific trail or trailhead a hike used.
 
@@ -1018,9 +1018,28 @@ Archived to `tos/card-archive.md` on 2026-09-22 (CARD-0193) — 8422B, over the 
 
 **Open question for Planning, not yet answered:** is `place_context.py` simply not being invoked for this page's generation tier (today's was explicitly a "data-only" summary, before photos/Gaia/bird data were staged — `hike-izer-orchestrator`'s own log message: "Ask for the rich version once photos/Gaia/bird data are staged"), or is it invoked but Overpass genuinely has no named trail/trailhead feature tagged near this hike's specific coordinates (a real OpenStreetMap data gap, not a code gap)? These have very different fixes — the first is a wiring gap in this pipeline, the second is either accepting the gap or falling back to something else (a manually-maintained trail-name lookup, e.g.) when OSM has nothing. Needs checking against the "rich" version of a recent hike (which does run the full pipeline) before assuming which case this is.
 
-**Done when:** not yet scoped — pending Planning's root-cause investigation above.
+**Planning, 2026-09-26 (hike-izer cluster session) — checked the open question above against real published pages, not just one hike.** Sampled every enriched hike page currently live on `hikes.jctnet.com` (10 total, 2026-09-03 through 2026-09-26) for their `<h2>Location</h2>` section:
 
-**Related:** CARD-0108 (built the Overpass/Nominatim place-context infrastructure this gap sits inside), CARD-0123 (the Location/Nearby Named Features page section this should feed), `components/hike-izer-orchestrator/place_context.py`, `components/hike-izer-orchestrator/generation.py` (where the data-only vs. rich generation tiers diverge).
+| Date | Nominatim `address` (current Location line) | Overpass named feature found? |
+|---|---|---|
+| 2026-09-03 | East Speedway Boulevard, ... (a road) | **Yes — `Douglas Spring Trail`, type `hiking`, operator `Saguaro National Park`** |
+| 2026-09-08, 09-10, 09-17, 09-19, 09-21, 09-22, 09-26 | West Cape Final Trail, Marana, ... (same trail, hiked repeatedly) | none rendered (address itself already names the trail) |
+| 2026-09-15 | North Dove Canyon Pass, Dove Mountain, ... (reads as a road name) | none |
+| 2026-09-24 | Clearwell Road, Tucson, ... (a road) | none |
+
+**This disproves the "cheap fix" hypothesis from the note above.** 2026-09-03 is the clean counterexample: Nominatim's `display_name` leads with the nearest road (`East Speedway Boulevard`), not the trail — the *actual* trail name (`Douglas Spring Trail`) only ever came from Overpass's `route=hiking` relation match, which today just sits, uncalled-out, as one more row in the generic Nearby Named Features table alongside parks/schools. Parsing/relabeling Nominatim's first address component would have mislabeled a road as the trail on this hike, and the West Cape hikes are all the *same* trail repeated, so they're weak evidence for generality either way.
+
+**Revised plan — prefer Overpass's own `route=hiking` match as the authoritative Trail/Trailhead field; never promote Nominatim's address into that role:**
+1. In `place_context.py`, add a small helper (e.g. `trail_feature(named_features)`) returning the first `named_features` entry whose `type == "hiking"`, or `None`.
+2. In `templating.py`'s Location section (`components/hike-izer-orchestrator/templating.py` ~line 1186), render a distinct **Trail** line/field above the generic address (e.g. "Trail: Douglas Spring Trail — Saguaro National Park") whenever `trail_feature()` returns something, keeping the existing Nearby Named Features table as-is below it (that trail entry can stay in both places — the table is the complete list, the new field is the callout).
+3. When no `route=hiking` feature was found (real cases: Overpass returned nothing, or genuinely has nothing tagged there — CARD-0323's flakiness applies here directly), **omit the Trail field entirely** rather than guessing from the address string — same "not available"/omit-when-absent convention as every other optional section on the page. No fallback parsing of Nominatim's `display_name` — 2026-09-03 shows that's actively misleading, not just occasionally wrong.
+4. This directly depends on Overpass actually succeeding (CARD-0323's retry/backoff work already reduces but doesn't eliminate that failure rate) — a real, accepted gap: some hikes will legitimately show no Trail field even when one exists, until/unless Overpass answers.
+
+No Design step needed — this is a small, well-scoped code change with the shape already decided by the evidence above (Observed Exception: Skipping Design applies).
+
+**Done when:** a published enriched hike page whose Overpass query found a `route=hiking` feature shows a distinct Trail/Trailhead field naming it — confirmed against a real hike, not just the synthetic case. A hike with no such feature found shows no Trail field (no fabricated guess), same as today.
+
+**Related:** CARD-0108 (built the Overpass/Nominatim place-context infrastructure this gap sits inside), CARD-0123 (the Location/Nearby Named Features page section this should feed), CARD-0323 (Overpass retry/backoff — the real dependency this plan inherits), `components/hike-izer-orchestrator/place_context.py`, `components/hike-izer-orchestrator/templating.py` (Location section, ~line 1186), `components/hike-izer-orchestrator/generation.py` (where the data-only vs. rich generation tiers diverge).
 
 ---
 

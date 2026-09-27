@@ -51,6 +51,7 @@ import ha_notify
 import mqtt_log
 import narrative
 import photo_captions
+import hike_places
 import place_context as place_context_module
 import templating
 import sheet_health
@@ -1005,6 +1006,10 @@ def run_step2(file_stem, with_narrative=False):
         cost_tracker=tracker, include_research=with_narrative,
     )
 
+    # CARD-0311: area/trail(s)/trailhead/town for the Location section --
+    # one Overpass call, free, never raises (returns {} on any failure).
+    places = hike_places.gather_hike_places(hike_data, nominatim_address=place_context.get("nominatim_address"))
+
     # CARD-0123: narrative off by default -- SKILL.md is only ever read for
     # narrative writing, so skip that too when it's not needed.
     paragraphs = []
@@ -1035,7 +1040,7 @@ def run_step2(file_stem, with_narrative=False):
         hike_data, paragraphs, date_str, offset_str, photos_manifest,
         file_stem=file_stem,
         birdnet_rows=birdnet_rows,
-        address=place_context.get("address"), named_features=place_context.get("named_features"),
+        places=places, named_features=place_context.get("named_features"),
         thunderforest_api_key=_env("THUNDERFOREST_API_KEY"),
         birdnet_occurrences=birdnet_occurrences,
         life_list=wildlife_life_list.load(),

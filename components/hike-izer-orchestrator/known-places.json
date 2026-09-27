@@ -1,0 +1,13 @@
+{
+  "places": [
+    {
+      "trailhead": "DWDM/Golden Barrel Trailhead",
+      "lat": 32.460721,
+      "lon": -111.123172,
+      "radius_m": 150,
+      "area": "Tortolita Preserve",
+      "trail": "Tortolita Preserve perimeter trail",
+      "osm_trail": "Tortolita Preserve Loop"
+    }
+  ]
+}

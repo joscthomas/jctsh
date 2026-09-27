@@ -539,7 +539,7 @@ def gather_place_context(hike_data, photos_manifest, api_key, regional_cache_pat
     cost in this module. The deterministic layers (Nominatim address,
     Overpass named features) always run regardless; they're free and now
     feed their own template sections either way."""
-    empty = {"address": None, "named_features": [], "research_facts": []}
+    empty = {"address": None, "nominatim_address": None, "named_features": [], "research_facts": []}
     point = _first_gps_point(hike_data)
     if not point or point.get("lat") is None or point.get("lon") is None:
         return empty
@@ -603,7 +603,12 @@ def gather_place_context(hike_data, photos_manifest, api_key, regional_cache_pat
         research_facts.extend(gather_enrichment(named, sign_texts, observations_text, api_key, cost_tracker=cost_tracker))
         research_facts.extend(gather_regional(region, regional_cache_path, api_key, cost_tracker=cost_tracker))
 
-    return {"address": address, "named_features": named, "research_facts": research_facts}
+    return {
+        "address": address,
+        "nominatim_address": (nominatim_body or {}).get("address"),
+        "named_features": named,
+        "research_facts": research_facts,
+    }
 
 
 def flatten_for_narrative(context):

@@ -44,7 +44,7 @@ On the M8, the deploy directory is `~/hike-izer-web-app/orchestrator/`
 update:
 
 ```
-scp components/hike-izer-orchestrator/*.py components/hike-izer-orchestrator/Dockerfile components/hike-izer-orchestrator/requirements.txt jct@m8.local:~/hike-izer-web-app/orchestrator/
+scp components/hike-izer-orchestrator/*.py components/hike-izer-orchestrator/Dockerfile components/hike-izer-orchestrator/requirements.txt components/hike-izer-orchestrator/known-places.json jct@m8.local:~/hike-izer-web-app/orchestrator/
 scp components/hike-izer/fetch_hike_data.py components/hike-izer/fetch_hike_photos.py components/hike-izer/build_hike_map.py components/hike-izer/build_hike_chart.py components/hike-izer/build_calendar_index.py components/hike-izer/build_wildlife_index.py components/hike-izer/build_battery_trend_index.py components/hike-izer/xeno_canto.py jct@m8.local:~/hike-izer-web-app/orchestrator/
 scp tos/open_kanban_pr.py jct@m8.local:~/hike-izer-web-app/orchestrator/
 scp .claude/skills/hike-izer/SKILL.md jct@m8.local:~/hike-izer-web-app/orchestrator/
@@ -172,6 +172,28 @@ rather than crashing the webhook handler — the HTTP response to Tasker
 already went out before generation started (see `app.py`'s background
 thread), so a failure here is only visible via logs/MQTT, not an HTTP
 error.
+
+## Location naming (CARD-0311)
+
+Step 2's Location section names, for the hike, the **town/county/state**, the **area**
+(park/preserve), the **trailhead**, and the **trails in the order hiked** (arrows between
+them, no distances). `hike_places.py` does it with **one Overpass call** for the hike's
+bounding box: `is_in()` at 10 points along the track picks the area (the named park polygon
+containing the most of them) and the town/county/state; every path-type way in the box is
+matched against the GPS track (25 m) to get the trails; the trailhead is a named
+`highway=trailhead`, then a named parking lot or guidepost, within 150 m of where the track
+**enters** the area (or of the first GPS point), else the nearest named street, shown as
+"near X (street)". Streets are never trails. **A hike in a town or city** (no named park/preserve contains it) is named
+differently: the Area is the neighborhood (an OSM neighborhood/suburb/quarter or named residential
+polygon, else Nominatim's suburb/neighbourhood) and the segments are the named streets and paths
+walked, in order, labeled "Streets"; no trailhead is claimed unless OSM tags a real
+`highway=trailhead`. Known OSM typos (`Tral`) are corrected by a
+token map at the top of `hike_places.py`. Any failure just omits the lines.
+
+`known-places.json` (deployed with the `.py` files) holds Joseph's own names for spots he
+hikes: a trailhead coordinate + radius (default 150 m) and any of `trailhead`, `area`, `trail`
+(with `osm_trail` naming the OSM trail it renames). An entry applies when the track passes within
+its radius, and overrides OSM's names for the fields it defines. Add a spot by adding an entry.
 
 ## Staging data for step 2
 

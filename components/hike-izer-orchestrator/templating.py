@@ -39,6 +39,27 @@ NA = "not available"
 # webhook payload at trigger time, not a hardcoded Arizona assumption.
 # ---------------------------------------------------------------------------
 
+def places_lines(places):
+    """CARD-0311: Where / Area / Trailhead / Trail(s) paragraphs, broad to
+    narrow, each omitted when absent. Trails are in the order hiked; a hike in
+    a town or city (route_kind "street") lists the streets walked instead."""
+    if not places:
+        return ""
+    lines = []
+    if places.get("where"):
+        lines.append(("Where", _esc(places["where"])))
+    if places.get("area"):
+        lines.append(("Area", _esc(places["area"])))
+    if places.get("trailhead"):
+        th = _esc(places["trailhead"])
+        lines.append(("Trailhead", f"near {th} (street)" if places.get("trailhead_kind") == "street" else th))
+    trails = places.get("trails") or []
+    if trails:
+        noun = "Street" if places.get("route_kind") == "street" else "Trail"
+        lines.append((noun + ("s" if len(trails) > 1 else ""), " &rarr; ".join(_esc(t) for t in trails)))
+    return "".join(f"<p><strong>{label}:</strong> {value}</p>" for label, value in lines)
+
+
 def _parse_offset(offset_str):
     sign = 1 if offset_str[0] == "+" else -1
     hh, mm = offset_str[1:].split(":")
@@ -1048,7 +1069,7 @@ def _stat_card(label, value, na=False):
 
 def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_manifest=None,
                  gaia_embed_html=None, file_stem=None, birdnet_rows=None,
-                 address=None, named_features=None, thunderforest_api_key=None,
+                 places=None, named_features=None, thunderforest_api_key=None,
                  birdnet_occurrences=None, life_list=None, xeno_canto_key=None):
     offset_delta = _parse_offset(offset_str)
     coverage = hike_data["coverage"]
@@ -1180,12 +1201,14 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
     # CARD-0123: Location/Nearby Named Features -- previously only ever woven
     # into narrative prose (and so invisible whenever narrative was off).
     # Both come from place_context.py's deterministic, free layers
-    # (Nominatim address, Overpass named features), gathered regardless of
-    # whether narrative is on. Omit-when-empty, same convention as every
-    # other optional section on this page.
+    # (Overpass named features, hike_places.py's area/trail/trailhead lookup),
+    # gathered regardless of whether narrative is on. CARD-0311: the raw
+    # Nominatim address line is replaced by Where/Area/Trailhead/Trail lines
+    # (no distances). Omit-when-empty, same convention as every other
+    # optional section on this page.
     location_section = ""
-    if address or named_features:
-        address_html = f"<p>{_esc(address)}</p>" if address else ""
+    places_html = places_lines(places)
+    if places_html or named_features:
         features_html = ""
         if named_features:
             feature_rows = "".join(
@@ -1199,7 +1222,7 @@ def render_html(hike_data, narrative_paragraphs, date_str, offset_str, photos_ma
         location_section = f"""
   <section>
     <h2>Location</h2>
-    {address_html}{features_html}
+    {places_html}{features_html}
   </section>"""
 
     # CARD-0176: "Data Summary" renamed "Environmental Data Tracking" and

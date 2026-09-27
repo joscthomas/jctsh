@@ -9,7 +9,29 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0347 -->
+<!-- next-card-id: CARD-0348 -->
+
+---
+
+### CARD-0347 · [enhancement] [data-pipeline] Address findings from the 2026-09-26 pipeline review (locking, duplicate re-run overwrite, scan costs, timestamp comparison, storage single point of failure, doc drift)
+
+**Status:** Backlog
+
+**Raised 2026-09-26 (hike-izer cluster session, findings-only review at Joseph's request).** Full findings in `core/data-pipeline/pipeline-review-2026-09-26.md`. Summary:
+1. GPS/Hiking Observations writes have no lock — same duplicate-append race CARD-0226 fixed for Environmental Data.
+2. Scat/wildlife re-processing is silently dropped instead of updating the existing row.
+3. Per-point full-sheet scans (GPS dup/session-gap checks, `_gpsLookup` full-row reads) get slower as sheets grow; `Correlation Debug` never trimmed.
+4. Duplicate check compares timestamps as strings, not numeric time — a formatting mismatch could let a duplicate through.
+5. Storage is a single point of failure: one Google Sheet (already failed once, 2026-09-25), Node-RED's POST queue is in-memory only, sheet keeps growing.
+6. Smaller issues: no GPS coordinate validation, redundant `setNumberFormat` calls, some comments state stale rationale, ms-timestamp handling gap in Hiking Observations, tail-first export safety overstated, keys travel in the URL query string.
+7. Maintainability: near-duplicate `doPost` branches, repeated JSON response code, incident history crowding `environmental-data.gs` instead of `card-archive.md`; `core/data-pipeline/CLAUDE.md` still an empty stub.
+8. Doc drift: README/architecture doc missing the Scat/Cost sheets, health probe, locking, POST queue, `SPREADSHEET_ID` change, export params; two statements are outright wrong.
+
+The review doc's own "Recommended order" table ranks fixes cheapest/highest-value first — items 1-3 (lock GPS/observation writes, fix update-vs-drop on scat/wildlife re-run, compare timestamps numerically) can ship in one `environmental-data.gs` redeploy.
+
+**Done when:** not yet scoped — this is a Backlog capture of the review's findings, not yet interviewed for which items to actually build or in what order.
+
+**Related:** `core/data-pipeline/pipeline-review-2026-09-26.md` (full findings), CARD-0226 (the locking pattern this generalizes), CARD-0337/CARD-0338 (recent pipeline hardening this builds on), CARD-0291 (last README/architecture doc reconciliation, now drifted again).
 
 ---
 

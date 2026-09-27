@@ -8,6 +8,13 @@
       "area": "Tortolita Preserve",
       "trail": "Tortolita Preserve perimeter trail",
       "osm_trail": "Tortolita Preserve Loop"
+    },
+    {
+      "trailhead": "Upper Javalina Trailhead",
+      "lat": 32.473387208436606,
+      "lon": -111.10620027117878,
+      "radius_m": 200,
+      "area": "Tortolita Mountains"
     }
   ]
 }

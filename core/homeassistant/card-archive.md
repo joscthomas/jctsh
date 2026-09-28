@@ -114,3 +114,51 @@ Historical record of archived Done/Defer kanban cards for this component (CARD-0
 **Related:** `CLAUDE.md` (Home Assistant Docker Setup section, `core/homeassistant/docker-compose.yml`; "Home Assistant is the bridge to SmartThings — there is no other path"), CARD-0153 (a separate, unrelated HA-infrastructure discussion — recorder database engine — surfaced around the same general area, not a dependency of this card), CARD-0238 (the M8 maintenance work done the same day, same "verify release notes before applying, verify live after" discipline).
 
 ---
+
+**Archived from `tos/kanban-board.md` on 2026-09-27 (CARD-0193)** — 8650B, over the 5000B size threshold.
+
+### CARD-0295 · [enhancement] [homeassistant] Home Assistant container update available: 2026.9.2 → 2026.9.3
+
+**Status:** Done -- RESOLVED 2026-09-27 18:07 MST
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: `Container image updates: home-assistant: 2026.9.3 available (running 2026.9.2)`.
+
+**Risk assessment, checked 2026-09-18 09:57 MST (corrected 2026-09-22 — written `16:57`, 7h fast via the `TZ=` clock bug, see CARD-0329) against the real upstream release notes (github.com/home-assistant/core/releases/tag/2026.9.3):** patch release, bug-fixes and dependency bumps only — no breaking changes, no database migrations. Notable fixes: EnergyZero market-price regression, Private BLE Device now requires an IRK in its config flow, Bond retains known-host info on repeated zeroconf announcements, Matter/Shelly cover-entity creation when the tilt attribute is null, Nest Climate `turn_on` made idempotent, Spotify reauth crash when a config entry lacks an `id` field, Airthings BLE duplicate device entries from incomplete reads, better DNS/API error handling for Google Tasks and WAQI, onboarding username validation. Dependency bumps: holidays, pylutron, hassil, waterfurnace, aioamazondevices, reolink_aio. Also redacts API keys in debug logs. **None of these touch an integration this install actually depends on** (SmartThings, Ring, MQTT, Matter/Cync, SamsungTV) — low-risk upgrade.
+
+**Deploy per `CLAUDE.md`'s standing Pi rule (CARD-0266/CARD-0268/CARD-0269) — never `docker pull`/`docker compose pull` on this host** (hangs indefinitely on this Pi's Docker 29.6.1 via a confirmed OCI-referrers bug, and risks starving the live container's I/O on the Pi 3B+'s shared USB 2.0 bus):
+```bash
+sudo pi-image-pull.py ghcr.io/home-assistant/home-assistant:stable --recreate homeassistant
+```
+Optionally add `--schedule "<time>"` to defer it to the Mon 3 AM reboot window; the deliberate default is still to run it in the foreground and watch it.
+
+**Post-update check required (CARD-0240, generalized):** after the recreate, check `/api/states` for unavailable entities and `docker logs homeassistant` for the `homeassistant.bootstrap` "Waiting for integrations to complete setup" line. Any integration named there is a candidate for a config-entry reload via the HA REST API before investigating real device failure — a config entry can report `state: loaded` without having actually re-synced its entities.
+
+**Done when:** the Pi's `homeassistant` container is running 2026.9.3 (confirmed via the HA UI or `/api/config`), the container reports healthy after the recreate, and the post-update entity-availability check above comes back clean (or any affected integration has been reloaded and confirmed resynced).
+
+**Scheduled run completed successfully -- checked 2026-09-27 18:07 MST.** The transient one-shot unit fired on time and self-removed (as designed) -- confirmed from the dashboard log rather than `systemctl`: `2026-09-27 03:30:05` Image pull starting -> `04:40:51` Image pull complete (4246s -- slow but clean, no stall/kill this time) -> `04:47:35` Container 'homeassistant' recreated and healthy. **Version note:** the container is running **2026.9.4**, not 2026.9.3 -- a newer patch landed upstream between this card's last check and the scheduled run; not re-vetted against 2026.9.4's own release notes before the pull (the schedule was unattended), worth a quick look after the fact but the update already happened.
+**Post-update checks, 2026-09-27 18:07 MST:**
+- Bootstrap log: no `homeassistant.bootstrap` "Waiting for integrations to complete setup" line -- no candidate integration flagged by CARD-0240's own detector.
+- Only recurring error since recreate: the `habluetooth` "Failed to force stop scanner" one, already known and logged as a longstanding non-issue (this file, ~L4098) -- container has no Bluetooth hardware access, unrelated to this update.
+- Config entries: 28 total, **27 loaded**, only `bluetooth` in `setup_retry` (the same known non-issue above). `smartthings`, `ring`, `samsungtv`, `matter` all `loaded`.
+- Entity comparison against yesterday's saved baseline (1,003 entities / 110 unavailable-or-unknown, CARD-0295's 09-26 attempt): now **1,004 entities / 111 unavailable-or-unknown** -- a net **+1** each way, not the ~150-entity SmartThings/Ring resync spike CARD-0240 originally found on 2026-09-05. Read via the HA token from `/home/pi/.node-red/environment`, inside the remote command only, never printed (Joseph re-authorised this specific read).
+- `RestartCount=0`, `OOMKilled=false`.
+
+**Conclusion: update completed successfully, no regression found.** The small unavailable-count delta reads as ordinary noise (a transient sensor at scrape time), not a resync failure, given config entries all report loaded and there's no large-domain spike. Not independently re-verified per-entity (no saved baseline file existed to diff against, only yesterday's two aggregate numbers) -- if anything looks off later, check `smartthings`/`ring` specifically first per CARD-0240.
+**Related:** CARD-0266 (the immediately prior HA update, 2026.9.1 → 2026.9.2, same shape), CARD-0269 (`pi-image-pull.py`, the required pull mechanism), CARD-0268 (the I/O-contention rationale behind it), CARD-0240 (the post-update entity-availability check this card inherits), CARD-0128 (the auto-PR intake pipeline this was raised by), `core/homeassistant/docker-compose.yml`.
+
+
+**Re-notification 2026-09-25 (PR #134, jctsh-core): the same pending 2026.9.2 → 2026.9.3 update, folded into this card rather than landed separately.** Still Backlog, still low risk per the assessment above. **Hold until after Saturday's 2026-09-26 hike (Joseph, 2026-09-25):** HA carries the Sheet-health and watchdog pushes to the Pixel and the hiking-monitor's Replay Hike Log / Restart buttons, and Saturday is the first real test of two firmware changes -- no extra restarts of things the hike depends on. Apply afterwards with `pi-image-pull.py` as above, then the post-update entity-availability check.
+
+**Update attempt 2026-09-26 ~15:50-16:30 MST -- stalled, aborted, HA untouched (Joseph: "apply the updates before the rehearsal, one at a time"; "Option 1, read the token").** Risk re-verified first: upstream latest is still 2026.9.3 (nothing newer); release notes re-read (none of the fixes touch the integrations this install uses); open post-release issues are for Tuya/Hue/Plex/Tibber/Yeelight/Alexa Devices/Deebot and a USB Bluetooth adapter on HAOS -- still low risk. Safeguards taken: rollback tag `ha-rollback:2026.9.2` (image a1bc133af84e) on the Pi; HA entity baseline saved (1,003 entities, 110 already unavailable/unknown -- snapshot buttons, scenes, update entities etc.) using the HA token Joseph authorised reading for this check. `sudo pi-image-pull.py ghcr.io/home-assistant/home-assistant:stable --recreate homeassistant` was run in the foreground; after ~40 min `ctr -n moby content active` showed **no active ingest** (the pull was stuck before downloading; the registry itself is reachable, `ghcr.io/v2/` = 401 in 0.28 s) so the puller was killed. **Nothing changed on the host:** HA stayed on 2026.9.2 throughout, and three API probes (before, during, after) show the same 1,003 entities, 0 newly unavailable. **Finding:** at that moment the Pi was I/O- and memory-starved -- load average ~5.3, **46% iowait, 677 of 905 MB swap in use, ~35 MB free**, `usb-storage` in D state -- exactly the condition CARD-0268/CARD-0269 describe. Next: retry when the Pi is quiet (`--schedule "<Sun/Mon ~03:30>"` per the card) or defer until after the next hike; the Pi's memory/swap pressure is worth its own look (not carded yet).
+
+**Scheduled 2026-09-26 (Joseph: "1" -- schedule it).** `sudo pi-image-pull.py ghcr.io/home-assistant/home-assistant:stable --recreate homeassistant --schedule "2026-09-27 03:30:00"` -> one-shot transient unit `pi-image-pull-home-assistant-stable.timer`, fires **Sun 2026-09-27 03:30 MST**; it logs `Image pull starting/complete/FAILED` and `Container 'homeassistant' recreated and healthy` to the dashboard (FAILED and unhealthy are Alerts). Rollback if it goes wrong: `docker tag ha-rollback:2026.9.2 ghcr.io/home-assistant/home-assistant:stable` then recreate. **Morning-after check (Sunday):** dashboard lines above, `systemctl status`/`journalctl -u pi-image-pull-home-assistant-stable`, HA on 2026.9.3 via `/api/config`, then rerun the entity comparison against the saved baseline (1,003 entities, 110 already unavailable/unknown). If it stalls again the pull just hangs, HA keeps running 2026.9.2, and this card stays open.
+---
+
+### CARD-0341 · [bug] [salt-sensor] [homeassistant] `switch.salt_critical_alert` can never stay on -- its `turn_on` action is followed by a `turn_off` that undoes it, and it has no `turn_off` action — RESOLVED 2026-09-25 20:32 MST
+
+Archived in full to `components/salt-sensor/card-archive.md` on 2026-09-27 (CARD-0193) — 10682B, over the 5000B size threshold. Also tagged here; this is a pointer only, not a duplicate.
+
+### CARD-0328 · [enhancement] [mqtt] [node-red] [homeassistant] Version-controlled-copy directories have no drift check — generalize CARD-0326's one-line diff
+
+Archived in full to `core/mqtt/card-archive.md` on 2026-09-27 (CARD-0193) — 19459B, over the 5000B size threshold. Also tagged here; this is a pointer only, not a duplicate.
+

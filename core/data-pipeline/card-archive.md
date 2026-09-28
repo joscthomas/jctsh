@@ -356,3 +356,77 @@ A clean volume trend with no reboot loop anywhere nearby — the real mechanism 
 
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-27 (CARD-0193)** — 14498B, over the 5000B size threshold.
+
+### CARD-0337 · [enhancement] [data-pipeline] Keep the Environmental Data sheet small: archive old rows and make the export read only what it needs
+
+**Status:** Done -- RESOLVED 2026-09-25 (archive deferred)
+
+**Raised 2026-09-25 (Joseph: "let's do planning for option 1"), following the 2026-09-25 outage recorded on CARD-0226.** Every Apps Script call that touches the spreadsheet began hanging or hitting Google's ~93 s per-Spreadsheet-call limit (executions Failed at ~93 s / ~187 s, Timed Out at the 6-min cap; none completing from ~10:07 MST, one doPost finally completing after 307 s at 13:43). Google reported no Sheets/Apps Script incident, and big reads on this tab had already been timing out on the M8 for at least a day (the daily backstop probe's 5-day export timed out at 05:04 MST 2026-09-25, and the same the day before). **Root cause is not proven** -- tab size was the initial suspect but see the 2026-09-25 correction below; it is now doubtful. This card is the cheap, reversible mitigation (option 1 of three discussed: keep Sheets small; a durable local store in front of Sheets; move off Sheets). **Planning only -- nothing built.**
+
+**Facts established (from code and today's data):**
+- `Environmental Data` had ~32,976 rows x 26 columns (~860k cells) in one tab on 2026-09-24. Total cells across the whole spreadsheet is unknown (Google's documented ceiling is 10M per spreadsheet; not the issue).
+- **Every full-tab read pulls all 26 columns of every row:** `_exportSheet()` (`getDataRange().getValues()` then filters by timestamp in JS -- used by hike-izer's `fetch_hike_data.py` on every generation, the daily refresh, and the backstop probe), `refreshTimeline()` (menu-triggered, reads the whole tab plus Hiking Observations and rewrites the `Timeline` tab), and the two one-time cleanup functions.
+- **Writes (`doPost`) already only scan the last 2000 rows** (CARD-0226, 2026-09-24) and take a lock, so ingest cost no longer grows with the tab -- but a slow spreadsheet backend still slows the append itself.
+- **Consumers that need *old* rows:** regenerating an old hike page (`generation.py --step2 <stem>`) re-fetches that hike's date range from the sheet, so **archived ranges must stay exportable**, not just deleted. `refreshTimeline()` builds the Timeline from the whole tab. The architecture doc (`JCTsh-Environmental-Data-Architecture.md`, "One archive, many sources") frames this sheet as *the* environmental archive.
+- Rows are mostly, but not strictly, chronological (hiking-monitor replays land out of order), so the tab cannot be range-read by row position.
+
+**Design requirements that follow:**
+1. **No data loss.** Copy -> verify counts/content -> only then delete from the live tab; take a full "Make a copy" of the spreadsheet first (Joseph). Invariant: live + archived rows == original rows.
+2. **Export keeps working for any date range**, live or archived, with the same JSON shape (`fetch_hike_data.py` must not change).
+3. **Export reads narrowly:** read column A (timestamps) only, find the matching row indices, then read just those rows (~1/26th of today's cells for a hike-sized range), instead of `getDataRange().getValues()`.
+4. **The move itself is a heavy operation on an unhealthy document** -- run it only after the sheet has recovered, with writes held (Node-RED's queue already holds readings through an outage), in chunks, from the editor.
+5. `refreshTimeline()`, the one-time cleanup functions and `_gpsLookup()` (which reads `GPS Track`, a separate tab that may deserve the same treatment) must be checked against the new layout.
+
+**Proposed phases (each independently useful and reversible):**
+0. **Measure first, once the sheet responds:** per-tab row counts and total cells; time `getLastRow()`, a 2000-row read, one `appendRow`, and a full-tab read. Without this we are guessing which tab/operation is the problem.
+1. **Narrow the export** (requirement 3) -- no data movement, benefits every hike-izer fetch immediately. Verify parity: identical rows for a known range (e.g. the 2026-09-19 and 2026-09-24 hikes) before/after, and regenerate one old page as a regression.
+2. **One-time archive** of rows older than the chosen window (chunked copy-verify-delete), after a backup copy.
+3. **Recurring archive** (time-driven trigger or a menu action) so the live tab stays bounded.
+4. Only if phase 0/1 show the problem is document-level rather than tab-level: revisit the option 2 (local durable store in front of Sheets) discussed on 2026-09-25.
+
+**Interviewed 2026-09-25 (Joseph) -- four decisions:**
+1. **Archive home: a separate archive spreadsheet** (not monthly tabs in the live spreadsheet) -- so the live document actually shrinks. The script reaches it with `SpreadsheetApp.openById()` (one new id constant); inside it, one tab per month keeps each tab modest (proposed detail, not yet confirmed).
+2. **Live window: 30 days** (~11-12k rows at today's ~350 rows/day plus hike days, down from ~33k). Regenerating any hike older than 30 days therefore goes through the archive path -- the export must handle it transparently.
+3. **Browsing old data in Sheets: rarely -- export is fine.** Archived data does not need to be a convenient tab to browse; it only needs to stay exportable (hike regeneration, ad-hoc queries).
+4. **Scope: Environmental Data only.** `GPS Track` and `Correlation Debug` are measured in phase 0 and decided on then, not built here.
+
+**Settled 2026-09-25 (Joseph): Timeline covering only the last 30 days is fine** -- `refreshTimeline()` reads the live tab only.
+
+**Archive layout, approved 2026-09-25 (Joseph: "per year is fine, record it"): one archive spreadsheet per year, one tab per month.**
+```
+JCTsh Environmental Archive 2026   (its own spreadsheet)
+  _index   one row per month tab: first/last timestamp, row count, archived-at
+  _log     one row per archive run: rows moved, ranges, verification result
+  2026-06, 2026-07, ...   same 26 columns + header as the live tab, rows verbatim
+JCTsh Environmental Archive 2027   (created when 2027 data first ages out)
+```
+- **Why per year:** at today's rate (~350 rows/day from the porch sensors plus hikes) a month is ~12k rows / ~300k cells, ~3.5-4M cells/year, so one archive spreadsheet forever would reach Google's 10M-cell ceiling in ~2.5 years (estimate from current rates; the AQM will speed it up). A spreadsheet per year keeps each well under the ceiling and quick to read. The script holds a small year -> spreadsheet-id map (new constant). One archive forever was the alternative; cost is a forced split around 2029.
+- **Why monthly tabs:** each tab stays ~12k rows; a hike export reads one or two small tabs. **Month boundaries are UTC** (timestamps are UTC), so a hike spanning midnight on the 1st can span two tabs -- harmless because the export merges; approved.
+- **Export logic:** range newer than the 30-day cutoff -> live tab only; older -> the matching month tab(s); straddling -> both, merged by `(timestamp, source)` (also removes the transient duplicates while an archive run is mid-flight) and sorted by time. Same JSON shape out, so `fetch_hike_data.py` does not change. `_index` tells it which month tabs exist without scanning.
+- **Archive run (per month, writes held):** copy that month's rows to its tab -> verify count + a checksum of timestamp/source values against what was selected -> only then delete from the live tab -> log in `_log`. A run stopped partway leaves rows in both places, which the merge tolerates. After the first run the live tab holds only the last 30 days. The recurring job (phase 3) does the same for rows crossing the 30-day cutoff, as a menu action first and a time-driven trigger later.
+
+**Plan approved for the layout; not yet moved to Build** -- Build starts with phase 0 (measure) once the sheet responds, and needs Joseph's full-spreadsheet backup copy before phase 2.
+
+**Correction, 2026-09-25 (Joseph reported the spreadsheet's Drive size: 1.7 MB).** That is small for a Google Sheet, and the size-based theory this card was planned around is now weak: a 1.7 MB document should not need minutes to read, and even a tiny-sheet read hung while all our traffic was paused. Size may still make full-tab reads slower than they need to be, so the narrow export (phase 1) remains worthwhile on its own merits, but **archiving may not fix this incident, and Build must not start on the assumption that it will.** Phase 0 (measure) and the diagnostics on CARD-0226 (error text of a Failed ~93 s execution; whether a `Make a copy` is fast in the UI and in Apps Script) come first, and decide whether this card is the right fix at all, a fresh-document recovery is, or the problem is script/account-level and resolves itself.
+
+**Update, 2026-09-25 evening:** the incident was resolved by migrating to a fresh spreadsheet (see CARD-0226), which showed the original document's state, not its size, was the fault -- a fresh document holding the same 33k-row tab opens in 191 ms and exports in ~10 s. **This card is now a tidy-up, not a fix:** the narrow export (phase 1) and the 30-day live window/archive remain reasonable ways to keep the new spreadsheet fast as it grows, but nothing is urgent and Build should be re-justified on measured timings (phase 0) in the new spreadsheet.
+
+**Not doing here:** a database migration, changing what the phone-side pipelines (GPSLogger, Tasker) post to, or the Node-RED queue (CARD-0226).
+
+**Related:** CARD-0226 (the outage, the write-path fixes, the held-readings queue). `core/data-pipeline/environmental-data.gs`, `components/hike-izer/fetch_hike_data.py`, `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`.
+
+
+**Build started 2026-09-25 (Joseph: "do 337").** Phases 0-1 first, then decide phases 2-3 from measured numbers.
+- **Phase 0 baseline (new spreadsheet, via the web app):** a hike-sized `Environmental Data` export (9/24 hike, 71 rows) takes **8.6 s**; GPS Track (401 rows) 2.5 s; Hiking Observations (1 row) 1.9 s; `action=health` ~0.4-0.6 s; a full-range export of the whole tab ~10-12 s. The cost is reading every row and column to return a handful.
+- **Phase 1 built, not yet deployed** (commit above, `SCRIPT_VERSION 2026-09-25.3-narrow-export`): `_exportSheet` now reads column A only, picks the matching rows, then reads just those (one `getRange` per contiguous run; past 40 runs, one bounding-block read). Same JSON out, same row order. The old full-read implementation is kept as `_exportSheetFull`, reachable with `&full=1` (parity testing; a rollback that needs no redeploy). Mock parity test on the Pi: narrow == full across chronological data, out-of-order replay rows, junk/blank timestamps, Date objects, >40 runs, empty ranges, header-only sheet.
+- **Next:** Joseph deploys; then live parity (narrow vs `&full=1`) across tabs and ranges plus timings; then decide phases 2-3 (archive) on whether an ~8 s -> ~1-2 s export makes the archive unnecessary.
+
+**Phase 1 results, 2026-09-25 evening.** Live parity (narrow, `&tail=0`, `&full=1`): **identical on all 11 comparisons** across Environmental Data (hike, older, today, before-the-tail, everything, empty), GPS Track, Hiking Observations, Correlation Debug. A `&timing=1` server-side breakdown showed **reading the timestamp column is 85-95% of a hike-sized export** (2.7-4.8 s for 33k rows; scan 15-40 ms; reading the actual rows 70-200 ms), so a tail-first scan (newest 15,000 timestamps, with fallbacks on any doubt) was added instead of the archive. **Live check found the tail path never engages: the Environmental Data tab is sorted newest-first (Z->A)** -- 32,637 of 33,277 adjacent rows descend, the newest sorted row is 2026-09-25T00:51Z (when it was last sorted), and ~640 rows appended since sit unsorted at the bottom. The safety checks correctly refused it (a tail read of a descending tab would return wrong data); an early-out (`2026-09-25.6`) stops it wasting 1-3 s per attempt. **Consequences:** (1) the export cannot get faster until the tab is ascending -- a one-time A->Z sort of the live tab (header frozen), with newest-first *browsing* done via a Filter view, which does not reorder the data; (2) the doPost dedup window (last 2000 rows) still works in the current hybrid layout because new rows land at the bottom, but rests on nobody re-sorting; (3) a mock fixture with cyclic timestamps also caught the tail conditions being too weak in the first version -- fixed with a boundary-row check.
+**Archive (phases 2-3):** still not needed for speed if the tab is ascending; kept as a future option because the tab grows ~350 rows/day (~100k rows in about 6 months).
+
+**Closed 2026-09-25 late evening.** Joseph re-sorted the live tab ascending (A->Z) and the deployed `2026-09-25.5-export-tail-first` immediately engaged: the server-side timestamp read fell from 2.7-5.4 s to ~1.5 s. **Live parity with the tail path active, 8 ranges: identical to `&full=1`** (the single apparent mismatch on "everything" was a live reading landing between the two calls; the repeat was exactly identical -- 33,282 rows, same order and content). **Measured effect:** a hike-sized Environmental Data export went from ~5.4-7 s to ~3.8-4.4 s (`&full=1` for comparison: 5.8-7.8 s); the rest is fixed cost (HTTP redirect, opening the spreadsheet, the small boundary reads, ~1.5 s of timestamps). **Known tradeoff:** a range older than the newest 15,000 rows falls back to the full column after first reading the tail, so an old-hike regeneration costs ~3 s *more* than before (9.3 s vs 6.3 s measured); rare, left alone. The `.6` early-out (a two-cell pre-check that saves the wasted tail read on a *descending* tab) was reverted (`1245087`) so the repo matches what is deployed -- it was only needed while the tab was Z->A and would add a small cost on the normal path.
+**Standing rules this now rests on** (also in the runbook): the live Environmental Data tab must stay **ascending** -- newest-first browsing belongs in a Filter view, which does not reorder data -- because both the export's tail-first scan and the doPost dedup window (last 2000 rows) assume new rows land at the bottom in chronological order. If it is ever sorted descending again nothing breaks (the checks fall back to the full read, ~1-3 s slower) but the dedup window can miss recent duplicates.
+**Archive (phases 2-3): deferred, not cancelled.** The tab grows ~350 rows/day (~100k rows in ~6 months); revisit if the timestamp read or the 33k-row full-range export becomes slow again.
+---
+

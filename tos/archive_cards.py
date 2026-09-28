@@ -25,11 +25,11 @@ checked; core/, hosts/, and tos itself were added after the first real
 dry run showed genuine cards (e.g. CARD-0128, about the auto-PR pipeline
 tos/ now contains) falling to the dated archive purely because their
 real home wasn't a components/ directory, not because they lacked a real
-home at all. Zero or 2+ tag matches fall back to a dated archive file
+home at all. Zero tag matches fall back to a dated archive file
 (tos/kanban-archive.md) rather than guessing which destination was
-meant -- an ambiguous or genuinely absent match is a tagging-precision
-problem to flag and fix, not something this script should silently paper
-over.
+meant. **2+ tag matches: see the CARD-0193 reopen note below -- this
+paragraph's original "skip for manual review" behavior for that case was
+superseded 2026-09-27.**
 
 CARD-0290: destination changed from CLAUDE.md to a dedicated card-archive.md
 sibling, 2026-09-17 -- appending archived cards directly into CLAUDE.md let
@@ -53,6 +53,20 @@ Un-archiving (an already-archived card needing a real update later) is
 not automated here -- move it back into kanban-board.md by hand if that
 ever comes up, same interactive-judgment treatment as everything else
 this script doesn't try to make mechanical.
+
+CARD-0193 (reopened 2026-09-27): a 2+-tag-match card is no longer skipped
+for manual review. The **primary destination is the first of the card's
+own bracketed tags, in the order written, that matches a real directory**
+-- arbitrary where there's no clearly-better owner, but deterministic and
+reproducible (Joseph's explicit call, rather than letting these accumulate
+in permanent manual-review limbo -- 4 cards were stuck this way on one
+ordinary archiving pass). The full card archives there exactly as a
+single-match card would. **Every other matching tag gets a short pointer
+stub instead of a full duplicate** -- one line under that directory's own
+`## Card History` heading naming the card and where its full text actually
+lives, so it stays discoverable from any of its tagged directories without
+a second copy that could drift from the first. Zero-match cards are
+unaffected -- still fall to the dated `tos/kanban-archive.md`.
 
 Usage:
     python archive_cards.py                 # dry run, prints the plan
@@ -187,12 +201,14 @@ def discover_destinations():
 
 
 def resolve_destination(card, destinations):
+    """Every card tag that matches a real destination, in the order the
+    card itself lists them. Zero matches: dated archive. One or more:
+    the first is the primary (full text archives there); any rest are
+    secondaries (CARD-0193 -- get a pointer stub instead of a duplicate)."""
     matches = [t for t in card["component_tags"] if t in destinations]
-    if len(matches) == 1:
-        return "matched", matches[0]
     if len(matches) == 0:
-        return "dated", None
-    return "ambiguous", matches
+        return "dated", None, []
+    return "matched", matches[0], matches[1:]
 
 
 def build_stub(card, archive_path, today, reason):
@@ -216,6 +232,20 @@ def build_archived_block(card, today, reason):
     )
 
 
+def build_pointer_stub(card, primary_path, today, reason):
+    """CARD-0193: a one-line pointer for a secondary tag match -- the card's
+    full text lives at `primary_path` instead; this just makes it
+    discoverable from every directory it's also tagged with, without a
+    second copy of the text that could drift from the first."""
+    header_line = card["block"].splitlines()[0]
+    primary_rel = display_path(primary_path, today)
+    return (
+        f"{header_line}\n\n"
+        f"Archived in full to `{primary_rel}` on {today.isoformat()} (CARD-0193) — {reason}. "
+        f"Also tagged here; this is a pointer only, not a duplicate."
+    )
+
+
 def append_under_heading(existing_text, heading, addition, fresh_preamble):
     """Insert `addition` right after `heading` -- before the next top-level
     '## ' heading if one follows, else at EOF. Creates `heading` at the end
@@ -236,13 +266,17 @@ def append_under_heading(existing_text, heading, addition, fresh_preamble):
     return existing_text.rstrip("\n") + "\n\n" + heading + "\n\n" + addition.strip() + "\n"
 
 
-def apply_plan(plan, today):
+def apply_plan(plan, today, destinations):
     by_path = {}
     dated_entries = []
-    for card, kind, dest_path, label, reason in plan:
+    for card, kind, dest_path, label, reason, secondary_tags in plan:
         block = build_archived_block(card, today, reason)
         if kind == "matched":
             by_path.setdefault(dest_path, (label, []))[1].append(block)
+            for sec_tag in secondary_tags:
+                sec_label, sec_path = destinations[sec_tag]
+                stub = build_pointer_stub(card, dest_path, today, reason)
+                by_path.setdefault(sec_path, (sec_label, []))[1].append(stub)
         else:
             dated_entries.append(block)
 
@@ -282,7 +316,7 @@ def apply_plan(plan, today):
     # Splice stubs into kanban-board.md, highest offset first so earlier
     # offsets in the same pass stay valid.
     text = KANBAN_PATH.read_text(encoding="utf-8")
-    for card, kind, dest_path, label, reason in sorted(plan, key=lambda p: p[0]["start"], reverse=True):
+    for card, kind, dest_path, label, reason, secondary_tags in sorted(plan, key=lambda p: p[0]["start"], reverse=True):
         stub = build_stub(card, display_path(dest_path, today), today, reason)
         text = text[:card["start"]] + stub + text[card["end"]:]
     KANBAN_PATH.write_text(text, encoding="utf-8")
@@ -325,28 +359,22 @@ def main():
 
     eligible = [c for c in cards if is_archive_eligible(c, today, forced_ids, excluded_ids)]
     plan = []
-    skipped_ambiguous = []
     for card in eligible:
-        kind, detail = resolve_destination(card, destinations)
-        if kind == "ambiguous":
-            skipped_ambiguous.append((card, detail))
-            continue
+        kind, detail, secondary_tags = resolve_destination(card, destinations)
         reason = archive_reason(card, today, forced_ids)
         if kind == "matched":
             label, dest_path = destinations[detail]
-            plan.append((card, kind, dest_path, label, reason))
+            plan.append((card, kind, dest_path, label, reason, secondary_tags))
         else:
-            plan.append((card, kind, None, None, reason))
+            plan.append((card, kind, None, None, reason, []))
 
     print(f"{len(cards)} total cards, {len(eligible)} archive-eligible, {len(plan)} will be archived.\n")
-    for card, kind, dest_path, label, reason in plan:
+    for card, kind, dest_path, label, reason, secondary_tags in plan:
         tag_note = "no matching tag" if kind == "dated" else f"tag: {label}"
+        if secondary_tags:
+            sec_labels = [destinations[t][0] for t in secondary_tags]
+            tag_note += f", pointer stub(s) in: {', '.join(sec_labels)}"
         print(f"  {card['id']} [{card['status']}] {reason} ({tag_note}) -> {display_path(dest_path, today)}")
-
-    if skipped_ambiguous:
-        print(f"\n{len(skipped_ambiguous)} SKIPPED (ambiguous tag match, needs manual review):")
-        for card, tags in skipped_ambiguous:
-            print(f"  {card['id']}: tags {tags} match multiple known directories")
 
     if not plan:
         print("\nNothing to do.")
@@ -356,7 +384,7 @@ def main():
         print("\nDry run only -- pass --apply to write these changes.")
         return
 
-    written = apply_plan(plan, today)
+    written = apply_plan(plan, today, destinations)
     print(f"\nApplied. Files written:")
     for p in written:
         print(f"  {p.relative_to(REPO_ROOT)}")

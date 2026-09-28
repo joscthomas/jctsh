@@ -1,0 +1,18 @@
+# CARD-0350: enable daily apt package-index refresh only -- never auto-apply.
+#
+# This host's apt-daily.timer/apt-daily.service ship enabled via systemd
+# presets, but do nothing without this file: confirmed live 2026-09-27, the
+# service ran on its normal schedule, exited in ~3s, and never touched
+# /var/lib/apt/lists (last real refresh stayed stuck at 2026-09-12 across
+# several scheduled firings). Deliberately does NOT set
+# Unattended-Upgrade "1" -- this repo's standing policy is notify-only,
+# never auto-apply (root CLAUDE.md; CARD-0266/CARD-0268/CARD-0269's
+# pi-image-pull.py exists for exactly this reason). Packages are only ever
+# installed by a person running `apt upgrade` explicitly, or via the
+# reviewed pi-maintenance-check.py -> kanban PR path (CARD-0125/CARD-0128).
+#
+# Filename matches the conventional name the unattended-upgrades package
+# would create, so if that package is ever installed later, dpkg treats
+# this as a real conffile and prompts rather than silently overwriting it.
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "0";

@@ -3,7 +3,7 @@
 Reference for what this repo's development/flashing workstation (Joseph's Windows machine)
 needs installed and configured, and the tool-specific gotchas that aren't obvious from error
 messages alone. Single-operator machine, not a fleet of contributor machines — this is the
-canonical, actively-read home for these facts (CARD-0354); several were previously recorded
+canonical, actively-read home for these facts (CARD-0357); several were previously recorded
 only in archived card history (`card-archive.md`, on-demand-only reading) or scattered across
 individual component `flashing.md` files, which is how the Python-version gap below went
 unnoticed for ~5 months. For the Pi/M8's own software, see `SOFTWARE-ENVIRONMENT.md`; for the
@@ -14,7 +14,7 @@ physical smart-home devices, see `ENVIRONMENT.md`.
 | Version | Purpose |
 |---|---|
 | 3.11.x (`C:\Users\jcthomas\AppData\Local\Programs\Python\Python311\`) | Long-standing base install — general scripting, most tooling |
-| 3.12.10 (installed 2026-09-27, CARD-0354, via `winget install Python.Python.3.12`) | Required by ESPHome 2026.7.0+ (see below) — installed alongside 3.11, not replacing it |
+| 3.12.10 (installed 2026-09-27, CARD-0357, via `winget install Python.Python.3.12`) | Required by ESPHome 2026.7.0+ (see below) — installed alongside 3.11, not replacing it |
 
 Both are reachable via the `py` launcher: `py -3.11`, `py -3.12` (bare `py`/`python` defaults
 to whichever was installed/registered first — check with `py -0` before assuming).
@@ -24,7 +24,7 @@ to whichever was installed/registered first — check with `py -0` before assumi
 **Currently pinned at `2026.4.5`** (`pip install esphome==2026.4.5`) — every component's
 `flashing.md`/build-instructions doc should say this. The pin exists because `2026.9.0`
 (current latest as of 2026-09-27) was believed to "break the compile" when first tried
-around CARD-0333/CARD-0335 (2026-09-24/25) — **root-caused 2026-09-27/28, CARD-0354, and it
+around CARD-0333/CARD-0335 (2026-09-24/25) — **root-caused 2026-09-27/28, CARD-0357, and it
 was never actually a YAML/config incompatibility:**
 
 1. **ESPHome 2026.7.0 and later require Python ≥3.12** (`Requires-Python >=3.12.0,<3.15` on
@@ -43,11 +43,11 @@ was never actually a YAML/config incompatibility:**
    used for real device flashes — previously followed without the underlying reason being
    written down anywhere live.
 
-**Confirmed 2026-09-27/28 (CARD-0354):** with Python 3.12 + native PowerShell + a
+**Confirmed 2026-09-27/28 (CARD-0357):** with Python 3.12 + native PowerShell + a
 short working path, `garage-radar.yaml` compiles clean on ESPHome 2026.9.0 (exit 0, real
 firmware binaries generated) — strong evidence the 5-month-old pin was never a real ESPHome
 regression. **Not yet re-verified for the other 5 devices**, and the live fleet's actual pin
-has deliberately **not** been bumped yet (CARD-0354's own scope decision: fix + prove the
+has deliberately **not** been bumped yet (CARD-0357's own scope decision: fix + prove the
 compile, don't force a fleet-wide reflash in the same pass). Per Joseph's direction
 (2026-09-28): the pin gets revisited **per device, at that device's next real flash** —
 whoever next runs `esphome run <device>.yaml` should try the current latest ESPHome first
@@ -88,6 +88,6 @@ by any maintenance check or this doc's own currency — only ESPHome, because it
 that has actually broken a build. Revisit that boundary if a second real gap in one of those
 shows up, not preemptively.
 
-**Related:** CARD-0354 (root-caused the ESPHome pin, wrote this doc), CARD-0333/CARD-0335
+**Related:** CARD-0357 (root-caused the ESPHome pin, wrote this doc), CARD-0333/CARD-0335
 (where the pin was first established), CARD-0344 (the update-check scope boundary this doc's
 last section restates), CARD-0328 (found the SSH ACL gotcha).

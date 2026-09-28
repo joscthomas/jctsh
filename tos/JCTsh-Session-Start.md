@@ -111,12 +111,12 @@ table for exactly which steps below get scoped, skipped, or run as-is.
    `JCTsh-Component-Session-Start.md`) scans it for its own covered component(s) only.
 
 **ESPHome/workstation-tooling check — conditional, not one of the 9 routine steps above
-(added 2026-09-28, CARD-0354).** Before compiling or flashing any ESPHome device
+(added 2026-09-28, CARD-0357).** Before compiling or flashing any ESPHome device
 (`esphome compile`/`esphome run`, or following any component's `flashing.md`), read
 `WORKSTATION-SETUP.md` in full first. It carries real, non-obvious workstation gotchas
 (the ESPHome pip package's Python-version requirement, PowerShell-vs-Git-Bash, a Windows
 path-length limit) that got a ~5-month-stale ESPHome pin misdiagnosed as a compile break
-(CARD-0354) precisely because nobody checked it before acting. Same "check the operating
+(CARD-0357) precisely because nobody checked it before acting. Same "check the operating
 doc before operating" discipline as `JCTsh-Component-Session-Start.md`'s `SKILL.md` rule,
 generalized here to a workstation-level doc that applies regardless of which component's
 device is being flashed — triggered by the action (about to flash/compile), not by which

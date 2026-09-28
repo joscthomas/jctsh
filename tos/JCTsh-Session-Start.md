@@ -98,10 +98,15 @@ table for exactly which steps below get scoped, skipped, or run as-is.
    is a separate, unauthenticated endpoint returning just per-component `freshness`/
    `connection`/`last_seen`, no log content.** The rest of this step (scanning for `Alert`
    messages and anything else that looks wrong) still needs the authenticated `/status`/`/log`
-   dashboard — `DASHBOARD_PASS` isn't something a session can pull non-interactively (Claude
-   Code's own credential-materialization guard blocks reading it from the Pi's env file or
-   curling the authenticated endpoints), so ask Joseph for it when that fuller scan is
-   actually needed, rather than treating a blocked attempt as something to work around.
+   dashboard — `DASHBOARD_PASS` isn't something a session can pull non-interactively from the
+   Pi itself (Claude Code's own credential-materialization guard blocks reading it from the
+   Pi's env file or curling the authenticated endpoints directly). **Instead, use the copy
+   already recorded in `credentials.local.md`'s Log Dashboard section (Joseph authorized this
+   read for exactly this purpose, 2026-09-27)** — gitignored, never committed, the same
+   established local credential-reuse store other cards already point to (e.g. `HA_TOKEN`).
+   Only prompt Joseph directly if that file has no entry for it, or the recorded password
+   fails at login (rotated since last written down) — a blocked attempt is still something to
+   surface, not silently retry, but the default path no longer requires asking first.
    A general session scans `/status` across every device; a component session (per
    `JCTsh-Component-Session-Start.md`) scans it for its own covered component(s) only.
 

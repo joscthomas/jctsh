@@ -15,7 +15,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ### CARD-0349 · [idea] [data-pipeline] Evaluate a time-series database to replace or front Google Sheets as the Environmental Data store
 
-**Status:** Backlog
+**Status:** Planning
 
 **Raised 2026-09-27 (Joseph: "we talked about using a different technology, time series database?").** Searched the live board, every `card-archive.md`, and every project markdown doc for a prior record of this discussion before writing anything here (Engineering Discipline: verify a claimed completion/prior decision directly, don't assume) -- found none. Either informal chat that never produced a card (per `JCTsh-Operating-System.md`'s "Where Work Happens": pre-card thinking is allowed to leave no trace), or from a context this repo doesn't have a record of. Treating this as new information being captured now, not a rediscovered prior decision.
 
@@ -93,6 +93,12 @@ Only 2 of 5 tables are genuinely metrics-shaped; the other 3 are ordinary relati
 **Recommendation: TimescaleDB.** The data is mostly relational with a time column, not mostly metrics; real joins are needed; SQL is already known. InfluxDB would only be the better call if Environmental Data/GPS Track were the whole problem and the other three tables didn't exist.
 
 **Fits the project's existing pattern** of self-hosting rather than using cloud equivalents (Node-RED, MQTT, Immich, netalertx all run locally already) -- worth weighing in Planning, not a reason to skip the interview.
+
+**Moved to Planning 2026-09-27 17:48 MST (Joseph: "let's do planning based on TimescaleDB").** Technology decided: TimescaleDB, per the comparison above. Scope decided 2026-09-27 18:00 MST (Joseph, 4 questions asked directly): plan covers all 5 tables, but Phase 1 build is Environmental Data + GPS Track only (Joseph: "do all 5 in the plan but start with implementing Environmental Data + GPS Track first"); runs on the M8; Google Sheets is retired once migration is verified (not kept as a synced mirror); the HTTP API in front of it is redesigned as part of this, not preserved as a compatibility shim (Joseph explicitly chose redesign over the safer "keep the same interface" option -- every real consumer listed in the plan needs updating together with the storage layer, not just what's behind an unchanged API).
+
+**Planning document written: `core/data-pipeline/timescaledb-migration-plan.md`.** Grounded directly in the real schemas (`JCTsh-Environmental-Data-Architecture.md`) and the actual `environmental-data.gs` routing (`doPost`'s component-routing, every `?action=` GET), not assumption. Covers: current state (all 5 sheets' shapes and every real producer/consumer -- Node-RED, GPSLogger's phone URL, Tasker's voice queue, `fetch_hike_data.py`, hike-izer-orchestrator's wildlife archiving, `sheet_health.py`), target architecture (a `timescaledb` container plus a new gateway service on the M8, replacing `environmental-data.gs` entirely), Phase 1/Phase 2 schema sketches, migration/backfill approach, a one-producer-at-a-time cutover plan, and open questions left for Design (exact gateway language, exact new API shape, backup strategy, whether `Correlation Debug` needs a real equivalent).
+
+**A genuine bonus found while writing this, not assumed going in:** this migration fixes 3 of CARD-0347's still-open pipeline-review findings by construction, not as separate future work -- #1 (no write lock on GPS/Observation writes) is solved by a real database transaction; #3 (per-point full-sheet scans for dedup) is solved by an indexed `UNIQUE` constraint plus `ON CONFLICT DO NOTHING`; #4 (timestamp compared as strings) is solved by a native `timestamptz` column. Worth closing or superseding those specific findings once Phase 1 ships rather than tracking them as separate work.
 
 **Done when:** not yet scoped -- this stays a Backlog capture until interviewed for whether to pursue it at all, and if so, which of reliability/speed/dashboards is the real driver, before any technology gets chosen or any plan gets written.
 

@@ -240,10 +240,22 @@ class Handler(BaseHTTPRequestHandler):
                 # this fast without the throttling Node-RED currently needs
                 # (CARD-0279) to protect a spreadsheet from bursty replay
                 # traffic.
+                #
+                # The design doc's own SQL sketch omitted the old
+                # _gpsLookup()'s 5-minute cutoff (environmental-data.gs) --
+                # caught before Node-RED was ever pointed at this route
+                # (2026-09-28): without it, a reading taken hours from any
+                # real hike (e.g. hiking-monitor sitting at home overnight)
+                # would silently match whatever GPS point happens to be
+                # nearest in time, even a stale point from a previous hike,
+                # geotagging it wrong instead of correctly returning no
+                # match. WHERE bounds the candidate set to the same window
+                # the old system used, not just the ORDER BY/LIMIT.
                 cur.execute(
                     "SELECT lat, lon, accuracy_m FROM gps_track "
+                    "WHERE abs(extract(epoch from (ts - %s))) <= 300 "
                     "ORDER BY abs(extract(epoch from (ts - %s))) LIMIT 1",
-                    (target_ts,),
+                    (target_ts, target_ts),
                 )
                 row = cur.fetchone()
         except Exception as e:

@@ -1553,7 +1553,7 @@ Archived to `tos/card-archive.md` on 2026-09-22 (CARD-0193) — 7405B, over the 
 
 ### CARD-0352 · [enhancement] [m8] Pin cloudflared to an explicit version instead of `:latest`
 
-**Status:** Backlog
+**Status:** Done -- RESOLVED 2026-09-27 19:15 MST
 
 **Raised 2026-09-27 19:12 MST, from CARD-0257's own recommendation (2026-09-22).** `components/hike-izer-web/docker-compose.yml` line 91 pins `cloudflare/cloudflared:latest`, not a version. Nothing currently pulls automatically, so there's no live danger today -- but the next incidental `docker compose pull`/recreate on that project (e.g. alongside an unrelated `hike-izer-web`/`hike-izer-orchestrator` update, same compose project) would silently land whatever's newest, with no decision point. CARD-0257 is actively holding this exact container back from 2026.9.x specifically because of an open, unaddressed upstream crash bug ([cloudflared#1737](https://github.com/cloudflare/cloudflared/issues/1737)) that matches this deployment's exact shape (Docker bridge network, `restart: unless-stopped`) -- a silent version bump would undo that held decision without anyone choosing it to.
 
@@ -1561,6 +1561,9 @@ Archived to `tos/card-archive.md` on 2026-09-22 (CARD-0193) — 7405B, over the 
 
 **Done when:** not yet scoped -- essence-only until Planning interviews it.
 
+**Built and verified live, 2026-09-27 19:15 MST (Joseph: "do 352").** Confirmed the deployed compose file was byte-identical to the repo before touching it. Pinned `components/hike-izer-web/docker-compose.yml`'s `cloudflared` service to `2026.8.3` (the version CARD-0257 confirmed running cleanly), with an inline comment pointing back at both cards so a future editor knows why it's pinned rather than `:latest`. **Digest check before recreating:** `cloudflare/cloudflared:latest` (already running) and the newly-pulled `:2026.8.3` resolved to the identical image id (`sha256:51c9cefc...`) -- confirms the pin changes nothing about what's actually running today, only closes the "next incidental pull silently moves it" gap. Recreated only the `cloudflared` service (`docker compose up -d cloudflared`): the two sibling containers in the same compose project (`hike-izer-web`, `hike-izer-orchestrator`) were untouched (uptimes unaffected), `cloudflared` restarted clean -- `docker inspect` shows image `cloudflare/cloudflared:2026.8.3`, `cloudflared --version` confirms `2026.8.3`, no panic/error/segv lines in the post-recreate logs, `hikes.jctnet.com` returns HTTP 200. Not surveyed: whether any other JCTsh-managed compose file has the same `:latest` exposure -- out of scope per the card's own note, not investigated here.
+
+**Done when:** met -- the pin is live and verified; CARD-0257's held-version decision can no longer be silently undone by an incidental pull on this project.
 **Related:** CARD-0257 (found this gap, holds the reason it matters), CARD-0128/CARD-0126 (the update-check/PR pipeline this interacts with), `components/hike-izer-web/docker-compose.yml`.
 
 ---

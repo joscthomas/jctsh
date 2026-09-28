@@ -9,7 +9,16 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0356 -->
+<!-- next-card-id: CARD-0357 -->
+
+---
+
+### CARD-0356 · [enhancement] [infrastructure] Container image updates: immich-redis: 9.1.2 available (running 9.1.0) — auto-opened from photo-server
+**Status:** Backlog
+
+**Auto-generated 2026-09-28 03:34 UTC from photo-server's maintenance check.** Raw finding: Container image updates: immich-redis: 9.1.2 available (running 9.1.0). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Related:** live dashboard entry at time of generation.
 
 ---
 

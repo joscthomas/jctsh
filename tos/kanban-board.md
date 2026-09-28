@@ -215,7 +215,9 @@ Archived to `hosts/pi1/card-archive.md` on 2026-09-27 (CARD-0193) — 8625B, ove
 
 ### CARD-0349 · [idea] [data-pipeline] Evaluate a time-series database to replace or front Google Sheets as the Environmental Data store
 
-**Status:** Design
+**Status:** Planning
+
+**Moved from Design to Planning, 2026-09-28 (Joseph).** Found live: `kanban-board.md`'s own header (line 5) states its columns as Backlog/Planning/Build/Done/Defer -- no Design -- and the live `/kanban` dashboard's parser (`core/logging/log_server.py`'s `_KANBAN_COLUMNS`) matches that same 5-column list, silently skipping any card whose Status doesn't match one of them. A `Status: Design` card is therefore invisible on `/kanban` even though it's correctly in the file and pushed. `JCTsh-Operating-System.md`'s Board Columns table still lists Design as a real column, so the two docs disagree -- not resolved here, just worked around for this card so it's visible again. Whether to reconcile the header/parser/TOS docs (add Design back, or retire it everywhere) is still open.
 
 **Raised 2026-09-27 (Joseph: "we talked about using a different technology, time series database?").** Searched the live board, every `card-archive.md`, and every project markdown doc for a prior record of this discussion before writing anything here (Engineering Discipline: verify a claimed completion/prior decision directly, don't assume) -- found none. Either informal chat that never produced a card (per `JCTsh-Operating-System.md`'s "Where Work Happens": pre-card thinking is allowed to leave no trace), or from a context this repo doesn't have a record of. Treating this as new information being captured now, not a rediscovered prior decision.
 

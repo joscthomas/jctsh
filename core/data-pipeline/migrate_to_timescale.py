@@ -46,27 +46,45 @@ import psycopg2.extras
 FETCH_RETRY_ATTEMPTS = 5
 FETCH_RETRY_BACKOFF_SEC = (3, 6, 12, 24)
 
-# (Sheets tab name, Postgres table name, ordered column list) -- column
-# order matches init/schema.sql and api/app.py's ENV_OPTIONAL_FIELDS
-# exactly, verified against environmental-data.gs's own doPost appendRow
-# order, not assumed.
+# (Sheets tab name, Postgres table name, ordered (pg_column, sheets_column)
+# pairs). Column order matches init/schema.sql and api/app.py's
+# ENV_OPTIONAL_FIELDS. Most names are identical between the sheet and the
+# new schema, but NOT all -- checked live against a real export
+# (2026-09-28), not assumed from the architecture doc: the sheet's own
+# column A header is "timestamp", never "ts" (the POST *payload* field is
+# "ts" -- environmental-data.gs's doPost writes it into a column literally
+# named "timestamp"; two different names for the same thing at two
+# different layers). GPS Track's column F is "direction", not the
+# "bearing_deg" the design doc's own sketch had invented -- corrected here
+# to match (see init/schema.sql's own note on this).
 TABLES = [
     (
         "Environmental Data",
         "environmental_data",
         [
-            "ts", "source", "lat", "lon", "temp_f", "humidity_pct",
-            "pressure_hpa", "dew_point_f", "heat_index_f", "uv_index",
-            "irradiance_wm2", "wind_speed_mph", "wind_dir_deg", "rain_tips",
-            "rainin", "dailyrainin", "battery_v", "rssi_dbm", "pm1_ug_m3",
-            "pm25_ug_m3", "pm4_ug_m3", "pm10_ug_m3", "voc_index",
-            "nox_index", "illuminance_lx", "solar_v",
+            ("ts", "timestamp"), ("source", "source"), ("lat", "lat"),
+            ("lon", "lon"), ("temp_f", "temp_f"),
+            ("humidity_pct", "humidity_pct"), ("pressure_hpa", "pressure_hpa"),
+            ("dew_point_f", "dew_point_f"), ("heat_index_f", "heat_index_f"),
+            ("uv_index", "uv_index"), ("irradiance_wm2", "irradiance_wm2"),
+            ("wind_speed_mph", "wind_speed_mph"),
+            ("wind_dir_deg", "wind_dir_deg"), ("rain_tips", "rain_tips"),
+            ("rainin", "rainin"), ("dailyrainin", "dailyrainin"),
+            ("battery_v", "battery_v"), ("rssi_dbm", "rssi_dbm"),
+            ("pm1_ug_m3", "pm1_ug_m3"), ("pm25_ug_m3", "pm25_ug_m3"),
+            ("pm4_ug_m3", "pm4_ug_m3"), ("pm10_ug_m3", "pm10_ug_m3"),
+            ("voc_index", "voc_index"), ("nox_index", "nox_index"),
+            ("illuminance_lx", "illuminance_lx"), ("solar_v", "solar_v"),
         ],
     ),
     (
         "GPS Track",
         "gps_track",
-        ["ts", "lat", "lon", "accuracy_m", "altitude_m", "bearing_deg"],
+        [
+            ("ts", "timestamp"), ("lat", "lat"), ("lon", "lon"),
+            ("accuracy_m", "accuracy_m"), ("altitude_m", "altitude_m"),
+            ("direction", "direction"),
+        ],
     ),
 ]
 
@@ -110,9 +128,9 @@ def migrate_table(conn, sheets_url, sheets_key, sheet_name, table_name, columns)
     rows = fetch_sheet_full(sheets_url, sheets_key, sheet_name)
     print(f"  {len(rows)} rows fetched from Sheets.")
 
-    values = [tuple(_clean(row.get(col)) for col in columns) for row in rows]
+    values = [tuple(_clean(row.get(sheets_col)) for _pg_col, sheets_col in columns) for row in rows]
 
-    cols_sql = ", ".join(columns)
+    cols_sql = ", ".join(pg_col for pg_col, _sheets_col in columns)
     # A duplicate here is a real, already-known condition (CARD-0215/
     # CARD-0243's own dedup findings -- the live sheets still hold rows
     # that predate those guards), not a migration failure -- skip it, same

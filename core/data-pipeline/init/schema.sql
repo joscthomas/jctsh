@@ -54,15 +54,18 @@ ALTER TABLE environmental_data ADD CONSTRAINT chk_uv CHECK (uv_index IS NULL OR 
 
 -- GPS Track: one producer (GPSLogger's custom-URL POST), so ts alone is a
 -- sufficient dedup key (PRIMARY KEY), matching the environmental-data.gs
--- action=gps dedup logic it replaces (CARD-0243). Column names match
--- components/hiking-monitor/gps-pipeline.md's schema (accuracy_m/
--- altitude_m, not acc/alt).
+-- action=gps dedup logic it replaces (CARD-0243). Column names verified
+-- directly against components/hiking-monitor/gps-pipeline.md's real
+-- documented sheet schema (2026-09-28, live migration run) -- the design
+-- doc's own sketch had invented "bearing_deg"; the sheet's real column F
+-- is "direction" (same name the GET ingest route's own ?direction= query
+-- param already uses), corrected here rather than carried forward.
 CREATE TABLE gps_track (
   ts          timestamptz PRIMARY KEY,
   lat         double precision NOT NULL,
   lon         double precision NOT NULL,
   accuracy_m  double precision,
   altitude_m  double precision,
-  bearing_deg double precision
+  direction   double precision
 );
 SELECT create_hypertable('gps_track', 'ts');

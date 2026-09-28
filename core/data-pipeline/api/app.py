@@ -194,7 +194,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO gps_track (ts, lat, lon, accuracy_m, altitude_m, bearing_deg) "
+                    "INSERT INTO gps_track (ts, lat, lon, accuracy_m, altitude_m, direction) "
                     "VALUES (%s, %s, %s, %s, %s, %s)",
                     (ts, lat, lon, acc, alt, direction),
                 )

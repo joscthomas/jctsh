@@ -9,7 +9,27 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0353 -->
+<!-- next-card-id: CARD-0354 -->
+
+---
+
+### CARD-0353 · [bug] [pi1] Pi's persistent journal has been silently volatile-only since CARD-0246 -- a Raspberry Pi OS vendor drop-in was overriding it the whole time
+
+**Status:** Build
+
+**Raised 2026-09-27 20:20 MST (ops cluster session), from the Session Start Alert scan.** CARD-0328's Reflection (2026-09-26) and CARD-0350 (2026-09-27) had both independently noticed the Pi's journal only retaining a few hours/days of history despite `Storage=persistent` (CARD-0246, 2026-09-06) and no reboot in between, and both flagged it as "worth a look by the ops cluster" without ever turning it into its own card. Joseph: "open a card for it and do it."
+
+**Root cause, found live on the Pi.** `/etc/systemd/journald.conf` correctly has `Storage=persistent` (CARD-0246's fix, untouched since). But Raspberry Pi OS itself ships `/usr/lib/systemd/journald.conf.d/40-rpi-volatile-storage.conf` containing `Storage=volatile` -- a vendor drop-in that sits in a later-merged config layer than the main `/etc/systemd/journald.conf` file, so it silently won. Confirmed directly: `/var/log/journal/9ea0857d55d841599ca90e00110e4f55/` (the correct machine-id directory, on the USB-backed `var-log.mount`, created back on 2026-09-05) has been **completely empty the entire time** -- zero `.journal` files -- while `/run/log/journal/<machine-id>/` (volatile tmpfs) held the real, actively-rotating live journal, capped at a tiny ~18MB (`RuntimeMaxUse` default), explaining the few-hours-to-days retention window both prior findings hit. **CARD-0246's fix never actually took effect, for the full ~3 weeks since it closed** -- the `journal-snapshot.service`/`.timer` workaround built alongside it (a `journalctl --cursor-file`-based plain-text tail into `/mnt/jctsh-logs/journal-snapshot.log`, unrelated to journald's own binary storage) is the only reason this wasn't obviously broken -- it's been quietly compensating the whole time.
+
+**Fixed and verified live, 2026-09-27 20:17 MST.** Deployed `hosts/pi1/journald-persistent-storage.conf` (`[Journal]\nStorage=persistent`) to `/etc/systemd/journald.conf.d/50-persistent-storage.conf` -- a later-sorting filename than the vendor's `40-...`, so it wins on the merge without needing to mask the vendor file by identical name (tested and confirmed both approaches work identically; kept the clearer, non-masking one). Confirmed via `systemd-analyze cat-config systemd/journald.conf` that `Storage=persistent` is now the final effective value.
+
+**One extra step needed, not just the config file:** `systemctl restart systemd-journald` alone did **not** pick up the fix -- the actual volatile→persistent handoff normally happens via `systemd-journal-flush.service`, a oneshot that only runs once, early in a real boot, and does nothing on a mid-session daemon restart. Had to run `sudo journalctl --flush` by hand to force it. After that: `/var/log/journal/9ea0857d55d841599ca90e00110e4f55/system.journal` exists (25MB, real content), the volatile `/run/log/journal/<machine-id>/` directory was removed by journald itself as part of the flush, and journald's own open file descriptors (`/proc/<pid>/fd`) point directly at the persistent files. A fresh `logger` test line landed there and was queryable. This means **the fix is confirmed working for the remainder of the current boot**, but whether it self-applies cleanly across a **real** reboot (where `systemd-journal-flush.service` runs naturally, no manual flush needed) is not yet observed.
+
+**Auto verify: 2026-09-29 03:15 MST** -- covers both of this week's scheduled reboots (weekly Mon 2026-09-28 03:00, and CARD-0351's review-batch reboot Tue 2026-09-29 02:00): `ssh pi@pi1.local "sudo ls -la /var/log/journal/9ea0857d55d841599ca90e00110e4f55/"` should show real, non-empty `.journal` files with a `mtime` after the most recent reboot; `journalctl --list-boots` should show **more than one** boot entry (today it shows exactly one, itself a symptom of this bug); `uptime -s` cross-checked against the earliest boot `journalctl --list-boots` reports. If still empty/single-boot after a real reboot, the fix didn't survive and needs more investigation (possibly `var-log.mount` timing relative to `systemd-journal-flush.service` specifically, not just `systemd-journald.service`).
+
+**Deliberately not done here:** retiring `journal-snapshot.service`/`.timer` (CARD-0246's workaround) -- it's now redundant if this fix holds, but staying live in parallel until the Auto verify marker above actually confirms the real fix survives a reboot is the safer order (don't remove the working safety net before its replacement is proven, same discipline as CARD-0327/CARD-0272's staged rollouts). Revisit once the marker resolves. Also not done: tuning `SystemMaxUse`/retention size for the now-real persistent journal (defaults apply; no evidence yet that they're wrong for this filesystem).
+
+**Related:** CARD-0246 (the original "volatile storage" bug this reopens -- its Done-when 1/2 held, but the persistent-storage half never actually worked), CARD-0328 (Reflection first flagged this), CARD-0350 (independently re-flagged it, same session that found the apt-index staleness bug), CARD-0159 (the `var-log.mount`/USB-drive setup this bind-mounts onto).
 
 ---
 

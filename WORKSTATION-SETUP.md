@@ -9,6 +9,14 @@ individual component `flashing.md` files, which is how the Python-version gap be
 unnoticed for ~5 months. For the Pi/M8's own software, see `SOFTWARE-ENVIRONMENT.md`; for the
 physical smart-home devices, see `ENVIRONMENT.md`.
 
+**`workstation-verify.ps1` (repo root, CARD-0360) checks the workstation's actual state
+against this doc** — Python versions via the `py` launcher, which ESPHome pip version the
+live `esphome` command resolves to versus the pin documented below (parsed from this file,
+not a separately hardcoded copy), and a MAX_PATH-risk proxy on the current working
+directory. Verify-only — reports drift, changes nothing. Run it (native PowerShell) before
+a compile/flash session, not just when something's already gone wrong; it doesn't replace
+reading the gotchas below, since those explain *why* each check exists.
+
 ## Python
 
 | Version | Purpose |

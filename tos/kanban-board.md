@@ -34,6 +34,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - Migration path for the ~33k existing rows, and whether `hike_places.py`/hike-izer's own `action=export` API (CARD-0311/CARD-0348) needs to change at all if a new store sits behind the same Apps Script interface, or whether that interface itself goes away.
 - Real query/write patterns this pipeline actually needs (mostly append-only sensor writes, occasional GPS-correlation lookups, full-range exports for hike-izer) against what a time-series database is actually good at, rather than assuming the fit is right by category name alone.
 
+**Background, explained to Joseph 2026-09-27 17:38 MST (what a time-series database actually is, before assuming it's the right technology):**
+
+A time-series database is a real DBMS, just optimized for one specific data shape: rows of `(timestamp, value(s), tags)`, written mostly as high-volume appends, read mostly as time-range queries and aggregations. Options considered, matched against this pipeline:
+
+| | What it is | Fit here |
+|---|---|---|
+| **InfluxDB** | The default purpose-built TSDB -- own query language, built for IoT/sensor data | Good fit, but a new query language/mental model |
+| **TimescaleDB** | A PostgreSQL extension -- real SQL, with time-series optimizations (auto-partitioning, compression, rollups) bolted on | Probably the best match -- mature, well-understood, works with tools already half-known |
+| **Prometheus** | Built for scraping infrastructure metrics (pull-based) | Not really designed for arbitrary pushed sensor data |
+| **VictoriaMetrics** | Prometheus-compatible, much lighter on resources | Only matters if the Pi's limited hardware becomes the actual constraint |
+| **Plain SQLite/Postgres** | Not "time-series" at all -- just a normal DB with an indexed timestamp column | At the actual current scale (tens of thousands of rows), might be all that's needed -- no new paradigm, just a real database instead of a spreadsheet |
+
+**"Time-series database" may be more machinery than the actual problem calls for.** If the real pain is "Google's API is slow and occasionally hangs for hours with no explained cause" (the 2026-09-25 incident), a plain self-hosted database already fixes that -- automatic downsampling/retention policies are a bonus a purpose-built TSDB adds on top, not the fix for what actually broke.
+
+**Advantages over the current Sheets approach:**
+- No network round-trip to Google for every read/write -- every Node-RED write and every hike-izer export currently leaves the network, hits Apps Script, and waits; local would mean milliseconds, not seconds-to-timeout.
+- No ~93s-per-call ceiling, no repeat of the unexplained multi-hour outage whose root cause was never identified (CARD-0226).
+- The database handles concurrent writes itself -- Node-RED's own in-memory POST queue with retry/backoff exists specifically to paper over Google's quirks; a real DB removes the need for that layer of code entirely.
+- Real range queries built in, instead of exporting a whole tab and filtering client-side -- exactly what's been timing out as the sheet grows.
+- Automatic retention/rollup (in a purpose-built TSDB) ages old high-resolution data into summaries or expires it on its own -- the problem CARD-0337 tried to solve by hand and ultimately deferred.
+
+**What would be lost:**
+- The thing Sheets gives for free: a browser GUI Joseph already uses to sort and hand-edit rows directly (the dedup-window gotcha CARD-0325 records exists because of exactly this habit). A database has no equivalent without a separate tool (Grafana for charts, pgAdmin/Adminer for poking at rows).
+- A new 24/7 service to own (on the Pi or M8) -- its own updates, disk space, and backup story. Trades "Google's outage" for "my own service's outage," though the latter is at least observable with the logging/MQTT tooling already built.
+- A real migration, not a drop-in swap: `environmental-data.gs`'s ingest logic and every consumer of `action=export`/`action=lookup` (hike-izer, the wildlife/scat writers) currently speaks to Sheets and would need to speak to something else.
+
+**Fits the project's existing pattern** of self-hosting rather than using cloud equivalents (Node-RED, MQTT, Immich, netalertx all run locally already) -- worth weighing in Planning, not a reason to skip the interview.
+
 **Done when:** not yet scoped -- this stays a Backlog capture until interviewed for whether to pursue it at all, and if so, which of reliability/speed/dashboards is the real driver, before any technology gets chosen or any plan gets written.
 
 **Related:** CARD-0337 (the "three options discussed" origin, built only option 1), CARD-0347 (finding #5, storage single point of failure), CARD-0226 (the 2026-09-25 outage that started this conversation), `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `core/data-pipeline/environmental-data.gs`.

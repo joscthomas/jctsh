@@ -88,7 +88,12 @@ services:
     # gitignored ./cloudflared/ dir, generated on this host via
     # `cloudflared tunnel login` / `tunnel create` -- never committed.
     container_name: hike-izer-cloudflared
-    image: cloudflare/cloudflared:latest
+    # Pinned, not :latest (CARD-0352) -- CARD-0257 is deliberately holding this
+    # exact version because of an open, unaddressed upstream crash bug
+    # (cloudflared#1737) that matches this container's exact deployment shape
+    # (Docker bridge network, restart: unless-stopped). Bumping this requires
+    # checking CARD-0257 first, not just pulling whatever's newest.
+    image: cloudflare/cloudflared:2026.8.3
     restart: unless-stopped
     command: tunnel --config /etc/cloudflared/config.yml run
     volumes:

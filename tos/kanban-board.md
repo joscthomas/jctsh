@@ -9,7 +9,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0360 -->
+<!-- next-card-id: CARD-0361 -->
+
+---
+
+### CARD-0360 · [enhancement] [tos] Component-session startup never surfaces workstation-level operating docs, and no script verifies/updates the workstation's real state against them
+
+**Status:** Backlog
+**Priority:** High — same class of miss (workstation state silently drifting from docs) could recur before this is fixed; CARD-0357 already cost real investigation time once.
+
+**Raised 2026-09-28 06:32 MST (tos session), out of tagging CARD-0357 `[tos]` and asking where its `WORKSTATION-SETUP.md` work fit into session startup.** Two related gaps found, not yet fixed:
+
+1. **Component-session startup never surfaces `WORKSTATION-SETUP.md`.** CARD-0357 added a conditional pre-flash/compile step to `tos/JCTsh-Session-Start.md` (general Session Start): read `WORKSTATION-SETUP.md` in full before compiling/flashing any ESPHome device. But `tos/JCTsh-Component-Session-Start.md` — what a component/cluster session (garage cluster, hiking-monitor cluster, porch/patio temp sensors cluster — the three clusters covering CARD-0357's 6 ESPHome devices) actually runs — replaces general Session Start rather than supplementing it, and never mentions this workstation-level doc. Same shape of miss as CARD-0322's `SKILL.md` gap, one level up: a workstation-level operating doc that applies "regardless of which component's device is being flashed" (`WORKSTATION-SETUP.md`'s own words) has no path into a component session's startup at all.
+2. **No script verifies or updates the workstation's actual state against what `WORKSTATION-SETUP.md` documents.** Confirmed live: `core/maintenance/esphome_check.py` exists but explicitly cannot check the workstation itself (its own docstring: "there is no way to check the workstation install itself from a Pi-side script") — it only parses the Pi's log for each device's last-booted ESPHome version against a hardcoded `PINNED_VERSION` constant, and polls GitHub's releases API. Nothing inspects the workstation directly: installed Python versions (`py -0`), the live `esphome` pip version, or working-path length. The Python 3.12 install and the pin itself were both done/kept by hand — `PINNED_VERSION` in `esphome_check.py` has no mechanical link to `WORKSTATION-SETUP.md`'s own pin, or to what's actually installed.
+
+**Scope for the tooling deliberately left open (Joseph, 2026-09-28): verify-only vs. verify+update vs. something else is a Planning decision, not decided here.** Whatever Planning lands on, it should at minimum close both gaps above — point component-session startup at the right workstation-level doc(s), and give a session (or a scheduled check) a way to know the workstation's actual state without re-deriving it from memory each time.
+
+**Done when:** not yet scoped — Planning determines the tooling's actual shape; at minimum, `JCTsh-Component-Session-Start.md` cross-references `WORKSTATION-SETUP.md` (or a generalized "workstation-level docs" step) the same way it already does for `SKILL.md`, and there's a working, actually-run way to detect drift between the workstation's real state and what's documented.
+
+**Related:** CARD-0357 (root-caused the ESPHome pin, wrote `WORKSTATION-SETUP.md`, added the general-Session-Start conditional step this card found incomplete), CARD-0322 (the analogous `SKILL.md` gap this mirrors), `tos/JCTsh-Component-Session-Start.md`, `tos/JCTsh-Session-Start.md`, `WORKSTATION-SETUP.md`, `core/maintenance/esphome_check.py`.
 
 ---
 

@@ -19,6 +19,19 @@
         reverse_proxy orchestrator:8080
     }
 
+    # CARD-0349 Phase 1: the TimescaleDB gateway (core/data-pipeline/),
+    # a separate compose project (`data-pipeline`) on this same M8 --
+    # reachable here because `web` also joins that project's own default
+    # network (docker-compose.yml's `data-pipeline_default: external: true`),
+    # same "Docker Compose supports one container joining a second
+    # project's network by name" mechanism already used for `/webhook/*`
+    # above, just across projects instead of within one. `handle_path`
+    # (not `handle`) strips the /data prefix -- the gateway's own routes
+    # are /environmental-data, /gps, etc., not /data/environmental-data.
+    handle_path /data/* {
+        reverse_proxy data-pipeline-api:8080
+    }
+
     handle {
         root * /srv/hike-izer
         file_server browse

@@ -23,6 +23,13 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     environment:
       TZ: America/Phoenix
+    networks:
+      # CARD-0349: joins both this project's own default network (needed
+      # for the existing orchestrator:8080 proxy below) and the separate
+      # `data-pipeline` project's default network, so the new /data/*
+      # route can reach data-pipeline-api:8080 by service name.
+      - default
+      - data-pipeline_default
     healthcheck:
       # caddy:2-alpine doesn't define its own HEALTHCHECK, which would
       # leave `docker inspect --format '{{.State.Health.Status}}'`
@@ -101,3 +108,12 @@ services:
       - ./cloudflared-config.yml:/etc/cloudflared/config.yml:ro
     depends_on:
       - web
+
+networks:
+  default: {}
+  # CARD-0349: the `data-pipeline` compose project's own auto-named default
+  # network (that project's docker-compose.yml sets `name: data-pipeline`,
+  # so Compose names it `data-pipeline_default`) -- must already exist
+  # (that project deployed first) or `docker compose up` here fails.
+  data-pipeline_default:
+    external: true

@@ -1077,7 +1077,7 @@ def run_daily_refresh_and_log():
     # CARD-0338: don't pile a full-range export onto a Sheet that is already
     # struggling (2026-09-25 outage). A manually-requested --step2 is not gated.
     for check_no in range(1, SHEET_HEALTH_CHECKS + 1):
-        healthy, detail = sheet_health.check(_env("APPS_SCRIPT_URL"), _env("APPS_SCRIPT_KEY"))
+        healthy, detail = sheet_health.check(_env("DATA_PIPELINE_URL") + "/health", _env("DATA_PIPELINE_KEY"))
         if healthy:
             break
         print(f"run_daily_refresh: Sheet not healthy ({detail}), check {check_no}/{SHEET_HEALTH_CHECKS}", flush=True)

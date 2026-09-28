@@ -171,7 +171,7 @@ def run_once():
     cheap to get right."""
     # CARD-0338: the probe below is a multi-day full-range export -- don't send it to a
     # Sheet that is already struggling. It runs daily, so tomorrow's pass covers the window.
-    healthy, detail = sheet_health.check(generation._env("APPS_SCRIPT_URL"), generation._env("APPS_SCRIPT_KEY"))
+    healthy, detail = sheet_health.check(generation._env("DATA_PIPELINE_URL") + "/health", generation._env("DATA_PIPELINE_KEY"))
     if not healthy:
         print(f"Backstop check: skipped, Sheet not healthy ({detail})", file=sys.stderr)
         mqtt_log.publish_log("Alert", f"Backstop check skipped: the environmental Sheet is not healthy ({detail}).")

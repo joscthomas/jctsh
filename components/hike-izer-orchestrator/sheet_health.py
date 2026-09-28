@@ -1,17 +1,28 @@
 #!/usr/bin/env python
 """
-CARD-0338: is the environmental Google Sheet responsive right now?
+CARD-0338: is the environmental data store responsive right now?
 
-Calls the Apps Script's `action=health` (opens the spreadsheet and reads a
-real cell -- unlike `action=version`, which never touches it and so stayed fast
-through the 2026-09-25 outage). Used by the *automated* jobs that make heavy
-full-range reads -- the daily refresh and the backstop check -- so they skip
-(and say why) instead of piling more long-running executions onto a struggling
-document. Deliberately NOT used by a manually-requested `--step2`.
+CARD-0349 Phase 1 (Step 7): both callers now point this at
+`data-pipeline-api`'s own `/health` route (a real `SELECT 1`) instead of
+`environmental-data.gs`'s `action=health` -- Environmental Data/GPS Track,
+the tables whose slow full-range reads originally motivated this check
+(CARD-0338, the 2026-09-25 outage), now live in TimescaleDB, not the
+Sheet. `check()` itself is unchanged: `url` is just the full health-check
+endpoint (append `?key=&action=health` regardless of target -- the new
+gateway ignores the unused `action` param, same call shape either way).
+Used by the *automated* jobs that make heavy full-range reads -- the daily
+refresh and the backstop check -- so they skip (and say why) instead of
+piling more long-running executions onto a struggling store. Deliberately
+NOT used by a manually-requested `--step2`.
 
-Fails open in exactly one case: a script that predates `action=health`
-answers "unknown action", which says nothing about the Sheet, so that is
-treated as healthy rather than blocking every refresh until it is redeployed.
+Fails open in exactly one case: a target that predates `action=health`
+answers "unknown action", which says nothing about the store's real
+health, so that is treated as healthy rather than blocking every refresh.
+`data-pipeline-api`'s own `/health` never returns that message, so this
+branch is dead code against the new target -- harmless, left in place
+rather than special-cased away (it's still exactly right against the old
+Apps Script target, and Hiking Observations/Hike Start Forecast -- Phase 2
+-- still fetch from there).
 """
 
 import json
@@ -29,7 +40,15 @@ def check(url, key):
     or key (an exception's own text can, so only the exception's type is used)."""
     start = time.time()
     try:
-        req = urllib.request.Request(url + "?" + urllib.parse.urlencode({"key": key, "action": "health"}))
+        # CARD-0349: Cloudflare's Bot Fight Mode (fronting hikes.jctnet.com,
+        # the new gateway target) silently 403s urllib's default
+        # 'Python-urllib/3.x' User-Agent before the request even reaches
+        # data-pipeline-api -- found live via fetch_hike_data.py's own Step
+        # 6 cutover, same fix applied here before this was ever deployed.
+        req = urllib.request.Request(
+            url + "?" + urllib.parse.urlencode({"key": key, "action": "health"}),
+            headers={"User-Agent": "jctsh-hike-izer/1.0"},
+        )
         with urllib.request.urlopen(req, timeout=CALL_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read().decode("utf-8"))
     except Exception as e:

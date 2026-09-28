@@ -31,6 +31,22 @@ SERVICES = [
     {"name": "cloudflared", "container": "hike-izer-cloudflared",
      "source": "cloudflare/cloudflared", "version_method": "exec",
      "exec_cmd": ["cloudflared", "--version"], "version_regex": r"version (\S+)"},
+    {"name": "ring-mqtt", "container": "ring-mqtt",
+     # CARD-0344 -- pinned to an explicit tag (was :latest) so there is a
+     # running version to diff against; carries a real org.opencontainers
+     # version label unlike most of the others here.
+     "source": "tsightler/ring-mqtt", "version_method": "label"},
+    {"name": "immich-redis", "container": "immich_redis",
+     # CARD-0344 -- Immich's own update check only covers immich_server;
+     # this sidecar has a source label but no version label, so exec its
+     # own --version flag like cloudflared above.
+     "source": "valkey-io/valkey", "version_method": "exec",
+     "exec_cmd": ["valkey-server", "--version"], "version_regex": r"v=(\d+\.\d+\.\d+)"},
+    # immich_postgres deliberately NOT added (CARD-0344): its image comes from
+    # immich-app/base-images, which publishes no GitHub releases at all (same
+    # "packaging repo, not a releases repo" gotcha as Caddy above) -- no latest
+    # tag exists to diff its composite postgres+vectorchord+pgvector version
+    # string against. Known gap, not silently skipped.
 ]
 
 env = {}

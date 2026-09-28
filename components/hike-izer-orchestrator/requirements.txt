@@ -1,2 +1,2 @@
-anthropic
-paho-mqtt
+anthropic==0.120.0
+paho-mqtt==2.1.0

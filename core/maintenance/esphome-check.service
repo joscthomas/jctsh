@@ -1,0 +1,8 @@
+[Unit]
+Description=Check ESPHome fleet version + pin-vs-latest, notify JCTsh dashboard (CARD-0344)
+After=mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/esphome_check.py

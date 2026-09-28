@@ -9,7 +9,7 @@ This directory holds docs about the **physical machine itself** — base setup, 
 | Immich photo library | `components/photo-server/` |
 | NetAlertX | `components/netalertx/` |
 | hike-izer web + orchestrator | `components/hike-izer-web/`, `components/hike-izer-orchestrator/` |
-| ring-mqtt | no dedicated directory yet — see CARD-0146 |
+| ring-mqtt | `components/ring-mqtt/` (CARD-0344 — previously undocumented, no dedicated directory) |
 | photo-tv-display | `components/photo-tv-display/` |
 | photo-quality-review | `components/photo-quality-review/` |
 

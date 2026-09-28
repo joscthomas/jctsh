@@ -1,0 +1,15 @@
+name: ring-mqtt
+
+services:
+  ring-mqtt:
+    container_name: ring-mqtt
+    image: tsightler/ring-mqtt:5.9.3
+    restart: unless-stopped
+    volumes:
+      - ./config:/data
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      # RTSP gateway for camera.play_stream / Generic Camera in HA (CARD-0146)
+      - "8554:8554"
+    environment:
+      TZ: America/Phoenix

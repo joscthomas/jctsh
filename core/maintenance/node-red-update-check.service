@@ -1,0 +1,8 @@
+[Unit]
+Description=Check for Node-RED/palette-node updates and notify JCTsh dashboard (CARD-0344)
+After=mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/node_red_update_check.py

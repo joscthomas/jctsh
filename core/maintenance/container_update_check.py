@@ -24,17 +24,23 @@ REMIND_EVERY = timedelta(days=7)
 
 
 def _current_version(service):
+    # CARD-0344: bumped from 10s -> 20s after a real "docker exec ... pip show"
+    # timeout against matter-server on the Pi (a re-run moments later took
+    # 4.4s) -- the same intermittent-slowness-under-real-I/O-pressure pattern
+    # already well-documented elsewhere on this host (CARD-0247's reboot
+    # health check hit the identical class of timeout twice against a plain
+    # `docker logs`).
     if service["version_method"] == "label":
         result = subprocess.run(
             ["docker", "inspect", service["container"], "--format",
              '{{index .Config.Labels "org.opencontainers.image.version"}}'],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=20,
         )
         return result.stdout.strip() or None
     if service["version_method"] == "exec":
         result = subprocess.run(
             ["docker", "exec", service["container"], *service["exec_cmd"]],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=20,
         )
         m = re.search(service["version_regex"], result.stdout)
         return m.group(1) if m else None

@@ -17,6 +17,11 @@ GITHUB_ENV = "/etc/jctsh/github.env"  # CARD-0128, same credential every other m
 SERVICES = [
     {"name": "home-assistant", "container": "homeassistant",
      "source": "home-assistant/core", "version_method": "label"},
+    {"name": "matter-server", "container": "matter-server",
+     # CARD-0344 -- no org.opencontainers labels at all on this image
+     # (confirmed live), so exec pip's own metadata instead.
+     "source": "home-assistant-libs/python-matter-server", "version_method": "exec",
+     "exec_cmd": ["pip", "show", "python-matter-server"], "version_regex": r"Version: (\S+)"},
 ]
 
 env = {}

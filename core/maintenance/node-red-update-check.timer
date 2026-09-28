@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Node-RED update check, 10:00 AM (JCTsh maintenance, Pi)
+
+[Timer]
+OnCalendar=*-*-* 10:00:00
+Persistent=true
+Unit=node-red-update-check.service
+
+[Install]
+WantedBy=timers.target

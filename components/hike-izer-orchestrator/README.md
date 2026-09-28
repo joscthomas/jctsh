@@ -84,7 +84,10 @@ ssh jct@m8.local "cd ~/hike-izer-web-app && docker compose up -d --build orchest
 **Required `.env` keys** (`~/hike-izer-web-app/.env`, shared with `web`) —
 see `components/hike-izer-web/.env.example` for the full list and
 `credentials.local.md` for real values: `WEBHOOK_SECRET`,
-`ANTHROPIC_API_KEY`, `APPS_SCRIPT_URL`, `APPS_SCRIPT_KEY`, `IMMICH_URL`,
+`ANTHROPIC_API_KEY`, `APPS_SCRIPT_URL`, `APPS_SCRIPT_KEY` (Hiking Observations/
+Hike Start Forecast only, CARD-0349 Phase 2), `DATA_PIPELINE_URL`,
+`DATA_PIPELINE_KEY` (CARD-0349 Phase 1 -- Environmental Data + GPS Track),
+`IMMICH_URL`,
 `IMMICH_KEY`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `THUNDERFOREST_API_KEY`
 (CARD-0134 — the Route Map's basemap tiles; a missing/empty value just
 means `render_html()` omits the map section, same "not available" pattern

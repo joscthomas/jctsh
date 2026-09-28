@@ -135,7 +135,10 @@ section.
 
 2. **Get credentials.** Read `credentials.local.md` (gitignored, repo root) for the
    Apps Script `Deployment URL` and `API_KEY` under "Google Apps Script --
-   Environmental Data Pipeline". Never hardcode these in this skill file, in the
+   Environmental Data Pipeline" (still needed for Hiking Observations/Hike Start
+   Forecast, CARD-0349 Phase 2 -- not migrated yet), and the TimescaleDB gateway's
+   URL/`API_KEY` under "data-pipeline-api" (CARD-0349 Phase 1 -- Environmental Data
+   + GPS Track). Never hardcode these in this skill file, in the
    helper script, or in the generated summary -- they're gitignored for a reason.
 
 3. **Fetch and analyze the data.** Run the helper script (lives in `components/hike-izer/`, not this skill's own directory -- code and generated output are kept separate: code under `components/hike-izer/`, results under the top-level `hike-izer/summaries/`):
@@ -144,6 +147,8 @@ section.
    python components/hike-izer/fetch_hike_data.py \
      --start <ISO8601 start> --end <ISO8601 end> \
      --url <Deployment URL> --key <API_KEY> \
+     --data-pipeline-url <TimescaleDB gateway URL, e.g. https://hikes.jctnet.com/data> \
+     --data-pipeline-key <its API_KEY> \
      --out <scratch path>/hike_data.json
    ```
 

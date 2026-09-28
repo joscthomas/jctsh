@@ -414,6 +414,7 @@ def _detect_session_window(payload, date_str, offset_str):
                 sys.executable, FETCH_DATA_SCRIPT,
                 "--start", day_start_iso, "--end", day_end_iso,
                 "--url", _env("APPS_SCRIPT_URL"), "--key", _env("APPS_SCRIPT_KEY"),
+                "--data-pipeline-url", _env("DATA_PIPELINE_URL"), "--data-pipeline-key", _env("DATA_PIPELINE_KEY"),
                 "--out", probe_path,
             ],
             # CARD-0135: fetch_hike_data.py's own fetch_sheet() now retries
@@ -615,6 +616,7 @@ def _fetch_hike_data(start_iso, end_iso, hike_data_path):
             sys.executable, FETCH_DATA_SCRIPT,
             "--start", start_iso, "--end", end_iso,
             "--url", _env("APPS_SCRIPT_URL"), "--key", _env("APPS_SCRIPT_KEY"),
+            "--data-pipeline-url", _env("DATA_PIPELINE_URL"), "--data-pipeline-key", _env("DATA_PIPELINE_KEY"),
             "--out", hike_data_path,
         ],
         # CARD-0135: see _detect_session_window's identical comment -- same

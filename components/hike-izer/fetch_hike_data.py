@@ -2,16 +2,23 @@
 """
 Hike-izer data fetcher and analyzer.
 
-Fetches Environmental Data, Hiking Observations, and GPS Track from the JCTsh
-Apps Script `action=export` endpoint for a given UTC date range, computes
-expected-vs-actual data coverage stats, and computes sun position (elevation,
-azimuth, compass direction) sampled along the GPS track. Writes one JSON blob
-for the hike-izer Skill to turn into a narrative -- this script does the data
+Fetches Environmental Data, Hiking Observations, GPS Track, and Hike Start
+Forecast for a given UTC date range, computes expected-vs-actual data
+coverage stats, and computes sun position (elevation, azimuth, compass
+direction) sampled along the GPS track. Writes one JSON blob for the
+hike-izer Skill to turn into a narrative -- this script does the data
 wrangling and math; narrative writing stays with Claude.
+
+CARD-0349 Phase 1: two backends, not one. Environmental Data and GPS Track
+come from the new TimescaleDB gateway (data-pipeline-api, `fetch_table()`);
+Hiking Observations and Hike Start Forecast still come from the original
+Apps Script/Sheets pipeline (`fetch_sheet()`) -- Phase 2, not migrated yet.
 
 Usage:
     python fetch_hike_data.py --start 2026-06-15T00:00:00Z --end 2026-06-29T23:59:59Z \
-        --url <APPS_SCRIPT_DEPLOYMENT_URL> --key <API_KEY> --out hike_data.json
+        --url <APPS_SCRIPT_DEPLOYMENT_URL> --key <API_KEY> \
+        --data-pipeline-url <TIMESCALEDB_GATEWAY_URL> --data-pipeline-key <API_KEY> \
+        --out hike_data.json
 
 Standard library only -- no pip install required.
 """
@@ -45,6 +52,15 @@ from datetime import datetime, timezone
 FETCH_RETRY_ATTEMPTS = 5
 FETCH_RETRY_BACKOFF_SEC = (3, 6, 12, 24)
 
+# CARD-0349: found live -- Cloudflare's Bot Fight Mode (fronting
+# hikes.jctnet.com, the new gateway's own exposure) silently 403s Python
+# urllib's default User-Agent ('Python-urllib/3.x', a commonly-blocklisted
+# signature) before the request ever reaches data-pipeline-api. A curl-like
+# or any other identifiable, non-default UA passes -- confirmed both work,
+# used the honest one. Doesn't matter for fetch_sheet() (script.google.com,
+# not behind Cloudflare) but set on both requests for consistency.
+_REQUEST_HEADERS = {'User-Agent': 'jctsh-hike-izer/1.0'}
+
 
 def fetch_sheet(base_url, api_key, sheet, start, end):
     params = {
@@ -55,7 +71,7 @@ def fetch_sheet(base_url, api_key, sheet, start, end):
         'end': end,
     }
     url = base_url + '?' + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url)
+    req = urllib.request.Request(url, headers=_REQUEST_HEADERS)
     for attempt in range(1, FETCH_RETRY_ATTEMPTS + 1):
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
@@ -72,6 +88,41 @@ def fetch_sheet(base_url, api_key, sheet, start, end):
     if data.get('status') != 'ok':
         raise RuntimeError(f"Export failed for sheet={sheet}: {data.get('message')}")
     return data['rows']
+
+
+def fetch_table(base_url, api_key, table, start, end):
+    """CARD-0349 Phase 1: Environmental Data and GPS Track now live in the
+    TimescaleDB gateway (data-pipeline-api), not the Apps Script/Sheet --
+    fetch_sheet() above still serves Hiking Observations/Hike Start
+    Forecast (Phase 2, not migrated yet). Same retry/backoff shape as
+    fetch_sheet(). Renames the gateway's 'ts' column to 'timestamp' on the
+    way out -- every downstream consumer in this file (coverage analysis,
+    stats, chart series, sun-position sampling) already expects
+    'timestamp', the old Sheets export's own column name; renaming here
+    means none of that code needs to change for this cutover."""
+    params = {'key': api_key, 'table': table, 'start': start, 'end': end}
+    url = base_url.rstrip('/') + '/export?' + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers=_REQUEST_HEADERS)
+    for attempt in range(1, FETCH_RETRY_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+            break
+        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+            if attempt == FETCH_RETRY_ATTEMPTS:
+                raise
+            print(
+                f"fetch_table: attempt {attempt}/{FETCH_RETRY_ATTEMPTS} failed for table={table} ({e}) -- retrying",
+                file=sys.stderr,
+            )
+            time.sleep(FETCH_RETRY_BACKOFF_SEC[attempt - 1])
+    if data.get('status') != 'ok':
+        raise RuntimeError(f"Export failed for table={table}: {data.get('message')}")
+    rows = data['rows']
+    for row in rows:
+        if 'ts' in row:
+            row['timestamp'] = row.pop('ts')
+    return rows
 
 
 def parse_ts(ts):
@@ -1238,8 +1289,14 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--start', required=True, help='ISO 8601 UTC start, e.g. 2026-06-15T00:00:00Z')
     ap.add_argument('--end', required=True, help='ISO 8601 UTC end, e.g. 2026-06-29T23:59:59Z')
-    ap.add_argument('--url', required=True, help='Apps Script deployment URL (ends in /exec)')
+    ap.add_argument('--url', required=True,
+                     help='Apps Script deployment URL (ends in /exec) -- still serves Hiking '
+                          'Observations/Hike Start Forecast (CARD-0349 Phase 2, not migrated yet)')
     ap.add_argument('--key', required=True, help='API_KEY for the Apps Script endpoint')
+    ap.add_argument('--data-pipeline-url', required=True,
+                     help='CARD-0349 Phase 1: TimescaleDB gateway base URL (data-pipeline-api), '
+                          'e.g. https://hikes.jctnet.com/data -- serves Environmental Data + GPS Track')
+    ap.add_argument('--data-pipeline-key', required=True, help='API_KEY for the TimescaleDB gateway')
     ap.add_argument('--out', required=True, help='Path to write the output JSON')
     ap.add_argument('--sun-sample-every', type=int, default=20,
                      help='Compute sun position on every Nth GPS trackpoint (default 20)')
@@ -1257,7 +1314,7 @@ def main():
         sys.exit('ERROR: --start/--end must be ISO 8601, e.g. 2026-06-15T00:00:00Z')
 
     print('Fetching Environmental Data...')
-    env_rows_all = fetch_sheet(args.url, args.key, 'Environmental Data', args.start, args.end)
+    env_rows_all = fetch_table(args.data_pipeline_url, args.data_pipeline_key, 'environmental_data', args.start, args.end)
     # CARD-0285: air-quality-monitor is carried on the same hikes as
     # hiking-monitor and shares this sheet -- pulled out into its own list
     # (never merged into env_rows, see AQM_SOURCE's own comment) so its six
@@ -1277,7 +1334,7 @@ def main():
     print(f'  {len(obs_rows)} rows')
 
     print('Fetching GPS Track...')
-    gps_rows = fetch_sheet(args.url, args.key, 'GPS Track', args.start, args.end)
+    gps_rows = fetch_table(args.data_pipeline_url, args.data_pipeline_key, 'gps_track', args.start, args.end)
     print(f'  {len(gps_rows)} rows')
 
     print('Fetching Hike Start Forecast...')

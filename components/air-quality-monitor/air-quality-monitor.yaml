@@ -117,6 +117,12 @@ esphome:
                 had, was_replayed ? 1 : 0, was_replayed ? 1 : 0);
               aqm_log_write(std::string(ibuf));
             }
+            // CARD-0346: seed the periodic backstop's baseline from the switch's real
+            // state at boot -- without this, the first interval tick after any reboot
+            // would see intent_last_polled_state's default (false) against a switch
+            // already ON and wrongly treat that as a fresh transition, double-handling
+            // what the block above (or a genuine on_press right after boot) already did.
+            id(intent_last_polled_state) = id(intent_switch).state;
         - component.update: battery_voltage
         - if:
             condition:
@@ -375,6 +381,19 @@ globals:
   - id: aqm_log_replayed
     type: bool
     restore_value: true
+    initial_value: 'false'
+  # CARD-0346 (2026-09-28): tracks intent_switch's state as read by the periodic
+  # interval, so that interval can detect an OFF->ON transition itself as a backstop
+  # for the Intent switch's on_press trigger (below) -- found live during the
+  # 2026-09-28 rehearsal that on_press can apparently fail to fire for a real
+  # transition (mqtt disabled right on schedule per the interval's own level read,
+  # but no "intent_on" event was ever logged for it), leaving aqm_log_replayed stuck
+  # true through an entire field session with zero visible error. Not restore_value:
+  # on_boot separately seeds this from the switch's actual state (see on_boot below),
+  # so a reboot can't manufacture a spurious edge on the first tick.
+  - id: intent_last_polled_state
+    type: bool
+    restore_value: false
     initial_value: 'false'
   # CARD-0343 (2026-09-26): identifies this boot in readings buffered while the clock is invalid,
   # so a replay can tell "same boot as the run -- convert uptimes to real times exactly" from
@@ -852,7 +871,32 @@ interval:
       # point 13, Step 2). Runs every tick regardless of mode, same as
       # hiking-monitor's own CARD-0224 periodic recheck.
       - lambda: |-
-          bool intent_off = !id(intent_switch).state;
+          bool intent_now = id(intent_switch).state;
+          // CARD-0346 (2026-09-28): poll-based backstop for intent_switch's on_press
+          // trigger below -- found live during the rehearsal that on_press can
+          // apparently miss a real OFF->ON transition (this same level read correctly
+          // saw the switch as ON, per the mqtt.disable that fired on schedule, but no
+          // "intent_on" event was ever logged), leaving aqm_log_replayed stuck true
+          // through a whole field session with zero visible error. Mirrors on_press's
+          // own logic exactly, so double-firing (on_press *does* fire, and this also
+          // catches the same edge next tick) is harmless by the same idempotency
+          // (was_replayed guards it; a second pass just logs had=0/replayed=0/cleared=0).
+          // Bounded to at most a 2-minute delay versus on_press's immediate firing.
+          if (intent_now && !id(intent_last_polled_state)) {
+            int had = aqm_log_count();
+            bool was_replayed = id(aqm_log_replayed);
+            if (was_replayed) {
+              aqm_log_clear();
+              id(aqm_log_replayed) = false;
+            }
+            char ibuf[128];
+            snprintf(ibuf, sizeof(ibuf),
+              "{\"event\":\"intent_on_poll_backstop\",\"had_lines\":%d,\"replayed\":%d,\"cleared\":%d}",
+              had, was_replayed ? 1 : 0, was_replayed ? 1 : 0);
+            aqm_log_write(std::string(ibuf));
+          }
+          id(intent_last_polled_state) = intent_now;
+          bool intent_off = !intent_now;
           bool power_connected = id(dock_detect).state;
           bool voltage_ok = !isnan(id(battery_voltage).state) && id(battery_voltage).state >= 3.5f;
           id(wifi_gate_ok) = intent_off && power_connected && voltage_ok;

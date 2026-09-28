@@ -67,6 +67,31 @@ A time-series database is a real DBMS, just optimized for one specific data shap
 - **Grafana** is what most people actually pair with InfluxDB day to day for dashboards/querying -- but it's read-only, a query/viz layer, never a way to write or edit data back in.
 - **None of these give a spreadsheet-style click-a-cell edit.** InfluxDB treats points as immutable once written; there's no UPDATE-style operation in any of them. **But deletion by time-range/tag predicate -- the actual real usage here -- is a native, well-supported InfluxDB operation** (its own delete API/UI, or the CLI), not a gap. The original "TimescaleDB wins because Joseph hand-edits values" framing above was wrong on the premise (see the correction just above) -- for delete-only usage, InfluxDB and TimescaleDB (plain SQL `DELETE`, any Postgres GUI) are roughly equivalent; this is not a real differentiator between them after all.
 
+**InfluxDB vs. TimescaleDB, compared against this project's actual data, 2026-09-27 17:47 MST (Joseph asking directly which fits better):**
+
+Not all 5 tables are the same shape:
+
+| Table | Shape | Fits a pure TSDB (InfluxDB)? |
+|---|---|---|
+| Environmental Data | Numeric readings (temp/humidity/pressure/UV/battery) per sensor, per timestamp | Yes -- exactly what InfluxDB is built for |
+| GPS Track | lat/lon/accuracy per timestamp | Yes, same |
+| Hiking Observations | Free-text voice transcriptions + category tags | No -- a text/event log, not a metric |
+| Wildlife/Scat Detections | Species, count, timestamp, lat/lon | No -- same, an event log with structured fields |
+| Hike Start Forecast | One weather snapshot per hike | No -- barely time-series at all, a handful of rows |
+
+Only 2 of 5 tables are genuinely metrics-shaped; the other 3 are ordinary relational data with a timestamp column, which Postgres/TimescaleDB handles natively without forcing them into a metrics data model.
+
+**The real query patterns need joins:** GPS correlation (nearest GPS point by timestamp to a reading) and hike-izer's own export (assembling multiple tables for one time window) are both naturally `JOIN`s -- exactly what a pure TSDB's single-measurement-range-scan query model is comparatively weak at. Not a style preference; the actual shape of two things this pipeline already does today.
+
+**Other factors specific to this project:**
+- **SQL vs. Flux** -- Joseph already knows SQL; Flux is a new query language to learn and maintain alone. TimescaleDB is just Postgres, nothing new beyond the time-series extensions used when actually needed.
+- **Node-RED's write path** -- InfluxDB has a native, first-class Node-RED output node; Postgres needs a slightly more manual HTTP/SQL node. Small real point for InfluxDB, not a big lift either way.
+- **Scale** -- InfluxDB's real strength is high-cardinality, high-volume industrial-scale metrics. This pipeline is ~33k rows across two months; none of InfluxDB's specific advantages (compression, cardinality handling) are load-bearing at this size.
+- **Grafana** -- pairs equally well with both; not a differentiator.
+- **Backups/ops** -- Postgres tooling (`pg_dump`, etc.) is about as well-worn as software gets. InfluxDB has its own separate backup mechanism to learn instead.
+
+**Recommendation: TimescaleDB.** The data is mostly relational with a time column, not mostly metrics; real joins are needed; SQL is already known. InfluxDB would only be the better call if Environmental Data/GPS Track were the whole problem and the other three tables didn't exist.
+
 **Fits the project's existing pattern** of self-hosting rather than using cloud equivalents (Node-RED, MQTT, Immich, netalertx all run locally already) -- worth weighing in Planning, not a reason to skip the interview.
 
 **Done when:** not yet scoped -- this stays a Backlog capture until interviewed for whether to pursue it at all, and if so, which of reliability/speed/dashboards is the real driver, before any technology gets chosen or any plan gets written.

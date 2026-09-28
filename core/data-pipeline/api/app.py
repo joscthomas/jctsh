@@ -153,22 +153,40 @@ class Handler(BaseHTTPRequestHandler):
 
         qs = parse_qs(parts.query)
 
-        def qf(name):
+        def qf_strict(name):
             v = qs.get(name, [None])[0]
             return float(v) if v not in (None, "") else None
 
+        def qf_lenient(name):
+            # acc/alt/direction are optional AND tolerated-if-garbled --
+            # environmental-data.gs's own action=gps used JS parseFloat(),
+            # which returns NaN (not a thrown error) on a bad value, so a
+            # malformed optional field never blocked the point from being
+            # recorded. A strict float() here would (and once did, live --
+            # a GPSLogger macro-name mismatch sent a garbled 'direction'
+            # and got every point rejected outright, losing real GPS data
+            # over one optional field). Match the old tolerance instead.
+            v = qs.get(name, [None])[0]
+            if v in (None, ""):
+                return None
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                log(f"GPS GET: ignoring unparseable optional field {name}={v!r}", err=True)
+                return None
+
         try:
-            lat = qf("lat")
-            lon = qf("lon")
-            acc = qf("acc")
-            alt = qf("alt")
-            direction = qf("direction")  # CARD-0085: not sent by every
-            # GPSLogger config -- stays None rather than erroring when absent,
-            # same tolerance environmental-data.gs's own action=gps had.
+            lat = qf_strict("lat")
+            lon = qf_strict("lon")
         except ValueError as e:
-            log(f"Rejected GPS GET: unparseable numeric field ({e})", err=True)
-            self._respond(400, {"status": "error", "message": f"unparseable numeric field: {e}"})
+            log(f"Rejected GPS GET: unparseable lat/lon ({e})", err=True)
+            self._respond(400, {"status": "error", "message": f"unparseable lat/lon: {e}"})
             return
+        acc = qf_lenient("acc")
+        alt = qf_lenient("alt")
+        direction = qf_lenient("direction")  # CARD-0085: not sent by every
+        # GPSLogger config -- stays None rather than erroring when absent,
+        # same tolerance environmental-data.gs's own action=gps had.
 
         ts_raw = qs.get("ts", [None])[0]
         if not ts_raw or lat is None or lon is None:

@@ -57,7 +57,7 @@ In GPSLogger → Logging Details → Log to custom URL:
 
 | Setting | Value |
 |---|---|
-| URL | `https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat=%LAT&lon=%LON&ts=%TIME&acc=%ACC&alt=%ALT&direction=%DIRECTION` |
+| URL | `https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat=%LAT&lon=%LON&ts=%TIME&acc=%ACC&alt=%ALT&direction=%DIR` |
 | Method | GET |
 | Body | (leave empty — all params are in the URL) |
 | Headers | (leave empty) |
@@ -80,7 +80,7 @@ https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat
 | `%TIME` | Unix epoch timestamp in **seconds** (integer) |
 | `%ACC` | GPS accuracy in meters |
 | `%ALT` | Altitude in meters above sea level |
-| `%DIRECTION` | GPS bearing/direction of travel, degrees clockwise from North (CARD-0085, added 2026-08-05) — optional; older requests without it still work, `doGet` writes an empty value rather than failing |
+| `%DIR` | GPS bearing/direction of travel, degrees clockwise from North (CARD-0085, added 2026-08-05) — optional; older requests without it still work, `doGet` writes an empty value rather than failing. **Corrected 2026-09-28 (CARD-0349) — this table previously said `%DIRECTION`, the wrong macro, found live:** the real GPSLogger app substitutes `%DIR`; a URL using `%DIRECTION` gets only its leading `%DIR` replaced, leaving a literal `ECTION` suffix on the value (e.g. `0.0ECTION`). Never caused a visible failure here because `doGet`'s `parseFloat()` parses only the leading numeric prefix of a string and silently ignores the rest — direction values have likely been truncated (usually to `0.0`) since this field was added, not genuinely missing. Confirmed against `data-pipeline-api`'s own logs (CARD-0349 Phase 1's stricter Python parser rejected the same malformed value outright, which is what surfaced this). |
 
 > `%TIME` is a Unix epoch integer (e.g. `1749340800`). The Apps Script converts it to ISO8601
 > UTC before writing to the sheet.

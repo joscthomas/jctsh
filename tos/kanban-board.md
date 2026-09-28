@@ -215,7 +215,7 @@ Archived to `hosts/pi1/card-archive.md` on 2026-09-27 (CARD-0193) — 8625B, ove
 
 ### CARD-0349 · [idea] [data-pipeline] Evaluate a time-series database to replace or front Google Sheets as the Environmental Data store
 
-**Status:** Planning
+**Status:** Build
 
 **Moved from Design to Planning, 2026-09-28 (Joseph).** Found live: `kanban-board.md`'s own header (line 5) states its columns as Backlog/Planning/Build/Done/Defer -- no Design -- and the live `/kanban` dashboard's parser (`core/logging/log_server.py`'s `_KANBAN_COLUMNS`) matches that same 5-column list, silently skipping any card whose Status doesn't match one of them. A `Status: Design` card is therefore invisible on `/kanban` even though it's correctly in the file and pushed. `JCTsh-Operating-System.md`'s Board Columns table still lists Design as a real column, so the two docs disagree -- not resolved here, just worked around for this card so it's visible again. Whether to reconcile the header/parser/TOS docs (add Design back, or retire it everywhere) is still open.
 
@@ -304,9 +304,18 @@ Only 2 of 5 tables are genuinely metrics-shaped; the other 3 are ordinary relati
 
 **Moved to Design 2026-09-27 18:05 MST (Joseph: "do design").** Written: `core/data-pipeline/timescaledb-design.md`, resolving every one of the Planning doc's open questions for Phase 1 (Environmental Data + GPS Track only -- Phase 2 gets its own Design pass once Phase 1 ships, not designed in detail yet): where it runs (a new `~/data-pipeline-app/` Compose project on the M8, reusing the existing Cloudflare Tunnel rather than a second one), the finalized schema (hypertables plus `CHECK` constraints replacing CARD-0215's application-level range checks), the exact new API (explicit per-purpose routes replacing `doPost`'s hidden component-routing, matching `hike-izer-orchestrator/app.py`'s existing stdlib `http.server` convention rather than a new framework), GPS correlation as a real SQL nearest-neighbor query, the migration script's shape and its mandatory before/after verification step, a concrete one-producer-at-a-time cutover sequence, and an explicit accepted-limitation call on backup scope (local `pg_dump` only for Phase 1; off-host backup named as real future work, not silently skipped). `Correlation Debug` confirmed dropped -- container logs already cover it.
 
-**No code written, no infrastructure touched -- this is still Design, not Build.** The Design -> Build trigger (`JCTsh-Operating-System.md`: "a design document or Claude Code instructions exist AND a decision to build the thing") has its first half satisfied; the second half -- Joseph deciding to actually build it -- hasn't happened yet.
+**Moved to Build 2026-09-28 (Joseph: "let's do 349... go ahead").** The Planning -> Build trigger (`JCTsh-Operating-System.md` v1.22, post-Design-retirement: "a planning document ... exists AND a decision to build the thing") is now satisfied -- both `timescaledb-migration-plan.md` and `timescaledb-design.md` already existed; this is the decision. Working step by step per the design doc's own sequence, card updated and files committed/pushed at the end of each step:
+0. Decision recorded, Status moved to Build (this step).
+1. Write the gateway (`docker-compose.yml`, `init/schema.sql`, `data-pipeline-api`) -- files only, no infrastructure touched yet.
+2. Write `migrate_to_timescale.py` -- files only.
+3. Deploy to the M8, run migration, verify (design doc section 6 step 1) -- live change, confirmed with Joseph before executing.
+4. Cut Node-RED over to the new routes, verify a real write lands (section 6 step 2) -- live change.
+5. Cut GPSLogger's custom-URL template over (section 6 step 3) -- Joseph's own phone config.
+6. Rewrite `fetch_hike_data.py` against `/export`, verify against a real hike (section 6 step 4) -- live change + real hike.
+7. Cut `sheet_health.py` over to `/health` (section 6 step 5) -- live change.
+8. Retire the old Sheet/Apps Script once stable (section 6 step 6) -- Joseph's own call on timing.
 
-**Done when:** not yet scoped -- this stays a Backlog capture until interviewed for whether to pursue it at all, and if so, which of reliability/speed/dashboards is the real driver, before any technology gets chosen or any plan gets written.
+**Done when:** all 8 steps above are complete and verified live per the design doc's own cutover sequence -- the old Google Sheets/Apps Script deployment retired, `data-pipeline-api` serving all Phase 1 traffic (Environmental Data + GPS Track) with no regression against `fetch_hike_data.py`'s current output for a real hike.
 
 **Related:** CARD-0337 (the "three options discussed" origin, built only option 1), CARD-0347 (finding #5, storage single point of failure), CARD-0226 (the 2026-09-25 outage that started this conversation), `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `core/data-pipeline/environmental-data.gs`.
 

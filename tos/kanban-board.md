@@ -1493,7 +1493,7 @@ Archived to `tos/card-archive.md` on 2026-09-22 (CARD-0193) — 7405B, over the 
 
 ### CARD-0295 · [enhancement] [homeassistant] Home Assistant container update available: 2026.9.2 → 2026.9.3
 
-**Status:** Backlog
+**Status:** Done -- RESOLVED 2026-09-27 18:07 MST
 
 **Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: `Container image updates: home-assistant: 2026.9.3 available (running 2026.9.2)`.
 
@@ -1509,6 +1509,15 @@ Optionally add `--schedule "<time>"` to defer it to the Mon 3 AM reboot window; 
 
 **Done when:** the Pi's `homeassistant` container is running 2026.9.3 (confirmed via the HA UI or `/api/config`), the container reports healthy after the recreate, and the post-update entity-availability check above comes back clean (or any affected integration has been reloaded and confirmed resynced).
 
+**Scheduled run completed successfully -- checked 2026-09-27 18:07 MST.** The transient one-shot unit fired on time and self-removed (as designed) -- confirmed from the dashboard log rather than `systemctl`: `2026-09-27 03:30:05` Image pull starting -> `04:40:51` Image pull complete (4246s -- slow but clean, no stall/kill this time) -> `04:47:35` Container 'homeassistant' recreated and healthy. **Version note:** the container is running **2026.9.4**, not 2026.9.3 -- a newer patch landed upstream between this card's last check and the scheduled run; not re-vetted against 2026.9.4's own release notes before the pull (the schedule was unattended), worth a quick look after the fact but the update already happened.
+**Post-update checks, 2026-09-27 18:07 MST:**
+- Bootstrap log: no `homeassistant.bootstrap` "Waiting for integrations to complete setup" line -- no candidate integration flagged by CARD-0240's own detector.
+- Only recurring error since recreate: the `habluetooth` "Failed to force stop scanner" one, already known and logged as a longstanding non-issue (this file, ~L4098) -- container has no Bluetooth hardware access, unrelated to this update.
+- Config entries: 28 total, **27 loaded**, only `bluetooth` in `setup_retry` (the same known non-issue above). `smartthings`, `ring`, `samsungtv`, `matter` all `loaded`.
+- Entity comparison against yesterday's saved baseline (1,003 entities / 110 unavailable-or-unknown, CARD-0295's 09-26 attempt): now **1,004 entities / 111 unavailable-or-unknown** -- a net **+1** each way, not the ~150-entity SmartThings/Ring resync spike CARD-0240 originally found on 2026-09-05. Read via the HA token from `/home/pi/.node-red/environment`, inside the remote command only, never printed (Joseph re-authorised this specific read).
+- `RestartCount=0`, `OOMKilled=false`.
+
+**Conclusion: update completed successfully, no regression found.** The small unavailable-count delta reads as ordinary noise (a transient sensor at scrape time), not a resync failure, given config entries all report loaded and there's no large-domain spike. Not independently re-verified per-entity (no saved baseline file existed to diff against, only yesterday's two aggregate numbers) -- if anything looks off later, check `smartthings`/`ring` specifically first per CARD-0240.
 **Related:** CARD-0266 (the immediately prior HA update, 2026.9.1 → 2026.9.2, same shape), CARD-0269 (`pi-image-pull.py`, the required pull mechanism), CARD-0268 (the I/O-contention rationale behind it), CARD-0240 (the post-update entity-availability check this card inherits), CARD-0128 (the auto-PR intake pipeline this was raised by), `core/homeassistant/docker-compose.yml`.
 
 

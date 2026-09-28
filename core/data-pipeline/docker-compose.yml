@@ -1,0 +1,72 @@
+name: data-pipeline
+
+# CARD-0349 Phase 1 -- replaces core/data-pipeline/environmental-data.gs for
+# Environmental Data + GPS Track only (Phase 2 covers the other three
+# sheets). Deployed to the M8 as ~/data-pipeline-app/ (scp'd, no git
+# checkout there -- same pattern as ~/hike-izer-web-app/), matching that
+# project's own naming convention.
+
+services:
+  timescaledb:
+    container_name: data-pipeline-timescaledb
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: jctsh
+      POSTGRES_USER: jctsh
+      # POSTGRES_PASSWORD comes from .env (see .env.example) -- matches this
+      # project's existing env_file-for-secrets pattern (hike-izer-web-app,
+      # hike-izer-orchestrator) rather than Docker's separate `secrets:`
+      # mechanism, which nothing else in this repo uses.
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+      # schema.sql runs once, automatically, only on a brand-new (empty)
+      # pgdata volume -- Postgres' own docker-entrypoint-initdb.d behavior,
+      # not re-run on every restart.
+      - ./init:/docker-entrypoint-initdb.d:ro
+    # Not published to the host/LAN -- only data-pipeline-api needs to reach
+    # it, over this compose project's own default Docker network, same
+    # pattern hike-izer-web-app uses between `web`/`orchestrator`.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jctsh -d jctsh"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  data-pipeline-api:
+    container_name: data-pipeline-api
+    build: ./api
+    restart: unless-stopped
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - .env
+    environment:
+      TZ: America/Phoenix
+      PORT: "8080"
+      DB_HOST: timescaledb
+      DB_NAME: jctsh
+      DB_USER: jctsh
+      # DB_PASSWORD and API_KEY come from .env -- same shared-secret pattern
+      # as today's Apps Script (?key=), see .env.example.
+    ports:
+      # Local-only debug port, matching hike-izer-web's own
+      # 127.0.0.1:8090 pattern -- real public exposure is added via a route
+      # on hike-izer-web-app's existing Caddyfile/Cloudflare Tunnel in a
+      # later cutover step, not a second tunnel for this one host.
+      - "127.0.0.1:8091:8080"
+    healthcheck:
+      # /health requires ?key= (design doc: it's the same authenticated
+      # probe sheet_health.py will call from outside, a real SELECT 1
+      # against the DB, not a bare "process is up" check) -- reads API_KEY
+      # from this container's own environment rather than a second,
+      # unauthenticated liveness route nothing else in the design calls for.
+      test: ["CMD", "python3", "-c", "import os,urllib.request; urllib.request.urlopen('http://localhost:8080/health?key=' + os.environ['API_KEY'], timeout=5)"]
+      interval: 30s
+      timeout: 8s
+      retries: 3

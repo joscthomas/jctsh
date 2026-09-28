@@ -9,13 +9,30 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0351 -->
+<!-- next-card-id: CARD-0352 -->
+
+---
+
+### CARD-0351 · [enhancement] [pi1] Pi OS/firmware maintenance: 280 routine + 15 review-category updates pending
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-28 01:25 UTC from jctsh-core's maintenance check (CARD-0125/CARD-0128), PR #138 -- landed 2026-09-27 (Joseph: "let's do the PR" / "track for later").** Raw finding:
+`Pi maintenance: 280 routine update(s) pending. 15 package(s) need review: containerd.io, docker-buildx-plugin, docker-ce, docker-ce-cli, docker-ce-rootless-extras, docker-compose-plugin, libc6, libc6-dev, linux-base-rpi-2712, linux-base-rpi-v8, linux-headers-rpi-2712, linux-headers-rpi-v8, linux-image-rpi-2712, linux-image-rpi-v8, linux-libc-dev`
+
+**Landed, not worked** -- tracked for a later session, no packages touched by this card's creation.
+
+**How this gets applied, per CARD-0125's own precedent (2026-07-31):** nothing in `pi-maintenance-check.py` ever installs anything -- both counts are notify-only. The routine 264/280-shaped batch has historically been applied in one plain `apt upgrade` pass, since none of it touches Docker or the kernel. The 15 review-category packages (Docker itself + kernel/libc6) are a separate, deliberate decision: installing them restarts the Docker daemon (touching `homeassistant`, the one container on the Pi Robin depends on directly) and needs a reboot to actually take effect -- same two-part shape CARD-0125 hit applying its own 264/7-package split.
+
+**Done when:** not yet scoped -- interview at Planning to decide whether routine and review are handled in the same pass or separately, and to schedule the reboot the review packages will need.
+
+**Related:** CARD-0125 (Pi OS/firmware check, established this exact routine-vs-review application pattern), CARD-0350 (this session's fix to the check's own apt-index-refresh reliability, which is what let this finding be accurate), CARD-0128 (the intake pipeline).
 
 ---
 
 ### CARD-0350 · [bug] [pi1] Pi OS/firmware maintenance check may have gone stale -- apt index unrefreshed 15 days, check's own state file unchanged since 07-31
 
-**Status:** Backlog
+**Status:** Done -- RESOLVED 2026-09-27 18:27 MST
 
 **Raised 2026-09-27 18:17 MST, found live while answering Joseph's "what other software updates are pending?" question (network/infra-visibility session).** Two related but not-yet-distinguished findings, both about the Pi's monthly OS/firmware check (`pi-maintenance-check.py`, CARD-0125), neither yet root-caused:
 
@@ -27,6 +44,17 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Deliberately not done as part of this finding:** no `apt update` was run, no state file touched, no card opened for the underlying update counts themselves -- this card is about the check's own reliability, not about any specific pending package.
 
+**Fixed and verified live, 2026-09-27 18:27 MST (Joseph: "do 350").**
+
+**Finding 1 (stale apt index) -- root cause confirmed and fixed.** Checked whether the Pi already ships the systemd machinery Debian normally uses for this: it does -- `apt-daily.timer`/`apt-daily.service` are enabled and firing on schedule -- but the config knob that makes the service actually download anything (`APT::Periodic::Update-Package-Lists`) was never set, so every scheduled run exited in ~3s having refreshed nothing. The M8 has this knob set because `unattended-upgrades` is installed there; installing that package on the Pi too would also flip on `Unattended-Upgrade "1"` (auto-*applying*, not just refreshing), which conflicts with this repo's standing notify-only policy -- so instead added `hosts/pi1/20auto-upgrades` (new, tracked the same way `daemon.json` already is) with `Update-Package-Lists "1"` / `Unattended-Upgrade "0"` explicitly, deployed to `/etc/apt/apt.conf.d/20auto-upgrades`. **Verified live:** manually fired `apt-daily.service` before (3.5s, `/var/lib/apt/lists` unchanged since 09-12) and after (11.9s, `InRelease` timestamps jumped to today). No package was installed or upgraded by this change -- only whether the index gets read fresh.
+
+**Finding 2 (frozen state file) -- mechanism proven sound end-to-end; the specific 2-month gap not conclusively explained.** Before touching anything, confirmed the deployed `pi-maintenance-check.py` differed from the repo copy -- one stale docstring line (a path comment predating the CARD-0096 host reorg, `components/photo-server/maintenance-check.py` -> `hosts/m8/maintenance-check.py`), harmless, redeployed to match. Then ran the real check for real (against the now-fresh index): it published a real `System`/`Alert` MQTT message, **opened kanban PR #138** (a genuine new finding -- 280 routine updates, 15 needing review: containerd.io/docker-*/libc6/kernel packages, reboot not required), and **wrote a new state file** (`notified_at` moved from 2026-07-31 to today, `fingerprint`/`pr_fingerprint`/`pr_number` all updated). So publish-then-write-state, dedup, and PR-opening all work correctly when exercised for real -- nothing structurally broken in the script. **What's not settled:** why the 09-01 scheduled run left the state untouched for two months, since (per the script's own throttle logic) even an *unchanged* fingerprint should still re-notify and rewrite state every 30 days once the 7-day reminder window has passed. Can't be checked directly -- the Pi's journal only retains back to 2026-09-26 (the same retention gap CARD-0328's resolution already flagged as ops-cluster territory), so 09-01's actual run has no surviving record. Most likely contributing factor: a genuinely stale, unchanging index producing the exact same fingerprint every month is now removed by Finding 1's fix regardless of whether it was the *whole* explanation.
+
+**Byproduct, left open for Joseph:** PR #138 above is a real, current finding (not a test) -- follow `tos/pr-review-checklist.md` to review/land it when ready; not merged as part of this card, since scoping the resulting card's Done-when is a separate decision from fixing the check that found it.
+
+**Scope note, not acted on:** `core/maintenance/*.py` (this script, its M8 sibling, `container_update_check.py`, etc.) isn't covered by CARD-0328's drift-check `MANIFEST` at all -- the stale-comment drift above would have gone undetected by that check even though it's the exact same class of risk. Worth folding into CARD-0344 (already about extending update-check coverage) or a small manifest addition; not done here to avoid scope creep beyond this card's own two findings.
+
+**Reflection (2026-09-27 18:27 MST):** the systemd timer existing and firing on schedule was never the actual signal to check -- it can fire correctly forever while doing nothing useful, because a *sibling* config file (not a timer/service property at all) silently gates whether it does real work. `systemctl list-timers` proves scheduling, not effect; the actual effect (`/var/lib/apt/lists` mtimes moving) had to be checked separately, before and after. Generalizable: for any "is this scheduled thing actually working" question, check its output artifact directly, not just that the schedule fired.
 **Related:** CARD-0125 (built the check this card is about), CARD-0324 (the "silence isn't necessarily a problem, but isn't necessarily fine either" pattern this resembles, resolved by adding a positive success signal -- may be the same fix here), CARD-0268/CARD-0269 (the Pi I/O-contention rationale relevant to any fix involving extra apt traffic), `core/maintenance/pi-maintenance-check.py`. Ownership: ops cluster (`hosts/pi1`, `core/maintenance`) -- opened here because that session wasn't live when this was found.
 
 ---
@@ -308,6 +336,7 @@ The review doc's own "Recommended order" table ranks fixes cheapest/highest-valu
 
 **Scope decision, 2026-09-26 (Joseph):** the rest of the workstation tooling (Python, Git, `gh`, Claude Code, ESP-IDF) is **out of scope**. **ESPHome is in scope**, because it is the one tool that has already broken a build (2026.9.0). What the log shows today: each device reports its ESPHome version in its "online - ESPHome X" boot line, and all six devices (`air-quality-monitor`, `back-patio-temp-sensor`, `front-porch-temp-sensor`, `garage-radar`, `hiking-monitor`, `salt-sensor`) most recently report 2026.4.5; `back-patio-temp-sensor` has one boot line reporting 2026.9.0 among 19 at 2026.4.5. So the running version is already observable without touching a device.
 
+**A different-shaped gap found 2026-09-27 18:29 MST (CARD-0350, this session) -- not a version-check gap like the table above, so flagged separately rather than added to it.** `core/maintenance/*.py` (`pi-maintenance-check.py`, its M8 sibling, `container_update_check.py`, `open_kanban_pr.py`) is a version-controlled copy deployed by hand-`scp`, the exact same class of risk CARD-0328's drift check covers for `core/mqtt`/`core/node-red`/`core/homeassistant` -- but `core/maintenance` isn't in that check's `MANIFEST`. Caught live: the deployed `pi-maintenance-check.py` had drifted from the repo (one stale docstring path comment, harmless, now redeployed to match) with nothing that would have noticed on its own. **This is "does the deployed copy match the repo," not "is a newer upstream version available"** -- the wrong mechanism for this card's own `container_update_check.py`/`SERVICES` pattern; the natural fix is extending CARD-0328's drift-check `MANIFEST` to include `core/maintenance/*.py`, not adding a row here. Left for Planning to decide whether that's in this card's scope or a fix made directly against CARD-0328's own script.
 **Open questions for Planning, not answered here:** for ESPHome, what "out of date" should mean given the pin is deliberate (a check that reports the latest release against the pin, one that flags devices running different versions from each other, or both), and where a check would run given the pip package lives on the workstation, not on a host; whether each gap gets a `SERVICES` entry (containers) or needs a different mechanism (npm for Node-RED; dependency pins for the orchestrator); whether `:latest` images like ring-mqtt can be checked at all without a pinned tag to compare against; whether Tailscale needs a check or is already covered through apt; which existing check each new one belongs in, given `JCTsh-Build-Standards.md` §9.5's 1-hour clearance between maintenance jobs.
 
 **Done when:** not yet scoped. Planning must first settle the open questions above.

@@ -108,6 +108,8 @@ jctsh/
 ├── DEVLOG.md                      Chronological record of decisions and incidents
 ├── ENVIRONMENT.md                 Physical device inventory for the home
 ├── SOFTWARE-ENVIRONMENT.md        What is installed and running on the Pi
+├── WORKSTATION-SETUP.md           What the dev/flashing workstation needs installed (Python,
+│                                       ESPHome, SSH, filesystem gotchas) — CARD-0354
 ├── network/jctsh-network.md       IP address and MAC table for all devices
 ├── network/jctsh-access.md        How to reach all services from any network
 ├── network/keepconnect.md         KeepConnect router rebooter — config, schedule, rationale

@@ -9,7 +9,21 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0358 -->
+<!-- next-card-id: CARD-0359 -->
+
+---
+
+### CARD-0358 · [bug] [maintenance] Container image updates: matter-server: check failed (docker exec pip show timed out after 10 seconds) — auto-opened from jctsh-core
+
+**Status:** Done
+
+**Auto-opened 2026-09-28 03:35 UTC from jctsh-core's maintenance check.** Raw finding: `Container image updates: matter-server: check failed (Command '['docker', 'exec', 'matter-server', 'pip', 'show', 'python-matter-server']' timed out after 10 seconds)`.
+
+**Already root-caused and fixed by CARD-0344's own concurrent build (2026-09-28), landed before this card was interviewed.** `core/maintenance/container_update_check.py`'s `_current_version()` used a flat 10s timeout for both `docker inspect` (label method) and `docker exec` (exec method, matter-server's own path); matter-server's `pip show` call hit it once under real I/O pressure (a re-run moments later took 4.4s) — the same class of intermittent slowness already documented on this host for CARD-0247's `docker logs` boot-time timeout. Fixed by bumping both to 20s, with the incident recorded inline as a comment.
+
+**Done when:** met, no further work needed here — this card exists to close the loop on the auto-opened finding, not to duplicate CARD-0344's fix.
+
+**Related:** CARD-0344 (extended the update checks to matter-server in the first place, and carries the actual fix), CARD-0247 (the `docker logs` timeout precedent this matches).
 
 ---
 

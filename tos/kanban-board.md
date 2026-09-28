@@ -9,7 +9,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0349 -->
+<!-- next-card-id: CARD-0350 -->
+
+---
+
+### CARD-0349 · [idea] [data-pipeline] Evaluate a time-series database to replace or front Google Sheets as the Environmental Data store
+
+**Status:** Backlog
+
+**Raised 2026-09-27 (Joseph: "we talked about using a different technology, time series database?").** Searched the live board, every `card-archive.md`, and every project markdown doc for a prior record of this discussion before writing anything here (Engineering Discipline: verify a claimed completion/prior decision directly, don't assume) -- found none. Either informal chat that never produced a card (per `JCTsh-Operating-System.md`'s "Where Work Happens": pre-card thinking is allowed to leave no trace), or from a context this repo doesn't have a record of. Treating this as new information being captured now, not a rediscovered prior decision.
+
+**Not a new idea in substance -- this is "option 3" (and possibly "option 2") of three discussed live during CARD-0337's own interview (2026-09-25, after the CARD-0226 outage): "keep Sheets small" (built, CARD-0337, Done), "a durable local store in front of Sheets," and "move off Sheets" entirely. Neither of the latter two was ever turned into its own card until now.** Related, still-open evidence: CARD-0347 (today's pipeline review) names "storage is a single point of failure: one Google Sheet... Node-RED's POST queue is in-memory only" as finding #5, not yet scoped into any concrete work.
+
+**Motivation, per Joseph (asked directly): "all of the above, perhaps"** -- not narrowed to one driver yet:
+- **Reliability** -- the 2026-09-25 outage (CARD-0226) is the one concrete incident: a single spreadsheet document became a single point of failure for the whole ingest pipeline (Node-RED's POST queue, hike-izer's own exports, the daily backstop probe) for several hours, root cause never actually identified.
+- **Query/export speed** -- `fetch_hike_data.py`'s exports and the daily backstop probe have both hit slow-query/timeout symptoms as `Environmental Data` has grown (~33k rows as of the 2026-09-25 incident).
+- **Better dashboards/queries** -- a real time-series store (InfluxDB, TimescaleDB, or similar) would open up Grafana-style dashboards and query patterns Sheets can't do well, independent of whether reliability is ever a problem again.
+- **Exploratory** -- no single driver confirmed yet; this card itself is the vehicle for figuring out which of the above (if any) is actually the load-bearing reason before committing to a specific technology or migration plan.
+
+**This is a Backlog capture of the idea, not a scoped plan** (`JCTsh-Operating-System.md`: interview first, don't write a plan from assumption). A real Planning pass needs to work out, at minimum:
+- What actually reads/writes `Environmental Data`/`GPS Track`/`Hiking Observations`/`Wildlife Detections` today (`core/data-pipeline/environmental-data.gs`, `JCTsh-Environmental-Data-Architecture.md`) and which of those integration points a new store would need to replace vs. sit alongside.
+- Whether Sheets stays as a human-editable/at-a-glance layer regardless (Joseph directly edits/sorts tabs today -- CARD-0325's own dedup-window gotcha exists because of exactly this), with a time-series store underneath it, or whether Sheets goes away entirely.
+- Where it would actually run -- self-hosted on the Pi or M8 (matching this project's existing self-hosted-first pattern: Node-RED, MQTT, the hike-izer pipeline itself) vs. a managed/cloud service, and what that costs in maintenance burden against the reliability problem it's meant to solve.
+- Migration path for the ~33k existing rows, and whether `hike_places.py`/hike-izer's own `action=export` API (CARD-0311/CARD-0348) needs to change at all if a new store sits behind the same Apps Script interface, or whether that interface itself goes away.
+- Real query/write patterns this pipeline actually needs (mostly append-only sensor writes, occasional GPS-correlation lookups, full-range exports for hike-izer) against what a time-series database is actually good at, rather than assuming the fit is right by category name alone.
+
+**Done when:** not yet scoped -- this stays a Backlog capture until interviewed for whether to pursue it at all, and if so, which of reliability/speed/dashboards is the real driver, before any technology gets chosen or any plan gets written.
+
+**Related:** CARD-0337 (the "three options discussed" origin, built only option 1), CARD-0347 (finding #5, storage single point of failure), CARD-0226 (the 2026-09-25 outage that started this conversation), `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `core/data-pipeline/environmental-data.gs`.
 
 ---
 

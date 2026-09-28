@@ -9,7 +9,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0352 -->
+<!-- next-card-id: CARD-0353 -->
 
 ---
 
@@ -1551,6 +1551,19 @@ Archived to `tos/card-archive.md` on 2026-09-22 (CARD-0193) — 7405B, over the 
 
 ---
 
+### CARD-0352 · [enhancement] [m8] Pin cloudflared to an explicit version instead of `:latest`
+
+**Status:** Backlog
+
+**Raised 2026-09-27 19:12 MST, from CARD-0257's own recommendation (2026-09-22).** `components/hike-izer-web/docker-compose.yml` line 91 pins `cloudflare/cloudflared:latest`, not a version. Nothing currently pulls automatically, so there's no live danger today -- but the next incidental `docker compose pull`/recreate on that project (e.g. alongside an unrelated `hike-izer-web`/`hike-izer-orchestrator` update, same compose project) would silently land whatever's newest, with no decision point. CARD-0257 is actively holding this exact container back from 2026.9.x specifically because of an open, unaddressed upstream crash bug ([cloudflared#1737](https://github.com/cloudflare/cloudflared/issues/1737)) that matches this deployment's exact shape (Docker bridge network, `restart: unless-stopped`) -- a silent version bump would undo that held decision without anyone choosing it to.
+
+**Essence-only per CARD-0256 -- not yet interviewed.** The fix itself is small (pin to `2026.8.3`, the version CARD-0257 confirmed is running cleanly), but open questions for Planning: whether `container_update_check.py`'s generic version-check (which currently can't compare against a floating `:latest` tag meaningfully) should gain a pinned-tag-aware mode once this lands; whether any other JCTsh-managed compose file has the same `:latest` exposure (not surveyed here -- this card only names the one CARD-0257 already found).
+
+**Done when:** not yet scoped -- essence-only until Planning interviews it.
+
+**Related:** CARD-0257 (found this gap, holds the reason it matters), CARD-0128/CARD-0126 (the update-check/PR pipeline this interacts with), `components/hike-izer-web/docker-compose.yml`.
+
+---
 ### CARD-0295 · [enhancement] [homeassistant] Home Assistant container update available: 2026.9.2 → 2026.9.3
 
 **Status:** Done -- RESOLVED 2026-09-27 18:07 MST

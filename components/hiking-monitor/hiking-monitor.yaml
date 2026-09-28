@@ -108,6 +108,10 @@ esphome:
                   id(wifi_disable_pending) = true;
     - priority: -100.0
       then:
+        # CARD-0346: seed the periodic backstop's baseline from the switch's real
+        # state at boot -- globals are restored and the switch state is known by
+        # this priority, same reasoning as air-quality-monitor's equivalent seed.
+        - lambda: 'id(slide_switch_last_polled_state) = id(slide_switch).state;'
         - component.update: hiking_display
         - component.update: bme_sensor
         - component.update: ltr390_sensor
@@ -381,6 +385,21 @@ globals:
   - id: hike_log_replayed
     type: bool
     restore_value: true
+    initial_value: 'false'
+  # CARD-0346 (2026-09-28, ported from air-quality-monitor's identical fix): tracks
+  # slide_switch's state as read by the 2-min interval, so that interval can detect
+  # an OFF->ON transition itself as a backstop for slide_switch's on_state "else"
+  # (switch-ON) handler below -- found live on air-quality-monitor's sibling switch
+  # first, then confirmed on this device the same day: a 2026-09-28 test walk left
+  # 12-14 lines buffered under a still-`SET` hike_log_replayed flag, meaning the
+  # switch-ON handler that should have cleared it for the new run apparently never
+  # fired, even though the device clearly ran in field mode and logged real data.
+  # Not restore_value -- on_boot separately seeds this from the switch's actual
+  # state (priority -100.0 block below), so a reboot/deep-sleep-wake can't
+  # manufacture a spurious edge on the first tick.
+  - id: slide_switch_last_polled_state
+    type: bool
+    restore_value: false
     initial_value: 'false'
   # 2026-09-26 diagnostic (CARD-0226): how many log lines the slide-switch-ON clear below
   # discarded on this boot (-1 = no clear ran). Reported in the boot_state event so a
@@ -843,6 +862,28 @@ interval:
   # 2-minute sensor cycle: read sensors, log to SPIFFS or publish to MQTT
   - interval: 2min
     then:
+      # CARD-0346 (2026-09-28, ported from air-quality-monitor's identical fix):
+      # poll-based backstop for slide_switch's on_state "else" (switch-ON) trigger
+      # below -- found live that it can apparently miss a real OFF->ON transition,
+      # leaving hike_log_replayed stuck true (and this hike's own readings piling up
+      # unreplayed) with zero visible error. Mirrors that handler's own log-clear
+      # logic exactly, so double-firing (the real handler *does* fire, and this also
+      # catches the same edge next tick) is harmless -- the `if (hike_log_replayed)`
+      # guard makes a second pass a no-op. Bounded to at most a 2-minute delay
+      # versus the real handler's immediate firing; on a device that deep-sleeps
+      # between hikes, this tick already fires "essentially immediately" after boot
+      # (see the reset_reason_pending comment just below), so the boot-with-
+      # switch-already-on case is covered too, not just a mid-runtime flip.
+      - lambda: |-
+          bool slide_now = id(slide_switch).state;
+          if (slide_now && !id(slide_switch_last_polled_state)) {
+            if (id(hike_log_replayed)) {
+              id(boot_cleared_lines) = hike_log_count();
+              hike_log_clear();
+              id(hike_log_replayed) = false;
+            }
+          }
+          id(slide_switch_last_polled_state) = slide_now;
       # CARD-0217: reset_reason_text is only safely readable once loop() is
       # running -- see the long on_boot comment above for why. This is the
       # earliest safe point, and (per ESPHome's own interval component,

@@ -44,6 +44,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Honest gap: 9 packages from the original 280 are still upgradable, not silently applied.** `labwc`, `libc-dev-bin`, `rpd-common`, `rpd-preferences`, `rpd-utilities`, `rpd-wayland-core`, `rpd-wayland-extras`, `rpi-swap`, `wayvnc`. **Not a failure** -- `apt-get upgrade` (used deliberately, not `full-upgrade`) skips any package whose version bump would need to install/remove other packages as a side effect (several of these Desktop-compositor packages have large version jumps, e.g. `rpd-common` 1.18 -> 1.31, that plausibly require exactly that). Same risk class as the rest of the routine list -- unused Raspberry Pi Desktop packages on a headless box -- so left as-is rather than escalating to `full-upgrade` unprompted; that's a separate decision if ever wanted.
 
+**Decided, 2026-09-27 19:32 MST (Joseph: "skip them") -- the 9 leftover Desktop packages stay unapplied.** No `full-upgrade` will be run for `labwc`, `libc-dev-bin`, `rpd-common`, `rpd-preferences`, `rpd-utilities`, `rpd-wayland-core`, `rpd-wayland-extras`, `rpi-swap`, `wayvnc` -- explicit decision, not a default. They'll keep showing as upgradable in `apt list --upgradable`/CARD-0350's dashboard indefinitely unless revisited.
+
 **Review batch still on its Tue 2026-09-29 02:00 MST schedule, unaffected by any of the above.**
 **Done when:** not yet scoped -- interview at Planning to decide whether routine and review are handled in the same pass or separately, and to schedule the reboot the review packages will need.
 

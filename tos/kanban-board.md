@@ -9,7 +9,24 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0351 -->
+<!-- next-card-id: CARD-0352 -->
+
+---
+
+### CARD-0351 · [enhancement] [pi1] Pi OS/firmware maintenance: 280 routine + 15 review-category updates pending
+
+**Status:** Backlog
+
+**Auto-opened 2026-09-28 01:25 UTC from jctsh-core's maintenance check (CARD-0125/CARD-0128), PR #138 -- landed 2026-09-27 (Joseph: "let's do the PR" / "track for later").** Raw finding:
+`Pi maintenance: 280 routine update(s) pending. 15 package(s) need review: containerd.io, docker-buildx-plugin, docker-ce, docker-ce-cli, docker-ce-rootless-extras, docker-compose-plugin, libc6, libc6-dev, linux-base-rpi-2712, linux-base-rpi-v8, linux-headers-rpi-2712, linux-headers-rpi-v8, linux-image-rpi-2712, linux-image-rpi-v8, linux-libc-dev`
+
+**Landed, not worked** -- tracked for a later session, no packages touched by this card's creation.
+
+**How this gets applied, per CARD-0125's own precedent (2026-07-31):** nothing in `pi-maintenance-check.py` ever installs anything -- both counts are notify-only. The routine 264/280-shaped batch has historically been applied in one plain `apt upgrade` pass, since none of it touches Docker or the kernel. The 15 review-category packages (Docker itself + kernel/libc6) are a separate, deliberate decision: installing them restarts the Docker daemon (touching `homeassistant`, the one container on the Pi Robin depends on directly) and needs a reboot to actually take effect -- same two-part shape CARD-0125 hit applying its own 264/7-package split.
+
+**Done when:** not yet scoped -- interview at Planning to decide whether routine and review are handled in the same pass or separately, and to schedule the reboot the review packages will need.
+
+**Related:** CARD-0125 (Pi OS/firmware check, established this exact routine-vs-review application pattern), CARD-0350 (this session's fix to the check's own apt-index-refresh reliability, which is what let this finding be accurate), CARD-0128 (the intake pipeline).
 
 ---
 

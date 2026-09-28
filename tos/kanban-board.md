@@ -9,10 +9,26 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0350 -->
+<!-- next-card-id: CARD-0351 -->
 
 ---
 
+### CARD-0350 · [bug] [pi1] Pi OS/firmware maintenance check may have gone stale -- apt index unrefreshed 15 days, check's own state file unchanged since 07-31
+
+**Status:** Backlog
+
+**Raised 2026-09-27 18:17 MST, found live while answering Joseph's "what other software updates are pending?" question (network/infra-visibility session).** Two related but not-yet-distinguished findings, both about the Pi's monthly OS/firmware check (`pi-maintenance-check.py`, CARD-0125), neither yet root-caused:
+
+1. **The Pi's apt package index is stale.** `/var/lib/apt/lists/*InRelease` last refreshed **2026-09-12** -- 15 days old at time of writing. The M8's equivalent index was fresh (refreshed same-day), so something refreshes it there (unattended-upgrades or similar) that the Pi doesn't have. Any `apt list --upgradable` count taken against the Pi's index right now is unreliable until it's refreshed -- a live, read-only check found 227 upgradable packages (15 in the review category: Docker/containerd/kernel/libc6), but that number could be wrong in either direction against a 15-day-old index.
+2. **The check's own persisted state hasn't changed since 2026-07-31**, even though `systemctl list-timers` confirms the monthly timer *has* fired again since (last real run **2026-09-01**). `notified_at`/`fingerprint` in `/root/.jctsh/maintenance-check.state` are both still the 07-31 values. Two explanations not yet distinguished: (a) the 09-01 run genuinely found nothing new to report (`pi-maintenance-check.py` exits without touching state when `findings` is empty *and* `routine_count == 0` -- possible if the review-category list was briefly empty that day), or (b) a real state-persistence gap, the same class of "looks silent, might just be quiet" ambiguity CARD-0324 found for alert-only components -- but this time on a check whose write path is conditional on there being something to report, not unconditional.
+
+**Not yet checked, deliberately (essence-only per CARD-0256):** whether the M8 has an automatic index-refresh mechanism the Pi lacks (and if so, whether to add one, given the standing SD-card-I/O caution root `CLAUDE.md` states for this host); `journalctl -u pi-maintenance-check.service` output from the 09-01 and prior runs, which would settle explanation (a) vs (b) directly; whether `apt update` itself is safe/routine enough to run as part of this check (it writes to `/var/lib/apt/lists`, unlike everything else this check does).
+
+**Deliberately not done as part of this finding:** no `apt update` was run, no state file touched, no card opened for the underlying update counts themselves -- this card is about the check's own reliability, not about any specific pending package.
+
+**Related:** CARD-0125 (built the check this card is about), CARD-0324 (the "silence isn't necessarily a problem, but isn't necessarily fine either" pattern this resembles, resolved by adding a positive success signal -- may be the same fix here), CARD-0268/CARD-0269 (the Pi I/O-contention rationale relevant to any fix involving extra apt traffic), `core/maintenance/pi-maintenance-check.py`. Ownership: ops cluster (`hosts/pi1`, `core/maintenance`) -- opened here because that session wasn't live when this was found.
+
+---
 ### CARD-0349 · [idea] [data-pipeline] Evaluate a time-series database to replace or front Google Sheets as the Environmental Data store
 
 **Status:** Design

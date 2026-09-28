@@ -1,8 +1,8 @@
 # JCT Smart Home (JCTsh) Team Operating System (TOS)
 **Author:** Joseph C Thomas (JCT)
 **Purpose:** Defines how the JCTsh team works — the conceptual process governing all work.
-**Version:** 1.21
-**Version description:** CARD-0325 — the Board Commit Rule: a session commits `tos/kanban-board.md` on completion of its own work, never asking Joseph and never waiting on another session, including whatever in-flight text other sessions have in the file. Rejects the session-scoped lock file this document previously named as "the next lever" (struck in place), rules hunk-level board staging out as mechanically unavailable, and accepts commit-attribution drift as a documented limitation rather than a thing to measure or re-decide per occurrence. Adds a mid-day protocol-propagation step (notify live peer sessions via `SendMessage` when a rule changes, since a running session never re-reads this document) and the Card ID allocation rule alongside it (allocate late from the file, push serializes, later pusher renumbers, collisions are detectable by one grep) so the one variant that produces ambiguous cross-references — not lost text, corrected 2026-09-22 — is closed mechanically rather than watched for.
+**Version:** 1.22
+**Version description:** Dropped Design as a board column/Status value (Joseph, 2026-09-28) — found live via CARD-0349, whose `Status: Design` was silently invisible on `/kanban` because the board header and the live dashboard's parser had only ever recognized Backlog/Planning/Build/Done/Defer, not this document's own stated column set. Retired Design here to match rather than adding it back elsewhere, since it was already barely used in practice. Board Columns and State Transitions tables updated (Planning → Design and Design → Build collapsed into one Planning → Build row), the now-moot "Observed Exception: Skipping Design" section removed, and two stray cross-references reworded to match.
 **Version history:** `JCTsh-Operating-System-History.md`
 **Related files:** `JCTsh-Build-Standards.md` (technology/build conventions — see the reconciliation note below for how the two relate)
 
@@ -61,8 +61,7 @@ Generalized from `JCTsh-Build-Standards.md` §6.1/§6.3 (CARD-0289 follow-on) �
 | Column (State) | Definition |
 |---|---|
 | **Backlog** | Captured, not yet being worked on |
-| **Planning** | Plan is being laid out |
-| **Design** | Claude Code instructions being written |
+| **Planning** | Plan is being laid out (includes writing Claude Code instructions — no separate Design checkpoint) |
 | **Build** | Going through Claude Code instructions, including testing |
 | **Done** | Complete |
 | **Defer** | A deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); reachable from any other state |
@@ -127,12 +126,11 @@ Each transition has a **trigger** — the concrete thing (an artifact existing, 
 |---|---|---|
 | *(new)* | **Backlog** | Entry criteria: any idea or thought the team might want to work on. This is the lowest bar on the board — capture, don't filter. |
 | **Backlog** | **Planning** | A decision to spend time exploring and researching the idea. |
-| **Planning** | **Design** | A planning document exists **and** a decision to spend time designing a solution. |
-| **Design** | **Build** | A design document or Claude Code instructions exist **and** a decision to build the thing. |
+| **Planning** | **Build** | A planning document (or Claude Code instructions, however scoped) exists **and** a decision to build the thing. |
 | **Build** | **Done** | All criteria for the Build are satisfied, **including verification that everything works correctly** — not just that the code/files changed. |
 | *(any state)* | **Defer** | A decision to not pursue the work. |
 
-**Note on Planning:** Planning is not always a single step, and it happens in Claude Code, not chat (see Where Work Happens above) — chat's contribution is the informal, pre-card thinking that led to the card's creation, not the planning documents themselves. For a hardware or software build, Planning may consist of multiple sequential phases — e.g. discovery/feasibility, hardware selection, architecture/integration design, per `JCTsh-Component-Planning-Pattern.md`'s Phases 1–3 — each potentially producing its own planning document depending on the sequence and depth of work the card actually needs. For simpler work, Planning may produce just a single planning document. Either way, the Planning → Design trigger's "a planning document exists" is satisfied by whatever set of documents Planning actually produced — the structure adapts to the work, not the other way around.
+**Note on Planning:** Planning is not always a single step, and it happens in Claude Code, not chat (see Where Work Happens above) — chat's contribution is the informal, pre-card thinking that led to the card's creation, not the planning documents themselves. For a hardware or software build, Planning may consist of multiple sequential phases — e.g. discovery/feasibility, hardware selection, architecture/integration design, per `JCTsh-Component-Planning-Pattern.md`'s Phases 1–3 — each potentially producing its own planning document depending on the sequence and depth of work the card actually needs. For simpler work, Planning may produce just a single planning document. Either way, the Planning → Build trigger's "a planning document exists" is satisfied by whatever set of documents Planning actually produced — the structure adapts to the work, not the other way around.
 
 **Retracting a card (formalized 2026-09-18, CARD-0302 — observed convention, never previously written down).** Distinct from **Defer**: Defer means the work is real but consciously parked; retraction means the card itself shouldn't have been opened as its own card — almost always because it duplicates work already tracked elsewhere, found only after the fact (e.g. CARD-0302 duplicating the already-open CARD-0294; CARD-0252/0253 duplicating open threads on CARD-0012). Not a new column — a retracted card's `**Status:**` is **Done**, with the retraction itself named in the title:
 1. **Title becomes `[retracted] Folded into CARD-XXXX — was: <original title>`** — replacing the type bracket (`[idea]`/`[bug]`/`[enhancement]`), not adding to it.
@@ -188,15 +186,9 @@ This doesn't reopen CARD-0288's original "severity/bug-vs-enhancement wasn't wei
 
 ---
 
-## Observed Exception: Skipping Design
-
-In practice, several cards move directly from Planning to Build, skipping Design as a distinct column. This happens when Planning (in Claude Code, per `JCTsh-Component-Planning-Pattern.md`) already produces an approved execution plan or Claude Code instructions as part of Planning itself — at that point the Design → Build trigger's criteria are already satisfied, so the card just starts in Build rather than sitting in an empty Design column for form's sake. `kanban-board.md` notes this explicitly on cards where it happened (e.g. CARD-0003, CARD-0034) rather than silently skipping the column.
-
----
-
 ## Applying TOS to Pre-Existing Work
 
-TOS did not exist when most of the cards currently in `kanban-board.md` were worked. Older cards that don't cleanly match a single column — e.g. a card whose Design deliverable (Claude Code instructions) is already complete while it still sits in Planning — aren't inconsistencies to fix. They're history that predates the process which would have produced a cleaner state. This is process improvement, not a correction owed to past work.
+TOS did not exist when most of the cards currently in `kanban-board.md` were worked. Older cards that don't cleanly match a single column — e.g. a card whose planning deliverable (Claude Code instructions) is already complete while it still sits in Planning — aren't inconsistencies to fix. They're history that predates the process which would have produced a cleaner state. This is process improvement, not a correction owed to past work.
 
 Reconciling any specific older or in-flight card against TOS — moving it to the column it actually belongs in, retroactively producing a missing artifact — is a **per-card judgment call** based on whether doing so adds real value, not a blanket retroactive mandate to sweep the whole board into compliance.
 

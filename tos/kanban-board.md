@@ -9,7 +9,35 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0359 -->
+<!-- next-card-id: CARD-0360 -->
+
+---
+
+### CARD-0359 · [bug] [data-pipeline] Apps Script POST occasionally answers with `doGet`'s "unknown action" fallback instead of the real write reply — seen from two different producers
+
+**Status:** Backlog
+
+**Raised 2026-09-28 (general session's routine log scan, Joseph: "yes" to opening a card after the investigation below).**
+
+**What's observed:** Node-RED's Environmental Data write pipeline, and separately hike-izer-orchestrator's `hike-izer-cost` POST, have each gotten back a clean HTTP 200 whose JSON body is `{"status":"error","message":"unknown action","version":"<SCRIPT_VERSION>"}` — text that only exists in `environmental-data.gs`'s `doGet()` fallback (line ~1373), never anywhere in `doPost()`. That means the request Apps Script actually executed was a bare GET with no `action` param, not the POST the client sent.
+
+**Likely mechanism (not confirmed):** per `RUNBOOK-sheets-outage.md` §6 and CARD-0226, both clients deliberately disable redirect-following on the initial POST and instead manually `GET` the `Location` header from Apps Script's 302 response, expecting that `Location` to be a `script.googleusercontent.com` content-delivery URL that just serves the already-computed POST output (not a fresh invocation). This fingerprint is consistent with that follow-up GET occasionally landing back on the bare `.../exec` endpoint instead of a real content URL — which invokes `doGet()` fresh with no `action`, hitting its fallback.
+
+**Two known occurrences so far, three days apart, different producers/codebases:**
+1. **2026-09-25 17:04:10 MST** — `hike-izer-orchestrator` (Python), `hike-izer-cost` POST, version `2026-09-25.2-health-action`.
+2. **2026-09-28 03:23:14 MST** — `node-red` (JS), Environmental Data POST, version `2026-09-25.5-export-tail-first`. 3 readings held, drained on retry with nothing dropped (Node-RED's own queue accounting).
+
+Both self-recovered on retry with no data loss. **Not the same thing as the 2026-09-25 Sheets-outage flood** `RUNBOOK-sheets-outage.md` covers — that was timeouts and HTML error pages, a different, already-documented and already-handled pattern.
+
+**Why a card, given low current impact:** two independent client codebases hit the identical signature, which points at something in Apps Script's own redirect/dispatch behavior rather than either client's code — and CARD-0348's planned unification of `hike-izer-orchestrator`'s step1/step2 touches this same POST path.
+
+**Not in scope:** no speculative change to the redirect-handling logic without more evidence; no deliberate attempt to reproduce it on demand.
+
+**Done when:** the pattern is written up somewhere durable (this card, and a short addition to `RUNBOOK-sheets-outage.md` if a third occurrence adds real new detail), with a Watch For marker in place so further occurrences accumulate as evidence automatically rather than depending on someone noticing the log line again.
+
+**Watch for:** a third occurrence of this exact signature — any POST to `environmental-data.gs` (Environmental Data, `hike-izer-cost`, or any other write branch) answered with `{"status":"error","message":"unknown action",...}` — anywhere in `/mnt/jctsh-logs/jctsh.log*`. If found, record the producer/timestamp/version on this card; once three real instances exist, look for a common trigger (redeploy timing, load, time-of-day) before considering any code change.
+
+**Related:** CARD-0226 (built the manual-redirect-GET handling this bug lives inside), `core/data-pipeline/RUNBOOK-sheets-outage.md` (the sibling failure-mode doc), CARD-0348 (touches the same POST path), CARD-0347 (the broader pipeline-review card this is a sibling finding to, found independently rather than as part of that review).
 
 ---
 
@@ -27,7 +55,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0357 · [bug] [air-quality-monitor] [back-patio-temp-sensor] [front-porch-temp-sensor] [garage-radar] [hiking-monitor] [salt-sensor] Find and fix why ESPHome 2026.9.0 breaks the compile -- currently pinned 5 months behind at 2026.4.5
+### CARD-0357 · [bug] [tos] [air-quality-monitor] [back-patio-temp-sensor] [front-porch-temp-sensor] [garage-radar] [hiking-monitor] [salt-sensor] Find and fix why ESPHome 2026.9.0 breaks the compile -- currently pinned 5 months behind at 2026.4.5
 
 **Renumbered from CARD-0354, 2026-09-28 (this session's own merge) -- three auto-generated stub cards (immich-redis/matter-server/node-red, below) claimed 354-356 first while this card was mid-write. Later pusher yields, per `JCTsh-Operating-System.md`'s Card ID allocation rule; no content lost, just a number change.** All cross-references to this card elsewhere (`WORKSTATION-SETUP.md`, `tos/JCTsh-Session-Start.md`, root `README.md`) updated to match.
 

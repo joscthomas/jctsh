@@ -56,9 +56,16 @@ A time-series database is a real DBMS, just optimized for one specific data shap
 - Automatic retention/rollup (in a purpose-built TSDB) ages old high-resolution data into summaries or expires it on its own -- the problem CARD-0337 tried to solve by hand and ultimately deferred.
 
 **What would be lost:**
-- The thing Sheets gives for free: a browser GUI Joseph already uses to sort and hand-edit rows directly (the dedup-window gotcha CARD-0325 records exists because of exactly this habit). A database has no equivalent without a separate tool (Grafana for charts, pgAdmin/Adminer for poking at rows).
+- The thing Sheets gives for free: a browser GUI Joseph can open and look at directly, no separate tool needed. **Corrected 2026-09-27 (Joseph: "i don't really hand edit the data, the most i do is delete rows of test data")** -- real usage is narrower than first assumed here: manually sorting tabs (CARD-0325's own dedup-window gotcha is about this, not value-editing) and occasionally deleting test rows. The hike page's observation-correction UI (CARD-0194) doesn't count as Sheets-editing at all -- confirmed directly in `generation.py`'s own docstring, "the Sheet itself is never written to," corrections live in a separate overrides file applied at render time.
 - A new 24/7 service to own (on the Pi or M8) -- its own updates, disk space, and backup story. Trades "Google's outage" for "my own service's outage," though the latter is at least observable with the logging/MQTT tooling already built.
 - A real migration, not a drop-in swap: `environmental-data.gs`'s ingest logic and every consumer of `action=export`/`action=lookup` (hike-izer, the wildlife/scat writers) currently speaks to Sheets and would need to speak to something else.
+
+**InfluxDB's own UI options, checked 2026-09-27 17:43 MST (Joseph asking directly what lets you view/modify data) -- and why "modify" is the wrong question once actual usage is only deletion, not editing:**
+- **InfluxDB 2.x** bundles its own web UI (Data Explorer, dashboard builder, Flux query editor) -- no separate install.
+- **InfluxDB 1.x** had only a bare admin page; paired with **Chronograf** (the old TICK-stack viz tool) for exploring data.
+- **InfluxDB 3.x** -- less certain of the current default UI story; leans on SQL more than Flux. Not verified here.
+- **Grafana** is what most people actually pair with InfluxDB day to day for dashboards/querying -- but it's read-only, a query/viz layer, never a way to write or edit data back in.
+- **None of these give a spreadsheet-style click-a-cell edit.** InfluxDB treats points as immutable once written; there's no UPDATE-style operation in any of them. **But deletion by time-range/tag predicate -- the actual real usage here -- is a native, well-supported InfluxDB operation** (its own delete API/UI, or the CLI), not a gap. The original "TimescaleDB wins because Joseph hand-edits values" framing above was wrong on the premise (see the correction just above) -- for delete-only usage, InfluxDB and TimescaleDB (plain SQL `DELETE`, any Postgres GUI) are roughly equivalent; this is not a real differentiator between them after all.
 
 **Fits the project's existing pattern** of self-hosting rather than using cloud equivalents (Node-RED, MQTT, Immich, netalertx all run locally already) -- worth weighing in Planning, not a reason to skip the interview.
 

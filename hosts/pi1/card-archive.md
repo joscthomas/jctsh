@@ -75,3 +75,46 @@ Joseph is installing the fan next; re-check `vcgencmd get_throttled` afterward p
 
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4981B, over the 2000B size threshold.
+
+### CARD-0263 · [enhancement] [pi1] Switch the Pi from graphical boot target to headless — RESOLVED 2026-09-12 MST (already true, not what was assumed)
+**Status:** Done
+**Priority:** Medium
+
+**Raised 2026-09-12, from a discussion about whether the Pi's hardware is still adequate for its assigned role** (MQTT broker, Node-RED, HA, log server). Conclusion of that discussion: no evidence of the Pi actually straining — no performance complaints anywhere in this project's history, the real write-heavy state is already routed to the USB drive (CARD-0159), and CARD-0164's own direction reduces HA's SmartThings-entity load going forward rather than growing it. This card is the one concrete, already-identified inefficiency worth fixing regardless — not evidence the hardware needs replacing.
+
+**Current state, per `project_jctsh.md`'s own note (2026-07-12):** the Pi boots into `graphical.target` with a full desktop session running (X11/Wayland, desktop panel widgets, `rpi-connect`, etc. — confirmed as installed cruft during CARD-0125's own apt-upgradable audit). Day-to-day access is SSH-only — the physical desktop GUI was used exactly once, during initial setup, never since. Pure overhead for a host whose real job has nothing to do with a local display.
+
+**Scope:**
+1. `sudo systemctl set-default multi-user.target` on the Pi.
+2. Reboot and verify every Pi-native service comes back clean: Mosquitto, Node-RED, the `homeassistant` Docker container (reaching its own `healthy` state, not just "container exists" — same bar CARD-0158's reboot-health-check already applies), `jctsh-logging`.
+3. Confirm nothing actually depended on the desktop session running (unlikely, per the "used once during setup" history, but verify rather than assume).
+4. If a local display/desktop is ever needed again for troubleshooting, `sudo systemctl start graphical.target` (or `startx`) works on demand without needing to boot into it every time — document this in `SOFTWARE-ENVIRONMENT.md` or similar as the "how to get a desktop back if you ever need one" note.
+
+**Real finding, checked live before touching anything, 2026-09-12 — the premise was already stale.** `systemctl get-default` showed `multi-user.target` (headless) already set as the persistent default, and `uptime` showed the Pi had been running over a day since its last reboot — meaning it already booted headless successfully, with no action from this card. The desktop-environment packages (`lightdm`, `xserver-xorg-core`, etc.) are still installed as leftover cruft (matches CARD-0125's own finding), but the boot target itself was never actually graphical by the time this card was worked — the 2026-07-12 `project_jctsh.md` note this card was raised from had simply gone stale in the two months since. Steps 1-3 of the original scope needed no action; confirmed all relevant services healthy on the already-booted system instead of forcing an unnecessary second reboot: `mosquitto`/`nodered`/`jctsh-logging` all `active`, `homeassistant` Docker container `healthy` — this retroactively satisfies "verified via a real reboot test," since the current live state *is* the result of the last real cold boot.
+
+**Step 4 done and actually verified, not just written down.** The first pass documented `systemctl start graphical.target` alone, but that's not sufficient on its own — the Pi has no monitor attached (shelf-mounted, laundry room), so nothing would be there to view it. Found and fixed: activated **Raspberry Pi Connect** (already installed, per CARD-0125's own audit, but never signed in) via `rpi-connect on` + `rpi-connect signin` (a device-link flow — had to redo it once, since the first attempt died when the SSH command hit its own timeout before the user could approve it; the fix was running it detached via `nohup`). Live-tested end to end: a real browser screen-share session at `connect.raspberrypi.com` initially failed ("Failed to connect to screen sharing server") until `graphical.target` was started first — confirmed that dependency directly, not assumed — then reconnected successfully to a real, interactive desktop. `SOFTWARE-ENVIRONMENT.md`'s "Boot Target" section now documents the complete, verified procedure.
+
+**Done when:** the Pi boots headless by default, verified via a real reboot test (not just a manual `systemctl isolate`) — matching this project's own standing convention (CARD-0158, CARD-0129) of confirming a boot-time change against an actual cold boot, not a simulated one — with every service listed in step 2 confirmed healthy afterward. **Met**, via the already-occurred reboot rather than a newly-forced one — same verification bar, no unnecessary service interruption.
+
+**Related:** `project_jctsh.md` (the original 2026-07-12 observation), CARD-0125 (the apt-upgradable audit that found the desktop-environment packages), CARD-0158 (the reboot-health-check this reuses for post-reboot verification), `SOFTWARE-ENVIRONMENT.md`.
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4020B, over the 2000B size threshold.
+
+### CARD-0061 · [enhancement] [pi1] Add Docker health check for the Pi's Home Assistant container &mdash; RESOLVED 2026-07-12
+**Status:** Done
+
+**Notes:** Found 2026-07-12 during a Pi health evaluation. The `homeassistant` Docker container had no configured `HEALTHCHECK` &mdash; `docker ps`/`docker inspect` only reflected process liveness, not actual HA responsiveness. Same class of blind spot already found and fixed on photo-server (CARD-0032/CARD-0046: Docker's own health check only pings the API, doesn't verify real functionality) &mdash; HA is arguably the single most critical container on the Pi, since it's the sole bridge to SmartThings/Google Home for the whole house.
+
+**Resolution:** added a `healthcheck` block to `core/homeassistant/docker-compose.yml`: `curl -f http://localhost:8123/manifest.json` (lightweight, unauthenticated, confirmed working) every 60s, 10s timeout, 3 retries, 90s start period to cover HA's own boot time. Deployed to the Pi (`/home/pi/docker-compose.yml`) and recreated the container &mdash; the existing `homeassistant` container predated this compose project (no compose labels), so it had to be stopped and removed before `docker compose up -d` would take over management of it; HA's actual config lives in the bind-mounted `/home/pi/homeassistant` volume, not the container, so nothing was lost.
+
+**Live-tested 2026-07-12** using the same deliberately-break-it discipline as CARD-0029/CARD-0032/CARD-0046: confirmed `(healthy)` immediately after recreation, then froze HA's actual process inside the container (`kill -STOP` on the main `python3 -m homeassistant` PID &mdash; a genuine hang, not a container-level action, since that's exactly the failure mode this card exists to catch) and waited for the check to notice. Docker correctly flagged `unhealthy` with `FailingStreak: 3` after three consecutive failed checks. Resumed the process (`kill -CONT`); Docker correctly returned to `(healthy)`. Full Docker-level cycle (healthy &rarr; unhealthy on real hang &rarr; healthy again) verified end to end.
+
+**Dashboard-visibility gap found and closed (2026-07-12):** the Docker-level fix alone only fixed `docker ps`/`docker inspect` locally on the Pi &mdash; it did not surface anything on the JCTsh log dashboard, unlike the photo-server pattern this card was modeled on, which pairs a health check with a heartbeat script that publishes the result to MQTT. Built `core/homeassistant/pi-heartbeat.py`, checking `docker inspect homeassistant`'s health status and publishing to the existing `jctsh/core/log-server/log` topic under the `jctsh-core` component identity (same identity/topic/credentials already used by the Pi's boot/reboot notifications &mdash; `/etc/jctsh/log-server.env`, reused rather than a new dedicated MQTT account, since this is the same host's own infrastructure). Deployed via `core/maintenance/pi-heartbeat.service`/`.timer` (30 min, matching the fleet-wide heartbeat cadence). Hit one real bug during first deploy: initially built the topic from the component variable (`jctsh/core/jctsh-core/log`) instead of the fixed `jctsh/core/log-server/log` topic the log server actually expects &mdash; component name and topic segment are decoupled in this convention and are easy to conflate; fixed and redeployed.
+
+**End-to-end live-tested 2026-07-12:** repeated the freeze/resume test with the heartbeat script run manually at each stage, confirmed via the dashboard's actual `/data` endpoint (not the flushed-only `/log` text file, which delayed visibility of the healthy-state message inside an unflushed collapse group during testing and briefly looked like a bug before being traced to normal flush-timing behavior, not a real defect) &mdash; healthy (`System`, `Heartbeat - Docker containers healthy.`) &rarr; unhealthy (`Alert`, `Docker degraded - homeassistant:unhealthy`, visible immediately since Alert messages don't collapse) &rarr; healthy again, all three states confirmed present and correctly categorized on the live dashboard.
+
+---
+

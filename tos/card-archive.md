@@ -1308,3 +1308,342 @@ Real caveats before this becomes the plan (not yet resolved): unofficial/unsuppo
 
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 3566B, over the 2000B size threshold.
+
+### CARD-0361 · [bug] [tos] `/kanban` shows a cryptic JSON-parse error instead of the real reason when `/kanban/data` fails, and the board had grown close to the size-risk tier
+
+**Status:** Done
+**Priority:** Medium — real UX bug found live, not urgent (the underlying fetch failure it was masking is intermittent/likely transient), but worth closing before the confusing message recurs.
+
+**Raised 2026-09-28 17:5x MST (tos session), Joseph reported the live `/kanban` page: `Failed to load kanban-board.md: SyntaxError: Unexpected token 'C', "Could not "... is not valid JSON`.**
+
+**Root cause, confirmed live:** `/kanban/data`'s client-side JS (`log_server.py`, `load()`) did `fetch('/kanban/data').then(function (r) { return r.json(); })` with no `r.ok` check. Whenever the Pi's own fetch of `kanban-board.md` from `raw.githubusercontent.com` fails (`_load_kanban_cards()`'s `except (URLError, OSError, UnicodeDecodeError): return None, None`), the server correctly returns a 503 with a **plain-text** body (`Could not fetch <raw URL>`) — but the client blindly tried to `JSON.parse()` that plain text anyway, producing the cryptic `SyntaxError` instead of showing the real reason.
+
+**Investigated whether the `.md` file itself was the problem, per Joseph's steer:** fetched the live raw GitHub URL directly from this session — 926,145 bytes, valid UTF-8, byte-identical to local `HEAD`. No encoding break, no fetch failure reproducible from here. `kanban-board.md` had grown to 926KB, though — 90% of the dashboard's own 1MB "red" size tier (`log_server.py`'s `formatSize()`), and CARD-0193's own archive discipline (Status Done/Defer + 5000B+) hadn't been run in a while. Genuinely eligible cards existed (CARD-0360, CARD-0357, CARD-0344, CARD-0234) at ~4KB–16KB each. A file this size, fetched over the Pi's own network path with `urlopen`'s fixed 10s timeout, is a real plausible source of an intermittent fetch failure — not confirmed as *the* cause (no direct Pi-side log access this session), but a real contributing risk regardless of whether it was the actual trigger this time.
+
+**Fix:**
+1. **`tos/archive_cards.py --apply`** — archived the 4 eligible cards to their component/`tos` `card-archive.md` files. `kanban-board.md`: 926,145 → 897,147 bytes.
+2. **`core/logging/log_server.py`'s `load()`** — now checks `r.ok` first; on failure, reads the response as text and throws that as the error message instead of unconditionally parsing it as JSON. A future fetch failure (of any kind — this one or a different one) now shows its real reason on `/kanban` instead of a JSON-parse red herring.
+
+**Verified:** `py -3.11 -m py_compile core/logging/log_server.py` — compiles clean. **Not yet deployed** — `log_server.py` is running production code on the Pi (`jctsh-logging` systemd service); per `JCTsh-Operating-System.md`'s commit/push rule, that class of change gets a real offer-and-wait even when the surrounding work is authorized. Deploy is `scp core/logging/log_server.py pi@pi1.local:/home/pi/jctsh/core/logging/` + `ssh pi@pi1.local "sudo systemctl restart jctsh-logging"` (`core/logging/README.md`), pending Joseph's go-ahead.
+
+**Done when:** met for the source fix and the board-size mitigation; deploy + live `/kanban` re-check is the remaining step once Joseph confirms.
+
+**Related:** CARD-0193 (archive_cards.py, the size-threshold discipline this card leaned on), CARD-0190 (the original 1MB Contents-API incident this file's size keeps circling back to), `core/logging/log_server.py`, `tos/archive_cards.py`.
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4401B, over the 2000B size threshold.
+
+### CARD-0329 · [bug] [tos] Full board sweep for `TZ=`-path timestamp contamination — six more found, dating back to 2026-08-14 — RESOLVED 2026-09-22 10:30 MST
+
+**Status:** Done
+
+**Raised 2026-09-22 10:15 MST (Joseph, "what must be done to fix this timestamp issue?"), after the porch/patio session found and fixed one bad stamp on CARD-0219** (`18:46 MST` written, `11:46 MST` true — `TZ=America/Phoenix date` silently returns UTC in this environment, no zoneinfo database, right zone label, wrong time, no error) and this session documented the mechanism in `tos/JCTsh-Session-Start.md`. One known instance raised the obvious question: was that the only casualty, or had the bug been running longer than today?
+
+**Method.** `git blame --date=format-local` every timestamp-bearing line in `tos/kanban-board.md`, compare each embedded `HH:MM MST` stamp against the *introducing commit's own local time* (git's author-date offset is always numeric and correct — established as ground truth earlier today). Flag any stamp **5–9 hours ahead** of its commit — the `TZ=` bug's exact signature, since git commits are unaffected but Bash-tool-generated prose stamps are. **Validated against the known-bad CARD-0219 case before trusting a zero result** (a first pass found nothing due to a blame-parsing bug, not a clean board — re-run after fixing the parser reproduced the known case exactly: 7.0h ahead, confirming the method before it was applied to the live file).
+
+**Six more contaminated stamps found, none from today — all pre-dating this session's own discovery of the bug:**
+
+| Card | Stamp written | True time | Commit | Commit local time |
+|---|---|---|---|---|
+| CARD-0295 | `2026-09-18 16:57 MST` | `09:57 MST` | `2b58ffc1` | `10:00` |
+| CARD-0202 | `2026-08-23 14:27 MST` | `07:27 MST` | `3c448118` | `07:45` |
+| CARD-0203 (×2) | `2026-08-23 14:27 MST` | `07:27 MST` | `3c448118` | `07:45` |
+| CARD-0200 | `2026-08-23 14:16 MST` | `07:16 MST` | `02461309` | `07:22` |
+| CARD-0168 (×2: title + resolution note) | `2026-08-15 02:28 MST` | `2026-08-14 19:28 MST` | `d5299bc0` | `19:29` |
+
+Every corrected time lands within 1–18 minutes *before* its own commit — the pattern expected if a session read the (broken) clock, wrote the stamp, then committed shortly after. **This has been live since at least 2026-08-14** — over five weeks — not a today-only defect; it simply took today's porch/patio finding to know to look.
+
+**Fixed in place, not silently rewritten** — each stamp corrected inline with a short `(corrected 2026-09-22 ... see CARD-0329)` note, per this document's "mark and strike through, don't silently delete" convention, rather than erasing the evidence a five-week-old bug existed.
+
+**Re-swept after fixing — zero suspects remain** in `tos/kanban-board.md`. Not extended to component `card-archive.md`/`kanban-archive.md` files or other repos (LogSeq/PB-Blog) this pass — same method applies if ever warranted, not done speculatively.
+
+**Done when:** met. Root cause and detection already documented in `tos/JCTsh-Session-Start.md` (this card's prerequisite, not its own scope); this card is the one-time retroactive sweep, complete, with zero remaining suspects confirmed by re-running the same detector against the corrected file.
+
+**Reflection.** A tool bug with no error output can run for weeks before anyone notices, because each individual stamp looks plausible in isolation — it took a *second* observer's arithmetic (porch/patio's own 1.4-vs-7-hour cross-check) to surface the first instance, and only a mechanical sweep, not casual review, found the other six. The generalizable point: once a systematic-but-silent corruption source is confirmed, check for its blast radius immediately rather than assuming a single caught instance was the only one — the same discipline `JCTsh-Operating-System.md`'s Engineering Discipline section already states ("verify a claimed completion directly"), applied here to a claim of scope ("that was the only one") rather than a claim of done-ness.
+
+**Related:** `tos/JCTsh-Session-Start.md` (root cause, detection method, and the timestamp rule this bug undermines), CARD-0219 (the first instance, found and fixed by the porch/patio session), CARD-0291 (this session's own three forward-estimated — not `TZ=`-caused — stamps, a related but distinct failure mode fixed the same morning).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4283B, over the 2000B size threshold.
+
+### CARD-0317 · [idea] [tos] Create a new repo for Bible study content — RESOLVED 2026-09-20
+
+**Status:** Done
+
+**Raised 2026-09-19, via the auto-PR intake pipeline (PR #110, jctsh-core maintenance check).** Original finding text: "create a repo for the Bible study and a tool that examines the questions for the feedback items I've received."
+
+**Scope:** create a new, separate repo for Bible study content — same pattern as CARD-0297 (LogSeq) and CARD-0298 (Pastor Ben blog), which each moved a distinct content domain into its own dedicated repo under `Projects/` rather than folding it into jctsh or an existing repo.
+
+**Note for whoever picks this up:** the original finding also mentions "a tool that examines the questions for the feedback items I've received" — not yet scoped or interviewed at all; captured here so it isn't lost, but it's a separate piece of work from the repo creation itself and needs its own interview before any building starts.
+
+**Prerequisite written 2026-09-19, folded in here (Joseph's call) rather than its own card** — `tos/New-Repo-Setup-Protocol.md`, the step-by-step procedure extracted from CARD-0297/CARD-0298's own execution (interview, secrets sweep, cruft cleanup, sync-service handling, backup-conflict check, `.gitignore` categories, kanban bootstrap, README, private GitHub repo, session note). This card's own execution should follow that protocol directly rather than rediscovering its steps.
+
+**Scoped 2026-09-20 — content answer, not what was assumed.** "Bible study content" is documents Joseph writes and manages as Google Docs, not local files. Interviewed directly ("Doesn't make sense to put these docs in the repo? How can I think about this?") before assuming a migration: three options laid out (Google Docs stays authoritative/repo holds process only; periodic export into the repo; full migration into repo-native files like LogSeq/PB-Blog). **Joseph's decision: Google Docs stays authoritative** — collaborative editing, comments, and Google's own revision history are load-bearing here, unlike LogSeq's/PB-Blog's local-file cases. This repo holds process tracking (a kanban board) and, eventually, an index of links to the Docs — not a copy of their content.
+
+**Real deviation from `tos/New-Repo-Setup-Protocol.md`, worth noting there too:** that protocol's every step assumes an existing unversioned folder being migrated (interview about sync services, secrets sweep, cruft cleanup, a physical move Joseph performs). This card had no such folder — the repo was created fresh, directly, since the actual content intentionally never enters git at all. Not a gap in the protocol, just a case its steps don't apply to; noted on the protocol doc itself so a future reader doesn't assume every "new repo" card is a folder migration.
+
+**Built 2026-09-20:** `Rethinking Scripture Bible Study` directory created under `Projects/` (in `JCT Documents not synced`, already excluding it from Google Drive's backup by inheriting `Projects/`'s own location — no separate backup-conflict check needed), `git init`, `kanban-board.md` bootstrapped from `tos/Portable-Kanban-Template.md` (CARD-0001: building an index of the study's Docs once they exist, plus the still-unscoped "tool that examines the questions for the feedback items" from the original finding), `README.md` documenting the architecture decision and the options considered, private GitHub repo (`github.com/joscthomas/Rethinking-Scripture-Bible-Study`, confirmed `PRIVATE`), pushed.
+
+**The "tool that examines the questions for the feedback items I've received"** from the original finding is carried into the new repo's own CARD-0001 rather than closed here — still not scoped, needs its own interview whenever Joseph picks it up.
+
+**Done when:** met — repo exists, private, pushed; `kanban-board.md` bootstrapped; the content-location decision made and documented, not left implicit.
+
+**Related:** CARD-0297 (LogSeq → repo, the precedent this follows), CARD-0298 (Pastor Ben blog → repo, same shape), CARD-0301 (created the `Projects/` parent directory and portable kanban template these repo-creation cards use), `tos/New-Repo-Setup-Protocol.md` (the procedure whose folder-migration assumption this card didn't fit, noted there).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2535B, over the 2000B size threshold.
+
+### CARD-0310 · [enhancement] [tos] Session Start: check for unmerged remote branches with real work, not just local uncommitted changes
+
+**Status:** Done — RESOLVED 2026-09-19 18:47 MST
+
+**Raised 2026-09-19 (Joseph, direct instruction: "what can we do to make the mobile session work like it should," after "yes, add it" confirming the recommendation) — real incident-driven, not speculative.** CARD-0309 (a PR review checklist, genuinely built, verified, and marked Done) was completed entirely on a branch a mobile/cloud session pushed to (`claude/pr-review-handling-t5b3ck`) but never merged into `main`. Nothing in the existing Session Start checklist would have caught this — step 1's `git status --short` only sees the current session's own local working tree, not other branches sitting on `origin`. This session only found it by chance, via a `git fetch` run for an unrelated reason (reconciling a `next-card-id` collision with CARD-0308).
+
+**Root cause left genuinely open, not assumed:** whether the mobile session's branch-based workflow (instead of committing straight to `main`, as this desktop session does) is a fixable choice or an inherent platform behavior for mobile/cloud Claude Code sessions wasn't determined — out of scope for a repo-level doc to control either way. This card's fix is a **catch-it-every-session safety net**, not a prevention of the underlying cause.
+
+**Built:** extended `tos/JCTsh-Session-Start.md` step 1 with a second check — `git fetch` then `git branch -r --no-merged origin/main`, explicitly excluding the auto-generated `maintenance-alert/*` branches (CARD-0128's intake pipeline, expected to sit unmerged until reviewed via `tos/pr-review-checklist.md`, not a miss). Anything else found gets summarized to Joseph and merged in if it looks complete, same care as reconciling local uncommitted changes.
+
+**Done when:** the check is documented as a standing part of Session Start step 1. **Met, 2026-09-19.** (Real-world effectiveness — whether this actually catches the next stray branch — will only be confirmed the next time one exists; not a live-verified fix in the CARD-0279/0286 sense, since there's no stray branch to test against right now.)
+
+**Related:** CARD-0309 (the incident this responds to), CARD-0307 (created `tos/JCTsh-Session-Start.md` this card extends), CARD-0128/CARD-0190 (the `maintenance-alert/*` branch pattern this check must not false-positive on), `tos/pr-review-checklist.md` (where a real found branch/PR gets handled once surfaced).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 3046B, over the 2000B size threshold.
+
+### CARD-0307 · [enhancement] [tos] Split the general Session Start checklist out of CLAUDE.md; orient sessions starting at the Projects/ parent directory
+
+**Status:** Done — RESOLVED 2026-09-19 11:55 MST
+
+**Raised and built 2026-09-19 (Joseph, two direct instructions in the same thread) — small enough to interview-by-instruction rather than a separate scoping pass.**
+
+**Part 1: "move the steps to an md file in tos, and point to them in CLAUDE.md."** Root `CLAUDE.md`'s Session Start section had grown to ~90 lines of inlined checklist (the same "read every session" content genuinely belongs there, but per `JCTsh-Operating-System.md`'s Documentation Structure section, a large block like this benefits from the same split-by-topic treatment already applied to `JCTsh-Operating-System.md` and `JCTsh-Component-Session-Start.md` — still read every session, just no longer bloating the file a session opens first). Moved the full 9-step list plus the timestamp-format rule verbatim into new `tos/JCTsh-Session-Start.md`; `CLAUDE.md`'s Session Start section is now a short pointer. **Updated the one file that referenced the old location by name:** `JCTsh-Component-Session-Start.md`'s Purpose line said "instead of `CLAUDE.md`'s general Session Start" — corrected to point at `tos/JCTsh-Session-Start.md`, version-bumped (1.12 → 1.13) with the superseded description moved into `JCTsh-Component-Session-Start-History.md`, per that document's own established convention. The 9-step numbering `JCTsh-Component-Session-Start.md`'s own table maps against is unchanged, so that table itself needed no edits.
+
+**Part 2: "note that a general session is likely to start at the Projects directory in addition to the JCTsh directory."** Real gap CARD-0301 never addressed when it created the shared `Projects/` parent for `jctsh`/`LogSeq`/`PB Blog` — nothing oriented a session that starts one level up, at `Projects/` itself, before any repo's own `CLAUDE.md` is even in view. Added `Projects/README.md` (untracked — `Projects/` isn't a git repo, purely a filesystem convenience per CARD-0301) listing the three repos and directing a session that starts there to identify the relevant repo, `cd` in, and follow that repo's own process — explicitly not assuming jctsh's process applies to LogSeq/PB Blog work.
+
+**Done when:** `tos/JCTsh-Session-Start.md` exists with the moved content, `CLAUDE.md` points to it, `JCTsh-Component-Session-Start.md`'s reference is corrected and versioned, and `Projects/README.md` orients a session landing at the parent directory. **Met — all four, this session.**
+
+**Related:** CARD-0301 (created the `Projects/` parent this card's second half orients sessions within), CARD-0292 (the version-history-split precedent this card's `JCTsh-Component-Session-Start.md` edit followed), CARD-0289 (documentation-splitting-by-read-frequency, the principle this card's first half applies to `CLAUDE.md` itself), `tos/JCTsh-Session-Start.md`, `tos/JCTsh-Component-Session-Start.md`, `Projects/README.md`.
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 3844B, over the 2000B size threshold.
+
+### CARD-0296 · [idea] [tos] Set up remote access for running Claude Code sessions away from the desktop — RESOLVED 2026-09-20
+
+**Status:** Done
+
+**Auto-opened 2026-09-18 from jctsh-core's maintenance check (CARD-0128).** Raw finding: "Set up remote access for Claude Code" — the finding body also carried a pasted walkthrough (from another assistant session, not a decision made here) proposing OpenSSH Server on the Windows machine + Tailscale + Termux on the Pixel, with a note that the author had no access to this repo and was guessing at the setup.
+
+**Goal, as captured:** be able to run Claude Code against this repo from the Pixel while away from the desktop, rather than only from the Windows machine the working tree lives on.
+
+**Approach deliberately left open, 2026-09-18 (Joseph's call) — the pasted SSH/Termux/Tailscale walkthrough is one candidate, not the decision.** Open questions to resolve during planning:
+1. **First-party options not yet evaluated.** Claude Code has its own remote paths that the pasted walkthrough predates or ignores — Claude Code on the web (`claude.ai/code`), and Remote Control driving a session on another machine. Either could make a hand-rolled SSH setup unnecessary. Evaluate these before building anything.
+2. **If SSH is still the answer:** Tailscale is already installed and working on the Pi and the RV Pi (`CLAUDE.md`'s Remote Access section) — a Windows node would join the same tailnet with no port forwarding, which is strictly better than the walkthrough's port-forward-22 alternative. The walkthrough's port-forward option should not be adopted.
+3. **What "running Claude Code" actually needs to mean here** — a shell for git/status/commits only, versus genuinely doing editing work from a phone screen. These have very different setup costs and the walkthrough itself flags phone-screen editing as rough.
+4. **Whether the working tree should even live on the Windows box for this** — a session run from elsewhere against a different checkout raises the same concurrent-edit questions `CLAUDE.md`'s Concurrent Sessions section already covers, and CARD-0283 already tuned for.
+
+**Approach decided, 2026-09-20 — first-party Remote Control**, resolving open question #1. Joseph's 2026-09-19 attempt (opening the Claude Android app cold) created a new, disconnected cloud session rather than reaching a desktop one — root cause confirmed via `claude-code-guide` research: Remote Control has to be started explicitly on the desktop side first (`/remote-control` inside an existing session, `claude --remote-control`, or standalone server mode) before the phone can see and connect to it. Full mechanics, multi-session behavior (yes — each session running `/remote-control` independently is reachable at once; server mode as a heavier pooling option not needed at this project's scale), and setup steps written up in `tos/Remote-Control-Setup.md`. `/remote-control` run inside this very session as the live test.
+
+**Phone-side connection confirmed live, 2026-09-20** — Joseph connected to this exact session from the Android app and drove a message through it ("Yes, confirming now remotely"), received and acted on inside this same session. Real end-to-end proof, not just the desktop side being enabled.
+
+**Done when:** met. An approach is decided and written down (first-party Remote Control, `tos/Remote-Control-Setup.md`), and a real Claude Code session has been run against this repo from the Pixel end to end — confirmed live, both directions.
+
+**Related:** CARD-0128 (the auto-PR intake pipeline this was raised by), `CLAUDE.md` (Remote Access section — the existing Tailscale footprint any SSH approach would build on; Concurrent Sessions section), CARD-0283 (concurrent-session editing discipline, relevant if a second checkout enters the picture).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 3625B, over the 2000B size threshold.
+
+### CARD-0292 · [enhancement] [tos] Split a document's own version-history out of its header into a sibling `<Doc>-History.md`
+
+**Status:** Done
+
+**Raised 2026-09-17 (Joseph), directly from watching `JCTsh-Operating-System.md`'s own "Version description" field keep growing across this session's own edits.** Every version bump had been prepending new text while keeping every prior "Prior version description" entry chained inline — the field had reached ~6KB, over 20% of a 29KB file, the exact same unbounded-growth shape `kanban-board.md` (CARD-0193) and component `CLAUDE.md` files (CARD-0290) already hit and were fixed for, one layer up (a doc's own changelog, not just its subject matter).
+
+**Interviewed 2026-09-17.** "Put doc version tracking in a separate file and point at it... make this a pattern and apply when appropriate" — a standing Documentation Structure rule, not a one-off fix to a single file. Scope decided by measuring actual size (Engineering Discipline — verify, don't assume) rather than applying it everywhere reflexively:
+
+| Document | Version-history size | Action |
+|---|---|---|
+| `JCTsh-Operating-System.md` | ~6KB header chain (21% of 29KB file) | Split |
+| `JCTsh-Component-Session-Start.md` | ~2.5KB header chain (22% of 11KB file) | Split proactively — same pattern, would hit the same growth soon |
+| `JCTsh-Build-Standards.md` | 14.6KB dedicated table (12% of 122KB file) | Split |
+| `JCTsh-Session-Card-Selection.md` | 301B header field (10% of 3KB file) | Left alone — not yet a real problem |
+
+**Built, 2026-09-17.** Three new sibling `<Doc>-History.md` files created, one per qualifying document, each holding the complete version-by-version changelog as a table. Each live document's header now states only its **current** version's description — never chained prior ones — plus a `**Version history:**` pointer line to its history file. For `JCTsh-Operating-System.md` and `JCTsh-Component-Session-Start.md`, the existing prose chains were parsed and reconstructed into per-version table rows; versions 1.2–1.5 of `JCTsh-Operating-System.md` had been bundled into a single unrecoverable paragraph (each of those four edits fully restated the field before the chaining habit began, rather than prefixing a "Prior version description"), noted honestly in the history file rather than assigning fabricated individual version numbers. `JCTsh-Build-Standards.md`'s existing table already carried real per-version numbers throughout, so that split was a clean cut-and-move.
+
+**Documented as a standing pattern, `JCTsh-Operating-System.md`'s Documentation Structure section** (→ v1.15): a document's version-tracking splits into `<Doc>-History.md` once it stops being a short header field — a real "Prior version description" chain or dedicated table, not a vague sense of "too long." Applied immediately to the three qualifying documents above.
+
+**Done when:** the three qualifying documents each have a `<Doc>-History.md` sibling, their own headers trimmed to current-version-only, and the pattern is documented in `JCTsh-Operating-System.md` for future use. **Met.**
+
+**Related:** CARD-0193 (`kanban-board.md`/`kanban-archive.md`, the original instance of this same growth pattern), CARD-0290 (component `CLAUDE.md`/`card-archive.md`, the same pattern one layer down), CARD-0289 (the general documentation-splitting-by-read-frequency principle this extends to a document's own changelog), `tos/JCTsh-Operating-System-History.md`, `tos/JCTsh-Component-Session-Start-History.md`, `JCTsh-Build-Standards-History.md` (the three new files this card produced).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4160B, over the 2000B size threshold.
+
+### CARD-0288 · [idea] [tos] Session card-selection criteria — which card to pick up next, distinct from the Priority tag — RESOLVED 2026-09-17
+
+**Status:** Done
+
+**Raised 2026-09-17 (Joseph), this session.** Wants a documented, repeatable answer to "given several candidate cards, which one does a session actually pick up" — separate from the existing Priority tag (`JCTsh-Operating-System.md`'s Priority section), which describes urgency, not selection order.
+
+**Interviewed 2026-09-17.** Basis: a real prior pick (CARD-0286 over CARD-0258/0276/0279/0287/0278) and the reasoning behind it, generalized into an ordered rule:
+1. **Actionable now vs. blocked on something else** — skip a card, even one in Build, if there's nothing left for Claude to do on it right now (waiting on a real-world recurrence, a manual deploy step, etc.), not on more work from this session.
+2. **Whose job it is** — skip a card whose next step belongs to Joseph by this project's established division of labor (e.g. Tasker profile build/confirm); Claude's part there is already done at the scoping stage.
+3. **Already scoped beats not yet scoped** — a card with a full interview and concrete acceptance criteria already sitting in Backlog/Planning is cheaper to pick up than one still essence-only, needing a Planning pass before any code gets written.
+4. **Bugs before enhancements — a tiebreaker only, decided 2026-09-17.** Applied only when two or more candidates tie on all three factors above; does not override factor 1 (a blocked bug still loses to an actionable enhancement).
+
+**Explicitly not weighed:** raw severity beyond the bug/enhancement tiebreaker, card age, business impact — can be added later if they prove genuinely load-bearing, not swept in preemptively.
+
+**Scope, revised 2026-09-17 (Joseph) — a standalone file, not an embedded section.** Claude's original recommendation was a new "Session Card Selection" section inside `JCTsh-Operating-System.md` itself, next to Priority; Joseph asked for it as its own file instead. Landed on `tos/JCTsh-Session-Card-Selection.md`, matching the existing precedent of `JCTsh-Component-Planning-Pattern.md`/`JCTsh-Build-Standards.md` — standalone `JCTsh-*.md` docs referenced *from* the Operating System doc rather than embedded in it. `JCTsh-Operating-System.md` gets a short pointer paragraph (in the same Priority-adjacent location) plus a version bump instead of the full text; `CLAUDE.md`'s Session Start pointer names the new file directly.
+
+**Done when:** `tos/JCTsh-Session-Card-Selection.md` documents the four ordered factors, `JCTsh-Operating-System.md` points to it, and `CLAUDE.md` points to it from Session Start.
+
+**Follow-on, 2026-09-17 (Joseph) — a consistent table format for a requested open-cards listing, combining Priority with this card's ordering.** Raised after a plain flat-list answer to "list the open cards" felt inconsistent. Decided via interview: always render as a table (ID/Status/Title); order by Priority tier first (Critical → High → Medium → Low → unset), then by this card's four factors within each tier. Doesn't reopen this card's own "severity wasn't weighed" stance for *selection* — that's about which card a session picks up next, a different question from how a requested *listing* gets displayed. Documented in both places: `JCTsh-Operating-System.md`'s Listing open cards convention (→ v1.12) states the table/ordering rule itself; `JCTsh-Session-Card-Selection.md` (→ v1.1) gets a short note on how it combines with Priority for display, without changing what it weighs for selection.
+
+**Done when (extended):** as above, plus both documents state the combined table/ordering rule and cross-reference each other for it. ✓
+
+**Related:** `tos/JCTsh-Session-Card-Selection.md` (the new doc this card produced), `JCTsh-Operating-System.md` (Priority section, the adjacent-but-distinct existing concept; also its Listing open cards convention, now combined with this card for display ordering), CARD-0286 (the real pick this rule generalizes from), CARD-0258 (originated the Listing open cards convention this follow-on extends).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2764B, over the 2000B size threshold.
+
+### CARD-0283 · [enhancement] [tos] Concurrent-session editing: reread kanban-board.md only on a failed Edit, not before every edit — RESOLVED 2026-09-17
+
+**Status:** Done
+
+**Raised 2026-09-17 (Joseph), from a discussion about what's actually clunky in the current concurrent-session workflow.** Not real collisions — the friction is that `CLAUDE.md`'s existing "Concurrent Sessions" guidance has every session reread `tos/kanban-board.md` fresh immediately before *every single edit*, as a precaution, even though the overwhelming majority of edits have zero real contention with another session. That's a real, continual cost (a full reread round-trip per edit) paid regardless of whether anything actually changed underneath.
+
+**Decided 2026-09-17 (Joseph's call) — try the lazy/reactive alternative first, before anything heavier (a lock file, etc.):** stop rereading preemptively. Attempt an edit against the content already in hand; `Edit`'s own exact-string match already fails safely if another session changed that text in the meantime. Only reread (the specific affected section, then retry) when an `Edit` call actually fails due to a stale match. Same safety guarantee as today — a stale write still can't silently clobber another session's change — just no wasted reread when there was never any real contention. A heavier fix (a session-scoped `.kanban.lock` file, claimed once per multi-edit pass rather than per edit) was discussed as the next lever if this alone doesn't cut it, not adopted now.
+
+**Scope:** update `CLAUDE.md`'s "Concurrent Sessions" section — replace "Re-read shared files fresh immediately before editing them, especially `tos/kanban-board.md`" with the reactive convention above. No code/tooling change, no new files — a pure convention change for how Claude Code sessions (this one included) behave when editing shared files going forward.
+
+**Done when:** `CLAUDE.md` reflects the new convention, and it's been used at least once in a real session without incident (an Edit failing due to genuine staleness, caught and retried correctly, or simply many edits going through with fewer rereads than the old convention would have required). **Met, 2026-09-17** — `CLAUDE.md`'s "Concurrent Sessions" section already reflects the convention, and this very `tos` component session exercised it live: a long string of `Edit` calls against `tos/kanban-board.md` (this same file), no preemptive reread before any of them, zero stale-match failures — the "many edits going through with fewer rereads" branch of the done-when, satisfied in practice rather than left to a future session.
+
+**Related:** `CLAUDE.md` ("Concurrent Sessions" section), `tos/kanban-board.md` (the shared file this convention protects).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2921B, over the 2000B size threshold.
+
+### CARD-0282 · [enhancement] [tos] Session Start's log dashboard check should use the live `/status` page, not raw `jctsh.log` grep — RESOLVED 2026-09-17
+
+**Status:** Done
+
+**Raised 2026-09-17 (Joseph), directly from CARD-0281's false alarm.** That card's original "garage-radar silent for 3 months" finding came from grepping the raw `/mnt/jctsh-logs/jctsh.log*` file for a component's activity — but this project already has a documented convention (memory: "Dashboard vs raw log") that the raw file only gets a line written after a flush trigger (a state change, 15 minutes, or another message), while the live `/status` page reflects real, current per-component connection/freshness state directly. Querying `/status` in this same investigation immediately showed the device `Connected`/`Online` with a recent heartbeat — the raw-grep method gave a materially wrong picture that a `/status` check would have caught immediately.
+
+**Essence:** `CLAUDE.md`'s Session Start step 8 ("Examine the JCTsh Log Dashboard... for system problems or data issues") should explicitly point at `/status` (or another live, current-state view) as the way to check "is component X actually alive right now" — not a raw-log grep, which is the wrong tool for that specific question even though it's a fine tool for "what did component X say recently."
+
+**Interviewed 2026-09-17 (Joseph), in the `tos` component session — added a second dimension beyond the original essence.** This is also a new general-session-vs-component-session distinction, the same shape as CARD-0284's kanban-tag scoping: a **general** session's device-health check scans `/status` across every device; a **component** session scans it for only the device(s)/component(s) it actually covers, not the whole fleet.
+
+**Scope:**
+1. `CLAUDE.md`'s Session Start step 9 (the actual current step number — the card's original "step 8" reference was already stale) points at `/status` for a liveness check, explicitly contrasted with the raw-log grep's different purpose ("what did X say recently," not "is X alive now").
+2. `tos/JCTsh-Component-Session-Start.md` gains a new step 5, mirroring step 3's kanban-scoping principle: a component session scopes the `/status` check to its own covered component(s) only.
+
+**Built, 2026-09-17.** `CLAUDE.md` step 9 updated in place with the `/status`-vs-raw-log distinction and the general-vs-component-session scoping note. `JCTsh-Component-Session-Start.md` → v1.5, new step 5 added.
+
+**Done when:** both documents state the `/status`-for-liveness rule and the general-vs-component scoping distinction. **Met.**
+
+**Related:** CARD-0281 (the false alarm that raised this), CARD-0284 (the analogous kanban-scoping precedent this generalizes to device health), `CLAUDE.md` (Session Start step 9), `core/logging/log_server.py` (`/status` endpoint), `tos/JCTsh-Component-Session-Start.md` (new step 5, now v1.5).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4240B, over the 2000B size threshold.
+
+### CARD-0228 · [bug] [tos] email-idea-check.py failures are invisible to the log dashboard — only successful PR-opens get logged — RESOLVED 2026-09-02
+**Status:** Done
+
+**Raised 2026-08-29 (Joseph), during the same conversation that produced CARD-0225/CARD-0227** — checking whether `email-idea-check.py` (the `joscthomas+kbc@gmail.com` intake pipeline, CARD-0151) had the same MQTT-dashboard-invisibility problem CARD-0225 raised for three other phone-based pipelines. It doesn't, not fully — this is a narrower, partial version of that same class of gap, not the same card.
+
+**What's already working:** the success path publishes to MQTT today — `_publish_log("System", 'Email idea -> kanban PR: "..." -- {pr_url}')` on `jctsh/core/log-server/log`, component `jctsh-core` — so a successfully-opened PR already shows up on the dashboard. This is why the pipeline wasn't included in CARD-0225's list of pipelines with zero MQTT presence.
+
+**The real gap: the failure path has no equivalent.** In the main loop's `try/except` around `open_finding_pr()` and the Gmail "mark read" call, a caught exception only does `print(f"Failed to open PR for '{subject}': {e} -- leaving unread for retry")` — stdout/journal only, on the Pi. Nothing reaches MQTT, nothing reaches the dashboard. A silently-failing idea email (expired OAuth token, GitHub API hiccup, etc.) leaves no trace anywhere Joseph would normally look — the same shape of "looks fine, actually failed silently" problem CARD-0156 found and fixed for the Tasker observation queue, not yet caught here.
+
+**Built, deployed, and verified live 2026-09-02.** Added an `Alert`-level `_publish_log()` call inside the existing `except` block around `open_finding_pr()`, wrapped in its own try/except so a broken MQTT publish can never mask the real failure by raising over it (`print("(also failed to publish...")` fallback). Deployed to the Pi (`/usr/local/bin/email-idea-check.py`, same `scp` + `sudo cp` pattern as every other Pi deploy this session).
+
+**Real, deliberately-forced failure test, with a full backup/restore around it** — same discipline as CARD-0121's simulated-gap test:
+1. Backed up the real `/etc/jctsh/github.env` (the GitHub PAT).
+2. Needed a real unread `jctsh-idea` email to give the script something to process — re-marked an already-processed one unread. First attempt picked a message that had ended up in Trash, confirmed via a direct query that it doesn't match the script's own `to:kbc is:unread` search (Gmail excludes Trash by default) — found and used a different, still-in-INBOX one instead.
+3. Overwrote `github.env` with a deliberately-invalid PAT, ran the real deployed script: `Failed to open PR for '(no subject)': HTTP Error 401: Unauthorized -- leaving unread for retry` — the failure path fired exactly as designed.
+4. **Confirmed live on the real dashboard** (`/mnt/jctsh-logs/jctsh.log`, not just printed locally — same pending-buffer flush delay noted in CARD-0121/CARD-0227 encountered again here, resolved the same way, by waiting and rechecking): `2026-09-02 19:51:25 MST | jctsh-core | Alert | Email idea -> kanban PR failed for "(no subject)": HTTP Error 401: Unauthorized`.
+5. **Fully restored afterward:** real PAT restored from backup, diffed byte-for-byte identical against the backup to confirm; both touched test emails marked back to their original read state; backup file removed. Final sanity run with the real PAT: `No new idea emails.` — clean, no leftover unread test messages that could get double-processed on the next real scheduled poll.
+
+**Done when:** a deliberately-forced failure in this script (e.g. a bad GitHub PAT) produces a real, visible log entry on the live dashboard describing the failure, verified live — **met**.
+
+**Related:** `tos/email-idea-check.py` (`_publish_log`, the `try/except` around `open_finding_pr()`), CARD-0151 (original build), CARD-0225 (the sibling card for the three pipelines with *no* MQTT presence at all — this card is deliberately kept separate since the mechanism and the fix are narrower), CARD-0156 (the analogous silent-failure fix on the Tasker side), CARD-0121 (the simulated-failure-test-with-backup/restore discipline this test followed).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4635B, over the 2000B size threshold.
+
+### CARD-0114 · [enhancement] [tos] Status field per card, replacing physical column position — RESOLVED 2026-07-29 16:28 MST
+**Status:** Done
+
+**Raised 2026-07-29 07:59 MST**, after tonight's CARD-0106/0108/0104 move to Done briefly corrupted a large stretch of `kanban-board.md` — a script assumed a fixed line-offset for the insertion point instead of a real content marker, and a second recovery attempt made the same mistake in reverse (discarding everything before a search anchor). Both were caught and repaired, but the underlying problem is structural: a card's column is encoded as *physical location in a 2000+ line file*, so every status change requires relocating a whole prose block — exactly the operation that's error-prone for both a script and a human eyeballing large diffs.
+
+**Confirmed via discussion:** Joseph never reads `kanban-board.md`'s raw file directly — he only ever views it through the live-parsing Pi page (CARD-0057, `/kanban`). So raw-file top-to-bottom column grouping has no reader-facing value; it only exists for whoever (or whatever) parses the file, and is the thing actually causing the risk.
+
+**Decided approach:**
+1. **Add `**Status:** <Column>` as a line directly under every card's header**, values being exactly the 5 existing column names (Backlog, Planning, Build, Done, Defer). This becomes the single source of truth for a card's state.
+2. **Remove the `## ColumnName` section headers from `kanban-board.md` entirely** — once status lives on the card itself, physical position is redundant and risks disagreeing with the real status field. Cards become one flat, append-only list.
+3. **Never physically relocate a card block again.** Moving a card between columns becomes a one-line edit to its `**Status:**` field. New cards get appended to the end of the file; existing cards are never moved once written.
+4. **Drop the stale status word from cross-references.** Lines like "CARD-0104 (Backlog — the Gaia-embed precedent...)" go stale the moment the referenced card's status changes, and hunting these down by hand after every move is its own recurring chore (done 3 times tonight alone). Change the convention to omit the status word — just "CARD-0104 (the Gaia-embed precedent...)".
+5. **Add a `<!-- next-card-id: CARD-XXXX -->` marker near the top of the file**, so creating a new card never requires grepping for the current highest ID.
+
+**Required dependency, found while scoping this:** `core/logging/log_server.py`'s `_parse_kanban_board()` (the Pi's live `/kanban` page, CARD-0057) currently finds a card's column by locating physical `## ColumnName` section boundaries via `_KANBAN_COLUMN_RE` — removing those headers would break it outright (zero columns found). Must be updated in the same change to instead read each card's `**Status:**` line, and redeployed to the Pi, or the live board goes dark.
+
+**Explicitly out of scope, considered and rejected:** splitting into one file per card (would also solve the relocation-risk problem, but breaks the single-file `kanban-board.md` convention referenced throughout the repo and CARD-0057's parser far more invasively, for no benefit beyond what the status-field change already achieves).
+
+**Done when:** every existing card carries a `**Status:**` line matching its current column, the `## ColumnName` headers are gone, `log_server.py`'s parser is updated and redeployed to the Pi with the live `/kanban` page confirmed still grouping cards correctly, stale status words are stripped from cross-references, and the next-card-id marker is in place.
+
+**Verified complete, 2026-07-29 16:28 MST:** all 5 "Done when" criteria checked directly against the live file and the Pi. No `## ColumnName` headers remain; all 118 cards carry a `**Status:**` line; `log_server.py`'s `_KANBAN_STATUS_RE` parser is deployed and the `jctsh-logging` service is active on the Pi (confirmed directly via SSH); the `next-card-id` marker is present and current. One real gap found on review: the "omit the status word from cross-references" convention (item 4) was applied retroactively to references stale at the time this card was raised, but wasn't actually followed going forward — CARD-0115 through CARD-0118's own `Related:` lines kept writing `(Done — ...)`. Fixed those four (Joseph's call: fix the four, leave the convention as symmetric guidance rather than adding enforcement).
+
+**Related:** CARD-0057 (the Pi-hosted live parser this depends on and must update), CARD-0056 (original persistent-board effort, superseded by CARD-0057's dynamic fetch), CARD-0111 (the card-move work that surfaced this problem).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2469B, over the 2000B size threshold.
+
+### CARD-0056 · [enhancement] [tos] Persistent visual kanban board — RESOLVED 2026-07-11
+**Status:** Done
+
+**Notes:** Raised 2026-07-11: every time the board gets summarized in chat, it comes out in a different ad hoc format and scrolls out of view while working, with no stable place to return to it. Agreed approach: a browser-hosted Artifact with a persistent URL, redeployed to the same link whenever `kanban-board.md` changes, rather than a fresh chat message each time.
+
+Built as a single self-contained HTML page (no external requests, per the Artifact sandbox) — a blueprint-styled board with one column per kanban state (Backlog, Planning, Design, Build, Done, Defer), each independently scrollable and collapsible, card tiles that expand in place for full notes, a live text search across id/title/tag/notes, and type filter chips (bug/enhancement/idea). Card data is baked into the page at build time as a JSON blob, not read live from the repo — so it goes stale exactly the way any snapshot does, and needs a manual regenerate-and-republish pass after edits, same discipline as keeping any other doc in sync.
+
+`backlog.md` was renamed to `kanban-board.md` in this same session (2026-07-11), with references updated across README.md, CLAUDE.md, JCTsh-Operating-System.md, and the photo-server docs that pointed to it by name.
+
+**Live-parsing alternative considered, not pursued (2026-07-11):** discussed serving the board from the Pi's existing `log_server.py` with a route that parses `kanban-board.md` live on each request instead of reading baked-in JSON, which would remove the manual-regenerate step entirely. Real cost surfaced in the same discussion: the repo isn't cloned on the Pi (deploys there are one-off `scp`, per `SOFTWARE-ENVIRONMENT.md`), so `kanban-board.md` would still need to be pushed to the Pi on every edit — the live-parsing win only fully lands once that push is also automated. Decision: stick with the manual artifact-regenerate workflow for now and see how the discipline holds up in practice; revisit the Pi version if manual regeneration turns out to be too easy to forget.
+
+**Resolution:** page published and confirmed viewable at a stable claude.ai URL. Regenerate-after-edit discipline exercised twice already (title/collapse-default fix, then a CARD-0056 text sync) and explicitly agreed to as the ongoing approach. Closed 2026-07-11 — Joseph confirmed sticking with this version and directed the commit.
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2973B, over the 2000B size threshold.
+
+### CARD-0052 · [idea] [tos] JCTsh Team Operating System (TOS) — RESOLVED 2026-07-11
+**Status:** Done
+
+**Notes:** Defines how the team works — the conceptual process governing all work, independent of any single component. Written up 2026-07-11 at Joseph's direction after a series of card/backlog/commit/push questions surfaced that this process was implicit (living in `backlog.md`'s column definitions and the user's global CLAUDE.md workflow notes) but never stated as its own document.
+
+**Resolution:** `JCTsh-Operating-System.md` (repo root, v1.0 — this card's full output *is* version 1 of the doc) defines:
+- All work tracked as a card on the kanban board; columns are synonyms for states, representing a process of state transitions with explicit triggers (Backlog → Planning → Design → Build → Done, plus Defer reachable from any state).
+- **Where Work Happens:** Claude chat is informal, pre-card thinking only — no planning documents, no board state. The decision to build something is the trigger to move to Claude Code, create the card, and file it in Backlog; Claude Code handles Planning through Done from there in one continuous process.
+- **Planning** may be a single document or multiple sequential phases/documents depending on the work (per `JCTsh-Component-Planning-Pattern.md`'s Phases 1–3 for hardware/software builds).
+- **Build** includes per-step manual work/confirmation by Joseph wherever required, not just Claude Code executing alone, and a required closing **Reflection** step — capturing what was learned so it doesn't get relearned by trial and error later.
+- **Deliverables per state** identified: Backlog → the card itself; Planning → planning document(s); Design → the design doc/Claude Code instructions; Build → the implementation + verification evidence + reflection artifact; Done → the Resolution note; Defer → the Decision note.
+- **Commit/Push:** the card, not `git add`, is the organizing concept. A commit is the action that enacts the Build → Done transition (requires Build's criteria satisfied first, typically bundles the card's Done-move into the same atomic commit); push is release-level, separate and always confirmed.
+- **Applying TOS to Pre-Existing Work:** cards predating this doc that don't cleanly match a column aren't inconsistencies to fix — reconciling any specific one is a per-card judgment call, not a retroactive mandate.
+
+Cross-checked against `JCTsh-Component-Planning-Pattern.md` (CPP) during development — found and fixed a real inconsistency (CPP still assigned Phases 1–4 to "Claude chat," contradicting the Where-Work-Happens model above) and realigned CPP to match (bumped to v2.4: Phases 1–5 now all happen in Claude Code, chat limited to pre-card Phase 0 thinking).
+
+**Closed 2026-07-11 — Joseph reviewed and directed every addition across the drafting conversation and confirmed readiness to commit**, satisfying the original close condition.
+
+---
+

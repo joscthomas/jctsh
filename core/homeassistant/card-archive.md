@@ -162,3 +162,177 @@ Archived in full to `components/salt-sensor/card-archive.md` on 2026-09-27 (CARD
 
 Archived in full to `core/mqtt/card-archive.md` on 2026-09-27 (CARD-0193) — 19459B, over the 5000B size threshold. Also tagged here; this is a pointer only, not a duplicate.
 
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4480B, over the 2000B size threshold.
+
+### CARD-0266 · [enhancement] [homeassistant] Home Assistant update available: 2026.9.1 → 2026.9.2 — RESOLVED 2026-09-14 09:20 MST
+**Status:** Done
+
+**Raised via automated maintenance finding (PR #77, jctsh-core), 2026-09-12.** Routine version-bump finding: Home Assistant 2026.9.2 available, running 2026.9.1.
+
+**Evaluated 2026-09-13 — release notes checked, looks safe, not applied yet (Joseph's call — evaluate first, decide separately whether/when to apply).** 2026.9.2 is a patch release, entirely small per-integration bug fixes and dependency bumps (Hive, Roomba, Openhome, WebOS TV, Vizio, Tesla Fleet, Nest, ViCare, UniFi, Reolink, Weheat, MELCloud, Enphase, ZHA, ESPHome-setup robustness, frontend bump). Nothing touching MQTT, the SmartThings integration, the Matter integration/Matter Server (CARD-0262), Google Assistant, or the recorder — the pieces this instance actually depends on.
+
+**Applied 2026-09-14, per Joseph's explicit go-ahead ("apply updates for 266 and 267, let scheduled reboot handle it") — far more painful than any prior HA update on this project (CARD-0233/0236-0240), for reasons unrelated to the update itself.** `docker compose pull homeassistant` hung indefinitely — this surfaced two distinct real bugs, both fully root-caused and documented on CARD-0268 rather than here (that card is the durable home for the Docker/containerd investigation): (1) live confirmation that a Pi 3B+'s shared USB 2.0 bus lets an image pull starve HA's own I/O and make it briefly unhealthy; (2) a separate, unrelated dockerd bug (Docker 29.6.1) where an OCI "referrers" 404 + manifest 404 double-miss makes `docker pull`'s own orchestration hang silently for 5+ minutes, reproducing every time and surviving a full host reboot.
+
+**Resolved via `sudo ctr -n moby images pull ghcr.io/home-assistant/home-assistant:stable`** (containerd's own lower-level pull CLI, bypassing dockerd's stuck orchestration entirely — see CARD-0268 for the full investigation and the revised procedure this establishes for future updates). Completed cleanly after ~50 minutes (mostly slow extraction off the USB 2.0 bus). `docker compose up -d homeassistant` then recreated the container (after working around a stale-report/naming rough edge, also logged on CARD-0268) — confirmed healthy and running **2026.9.2** via `docker exec homeassistant python3 -c "import homeassistant.const as c; print(c.__version__)"`.
+
+**Post-update entity-availability check run per root `CLAUDE.md`'s Home Assistant Docker Setup section.** Immediately after restart: 997 total entities, 253 unavailable/unknown — matching the documented pattern where a config entry reports `loaded` without having actually resynced. Reloaded `smartthings` (`Home Main`) and `ring` (`joscthomas@gmail.com`) config entries via `POST /api/config/config_entries/entry/<id>/reload` — both came back to `loaded` state, and unavailable count dropped to 123. **One real gotcha hit doing this reload, worth remembering for next time:** the first `smartthings` reload attempt was issued with a 30s client-side HTTP timeout, which was too short — the client gave up and closed the connection while HA was still mid-setup, which left the config entry in genuine `setup_error` state (worse than the stale-but-loaded state it started in) rather than just failing to reload. Fixed by retrying with a 120s timeout, which let it complete and land back on `loaded` correctly. **A reload's HTTP client needs a long timeout (120s+), not the usual quick-API-call assumption — the entry can be left in a worse state than before if the client aborts mid-setup.** The remaining 123 unavailable entities were checked and are all explainable by normal, non-update causes, not this integration-resync pattern: scenes and buttons structurally show `unknown`/`unavailable` until first triggered/pressed (21 scenes, most of the 15 buttons), several "peanut"-branded outlets are seasonal Christmas decorations genuinely unplugged in September, a handful of media players are simply powered off, and the Nabu Casa backup/cloud-voice entities have never been configured on this instance (present in every check all session, unrelated to this update).
+
+**Related:** CARD-0128 (the auto-PR intake pipeline this came through), root `CLAUDE.md` (Home Assistant Docker Setup, the post-update check run), CARD-0268 (full root-cause investigation and the revised Docker-pull procedure this update's difficulty established).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 3208B, over the 2000B size threshold.
+
+### CARD-0185 · [enhancement] [homeassistant] Upgrade CARD-0145's trigger to ring-mqtt's binary_sensor.*_motion (near-instant, vs. ~30-90s poll delay) — SUPERSEDED 2026-08-20 by CARD-0187
+**Status:** Defer
+
+**Raised 2026-08-18 18:23 MST (Joseph), while building CARD-0146.** CARD-0145's Ring motion announcement currently triggers on `sensor.*_last_activity` (CARD-0184's fix for the durably-broken native `ring` integration `event.*` platform) — reliable, but polled at ~60s intervals, so real delay can run 30-90+ seconds between an actual motion event and the announcement.
+
+`ring-mqtt` (installed this session for CARD-0146) publishes its own independent `binary_sensor.<camera>_motion` entities, separate codebase/connection from the broken native integration. Live-tested today on the doorbell (`binary_sensor.doorbell_ding`/`binary_sensor.doorbell_motion`): near-instant, on within a few seconds of a real event — confirmed reliable across all of today's CARD-0146 testing. Confirmed the same entities exist for CARD-0145's other 4 cameras too: `binary_sensor.path_motion`, `binary_sensor.gate_motion`, `binary_sensor.front_porch_motion`, `binary_sensor.front_door_motion` (all present, all `off` at check time).
+
+**Not yet decided/scoped:** swapping CARD-0145's trigger from `sensor.*_last_activity` to `binary_sensor.*_motion` for all 5 cameras (gate, path, front_door, front_porch, doorbell) — mechanically similar to CARD-0184's own swap, but the reverse direction. The `category == 'motion'` filter condition CARD-0184 added would no longer be needed (`binary_sensor.*_motion` entities are motion-only by construction, same reasoning as the original native-integration `event.*_motion` entities). Needs a live test pass on all 5 cameras (not just doorbell, which is all that's been proven so far) before trusting it as a full swap, plus the debounce/cooldown logic reconsidered for a fast-push source (the current 3s trailing delay and 30s entry-cluster window were tuned against a poll-based source's own timing characteristics).
+
+**Done when:** CARD-0145's automation trigger is swapped to `binary_sensor.*_motion`, live-tested against real events on multiple cameras (not just doorbell), and confirmed both correctly-triggered and correctly-debounced — or a decision to keep the current poll-based trigger is recorded instead, with reasoning.
+
+**Superseded 2026-08-20 16:18 MST.** A real field event the same day surfaced two more findings (a doorbell voice/video coordination problem, and a premature CARD-0146 stream termination) that don't fit this card's narrow trigger-swap scope — rather than keep bolting new findings onto this and CARD-0145/CARD-0184, all of it (including this card's own trigger-swap scope, unchanged) is consolidated into CARD-0187. No work here was wasted — the `binary_sensor.*_motion` entity confirmation and scoping notes above carry forward directly.
+
+**Related:** CARD-0145 (the automation this would have upgraded), CARD-0184 (introduced the current `sensor.*_last_activity` fallback this would have replaced), CARD-0146 (the build that surfaced ring-mqtt's own motion entities as a viable alternative), CARD-0187 (supersedes this card).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4879B, over the 2000B size threshold.
+
+### CARD-0170 · [enhancement] [homeassistant] Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1) — auto-opened from jctsh-core — RESOLVED 2026-08-16 18:00 MST
+
+**Status:** Done
+
+**Auto-generated 2026-08-15 13:30 MST from jctsh-core's maintenance check** (GitHub PR #13). Raw finding: Container image updates: home-assistant: 2026.8.2 available (running 2026.8.1).
+
+**Scoped 2026-08-16, not yet built.** Landed as a proper Backlog card rather than left as a raw auto-opened stub. Superseded two earlier stale findings for the same underlying update chain (PR #7: 2026.8.0 available when HA was still on 2026.5.1; PR #8: 2026.8.1 available, same baseline — both closed 2026-08-16 once HA was confirmed already running 2026.8.1, past both).
+
+**Release notes checked, 2026-08-16 (Joseph confirmed home before proceeding, per CARD-0130's established gating).** 2026.8.2's full changelog (32 items, checked against the actual GitHub release, not just the raw finding text) is a pure bugfix patch — Teslemetry, Husqvarna, TP-Link Omada, SMTP, Tado, Midea, KNX, Matter, and similar integration-specific fixes, none of which this deployment uses. Zero items touch MQTT, `automations.yaml` schema, SmartThings, Docker, or reverse proxies/HTTP. Confirmed still genuinely current: HA was still running 2026.8.1 live at check time.
+
+**Update applied, 2026-08-16 ~18:00 MST:** `docker compose pull homeassistant` (clean), then `docker compose up -d homeassistant`.
+
+**Real incident during the recreate, not just a routine restart — Docker's own daemon failed to stop the old container cleanly:** `cannot stop container: ...: tried to kill container, but did not receive an exit event`. Confirmed via `docker ps`/`docker info`/`journalctl -u docker`: SIGTERM (10s) then SIGKILL (10s) both timed out against the running container before Docker's own compose command gave up and errored out — HA was briefly still up on the old image at that point (lucky timing), but containerd finished the kill moments later regardless, and HA went fully down (`Exited (137)`, HTTP not responding) independent of what compose's own error message suggested. **This was a real, if brief, live outage on the household's HA**, not a no-op failed command — caught immediately by checking actual container/HTTP state rather than trusting the compose error text at face value.
+
+**Recovery:** re-ran `docker compose up -d homeassistant` once the old container had actually fully exited — this started the new image successfully, but under a temporary rename Compose had created mid-swap (`a21509cd7bb9_homeassistant`) instead of the real service name. Fixed with a plain `docker rename` (no restart needed, zero additional downtime) once the container was confirmed healthy. `docker ps -a` confirmed clean afterward — exactly one container, correctly named.
+
+**Verified live, real device, all four checks:**
+- Version: `2026.8.2` via `/api/config` (not just "the container restarted").
+- Docker health check: `healthy`.
+- Automations: 13 loaded (10 enabled), confirmed via `/api/states` — but this needed a second look, since the *first* check (run too soon after the healthcheck passed) showed **0 automations and 339 total entities**, against 772 total entities and 13 automations a few checks later. Real startup-timing lag on this memory-constrained Pi (905Mi RAM, seen down to 43Mi free mid-recorder-migration), not a regression — Docker's `healthy` state reflects the container process/port being up, not that HA has finished loading YAML-based platforms like `automation:`. Re-verified stable on a second pass before trusting it.
+- SmartThings: 8 `smartthings`-domain entities present.
+- Two automation entities show `unavailable` (`Traveling Lights - Night Off`, `CARD-0158 - Reboot Health Check Reminder`) — confirmed **pre-existing, not caused by this update**: neither appears anywhere in the live `automations.yaml` (grep, zero matches), consistent with CARD-0158's own reminder-removal commit from earlier — these are stale entity-registry leftovers from an already-completed prior removal, not a new regression.
+
+**Done when:** HA is confirmed running 2026.8.2 with the above verification complete, no regressions found. **Met** — the daemon-level stop failure and brief outage were a real incident along the way, but root-caused, recovered cleanly, and confirmed to have left no lasting damage (correct version, correct name, correct health, no automation/SmartThings regression).
+
+**Related:** CARD-0130 (the same recurring HA-image-update pattern, template for acceptance criteria and verification steps here), CARD-0158 (the reminder automation whose stale registry entry was ruled out as a regression here; also `reboot-health-check.py`, not used this time since a manual check was already in progress when the real incident surfaced).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2131B, over the 2000B size threshold.
+
+### CARD-0169 · [idea] [homeassistant] Scheduled volume levels by Google Home speaker, by time window
+**Status:** Defer
+
+**Raised 2026-08-15**, surfaced while testing CARD-0145's Ring motion announcements — Joseph asked whether HA can fix each speaker's volume by time window (e.g. quieter overnight), separate from that card's own announcement logic.
+
+**Interview so far, 2026-08-15 (partial — specific windows/levels not yet gathered):**
+- **Scope: audio speakers only**, not displays or TVs — `media_player.garage_speaker`, `media_player.groom_speaker`, `media_player.master_bedroom_speaker`, `media_player.master_bedroom_speaker_2`, `media_player.patio_speaker`. (Two of these, `master_bedroom_speaker_2` and `patio_speaker`, were confirmed `unavailable`/offline during CARD-0145's testing — not blocking for this card, same as there.)
+- **Outside any defined window, enforce a default/baseline level** — not left unmanaged. Every device gets both a scheduled level per window and a default for all other times.
+- **Confirmed technical feasibility**: Cast/Google Home volume is a persistent device-level setting, not a per-message one — `media_player.volume_set` (also `volume_up`/`volume_down`/`volume_mute`) confirmed available on this HA instance. Once set, a level holds for all subsequent playback (TTS, music, anything) until changed again — observed indirectly during CARD-0145 testing, where each speaker's `volume_level` stayed consistent across multiple TTS calls without being re-set each time. This means implementation is straightforward: one automation (or per-window automations) calling `volume_set` at each window's start time, holding until the next transition.
+
+**Still needed before Planning:** the actual per-device volume levels and time windows — not yet gathered.
+
+**Done when:** each of the 5 speakers holds its scheduled volume level during its defined time windows and its default level otherwise, verified live (not just configured) against real device state.
+
+**Related:** CARD-0145 (the Ring announcement automation this surfaced during; shares 3 of the 5 target speakers).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4010B, over the 2000B size threshold.
+
+### CARD-0168 · [bug] [homeassistant] Remove deprecated `http:` YAML block, resync stale configuration.yaml — RESOLVED 2026-08-14 19:28 MST (corrected 2026-09-22, see CARD-0329 — written `2026-08-15 02:28`, 7h fast via the `TZ=` clock bug)
+**Status:** Done
+
+**Raised 2026-08-14, surfaced mid-CARD-0145 build** by a live HA repair warning: "HTTP YAML configuration is ignored after migration... this stops working in version 2027.2.0... remove the http: block from your configuration.yaml. Manage the HTTP configuration from the UI under Settings > System > Network."
+
+**Live config on the Pi** (`/mnt/jctsh-logs/homeassistant/configuration.yaml`):
+```yaml
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+    - ::1
+```
+This is the nginx reverse-proxy trust setting from CARD-0096/CARD-0141's HTTPS work — HA already migrated it into its own UI-managed storage and is ignoring the YAML, per the warning.
+
+**Real gap found while investigating:** the repo's tracked `core/homeassistant/configuration.yaml` doesn't contain this block at all — it's out of sync with the live Pi file, meaning the repo copy has drifted from reality more broadly than just this one setting.
+
+**Interview, 2026-08-14:**
+- Verify before removing: check Settings → System → Network on the live HA UI confirms `use_x_forwarded_for` + `trusted_proxies` (127.0.0.1, ::1) actually carried over correctly, don't just trust the warning text — then delete the `http:` block from `configuration.yaml` and restart HA, confirming the nginx-fronted login (Tailscale HTTPS path, CARD-0096/CARD-0141) still works afterward.
+- Same card also resyncs the whole repo copy of `configuration.yaml` from the live Pi file (not just the `http:` block) while it's already being pulled down for this fix, so the repo stops being stale more broadly.
+
+**Done when:** the UI-side migration is confirmed correct, the `http:` block is gone from both the live Pi config and the repo's tracked copy, HA restarts clean, the nginx-fronted HTTPS login still works, and the repo's `configuration.yaml` matches the live file end-to-end.
+
+**Verified and resolved, 2026-08-14 19:28 MST (corrected 2026-09-22 — written `2026-08-15 02:28`, 7h fast via the `TZ=` clock bug, see CARD-0329).** Checked the live migrated config directly (`.storage/http` on the Pi, via `sudo cat`) before touching anything: `use_x_forwarded_for: true` and `trusted_proxies: ["127.0.0.1/32", "::1/128"]` both confirmed carried over correctly, `yaml_migration_done: true` — didn't just trust the warning text. Removed the `http:` block from the live `configuration.yaml`.
+
+**Restart hit the known s6-supervised gotcha** (`docker restart` failed — "tried to kill container, but did not receive an exit event"; container exited but didn't auto-restart despite `unless-stopped`) — recovered with a plain `docker start`. Docker's own healthcheck reported `healthy` well before HA's actual startup finished (`/api/config` showed `state: NOT_RUNNING`, only 127 of the eventual 772 entities loaded, `automation.*` domain briefly empty) — waited for `state: RUNNING` before treating anything as confirmed, avoiding a false "it's broken" read on `automation.card_0145_ring_motion_announcement` mid-boot.
+
+**All "Done when" criteria verified live, not just configured:** `.storage/http` unchanged post-restart (`error: null`); nginx-fronted HTTPS login (`https://pi1.tailfe828a.ts.net/`) returns HTTP 200; HA logs since the restart contain no "ignored after migration" warning; `automation.card_0145_ring_motion_announcement` reloaded correctly with its trigger history intact; repo's `core/homeassistant/configuration.yaml` diffed byte-for-byte identical against the live file (no edit needed — the repo copy already lacked the block).
+
+**Related:** CARD-0096 (the rename that put nginx in front of HA), CARD-0141 (HA HTTPS/reverse-proxy setup this trust config supports), CARD-0145 (automation whose survival through this restart was directly verified).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 3699B, over the 2000B size threshold.
+
+### CARD-0130 · [enhancement] [homeassistant] Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1) — auto-opened from jctsh-core — RESOLVED 2026-08-13 21:50 MST
+**Status:** Done
+
+**Auto-generated 2026-07-31 22:52 UTC from jctsh-core's maintenance check.** Raw finding: Container image updates: home-assistant: 2026.7.4 available (running 2026.5.1). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+
+**Blocked — deferred until Joseph is physically home (2026-08-05 10:28 MST).** Same reasoning as CARD-0129/CARD-0096: HA is the household coordination hub Robin depends on directly, and an image update plus container restart is exactly the class of higher-stakes change that mitigation exists for — being on the home LAN removes Tailscale/remote-access as a dependency for the recovery path if anything goes wrong mid-update.
+
+**Resolved 2026-08-13 evening, Joseph home on the LAN as planned.** By the
+time this was actually picked up, the live dashboard's pending-update state
+showed `2026.8.1` available, not the stale `2026.7.4` this card's auto-
+generated title still named — HA had released another version since this
+card was opened. **Checked release notes for all three intervening months
+(2026.6, 2026.7, 2026.8) before touching anything**, specifically looking
+for anything relevant to MQTT, automations.yaml schema, SmartThings, Docker,
+or reverse proxies: renamed purpose-specific automation triggers/conditions
+(none used in this repo's `automations.yaml`), ~20 removed integrations
+(none used here), a device-merging behavior change (automatic, non-
+destructive, and this repo's automations all use `entity_id` not `device_id`
+so the one manual-review caveat didn't apply), and a default-port-8123
+change (explicitly new-installs-only, confirmed via the official release
+post — zero effect on this already-running instance). Nothing found that
+blocked proceeding.
+
+**Update applied:** `docker compose pull homeassistant` (one transient
+registry hiccup mid-pull — `short read ... unexpected EOF` on one layer,
+resolved by simply retrying; already-downloaded layers were cached, not
+re-fetched) + `docker compose up -d homeassistant`.
+
+**Verified live, real device:** `reboot-health-check.py` (CARD-0158, run
+manually rather than duplicating its own polling-for-healthy logic) reported
+`homeassistant: healthy` via Docker's real health check; confirmed running
+version actually changed (`2026.8.1` via `/api/config`, not just "the
+container restarted"); all 11 automation entities present and loaded
+(including tonight's new Traveling Lights dashboard addition and the
+CARD-0158 reminder); SmartThings integration correctly went through its own
+normal post-restart reconnection (`not_loaded` → `loaded`, confirmed by
+polling, not a failure — cloud integrations take a beat longer to
+reconnect than the core API does). One pre-existing, unrelated log item
+noticed and deliberately not chased: Bluetooth permission errors from HA's
+bundled `habluetooth` integration, caused by the container never being
+granted `NET_ADMIN`/`NET_RAW` capabilities — this JCTsh setup doesn't use
+Bluetooth for anything, longstanding non-issue, not a regression from this
+update.
+
+**Related:** live dashboard entry at time of generation, CARD-0129 (the Pi-update sibling with the same "wait until home" block), CARD-0096 (original precedent for this reasoning), CARD-0158 (`reboot-health-check.py`, reused here to verify this update instead of writing a one-off check), CARD-0159 (the SD-card-wear idea this same session surfaced, opened but not built).
+
+---
+

@@ -686,3 +686,56 @@ Node-RED's 60s polling read picked up the HA-side toggle within ~20 seconds (the
 
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2366B, over the 2000B size threshold.
+
+### CARD-0356 · [enhancement] [infrastructure] Container image updates: immich-redis: 9.1.2 available (running 9.1.0) — auto-opened from photo-server — RESOLVED 2026-09-29 00:16 MST
+**Status:** Done
+
+**Auto-generated 2026-09-28 03:34 UTC from photo-server's maintenance check.** Raw finding: Container image updates: immich-redis: 9.1.2 available (running 9.1.0).
+
+**Interviewed/scoped and built same pass, 2026-09-28 (Joseph: "do 356").** Simple, well-understood mechanical bump — no separate Planning needed, same Observed Exception pattern other one-line dependency bumps in this repo use. Real digest resolved rather than guessed: pulled `valkey/valkey:9.1.2` on the M8, took its actual `RepoDigests` value (`sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd`), and re-pinned `components/photo-server/docker-compose.yml`'s `redis` service to `docker.io/valkey/valkey:9.1.2@<that digest>` (was the bare major-tag `valkey:9@<old digest>` — matches this repo's pin-don't-float convention and CARD-0344's `ring-mqtt` precedent of pinning to an explicit, self-documenting version tag).
+
+**Deployed and verified live, not just "container recreated":** `docker compose config --quiet` validated clean before touching anything; `docker compose pull redis` + `docker compose up -d redis` recreated only the redis service (immich_server/immich_machine_learning/immich_postgres were never restarted — confirmed still `Up 13 hours`, no interruption to the rest of the stack). `docker exec immich_redis valkey-server --version` confirms `v=9.1.2`; the container settled to `Health: healthy` within ~1 minute. Re-ran `container-update-check.py` directly on the M8 afterward (not waiting for its own schedule) — it correctly reports "now running 9.1.2" / "Nothing pending," and `gh pr list` confirms no duplicate PR was opened by that manual run (only the original #139, already merged).
+
+**Done when:** immich-redis running 9.1.2, confirmed via both the container's own reported version and the maintenance check's own mechanism, with the rest of the Immich stack undisturbed. **Met.**
+
+**Related:** `hosts/m8/container-update-check.py` (the check that found and re-confirmed this), CARD-0344 (built the check that surfaced this, and the pin-to-explicit-tag precedent this follows), PR #139 (the original auto-opened finding, merged).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4288B, over the 2000B size threshold.
+
+### CARD-0354 · [enhancement] [infrastructure] Node-RED update(s) pending: node-red: 5.0.7 available (running 4.1.10); npm: … — auto-opened from jctsh-core — RESOLVED 2026-09-28 17:58 MST
+**Status:** Done
+
+**Auto-generated 2026-09-28 03:41 UTC from jctsh-core's maintenance check.** Raw finding: Node-RED update(s) pending: node-red: 5.0.7 available (running 4.1.10); npm: 12.1.0 available (running 10.9.9).
+
+**Risk evaluated before touching anything, 2026-09-28.** Confirmed via GitHub release notes + a web search that 5.0's changes are almost entirely editor UX (sidebar rework, theming, accessibility, dropped Grunt) -- nothing in either 5.0.x changelog touches core node behavior, the flow-execution runtime, or the flow JSON format. Node.js requirement (`>=22.9`) already satisfied by the Pi's v22.23.3. All 7 installed palette nodes (`node-red-contrib-buffer-parser`, `-play-audio`, `node-red-node-pi-gpio`/`-ping`/`-random`/`-serialport`/`-smooth`) confirmed already at latest, none declaring a Node-RED version ceiling -- and none are actually referenced anywhere in the live `flows.json`, checked directly, so even a palette incompatibility would have cost nothing. The one real breaking-change-*shaped* item (5.0 removing default admin-API CORS rules) doesn't apply here: `settings.js` never set `httpAdminCors` and nothing accesses the admin API cross-origin from a browser (only server-to-server calls). Real residual risk was blast radius (Node-RED is "the brain" -- every automation in the house routes through it) and no existing `flows.json` backup, not compatibility.
+
+**Built/deployed 2026-09-28 17:48-17:58 MST, attended, not scheduled unattended.** Backed up `flows.json`/`flows_cred.json`/`package.json`/`package-lock.json` to `/home/pi/.node-red-backups/20260928-174814/` first. Confirmed no readings were currently held in the Environmental Data POST queue (last "held" alert was 5+ hours stale with no follow-up) and no hike/field session was active before stopping the service. `sudo systemctl stop nodered && sudo npm install -g --unsafe-perm node-red@5.0.7` -- took ~7 min under this Pi's usual memory pressure (load spiked to 17 on the 4-core Pi mid-install, confirmed via a live process check that it was genuinely progressing, not hung, before deciding to keep waiting rather than kill it), completed clean (exit 0, "added 7 packages, removed 63 packages, changed 364 packages"). `npm list -g node-red` confirmed `5.0.7`.
+
+**Verified live, real end-to-end confirmation, not just a clean service start.** `journalctl -u nodered` showed a fully clean startup (`Node-RED version: v5.0.7`, flows loaded from the untouched `flows.json`, `Started flows`, MQTT broker reconnected) with zero error/missing-node/deprecation lines anywhere in the log. Real proof it's not just running but *correctly executing the existing flows*: a genuine salt-sensor reading arrived seconds after restart (4%, 42.1cm), the salt-sensor tab's threshold-logic function node correctly evaluated it as CRITICAL and logged the alert, and HA's `switch.salt_critical_alert` confirmed still `on` (re-asserted, not a stale read) -- the same real business logic this repo already depends on, unmodified, producing the correct real-world result on the new major version. All 5 field devices reconnected and heartbeating normally within 2 minutes; no Alert-category anomalies anywhere in the log since.
+
+**npm bumped separately, same session, 2026-09-28 17:59 MST.** `sudo npm install -g npm@12.1.0` -- clean, 16s (load had settled by then), `npm --version` confirms `12.1.0`. Re-ran `node_red_update_check.py` directly afterward: "Nothing pending" -- confirms clean against the very check that surfaced this card.
+
+**Done when:** Node-RED and npm both running the versions the finding named, confirmed via the deployed check's own mechanism, with existing flows verified still executing correctly (not just "service started"). **Met.**
+
+**Related:** `core/maintenance/node_red_update_check.py` (CARD-0344, the check that found and re-confirmed this), CARD-0356/CARD-0355 (the sibling maintenance-window bumps this evaluation borrowed its verification discipline from), `/home/pi/.node-red-backups/20260928-174814/` (the pre-upgrade backup, kept in case a delayed issue surfaces).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2409B, over the 2000B size threshold.
+
+### CARD-0034 · [idea] [logseq] Complete digital-identity-protection-checklist.md — RESOLVED 2026-07-17
+**Status:** Done
+
+**Notes:** Work through `digital-identity-protection-checklist.md` (repo root) — Joseph and Robin's personal security checklist closing single-point-of-failure risks (carrier port-out PIN, 2FA off SMS, credit freezes, password manager, household verification protocol, incident response plan). Almost entirely manual actions by Joseph/Robin themselves (phone calls to carriers/bureaus, account settings changes) — not something Claude Code can execute directly, but worth tracking to completion since it's currently all unchecked. Also has an "Open Items to Fill In" section (list specific banks/brokerages in use, confirm current password manager/2FA setup, set a 6-month review date) that needs input from Joseph before those parts can be finished.
+
+**Blocked (2026-07-11):** waiting on delivery of Google Titan Security Key hardware authenticators (3 ordered) — needed for the hardware-key 2FA portion of the checklist before those items can be checked off.
+
+**Resolution (2026-07-17):** closing as **version 1 done**, not "everything checked off" — the checklist reached v2.1 and the core mission (closing the phone/SIM-swap single point of failure the TIME article exposed) is solidly closed: carrier port-out locks on both lines, Google recovery phone and security question removed, recovery email cross-set between spouses, all 3 Titan keys ordered/registered on Google and RoboForm/PIN-set-and-tested/labeled/backed-up-in-the-safe, Google Account password and 2-Step Verification confirmed hardened with no phone-based fallback remaining, master password memorized redundantly by both Joseph and Robin, 3 of 5 credit bureaus frozen, and the household verbal-verification protocol agreed. Remaining open items (RoboForm Emergency Access + Google Inactive Account Manager, ID document photo cleanup, Robin's app-password/third-party-app review, Google Recovery Contacts, ChexSystems/LexisNexis, walking the checklist through with Robin, Phase 4/5 offline-copy prep) are real but represent the next layer of hardening, not blockers on calling v1 done — split out to CARD-0071 (Emergency Access preparation) and CARD-0072 (Digital Identity Checklist Version 2) rather than holding this card open indefinitely.
+
+**Closed 2026-07-17 — Joseph directed the close.**
+
+---
+

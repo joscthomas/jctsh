@@ -430,3 +430,61 @@ JCTsh Environmental Archive 2027   (created when 2027 data first ages out)
 **Archive (phases 2-3): deferred, not cancelled.** The tab grows ~350 rows/day (~100k rows in ~6 months); revisit if the timestamp read or the 33k-row full-range export becomes slow again.
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4911B, over the 2000B size threshold.
+
+### CARD-0338 · [enhancement] [data-pipeline] Early-warning health probe for the environmental Sheet
+
+**Status:** Done -- RESOLVED 2026-09-25 16:37 MST
+
+**Raised 2026-09-25 (Joseph: "write up the health probe card"), after the CARD-0226 outage.** The Sheet stopped accepting writes at ~10:07 MST and nobody knew for hours: the only signal was Node-RED's write-failure alert (one per 30 minutes, worded as a queue problem), and heavy jobs on the M8 (the daily backstop export, the 5 PM refresh) kept hitting the sick document. A recurrence should be caught within minutes, by something whose only job is to notice.
+
+**Proposed design (not built):**
+1. **Apps Script `action=health`:** open the spreadsheet by id, read one cell (and `getLastRow()` of `Environmental Data`), return `{status:'ok', ms: <elapsed>}`. Deliberately far cheaper than any export; distinct from `action=version`, which never touches the spreadsheet and so cannot detect this failure.
+2. **A probe, every 5 minutes** (Node-RED inject node, or a small M8 cron -- to be decided), one call in flight at a time with a ~30 s client timeout, so a hung probe cannot pile up against a struggling backend.
+3. **State machine, not a stream of alerts:** alert on the first failure or on a response slower than ~10 s; re-alert at most every 30 min while it stays bad; send a "recovered after N min" line when it clears.
+4. **Downstream behavior:** the M8's daily refresh and backstop check skip (and log why) when the last probe failed, so heavy exports don't land on a struggling document.
+
+**Open questions:** where the probe runs (Node-RED is already the writer and knows the queue; the M8 is independent of the Pi); what "slow" threshold avoids noise (normal `action=version` is ~1 s, a 33k-row export ~10 s); whether the health line should also appear on the log dashboard's `/status`.
+
+**Done when:** a simulated failure (probe pointed at an unreachable target, or its timeout forced to a few ms) raises exactly one alert within 10 minutes and a recovery line when restored, and the M8 refresh skips while it is failing.
+
+**Not in this card, but listed in `core/data-pipeline/RUNBOOK-sheets-outage.md` as recovery accelerators:** the spreadsheet id in Script Properties (cutover without a redeploy), a weekly automatic standby copy, a durable local queue in front of Sheets.
+
+**Related:** CARD-0226 (the incident and the write-path fixes), CARD-0337 (keep the sheet small), `core/data-pipeline/RUNBOOK-sheets-outage.md`.
+
+
+**Built, deployed and verified live 2026-09-25 (Joseph: push to Pixel + log; alert on failure or >10 s).** As designed, with two refinements found while building:
+- **`action=health`** in `environmental-data.gs` (`0260643`, `SCRIPT_VERSION 2026-09-25.2-health-action`, deployed by Joseph): opens the spreadsheet by id, reads one real cell, returns `{status, ms, lastRow}` (~400 ms healthy).
+- **Probe in Node-RED, its own "Sheet Health" tab** (`core/data-pipeline/sheet-health.flow.json`, live flow id `b2a86771d1f90aaf`; deliberately a separate tab so it cannot disturb the Environmental Data write queue): every 5 min, one probe in flight, 30 s request timeout, 45 s hard stop, URL-free alert text. **Alerts on two consecutive bad checks, not one** -- Google throws transient 404s (seen all day on 2026-09-25, including as the very first sign of the outage), so a single-failure rule would have sent false pushes; worst-case detection is ~10 minutes. Re-alerts every 30 min while bad; a `recovered after N min` System line + push when it clears; a failed HA push is itself logged.
+- **M8:** `sheet_health.check()` gates the unattended **daily refresh** (re-checks 3x, 10 min apart, then skips with an Alert saying to re-run `generation.py --daily-refresh` by hand -- an outright skip would let a morning hike fall out of the 30 h lookback) and the **backstop check** (skips for the day); manual `--step2` is not gated; fails open if the script predates `action=health` (`b0d3060`).
+- **Test hook:** the `TEST: force next 2 probes to fail` inject node arms two forced failures, so the whole alert -> push -> recovery path can be exercised on demand (click it, then click `every 5 min` twice, then once more for recovery -- or just wait ~15 min).
+
+**Verified:** 14 mock checks of the state machine (transient failure silent, two in a row alerts, 30-min re-alert, recovery, slow responses, hung probe, stale replies, no URL/key in text); live: a forced two-failure run produced the Alert log line (16:36:44), a `recovered` System line (16:36:53), and **both pushes arrived on Joseph's Pixel**. Note: the log server holds its most recent entry until another arrives, so the newest line can look missing for a moment.
+
+**Not done (listed in the runbook as recovery accelerators, separate cards if wanted):** spreadsheet id in Script Properties, a weekly automatic standby copy, a durable local queue in front of Sheets.
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4660B, over the 2000B size threshold.
+
+### CARD-0244 · [bug] [data-pipeline] Hiking Observations ingest (`doPost`, `component=hiking-observations`) has no de-duplication — same class of gap as CARD-0243's GPS Track fix — RESOLVED 2026-09-06
+
+**Status:** Done
+
+**Raised 2026-09-06**, found while auditing every `appendRow` call site in `environmental-data.gs` for the same missing-dedup pattern CARD-0243 just fixed for GPS Track. **Confirmed real gap, not yet exploited:** `doPost`'s `hiking-observations` branch appends unconditionally with no timestamp check — checked the full live sheet (all 69 rows, entire project history) and found **zero existing duplicates**, unlike GPS Track's real 29.5%. The gap is latent, not yet manifested — worth fixing proactively rather than waiting for it to bite.
+
+**Why the exposure exists despite the device-side design already guarding against it:** `Flush Observation Queue` (`observations-pipeline.md`, CARD-0156) only deletes a queued voice-note file after a *confirmed* HTTP success (`Continue Task After Error: off` on the HTTP Request action). That protects against the common case (no response at all). It does **not** protect against the row being genuinely written server-side while the success response itself is lost or delayed before reaching the phone — Tasker would see that as a failure, leave the file queued, and resend the identical observation on the next flush trigger, with nothing on the server side to catch it. Same failure shape as GPS Track's real-world exposure, just a narrower window (a single HTTP Request's response going missing, vs. GPSLogger's own more trigger-happy retry behavior against a slow endpoint) and a much smaller dataset (69 rows vs. thousands of GPS points) — which is almost certainly why this hasn't actually happened yet.
+
+**Dedup key: `ts` alone**, same reasoning as CARD-0243 — confirmed via a full repo grep that every real caller of `component: "hiking-observations"` sends `"source":"voice"` (there is exactly one producer, the phone's voice-note pipeline); no `(ts, source)` compound key needed the way Environmental Data's multi-source sheet requires.
+
+**Built, 2026-09-06 — mirrors CARD-0243's exact pattern, no design deviation:** `core/data-pipeline/environmental-data.gs`'s `doPost` `hiking-observations` branch now checks `obsSheet`'s column A (timestamps only, cheap read) for an existing match immediately after `ts` is normalized and before the `_gpsLookup` call — placed before the lookup specifically to skip that extra sheet-read work on a duplicate, not just before the final `appendRow`. Returns `{"status": "duplicate", "ts": ...}` on a match, matching CARD-0243's response shape exactly. `SCRIPT_VERSION` bumped to `2026-09-06.2-hiking-obs-dedup`.
+
+**No cleanup function needed** — zero existing duplicates confirmed live, so there's nothing for a `cleanupDuplicateHikingObservations()` to do. If this changes before deploy (unlikely, small/infrequent dataset), re-check before assuming this holds.
+
+**Deployed and verified live, 2026-09-06.** `?action=version` confirmed `2026-09-06.2-hiking-obs-dedup` (one initial check hit a brief propagation lag showing the prior version, resolved on immediate retry — not a real deploy failure). **Real-world dedup test, stronger than planned:** a client-side curl/redirect-chain quirk made several genuine repeat POSTs of the same test observation look like client failures (405s), while the requests were actually reaching the server the whole time — confirmed by checking the sheet directly afterward: **exactly 1 row** exists for that timestamp despite multiple real resends, and a clean follow-up POST to the same `ts` returned `{"status":"duplicate",...}`. This validated the dedup against real repeated submissions, not just one deliberate pair. Synthetic test row confirmed deleted afterward (`action=export` on that window returns `count: 0`).
+
+**Done when:** the `hiking-observations` branch rejects a duplicate-timestamp resubmission instead of appending it (verified via a real repeated test POST, same "send twice, confirm second is rejected" pattern CARD-0243 used, with the resulting synthetic test row deleted afterward) and `?action=version` confirms the redeploy took effect. **Met.**
+
+**Related:** CARD-0243 (the identical fix, one hop earlier — this card is its Hiking Observations sibling), CARD-0215 (the original dedup pattern both cards descend from), CARD-0156 (the Flush Observation Queue design whose "confirmed success" gap this card closes), `components/hiking-monitor/observations-pipeline.md`, `core/data-pipeline/environmental-data.gs` (`doPost()`'s `hiking-observations` branch).
+
+---
+

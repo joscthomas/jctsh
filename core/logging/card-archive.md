@@ -296,3 +296,98 @@ The self-test is healthy and has been running daily the whole time.
 
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 3644B, over the 2000B size threshold.
+
+### CARD-0330 · [enhancement] [logging] Add a credential-free `/status.json` endpoint -- closes Session Start step 9's recurring credential dead-end -- RESOLVED 2026-09-22 16:13 MST
+
+**Status:** Done
+
+**Raised and built same session, 2026-09-22 (Joseph: "let's implement the real fix").** Both this session and the concurrently-running porch/patio component session (`jctsh-6a`) independently hit the same wall running `JCTsh-Session-Start.md`/`JCTsh-Component-Session-Start.md`'s step 9 (the `/status` dashboard scan, CARD-0282): it requires the Log Dashboard's HTTP Basic Auth password (`DASHBOARD_PASS`), which lives in `/etc/jctsh/log-server.env` on the Pi and isn't cached anywhere a session can reach non-interactively. Every attempt to read it -- grepping the env file over SSH, curling the authenticated endpoints through SSH to localhost, checking for a local `.netrc` -- was correctly blocked by Claude Code's own auto-mode credential-materialization classifier. Net effect: step 9 wasn't actually a silent automated check like steps 1/2/3/5/6 -- it was a guaranteed interruption asking Joseph for the password, every session, general or component-scoped, just to answer "is component X alive right now."
+
+**Built.** `core/logging/log_server.py` gained `_build_status_json()` (reuses the exact same `_compute_status()`/`_snapshot()`/`_EXCLUDED_COMPONENTS` path the existing `/status` HTML page already uses) and a new `/status.json` route in `_Handler.do_GET`, checked *before* the Basic Auth gate -- deliberately the only unauthenticated route on this server. Returns only non-secret per-component `freshness` (Online/Offline/n/a), `connection` (Connected/Disconnected/null), `is_remote`, and `last_seen` -- no log message content, no Alert text, nothing else currently behind auth on `/status`/`/log`/`/kanban`/`/data`, which all keep requiring `DASHBOARD_PASS` unchanged. Not a security regression: port 80 is LAN/Tailscale-only, never forwarded to the internet (only MQTT 1883 is, per root `CLAUDE.md`'s Internet Exposure section), and bare online/offline state carries nothing sensitive on its own.
+
+**Deployed and verified live, 2026-09-22 16:13 MST.** `scp` to `/home/pi/jctsh/core/logging/log_server.py`, `sudo systemctl restart jctsh-logging` (came back `active`). Confirmed directly: `curl http://localhost/status.json` on the Pi returns HTTP 200 with real per-component data (no `Authorization` header sent) including `back-patio-temp-sensor` correctly showing `Online`/`Connected` after its own recent MQTT dropout recovered; `curl` against `/status`, `/log`, and `/kanban` still return HTTP 401 unchanged, confirming the new route didn't loosen anything else.
+
+**Docs updated to match:** `tos/JCTsh-Session-Start.md` step 9 and `tos/JCTsh-Component-Session-Start.md`'s per-step table now point the freshness/connection half of step 9 at `/status.json` (no credential needed), while making explicit that the fuller Alert/log scan still needs `DASHBOARD_PASS` from Joseph -- so a future session stops attempting the same blocked workarounds this one and `jctsh-6a` both tried.
+
+**Done when:** met -- built, deployed, verified live against the real Pi (not just "should work"), and the docs that would otherwise keep steering sessions into the same dead end are updated.
+
+**Related:** CARD-0282 (established `/status` over raw-log grep for "is it alive now" -- this closes the credential gap that check still had), CARD-0219 (the porch/patio session that hit this dead-end running its own component-scoped step 9), CARD-0331 (found in the same session, the watchdog's own alerting-design gap -- unrelated mechanism).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 4468B, over the 2000B size threshold.
+
+### CARD-0265 · [bug] [logging] Dashboard still unreadably dark after the earlier brightness fix — RESOLVED 2026-09-12 MST (transient tab state, not a persistent cause)
+
+**Status:** Done
+
+**Raised 2026-09-12 MST (Joseph), reopening the legibility complaint** — the brightness-only CSS fix (deployed as `daefc73`, "Improve legibility of / and /status dashboard pages") did not resolve it. New evidence this time, ruling out what was previously suspected: it's the **only** browser tab/window on the laptop with this problem (every other site renders normally), and the dashboard **was fine until recently** — not a longstanding Windows/HDR condition, and not a global browser dark-mode toggle (already checked off, per the earlier session's troubleshooting).
+
+**Real finding, checked directly against `core/logging/log_server.py`, not assumed:** none of the three served pages (`/`, `/status`, `/kanban`) declare a `color-scheme` anywhere — no `<meta name="color-scheme">` tag, no CSS `color-scheme` property on `:root`/`html`/`body`. All three use hardcoded dark palettes (`background:#1a1a1a`, etc. on `/`/`/status`; CSS-variable light/dark on `/kanban`) but never tell the browser "this page already implements its own theme."
+
+**Why this plausibly explains every symptom that ruled out the earlier hypotheses:** Chrome's "Automatically darken web content" (force-dark) feature decides **per page** whether a site already has its own dark theme; a page with no `color-scheme` declaration can get misjudged and have Chrome's own darkening/inversion filter applied on top of the page's already-dark palette — producing exactly this symptom (isolated to one specific site, since the heuristic runs per-origin; explains why the earlier brightness bump did nothing, since that filter operates on the *rendered* colors, not the source values; and is consistent with "recently," since a Chrome update changing the heuristic, or the feature getting toggled at some point, would explain the timing without anything in JCTsh's own code changing).
+
+**Fix:** add an explicit `color-scheme` declaration to all three pages so Chrome (and any browser implementing the same standard) knows not to second-guess the theme — `<meta name="color-scheme" content="dark">` for `/` and `/status` (always-dark, no light variant), `content="light dark"` for `/kanban` (which already supports both via its own `@media (prefers-color-scheme: dark)` block).
+
+**`color-scheme` fix built and deployed, 2026-09-12 — did not resolve it.** Added `<meta name="color-scheme" content="dark">` (`/`, `/status`) / `content="light dark"` (`/kanban`), deployed to the Pi, confirmed present in the served source. Joseph's browser still showed the dashboard too dark after a hard refresh (Ctrl+Shift+R).
+
+**Narrowed decisively away from server-side, 2026-09-12.** Joseph opened the dashboard in a Brave **private window** and it rendered fine — ruling out JCTsh's code and the missing `color-scheme` declaration (real, worth having, but not the actual cause here) as the source. Checked `brave://extensions` (no dark-mode/reader extension present) and the site-info permissions panel for `pi1.local` (no dark-mode-related entry exposed there) in a normal window — both came back clean, ruling out the two most likely persistent culprits before a Brave-specific global setting (`brave://settings/appearance`'s "Automatically darken web content") could even be checked.
+
+**Resolved itself, 2026-09-12, before that last check completed — closing the affected tab and opening a fresh one fixed it.** No persistent setting or extension was ever confirmed as the cause. Best-supported explanation given everything ruled out: a **transient per-tab rendering glitch** in that specific Brave tab/renderer process, not a persistent extension, site setting, browser-wide setting, or JCTsh code issue.
+
+**Done when:** the dashboard renders correctly — **met**, confirmed in a fresh tab. Root cause not conclusively identified (ruled out: JCTsh's own CSS, missing `color-scheme`, extensions, per-site permissions) — if this recurs, check `brave://settings/appearance`'s "Automatically darken web content" toggle next, the one remaining unchecked hypothesis. The `color-scheme` meta tag addition stays regardless — correct practice, harmless, and worth having even though it wasn't the actual fix here.
+
+**Related:** the earlier (insufficient) brightness fix, `core/logging/log_server.py`.
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 3607B, over the 2000B size threshold.
+
+### CARD-0163 · [bug] [logging] Non-heartbeat log entries can get stuck unflushed indefinitely in log_server.py's `_pending` buffer — RESOLVED 2026-08-14 08:30 MST
+**Status:** Done
+
+**Found 2026-08-14 08:17 MST**, while verifying CARD-0161's webhook fix in production. A real, correctly-signed NetAlertX "New device detected" webhook was captured live: HMAC verification confirmed correct three independent ways (Node-RED's own JS re-verification, an independent Python recomputation, and a direct MQTT capture on `jctsh/components/netalertx/log` showing the exact right message with correct event-time). The message never appeared on the log dashboard or in `jctsh.log` despite all of that working correctly — the webhook/Node-RED pipeline was not the problem.
+
+**Root cause, found by reading `log_server.py` directly:** `_store_entry()` buffers every *non-heartbeat* message (any component, any category) in a single-slot module-level `_pending` variable. It only gets written to `_entries`/disk when a **different** `(component, category, message)` arrives afterward and triggers `_flush_pending()`. Heartbeat-prefixed messages go through a completely separate mechanism (`_hb_groups`) and never touch or flush `_pending`. Confirmed live: `state.json`'s `_last_seen.netalertx` held the exact right entry (`count: 3`, correctly deduping two manual replays against the original) — sitting correctly in memory, genuinely never flushed, because nothing else non-heartbeat happened anywhere in the system afterward to bump it out.
+
+**Same class of bug as CARD-0068/CARD-0079, but not covered by that fix.** Those cards added a 15-minute forced-rotation timeout specifically for `_hb_groups` (stuck heartbeat-collapse groups). The general `_pending` singleton has no equivalent timeout safeguard — any single non-heartbeat message, from any component, can sit invisible on the dashboard indefinitely if no other differing message happens to arrive after it. Not netalertx-specific and not webhook-specific; it's a gap in the core buffering logic any component's Alert/System/Sensor message could hit.
+
+**Built and verified live, 2026-08-14:** added `PENDING_MAX_AGE_SEC = 60` and `_flush_aged_pending()` (mirrors `_flush_aged_hb_groups()`'s pattern exactly) to `core/logging/log_server.py`. Deliberately much shorter than `HB_GROUP_MAX_AGE_SEC`'s 15 minutes — these are discrete one-off events meant to be promptly visible, not a collapsing counter tuned for a steady heartbeat stream. The periodic flush thread (renamed `_hb_flush_thread` → `_flush_thread` since it now covers both) checks every `HB_FLUSH_CHECK_INTERVAL` (60s), so worst-case latency is ~60-120s, not indefinite. `_flush_pending()` also fixed to strip the new internal `_started_at` field before writing to `_entries`/disk, matching `_flush_hb_group()`'s existing pattern.
+
+Deployed (`scp` + `sudo systemctl restart jctsh-logging`), confirmed clean restart (`Restored 1000 entries, 10 known components` — state survived). **Live test**: published a one-off Alert message with nothing else to bump it out — confirmed absent from `jctsh.log` immediately after (correctly still pending), then confirmed present after the periodic thread caught it, landing within the expected ~60-120s window. Exactly the failure mode this fixes, reproduced and verified closed.
+
+**Related:** CARD-0161 (webhook fix verification that surfaced this), CARD-0068/CARD-0079 (the analogous `_hb_groups` timeout fix this generalizes), CARD-0078 (original webhook HMAC workaround, confirmed unaffected by this bug), `core/logging/log_server.py`.
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2944B, over the 2000B size threshold.
+
+### CARD-0079 · [bug] [logging] Old null-byte corruption in the log file (536 bytes, historical, inactive) — RESOLVED 2026-07-23
+**Status:** Done
+
+**Notes:** Found 2026-07-22 while testing CARD-0078's webhook fix. Initial concern was that a confirmed-published MQTT message never appeared in `/mnt/jctsh-logs/jctsh.log` or the live `/log` endpoint — **resolved as a false alarm, not a bug:** `log_server.py` holds the most recent non-heartbeat message in a single global `_pending` slot and only flushes it to disk once a *different* non-heartbeat message displaces it (`_store_entry()`, `core/logging/log_server.py`). The live `/data` endpoint (which includes `_pending`) had the message the whole time; sending a second distinct test payload immediately flushed the first to the file, confirmed directly. Working as designed.
+
+**What was real:** while investigating, found genuine null-byte corruption in the log file — 536 bytes total, in two small contiguous runs (367 and 169 bytes), confirmed via direct Python byte-level scan (`/mnt/jctsh-logs/jctsh.log`). The earlier "7,634" figure quoted from `grep -c $'\x00'` was wrong — that shell substitution doesn't actually pass a null byte as a grep pattern, so it silently matched an empty pattern and just counted total lines in the file, not corruption. Both null-byte runs sat in **old content from around 2026-07-03** (real log lines resumed immediately after each run) — not recent, not growing, not connected to CARD-0006's log-directory migration or that night's testing.
+
+**Surgical cleanup done (2026-07-23):** backed up the live file first (`/mnt/jctsh-logs/jctsh.log.bak-20260723-precard0079`), then re-scanned to get exact byte offsets — 367-byte run at offset 340640, 169-byte run at offset 360279 (offsets shifted slightly from the original find since the file kept growing between the initial report and cleanup). Confirmed both runs sat cleanly between two complete log lines with no partial-line truncation, then spliced them out (removing from the highest offset first so lower offsets stayed valid) and rewrote the file. Verified: 0 null bytes remaining, byte count dropped by exactly 536 (823545 → 823009), and both seams rejoin correctly (`...Log server connected.\n2026-07-01 03:11:54...` and `...Log server connected.\n2026-07-03 07:58:52...` both found intact, no merged/split lines).
+
+**Deliberately out of scope, not a remaining gap:** root-causing *why* the corruption happened around 2026-07-03 (crash/kill mid-`RotatingFileHandler`-write is the likely mechanism, but never confirmed against git history/deploy log for that date) — low priority, only worth revisiting if similar corruption recurs. Also unrelated: two harmless fake test entries from CARD-0078 verification (`Test Vendor Inc` / `aa:bb:cc:dd:ee:ff`, `Second Test Vendor` / `11:22:33:44:55:66`) are still in the real log — left in place, clean up manually if it bothers you.
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2133B, over the 2000B size threshold.
+
+### CARD-0006 · [enhancement] [logging] Move log directory to USB stick — RESOLVED 2026-07-22
+**Status:** Done
+
+**Notes:** Moved `LOG_DIR` in `log_server.py` from the SD card to a dedicated USB stick plugged into the Pi for better write endurance. Sizing check beforehand found the actual log volume (jctsh.log + state.json) under 1MB after 1.5 months across all 8 heartbeat components — capacity was never the constraint, write endurance was.
+
+**Before formatting the drive:** it was a reused spare, not blank — checked its 19 existing files (an old personal photo archive, 47.5MB) against both Immich libraries by filename (zero matches), then ran the newly-established standard `immich-go upload from-folder` import into Joseph's account per `components/photo-server/operations.md`: 12 genuinely new assets uploaded and tagged, 7 caught as checksum-based duplicates Immich already had under different filenames. Confirmed safe to reuse only after that.
+
+**Resolution:** formatted the drive (`/dev/sda1`, ext4, label `jctsh-logs`), mounted at `/mnt/jctsh-logs` via a UUID-based `/etc/fstab` entry (not a `/dev/sdX` path — avoids the device-letter-shift class of bug CARD-0032 hit on photo-server), migrated the existing log history over, and repointed `LOG_DIR`. **Found and fixed a real gap during deployment:** the `jctsh-logging.service` unit had no `RequiresMountsFor=/mnt/jctsh-logs`, meaning a reboot could race the service ahead of the mount and silently recreate the log directory back on the SD card underneath the mount point — the same class of blind spot as photo-server's Immich bind-mount incident (CARD-0032/CARD-0048). Added the dependency and committed the unit file to the repo (`core/logging/jctsh-logging.service`) since it wasn't tracked before.
+
+**Verified via a real reboot test:** mount came back automatically, service correctly waited for it (state restored from `/mnt/jctsh-logs/state.json`, not recreated fresh), and new log entries flowed normally post-boot (garage-radar, salt-sensor, netalertx all confirmed logging). Stale SD-card copy deleted once the new path was confirmed live.
+
+---
+

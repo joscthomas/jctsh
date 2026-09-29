@@ -1780,7 +1780,17 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   }
   var lastDataStr = null;
   function load() {
-    fetch('/kanban/data').then(function (r) { return r.json(); }).then(function (data) {
+    fetch('/kanban/data').then(function (r) {
+      if (!r.ok) {
+        // CARD-0361: a non-200 /kanban/data response (e.g. the 503 plain-text
+        // "Could not fetch <raw URL>" the server sends when its own GitHub
+        // fetch fails) is not JSON -- calling r.json() on it unconditionally
+        // used to throw a cryptic "Unexpected token 'C' ... is not valid
+        // JSON" instead of surfacing the real server-side failure reason.
+        return r.text().then(function (t) { throw new Error(t || ('HTTP ' + r.status)); });
+      }
+      return r.json();
+    }).then(function (data) {
       document.getElementById('metaUpdated').textContent = data.updated;
       var sizeEl = document.getElementById('metaSize');
       var sizeInfo = formatSize(data.sizeBytes);

@@ -82,7 +82,10 @@ KANBAN_PATH = REPO_ROOT / "tos" / "kanban-board.md"
 COMPONENTS_DIR = REPO_ROOT / "components"
 TOS_DIR = REPO_ROOT / "tos"
 
-SIZE_THRESHOLD_BYTES = 5_000
+SIZE_THRESHOLD_BYTES = 2_000  # lowered from 5_000, CARD-0361 (2026-09-28) -- simulated against
+                               # the live board: 2000B captured ~297KB of ~323KB total possible
+                               # savings (92%) across 86 cards, well past the point of diminishing
+                               # returns below it
 AGE_BACKUP_DAYS = 90
 CARD_HISTORY_HEADING = "## Card History"
 

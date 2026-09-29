@@ -40,3 +40,91 @@ Historical record of archived Done/Defer kanban cards for this component (CARD-0
 **Related:** CARD-0246 (the Pi's journald fix — this card reuses the M8's own already-confirmed-healthy journald from that investigation, doesn't re-solve the Pi's problem), CARD-0270 (the narrower, already-decided cost-specific fix this generalizes), CARD-0238 (the M8-wide Docker-engine-upgrade precedent for planning a whole-host restart's blast radius and verification).
 
 ---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 3326B, over the 2000B size threshold.
+
+### CARD-0352 · [enhancement] [m8] Pin cloudflared to an explicit version instead of `:latest`
+
+**Status:** Done -- RESOLVED 2026-09-27 19:15 MST
+
+**Raised 2026-09-27 19:12 MST, from CARD-0257's own recommendation (2026-09-22).** `components/hike-izer-web/docker-compose.yml` line 91 pins `cloudflare/cloudflared:latest`, not a version. Nothing currently pulls automatically, so there's no live danger today -- but the next incidental `docker compose pull`/recreate on that project (e.g. alongside an unrelated `hike-izer-web`/`hike-izer-orchestrator` update, same compose project) would silently land whatever's newest, with no decision point. CARD-0257 is actively holding this exact container back from 2026.9.x specifically because of an open, unaddressed upstream crash bug ([cloudflared#1737](https://github.com/cloudflare/cloudflared/issues/1737)) that matches this deployment's exact shape (Docker bridge network, `restart: unless-stopped`) -- a silent version bump would undo that held decision without anyone choosing it to.
+
+**Essence-only per CARD-0256 -- not yet interviewed.** The fix itself is small (pin to `2026.8.3`, the version CARD-0257 confirmed is running cleanly), but open questions for Planning: whether `container_update_check.py`'s generic version-check (which currently can't compare against a floating `:latest` tag meaningfully) should gain a pinned-tag-aware mode once this lands; whether any other JCTsh-managed compose file has the same `:latest` exposure (not surveyed here -- this card only names the one CARD-0257 already found).
+
+**Done when:** not yet scoped -- essence-only until Planning interviews it.
+
+**Built and verified live, 2026-09-27 19:15 MST (Joseph: "do 352").** Confirmed the deployed compose file was byte-identical to the repo before touching it. Pinned `components/hike-izer-web/docker-compose.yml`'s `cloudflared` service to `2026.8.3` (the version CARD-0257 confirmed running cleanly), with an inline comment pointing back at both cards so a future editor knows why it's pinned rather than `:latest`. **Digest check before recreating:** `cloudflare/cloudflared:latest` (already running) and the newly-pulled `:2026.8.3` resolved to the identical image id (`sha256:51c9cefc...`) -- confirms the pin changes nothing about what's actually running today, only closes the "next incidental pull silently moves it" gap. Recreated only the `cloudflared` service (`docker compose up -d cloudflared`): the two sibling containers in the same compose project (`hike-izer-web`, `hike-izer-orchestrator`) were untouched (uptimes unaffected), `cloudflared` restarted clean -- `docker inspect` shows image `cloudflare/cloudflared:2026.8.3`, `cloudflared --version` confirms `2026.8.3`, no panic/error/segv lines in the post-recreate logs, `hikes.jctnet.com` returns HTTP 200. Not surveyed: whether any other JCTsh-managed compose file has the same `:latest` exposure -- out of scope per the card's own note, not investigated here.
+
+**Done when:** met -- the pin is live and verified; CARD-0257's held-version decision can no longer be silently undone by an incidental pull on this project.
+**Related:** CARD-0257 (found this gap, holds the reason it matters), CARD-0128/CARD-0126 (the update-check/PR pipeline this interacts with), `components/hike-izer-web/docker-compose.yml`.
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2430B, over the 2000B size threshold.
+
+### CARD-0237 · [enhancement] [m8] cloudflared container update available: 2026.8.2 → 2026.8.3 — RESOLVED 2026-09-02
+**Status:** Done
+
+**Raised via automated maintenance finding (PR #55, photo-server), 2026-09-01** — routine container-version-bump finding, same shape as CARD-0233's Home Assistant finding.
+
+**Checked before deciding, not assumed safe:** `cloudflared`'s own GitHub release notes for 2026.8.3 (`cloudflare/cloudflared`, automated `cloudflare-warp-bot` release) — no changelog body, just build checksums, consistent with how this project's routine automated releases normally look (no flagged breaking changes or notable fixes called out).
+
+**Real reason to still be a little careful, unlike a fully isolated bump:** this is the Cloudflare Tunnel client that `hikes.jctnet.com` runs through — the same tunnel CARD-0227 built its whole idea-image hosting feature on this session (`/webhook/idea-image`, served from the same `srv/` directory Caddy roots at). A tunnel restart is brief but real — anything hitting `hikes.jctnet.com` (Tasker's `/webhook/idea`, the idea-image upload path, the public hike pages themselves) would see a short interruption during the restart, not silent risk otherwise.
+
+**Plan:** `docker compose pull cloudflared && docker compose up -d cloudflared` in `~/hike-izer-web-app/` on the M8 (same compose project as `web`/`orchestrator`, per `components/hike-izer-web/README.md`), verify live afterward — `docker logs` shows "Registered tunnel connection" with no errors, and `curl https://hikes.jctnet.com/` still returns 200.
+
+**Folded into the same 2026-09-02 M8 maintenance window as CARD-0238, at Joseph's request, rather than waiting.** Pulled and recreated cleanly — `docker compose up -d cloudflared` also recreated `hike-izer-web` (same compose project, expected). Verified live: `curl https://hikes.jctnet.com/` returned 200 both immediately after the update and again after the M8's reboot; `hike-izer-cloudflared` shows healthy/running in `docker ps` post-reboot alongside all 8 other containers.
+
+**Done when:** updated and verified live (tunnel reconnects cleanly, site still reachable) — **met**.
+
+**Related:** `components/hike-izer-web/README.md` (the Cloudflare Tunnel setup this updates), CARD-0227 (the idea-image feature this tunnel now also serves), CARD-0233/CARD-0236/CARD-0238 (the same 2026-09-02 M8 maintenance window this was folded into).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 3706B, over the 2000B size threshold.
+
+### CARD-0171 · [enhancement] [m8] M8 UEFI Secure Boot KEK CA firmware update available — auto-opened from photo-server — RESOLVED 2026-08-16 19:00 MST
+
+**Status:** Done
+
+**Auto-generated 2026-08-01 14:00 MST from photo-server's maintenance check** (GitHub PR #5). Raw finding: "M8 maintenance: 2 firmware update(s) available: KEK CA: UEFI Secure Boot Key Exchange Key; KEK CA: UEFI Secure Boot Key Exchange Key."
+
+**Scoped 2026-08-16, not yet built.** Re-checked live via `fwupdmgr get-upgrades` on the M8 — still genuinely pending (not stale like PRs #7/#8 were for the HA finding). This is a single KEK CA device with two candidate release variants (AMI, ASUS) — the auto-generated "2 firmware updates" title is fwupdmgr listing both candidates for the same device, not two separate items. **Urgency: High** — a Secure Boot Key Exchange Key update, same class of finding as the dbx update CARD-0095 already applied, but not covered by that pass (which handled UEFI CA + dbx only).
+
+**Acceptance criteria:**
+1. Stage the update: `fwupdmgr update -y --no-reboot-check` (finalizes on next boot, same as CARD-0095's dbx update — UEFI-level fwupd updates apply via a staged capsule).
+2. Reboot the M8 to finalize.
+3. Verify live: `fwupdmgr get-upgrades` no longer lists the KEK CA update, all 8 containers back to Docker `healthy`, Tailscale reconnected, `hikes.jctnet.com` (Cloudflare Tunnel → hike-izer-web) reachable — same verification checklist CARD-0095 used for its own reboot.
+
+**Real blocker found, 2026-08-16: no passwordless sudo on the M8.** Unlike the Pi's `pi` user (blanket `NOPASSWD: ALL`, a Raspberry Pi OS default), the M8's `jct` user needed an interactive sudo password — couldn't stage the firmware update from this session at all until that was resolved. Joseph added the same blanket `NOPASSWD: ALL` for `jct` (`/etc/sudoers.d/jct-nopasswd`, run by Joseph directly since it needed his password once, validated with `visudo -c` before relying on it), matching the Pi's existing posture. Documented in `CLAUDE.md`'s SSH section, since this is a real, standing change to the M8's security posture — worth being visible given the M8's real internet-facing surface area (`hikes.jctnet.com`), not a routine detail to bury in a closed card.
+
+**Update applied and verified live, 2026-08-16 ~19:00 MST — clean, no incident this time** (unlike CARD-0170's HA update the same session):
+1. Staged: `sudo fwupdmgr update -y --no-reboot-check` — "Successfully installed firmware."
+2. Baseline recorded before reboot: all 8 containers healthy.
+3. `sudo reboot` — M8 back reachable over SSH within the poll window, no manual intervention needed.
+4. `fwupdmgr get-upgrades`: KEK CA now listed under "no available firmware updates," overall "No updates available" — firmware confirmed finalized.
+5. All 8 containers came back automatically, briefly `health: starting`, settled to `healthy` within under a minute — no manual restart needed.
+6. Tailscale: `m8` shows normal status, a live ping to the Pi over Tailscale succeeded.
+7. `https://hikes.jctnet.com/` — `HTTP 200`, confirmed reachable from outside the M8 itself (through the full Cloudflare Tunnel path, not just a local check).
+
+**Done when:** KEK CA firmware confirmed updated and M8 confirmed fully healthy post-reboot per the checklist above. **Met**, all seven checks above passed clean.
+
+**Related:** CARD-0095 (M8 OS/firmware maintenance backlog — established the update policy and verification pattern this follows; that pass covered UEFI CA/dbx but not this KEK CA item), CARD-0170 (the same session's HA update, which hit a real Docker daemon incident — this one, by contrast, went cleanly).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 2172B, over the 2000B size threshold.
+
+### CARD-0160 · [enhancement] [m8] Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3) — auto-opened from photo-server — RESOLVED 2026-08-14 07:39 MST
+**Status:** Done
+
+**Auto-generated 2026-08-14 06:30 MST from photo-server's maintenance check (PR #11).** Raw finding: Container image updates: cloudflared: 2026.8.2 available (running 2026.7.3). Landed as a real kanban card via the old `resolve_and_merge()` path before the interviewed `land_pr_card.py` process (CARD-0162) existed — this note backfills the research and verification that process would normally require up front.
+
+**Risk research (checked against cloudflared's actual GitHub releases, not just the raw finding):** `2026.7.3` → `2026.8.0` → `2026.8.1` → `2026.8.2`. Both `2026.8.0` and `2026.8.1` shipped with explicit "Do not use this version" warnings from Cloudflare — `2026.8.0` strips trailing slashes from HTTP-origin requests, causing redirect loops for anything needing canonical trailing-slash URLs (`cloudflare/cloudflared#1717`); `2026.8.1` normalizes request paths, breaking apps that need the raw encoded URL (`cloudflare/cloudflared#1719`). `2026.8.2` is the fix for both, with no further warnings. So this update lands past two known-bad releases straight onto the one that fixes them, not just a routine bump.
+
+**Built and verified live, 2026-08-14 07:39 MST:** baseline confirmed (`hikes.jctnet.com` → HTTP 200 on `cloudflared:latest` pulled 2026-07-23, i.e. `2026.7.3`) before touching anything. `docker compose pull cloudflared && docker compose up -d cloudflared` on the M8 (`~/hike-izer-web-app`). Post-update: `cloudflared version 2026.8.2` confirmed via `docker exec`, tunnel reconnected clean (4/4 edge connections registered, connectivity pre-checks all PASS, `quic` protocol), and — specifically checking for the exact regression class `2026.8.2` fixes — `hikes.jctnet.com` returns `HTTP 200` both with and without a trailing slash, no redirect loop.
+
+**Related:** CARD-0094 (original Cloudflare Tunnel setup), CARD-0162 (the interviewed PR-landing process this update predates), `components/hike-izer-web/docker-compose.yml`.
+
+---
+

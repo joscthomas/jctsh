@@ -9,9 +9,25 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0370 -->
+<!-- next-card-id: CARD-0372 -->
 
 ---
+
+### CARD-0371 · [enhancement] [data-pipeline] Remove `?key=` query authentication from data-pipeline-api once no caller uses it
+
+**Status:** Backlog
+
+**Raised 2026-09-29 12:34 MST (general session, from CARD-0365 phase 1).** The gateway still accepts `?key=` beside `Authorization: Bearer` so GPSLogger and Tasker can be moved without breaking capture. That leaves the exposure CARD-0365 exists to close only half closed.
+
+**Done when:** the gateway's `legacy ?key=` log line has stayed quiet across at least one real hike (GPS Track is the slow one -- it only fires on a hike), `_authorized()` accepts the header only, `VERSION` is bumped and deployed, and `README.md`/`gps-pipeline.md` no longer mention the query form. **Blocked on:** Joseph switching GPSLogger and Tasker to the Bearer header (CARD-0365). Related: CARD-0365, CARD-0370.
+
+### CARD-0370 · [enhancement] [data-pipeline] Rotate the data-pipeline API key (and the old Apps Script key) after the callers are on Bearer
+
+**Status:** Backlog
+
+**Raised 2026-09-29 12:34 MST (general session, from CARD-0365 phase 1).** The current `API_KEY` sat in Caddy's access log in full (664 lines/day, persisted) until the redaction went in, and Cloudflare's own logs may hold it; it was also echoed into a session transcript on 2026-09-29 during redaction testing. The retired Apps Script key is in `jctsh.log*` on the Pi from CARD-0367's leak (the endpoint is write-retired, so that one is low-value). Deliberately its own card, sequenced after CARD-0365/CARD-0371, so a rotation isn't tangled with the migration.
+
+**Done when:** a new `API_KEY` is set in the gateway's `.env` and every holder updated together -- Node-RED env (`DATA_PIPELINE_KEY`), the orchestrator's `.env`, GPSLogger's header, Tasker -- and the old key is confirmed rejected (401); the Apps Script key's leftover copies in `jctsh.log*` are either judged harmless or scrubbed. Related: CARD-0365, CARD-0367, CARD-0334 (the broader credential-rotation backlog item).
 
 ### CARD-0369 · [bug] [data-pipeline] Node-RED Sheet Health flow still describes/probes the retired Google Sheet -- update to the data-pipeline-api gateway
 **Status:** Done
@@ -59,7 +75,7 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-29 (CARD-0193) —
 
 ### CARD-0365 · [bug] [data-pipeline] API keys travel in the URL query string across the whole data pipeline (old Apps Script and the new gateway alike)
 
-**Status:** Backlog
+**Status:** Build
 
 **Raised 2026-09-29 (general session, spun off CARD-0347 item 6 after scanning the board for CARD-0349 follow-on work).** The 2026-09-26 pipeline review flagged `environmental-data.gs`'s `?key=<API_KEY>` pattern as a real, if minor, exposure -- a request URL carrying a secret ends up in web server access logs, proxy/CDN logs (Cloudflare, fronting `hikes.jctnet.com`), and (for GET requests) browser history on any device that ever hits the URL directly. **Not moot after CARD-0349** -- `data-pipeline-api`'s own routes use the exact same `?key=` pattern (`app.py`'s `_authorized(parts)`, checked against every route), so migrating off the Apps Script carried this design forward unchanged rather than fixing it.
 
@@ -68,6 +84,12 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-29 (CARD-0193) —
 **Related:** CARD-0347 (the pipeline review this item was originally found in), CARD-0349 (the migration that carried this pattern forward into the new gateway), `components/hiking-monitor/gps-pipeline.md` (GPSLogger's own custom-URL constraint, relevant to whether `/gps` can even take a header-based key).
 
 ---
+
+**Phase 1 built and deployed, 2026-09-29 12:34 MST.** Answers to the card's open questions: (1) **real, current exposure** -- Caddy's access log on the M8 recorded the full `?key=` on every request (664 lines in 24h, persisted by the journald log driver); Cloudflare's own retention is not visible from here and remains unknown. (2) **GPSLogger does have a Headers field** (`gps-pipeline.md`'s table, currently "leave empty"), so `Authorization: Bearer` can work for every caller including `/gps`.
+
+**Done and verified live:** gateway (`VERSION 2026-09-29.3`) accepts `Authorization: Bearer` alongside `?key=`, logs each legacy `?key=` use (rate-limited, per path, never the key); Caddy redacts `key=` from its access log (`"uri": "/data/version?key=REDACTED"` confirmed, and the single-file bind mount needed the `web` container recreated to pick up the new Caddyfile -- `mv` over a bind-mounted file leaves the container on the old inode); orchestrator callers (`generation.py`, `sheet_health.py`, `wildlife_life_list.py`, `fetch_hike_data.py`) and the gateway's own healthcheck moved to the header; four Node-RED nodes hot-deployed via the admin API (Prepare GPS lookup, Check GPS lookup response -- which must restore the auth header on retry because the http-request node overwrites `msg.headers` with the response's -- Compute derived fields + build POST, and the Sheet Health probe), then both flow tabs re-exported into the repo. After the Node-RED deploy, fresh readings landed (back-patio-temp-sensor 12:33:03) with no new legacy-auth log line for `/environmental-data` or `/health`.
+
+**Not yet done -- Joseph's job:** switch GPSLogger (Headers field: `Authorization: Bearer <key>`, and drop `key=` from the URL template) and the Tasker observation POST to the header. The `/gps` and `/hiking-observations` routes, and the GPS-lookup retry path, are the untested-live ones (nothing exercised them yet). Until then `?key=` stays accepted. **Watch for:** the gateway's `legacy ?key=` log line for `/gps` or `/hiking-observations` after those two are switched -- `ssh jct@m8.local "docker logs --since 24h data-pipeline-api 2>&1 | grep legacy"`; once it stays quiet across a real hike, CARD-0371 (remove `?key=`) is safe. Key rotation is CARD-0370, deliberately separate. **Note:** the orchestrator's own webhook auth (`WEBHOOK_SECRET` via `?key=`, and the gateway's `_relay_log` call to `/webhook/pipeline-log`) still uses the query form -- Caddy's redaction covers it in the logs, but it was out of this card's scope.
 
 ### CARD-0364 · [enhancement] [data-pipeline] Wildlife/scat re-processing: decide drop-vs-update instead of preserving the old silent-drop behavior
 

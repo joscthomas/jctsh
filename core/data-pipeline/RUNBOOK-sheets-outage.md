@@ -1,5 +1,7 @@
 # Runbook -- the environmental Google Sheet stops accepting writes
 
+> **RETIRED 2026-09-29 (CARD-0349, CARD-0366).** The environmental data no longer lives in a Google Sheet, so none of the Sheet-specific triage below applies. Kept for its incident history (CARD-0226) and because the Node-RED queue/replay behavior in section 0 still holds. For the current system's health, backup and restore, see `README.md`.
+
 Written 2026-09-25 after the CARD-0226 incident. Symptoms: node-red Alerts such as
 `Environmental Data POSTs failing (...)`, gaps in the porch/patio/hiking-monitor rows,
 hike pages built with no environmental data, Apps Script Executions showing `Timed Out`

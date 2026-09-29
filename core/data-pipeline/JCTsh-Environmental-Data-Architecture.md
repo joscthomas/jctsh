@@ -1,12 +1,18 @@
 # JCTsh Environmental Data Architecture
 **Author:** Joseph C Thomas (JCT)
-**Purpose:** Defines the architecture for JCTsh environmental sensor data — the standard message payload, Google Sheets archive design, Node-RED data handler pattern, Weather Underground integration, and the planned environmental sensor family. All environmental sensor components must conform to this standard.
-**Version:** 1.6
-**Version description:** CARD-0291 (fifth pass) — Sheets Structure table reconciled against `environmental-data.gs`, which it had drifted from: added `GPS Track`, `Wildlife Detections`, `Timeline`, and `Correlation Debug` (all four really written by the script, none previously listed), marked `Lightning Events` as planned/not-yet-created (no code path writes it; `weather-station` isn't built), and labeled `Timeline`/`Correlation Debug` as derived/diagnostic rather than archive sheets so neither is mistaken for a source of record. No change to the payload schema, the handler pattern, or any sheet's own column schema.
+**Purpose:** Defines the architecture for JCTsh environmental sensor data — the standard message payload, TimescaleDB archive design, Node-RED data handler pattern, Weather Underground integration, and the planned environmental sensor family. All environmental sensor components must conform to this standard.
+**Version:** 1.7
+**Version description:** CARD-0366 (2026-09-29) — storage is now TimescaleDB, not Google Sheets (CARD-0349): the Sheets Archive section is rewritten as the Storage section, the Node-RED handler steps and gap handling updated, and the Hiking Observations / Hike Start Forecast sheet schemas marked as tables. Payload standard unchanged. Prior: CARD-0291 (fifth pass) — Sheets Structure table reconciled against `environmental-data.gs`, which it had drifted from: added `GPS Track`, `Wildlife Detections`, `Timeline`, and `Correlation Debug` (all four really written by the script, none previously listed), marked `Lightning Events` as planned/not-yet-created (no code path writes it; `weather-station` isn't built), and labeled `Timeline`/`Correlation Debug` as derived/diagnostic rather than archive sheets so neither is mistaken for a source of record. No change to the payload schema, the handler pattern, or any sheet's own column schema.
 **Project:** JCTsh — Smart Home Automation
 **Related files:** `README.md`, `CLAUDE.md`, `ENVIRONMENT.md`, `JCTsh-Build-Standards.md`, `JCTsh-Component-Planning-Pattern.md`
 
 ---
+
+> **Storage status, 2026-09-29 (CARD-0349, CARD-0366).** Everything below the payload
+> standard that says "Sheet" or "Apps Script" describes the retired system unless it says
+> otherwise. The archive is a TimescaleDB database behind `data-pipeline-api`; **`init/schema.sql`
+> is the authority on columns**, and `README.md` is the operational reference. The payload
+> standard, derived fields and handler pattern are unchanged and still binding.
 
 ## Purpose and Scope
 
@@ -20,9 +26,9 @@ The weather station is the first component in this family. All subsequent enviro
 
 **Lat/lon is a first-class field.** Every environmental data message carries `lat` and `lon` regardless of whether the device is fixed or mobile. Fixed sensors hardcode their coordinates in firmware. Mobile sensors with GPS hardware source them from the GPS module. Mobile devices without GPS hardware send JSON `null` for both fields — this is the correct value, not zero (0,0 is a real location in the Gulf of Guinea). Timestamp correlation with an external GPS track (e.g. GaiaGPS) is used instead. This makes every record self-contained and the null signals clearly that no GPS data is available for that reading.
 
-**Node-RED owns external posting.** ESP32 devices publish to MQTT only. Node-RED handles all HTTP calls to Weather Underground, Google Sheets, and any other external service. This keeps ESP32 wake cycles fast, retry/error logic centralized, and battery life maximized.
+**Node-RED owns external posting.** ESP32 devices publish to MQTT only. Node-RED handles all HTTP calls to Weather Underground, the data-pipeline gateway, and any other external service. This keeps ESP32 wake cycles fast, retry/error logic centralized, and battery life maximized.
 
-**One archive, many sources.** The Google Sheets environmental archive receives data from all environmental sensors via a single Node-RED wildcard subscription. Adding a new sensor requires no changes to the archive schema or handler — the `component` field identifies the source in every row.
+**One archive, many sources.** The TimescaleDB environmental archive receives data from all environmental sensors via a single Node-RED wildcard subscription. Adding a new sensor requires no changes to the archive schema or handler — the `component` field identifies the source in every row.
 
 **Rain accumulation lives in Node-RED.** Raw tip counts from rain gauges are published by ESP32. Node-RED maintains the rolling 60-minute window and daily accumulator. This is more reliable than preserving state across deep sleep cycles in ESP32 RTC memory, and keeps Weather Underground calculations in an always-on process.
 
@@ -57,14 +63,14 @@ All environmental sensor components publish data to `jctsh/components/<name>/dat
 
 | Field | Type | Unit | Required | Notes |
 |---|---|---|---|---|
-| `component` | string | — | ✅ Always | Matches the MQTT component name — used as `source` in Sheets |
+| `component` | string | — | ✅ Always | Matches the MQTT component name — used as `source` in the archive |
 | `ts` | string | ISO 8601 UTC | ✅ Always | From DS3231 RTC or NTP-synced system clock |
 | `lat` | number or null | decimal degrees | ✅ Always | Fixed constant for fixed sensors; GPS value for mobile sensors with GPS hardware; JSON `null` for mobile sensors without GPS (e.g. hiking monitor) |
 | `lon` | number or null | decimal degrees | ✅ Always | Same as `lat` — never omit, never send 0 |
 | `temp_f` | number | °F | if available | Primary temperature reading |
 | `humidity_pct` | number | % RH | if available | Relative humidity |
 | `pressure_hpa` | number | hPa | if available | Barometric pressure |
-| `uv_index` | number | UVI | if available | UV index — LTR-390 sensor (UVA + UV Index); filter `lat IS NOT NULL` in Sheets when doing location-based analysis |
+| `uv_index` | number | UVI | if available | UV index — LTR-390 sensor (UVA + UV Index); filter `lat IS NOT NULL` in queries when doing location-based analysis |
 | `irradiance_wm2` | number | W/m² | if available | Solar irradiance (SI1145) |
 | `wind_speed_mph` | number | mph | if available | Anemometer reading |
 | `wind_dir_deg` | number | 0–359° | if available | Wind vane reading |
@@ -84,47 +90,60 @@ All environmental sensor components publish data to `jctsh/components/<name>/dat
 
 | Field | Computed from | Used for |
 |---|---|---|
-| `dew_point_f` | `temp_f` + `humidity_pct` | Sheets archive, HA entity |
-| `heat_index_f` | `temp_f` + `humidity_pct` | Sheets archive, HA entity |
+| `dew_point_f` | `temp_f` + `humidity_pct` | the archive, HA entity |
+| `heat_index_f` | `temp_f` + `humidity_pct` | the archive, HA entity |
 | `rainin` | rolling 60-min `rain_tips` sum | Weather Underground |
 | `dailyrainin` | midnight-to-now `rain_tips` sum | Weather Underground |
 
 ---
 
-## Google Sheets Archive
+## Storage Archive (TimescaleDB)
+
+*Replaces the Google Sheets archive (CARD-0349, 2026-09-28/29). The workbook and
+`environmental-data.gs` are retired; the old sheet design is preserved in git history and
+`timescaledb-migration-plan.md`.*
 
 ### Purpose
 
-The Google Sheets environmental archive is the permanent, queryable record of all JCTsh environmental sensor data. It is the authoritative data store — Weather Underground is a display window, not an archive.
+The TimescaleDB environmental archive is the permanent, queryable record of all JCTsh
+environmental sensor data. It is the authoritative data store — Weather Underground is a
+display window, not an archive.
 
 ### Access
 
-Node-RED posts to the archive via a Google Apps Script web app deployed as a REST endpoint. The endpoint accepts a JSON POST, appends one row, and returns a success status. Authentication is a secret key in the URL — no OAuth required.
+Node-RED posts to `data-pipeline-api` (`POST /environmental-data`) — a small HTTP gateway on
+the M8 in front of the database. Authentication is a shared secret in the URL (`?key=`), no
+OAuth. The gateway URL and key are stored in Node-RED environment variables
+(`DATA_PIPELINE_URL`, `DATA_PIPELINE_KEY`), not in source control. Routes, deployment and
+backup are in `README.md`.
 
-The Apps Script web app URL and secret key are stored in Node-RED environment variables (not in source control).
+### Tables
 
-### Sheets Structure
+Defined in `init/schema.sql`. Replaces the workbook's sheets one for one, except the two
+derived/diagnostic sheets:
 
-The workbook contains multiple sheets. **Reconciled against `environmental-data.gs` 2026-09-22 08:50 MST (CARD-0291, fifth pass)** — four sheets the script really writes were missing from this table entirely, and the one sheet it listed that no code path writes is now marked planned:
-
-| Sheet | Contents |
+| Table | Contents |
 |---|---|
-| `Environmental Data` | One row per sensor reading — all environmental sensor sources. The canonical archive. |
-| `GPS Track` | One row per GPS fix (timestamp, lat, lon, accuracy, altitude, bearing), posted straight to the script by GPSLogger on the phone via `?action=gps` — never through MQTT or Node-RED. Every other sheet's coordinate back-fill is resolved against this one (`?action=lookup`). |
-| `Hiking Observations` | One row per voice observation — see Hiking Observations Architecture section |
-| `Hike Start Forecast` | One row per day a hike started — a live weather-forecast snapshot captured at that moment; see Hike Start Forecast Architecture section |
-| `Wildlife Detections` | One row per species per hike (`timestamp`, `hike_file_stem`, `common_name`, `scientific_name`, `count`, `best_confidence`, `lat`, `lon`) — posted by hike-izer's BirdNET pass, one call per detection, deduplicated on (hike, species). Self-provisioning: the script creates the sheet and its header row if absent (CARD-0229/CARD-0235). |
-| `Timeline` | **Derived view, not an archive** — `Environmental Data` + `Hiking Observations` merged into one human-readable sequence in each row's own local time (`timestamp_local`, `type`, `summary`, `categories`, `lat`, `lon`). Rebuilt from scratch on demand via the workbook's **JCTsh → Refresh Timeline** menu; nothing in the pipeline writes it, and clearing it loses nothing (CARD-0099). |
-| `Correlation Debug` | **Diagnostic, not an archive** — one row per GPS-correlation attempt (`logged_at`, `event_type`, `target_ts`, `best_diff_sec`), for checking how closely a reading actually matched a GPS fix. Self-provisioning. |
-| `Lightning Events` *(planned)* | One row per lightning strike event from the weather station's AS3935 detector. **Not yet created — no code path in `environmental-data.gs` writes it**, because `weather-station` isn't built; see MQTT Lightning Topic below. |
+| `environmental_data` | One row per sensor reading — all environmental sensor sources. The canonical archive. Hypertable on `ts`; unique on `(ts, source)`. |
+| `gps_track` | One row per GPS fix (`ts`, `lat`, `lon`, `accuracy_m`, `altitude_m`, `direction`), sent straight to the gateway by GPSLogger on the phone via `GET /gps` — never through MQTT or Node-RED. Every other table's coordinate back-fill is resolved against this one (`GET /lookup-gps`). |
+| `hiking_observations` | One row per voice observation — see Hiking Observations Architecture below. |
+| `hike_start_forecast` | One row per detected hike session — a live weather-forecast snapshot captured at that moment; see Hike Start Forecast Architecture below. |
+| `wildlife_detections` | One row per species per hike (`ts`, `hike_file_stem`, `common_name`, `scientific_name`, `count`, `best_confidence`, `lat`, `lon`), posted by hike-izer's BirdNET pass and deduplicated on (hike, species). |
+| `hike_izer_cost` | One row per hike-izer generation run — generation telemetry, not sensor data. |
+| `Lightning Events` *(planned)* | One row per lightning strike event from the weather station's AS3935 detector. **Not yet created**, because `weather-station` isn't built; see MQTT Lightning Topic below. |
+
+The workbook's `Timeline` (a derived view) and `Correlation Debug` (a diagnostic) were not
+carried over: the merged timeline is a query away, and correlation diagnostics are the
+gateway's own container log (`docker logs data-pipeline-api`).
 
 ### Environmental Data Schema
 
-One sheet, one row per reading, all sources. The `source` column is populated from the `component` field in the MQTT payload.
+One table, one row per reading, all sources. The `source` column is populated from the
+`component` field in the MQTT payload. (Authoritative column list: `init/schema.sql`.)
 
 | Column | Source | Notes |
 |---|---|---|
-| `timestamp` | `ts` from payload | ISO 8601 UTC |
+| `ts` | `ts` from payload | `timestamptz`; ISO 8601 UTC on the wire |
 | `source` | `component` from payload | e.g. `weather-station`, `porch-sensor`, `hiking-monitor`, `air-quality-monitor` |
 | `lat` | `lat` from payload | Decimal degrees, or null for devices without GPS |
 | `lon` | `lon` from payload | Decimal degrees, or null for devices without GPS |
@@ -142,25 +161,25 @@ One sheet, one row per reading, all sources. The `source` column is populated fr
 | `dailyrainin` | computed by Node-RED | inches, midnight to now |
 | `battery_v` | `battery_v` | V |
 | `rssi_dbm` | `rssi_dbm` | dBm |
-| `pm1_ug_m3` | `pm1_ug_m3` | µg/m³ — blank for non-AQ devices |
-| `pm25_ug_m3` | `pm25_ug_m3` | µg/m³ — blank for non-AQ devices |
-| `pm4_ug_m3` | `pm4_ug_m3` | µg/m³ — blank for non-AQ devices |
-| `pm10_ug_m3` | `pm10_ug_m3` | µg/m³ — blank for non-AQ devices |
-| `voc_index` | `voc_index` | VOC index — blank for non-AQ devices |
-| `nox_index` | `nox_index` | NOx index — blank for non-AQ devices |
-| `illuminance_lx` | `illuminance_lx` | lux — blank for sensors without BH1750 |
-| `solar_v` | `solar_v` | V — blank for non-solar devices |
+| `pm1_ug_m3` | `pm1_ug_m3` | µg/m³ — NULL for non-AQ devices |
+| `pm25_ug_m3` | `pm25_ug_m3` | µg/m³ — NULL for non-AQ devices |
+| `pm4_ug_m3` | `pm4_ug_m3` | µg/m³ — NULL for non-AQ devices |
+| `pm10_ug_m3` | `pm10_ug_m3` | µg/m³ — NULL for non-AQ devices |
+| `voc_index` | `voc_index` | VOC index — NULL for non-AQ devices |
+| `nox_index` | `nox_index` | NOx index — NULL for non-AQ devices |
+| `illuminance_lx` | `illuminance_lx` | lux — NULL for sensors without BH1750 |
+| `solar_v` | `solar_v` | V — NULL for non-solar devices |
 
-Columns for fields a given sensor does not provide are left blank for that row. Do not add per-device columns — all sources use the same schema.
+Columns for fields a given sensor does not provide are NULL for that row. Do not add per-device columns — all sources use the same schema. The physical range checks on `temp_f`, `humidity_pct`, `pressure_hpa` and `uv_index` are `CHECK` constraints in the database.
 
 ### Analysis Capabilities
 
-Because every row is self-contained (timestamp + source + location + readings), standard Sheets functionality covers:
+Because every row is self-contained (timestamp + source + location + readings), plain SQL (DBeaver over an SSH tunnel to the M8, or `GET /export`) covers:
 
 - Filter by `source` to isolate one device
 - Filter by date range for seasonal or storm analysis
 - Chart any field over time
-- Pivot to compare sources side-by-side (e.g. porch vs. weather station temperature delta)
+- Pivot or self-join to compare sources side-by-side (e.g. porch vs. weather station temperature delta)
 - Import into Google Maps or GIS tools using `lat`/`lon` columns directly — filter `lat IS NOT NULL` to exclude devices without GPS
 - Join hiking monitor rows to GaiaGPS track by matching `timestamp` to GPX trackpoint timestamps
 - Correlate air quality monitor PM2.5 with hiking monitor UV index and pressure to characterize hike conditions fully
@@ -179,9 +198,9 @@ The data handler subscribes to `jctsh/components/+/data` (wildcard). Any environ
 On each received data message the handler:
 
 1. Parses the JSON payload
-2. Checks `component` field — routes `hiking-observations` to Observations sheet; all others to Environmental Data sheet
+2. Splits off diagnostic events (skip/reset/display-refresh) to the component's log topic; everything else is an environmental reading. (Hiking observations no longer pass through Node-RED — Tasker posts them straight to the gateway.)
 3. Computes derived fields (`dew_point_f`, `heat_index_f`, `rainin`, `dailyrainin`) for environmental readings
-4. Posts to Google Sheets (appends one row to the appropriate sheet)
+4. Posts to the gateway (`POST /environmental-data`) through a serial queue with retry
 5. Posts to Weather Underground (weather station only — filtered by `component === "weather-station"`)
 6. Updates Home Assistant entities via REST API
 7. Routes SmartThings-exposed values (temperature, rain active, lightning) via HA
@@ -197,7 +216,7 @@ These are Node-RED flow context variables, persistent across redeploys via the N
 
 ### Offline / Gap Handling
 
-If the Node-RED handler cannot reach Google Sheets or Weather Underground (network issue, service outage), it logs the failure to `jctsh/core/log-server/log` and continues. SD card logging on the ESP32 provides a local backup for gap recovery. WU does not support backfill — gaps in WU data are permanent. Gaps in Google Sheets can be backfilled manually from SD card logs if needed.
+If the Node-RED handler cannot reach the gateway or Weather Underground (network issue, service outage), it logs the failure to `jctsh/core/log-server/log` and continues; gateway writes are queued in memory and retried, and discarded only after 24 hours. SD card logging on the ESP32 provides a local backup for gap recovery. WU does not support backfill — gaps in WU data are permanent. Gaps in the database can be backfilled from SD card logs or a device's own replay if needed.
 
 ---
 
@@ -257,6 +276,8 @@ The taxonomy is extensible — add keywords and categories in the Apps Script pr
 
 ### Hiking Observations Sheet Schema
 
+> *Historical — this was the Sheets column layout. It is now the `hiking_observations` table; `init/schema.sql` is authoritative.*
+
 Separate sheet in the same Google Sheets workbook as Environmental Data.
 
 | Column | Source | Notes |
@@ -275,6 +296,8 @@ The `timestamp` column is the join key across all three data streams:
 - All three streams together give: where you were + what conditions were + what you observed
 
 ### Implementation (as actually built, CARD-0156 — corrected 2026-09-02, CARD-0225)
+
+> *Historical as to the receiving end: since CARD-0349 the POST goes to `data-pipeline-api`'s `/hiking-observations` (not an Apps Script `doPost`), which does the same keyword scan and coordinate back-fill and writes the `hiking_observations` table. The Tasker side and the direct-HTTP reasoning are unchanged.*
 
 The two-path Google Recorder/Drive-folder design below was the original plan; it was never built. What actually shipped is simpler and has no MQTT step at all:
 
@@ -306,6 +329,8 @@ This makes the *first* Hiking Observation of a hike the de facto trigger in prac
 Open-Meteo has no named "nearest station" concept, unlike NWS/METAR-based sources which snap to an airport or gridpoint office — it's a gridded numerical model interpolated to the exact coordinate requested. The response's own `latitude`/`longitude` fields report the actual grid point used (can differ slightly from the input due to grid resolution); these are what's stored, not the input coordinates, so the record shows precisely what point the forecast was for.
 
 ### Hike Start Forecast Sheet Schema
+
+> *Historical — this was the Sheets column layout. It is now the `hike_start_forecast` table; `init/schema.sql` is authoritative.*
 
 Separate sheet in the same Google Sheets workbook as Environmental Data. Self-provisioning — the Apps Script creates the sheet with this header row on first use if it doesn't already exist, so no manual Sheets setup step is required.
 
@@ -374,7 +399,7 @@ payload: { "component": "weather-station", "distance_km": 12, "energy": 847 }
 
 Node-RED subscribes separately to this topic and:
 - Fires a momentary ON to the `switch.weather_station_lightning` virtual switch in HA → SmartThings
-- Appends a row to a separate `Lightning Events` sheet in the same Google Sheets workbook
+- Appends a row to a separate `lightning_events` table (not yet created)
 
 ---
 
@@ -441,7 +466,7 @@ The front porch sensor is the next planned environmental component after the wea
 Update this document when:
 - A new environmental sensor is added to the family (update the planned device table)
 - The payload schema is extended (add new fields to the field reference)
-- The Google Sheets schema is extended (add new columns)
+- The database schema is extended (a new column needs an `ALTER TABLE` against the live database plus a matching `init/schema.sql` edit)
 - The Node-RED handler logic changes materially
 - A new external data destination is added
 - The hiking observations category taxonomy is extended

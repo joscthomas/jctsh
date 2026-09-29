@@ -39,7 +39,7 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-29 (CARD-0193) —
 
 ### CARD-0366 · [enhancement] [data-pipeline] Rewrite the data-pipeline operational docs for data-pipeline-api -- README/architecture doc still describe the retired Apps Script
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-29 (general session, spun off CARD-0347 item 8 after scanning the board for CARD-0349 follow-on work).** `core/data-pipeline/README.md` and `JCTsh-Environmental-Data-Architecture.md` describe `environmental-data.gs`/Google Sheets as the live system -- schema, ingest routes, the health probe, everything. That system is now fully retired (CARD-0349): every real producer writes to `data-pipeline-api`/TimescaleDB instead, and the Apps Script survives only as a read-only historical reference. The operational reference doc for this whole pipeline is now describing something that no longer runs.
 
@@ -50,6 +50,12 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-29 (CARD-0193) —
 **Related:** CARD-0347 (the pipeline review this item was originally found in), CARD-0349 (the migration that made this doc stale), `core/data-pipeline/timescaledb-design.md`/`timescaledb-migration-plan.md` (the current-but-wrongly-framed content this would draw from).
 
 ---
+
+**DONE 2026-09-29 12:07 MST (general session).** Scoped by the card's own "likely shape" without a separate interview -- Joseph's direction was simply "do 366". Built against the real code (`api/app.py`, `init/schema.sql`, `docker-compose.yml`, the live Node-RED flow, the running M8 containers), not the design doc.
+
+**What changed:** `core/data-pipeline/README.md` rewritten as the operational reference for `data-pipeline-api`/TimescaleDB (files, flow diagram, where it runs, every gateway route, tables and dedup keys, Node-RED handler, health/backup/restore, deploy, limitations). `JCTsh-Environmental-Data-Architecture.md` v1.7: status banner, the Sheets Archive section rewritten as a Storage section, handler steps/gap handling/Lightning wording updated, both sheet-schema sections marked historical. `RUNBOOK-sheets-outage.md` marked RETIRED. `core/data-pipeline/CLAUDE.md` filled in (it had been an empty stub, CARD-0347 item 7). `environmental-data.flow.json` refreshed from the live Node-RED tab (it was still the pre-cutover Apps Script version, same staleness as CARD-0369).
+
+**Left as-is, on purpose:** the Hiking Observations / Hike Start Forecast *implementation* sections of the Architecture doc still narrate the Apps Script pipeline (covered by the banner and one added note, not rewritten line by line); `timescaledb-design.md`/`timescaledb-migration-plan.md` untouched as planning history (design doc still says `bearing_deg`, real column is `direction` -- now noted in `CLAUDE.md`); three live Node-RED node names still say "Apps Script" (documented in the README, renaming needs a live-flow edit + re-export). **Not verified:** the `pg_restore` command in the README has never been rehearsed -- the README says so. **Reflection:** the README-vs-design-doc split matters -- a design doc written before the build drifts (wrong column name, wrong exposure detail) and should be marked as history the day the build lands, not left looking authoritative; and an operational README needs a "live copy vs. repo copy" line for anything edited in a UI (Node-RED).
 
 ### CARD-0365 · [bug] [data-pipeline] API keys travel in the URL query string across the whole data pipeline (old Apps Script and the new gateway alike)
 

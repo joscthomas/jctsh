@@ -1,29 +1,23 @@
 # core/data-pipeline — Environmental Data Pipeline
 
-The shared ingest path every environmental reading travels: MQTT (or a direct HTTPS POST,
-for the phone-sourced pipelines) → a Node-RED handler on the Pi → a Google Apps Script web
-app → the Google Sheets workbook that is the authoritative archive. Not a component with
-hardware of its own — it's the pipeline other components publish *into*, which is why it
-lives in `core/` rather than `components/`.
+The shared ingest path every environmental reading travels: MQTT (or a direct HTTPS
+request, for the phone-sourced pipelines) → `data-pipeline-api` on the M8 → a TimescaleDB
+(PostgreSQL) database that is the authoritative archive. Not a component with hardware of
+its own — it's the pipeline other components publish *into*, which is why it lives in
+`core/` rather than `components/`.
 
-**Status:** Production. Four components are configured to publish into it —
-`hiking-monitor`, `air-quality-monitor`, `front-porch-temp-sensor`,
-`back-patio-temp-sensor` — plus three phone-sourced HTTP pipelines (GPS Track, Hiking
-Observations, Hike Start Forecast) that reach the Apps Script directly, never through the
-broker.
+**Status:** Production. Since CARD-0349 (cut over 2026-09-28/29) the store is TimescaleDB,
+not Google Sheets. `environmental-data.gs` and the workbook are retired and kept only as a
+historical reference — nothing writes to them. Four components publish sensor readings
+through it — `hiking-monitor`, `air-quality-monitor`, `front-porch-temp-sensor`,
+`back-patio-temp-sensor` — and the phone-sourced HTTP pipelines (GPS Track, Hiking
+Observations) plus the hike-izer orchestrator (Hike Start Forecast, Wildlife Detections,
+Hike-izer Costs) call the gateway directly, never through the broker.
 
-> **`back-patio-temp-sensor` is configured but currently silent on `/data`** (measured by
-> the porch/patio session, 2026-09-22: 6.6 minutes subscribed, longer than the 5-minute
-> interval — 4 illuminance messages, zero `/data`). Its BME280 is one of the counterfeit
-> BMP280s (chip ID `0x58`, not `0x60`), so ESPHome's `bme280_i2c` marks the component
-> FAILED, temp/humidity/pressure all read NaN, and the publish lambda's
-> `if (isnan(...)) skip` guard suppresses the payload. A genuine BME280 is on order and
-> the swap is drop-in, so this is transient — the YAML and topic are correct.
-
-Payload schema, sheet schemas, Weather Underground integration, and the planned sensor
-family are defined in `JCTsh-Environmental-Data-Architecture.md`. **That document is the
-standard; this one is the operational reference** — what's in this directory, what runs
-where, how to deploy it, and how to verify a deploy landed.
+Payload schema and the planned sensor family are in
+`JCTsh-Environmental-Data-Architecture.md`. **That document is the standard; this one is
+the operational reference** — what runs where, how to deploy it, and how to check it.
+Table definitions live in `init/schema.sql`, which is the source of truth for columns.
 
 ---
 
@@ -31,11 +25,21 @@ where, how to deploy it, and how to verify a deploy landed.
 
 | File | Purpose |
 |---|---|
-| `JCTsh-Environmental-Data-Architecture.md` | The standard — payload schema, field reference, derived fields, Sheets archive design, Node-RED handler pattern, Weather Underground integration, planned device family. Every environmental component must conform to it. |
-| `environmental-data.flow.json` | The Node-RED handler — wildcard subscription on `jctsh/components/+/data`, GPS correlation, derived fields, POST to the Apps Script. Import into Node-RED on the Pi. |
-| `environmental-data.gs` | Google Apps Script source, bound to the Sheets workbook and deployed as a web app. Paste into the Apps Script editor; **redeploy after any change** or the old version keeps serving. |
-| `CLAUDE.md` | Curated context stub — design rationale/gotchas as they're learned (currently empty by design, CARD-0290). |
-| `card-archive.md` | Archived `[data-pipeline]` card history. On-demand only, never routine reading. |
+| `JCTsh-Environmental-Data-Architecture.md` | The standard — payload schema, field reference, derived fields, Node-RED handler pattern, planned device family. Its Sheets-era sections are marked historical. |
+| `docker-compose.yml` | The M8 compose project: `timescaledb` + `data-pipeline-api`. |
+| `api/app.py`, `api/Dockerfile`, `api/requirements.txt` | The gateway (`data-pipeline-api`): stdlib `http.server` + `psycopg2`, same handler convention as `hike-izer-orchestrator/app.py`. |
+| `init/schema.sql` | Table definitions. Runs once, only against an empty `pgdata` volume — a schema change after go-live needs a real migration, not an edit here. |
+| `.env.example` | Names the secrets `.env` must carry. Real values live in `credentials.local.md`. |
+| `environmental-data.flow.json` | The Node-RED handler tab (`jctsh/components/+/data` → derived fields → GPS lookup → POST to the gateway). Import into Node-RED on the Pi. |
+| `sheet-health.flow.json` | The Node-RED "Sheet Health" tab — a 5-minute probe of the gateway's `/health`. The name is historical; it now probes the database. |
+| `pg-backup.sh`, `pg-backup.service`, `pg-backup.timer` | Daily 04:00 `pg_dump` on the M8 (CARD-0362). |
+| `migrate_to_timescale.py` | One-time Sheets → TimescaleDB backfill script. Historical; not part of the running system. |
+| `timescaledb-design.md`, `timescaledb-migration-plan.md` | CARD-0349's Planning and Design artifacts — the record of how the decision was made. Written before the build; where they differ from `init/schema.sql` or `api/app.py`, the code is right. |
+| `environmental-data.gs` | **Retired** Apps Script source. Reference only. |
+| `RUNBOOK-sheets-outage.md` | **Retired**, kept for its incident history (CARD-0226). |
+| `pipeline-review-2026-09-26.md` | The review that motivated the migration (CARD-0347). |
+| `CLAUDE.md` | Curated gotchas as they're learned. |
+| `card-archive.md` | Archived `[data-pipeline]` card history. On-demand only. |
 
 ## Flow of a reading
 
@@ -43,19 +47,75 @@ where, how to deploy it, and how to verify a deploy landed.
 ESP32 sensor ──MQTT──► jctsh/components/<name>/data
                               │
                               ▼
-                  Node-RED: environmental-data.flow.json
+                  Node-RED (Pi): environmental-data.flow.json
                     ├─ route skip/reset/display-refresh events → component log topic
-                    ├─ GPS lookup (throttled) → Apps Script ?action=lookup
+                    ├─ GPS lookup (throttled) → gateway  GET /lookup-gps
                     ├─ compute derived fields (dew point, heat index, rain)
-                    └─ POST ──► Apps Script web app ──► Google Sheets workbook
-                                       ▲                     (authoritative archive)
-Phone pipelines ──direct HTTPS POST────┘
-(GPS Track, Hiking Observations, Hike Start Forecast)
+                    └─ serial queue, retry, alert ─► gateway  POST /environmental-data
+                                                              │
+GPSLogger (phone) ──► GET /gps ───────────────────────────────┤
+Tasker (phone) ────► POST /hiking-observations ───────────────┤   data-pipeline-api
+hike-izer-orchestrator ► POST /wildlife-detection,            ├─► (M8, :8080)
+                         /hike-izer-cost ─────────────────────┤        │
+fetch_hike_data.py ◄── GET /export ───────────────────────────┘        ▼
+                                                                TimescaleDB (M8)
 ```
 
-Phone-sourced pipelines bypass MQTT entirely and post straight to the Apps Script — see
-root `CLAUDE.md`'s "MQTT vs. Direct HTTP" section for why (Apps Script has no MQTT client
-capability at all, `UrlFetchApp` only).
+Phone-sourced pipelines bypass MQTT entirely — see root `CLAUDE.md`'s "MQTT vs. Direct
+HTTP" section. The gateway has no MQTT client of its own, so its log lines reach the
+dashboard by POSTing to `hike-izer-orchestrator`'s `/webhook/pipeline-log`, which
+republishes on its behalf (CARD-0225).
+
+## Where it runs
+
+New Docker Compose project on the **M8**, deployed to `~/data-pipeline-app/` (scp'd, no git
+checkout there — same pattern as `~/hike-izer-web-app/`). Two containers:
+
+| Container | Image | Exposure |
+|---|---|---|
+| `data-pipeline-timescaledb` | `timescale/timescaledb:2.30.1-pg16` (pinned, CARD-0362 — bump deliberately, never by rebuild accident) | `127.0.0.1:5432` only. For DBeaver, tunnel over SSH to the M8; never bound to the LAN. |
+| `data-pipeline-api` | built from `api/` | `127.0.0.1:8091` locally; publicly at **`https://hikes.jctnet.com/data/…`** via the existing Cloudflare Tunnel + Caddy (`components/hike-izer-web/Caddyfile`'s `handle_path /data/*`, which strips the `/data` prefix — the gateway's own routes are `/gps`, not `/data/gps`). |
+
+Every route authenticates with a shared secret, `?key=<API_KEY>`, checked with a
+constant-time compare. The URL and key reach callers as `DATA_PIPELINE_URL` /
+`DATA_PIPELINE_KEY` (Node-RED env vars, the orchestrator's `.env`) and in GPSLogger's saved
+URL.
+
+## Gateway routes
+
+| Method | Path | Caller | Notes |
+|---|---|---|---|
+| POST | `/environmental-data` | Node-RED | JSON body with `ts`, `source`, and any sensor fields; absent fields are stored NULL. `400` on a missing `ts`/`source` or a value that can't be coerced; a duplicate `(ts, source)` gets the duplicate response, not an error. |
+| GET | `/gps` | GPSLogger | Query-string ingest (GPSLogger's custom-URL feature only does templated GETs — a device constraint). `lat`/`lon`/`ts` are strict; `acc`/`alt`/`direction` are optional, and a garbled value is logged and ignored rather than rejecting the point. A stored, non-duplicate point may also trigger the Hike Start Forecast capture. |
+| GET | `/lookup-gps` | Node-RED | `?ts=` → the nearest GPS fix by absolute time distance. |
+| GET | `/export` | `fetch_hike_data.py` | `?table=&start=&end=` (ISO 8601). `table` is one of `environmental_data`, `gps_track`, `wildlife_detections`, `hike_start_forecast`, `hiking_observations`, `hike_izer_cost`. Returns native JSON types. |
+| POST | `/hiking-observations` | Tasker | Keyword-categorizes the text; back-fills coordinates from the GPS track. |
+| POST | `/wildlife-detection` | orchestrator | One species per hike; first write wins. |
+| POST | `/hike-izer-cost` | orchestrator | One row per generation run. |
+| GET | `/health` | Node-RED probe, orchestrator pre-flight, the container's own healthcheck | Runs a real `SELECT 1`; `500` with the error text on failure. |
+| GET | `/version` | manual deploy check | Returns `VERSION` from `api/app.py`. |
+
+`scat-detection` has no route — it was unused before the migration and was not ported.
+
+## Tables
+
+Defined in `init/schema.sql`. Two hypertables (`environmental_data`, `gps_track`), four
+ordinary tables.
+
+| Table | A row is | Dedup key |
+|---|---|---|
+| `environmental_data` | one sensor reading, any source | `(ts, source)` |
+| `gps_track` | one GPS fix | `ts` |
+| `hike_start_forecast` | one detected hike session (a long gap since the previous fix starts a new one) | `ts` |
+| `hiking_observations` | one voice note (`categories` is a real `text[]`) | `ts` |
+| `wildlife_detections` | one species per hike | `(hike_file_stem, scientific_name)` |
+| `hike_izer_cost` | one generation run | every cost field together, deliberately not `ts` |
+
+**Ingest guards live in the database now.** The physical range checks (`temp_f` −20…130,
+`humidity_pct` 0…100, `pressure_hpa` 800…1100, `uv_index` 0…20) are `CHECK` constraints on
+`environmental_data`, and the duplicate rules are the primary keys — the gateway catches the
+violation and answers with the response shape callers already expect. There is no per-write
+duplicate scan to go stale.
 
 ## Node-RED handler
 
@@ -65,87 +125,76 @@ with a conforming payload. Nodes, in order:
 
 | Node | Role |
 |---|---|
-| `jctsh/components/+/data` (mqtt in) | Wildcard subscription — every component's data topic |
-| Route skip/reset/display-refresh events | Diagnostic events split off to the component's own log topic, not the archive (CARD-0195/CARD-0196) |
-| Prepare GPS lookup → Throttle → GPS lookup | Correlates the reading to a GPS fix from the `GPS Track` sheet; throttled to protect the Apps Script from bursty replay traffic (CARD-0279) |
-| Check GPS lookup response | Retries, then publishes an `Alert` to the log topic after 3 failed attempts (CARD-0279) |
+| `jctsh/components/+/data` (mqtt in) | Wildcard subscription |
+| Route skip/reset/display-refresh events | Diagnostic events split off to the component's own log topic, not the archive (CARD-0195/0196) |
+| Prepare GPS lookup → GPS lookup → Check response | Correlates a reading with no coordinates to a GPS fix via `/lookup-gps`; retries, then publishes an `Alert` after 3 failures (CARD-0279) |
 | Compute derived fields + build POST | `dew_point_f`, `heat_index_f`, `rainin`, `dailyrainin` — computed here, never sent by the ESP32 |
-| POST to Apps Script → Check response | Writes the row; success/error logged to MQTT |
+| POST queue → POST → Check response | Serial queue, one request in flight, retry every 5 minutes, alert at most once per 30 minutes, discard only after 24 hours (CARD-0226). **The queue is in memory** — redeploying the tab or restarting Node-RED empties it. |
 
+Three node names still say "Apps Script" (`POST to Apps Script (no redirect follow)`,
+`Follow Apps Script redirect`, `Get Apps Script result`). They are left over from the old
+target, and the redirect-follow pair is vestigial now that the gateway answers directly.
 Rain accumulators (rolling 60-minute buffer, daily total reset at midnight
-`America/Phoenix`) are Node-RED flow-context variables, persistent across redeploys via
-the context store — not held in the Apps Script.
+`America/Phoenix`) are flow-context variables, persistent across redeploys.
 
-## Apps Script web app
+## Health, backup, and what to do when it's down
 
-Auth is a secret key in the URL, checked on every request against the `API_KEY` script
-property — no OAuth. The URL and key live in Node-RED environment variables, never in
-source control. `SCRIPT_VERSION` (top of the file) is the deploy fingerprint: fetch
-`?action=version` to confirm which version is actually serving.
-
-**POST routes** — dispatched on `payload.component`:
-
-| `payload.component` | Destination |
-|---|---|
-| `hiking-observations` | `Hiking Observations` — keyword-scans the text against an 8-category taxonomy, back-fills coordinates via GPS lookup |
-| `wildlife-detection` | `Wildlife Detections` — lock-guarded, retried write |
-| anything else | `Environmental Data` — the general sensor path |
-
-**GET routes** — dispatched on `?action=`:
-
-| Action | Role |
-|---|---|
-| `gps` | GPS Track ingest — GPSLogger's custom-URL endpoint (tolerates epoch-seconds, epoch-ms, or ISO timestamps) |
-| `lookup` | Timestamp → coordinates, used by the Node-RED GPS lookup node |
-| `export` | Date-ranged sheet export, consumed by the hike-izer pipeline |
-| `version` | Returns `SCRIPT_VERSION` — the deploy check above |
-
-**Sheets in the workbook**, as actually referenced by the script: `Environmental Data`,
-`GPS Track`, `Hiking Observations`, `Hike Start Forecast`, `Wildlife Detections`,
-`Timeline` (built by `refreshTimeline()`), `Correlation Debug` (GPS-correlation
-diagnostics).
-
-**Ingest guards** — the archive is the authoritative store, so bad data is rejected at the
-door rather than cleaned up later:
-
-- **Physical range checks** on `temp_f` (−20…130), `humidity_pct` (0…100), `pressure_hpa`
-  (800…1100), `uv_index` (0…20), applied only when the field is present. Added after a
-  mid-crash MQTT publish wrote `temp_f=370.6` / `pressure_hpa=−174.9` / `uv_index=7294.4`
-  into the sheet 74 times (CARD-0215).
-- **Duplicate rejection**, with a per-sheet key: `(ts, source)` for `Environmental Data`
-  (many producers, CARD-0215), `ts` alone for `GPS Track` (CARD-0243 — one real hike's
-  data was 29.5% duplicate rows) and `Hiking Observations` (CARD-0244). Reads only the key
-  columns, not whole rows, to stay cheap as the sheets grow.
-- Maintenance helpers for damage already done: `cleanupDuplicateEnvironmentalData()`,
-  `cleanupDuplicateGpsTrack()`, `fixFrontPorchCoordinates()`, exposed via `onOpen()`.
-
-## Known behaviors and limitations
-
-- **Weather Underground cannot be backfilled.** A WU gap is permanent; Sheets gaps can be
-  backfilled from a device's own offline log. WU is a display window, not an archive.
-- **This pipeline has no MQTT presence of its own.** Apps Script can't reach a broker, so
-  log visibility comes from `_relayLog()` POSTing to `hike-izer-orchestrator`'s
-  `/webhook/pipeline-log`, which republishes to the log topic on its behalf (CARD-0225).
-- **A failed Sheets/WU write is logged and skipped, never queued** — the handler continues
-  rather than blocking the flow.
-- **A stale Apps Script deploy is silent.** Editing `environmental-data.gs` and pasting it
-  in changes nothing until the web app is redeployed — check `?action=version` against
-  `SCRIPT_VERSION`, don't assume.
+- **Probe:** the Node-RED "Sheet Health" tab calls `/health` every 5 minutes and pushes to
+  the Pixel and logs under component `sheet-health` after two consecutive bad or >10 s
+  checks. The orchestrator's daily refresh and backstop also pre-flight `/health` and skip
+  themselves while it's bad — a skipped daily refresh is re-run by hand:
+  `docker exec hike-izer-orchestrator python3 generation.py --daily-refresh`.
+- **Nothing is lost while it's down:** Node-RED's queue holds readings (up to 24 h, in
+  memory), the phone apps queue their own posts, and hiking-monitor/air-quality-monitor keep
+  their logs on-device until the next run and can replay them.
+- **Backup:** `pg-backup.timer` runs daily at 04:00 MST on the M8, writing a custom-format
+  `pg_dump` to `~/data-pipeline-app/backups/` and pruning dumps older than 14 days.
+  **Local only** — it covers a corrupted container or data directory, not loss of the M8
+  itself. Off-host backup is not yet built.
+- **Restore:** `docker exec -i data-pipeline-timescaledb pg_restore -U jctsh -d jctsh --clean --if-exists < <dump>`.
+  Not rehearsed end to end — treat it as untested until it has been.
 
 ## Deploy
 
-| Piece | How |
-|---|---|
-| `environmental-data.flow.json` | Import into Node-RED on the Pi (`pi1.local:1880`). Import `core/node-red/core.flow.json` first if the MQTT broker node isn't already present. |
-| `environmental-data.gs` | Paste into the bound Apps Script editor, then **Deploy → Manage deployments → redeploy**. Verify with `?action=version`. |
+On the M8, from a checkout on the workstation:
 
-The repo is the source of truth for both — edit here and deploy out, never the reverse.
+```bash
+scp -r core/data-pipeline/{docker-compose.yml,api,init,pg-backup.sh} jct@m8.local:~/data-pipeline-app/
+ssh jct@m8.local "cd ~/data-pipeline-app && docker compose up -d --build data-pipeline-api"
+curl -s "https://hikes.jctnet.com/data/version?key=$DATA_PIPELINE_KEY"   # confirm the new VERSION is serving
+```
+
+Bump `VERSION` in `api/app.py` on every gateway change — it is the only way to tell a
+landed deploy from a stale one. `init/schema.sql` does **not** re-run; a schema change needs
+a hand-written `ALTER` against the live database and a matching edit to `schema.sql`.
+
+`environmental-data.flow.json` and `sheet-health.flow.json`: import into Node-RED on the Pi
+(`pi1.local:1880`); import `core/node-red/core.flow.json` first if the MQTT broker node isn't
+there. **The live Node-RED file (`/home/pi/.node-red/flows.json`) is what runs** — after any
+edit in the editor, re-export the tab back into this directory, or the repo copy goes stale
+(it did, silently, through the cutover — CARD-0369).
+
+The repo is the source of truth for everything else — edit here and deploy out.
+
+## Known behaviors and limitations
+
+- **Weather Underground cannot be backfilled.** A WU gap is permanent; database gaps can be
+  backfilled from a device's own offline log. WU is a display window, not an archive. (No
+  WU upload node exists in the handler today — `weather-station` isn't built; see the
+  Architecture doc's WU section.)
+- **A stale gateway deploy is silent.** Check `/version` against `VERSION`, don't assume.
+- **A failed write is retried by Node-RED's queue, then discarded after 24 h** — it never
+  blocks the flow.
+- **`back-patio-temp-sensor` history:** its original counterfeit BMP280 (chip ID `0x58`)
+  made ESPHome mark the component FAILED and suppressed every `/data` payload until the
+  genuine BME280 swap (2026-09-22). See CARD-0219 for current status.
 
 ## Related
 
 - `JCTsh-Environmental-Data-Architecture.md` — the standard every environmental component conforms to.
-- Root `CLAUDE.md` — "Environmental Data Architecture" and "MQTT vs. Direct HTTP" sections.
+- Root `CLAUDE.md` — "MQTT vs. Direct HTTP" and the M8/Pi placement convention.
 - `core/node-red/` — the broker node this flow depends on, and the watchdog flow alongside it.
-- `components/hike-izer-orchestrator/` — hosts `/webhook/pipeline-log` (the MQTT relay) and consumes `?action=export`.
+- `components/hike-izer-web/Caddyfile` — the public `/data/*` route.
+- `components/hike-izer-orchestrator/` — hosts `/webhook/pipeline-log` and is the gateway's heaviest caller.
 - `components/hiking-monitor/`, `components/air-quality-monitor/`, `components/front-porch-temp-sensor/`, `components/back-patio-temp-sensor/` — the four publishers.
-- `kanban-board.md` CARD-0215/CARD-0243/CARD-0244 (ingest guards), CARD-0279 (GPS lookup throttle/retry), CARD-0225 (MQTT-vs-HTTP boundary and the log relay), CARD-0306 (open bug — a stationary device's own coordinates overwritten by the hiker's live GPS), CARD-0291 (the audit whose fifth pass produced this file).
+- `tos/kanban-board.md` CARD-0349 (the migration), CARD-0347 (the review), CARD-0362 (pinning and backup), CARD-0338/0369 (health probe), CARD-0279 (GPS lookup throttle/retry), CARD-0225 (MQTT-vs-HTTP boundary and log relay).

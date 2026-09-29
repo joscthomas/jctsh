@@ -1,245 +1,245 @@
 [
-  {
-    "type": "tab",
-    "label": "Environmental Data ",
-    "id": "d15dbc9164b2dce9",
-    "info": "",
-    "disabled": false,
-    "env": []
-  },
-  {
-    "id": "c19403272ad956d6",
-    "type": "mqtt in",
-    "z": "d15dbc9164b2dce9",
-    "name": "jctsh/components/+/data",
-    "topic": "jctsh/components/+/data",
-    "qos": "1",
-    "datatype": "auto",
-    "broker": "mqtt_broker",
-    "inputs": 0,
-    "x": 140,
-    "y": 100,
-    "wires": [
-      [
-        "b37075e7e29b9264"
-      ]
-    ]
-  },
-  {
-    "id": "b37075e7e29b9264",
-    "type": "function",
-    "z": "d15dbc9164b2dce9",
-    "name": "Route skip/reset/display-refresh events (CARD-0195/CARD-0196)",
-    "func": "// CARD-0195/CARD-0196/CARD-0216: hiking-monitor's field-mode skip-reason/reset-reason/\n// display-refresh records ride the same flash-buffer-then-replay path real\n// sensor readings use, so they arrive on this same jctsh/components/+/data\n// wildcard topic. They aren't real readings -- don't send them through\n// GPS lookup or into the Environmental Data sheet; convert them to a\n// standard log message on the component's own /log topic instead.\nvar d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return [null, null]; }\n}\nvar parts = msg.topic.split('/'); // jctsh/components/<name>/data\nvar component = parts[2] || 'unknown';\n// 2026-09-25: any event record, not just the hiking-monitor's three -- the AQM\n// buffers {\"event\":\"wifi_attempt_start\"} lines that ride the same /data replay.\nif (typeof d.event === 'string') {\n    var category, message;\n    if (d.event === 'reset') {\n        // CARD-0216: firmware now logs every field-mode boot's reset\n        // reason unconditionally (not just abnormal ones) to catch a\n        // silently-rebooting device -- categorize here instead, same\n        // abnormal-keyword check the firmware used to do, so a normal\n        // hike-start wake doesn't post as a false Alert every hike.\n        var reason = d.reason || '';\n        var abnormal = /rownout|anic|atchdog/.test(reason);\n        category = abnormal ? 'Alert' : 'System';\n        message = (abnormal ? 'Unexpected reset in field mode - ' : 'Field-mode boot, reset reason: ') + reason;\n    } else if (d.event === 'display_refresh') {\n        // CARD-0196: real event time from the record's own ts field, not\n        // receipt time -- every buffered record lands in the same ~1s\n        // bulk-replay burst at hike-end regardless of when it actually\n        // happened, so receipt time alone can't show the ~20min cadence.\n        category = 'System';\n        message = 'Display refreshed (field mode) at ' + d.ts;\n    } else if (d.event !== 'skip') {\n        category = 'System';\n        message = 'Device event: ' + JSON.stringify(d).slice(0, 160);\n    } else {\n        category = 'System';\n        message = 'Skipped reading - ' + d.reason;\n        if (d.temp !== undefined) {\n            message += ' (temp=' + d.temp + ', hum=' + d.hum + ', pres=' + d.pres + ')';\n        }\n    }\n    var logMsg = {\n        topic: 'jctsh/components/' + component + '/log',\n        payload: JSON.stringify({component: component, category: category, message: message})\n    };\n    return [logMsg, null];\n}\n// 2026-09-26 (CARD-0343): the AQM has no RTC, so a reading taken with no valid clock is buffered\n// with \"ts\":null plus uptime_s and a per-boot id instead of being thrown away. If the replay could\n// not resolve it to a real time (device power-cycled between the run and the dock) it arrives\n// here still tagged. Do NOT write it to the Sheet -- an unresolved time would corrupt the tab --\n// and do not Alert-drop it either: log it in full so the data is kept and can be anchored later.\nif (d && typeof d === 'object' && d.component && d.ts === null && typeof d.uptime_s === 'number') {\n    return [{\n        topic: 'jctsh/components/' + component + '/log',\n        payload: JSON.stringify({component: component, category: 'System',\n            message: 'Unresolved-time reading kept in log: ' + JSON.stringify(d).slice(0, 400)})\n    }, null];\n}\n// 2026-09-25 (CARD-0226 incident): a /data message with no component or no ts\n// used to flow on and surface only as \"undefined reading @ undefined\" alerts,\n// minutes later and with no clue where it came from. Drop it here, with an\n// Alert naming the topic and the start of the payload (sensor readings carry\n// no secrets). Skip/reset/display_refresh events were handled above -- they\n// legitimately have no component.\nif (!d || typeof d !== 'object' || !d.component || !d.ts) {\n    node.warn('Dropped malformed /data message on ' + msg.topic);\n    return [{\n        topic: 'jctsh/core/log-server/log',\n        payload: JSON.stringify({component: 'node-red', category: 'Alert',\n            message: 'Dropped a /data message with no component/ts on ' + msg.topic + ': ' + JSON.stringify(d).slice(0, 140)})\n    }, null];\n}\nmsg.payload = d;\nreturn [null, msg];",
-    "outputs": 2,
-    "x": 400,
-    "y": 100,
-    "wires": [
-      [
-        "47697b3827c899be"
-      ],
-      [
-        "c0208e8454c6d1d9"
-      ]
-    ]
-  },
-  {
-    "id": "47697b3827c899be",
-    "type": "mqtt out",
-    "z": "d15dbc9164b2dce9",
-    "name": "Skip/reset -> component log topic",
-    "topic": "",
-    "qos": "0",
-    "retain": "false",
-    "broker": "mqtt_broker",
-    "x": 700,
-    "y": 60,
-    "wires": []
-  },
-  {
-    "id": "c0208e8454c6d1d9",
-    "type": "function",
-    "z": "d15dbc9164b2dce9",
-    "name": "Prepare GPS lookup",
-    "outputs": 2,
-    "func": "var d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\nmsg._sensorData = d;\n\n// CARD-0306: a device that already knows its own fixed location (e.g.\n// front-porch-temp-sensor, hardcoded per house-lot-coordinates.md) sends\n// non-null lat/lon itself -- skip the GPS-Track correlation lookup\n// entirely for it. Two reasons, not just one: (1) the lookup call is\n// pointless for a device that already knows its own coordinates, and\n// (2) left unskipped, a match against the GPS Track sheet (populated\n// only by an active hike) would silently overwrite this device's own\n// correct coordinate with wherever the hiker happens to be at that\n// moment -- a real geotagging-correctness bug, not just wasted calls.\nif (d.lat !== null && d.lat !== undefined) {\n    msg.payload = d;\n    return [null, msg];\n}\n\n// CARD-0279: retry counter for the lookup-failure loop below -- reset\n// here (not just on first pass through this node) so a message\n// that somehow re-enters this node fresh doesn't inherit a stale count.\n// CARD-0349, 2026-09-28: the rate-limiting throttle node this used to\n// pass through first is gone -- a real indexed Postgres query doesn't\n// need protection from concurrent load the way Apps Script/Sheets did.\nmsg._lookupAttempt = 1;\nvar ts = d.ts || '';\n// CARD-0349: cut over from environmental-data.gs's ?action=lookup to the\n// new TimescaleDB gateway's /lookup-gps route (data-pipeline-api, exposed\n// at hikes.jctnet.com/data/*). Same shared-secret-in-query-string auth\n// pattern as before, new base URL/key.\nmsg.url = env.get('DATA_PIPELINE_URL') + '/lookup-gps?key=' + encodeURIComponent(env.get('DATA_PIPELINE_KEY')) + '&ts=' + encodeURIComponent(ts);\nmsg.payload = '';\nreturn [msg, null];",
-    "x": 660,
-    "y": 140,
-    "wires": [
-      [
-        "115af30cda9d02d0"
-      ],
-      [
-        "96d2334e27f1c94a"
-      ]
-    ]
-  },
-  {
-    "id": "115af30cda9d02d0",
-    "type": "http request",
-    "z": "d15dbc9164b2dce9",
-    "name": "GPS lookup",
-    "method": "GET",
-    "ret": "txt",
-    "paytoqs": "ignore",
-    "url": "",
-    "x": 860,
-    "y": 140,
-    "wires": [
-      [
-        "7eee0f789b641f0f"
-      ]
-    ]
-  },
-  {
-    "id": "7eee0f789b641f0f",
-    "type": "function",
-    "z": "d15dbc9164b2dce9",
-    "name": "Check GPS lookup response (CARD-0279)",
-    "func": "// CARD-0279: field-mode's replay-at-reconnect burst can fire dozens of\n// these lookup calls within a few seconds -- used to fail silently with\n// no retry and no trace anywhere against Apps Script's own concurrency\n// limits. CARD-0349, 2026-09-28: the rate-limiting throttle node this\n// comment used to describe is gone -- a real indexed Postgres query\n// doesn't need protection from concurrent load the way Apps Script/\n// Sheets did; retries below now loop straight back to the lookup node.\n// Outputs: [0] continue downstream (success, confirmed miss, or retries\n// exhausted) -- [1] retry (loops back directly to the lookup node) --\n// [2] log a failure, only populated on the final exhausted attempt.\nvar d = msg._sensorData;\nvar attempt = msg._lookupAttempt || 1;\nvar MAX_ATTEMPTS = 3;\n\nif (msg.statusCode === 200) {\n    // A 200 covers both a real match and a confirmed \"no GPS Track point\n    // within 5 min\" miss -- environmental-data.gs's own _gpsLookup()\n    // already logs a genuine miss server-side (Correlation Debug sheet,\n    // CARD-0197). Either way this call is resolved; not a retry case.\n    try {\n        var gps = JSON.parse(msg.payload);\n        if (gps.lat !== null && gps.lat !== undefined) {\n            d.lat = gps.lat;\n            d.lon = gps.lon;\n        }\n    } catch (e) { /* malformed body -- resolved-but-no-coords, not worth retrying a parse error */ }\n    // Hiking monitor at home has no GPS track -- use garage front wall (H6-H7 midpoint).\n    // rssi_dbm is 0 for field readings (no WiFi); non-zero confirms home WiFi.\n    if (d.component === 'hiking-monitor' && (d.lat === null || d.lat === undefined) && d.rssi_dbm !== 0) {\n        d.lat = 32.4612842;\n        d.lon = -111.1183818;\n    }\n    msg.payload = d;\n    return [msg, null, null];\n}\n\n// Non-200 (timeout, network error, Apps Script overload under this\n// burst's own concurrency) -- retry a bounded number of times before\n// giving up.\nif (attempt < MAX_ATTEMPTS) {\n    msg._lookupAttempt = attempt + 1;\n    return [null, msg, null];\n}\n\n// Retries exhausted -- log so this isn't silent, then continue with no\n// coordinates rather than dropping the reading entirely.\nvar failMsg = {\n    topic: 'jctsh/core/log-server/log',\n    payload: JSON.stringify({\n        component: 'node-red', category: 'Alert',\n        message: 'GPS lookup failed after ' + MAX_ATTEMPTS + ' attempts for ' + d.component +\n            ' reading @ ' + d.ts + ' (status ' + (msg.statusCode || 'no response') + ') -- publishing without coordinates.'\n    })\n};\nmsg.payload = d;\nreturn [msg, null, failMsg];",
-    "outputs": 3,
-    "x": 1060,
-    "y": 140,
-    "wires": [
-      [
-        "96d2334e27f1c94a"
-      ],
-      [
-        "115af30cda9d02d0"
-      ],
-      [
-        "3cc37d1fe78bed5b"
-      ]
-    ]
-  },
-  {
-    "id": "3cc37d1fe78bed5b",
-    "type": "mqtt out",
-    "z": "d15dbc9164b2dce9",
-    "name": "Log GPS lookup failure (CARD-0279)",
-    "topic": "jctsh/core/log-server/log",
-    "qos": "0",
-    "retain": "false",
-    "broker": "mqtt_broker",
-    "x": 1060,
-    "y": 220,
-    "wires": []
-  },
-  {
-    "id": "96d2334e27f1c94a",
-    "type": "function",
-    "z": "d15dbc9164b2dce9",
-    "name": "Compute derived fields + build POST",
-    "func": "// Parse payload\nvar d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\n\n// Add source field\nd.source = d.component;\n\n// Compute dew point and heat index if temp + humidity available\nif (d.temp_f != null && d.humidity_pct != null) {\n    var temp_c = (d.temp_f - 32) * 5 / 9;\n    var a = 17.27, b = 237.7;\n    var gamma = (a * temp_c / (b + temp_c)) + Math.log(d.humidity_pct / 100);\n    var dew_c = (b * gamma) / (a - gamma);\n    d.dew_point_f = Math.round((dew_c * 9/5 + 32) * 10) / 10;\n\n    var T = d.temp_f, H = d.humidity_pct;\n    if (T >= 80 && H >= 40) {\n        d.heat_index_f = Math.round((\n            -42.379 + 2.04901523*T + 10.14333127*H\n            - 0.22475541*T*H - 0.00683783*T*T - 0.05481717*H*H\n            + 0.00122874*T*T*H + 0.00085282*T*H*H\n            - 0.00000199*T*T*H*H\n        ) * 10) / 10;\n    } else {\n        d.heat_index_f = Math.round((T + H/5 - 10.3) * 10) / 10;\n    }\n}\n\n// Build HTTP POST\n// CARD-0349: cut over from environmental-data.gs's doPost to the new\n// TimescaleDB gateway's /environmental-data route (data-pipeline-api,\n// exposed at hikes.jctnet.com/data/*). Same payload shape (component/ts/\n// source/sensor fields as JSON), new base URL/key.\nmsg.url = env.get('DATA_PIPELINE_URL') + '/environmental-data?key=' + encodeURIComponent(env.get('DATA_PIPELINE_KEY'));\nmsg.method = 'POST';\nmsg.headers = {'Content-Type': 'application/json'};\nmsg.payload = JSON.stringify(d);\nmsg._component = d.component;\nreturn msg;",
-    "outputs": 1,
-    "x": 1300,
-    "y": 140,
-    "wires": [
-      [
-        "4a5acee89a93cd39"
-      ]
-    ]
-  },
-  {
-    "id": "0d240248f709b197",
-    "type": "http request",
-    "z": "d15dbc9164b2dce9",
-    "name": "POST to Apps Script (no redirect follow)",
-    "method": "use",
-    "ret": "txt",
-    "paytoqs": "ignore",
-    "url": "",
-    "x": 1520,
-    "y": 140,
-    "wires": [
-      [
-        "500e80814c0de9a5"
-      ]
-    ]
-  },
-  {
-    "id": "f5b31a5ec12fb496",
-    "type": "function",
-    "z": "d15dbc9164b2dce9",
-    "name": "Check response",
-    "func": "// CARD-0226: classify the script's REAL reply (fetched by \"Get Apps Script\n// result\") and hand it back to the POST queue, which retries or alerts.\n// ok / duplicate = written (or already there); rejected = out-of-range sensor\n// values, deliberate, not retried; anything else (lock timeout -> status\n// 'error', an HTML error page, a network error, no JSON) = retry.\nvar status = msg.statusCode || 0;\nvar payload = (typeof msg.payload === 'string') ? msg.payload : JSON.stringify(msg.payload);\nvar out = { _queueDone: true, _seq: msg._seq, _component: msg._component || 'unknown' };\nvar resp = null;\ntry { resp = JSON.parse(payload); } catch (e) {}\nif (resp && (resp.status === 'ok' || resp.status === 'duplicate')) {\n    out._result = resp.status;\n} else if (resp && resp.status === 'rejected') {\n    out._result = 'rejected';\n    out._detail = payload.slice(0, 150);\n} else {\n    out._result = 'retry';\n    // Node-RED's network-error text includes the full request URL (deployment id + key) --\n    // strip URLs before this detail reaches a log line.\n    out._detail = 'HTTP ' + status + ': ' + String(payload).replace(/https?:\\/\\/\\S+/g, '<url>').replace(/\\s+/g, ' ').slice(0, 120);\n}\nreturn out;",
-    "outputs": 1,
-    "x": 1740,
-    "y": 140,
-    "wires": [
-      [
-        "4a5acee89a93cd39"
-      ]
-    ]
-  },
-  {
-    "id": "2f9001c1989ae075",
-    "type": "mqtt out",
-    "z": "d15dbc9164b2dce9",
-    "name": "Log success/error",
-    "topic": "jctsh/core/log-server/log",
-    "qos": "0",
-    "retain": "false",
-    "broker": "mqtt_broker",
-    "x": 1960,
-    "y": 140,
-    "wires": []
-  },
-  {
-    "id": "4a5acee89a93cd39",
-    "type": "function",
-    "z": "d15dbc9164b2dce9",
-    "name": "POST queue -- serial, retry, alert (CARD-0226)",
-    "func": "// CARD-0226 (2026-09-24): serial POST queue. Readings used to be POSTed to\n// Apps Script concurrently (2/s after the GPS throttle) and any failure was\n// invisible -- a real 121-reading replay landed only ~20% of its rows with\n// zero alerts. Now: one POST in flight at a time; every reply is checked\n// (see \"Check response\"); anything that isn't ok/duplicate is retried with\n// backoff (safe -- Apps Script rejects an exact (ts, source) duplicate), and\n// a reading that still fails is reported as an Alert instead of vanishing.\n// Two inputs on this one node: a new reading (from \"Compute derived fields +\n// build POST\") or a result (msg._queueDone, from \"Check response\").\n// Output 1 -> POST to Apps Script, output 2 -> log Alert.\n// 2026-09-25: a reading that exhausts its retries is no longer dropped. A real\n// Google-side Sheets outage (~10:07 MST) made every POST time out; dropping\n// after 5 attempts turned that into permanent data loss AND left the queue\n// grinding ~11 min per reading. Now it keeps the reading, probes once every\n// OUTAGE_RETRY_MS, and alerts at most once per OUTAGE_ALERT_MS. A reading is\n// only discarded (with an Alert) after MAX_AGE_MS, so a poison reading that\n// can never succeed can't block the queue forever; the queue is also capped.\nvar st = context.get('st');\nif (!st) { st = { q: [], busy: false, cur: null, seq: 0, timer: null }; context.set('st', st); }\nvar MAX_ATTEMPTS = 5;\nvar BACKOFF_MS = [0, 3000, 8000, 15000, 30000];\nvar WATCHDOG_MS = 150000;\nvar OUTAGE_RETRY_MS = 5 * 60 * 1000;\nvar OUTAGE_ALERT_MS = 30 * 60 * 1000;\nvar MAX_AGE_MS = 24 * 60 * 60 * 1000;\nvar MAX_QUEUE = 5000;\n\nfunction alertMsg(text) {\n    return { payload: JSON.stringify({ component: 'node-red', category: 'Alert', message: text }) };\n}\nfunction describe(item) {\n    var ts = '?';\n    try { ts = JSON.parse(item.msg.payload).ts; } catch (e) {}\n    return item.msg._component + ' reading @ ' + ts;\n}\nfunction dispatch(item) {\n    st.busy = true;\n    st.cur = item;\n    item.waiting = false;\n    st.seq += 1;\n    item.seq = st.seq;\n    var out = RED.util.cloneMessage(item.msg);\n    out._seq = item.seq;\n    out._attempt = item.attempt;\n    out.followRedirects = false;\n    clearTimeout(st.timer);\n    var seq = item.seq;\n    st.timer = setTimeout(function () {\n        if (st.cur && st.cur.seq === seq && !st.cur.waiting) {\n            settle(item, 'retry', 'no response within ' + (WATCHDOG_MS / 1000) + 's');\n        }\n    }, WATCHDOG_MS);\n    node.send([out, null]);\n}\nfunction next() {\n    st.busy = false;\n    st.cur = null;\n    if (st.q.length > 0) dispatch(st.q.shift());\n}\nfunction settle(item, result, detail) {\n    clearTimeout(st.timer);\n    if (result === 'ok' || result === 'duplicate') { next(); return; }\n    if (result === 'rejected') {\n        node.send([null, alertMsg('Environmental Data POST rejected for ' + describe(item) + ' -- ' + detail)]);\n        next();\n        return;\n    }\n    if (item.attempt < MAX_ATTEMPTS) {\n        var wait = BACKOFF_MS[item.attempt] || 30000;\n        item.attempt += 1;\n        item.waiting = true;\n        st.timer = setTimeout(function () { dispatch(item); }, wait);\n        return;\n    }\n    var now = Date.now();\n    if (now - item.first > MAX_AGE_MS) {\n        node.send([null, alertMsg('Environmental Data POST gave up on ' + describe(item) + ' after 24 h of failures (' +\n            detail + ') -- reading NOT written to the sheet.')]);\n        next();\n        return;\n    }\n    if (!st.lastOutageAlert || now - st.lastOutageAlert > OUTAGE_ALERT_MS) {\n        st.lastOutageAlert = now;\n        node.send([null, alertMsg('Environmental Data POSTs failing (' + detail + ') -- ' + (st.q.length + 1) +\n            ' reading(s) held, retrying every ' + (OUTAGE_RETRY_MS / 60000) + ' min; nothing dropped.')]);\n    }\n    item.waiting = true;\n    st.timer = setTimeout(function () { dispatch(item); }, OUTAGE_RETRY_MS);\n}\n\nif (msg._queueDone) {\n    if (!st.cur || st.cur.waiting || st.cur.seq !== msg._seq) return null;\n    settle(st.cur, msg._result, msg._detail || '');\n    return null;\n}\nst.q.push({ msg: msg, attempt: 1, first: Date.now() });\nif (st.q.length > MAX_QUEUE) {\n    var dropped = st.q.shift();\n    node.send([null, alertMsg('Environmental Data POST queue over ' + MAX_QUEUE + ' -- dropped oldest ' + describe(dropped) + '.')]);\n}\nif (!st.busy) dispatch(st.q.shift());\nreturn null;",
-    "outputs": 2,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 1420,
-    "y": 260,
-    "wires": [
-      [
-        "0d240248f709b197"
-      ],
-      [
-        "2f9001c1989ae075"
-      ]
-    ]
-  },
-  {
-    "id": "500e80814c0de9a5",
-    "type": "function",
-    "z": "d15dbc9164b2dce9",
-    "name": "Follow Apps Script redirect (CARD-0226)",
-    "func": "// CARD-0226: Apps Script answers every POST with a redirect to the real\n// response. Node-RED used to follow it with POST (-> a useless 405 that was\n// treated as success). \"POST queue\" now disables redirect-following, so the\n// first reply is the 302 -- fetch its Location with a plain GET to read the\n// script's actual JSON. Anything that is not a redirect (network error,\n// direct 200) skips the GET and goes straight to \"Check response\".\nvar s = msg.statusCode;\nvar loc = msg.headers && (msg.headers.location || msg.headers.Location);\nif ((s === 301 || s === 302 || s === 303 || s === 307 || s === 308) && loc) {\n    return [{\n        _seq: msg._seq, _attempt: msg._attempt, _component: msg._component,\n        url: loc, method: 'GET', headers: {}, followRedirects: true\n    }, null];\n}\nreturn [null, msg];",
-    "outputs": 2,
-    "x": 1640,
-    "y": 260,
-    "wires": [
-      [
-        "90e0f318684564d2"
-      ],
-      [
-        "f5b31a5ec12fb496"
-      ]
-    ]
-  },
-  {
-    "id": "90e0f318684564d2",
-    "type": "http request",
-    "z": "d15dbc9164b2dce9",
-    "name": "Get Apps Script result",
-    "method": "use",
-    "ret": "txt",
-    "paytoqs": "ignore",
-    "url": "",
-    "x": 1860,
-    "y": 260,
-    "wires": [
-      [
-        "f5b31a5ec12fb496"
-      ]
-    ]
-  }
+    {
+        "type": "tab",
+        "label": "Environmental Data ",
+        "id": "d15dbc9164b2dce9",
+        "info": "",
+        "disabled": false,
+        "env": []
+    },
+    {
+        "id": "c19403272ad956d6",
+        "type": "mqtt in",
+        "z": "d15dbc9164b2dce9",
+        "name": "jctsh/components/+/data",
+        "topic": "jctsh/components/+/data",
+        "qos": "1",
+        "datatype": "auto",
+        "broker": "mqtt_broker",
+        "inputs": 0,
+        "x": 140,
+        "y": 100,
+        "wires": [
+            [
+                "b37075e7e29b9264"
+            ]
+        ]
+    },
+    {
+        "id": "b37075e7e29b9264",
+        "type": "function",
+        "z": "d15dbc9164b2dce9",
+        "name": "Route skip/reset/display-refresh events (CARD-0195/CARD-0196)",
+        "func": "// CARD-0195/CARD-0196/CARD-0216: hiking-monitor's field-mode skip-reason/reset-reason/\n// display-refresh records ride the same flash-buffer-then-replay path real\n// sensor readings use, so they arrive on this same jctsh/components/+/data\n// wildcard topic. They aren't real readings -- don't send them through\n// GPS lookup or into the Environmental Data sheet; convert them to a\n// standard log message on the component's own /log topic instead.\nvar d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return [null, null]; }\n}\nvar parts = msg.topic.split('/'); // jctsh/components/<name>/data\nvar component = parts[2] || 'unknown';\n// 2026-09-25: any event record, not just the hiking-monitor's three -- the AQM\n// buffers {\"event\":\"wifi_attempt_start\"} lines that ride the same /data replay.\nif (typeof d.event === 'string') {\n    var category, message;\n    if (d.event === 'reset') {\n        // CARD-0216: firmware now logs every field-mode boot's reset\n        // reason unconditionally (not just abnormal ones) to catch a\n        // silently-rebooting device -- categorize here instead, same\n        // abnormal-keyword check the firmware used to do, so a normal\n        // hike-start wake doesn't post as a false Alert every hike.\n        var reason = d.reason || '';\n        var abnormal = /rownout|anic|atchdog/.test(reason);\n        category = abnormal ? 'Alert' : 'System';\n        message = (abnormal ? 'Unexpected reset in field mode - ' : 'Field-mode boot, reset reason: ') + reason;\n    } else if (d.event === 'display_refresh') {\n        // CARD-0196: real event time from the record's own ts field, not\n        // receipt time -- every buffered record lands in the same ~1s\n        // bulk-replay burst at hike-end regardless of when it actually\n        // happened, so receipt time alone can't show the ~20min cadence.\n        category = 'System';\n        message = 'Display refreshed (field mode) at ' + d.ts;\n    } else if (d.event !== 'skip') {\n        category = 'System';\n        message = 'Device event: ' + JSON.stringify(d).slice(0, 160);\n    } else {\n        category = 'System';\n        message = 'Skipped reading - ' + d.reason;\n        if (d.temp !== undefined) {\n            message += ' (temp=' + d.temp + ', hum=' + d.hum + ', pres=' + d.pres + ')';\n        }\n    }\n    var logMsg = {\n        topic: 'jctsh/components/' + component + '/log',\n        payload: JSON.stringify({component: component, category: category, message: message})\n    };\n    return [logMsg, null];\n}\n// 2026-09-26 (CARD-0343): the AQM has no RTC, so a reading taken with no valid clock is buffered\n// with \"ts\":null plus uptime_s and a per-boot id instead of being thrown away. If the replay could\n// not resolve it to a real time (device power-cycled between the run and the dock) it arrives\n// here still tagged. Do NOT write it to the Sheet -- an unresolved time would corrupt the tab --\n// and do not Alert-drop it either: log it in full so the data is kept and can be anchored later.\nif (d && typeof d === 'object' && d.component && d.ts === null && typeof d.uptime_s === 'number') {\n    return [{\n        topic: 'jctsh/components/' + component + '/log',\n        payload: JSON.stringify({component: component, category: 'System',\n            message: 'Unresolved-time reading kept in log: ' + JSON.stringify(d).slice(0, 400)})\n    }, null];\n}\n// 2026-09-25 (CARD-0226 incident): a /data message with no component or no ts\n// used to flow on and surface only as \"undefined reading @ undefined\" alerts,\n// minutes later and with no clue where it came from. Drop it here, with an\n// Alert naming the topic and the start of the payload (sensor readings carry\n// no secrets). Skip/reset/display_refresh events were handled above -- they\n// legitimately have no component.\nif (!d || typeof d !== 'object' || !d.component || !d.ts) {\n    node.warn('Dropped malformed /data message on ' + msg.topic);\n    return [{\n        topic: 'jctsh/core/log-server/log',\n        payload: JSON.stringify({component: 'node-red', category: 'Alert',\n            message: 'Dropped a /data message with no component/ts on ' + msg.topic + ': ' + JSON.stringify(d).slice(0, 140)})\n    }, null];\n}\nmsg.payload = d;\nreturn [null, msg];",
+        "outputs": 2,
+        "x": 400,
+        "y": 100,
+        "wires": [
+            [
+                "47697b3827c899be"
+            ],
+            [
+                "c0208e8454c6d1d9"
+            ]
+        ]
+    },
+    {
+        "id": "47697b3827c899be",
+        "type": "mqtt out",
+        "z": "d15dbc9164b2dce9",
+        "name": "Skip/reset -> component log topic",
+        "topic": "",
+        "qos": "0",
+        "retain": "false",
+        "broker": "mqtt_broker",
+        "x": 700,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "c0208e8454c6d1d9",
+        "type": "function",
+        "z": "d15dbc9164b2dce9",
+        "name": "Prepare GPS lookup",
+        "outputs": 2,
+        "func": "var d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\nmsg._sensorData = d;\n\n// CARD-0306: a device that already knows its own fixed location (e.g.\n// front-porch-temp-sensor, hardcoded per house-lot-coordinates.md) sends\n// non-null lat/lon itself -- skip the GPS-Track correlation lookup\n// entirely for it. Two reasons, not just one: (1) the lookup call is\n// pointless for a device that already knows its own coordinates, and\n// (2) left unskipped, a match against the GPS Track sheet (populated\n// only by an active hike) would silently overwrite this device's own\n// correct coordinate with wherever the hiker happens to be at that\n// moment -- a real geotagging-correctness bug, not just wasted calls.\nif (d.lat !== null && d.lat !== undefined) {\n    msg.payload = d;\n    return [null, msg];\n}\n\n// CARD-0279: retry counter for the lookup-failure loop below -- reset\n// here (not just on first pass through this node) so a message\n// that somehow re-enters this node fresh doesn't inherit a stale count.\n// CARD-0349, 2026-09-28: the rate-limiting throttle node this used to\n// pass through first is gone -- a real indexed Postgres query doesn't\n// need protection from concurrent load the way Apps Script/Sheets did.\nmsg._lookupAttempt = 1;\nvar ts = d.ts || '';\n// CARD-0349: cut over from environmental-data.gs's ?action=lookup to the\n// new TimescaleDB gateway's /lookup-gps route (data-pipeline-api, exposed\n// at hikes.jctnet.com/data/*). Same shared-secret-in-query-string auth\n// pattern as before, new base URL/key.\nmsg.url = env.get('DATA_PIPELINE_URL') + '/lookup-gps?key=' + encodeURIComponent(env.get('DATA_PIPELINE_KEY')) + '&ts=' + encodeURIComponent(ts);\nmsg.payload = '';\nreturn [msg, null];",
+        "x": 660,
+        "y": 140,
+        "wires": [
+            [
+                "115af30cda9d02d0"
+            ],
+            [
+                "96d2334e27f1c94a"
+            ]
+        ]
+    },
+    {
+        "id": "115af30cda9d02d0",
+        "type": "http request",
+        "z": "d15dbc9164b2dce9",
+        "name": "GPS lookup",
+        "method": "GET",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "",
+        "x": 860,
+        "y": 140,
+        "wires": [
+            [
+                "7eee0f789b641f0f"
+            ]
+        ]
+    },
+    {
+        "id": "7eee0f789b641f0f",
+        "type": "function",
+        "z": "d15dbc9164b2dce9",
+        "name": "Check GPS lookup response (CARD-0279)",
+        "func": "// CARD-0279: field-mode's replay-at-reconnect burst can fire dozens of\n// these lookup calls within a few seconds -- used to fail silently with\n// no retry and no trace anywhere against Apps Script's own concurrency\n// limits. CARD-0349, 2026-09-28: the rate-limiting throttle node this\n// comment used to describe is gone -- a real indexed Postgres query\n// doesn't need protection from concurrent load the way Apps Script/\n// Sheets did; retries below now loop straight back to the lookup node.\n// Outputs: [0] continue downstream (success, confirmed miss, or retries\n// exhausted) -- [1] retry (loops back directly to the lookup node) --\n// [2] log a failure, only populated on the final exhausted attempt.\nvar d = msg._sensorData;\nvar attempt = msg._lookupAttempt || 1;\nvar MAX_ATTEMPTS = 3;\n\nif (msg.statusCode === 200) {\n    // A 200 covers both a real match and a confirmed \"no GPS Track point\n    // within 5 min\" miss -- environmental-data.gs's own _gpsLookup()\n    // already logs a genuine miss server-side (Correlation Debug sheet,\n    // CARD-0197). Either way this call is resolved; not a retry case.\n    try {\n        var gps = JSON.parse(msg.payload);\n        if (gps.lat !== null && gps.lat !== undefined) {\n            d.lat = gps.lat;\n            d.lon = gps.lon;\n        }\n    } catch (e) { /* malformed body -- resolved-but-no-coords, not worth retrying a parse error */ }\n    // Hiking monitor at home has no GPS track -- use garage front wall (H6-H7 midpoint).\n    // rssi_dbm is 0 for field readings (no WiFi); non-zero confirms home WiFi.\n    if (d.component === 'hiking-monitor' && (d.lat === null || d.lat === undefined) && d.rssi_dbm !== 0) {\n        d.lat = 32.4612842;\n        d.lon = -111.1183818;\n    }\n    msg.payload = d;\n    return [msg, null, null];\n}\n\n// Non-200 (timeout, network error, Apps Script overload under this\n// burst's own concurrency) -- retry a bounded number of times before\n// giving up.\nif (attempt < MAX_ATTEMPTS) {\n    msg._lookupAttempt = attempt + 1;\n    return [null, msg, null];\n}\n\n// Retries exhausted -- log so this isn't silent, then continue with no\n// coordinates rather than dropping the reading entirely.\nvar failMsg = {\n    topic: 'jctsh/core/log-server/log',\n    payload: JSON.stringify({\n        component: 'node-red', category: 'Alert',\n        message: 'GPS lookup failed after ' + MAX_ATTEMPTS + ' attempts for ' + d.component +\n            ' reading @ ' + d.ts + ' (status ' + (msg.statusCode || 'no response') + ') -- publishing without coordinates.'\n    })\n};\nmsg.payload = d;\nreturn [msg, null, failMsg];",
+        "outputs": 3,
+        "x": 1060,
+        "y": 140,
+        "wires": [
+            [
+                "96d2334e27f1c94a"
+            ],
+            [
+                "115af30cda9d02d0"
+            ],
+            [
+                "3cc37d1fe78bed5b"
+            ]
+        ]
+    },
+    {
+        "id": "3cc37d1fe78bed5b",
+        "type": "mqtt out",
+        "z": "d15dbc9164b2dce9",
+        "name": "Log GPS lookup failure (CARD-0279)",
+        "topic": "jctsh/core/log-server/log",
+        "qos": "0",
+        "retain": "false",
+        "broker": "mqtt_broker",
+        "x": 1060,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "96d2334e27f1c94a",
+        "type": "function",
+        "z": "d15dbc9164b2dce9",
+        "name": "Compute derived fields + build POST",
+        "func": "// Parse payload\nvar d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch(e) { node.warn('Bad JSON: ' + msg.payload); return null; }\n}\n\n// Add source field\nd.source = d.component;\n\n// Compute dew point and heat index if temp + humidity available\nif (d.temp_f != null && d.humidity_pct != null) {\n    var temp_c = (d.temp_f - 32) * 5 / 9;\n    var a = 17.27, b = 237.7;\n    var gamma = (a * temp_c / (b + temp_c)) + Math.log(d.humidity_pct / 100);\n    var dew_c = (b * gamma) / (a - gamma);\n    d.dew_point_f = Math.round((dew_c * 9/5 + 32) * 10) / 10;\n\n    var T = d.temp_f, H = d.humidity_pct;\n    if (T >= 80 && H >= 40) {\n        d.heat_index_f = Math.round((\n            -42.379 + 2.04901523*T + 10.14333127*H\n            - 0.22475541*T*H - 0.00683783*T*T - 0.05481717*H*H\n            + 0.00122874*T*T*H + 0.00085282*T*H*H\n            - 0.00000199*T*T*H*H\n        ) * 10) / 10;\n    } else {\n        d.heat_index_f = Math.round((T + H/5 - 10.3) * 10) / 10;\n    }\n}\n\n// Build HTTP POST\n// CARD-0349: cut over from environmental-data.gs's doPost to the new\n// TimescaleDB gateway's /environmental-data route (data-pipeline-api,\n// exposed at hikes.jctnet.com/data/*). Same payload shape (component/ts/\n// source/sensor fields as JSON), new base URL/key.\nmsg.url = env.get('DATA_PIPELINE_URL') + '/environmental-data?key=' + encodeURIComponent(env.get('DATA_PIPELINE_KEY'));\nmsg.method = 'POST';\nmsg.headers = {'Content-Type': 'application/json'};\nmsg.payload = JSON.stringify(d);\nmsg._component = d.component;\nreturn msg;",
+        "outputs": 1,
+        "x": 1300,
+        "y": 140,
+        "wires": [
+            [
+                "4a5acee89a93cd39"
+            ]
+        ]
+    },
+    {
+        "id": "0d240248f709b197",
+        "type": "http request",
+        "z": "d15dbc9164b2dce9",
+        "name": "POST to Apps Script (no redirect follow)",
+        "method": "use",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "",
+        "x": 1520,
+        "y": 140,
+        "wires": [
+            [
+                "500e80814c0de9a5"
+            ]
+        ]
+    },
+    {
+        "id": "f5b31a5ec12fb496",
+        "type": "function",
+        "z": "d15dbc9164b2dce9",
+        "name": "Check response",
+        "func": "// CARD-0226: classify the script's REAL reply (fetched by \"Get Apps Script\n// result\") and hand it back to the POST queue, which retries or alerts.\n// ok / duplicate = written (or already there); rejected = out-of-range sensor\n// values, deliberate, not retried; anything else (lock timeout -> status\n// 'error', an HTML error page, a network error, no JSON) = retry.\nvar status = msg.statusCode || 0;\nvar payload = (typeof msg.payload === 'string') ? msg.payload : JSON.stringify(msg.payload);\nvar out = { _queueDone: true, _seq: msg._seq, _component: msg._component || 'unknown' };\nvar resp = null;\ntry { resp = JSON.parse(payload); } catch (e) {}\nif (resp && (resp.status === 'ok' || resp.status === 'duplicate')) {\n    out._result = resp.status;\n} else if (resp && resp.status === 'rejected') {\n    out._result = 'rejected';\n    out._detail = payload.slice(0, 150);\n} else {\n    out._result = 'retry';\n    // Node-RED's network-error text includes the full request URL (deployment id + key) --\n    // strip URLs before this detail reaches a log line.\n    out._detail = 'HTTP ' + status + ': ' + String(payload).replace(/https?:\\/\\/\\S+/g, '<url>').replace(/\\s+/g, ' ').slice(0, 120);\n}\nreturn out;",
+        "outputs": 1,
+        "x": 1740,
+        "y": 140,
+        "wires": [
+            [
+                "4a5acee89a93cd39"
+            ]
+        ]
+    },
+    {
+        "id": "2f9001c1989ae075",
+        "type": "mqtt out",
+        "z": "d15dbc9164b2dce9",
+        "name": "Log success/error",
+        "topic": "jctsh/core/log-server/log",
+        "qos": "0",
+        "retain": "false",
+        "broker": "mqtt_broker",
+        "x": 1960,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "4a5acee89a93cd39",
+        "type": "function",
+        "z": "d15dbc9164b2dce9",
+        "name": "POST queue -- serial, retry, alert (CARD-0226)",
+        "func": "// CARD-0226 (2026-09-24): serial POST queue. Readings used to be POSTed to\n// Apps Script concurrently (2/s after the GPS throttle) and any failure was\n// invisible -- a real 121-reading replay landed only ~20% of its rows with\n// zero alerts. Now: one POST in flight at a time; every reply is checked\n// (see \"Check response\"); anything that isn't ok/duplicate is retried with\n// backoff (safe -- Apps Script rejects an exact (ts, source) duplicate), and\n// a reading that still fails is reported as an Alert instead of vanishing.\n// Two inputs on this one node: a new reading (from \"Compute derived fields +\n// build POST\") or a result (msg._queueDone, from \"Check response\").\n// Output 1 -> POST to Apps Script, output 2 -> log Alert.\n// 2026-09-25: a reading that exhausts its retries is no longer dropped. A real\n// Google-side Sheets outage (~10:07 MST) made every POST time out; dropping\n// after 5 attempts turned that into permanent data loss AND left the queue\n// grinding ~11 min per reading. Now it keeps the reading, probes once every\n// OUTAGE_RETRY_MS, and alerts at most once per OUTAGE_ALERT_MS. A reading is\n// only discarded (with an Alert) after MAX_AGE_MS, so a poison reading that\n// can never succeed can't block the queue forever; the queue is also capped.\nvar st = context.get('st');\nif (!st) { st = { q: [], busy: false, cur: null, seq: 0, timer: null }; context.set('st', st); }\nvar MAX_ATTEMPTS = 5;\nvar BACKOFF_MS = [0, 3000, 8000, 15000, 30000];\nvar WATCHDOG_MS = 150000;\nvar OUTAGE_RETRY_MS = 5 * 60 * 1000;\nvar OUTAGE_ALERT_MS = 30 * 60 * 1000;\nvar MAX_AGE_MS = 24 * 60 * 60 * 1000;\nvar MAX_QUEUE = 5000;\n\nfunction alertMsg(text) {\n    return { payload: JSON.stringify({ component: 'node-red', category: 'Alert', message: text }) };\n}\nfunction describe(item) {\n    var ts = '?';\n    try { ts = JSON.parse(item.msg.payload).ts; } catch (e) {}\n    return item.msg._component + ' reading @ ' + ts;\n}\nfunction dispatch(item) {\n    st.busy = true;\n    st.cur = item;\n    item.waiting = false;\n    st.seq += 1;\n    item.seq = st.seq;\n    var out = RED.util.cloneMessage(item.msg);\n    out._seq = item.seq;\n    out._attempt = item.attempt;\n    out.followRedirects = false;\n    clearTimeout(st.timer);\n    var seq = item.seq;\n    st.timer = setTimeout(function () {\n        if (st.cur && st.cur.seq === seq && !st.cur.waiting) {\n            settle(item, 'retry', 'no response within ' + (WATCHDOG_MS / 1000) + 's');\n        }\n    }, WATCHDOG_MS);\n    node.send([out, null]);\n}\nfunction next() {\n    st.busy = false;\n    st.cur = null;\n    if (st.q.length > 0) dispatch(st.q.shift());\n}\nfunction settle(item, result, detail) {\n    clearTimeout(st.timer);\n    if (result === 'ok' || result === 'duplicate') { next(); return; }\n    if (result === 'rejected') {\n        node.send([null, alertMsg('Environmental Data POST rejected for ' + describe(item) + ' -- ' + detail)]);\n        next();\n        return;\n    }\n    if (item.attempt < MAX_ATTEMPTS) {\n        var wait = BACKOFF_MS[item.attempt] || 30000;\n        item.attempt += 1;\n        item.waiting = true;\n        st.timer = setTimeout(function () { dispatch(item); }, wait);\n        return;\n    }\n    var now = Date.now();\n    if (now - item.first > MAX_AGE_MS) {\n        node.send([null, alertMsg('Environmental Data POST gave up on ' + describe(item) + ' after 24 h of failures (' +\n            detail + ') -- reading NOT written to the sheet.')]);\n        next();\n        return;\n    }\n    if (!st.lastOutageAlert || now - st.lastOutageAlert > OUTAGE_ALERT_MS) {\n        st.lastOutageAlert = now;\n        node.send([null, alertMsg('Environmental Data POSTs failing (' + detail + ') -- ' + (st.q.length + 1) +\n            ' reading(s) held, retrying every ' + (OUTAGE_RETRY_MS / 60000) + ' min; nothing dropped.')]);\n    }\n    item.waiting = true;\n    st.timer = setTimeout(function () { dispatch(item); }, OUTAGE_RETRY_MS);\n}\n\nif (msg._queueDone) {\n    if (!st.cur || st.cur.waiting || st.cur.seq !== msg._seq) return null;\n    settle(st.cur, msg._result, msg._detail || '');\n    return null;\n}\nst.q.push({ msg: msg, attempt: 1, first: Date.now() });\nif (st.q.length > MAX_QUEUE) {\n    var dropped = st.q.shift();\n    node.send([null, alertMsg('Environmental Data POST queue over ' + MAX_QUEUE + ' -- dropped oldest ' + describe(dropped) + '.')]);\n}\nif (!st.busy) dispatch(st.q.shift());\nreturn null;",
+        "outputs": 2,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1420,
+        "y": 260,
+        "wires": [
+            [
+                "0d240248f709b197"
+            ],
+            [
+                "2f9001c1989ae075"
+            ]
+        ]
+    },
+    {
+        "id": "500e80814c0de9a5",
+        "type": "function",
+        "z": "d15dbc9164b2dce9",
+        "name": "Follow Apps Script redirect (CARD-0226)",
+        "func": "// CARD-0226: Apps Script answers every POST with a redirect to the real\n// response. Node-RED used to follow it with POST (-> a useless 405 that was\n// treated as success). \"POST queue\" now disables redirect-following, so the\n// first reply is the 302 -- fetch its Location with a plain GET to read the\n// script's actual JSON. Anything that is not a redirect (network error,\n// direct 200) skips the GET and goes straight to \"Check response\".\nvar s = msg.statusCode;\nvar loc = msg.headers && (msg.headers.location || msg.headers.Location);\nif ((s === 301 || s === 302 || s === 303 || s === 307 || s === 308) && loc) {\n    return [{\n        _seq: msg._seq, _attempt: msg._attempt, _component: msg._component,\n        url: loc, method: 'GET', headers: {}, followRedirects: true\n    }, null];\n}\nreturn [null, msg];",
+        "outputs": 2,
+        "x": 1640,
+        "y": 260,
+        "wires": [
+            [
+                "90e0f318684564d2"
+            ],
+            [
+                "f5b31a5ec12fb496"
+            ]
+        ]
+    },
+    {
+        "id": "90e0f318684564d2",
+        "type": "http request",
+        "z": "d15dbc9164b2dce9",
+        "name": "Get Apps Script result",
+        "method": "use",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "",
+        "x": 1860,
+        "y": 260,
+        "wires": [
+            [
+                "f5b31a5ec12fb496"
+            ]
+        ]
+    }
 ]

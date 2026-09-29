@@ -1101,6 +1101,16 @@ On any Linux host that boots from an SD card (the Pi — never a consideration o
 
 **Reference implementation:** CARD-0159 (Pi: Docker `data-root`, containerd `root`, Home Assistant `/config`, Mosquitto persistence, and all of `/var/log` — four separate write-heavy paths found and moved in one build, each verified independently, all four confirmed surviving two real reboot tests), CARD-0006 (the log-directory precedent this generalizes).
 
+### 9.11 One-Off Transient Scheduled Jobs Die On Any Intervening Reboot — Check Against Other One-Off Jobs Too, Not Just the Recurring-Timer Table
+
+Distinct from §9.5 above: §9.5 is about *recurring* jobs (cron/systemd timers) needing clearance from each other in the standing table in `network/jctsh-network.md`. This is about **one-off** jobs scheduled via `systemd-run --on-calendar` (`pi-image-pull.py --schedule`, `pi-review-upgrade-once.py --schedule`, or an equivalent ad hoc `systemd-run` command) — a mechanism this repo relies on specifically because it needs no timer file installed and self-removes after firing.
+
+**The mechanism's own cost: a transient unit lives under `/run` (tmpfs) and is silently wiped by *any* reboot that lands before its scheduled fire time** — regardless of which job caused that reboot, and regardless of whether the reboot was itself expected/routine. Two real incidents, both CARD-0351/CARD-0355 (2026-09-27/29):
+1. A job scheduled the evening before its target window was wiped by the Pi's own regular Monday 03:00 scheduled reboot landing first.
+2. A *second* job, scheduled for 04:00 the next day specifically to land safely *after* a different one-off job's own 02:00 reboot, was wiped anyway — because that first job (rescheduled per incident 1's own fix) itself reboots the Pi at ~02:18, which still falls between the second job's scheduling time and its 04:00 fire time. Checking "does my fire time come after the other job's reboot" isn't sufficient; the window that matters is the *entire span from when you schedule it to when it fires*, not just its target instant.
+
+**Rule:** before scheduling any one-off transient job, check for a reboot landing anywhere between *now* and the job's fire time — from `network/jctsh-network.md`'s recurring-timer table (a routine weekly/scheduled reboot) **and** from any other one-off job already scheduled that itself reboots the host (check `systemctl list-timers --all` live, not just the doc, since a one-off's timer is exactly the kind of thing that table was never meant to track). If a reboot falls anywhere in that span, either move the job to before that reboot, or — if the job's own logic is worth surviving future repeats of this same mistake, not just this one instance — persist it as a real, version-controlled script (`core/maintenance/*.py`) invoked by the transient wrapper, the way `pi-image-pull.py` and `pi-review-upgrade-once.py` already do, so a lost timer only costs a re-schedule, not the logic itself.
+
 ---
 
 ## 10. Security Standards

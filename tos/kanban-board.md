@@ -9,9 +9,19 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0373 -->
+<!-- next-card-id: CARD-0374 -->
 
 ---
+
+### CARD-0373 · [enhancement] [data-pipeline] [node-red] Rename the vestigial "Apps Script" nodes in the Environmental Data flow and remove the dead redirect-follow pair
+
+**Status:** Backlog
+
+**Raised 2026-09-29 14:43 MST (general session, from CARD-0366's documentation pass).** Three nodes in the live Node-RED "Environmental Data" tab still carry the retired target's name: `POST to Apps Script (no redirect follow)`, `Follow Apps Script redirect (CARD-0226)` and `Get Apps Script result`. The gateway answers a POST directly, so the last two exist only to chase a redirect Google's Apps Script used to issue -- they are dead weight in the request path. Cosmetic, but it is exactly the stale wording that made a 2026-09-29 05:00 alert look like an unfinished migration, and `core/data-pipeline/README.md` currently has to explain it away.
+
+**Not yet scoped -- needs a look when picked up.** The POST queue's `Check response` and retry logic sit between these nodes and must keep working; whether the "no redirect follow" setting on the request node (`followRedirects: false`) matters for the gateway, and whether `Check response` reads anything only the redirect path set, needs reading before removing anything. It is a live-flow edit: hot-deploy via the Node-RED admin API (as in CARD-0365), then re-export the tab into `core/data-pipeline/environmental-data.flow.json`; do it while the POST queue is empty so nothing in flight is lost.
+
+**Done when:** the nodes are renamed for the gateway (or the redirect pair removed if confirmed dead), a real reading still lands afterward, the repo export matches the live tab, and the README's note about the leftover names is deleted. Related: CARD-0366 (documented it), CARD-0369 (same live-vs-repo export pattern), CARD-0226 (why the redirect nodes existed).
 
 ### CARD-0372 · [enhancement] [tos] Automated credential rotation -- a values-free registry, per-credential recipes, and a runner that never prints a value
 
@@ -58,7 +68,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 | 3 | The shared store + `sec` helper (`set`, `run`, `has/fingerprint`, `new`, `copy`) with a per-profile `sec init`; lock file for concurrent runs (CARD-0334 Phase 0) | 0 | **yes** |
 | 4 | Guardrails: checked-in `.claude/settings.json` deny rules, `PreToolUse`/`PostToolUse` hooks and the output tripwire (CARD-0334 Phase 1) | 3 | partly -- project-level settings cover both profiles |
 | 5 | Runner skeleton: `rotate --dry-run` / `--verify-only` -- read-only, no values | 1 | SSH keys (both profiles have one) |
-| 6 | Pilot recipe: the data-pipeline key (CARD-0370) -- scripted holders, phones, `roboform_synced`, expiry | 2, 3, 4, 5 | yes |
+| 6 | Pilot recipe: the data-pipeline key (CARD-0370) -- scripted holders, phones, `roboform_synced`, expiry. **First confirm where Node-RED gets `DATA_PIPELINE_KEY`** (its `environment` file vs. the `global-config` env inside `flows.json`) -- the recipe can't update that holder until this is known | 2, 3, 4, 5 | yes |
 | 7 | A second recipe from another class (Log Dashboard or an HA token), supervised | 6 | yes |
 | 8 | Overdue check at Session Start + push notification | 6 | no |
 | 9 | Later: unattended timer; ESP32/Mosquitto recipes | 7 | -- |

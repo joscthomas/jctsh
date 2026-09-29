@@ -120,3 +120,28 @@ CREATE TABLE wildlife_detections (
   lon              double precision,
   PRIMARY KEY (hike_file_stem, scientific_name)
 );
+
+-- Hike-izer Costs: one row per generation run (CARD-0270, ported from
+-- environmental-data.gs's hike-izer-cost branch -- CARD-0349 follow-on,
+-- 2026-09-29, the one component originally scoped OUT of CARD-0349's "5
+-- tables" because it's generation-pipeline telemetry, not environmental
+-- sensor data -- migrated anyway once asked. Dedup is NOT (file_stem,
+-- run_type) alone -- the old sheet's own CARD-0270 follow-on deliberately
+-- widened it to every cost field too, since a *legitimate* second run on
+-- the same hike (e.g. a manual re-run) shares (file_stem, run_type) with
+-- the first but has its own real, possibly-different cost, and must get
+-- its own row -- only an exact full-content repeat (the CARD-0276
+-- read-timeout-but-actually-committed case) counts as a duplicate. ts is
+-- deliberately NOT part of the unique constraint, matching the old
+-- sheet's own comparison exactly.
+CREATE TABLE hike_izer_cost (
+  ts             timestamptz NOT NULL,
+  file_stem      text NOT NULL,
+  run_type       text NOT NULL,
+  dollars        double precision,
+  calls          integer,
+  input_tokens   integer,
+  output_tokens  integer,
+  web_searches   integer,
+  UNIQUE (file_stem, run_type, dollars, calls, input_tokens, output_tokens, web_searches)
+);

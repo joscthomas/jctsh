@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 """
-data-pipeline-api -- CARD-0349 Phase 1 + Phase 2 (Wildlife Detections, Hike
-Start Forecast -- scat-detection deliberately excluded, retired before this
-migration; Hiking Observations still staged pending Tasker's own URL cutover,
-a phone-side change). Replaces core/data-pipeline/environmental-data.gs.
+data-pipeline-api -- CARD-0349, all components migrated as of 2026-09-29
+(Environmental Data, GPS Track, Hike Start Forecast, Wildlife Detections,
+Hiking Observations, and Hike-izer Costs -- the last of these was outside
+CARD-0349's original "5 tables" scope, migrated as a same-day follow-on).
+scat-detection deliberately has no route -- already unused before this
+migration. Fully replaces core/data-pipeline/environmental-data.gs.
 Design doc: core/data-pipeline/timescaledb-design.md.
 
 Explicit per-purpose routes (not one POST keyed on a hidden `component`
@@ -36,7 +38,7 @@ import psycopg2.extras
 import psycopg2.pool
 import psycopg2.sql
 
-VERSION = "2026-09-29.1"  # action=version fingerprint, same "confirm a
+VERSION = "2026-09-29.2"  # action=version fingerprint, same "confirm a
 # redeploy actually landed" convention as environmental-data.gs's own
 # SCRIPT_VERSION.
 
@@ -69,7 +71,7 @@ ENV_FLOAT_FIELDS = (
 )
 ENV_OPTIONAL_FIELDS = ENV_FLOAT_FIELDS + ENV_INT_FIELDS
 
-EXPORT_TABLES = ("environmental_data", "gps_track", "wildlife_detections", "hike_start_forecast", "hiking_observations")
+EXPORT_TABLES = ("environmental_data", "gps_track", "wildlife_detections", "hike_start_forecast", "hiking_observations", "hike_izer_cost")
 
 _pool = None  # set in main(); psycopg2.pool.ThreadedConnectionPool
 
@@ -536,7 +538,72 @@ class Handler(BaseHTTPRequestHandler):
         if parts.path == "/hiking-observations":
             self._handle_hiking_observations(parts)
             return
+        if parts.path == "/hike-izer-cost":
+            self._handle_hike_izer_cost(parts)
+            return
         self._respond(404, {"status": "error", "message": "not found"})
+
+    def _handle_hike_izer_cost(self, parts):
+        """CARD-0349 follow-on, 2026-09-29 -- replaces environmental-data.gs's
+        hike-izer-cost doPost branch, the last component still on the old
+        Apps Script. Dedup is intentionally NOT (file_stem, run_type) alone
+        -- see init/schema.sql's own comment on the UNIQUE constraint this
+        relies on: a legitimate second run on the same hike gets its own
+        row unless every cost field also matches exactly."""
+        if not self._authorized(parts):
+            log("Rejected hike-izer-cost POST: missing or incorrect key", err=True)
+            self._respond(401, {"status": "error", "message": "unauthorized"})
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length else b""
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            log(f"Rejected hike-izer-cost POST: invalid JSON body ({raw!r})", err=True)
+            self._respond(400, {"status": "error", "message": "invalid JSON"})
+            return
+
+        ts_raw = payload.get("ts")
+        file_stem = payload.get("file_stem")
+        run_type = payload.get("run_type")
+        if not ts_raw or not file_stem or not run_type:
+            log(f"Rejected hike-izer-cost POST: missing required field (payload={payload!r})", err=True)
+            self._respond(400, {"status": "error", "message": "ts, file_stem, and run_type are required"})
+            return
+        try:
+            ts = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+        except ValueError as e:
+            self._respond(400, {"status": "error", "message": f"unparseable ts: {e}"})
+            return
+
+        conn = _pool.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO hike_izer_cost "
+                    "(ts, file_stem, run_type, dollars, calls, input_tokens, output_tokens, web_searches) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        ts, file_stem, run_type, payload.get("dollars"), payload.get("calls"),
+                        payload.get("input_tokens"), payload.get("output_tokens"), payload.get("web_searches"),
+                    ),
+                )
+            conn.commit()
+        except psycopg2.errors.UniqueViolation:
+            conn.rollback()
+            self._respond(200, {"status": "duplicate", "file_stem": file_stem, "run_type": run_type})
+            return
+        except Exception as e:
+            conn.rollback()
+            log(f"hike_izer_cost insert failed: {e}", err=True)
+            self._respond(500, {"status": "error", "message": str(e)})
+            return
+        finally:
+            _pool.putconn(conn)
+
+        _relay_log("hike-izer-cost", "System", f"Logged hike-izer generation cost for {file_stem} ({run_type}).")
+        self._respond(200, {"status": "ok"})
 
     def _handle_hiking_observations(self, parts):
         """CARD-0349 Phase 2 -- replaces environmental-data.gs's

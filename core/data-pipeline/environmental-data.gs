@@ -14,27 +14,24 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-29.1-phase2-retired';
+var SCRIPT_VERSION = '2026-09-29.2-all-retired';
 
-// CARD-0349 Phase 1+2, 2026-09-29: Environmental Data, GPS Track (write),
-// Hike Start Forecast, Wildlife Detections, and Hiking Observations have
-// all moved to data-pipeline-api (the TimescaleDB gateway) -- every real
-// producer has been repointed and live-verified. Retired here as an
-// explicit safety net (a clear rejection, not silent data loss) against
-// any straggler client still configured with this script's old URL,
-// rather than leaving the old write paths live and quietly accepting
-// writes nobody reads anymore. hike-izer-cost is the one component NOT
-// migrated (CARD-0349 scoped it out -- not one of the 5 tables) and its
-// doPost branch below is untouched, still the live target. Every doGet
-// action (gps/lookup/export/health/version) is also left untouched --
-// all read-only or, for action=gps, already unused now that GPSLogger's
-// own custom URL points at the new gateway (CARD-0349 Step 5) -- no write
-// risk from leaving them reachable, and action=export/health/version stay
-// useful for hike-izer-cost's own sheet and general diagnostics.
+// CARD-0349, 2026-09-29: every real component -- Environmental Data, GPS
+// Track (write), Hike Start Forecast, Wildlife Detections, Hiking
+// Observations, and (same-day follow-on) Hike-izer Costs -- has moved to
+// data-pipeline-api (the TimescaleDB gateway) and been live-verified.
+// Retired here as an explicit safety net (a clear rejection, not silent
+// data loss) against any straggler client still configured with this
+// script's old URL, rather than leaving the old write paths live and
+// quietly accepting writes nobody reads anymore. Every doGet action
+// (gps/lookup/export/health/version) is left untouched -- all read-only
+// or, for action=gps, already unused -- kept reachable for historical
+// reference against the old sheets' own data, no write risk either way.
 var _RETIRED_COMPONENTS = {
   'hiking-observations': true,
   'wildlife-detection': true,
-  'scat-detection': true  // already unused before this migration -- Joseph, 2026-09-29: "we don't do scat detections, we got rid of that"
+  'scat-detection': true,  // already unused before this migration -- Joseph, 2026-09-29: "we don't do scat detections, we got rid of that"
+  'hike-izer-cost': true  // CARD-0349 follow-on, 2026-09-29 -- Joseph: "migrate hike-izer-cost too"
 };
 function _retiredComponentResponse(component) {
   return ContentService

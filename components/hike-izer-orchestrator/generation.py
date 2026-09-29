@@ -160,19 +160,19 @@ def _post_wildlife_detection(row, file_stem):
 
 
 def _post_hike_cost(file_stem, run_type, tracker):
-    """CARD-0270: posts one generation run's real API cost to the
-    dedicated "Hike-izer Costs" sheet, via the same Apps Script doPost
-    every other component already posts to -- structured and queryable
-    (a plain SUM formula for "total cost to date"), instead of a substring
+    """CARD-0270, cut over to data-pipeline-api CARD-0349 follow-on
+    (2026-09-29): posts one generation run's real API cost via the new
+    gateway's explicit /hike-izer-cost route -- structured and queryable
+    (a plain SUM query for "total cost to date"), instead of a substring
     buried in a free-text notification message. Same dedup-on-the-server
-    pattern as wildlife-detection: "duplicate" (the (file_stem, run_type)
-    guard) counts as success here too, protecting against a retried
-    generation run (GENERATION_MAX_ATTEMPTS) double-posting the same run's
-    cost. Never raises to the caller -- see the three call sites below,
-    which treat a failure here as non-fatal telemetry, not a reason to
-    fail an otherwise-successful publish."""
+    pattern as wildlife-detection: "duplicate" (the gateway's own guard --
+    NOT just (file_stem, run_type), see init/schema.sql's own comment on
+    why every cost field is part of the match) counts as success here too,
+    protecting against a retried generation run (GENERATION_MAX_ATTEMPTS)
+    double-posting the same run's cost. Never raises to the caller -- see
+    the three call sites below, which treat a failure here as non-fatal
+    telemetry, not a reason to fail an otherwise-successful publish."""
     payload = {
-        "component": "hike-izer-cost",
         "ts": datetime.now(timezone.utc).isoformat(),
         "file_stem": file_stem,
         "run_type": run_type,
@@ -182,15 +182,15 @@ def _post_hike_cost(file_stem, run_type, tracker):
         "output_tokens": tracker.output_tokens,
         "web_searches": tracker.web_searches,
     }
-    url = _env("APPS_SCRIPT_URL") + "?key=" + _env("APPS_SCRIPT_KEY")
+    url = _env("DATA_PIPELINE_URL") + "/hike-izer-cost?key=" + _env("DATA_PIPELINE_KEY")
     req = urllib.request.Request(
         url, method="POST", data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "User-Agent": "jctsh-hike-izer/1.0"},
     )
     with urllib.request.urlopen(req, timeout=20) as resp:
         result = json.loads(resp.read())
     if result.get("status") not in ("ok", "duplicate"):
-        raise RuntimeError(f"Apps Script rejected hike-izer-cost POST: {result}")
+        raise RuntimeError(f"data-pipeline-api rejected hike-izer-cost POST: {result}")
 
 
 def _post_hike_cost_and_log(file_stem, run_type, tracker):

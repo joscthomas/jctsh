@@ -91,7 +91,9 @@ current, confirmed-working state:
 7. **Variable Search Replace** on `%obs_ts`, pattern `^.*/` → empty (strips
    the full path down to the bare epoch timestamp for the outgoing `ts`
    field).
-8. **HTTP Request** — POST to the Apps Script, JSON body carrying `%obs_ts`
+8. **HTTP Request** — POST to `https://hikes.jctnet.com/data/hiking-observations`
+   (`data-pipeline-api`, CARD-0349/CARD-0365; formerly the Apps Script) with an
+   `Authorization:Bearer <DATA_PIPELINE_KEY>` header, JSON body carrying `%obs_ts`
    and `%obs_text`. **Continue Task After Error: off** — a real failure stops
    the whole task here, natively, before anything downstream runs.
 9. **Delete File** `%qfc` (only reached on confirmed success).
@@ -130,19 +132,37 @@ when you speak, the observation sends right away with no queueing at all.
 
 ---
 
-## Section 3a — Staged cutover to data-pipeline-api (CARD-0349 Phase 2, 2026-09-29)
+## Section 3a — Cutover to data-pipeline-api (CARD-0349 Phase 2, live 2026-09-29 13:10 MST)
 
-**Not yet live — this section documents a built-and-verified server-side target, waiting on a phone-side change.** Environmental Data/GPS Track/Hike Start Forecast/Wildlife Detections have already moved off the Apps Script onto `data-pipeline-api` (the TimescaleDB gateway); Hiking Observations is the one remaining table, staged and ready. Server-side work is done and tested (synthetic POST + dedup retry both verified live 2026-09-29); what's left is entirely the Tasker-side URL swap below — the same kind of phone-config-only change GPSLogger's own CARD-0349 cutover needed (`gps-pipeline.md`).
+**Live.** Hiking Observations moved off the Apps Script onto `data-pipeline-api` (the TimescaleDB
+gateway) as the last table of CARD-0349. Tasker's "Flush Observation Queue" task, Action 8 (HTTP
+Request), was changed on the phone to:
 
-**What changes in Tasker's "Flush Observation Queue" task, Action 8 (HTTP Request):**
-- **URL:** from the old Apps Script deployment URL to `https://hikes.jctnet.com/data/hiking-observations`
-- **Query parameter:** `key=` changes from the old `APPS_SCRIPT_KEY` value to the new `DATA_PIPELINE_KEY` value (`credentials.local.md`, "data-pipeline-api" section)
-- **JSON body:** unchanged -- still `ts`/`observation`/`lat`/`lon`/`categories`/`source`, the new route accepts the exact same payload shape (the server computes categories/GPS itself either way, same as the old script did)
-- **Everything else** (queue/retry/flush logic, failure behavior, auto-flush triggers) is untouched -- this is a URL+key swap only, same class of change as GPSLogger's own cutover.
+- **Method / URL:** `POST https://hikes.jctnet.com/data/hiking-observations` — no `?key=` in it.
+- **Headers** (one per line, `Name:value`, no space after the colon — Tasker's format):
+  ```
+  Content-Type:application/json
+  Authorization:Bearer <DATA_PIPELINE_KEY>
+  ```
+  The key is taken from `credentials.local.md` (data-pipeline-api section). Moving it out of the URL was
+  CARD-0365 — a key in the query string lands in every access log.
+- **JSON body:** unchanged (`ts`/`observation`/`lat`/`lon`/`categories`/`source`; the extra
+  `component` field is ignored). The server computes categories and back-fills coordinates from
+  `gps_track` itself, exactly as the old script did.
+- **Everything else** (queue/retry/flush logic, failure behavior, auto-flush triggers) is untouched.
 
-**Server-side verified 2026-09-29:** a synthetic observation ("Saw a hawk near a saguaro, felt really hot and dusty on the trail") correctly categorized as `{vegetation, wildlife, weather, visibility, air_quality, trail}` -- matches the old script's keyword-scan logic exactly, including the deliberate double-match on "dusty" (present in both the `visibility` and `air_quality` keyword lists). A retried POST of the same `ts` correctly returned `{"status": "duplicate", ...}` rather than a second row.
+**Verified live 2026-09-29 13:10 MST:** an observation logged from the phone landed as a `hiking_observations`
+row (`POST /data/hiking-observations` → 200, no query string in the access log, no legacy-`?key=`
+line on the gateway). Earlier, a synthetic observation ("Saw a hawk near a saguaro, felt really hot and
+dusty on the trail") was categorized `{vegetation, wildlife, weather, visibility, air_quality, trail}` — matching
+the old script's keyword scan, including the deliberate double-match on "dusty" — and a retried POST of
+the same `ts` returned `{"status": "duplicate"}` rather than a second row.
 
-**Once Joseph makes this change:** the next real observation is the live-verification step (confirm it lands via `GET /export?table=hiking_observations`), then `fetch_hike_data.py` needs its own read-side cutover (still reads the old Apps Script's `action=export&sheet=Hiking Observations` as of this writing) -- a follow-on, not done as part of staging this write path.
+`fetch_hike_data.py` reads observations from the gateway too (`GET /export?table=hiking_observations`).
+`tasker/Flush-Observation-Queue.tsk.xml` in this directory was updated by hand to match the phone
+(URL and Headers only, with `REPLACE_WITH_DATA_PIPELINE_KEY` standing in for the real key — never commit the key); re-export it from Tasker the next time the task is edited so the file is
+the real thing again.
+
 
 ## Section 4 — Known gaps / not yet built
 

@@ -1,5 +1,12 @@
 # Hiking Monitor — GPS Track Pipeline (Steps 19–20)
 
+> **Current state (2026-09-29 13:10 MST, CARD-0349/CARD-0365).** GPS points go to **`data-pipeline-api`**
+> (`https://hikes.jctnet.com/data/gps`), stored in the `gps_track` table — not the Google Apps Script
+> and Google Sheet this document was written for. **Section 1 below is current** (GPSLogger
+> configuration). **Sections 2–4 and the architecture diagram describe the retired Apps Script/Sheet
+> implementation** and are kept as history; for how the gateway works see
+> `core/data-pipeline/README.md`.
+
 This document covers GPSLogger Android configuration (Step 19), the Google Apps Script GPS endpoint
 (Step 19), the "GPS Track" sheet setup (Step 19), and the timestamp lookup endpoint used to
 populate `lat`/`lon` in the environmental data pipeline (Step 20).
@@ -57,18 +64,18 @@ In GPSLogger → Logging Details → Log to custom URL:
 
 | Setting | Value |
 |---|---|
-| URL | `https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat=%LAT&lon=%LON&ts=%TIME&acc=%ACC&alt=%ALT&direction=%DIR` |
+| URL | `https://hikes.jctnet.com/data/gps?lat=%LAT&lon=%LON&ts=%TIME&acc=%ACC&alt=%ALT&direction=%DIR` — **no `key=` in it** (CARD-0365) |
 | Method | GET |
 | Body | (leave empty — all params are in the URL) |
-| Headers | (leave empty) |
+| Headers | `Authorization: Bearer <DATA_PIPELINE_KEY>` — the key goes here, not in the URL, so it stays out of every access log (CARD-0365) |
 | Basic auth | disabled |
 | Discard offline locations | **off** — queues failed GETs and retries when connectivity returns |
 
-Replace `<SCRIPT_ID>` and `<API_KEY>` with values from `credentials.local.md`.
+Take `<DATA_PIPELINE_KEY>` from `credentials.local.md` (the data-pipeline-api section). A request with no valid key is rejected with `401` and, with "Discard offline locations" off, queues on the phone and retries.
 
 **Constructed URL example:**
 ```
-https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat=32.2226&lon=-110.9747&ts=1749340800&acc=4.2&alt=728.3&direction=274.5
+https://hikes.jctnet.com/data/gps?lat=32.2226&lon=-110.9747&ts=1749340800&acc=4.2&alt=728.3&direction=274.5
 ```
 
 **GPSLogger placeholders:**
@@ -82,18 +89,24 @@ https://script.google.com/macros/s/<SCRIPT_ID>/exec?key=<API_KEY>&action=gps&lat
 | `%ALT` | Altitude in meters above sea level |
 | `%DIR` | GPS bearing/direction of travel, degrees clockwise from North (CARD-0085, added 2026-08-05) — optional; older requests without it still work, `doGet` writes an empty value rather than failing. **Corrected 2026-09-28 (CARD-0349) — this table previously said `%DIRECTION`, the wrong macro, found live:** the real GPSLogger app substitutes `%DIR`; a URL using `%DIRECTION` gets only its leading `%DIR` replaced, leaving a literal `ECTION` suffix on the value (e.g. `0.0ECTION`). Never caused a visible failure here because `doGet`'s `parseFloat()` parses only the leading numeric prefix of a string and silently ignores the rest — direction values have likely been truncated (usually to `0.0`) since this field was added, not genuinely missing. Confirmed against `data-pipeline-api`'s own logs (CARD-0349 Phase 1's stricter Python parser rejected the same malformed value outright, which is what surfaced this). |
 
-> `%TIME` is a Unix epoch integer (e.g. `1749340800`). The Apps Script converts it to ISO8601
-> UTC before writing to the sheet.
+> `ts` reaches the gateway as an ISO 8601 UTC string in practice (observed in production,
+> 2026-09-29: `ts=2026-09-29T19%3A55%3A15.211Z`); the gateway also accepts epoch seconds or
+> milliseconds, and stores a `timestamptz`.
 
 ### Test Before Walking
 
-With GPSLogger running, tap the play button and step outside briefly. Check the "GPS Track" sheet
-(see Section 3) — a row should appear within 30–60 seconds. If not, check the GPSLogger log
-(swipe the bottom bar up) for HTTP errors.
+With GPSLogger running, tap the play button and step outside briefly. A new row should appear in
+`gps_track` within 30–60 seconds — check with
+`curl -s -H "Authorization: Bearer $KEY" "https://hikes.jctnet.com/data/export?table=gps_track&start=<recent ISO time>"`,
+or ask Claude to look. If not, check the GPSLogger log (swipe the bottom bar up) for HTTP errors:
+`401` means the Headers field is wrong or missing; and on the gateway host,
+`docker logs data-pipeline-api | grep legacy` showing a `/gps` line means the key is still in the URL.
 
 ---
 
-## Section 2 — Google Apps Script GPS Endpoint
+## Section 2 — Google Apps Script GPS Endpoint (RETIRED)
+
+> **Retired by CARD-0349** — replaced by `data-pipeline-api`'s `GET /gps`. Kept as history.
 
 The existing Apps Script (`Code.gs` in the "JCTsh Environmental Data" workbook) has only `doPost(e)`.
 Add the `doGet(e)` function below it. The `doPost` function is unchanged.
@@ -131,7 +144,9 @@ Confirm a new row appeared in the "GPS Track" sheet before configuring GPSLogger
 
 ---
 
-## Section 3 — GPS Track Sheet Setup
+## Section 3 — GPS Track Sheet Setup (RETIRED)
+
+> **Retired by CARD-0349** — the data lives in the `gps_track` table (`core/data-pipeline/init/schema.sql`). Kept as history.
 
 ### Add the Sheet
 
@@ -160,7 +175,9 @@ At 30-second intervals, a 10-hour hike produces ~1,200 rows (~75 KB). No pruning
 
 ---
 
-## Section 4 — Timestamp Lookup for Step 20
+## Section 4 — Timestamp Lookup for Step 20 (RETIRED)
+
+> **Retired by CARD-0349** — now `GET /lookup-gps` on the gateway (`core/data-pipeline/README.md`). Kept as history.
 
 Step 20 adds `lat`/`lon` to the environmental data pipeline by looking up the nearest GPS
 trackpoint for each sensor reading's timestamp.

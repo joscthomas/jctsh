@@ -119,12 +119,18 @@ Both self-recovered on retry with no data loss. **Not the same thing as the 2026
 
 ---
 
-### CARD-0356 · [enhancement] [infrastructure] Container image updates: immich-redis: 9.1.2 available (running 9.1.0) — auto-opened from photo-server
-**Status:** Backlog
+### CARD-0356 · [enhancement] [infrastructure] Container image updates: immich-redis: 9.1.2 available (running 9.1.0) — auto-opened from photo-server — RESOLVED 2026-09-29 00:16 MST
+**Status:** Done
 
-**Auto-generated 2026-09-28 03:34 UTC from photo-server's maintenance check.** Raw finding: Container image updates: immich-redis: 9.1.2 available (running 9.1.0). Needs a human/Claude interview pass to scope real acceptance criteria — this stub only captures that something was found, not what "done" looks like.
+**Auto-generated 2026-09-28 03:34 UTC from photo-server's maintenance check.** Raw finding: Container image updates: immich-redis: 9.1.2 available (running 9.1.0).
 
-**Related:** live dashboard entry at time of generation.
+**Interviewed/scoped and built same pass, 2026-09-28 (Joseph: "do 356").** Simple, well-understood mechanical bump — no separate Planning needed, same Observed Exception pattern other one-line dependency bumps in this repo use. Real digest resolved rather than guessed: pulled `valkey/valkey:9.1.2` on the M8, took its actual `RepoDigests` value (`sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd`), and re-pinned `components/photo-server/docker-compose.yml`'s `redis` service to `docker.io/valkey/valkey:9.1.2@<that digest>` (was the bare major-tag `valkey:9@<old digest>` — matches this repo's pin-don't-float convention and CARD-0344's `ring-mqtt` precedent of pinning to an explicit, self-documenting version tag).
+
+**Deployed and verified live, not just "container recreated":** `docker compose config --quiet` validated clean before touching anything; `docker compose pull redis` + `docker compose up -d redis` recreated only the redis service (immich_server/immich_machine_learning/immich_postgres were never restarted — confirmed still `Up 13 hours`, no interruption to the rest of the stack). `docker exec immich_redis valkey-server --version` confirms `v=9.1.2`; the container settled to `Health: healthy` within ~1 minute. Re-ran `container-update-check.py` directly on the M8 afterward (not waiting for its own schedule) — it correctly reports "now running 9.1.2" / "Nothing pending," and `gh pr list` confirms no duplicate PR was opened by that manual run (only the original #139, already merged).
+
+**Done when:** immich-redis running 9.1.2, confirmed via both the container's own reported version and the maintenance check's own mechanism, with the rest of the Immich stack undisturbed. **Met.**
+
+**Related:** `hosts/m8/container-update-check.py` (the check that found and re-confirmed this), CARD-0344 (built the check that surfaced this, and the pin-to-explicit-tag precedent this follows), PR #139 (the original auto-opened finding, merged).
 
 ---
 

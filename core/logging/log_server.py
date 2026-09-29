@@ -899,6 +899,36 @@ _KANBAN_STATUS_RE = re.compile(
 )
 
 
+# CARD-0374: fields the /kanban client sorts on. Best-effort like the rest of the
+# parser -- a card with no priority line or no dates just gets no field, and the
+# client's comparator treats a missing value as "untagged" / "no date".
+_KANBAN_PRIORITY_RE = re.compile(
+    r"(?m)^\*\*Priority:\*\*\s*(Critical|High|Medium|Low)\b", re.IGNORECASE)
+_KANBAN_DATE_RE = re.compile(r"\b(20\d{2}-\d{2}-\d{2})\b")
+_KANBAN_MARKER_DATE_RE = re.compile(r"(Auto verify:\s*)20\d{2}-\d{2}-\d{2}")
+_KANBAN_RAISED_RE = re.compile(r"\bRaised\s+(?:on\s+)?(20\d{2}-\d{2}-\d{2})")
+
+
+def _kanban_card_dates(title, body):
+    """(latest, raised) as ISO date strings, or "" when a card carries no usable
+    date. `latest` is the newest date in the title/body that is not in the
+    future, with the date inside an `Auto verify:` marker blanked out first --
+    that date is when a check is DUE, not when the card was touched, and left
+    in it made a card look active until 2027. `raised` prefers the explicit
+    `Raised <date>` stamp, else the earliest date found. ISO strings compare
+    correctly as text, so no date parsing is needed."""
+    today = datetime.now(ZoneInfo("America/Phoenix")).date().isoformat()
+    text = _KANBAN_MARKER_DATE_RE.sub(r"\1", title + "\n" + body)
+    dates = [d for d in _KANBAN_DATE_RE.findall(text) if d <= today]
+    latest = max(dates) if dates else ""
+    m = _KANBAN_RAISED_RE.search(body)
+    if m and m.group(1) <= today:
+        raised = m.group(1)
+    else:
+        raised = min(dates) if dates else ""
+    return latest, raised
+
+
 def _parse_kanban_board(text, repo="jctsh", simple=False):
     """Parse kanban-board.md into a list of card dicts (id/type/tag/repo/
     column/title/notes/flag). Best-effort: only recognizes the file's
@@ -956,6 +986,15 @@ def _parse_kanban_board(text, repo="jctsh", simple=False):
         wf_m = re.search(r"(?m)^\*\*Watch for:\*\*\s*(.+)", body)
         if wf_m:
             card["watch_for"] = wf_m.group(1).strip()
+        # CARD-0374: priority + activity dates, for the client-side column sort.
+        prio_m = _KANBAN_PRIORITY_RE.search(body)
+        if prio_m:
+            card["priority"] = prio_m.group(1).lower()
+        latest, raised = _kanban_card_dates(title, body)
+        if latest:
+            card["latest"] = latest
+        if raised:
+            card["raised"] = raised
         cards.append(card)
     return cards
 
@@ -1387,6 +1426,10 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   .card .ctitle { grid-column: 1 / -1; font-size: 0.9rem; font-weight: 600; line-height: 1.35; text-wrap: balance; }
   .card .cmeta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.1rem; }
   .flag { font-family: var(--mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 2px; padding: 0.08rem 0.4rem; border: 1px solid transparent; }
+  .flag[data-flag="priority-critical"] { color: var(--danger); border-color: var(--danger); background: color-mix(in srgb, var(--danger) 18%, transparent); font-weight: 600; }
+  .flag[data-flag="priority-high"] { color: var(--warning); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 18%, transparent); font-weight: 600; }
+  .flag[data-flag="priority-medium"] { opacity: .85; }
+  .flag[data-flag="priority-low"] { opacity: .55; }
   .flag[data-flag="blocked"] { color: var(--danger); border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
   .flag[data-flag="auto-verify"] { color: var(--warning); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
   .flag[data-flag="watch-for"] { color: var(--accent, var(--warning)); border-color: var(--accent, var(--warning)); background: color-mix(in srgb, var(--accent, var(--warning)) 12%, transparent); }
@@ -1603,6 +1646,11 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   var ARCHIVE_NOTE_RE = /Archived to `([^`]+)` on/;
   function cardHtml(card) {
     var flags = '';
+    // CARD-0374: priority badge first, so the ranking the column sort applies is visible.
+    if (card.priority) {
+      flags += '<span class="flag" data-flag="priority-' + escapeHtml(card.priority) + '" title="Priority: ' + escapeHtml(card.priority) + '">' +
+        escapeHtml(card.priority.charAt(0).toUpperCase() + card.priority.slice(1)) + '</span>';
+    }
     if (card.flag && flagLabels[card.flag]) {
       flags += '<span class="flag" data-flag="' + card.flag + '">' + flagLabels[card.flag] + '</span>';
     }
@@ -1667,8 +1715,30 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       // this page targets), so within each of the two groups the original file order
       // -- which is what every other column already relies on -- is preserved.
       var hasMarker = function (c) { return !!(c.auto_verify || c.watch_for); };
+      // CARD-0374: within each marker group, Backlog/Planning/Build order by priority
+      // tier (Critical > High > Medium > untagged > Low), then latest activity
+      // (newest first), then initiated date (oldest first, card id as fallback).
+      // Done/Defer order by latest activity only -- priority means nothing once a
+      // card is finished or parked. Full ties keep file order (stable sort).
+      var PRIO_RANK = { critical: 0, high: 1, medium: 2, low: 4 };  // untagged = 3, above Low
+      var prioRank = function (c) { return c.priority ? PRIO_RANK[c.priority] : 3; };
+      var idNum = function (c) { var m = /(\d+)/.exec(c.id); return m ? parseInt(m[1], 10) : 0; };
+      var byRecencyOnly = (col.key === 'Done' || col.key === 'Defer');
       var cards = repoVisible.filter(function (c) { return c.column === col.key; })
-        .sort(function (a, b) { return (hasMarker(a) ? 1 : 0) - (hasMarker(b) ? 1 : 0); });
+        .sort(function (a, b) {
+          var am = hasMarker(a) ? 1 : 0, bm = hasMarker(b) ? 1 : 0;
+          if (am !== bm) return am - bm;
+          if (!byRecencyOnly) {
+            var pa = prioRank(a), pb = prioRank(b);
+            if (pa !== pb) return pa - pb;
+          }
+          var la = a.latest || '', lb = b.latest || '';
+          if (la !== lb) return la < lb ? 1 : -1;
+          if (byRecencyOnly) return idNum(b) - idNum(a);
+          var ra = a.raised || '', rb = b.raised || '';
+          if (ra && rb && ra !== rb) return ra < rb ? -1 : 1;
+          return idNum(a) - idNum(b);
+        });
       var total = repoAll.filter(function (c) { return c.column === col.key; }).length;
       var collapsed = !!state.collapsed[col.key];
       var body = cards.length

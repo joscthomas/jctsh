@@ -79,6 +79,8 @@ Independent of column/state — priority describes how urgently a card needs att
 | **Medium** | Cool to do — worth it if the opportunity or energy is there, not load-bearing. |
 | **Low** | Probably will never get to — captured so the idea isn't lost, not a real commitment. |
 
+**The `/kanban` dashboard sorts by it (CARD-0374).** Within Backlog, Planning and Build, cards order by priority tier (Critical, High, Medium, untagged, Low -- untagged deliberately above Low, since Low means "probably never"), then latest activity (newest first), then initiated date (oldest first); Done and Defer order by latest activity only. Cards carrying an `Auto verify`/`Watch for` marker still sink to the end of their column, ahead of all of this. A tagged card shows a priority badge. Only the four level names count -- `**Priority:** High -- <reason>` is read, `**Priority:** Backlog, low` is not, and an unreadable value is treated as untagged.
+
 Use this scale whenever asked to prioritize — cards, backlog review, or otherwise. Not every card needs an explicit priority tag; assign one when it's actually asked for or genuinely load-bearing to the work (e.g. a real deadline like CARD-0164's), not retroactively swept across the whole board.
 
 ---

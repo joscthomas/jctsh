@@ -9,7 +9,27 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0363 -->
+<!-- next-card-id: CARD-0364 -->
+
+---
+
+### CARD-0363 · [enhancement] [photo-server] Immich update available: v3.2.4 (currently running v3.2.2) — auto-opened from photo-server — RESOLVED 2026-09-29 07:45 MST
+
+**Status:** Done
+
+**Auto-generated 2026-09-29 13:00 UTC from photo-server's maintenance check.** Raw finding: Immich update available: v3.2.4 (currently running v3.2.2).
+
+**Risk evaluated before touching anything, 2026-09-29.** Checked directly via `gh api`: **v3.2.3 no longer exists as a real GitHub release** (404) — the Immich team pulled it after a reported memory leak; v3.2.4's own release notes describe it as the fix for that leak ("let's hope v3.2.3 was a good sacrifice for v3.3"). Full diff `v3.2.2...v3.2.4` is exactly two things: the memory-leak fix and one unrelated mobile-app bugfix (blank sync-status page on a failed counts query). No DB migration, no schema bump, no breaking-change callout anywhere. Net effect of updating: skip the retracted, buggy 3.2.3 entirely and land on a release that's more stable than what's currently running, not less.
+
+**M8 had plenty of headroom, unlike the Pi's own maintenance windows this week** (628Mi free of 11Gi, load 0.21) — no scheduling/memory-pressure concern here.
+
+**Built/deployed 2026-09-29 07:36-07:44 MST, attended.** `docker compose pull immich-server && docker compose up -d immich-server` in `~/immich-app` on the M8 — only `immich_server` recreated; `immich_redis`/`immich_postgres`/`immich_machine_learning` untouched throughout (confirmed via `docker ps`, all three showed unbroken uptime across the whole operation).
+
+**Verified live:** `GET /api/server/version` confirms `{"major":3,"minor":2,"patch":4}`; container settled to `Health: healthy`; `docker logs immich_server` since the recreate shows zero error/fatal lines.
+
+**Done when:** immich-server running 3.2.4, confirmed via its own version endpoint, with no errors in its startup log and the rest of the stack undisturbed. **Met.**
+
+**Related:** `components/photo-server/operations.md` (the deliberate notify-only/manual-update policy this follows), CARD-0356/CARD-0354/CARD-0355 (the sibling maintenance-window bumps this evaluation borrowed its verification discipline from).
 
 ---
 
@@ -140,7 +160,19 @@ Archived to `tos/kanban-archive.md` on 2026-09-28 (CARD-0193) — 2366B, over th
 
 **Decision: schedule overnight rather than run immediately (Joseph, 2026-09-28).** `pi-image-pull.py ghcr.io/home-assistant-libs/python-matter-server:stable --recreate matter-server --schedule "2026-09-29 04:00:00"` -- scheduled and confirmed live (`pi-image-pull-python-matter-server-stable.timer`, active/waiting, `Trigger: Tue 2026-09-29 04:00:00 MST`). **Deliberately not the originally-proposed 01:45 slot** -- that would have collided with CARD-0351's review-upgrade job (02:00, includes a full Pi reboot once its own 10-min health wait completes, likely settling ~02:15-03:15). 04:00 sits comfortably after that reboot settles and well before the 06:01+ morning checks (`zram-writeback`/`apt-daily-upgrade`/`container-update-check-pi`) -- confirmed against the Pi's live `systemctl list-timers`, not the (possibly stale) doc table. Compose file at `/home/pi/docker-compose.yml` confirmed byte-identical to the repo's tracked copy before trusting an unattended recreate against it.
 
-**Auto verify: 2026-09-29 04:15 MST** -- check `journalctl -u pi-image-pull-python-matter-server-stable --no-pager -o cat` on the Pi for a clean run (pull + recreate, no `Alert`); `docker exec matter-server pip show python-matter-server` should read `8.1.2`; re-check `light.kitchen_under_cabinet_1/2/3` are still `on`/responsive via HA's `/api/states` (no manual reload of the `matter` config entry unless they come back unavailable); `container-update-check.py`'s next run (06:30) should report matter-server current with no new PR.
+~~**Auto verify: 2026-09-29 04:15 MST**~~ -- superseded below; the scheduled job never fired.
+
+**Scheduled job silently lost, found 2026-09-29 07:18 MST (general session, checking markers).** `pi-image-pull-python-matter-server-stable.timer` no longer existed on the Pi -- same failure class as CARD-0351's own lost job: a transient `systemd-run` unit lives in `/run`, wiped by any reboot landing before its fire time. **The mistake here was mine, not a repeat of the unknown-at-the-time gap CARD-0351 hit** -- I'd already diagnosed and fixed that exact class of loss for CARD-0351's job hours earlier, but didn't connect that CARD-0351's *own* rescheduled job reboots the Pi at ~02:18, squarely between when I scheduled this one (Mon 17:37) and its 04:00 fire time. Matter-server itself was unaffected (still cleanly on 8.1.0 the whole time, nothing broken by the miss) -- see CARD-0362 or a new card for the durable rule this produced (check every one-off schedule against *other already-scheduled one-off jobs*, not just the recurring-timer table, since a transient unit dies from any intervening reboot regardless of which job caused it).
+
+**Run for real, 2026-09-29 07:24 MST (Joseph: "run it now"), attended.** Pi load had settled (1.3) since the overnight reboot. Compose file re-confirmed byte-identical to the repo copy. Baseline: all 3 lights `on`. `sudo pi-image-pull.py ... --recreate matter-server` (not scheduled this time) -- clean pull (6.6s, mostly "already exists" layers) and recreate, exit 0.
+
+**Real regression hit and fixed live -- exactly the gap this card's own risk-evaluation flagged in advance.** All 3 lights went `unavailable` immediately after the recreate. `matter-server`'s own log showed a fully healthy reconnect (`Loaded 3 nodes from stored configuration`, all 3 nodes discovered on mDNS, subscriptions succeeded) -- the container and the Matter fabric itself were fine. The break was HA's side: the `matter` config entry reported `loaded` without ever resyncing its WebSocket connection to the recreated container, the identical "loaded but not actually synced" failure CARD-0240/CARD-0247 already documented for `smartthings`/`ring`/`samsungtv` -- now confirmed to apply to `matter` too, empirically, not just as a theoretical gap. **Fixed via `POST /api/config/config_entries/entry/01M2B0CVKBFGYYRQ9DT59RKJYB/reload`** (`{"require_restart":false}`) -- all 3 lights back to `on` within 5s. Worth a follow-on to add `matter` to CARD-0247's `AUTO_RELOAD_DOMAINS` so this doesn't need a human/Claude to notice and reload by hand next time (not built here -- that script change is CARD-0247's scope, not this card's).
+
+**Version did NOT change -- a real, separate finding, not a failed update.** `docker inspect matter-server --format '{{.Image}}'` is byte-identical before and after (`sha256:170aa093...`); `pip show python-matter-server` still reads `8.1.0`. Confirmed via `gh api`: GitHub still lists `8.1.2` (2025-12-15) as the latest release, unchanged -- so upstream's `ghcr.io :stable` **Docker image tag has simply not been rebuilt for the 8.1.2 GitHub release**. This is upstream publishing lag, not anything wrong on this end -- the same "GitHub release exists but the container registry tag lags it" gap CARD-0344 already found for `immich_postgres` (no GitHub releases at all there; here releases exist but the Docker tag hasn't caught up). Nothing further to do here until upstream actually republishes `:stable` -- `container-update-check.py`'s next run will keep finding "8.1.2 available" until then, which is now a known, understood state, not a bug to chase.
+
+**Done when:** matter-server's container recreated cleanly (met), the config-entry-reload gap this surfaced is either fixed or handed off (handed off to CARD-0247, above), and matter-server actually reports `8.1.2`. **Left in Build for that last item, not forced to Done on the accepted-limitation clause** -- this isn't a "root cause unknown" case (the cause is known: upstream hasn't republished `:stable`), it's a real, external, dated dependency, same shape as any other Auto Verify.
+
+**Watch for:** `ghcr.io/home-assistant-libs/python-matter-server:stable` actually rebuilding for `8.1.2` (or whatever is newest by then) -- either `container-update-check.py`'s daily run reporting matter-server current, or a manual `docker inspect matter-server --format '{{.Image}}'` showing a digest different from `sha256:170aa093...`. No known date (depends entirely on upstream's own release/publish cadence), so checked every session per Session Start step 6, not on a schedule.
 
 **Related:** `hosts/pi1` (compose file, matter-server service), CARD-0344 (built the check that surfaced this and the exec-based version-detection method it uses), CARD-0351 (the review-upgrade job this schedule was placed around), CARD-0247 (the entity-reload allowlist that doesn't yet cover `matter`), CARD-0356 (the sibling immich-redis bump this evaluation borrowed its verification discipline from).
 

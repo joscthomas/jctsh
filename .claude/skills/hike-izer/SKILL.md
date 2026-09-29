@@ -227,6 +227,25 @@ section.
    underlying stats, not against a formatted "not available" string. This is
    where precise figures belong, not restated anywhere else on the page.
 
+   **Air Quality Monitor sub-table (CARD-0285 follow-up, added 2026-09-28)**
+   -- when air-quality-monitor was also carried that hike, add a second
+   labeled table in this same section, right after the hiking-monitor one:
+   a `from JCTsh Air Quality Monitor` caption, then a table with PM1.0,
+   PM2.5, PM4.0, PM10 (each `"{min:.1f}–{max:.1f} µg/m³"` from
+   `stats.aqm_pm1_ug_m3`/`aqm_pm25_ug_m3`/`aqm_pm4_ug_m3`/`aqm_pm10_ug_m3`),
+   and VOC Index, NOx Index (each `"{min:.0f}–{max:.0f}"`, no unit --
+   Sensirion's own dimensionless 1-500 index scale, from
+   `stats.aqm_voc_index`/`aqm_nox_index`). Same "not available" convention
+   as every other row in this section when a given field's range is `None`.
+   Independent omit-when-empty check from the hiking-monitor table above --
+   checked against these six `aqm_*` stats, not against whether the
+   hiking-monitor table itself rendered, so a hike with AQM but (somehow)
+   no hiking-monitor data still shows this table on its own, and vice versa.
+   Exactly mirrors `components/hike-izer-orchestrator/templating.py`'s
+   `aqm_summary_rows()`/`has_aqm_data` -- the automated pipeline's own
+   version of this same table -- so a manually-built page and an
+   automatically-published one read identically.
+
    **Environmental Data (CARD-0204, renamed from "Environmental Data
    Chart" and moved into `.hike-visuals-col`, stacked with Elevation &
    Speed in the same grid column rather than after the Environmental Data

@@ -325,7 +325,7 @@ def _battery_window_crossing_min(env_rows, high_v=BATTERY_TREND_WINDOW_HIGH_V,
     return round((t_low - t_high).total_seconds() / 60, 1)
 
 
-def compute_stats(env_rows, gps_rows):
+def compute_stats(env_rows, gps_rows, aqm_rows=None):
     def rng(rows, key):
         vals = [to_float(r.get(key)) for r in rows]
         vals = [v for v in vals if v is not None]
@@ -339,6 +339,7 @@ def compute_stats(env_rows, gps_rows):
         if alt_vals else None
     )
 
+    aqm_rows = aqm_rows or []
     return {
         'temp_f': rng(env_rows, 'temp_f'),
         'humidity_pct': rng(env_rows, 'humidity_pct'),
@@ -347,6 +348,17 @@ def compute_stats(env_rows, gps_rows):
         'battery_v': rng(env_rows, 'battery_v'),
         'altitude_ft': altitude_ft,
         'battery_window_crossing_min': _battery_window_crossing_min(env_rows),
+        # CARD-0285 follow-up: AQM's own min/max ranges, same rng() helper as
+        # hiking-monitor's fields above, against aqm_rows (never env_rows --
+        # see AQM_SOURCE's own comment on why the two stay separate lists).
+        # Prefixed aqm_* so these can never collide with a hiking-monitor
+        # stat key, even though today's six field names already don't.
+        'aqm_pm1_ug_m3': rng(aqm_rows, 'pm1_ug_m3'),
+        'aqm_pm25_ug_m3': rng(aqm_rows, 'pm25_ug_m3'),
+        'aqm_pm4_ug_m3': rng(aqm_rows, 'pm4_ug_m3'),
+        'aqm_pm10_ug_m3': rng(aqm_rows, 'pm10_ug_m3'),
+        'aqm_voc_index': rng(aqm_rows, 'voc_index'),
+        'aqm_nox_index': rng(aqm_rows, 'nox_index'),
     }
 
 
@@ -1385,7 +1397,7 @@ def main():
         _rows_in_hike_sessions(gps_rows, coverage['gps_track']['sessions'])
         if coverage['gps_track']['hike_confirmed'] else gps_rows
     )
-    stats = compute_stats(env_rows, altitude_gps_rows)
+    stats = compute_stats(env_rows, altitude_gps_rows, aqm_rows)
     # Sun elevation range + start/end compass direction, for the Data Summary
     # table (CARD-0109) -- moved out of narrative prose, same treatment as
     # every other measured range (temp, humidity, elevation). sun_samples is

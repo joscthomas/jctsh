@@ -308,6 +308,27 @@ def data_summary_rows(hike_data):
     ]
 
 
+def aqm_summary_rows(hike_data):
+    # CARD-0285 follow-up: air-quality-monitor's own min/max ranges, same
+    # shape as data_summary_rows() above but sourced from stats['aqm_*']
+    # (compute_stats(), fetch_hike_data.py) -- never mixed into the
+    # hiking-monitor table this mirrors. VOC/NOx are Sensirion's own
+    # dimensionless 1-500 index scale (SEN5x datasheet), not a physical
+    # unit like the four PM fields -- decimals=0, no unit suffix, same
+    # "index, not a measurement" treatment UV Index already gets elsewhere
+    # on this page (though without that one's separate risk-band styling --
+    # no established risk-band convention exists for VOC/NOx here).
+    stats = hike_data["stats"]
+    return [
+        ("PM1.0", _range_display(stats.get("aqm_pm1_ug_m3"), " µg/m³")),
+        ("PM2.5", _range_display(stats.get("aqm_pm25_ug_m3"), " µg/m³")),
+        ("PM4.0", _range_display(stats.get("aqm_pm4_ug_m3"), " µg/m³")),
+        ("PM10", _range_display(stats.get("aqm_pm10_ug_m3"), " µg/m³")),
+        ("VOC Index", _range_display(stats.get("aqm_voc_index"), decimals=0)),
+        ("NOx Index", _range_display(stats.get("aqm_nox_index"), decimals=0)),
+    ]
+
+
 def _battery_discharge_display(crossing_min):
     # CARD-0207: a rough field indicator, comparable across hikes because the
     # reference window (4.00V->3.70V, fetch_hike_data.py) is fixed rather than
@@ -1247,21 +1268,43 @@ def render_html(hike_data, date_str, offset_str, photos_manifest=None,
     # any >6min gap notes (formerly the "Expected vs. Actual Data Coverage"
     # section's Environmental Data half) join the end of this same table.
     has_env_data = any(stats.get(k) for k in ("temp_f", "humidity_pct", "pressure_hpa", "uv_index", "battery_v"))
+    # CARD-0285 follow-up: same omit-when-empty convention as has_env_data
+    # above, checked against the six aqm_* stats directly, not against
+    # whether aqm_rows was non-empty upstream -- a hike where AQM was
+    # carried but every reading happened to be missing a given field
+    # (unlikely, but the same defensive check has_env_data already applies)
+    # should still omit cleanly rather than render an all-"not available" table.
+    has_aqm_data = any(
+        stats.get(k) for k in
+        ("aqm_pm1_ug_m3", "aqm_pm25_ug_m3", "aqm_pm4_ug_m3", "aqm_pm10_ug_m3", "aqm_voc_index", "aqm_nox_index")
+    )
     env_tracking_section = ""
-    if has_env_data:
-        env_rows = data_summary_rows(hike_data) + [environmental_data_coverage_row(coverage)]
-        summary_rows = "".join(
-            f"<tr><td>{_env_row_label_cell(label)}</td><td>{_env_row_value_cell(label, value)}</td></tr>"
-            for label, value in env_rows
-        )
+    if has_env_data or has_aqm_data:
         env_gap_html = "".join(
             f"<p>{_esc(n)}</p>" for n in environmental_data_gap_notes(coverage, offset_delta, offset_str)
         )
+        hiking_monitor_table = ""
+        if has_env_data:
+            env_rows = data_summary_rows(hike_data) + [environmental_data_coverage_row(coverage)]
+            summary_rows = "".join(
+                f"<tr><td>{_env_row_label_cell(label)}</td><td>{_env_row_value_cell(label, value)}</td></tr>"
+                for label, value in env_rows
+            )
+            hiking_monitor_table = f"""
+    <p class="data-source">from JCTsh Hiking Monitor</p>
+    <table><tbody>{summary_rows}</tbody></table>"""
+        aqm_table = ""
+        if has_aqm_data:
+            aqm_rows_html = "".join(
+                f"<tr><td>{_esc(label)}</td><td>{_esc(value)}</td></tr>"
+                for label, value in aqm_summary_rows(hike_data)
+            )
+            aqm_table = f"""
+    <p class="data-source">from JCTsh Air Quality Monitor</p>
+    <table><tbody>{aqm_rows_html}</tbody></table>"""
         env_tracking_section = f"""
   <section>
-    <h2>Environmental Data Tracking</h2>
-    <p class="data-source">from JCTsh Hiking Monitor</p>
-    <table><tbody>{summary_rows}</tbody></table>
+    <h2>Environmental Data Tracking</h2>{hiking_monitor_table}{aqm_table}
     {env_gap_html}
   </section>"""
 

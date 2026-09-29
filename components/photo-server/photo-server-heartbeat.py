@@ -22,6 +22,12 @@ CONTAINERS = [
     # own HEALTHCHECK (python3 hitting its /health endpoint) for the same
     # reason as hike-izer-web above.
     "hike-izer-orchestrator",
+    # CARD-0349/CARD-0362: TimescaleDB gateway (core/data-pipeline/), a
+    # separate compose project on this same M8. Both containers already
+    # define their own HEALTHCHECK (pg_isready; a Python urllib hit against
+    # /health) for the same reason as hike-izer-web/-orchestrator above.
+    "data-pipeline-timescaledb",
+    "data-pipeline-api",
 ]
 
 # Backup drives (CARD-0030) — Immich itself never touches these, only the standalone

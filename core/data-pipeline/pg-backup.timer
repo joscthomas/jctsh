@@ -1,0 +1,10 @@
+[Unit]
+Description=CARD-0362: daily pg_dump backup for data-pipeline-timescaledb (M8)
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+Unit=pg-backup.service
+
+[Install]
+WantedBy=timers.target

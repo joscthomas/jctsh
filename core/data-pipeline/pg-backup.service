@@ -1,0 +1,9 @@
+[Unit]
+Description=CARD-0362: pg_dump backup for data-pipeline-timescaledb
+After=docker.service
+
+[Service]
+Type=oneshot
+User=jct
+TimeoutStartSec=600
+ExecStart=/home/jct/data-pipeline-app/pg-backup.sh

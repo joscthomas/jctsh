@@ -33,9 +33,12 @@ services:
       # pgdata volume -- Postgres' own docker-entrypoint-initdb.d behavior,
       # not re-run on every restart.
       - ./init:/docker-entrypoint-initdb.d:ro
-    # Not published to the host/LAN -- only data-pipeline-api needs to reach
-    # it, over this compose project's own default Docker network, same
-    # pattern hike-izer-web-app uses between `web`/`orchestrator`.
+    # data-pipeline-api still reaches it over this compose project's own
+    # default Docker network -- this loopback-only mapping is purely for
+    # Joseph's own DBeaver access (2026-09-29), via an SSH tunnel to the M8,
+    # never exposed to the LAN (bound to 127.0.0.1, not 0.0.0.0).
+    ports:
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U jctsh -d jctsh"]
       interval: 30s

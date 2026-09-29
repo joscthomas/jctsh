@@ -9,14 +9,12 @@ direction) sampled along the GPS track. Writes one JSON blob for the
 hike-izer Skill to turn into a narrative -- this script does the data
 wrangling and math; narrative writing stays with Claude.
 
-CARD-0349 Phase 1: two backends, not one. Environmental Data and GPS Track
-come from the new TimescaleDB gateway (data-pipeline-api, `fetch_table()`);
-Hiking Observations and Hike Start Forecast still come from the original
-Apps Script/Sheets pipeline (`fetch_sheet()`) -- Phase 2, not migrated yet.
+CARD-0349: every table comes from the TimescaleDB gateway (data-pipeline-api,
+`fetch_table()`). The original Apps Script/Sheets pipeline, and its
+`fetch_sheet()`, are retired.
 
 Usage:
     python fetch_hike_data.py --start 2026-06-15T00:00:00Z --end 2026-06-29T23:59:59Z \
-        --url <APPS_SCRIPT_DEPLOYMENT_URL> --key <API_KEY> \
         --data-pipeline-url <TIMESCALEDB_GATEWAY_URL> --data-pipeline-key <API_KEY> \
         --out hike_data.json
 
@@ -33,8 +31,9 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-# CARD-0135: Apps Script web apps occasionally blip (e.g. an HTTP 404 after
-# their own internal redirect) even when the deployment itself is healthy --
+# CARD-0135 (written against the retired Apps Script; the retry now guards the
+# gateway fetch): Apps Script web apps occasionally blipped (e.g. an HTTP 404
+# after their own internal redirect) even when the deployment itself was healthy --
 # confirmed 2026-08-03 when an identical query re-run by hand seconds after a
 # failure succeeded cleanly. Retrying a couple times costs nothing on the
 # happy path and rides out that class of transient failure instead of
@@ -44,7 +43,7 @@ from datetime import datetime, timezone
 # total. A real incident showed Google's own transient error state can last
 # 45+ minutes -- a single-shot caller (the backstop probe) drew three bad
 # attempts in a row within the old ~6s window and failed outright, while a
-# caller making many fetch_sheet() calls across a longer real span (a full
+# caller making many fetch calls across a longer real span (a full
 # generation run) rode out four more recurrences of the same error and
 # still completed, purely because each individual call's own retry window
 # happened to be wide enough. Widening gives every caller, not just the
@@ -62,11 +61,8 @@ _REQUEST_HEADERS = {'User-Agent': 'jctsh-hike-izer/1.0'}
 
 
 def fetch_table(base_url, api_key, table, start, end):
-    """CARD-0349 Phase 1: Environmental Data and GPS Track now live in the
-    TimescaleDB gateway (data-pipeline-api), not the Apps Script/Sheet --
-    fetch_sheet() above still serves Hiking Observations/Hike Start
-    Forecast (Phase 2, not migrated yet). Same retry/backoff shape as
-    fetch_sheet(). Renames the gateway's 'ts' column to 'timestamp' on the
+    """CARD-0349: every table lives in the TimescaleDB gateway
+    (data-pipeline-api), not the retired Apps Script/Sheet. Renames the gateway's 'ts' column to 'timestamp' on the
     way out -- every downstream consumer in this file (coverage analysis,
     stats, chart series, sun-position sampling) already expects
     'timestamp', the old Sheets export's own column name; renaming here

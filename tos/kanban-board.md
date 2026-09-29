@@ -15,29 +15,35 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ### CARD-0369 · [bug] [data-pipeline] Node-RED Sheet Health flow still describes/probes the retired Google Sheet -- update to the data-pipeline-api gateway
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-29 11:50 MST (general session, Log Dashboard scan).** `core/data-pipeline/sheet-health.flow.json` was last changed 2026-09-25 (CARD-0338), before CARD-0349's cutover. Its comments still say it probes "the environmental Google Sheet" with `action=version`, and its "GET action=health" HTTP node has a blank URL in the repo export. Overnight 2026-09-29 the dashboard showed six `sheet-health` Alerts worded "the environmental Sheet is failing or slow" -- not established whether those came from this flow or from `sheet_health.py`'s orchestrator use, and the live flow on Node-RED was not inspected.
 
 **Done when:** (1) the live flow's probe target is confirmed (Node-RED editor or `/data` export); (2) it probes `data-pipeline-api`'s `/health`, alert wording says gateway/database not "Sheet", and the repo export matches live; (3) the component name `sheet-health` is either kept deliberately or renamed with dashboard/watchdog references updated. Related: CARD-0338, CARD-0349, CARD-0366.
 
+**DONE 2026-09-29 11:56 MST.** The live flow (Pi `/home/pi/.node-red/flows.json`, "Sheet Health" tab) turned out to be already cut over: it reads `DATA_PIPELINE_URL`/`DATA_PIPELINE_KEY`, its request node is named "GET /health (data-pipeline-api)", and the alert text says "the data pipeline gateway". Only the repo export was stale, so `core/data-pipeline/sheet-health.flow.json` was replaced with the live tab's export (8 nodes; differs from the old export by tab id, node name and the state-machine function). Note the six overnight alerts worded "environmental Sheet" (00:57-07:19) predate that wording change, so they came from this flow before it was edited that morning -- whether they were real gateway slowness or stale-target noise is not established. Left as-is on purpose: the component name `sheet-health` and the "Sheet health:" prefix in alert text (renaming would touch dashboard/watchdog references). **Reflection:** an exported flow in the repo goes stale silently whenever the live flow is edited in the Node-RED editor; re-export after any live edit, and check the live file (`ssh pi@pi1.local`, `flows.json`) before trusting the repo copy.
+
 ### CARD-0368 · [enhancement] [hike-izer] Clean up stale Apps Script/"Phase 2, not migrated" wording in `fetch_hike_data.py` and sibling docstrings
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-29 11:50 MST (general session).** `components/hike-izer/fetch_hike_data.py`'s header still says the Apps Script/Sheets path (`fetch_sheet()`) is "Phase 2, not migrated yet" and shows a `--url <APPS_SCRIPT_DEPLOYMENT_URL>` usage line, but `--data-pipeline-url` is now the only required source (Phase 2 landed in `e954bcf`, 2026-09-29 08:23 MST). The stale wording is what a 05:00 backstop alert ran into: the deployed container still passed `--url` and `fetch_hike_data.py` exited with argparse status 2 (fixed by the 09:43 redeploy).
 
 **Done when:** docstring/usage/comment references to the Apps Script path are removed or marked historical, any dead `fetch_sheet()` code and its `--url`/`--key` handling is deleted if unused, and `grep -rni "apps script\|fetch_sheet" components/hike-izer*` returns only deliberate history notes. Related: CARD-0349, CARD-0366.
 
+**DONE 2026-09-29 11:56 MST.** `fetch_sheet()` and the `--url`/`--key` arguments were already gone from `fetch_hike_data.py` (`e954bcf`); what remained was wording. Fixed the module docstring and usage line, `fetch_table()`'s docstring, the CARD-0135/CARD-0275 retry comment, `sheet_health.py`'s "dead branch" note, `app.py`'s webhook-auth comment and `generation.py`'s probe-timeout comment. Comment-only, compile-checked; not yet redeployed (the deployed copies pick it up at the next orchestrator rebuild). Left deliberately as history: CARD-0214/0229/0275/0276 references in `generation.py` docstrings and both `card-archive.md` files. **Reflection:** when a migration finishes, grep the components for the retired system's name (`Apps Script`, old function names) in the same card that removes the code -- the stale usage line and "not migrated yet" note are what made the 05:00 failure look like a migration gap.
+
 ### CARD-0367 · [bug] [hike-izer] Alert text leaked a live API key onto the dashboard -- subprocess failures embedded full argv in MQTT alerts
 
-**Status:** Build
+**Status:** Done
 
 **Raised 2026-09-29 11:50 MST (general session, Log Dashboard scan).** The 2026-09-29 05:00 backstop alert ("Backstop check itself failed to probe GPS Track data: Command [...]") published `str(CalledProcessError)`, which includes every argv element including `--key <API_KEY>`. It reached MQTT, `jctsh.log` and the dashboard. Same shape earlier on 2026-09-21 (hike summary step 1 alert). Any `subprocess.run(check=True)` failure in the orchestrator that gets published has this problem, now including `--data-pipeline-key`.
 
-**Fix built 2026-09-29 11:50 MST:** `mqtt_log.redact()` scrubs `--key`/`--*-key`/`--token`/`--password` argv values (list-repr and `--key value` forms) and `key=`/`token=` query params, applied inside `mqtt_log.publish_log()` and `ha_notify.send_push()` so no call site has to remember. Unit-checked against both real leak shapes. **Deployed 2026-09-29 11:55 MST** (only mqtt_log.py/ha_notify.py scp'd, then docker compose up -d --build orchestrator; pre-change copies at /tmp/*.bak on m8); redact() verified inside the running container, container healthy.
+**Fix built 2026-09-29 11:50 MST:** `mqtt_log.redact()` scrubs `--key`/`--*-key`/`--token`/`--password` argv values (list-repr and `--key value` forms) and `key=`/`token=` query params, applied inside `mqtt_log.publish_log()` and `ha_notify.send_push()` so no call site has to remember. Unit-checked against both real leak shapes. **Deployed 2026-09-29 11:52 MST** (container start 18:52:10Z) (only mqtt_log.py/ha_notify.py scp'd, then docker compose up -d --build orchestrator; pre-change copies at /tmp/*.bak on m8); redact() verified inside the running container, container healthy.
 
 **Still to do:** the old Apps Script key that already sits in `jctsh.log*` on the Pi (and any MQTT retention) -- decide whether to rotate it (endpoint is now write-retired) and whether to scrub the log lines; stderr `print()` paths (`docker logs`) still show full argv and were left alone. Related: CARD-0349.
+
+**DONE 2026-09-29 11:56 MST.** Moved to Done at Joseph's direction with two items knowingly left open, not resolved: (1) the old Apps Script key already sitting in `jctsh.log*` on the Pi is neither rotated nor scrubbed (endpoint is write-retired, so low value); (2) stderr `print()` paths still show full argv in `docker logs`. **Reflection:** any alert built from `str(CalledProcessError)`/an exception message can carry secrets, because the standard library formats the whole argv. Scrub at the publish boundary (`mqtt_log.publish_log`/`ha_notify.send_push`) rather than at each call site, so a new alert can't reintroduce it; if another component publishes alerts from subprocess failures, give it the same `redact()`.
 
 ### CARD-0366 · [enhancement] [data-pipeline] Rewrite the data-pipeline operational docs for data-pipeline-api -- README/architecture doc still describe the retired Apps Script
 

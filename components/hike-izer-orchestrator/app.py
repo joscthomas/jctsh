@@ -28,7 +28,7 @@ variables -- one field, unambiguous:
         "local_datetime": "2026-07-24T14:32:10-07:00"  # phone's local time, ISO 8601 w/ offset
     }
 
-Auth: shared secret via `?key=` query param, same pattern as the existing
+Auth: shared secret via `?key=` query param, same pattern as the retired
 Apps Script webhook (core/data-pipeline/environmental-data.gs).
 """
 

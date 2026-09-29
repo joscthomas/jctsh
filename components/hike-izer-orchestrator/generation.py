@@ -414,13 +414,12 @@ def _detect_session_window(payload, date_str, offset_str):
                 "--data-pipeline-url", _env("DATA_PIPELINE_URL"), "--data-pipeline-key", _env("DATA_PIPELINE_KEY"),
                 "--out", probe_path,
             ],
-            # CARD-0135: fetch_hike_data.py's own fetch_sheet() now retries
-            # transient failures internally (up to 3 attempts, 2s/4s
-            # backoff, per sheet), so a run touching all 4 sheets can
-            # legitimately take much longer worst-case than before that
-            # existed -- confirmed live 2026-08-03, a run hit the old 120s
-            # ceiling on a day Apps Script needed a retry on nearly every
-            # sheet. 240s covers that worst case with real headroom.
+            # CARD-0135: fetch_hike_data.py retries transient fetch failures
+            # internally (5 attempts, 3/6/12/24s backoff, per table), so a
+            # run touching every table can legitimately take much longer
+            # worst-case -- originally confirmed live 2026-08-03 against the
+            # since-retired Apps Script, a run hit the old 120s ceiling.
+            # 240s covers that worst case with real headroom.
             check=True, timeout=240,
         )
         with open(probe_path, "r", encoding="utf-8") as f:

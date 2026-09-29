@@ -20,9 +20,8 @@ answers "unknown action", which says nothing about the store's real
 health, so that is treated as healthy rather than blocking every refresh.
 `data-pipeline-api`'s own `/health` never returns that message, so this
 branch is dead code against the new target -- harmless, left in place
-rather than special-cased away (it's still exactly right against the old
-Apps Script target, and Hiking Observations/Hike Start Forecast -- Phase 2
--- still fetch from there).
+rather than special-cased away (it was only ever right for the retired
+Apps Script target -- every table now comes from the gateway).
 """
 
 import json

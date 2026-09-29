@@ -365,3 +365,34 @@ Full run logs retained on the M8 at `/home/jct/immich-go-verify-20260709/` (`jos
 
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-29 (CARD-0193)** — 2198B, over the 2000B size threshold.
+
+### CARD-0363 · [enhancement] [photo-server] Immich update available: v3.2.4 (currently running v3.2.2) — auto-opened from photo-server — RESOLVED 2026-09-29 07:45 MST
+
+**Status:** Done
+
+**Auto-generated 2026-09-29 13:00 UTC from photo-server's maintenance check.** Raw finding: Immich update available: v3.2.4 (currently running v3.2.2).
+
+**Risk evaluated before touching anything, 2026-09-29.** Checked directly via `gh api`: **v3.2.3 no longer exists as a real GitHub release** (404) — the Immich team pulled it after a reported memory leak; v3.2.4's own release notes describe it as the fix for that leak ("let's hope v3.2.3 was a good sacrifice for v3.3"). Full diff `v3.2.2...v3.2.4` is exactly two things: the memory-leak fix and one unrelated mobile-app bugfix (blank sync-status page on a failed counts query). No DB migration, no schema bump, no breaking-change callout anywhere. Net effect of updating: skip the retracted, buggy 3.2.3 entirely and land on a release that's more stable than what's currently running, not less.
+
+**M8 had plenty of headroom, unlike the Pi's own maintenance windows this week** (628Mi free of 11Gi, load 0.21) — no scheduling/memory-pressure concern here.
+
+**Built/deployed 2026-09-29 07:36-07:44 MST, attended.** `docker compose pull immich-server && docker compose up -d immich-server` in `~/immich-app` on the M8 — only `immich_server` recreated; `immich_redis`/`immich_postgres`/`immich_machine_learning` untouched throughout (confirmed via `docker ps`, all three showed unbroken uptime across the whole operation).
+
+**Verified live:** `GET /api/server/version` confirms `{"major":3,"minor":2,"patch":4}`; container settled to `Health: healthy`; `docker logs immich_server` since the recreate shows zero error/fatal lines.
+
+**Done when:** immich-server running 3.2.4, confirmed via its own version endpoint, with no errors in its startup log and the rest of the stack undisturbed. **Met.**
+
+**Related:** `components/photo-server/operations.md` (the deliberate notify-only/manual-update policy this follows), CARD-0356/CARD-0354/CARD-0355 (the sibling maintenance-window bumps this evaluation borrowed its verification discipline from).
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-29 (CARD-0193)** — 91 days since last touched, over the 90-day backup threshold.
+
+### CARD-0018 · [idea] [photo-server] Self-hosted photo library
+**Status:** Done
+
+**Resolution:** Superseded. Hardware (GMKtec M8) in hand. Replaced by `components/photo-server/` (Immich install + immich-go migration) and `components/photo-tv-display/` (Node.js TV slideshow + phone companion) — full planning docs committed 2026-06-30.
+
+---
+

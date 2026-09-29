@@ -391,3 +391,12 @@ Deployed (`scp` + `sudo systemctl restart jctsh-logging`), confirmed clean resta
 
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-29 (CARD-0193)** — 91 days since last touched, over the 90-day backup threshold.
+
+### CARD-0021 · [enhancement] [logging] Device status dashboard
+**Status:** Done
+
+**Resolution:** Added `/status` endpoint to `core/logging/log_server.py`. Two-section layout: Home (Online/Offline/? per component based on heartbeat presence and 70-min threshold) and Remote (`coachproxyos` always shows last-activity + `?`). Auto-detects heartbeat-capable components — salt-sensor shows `?` until CARD-0004 ESPHome migration adds heartbeats. Deployed to Pi 2026-06-30. Added CARD-0024 (coachproxy remote health monitoring via Tailscale ping).
+
+---
+

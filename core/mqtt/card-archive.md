@@ -115,3 +115,12 @@ Execution detail/history: `C:\Users\jcthomas\.claude\plans\misty-fluttering-porc
 
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-29 (CARD-0193)** — 91 days since last touched, over the 90-day backup threshold.
+
+### CARD-0002 · [enhancement] [mqtt] MQTT v3.1.1 → v5 upgrade
+**Status:** Done
+
+**Resolution:** Mosquitto 2.0.21 already supports v5 — no broker config change needed. Changed `protocolVersion` from 4 → 5 in the Node-RED broker config node (`core/node-red/core.flow.json`) and updated the live Pi flows.json in place. Confirmed via Mosquitto log: client `nodered-saltlevel` connected with `p5`. ESP32/ESPHome devices unaffected (remain on v3.1.1). 2026-06-30.
+
+---
+

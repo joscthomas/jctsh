@@ -9,9 +9,52 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0372 -->
+<!-- next-card-id: CARD-0373 -->
 
 ---
+
+### CARD-0372 · [enhancement] [tos] Automated credential rotation -- a values-free registry, per-credential recipes, and a runner that never prints a value
+
+**Status:** Backlog
+
+**Raised 2026-09-29 13:46 MST (general session; Joseph: "i want to create an automated key rotation process").** *No secret values in this card -- credentials are named, never quoted.* Essence-only until Planning interviews it; the sketch below is the assistant's proposal, not a decision.
+
+**Why now.** Manual rotation has three costs this project has already paid: (1) **it is a multi-holder chore that goes wrong quietly** -- the gateway key alone lives in the gateway `.env`, the orchestrator `.env`, Node-RED's environment, GPSLogger's Headers field and Tasker's header, and CARD-0365 needed all of them touched; (2) **the rotation session is itself a secret-handling session** -- CARD-0334 records three separate transcript exposures (2026-09-24, 2026-09-28, 2026-09-29 13:46 MST), and a rotation done by hand or by an ad-hoc script is exactly where the next one happens; (3) **the cadence policy is unenforced** -- `credentials.local.md`'s Credential Rotation Cadence table has "fill in"/"not recorded" for most last-rotated dates, so nothing knows what is overdue.
+
+**Relationship to CARD-0334 (read both before starting).** CARD-0334 is the incident record plus the guardrails plan: Step 0 (where each secret lives), Phase 0 (a minimal machine store -- Windows Credential Manager -- and the `sec` helper: `sec set`, `sec run`, `sec has|fingerprint`, `sec new`), Phase 1 (deny rules and hooks), and a *manual* rotation bridged by clipboard. **This card is the automation layer on top of that, not a competitor:** it needs Phase 0's store and helper to exist (do not build a second store), and it should be the thing CARD-0334's "rotate using the safe path" step actually uses. CARD-0370 (rotate the data-pipeline key) and CARD-0332's exposed-secret list become the first credentials run through it; CARD-0332's plaintext-token-in-`flows.json` fix is a prerequisite for the HA-token recipe.
+
+**Proposed shape.**
+- **A values-free registry** (`tos/credential-registry.yaml` or similar, committed): per credential -- name, tier and interval (from the cadence policy), `last_rotated`, every **holder** (host, file/var/UI setting, and whether it is *scriptable* or *manual*), the **recipe** that rotates it, a **verify** check per holder, and whether the server can **dual-accept** old and new. This is the single inventory CARD-0334's Step 0 wants, in a form a program reads; `credentials.local.md` shrinks to Joseph's human index.
+- **A recipe per credential, one fixed lifecycle:** generate -> stage the new value beside the old -> distribute to scriptable holders -> **verify each holder actually works with the new value** -> cut over -> revoke the old -> record `last_rotated`. The value is generated inside the tool and written straight to the store and the holders; it never appears in a command line, a log or a transcript -- output is holder names, pass/fail and fingerprints only.
+- **Dual-accept windows are what make it safe.** The gateway takes exactly one `API_KEY` today; adding an `API_KEY_PREVIOUS` (accept either for a bounded window) means phone-side holders can move at leisure and a half-finished rotation never breaks capture. Same idea for `WEBHOOK_SECRET` and the NetAlertX signing secret. Credentials whose server cannot dual-accept (a Mosquitto password, the Node-RED admin password) get a short cutover instead, and a rollback that restores the previous value from the store until revoke.
+- **A runner:** `rotate <name> [--dry-run|--verify-only]`. Dry-run prints the plan (holders, order, what will be checked) with no values. Interactive from the workstation first; unattended only for credentials where every holder is scriptable, and only after several supervised runs (this project's own "watch it work before trusting it unattended" precedent -- `pi-image-pull.py --schedule`).
+- **Manual holders stay manual, but guided:** phones (GPSLogger's Headers, Tasker's header) and ESP32 firmware can't be set by a script. The runner stops at those steps, puts the new value on the clipboard (auto-cleared ~60 s, per CARD-0334's design), prints the exact field to paste it into, and waits for a verify check to pass before continuing.
+- **Overdue enforcement:** the registry's `last_rotated` + interval feeds a Session Start check (same family as the `Auto verify` markers) and a push notification, so the cadence stops being a table nobody reads.
+
+**What can be automated, and what can't (initial read -- to be confirmed in Planning):**
+
+| Credential | Holders | Automatable? |
+|---|---|---|
+| data-pipeline `API_KEY` | gateway `.env`, orchestrator `.env`, Node-RED env, GPSLogger, Tasker | Servers yes (needs `API_KEY_PREVIOUS`); phones manual. **Best pilot -- every holder is known and verifiable (`/version`, `/health`, the legacy-auth log).** |
+| `WEBHOOK_SECRET` | orchestrator `.env`, gateway `.env` (`_relay_log`), Tasker/other webhook callers | Mostly yes |
+| NetAlertX webhook secret | NetAlertX publisher setting, Pi Node-RED environment file | Yes if NetAlertX's setting is reachable by API; otherwise one manual step |
+| HA long-lived tokens | Node-RED, photo-tv-display, orchestrator, Claude Code | Yes -- HA can mint and revoke long-lived tokens over its API; blocked on CARD-0332 and best done as one token *per consumer* (CARD-0334 Phase 3) |
+| Mosquitto account passwords | broker, each consumer, HA's UI-only MQTT config, ESP32 firmware | Broker + server consumers yes; ESP32s need a rebuild/OTA (scriptable with ESPHome but a per-device event); HA's MQTT config is a UI step |
+| Node-RED admin password | `settings.js` bcrypt hash, Node-RED restart | Yes, with a short cutover |
+| Log Dashboard password | `/etc/jctsh/log-server.env`, service restart | Yes |
+| ESP32 OTA/MQTT device secrets | firmware, `secrets.yaml` copies | Reflash per device; batch with CARD-0334's Phase 3 unique-per-device work |
+| SSH keys, Cloudflare tunnel credentials, Immich API keys | assorted | Out of first scope |
+
+**Open decisions for Planning (each with the assistant's recommendation):**
+1. **Where does the runner run, and where is the machine store?** CARD-0334 decided the Windows Credential Manager on the workstation (an at-rest store, readable by any process running as Joseph). An unattended job on the M8/Pi can't use it. *Recommendation:* interactive from the workstation, Credential Manager as the source of truth, for the first several credentials; revisit an unattended M8 runner (root-only file, or a small local secrets service) only if a fully server-side credential is worth automating end to end.
+2. **Pilot credential.** *Recommendation:* the data-pipeline `API_KEY` -- it is CARD-0370 already, every holder is known and independently verifiable, and it forces the `API_KEY_PREVIOUS` dual-accept design that later recipes reuse.
+3. **Dual-accept in the gateway.** *Recommendation:* yes -- small, additive (`_authorized()` already has one comparison path), and it turns "rotate" from an outage-risk event into a window.
+4. **Scope of "automated".** *Recommendation:* the registry, the runner and the recipes for the server-side credentials first; ESP32 firmware secrets and Mosquitto-on-device rotation later, as their own recipes, since each needs a per-device reflash.
+5. **Sequencing against CARD-0334.** *Recommendation:* CARD-0334's Phase 0 (store + `sec`) first, its Phase 1 hooks second, then this card's runner built on `sec`; CARD-0370 is rerun as the pilot rather than rotated by hand, unless the exposure is judged urgent enough to rotate the gateway key manually first.
+
+**Done when (draft):** the registry lists every credential in CARD-0334's inventory with holders and recipe; `rotate --dry-run` works for all of them and a real run works for at least the pilot and one credential from another class, each ending in a passing per-holder verify and a recorded `last_rotated`; no run ever prints a value (checked by the CARD-0334 Phase 1 tripwire); overdue credentials surface at Session Start.
+
+**Related:** CARD-0334 (incident record, store, guardrails -- prerequisite), CARD-0370 (pilot), CARD-0371 (removing `?key=`, which should land before the gateway key is rotated), CARD-0332 (plaintext HA token), CARD-0365/CARD-0367 (where this session's exposures came from), CARD-0280 (HA token rotation checklist), `credentials.local.md` §Credential Rotation Cadence.
 
 ### CARD-0371 · [enhancement] [data-pipeline] Remove `?key=` query authentication from data-pipeline-api once no caller uses it
 
@@ -522,6 +565,8 @@ Not exposed: the Log Dashboard password (two attempts to read it were blocked by
 **Related:** CARD-0076 (same failure class, first instance), CARD-0280 (HA token rotation checklist), CARD-0333 (where this happened), root `CLAUDE.md` Credentials section, `credentials.local.md` §Credential Rotation Cadence.
 
 ---
+
+**Third occurrence, 2026-09-29 13:46 MST (general session, CARD-0365/CARD-0367 work) -- four more credentials printed into this session's transcript.** Named, not quoted. (1) **The data-pipeline gateway `API_KEY`** -- printed in full by a Caddy-redaction check whose `grep -o` printed the whole logged `uri` (which still carried the key because the redaction wasn't live yet); it had also sat in full in Caddy's own log for ~a day. (2) **`NETALERTX_WEBHOOK_SECRET`** -- printed in full when a keyword search of `credentials.local.md` returned a whole line; the masking `sed` only matched a table-cell shape, not a backtick-quoted value -- the same failure CARD-0324 recorded (a masking regex is not a control). (3) **The retired Apps Script key** -- printed in full when a dashboard log line was displayed with `cut` instead of a mask; it is the CARD-0367 leak (a failed subprocess put its whole argv into an alert, now scrubbed at the publish boundary). (4) **The `photo-tv-display` deletion-log Apps Script key** (`DELETION_LOG_SHEET_APPS_SCRIPT_KEY`) -- printed in full when an unmasked `grep` of `credentials.local.md` for a host name happened to match its row. **Root cause, all four:** each was a command whose output could contain a secret, run with no fail-safe -- either an ad-hoc masking pattern that didn't match the shape of that value, or no mask at all. None was a value the task needed to see. Also worth recording: the **Node-RED admin password was read this session without being printed** (read in-process by a deploy script, used for the admin API, never echoed) -- the safe pattern, and the one Phase 0/2's `sec run` is meant to make the only pattern. **Rotation impact:** add all four to the rotation list; the gateway key and the retired Apps Script key are already CARD-0370's scope, but the photo-tv-display deletion-log key and the NetAlertX webhook secret (the latter also on CARD-0332's list) have no rotation card of their own yet. None of Phase 0/1's guardrails existed, so nothing mechanical caught any of the three -- still the open gap. See CARD-0372 (automated rotation) for the proposal to make each rotation a single, value-free command instead of a manual multi-holder chore.
 
 ### CARD-0333 · [enhancement] [front-porch-temp-sensor] [back-patio-temp-sensor] Boot-time heartbeat — every reboot of a 30-minute-heartbeat device raises a false watchdog alert — RESOLVED 2026-09-24 18:54 MST
 **Status:** Done

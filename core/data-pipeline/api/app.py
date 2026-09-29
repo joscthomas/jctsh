@@ -39,11 +39,37 @@ import psycopg2.extras
 import psycopg2.pool
 import psycopg2.sql
 
-VERSION = "2026-09-29.3"  # action=version fingerprint, same "confirm a
+VERSION = "2026-09-29.4"  # action=version fingerprint, same "confirm a
 # redeploy actually landed" convention as environmental-data.gs's own
 # SCRIPT_VERSION.
 
 API_KEY = os.environ.get("API_KEY", "")
+
+# CARD-0372: dual-accept window for key rotation. During a rotation the OLD key
+# is moved to API_KEY_PREVIOUS and stays valid until API_KEY_PREVIOUS_EXPIRES
+# (ISO 8601 UTC, or epoch seconds). The gateway enforces the expiry itself, so
+# the window closes on schedule whether or not anything else runs. A previous
+# key with no valid expiry is ignored entirely -- an unbounded second key is
+# exactly what the window exists to avoid.
+API_KEY_PREVIOUS = os.environ.get("API_KEY_PREVIOUS", "")
+
+
+def _parse_expiry(raw):
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.fromtimestamp(float(raw), tz=timezone.utc)
+    except ValueError:
+        pass
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+API_KEY_PREVIOUS_EXPIRES = _parse_expiry(os.environ.get("API_KEY_PREVIOUS_EXPIRES", ""))
 PORT = int(os.environ.get("PORT", "8080"))
 DB_HOST = os.environ.get("DB_HOST", "timescaledb")
 DB_NAME = os.environ.get("DB_NAME", "jctsh")
@@ -261,15 +287,46 @@ def _row_to_json(row):
     return out
 
 
-_legacy_key_last_logged = {}
-LEGACY_KEY_LOG_INTERVAL_SEC = 300
+def _previous_key_active():
+    return bool(API_KEY_PREVIOUS) and API_KEY_PREVIOUS_EXPIRES is not None \
+        and datetime.now(timezone.utc) < API_KEY_PREVIOUS_EXPIRES
 
 
-def _note_legacy_key_use(path):
-    now = time.monotonic()
-    if now - _legacy_key_last_logged.get(path, -LEGACY_KEY_LOG_INTERVAL_SEC) >= LEGACY_KEY_LOG_INTERVAL_SEC:
-        _legacy_key_last_logged[path] = now
-        log(f"legacy ?key= auth used on {path} (CARD-0365: move this caller to an Authorization: Bearer header)")
+def _key_kind(provided):
+    """'current', 'previous' (only inside its window), or None. Both comparisons
+    are constant-time and both always run, so timing doesn't reveal which."""
+    pb = provided.encode()
+    is_current = bool(API_KEY) and hmac.compare_digest(pb, API_KEY.encode())
+    is_previous = _previous_key_active() and hmac.compare_digest(pb, API_KEY_PREVIOUS.encode())
+    if is_current:
+        return "current"
+    if is_previous:
+        return "previous"
+    return None
+
+
+AUTH_LOG_INTERVAL_SEC = 300
+_auth_last_logged = {}
+# (path, kind) -> ISO time of the latest accepted request, in memory since
+# start -- read back through GET /auth-status so a rotation runner can see that
+# a manual holder (GPSLogger, Tasker) has moved to the new key without
+# scraping logs.
+_auth_seen = {}
+
+
+def _note_auth(path, form, kind):
+    _auth_seen[(path, kind)] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    # Only the two things worth a log line: a key in the query string (CARD-0365)
+    # and the old key still in use (CARD-0372). Current key + header is the goal.
+    if form == "query" or kind == "previous":
+        now = time.monotonic()
+        k = (path, form, kind)
+        if now - _auth_last_logged.get(k, -AUTH_LOG_INTERVAL_SEC) >= AUTH_LOG_INTERVAL_SEC:
+            _auth_last_logged[k] = now
+            if kind == "previous":
+                log(f"previous API key used on {path} via {form} (CARD-0372: this caller has not moved to the new key)")
+            else:
+                log(f"legacy ?key= auth used on {path} (CARD-0365: move this caller to an Authorization: Bearer header)")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -285,12 +342,14 @@ class Handler(BaseHTTPRequestHandler):
         # can be removed is visible rather than guessed.
         header = self.headers.get("Authorization", "")
         if header.startswith("Bearer "):
-            return bool(API_KEY) and hmac.compare_digest(header[7:].strip().encode(), API_KEY.encode())
-        provided_key = parse_qs(parts.query).get("key", [""])[0]
-        ok = bool(API_KEY) and hmac.compare_digest(provided_key.encode(), API_KEY.encode())
-        if ok:
-            _note_legacy_key_use(parts.path)
-        return ok
+            form, provided = "header", header[7:].strip()
+        else:
+            form, provided = "query", parse_qs(parts.query).get("key", [""])[0]
+        kind = _key_kind(provided)
+        if kind is None:
+            return False
+        _note_auth(parts.path, form, kind)
+        return True
 
     def _respond(self, status, body):
         data = json.dumps(body).encode()
@@ -318,6 +377,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parts.path == "/version":
             self._handle_version(parts)
+            return
+        if parts.path == "/auth-status":
+            self._handle_auth_status(parts)
             return
         self._respond(404, {"status": "error", "message": "not found"})
 
@@ -548,6 +610,25 @@ class Handler(BaseHTTPRequestHandler):
             self._respond(401, {"status": "error", "message": "unauthorized"})
             return
         self._respond(200, {"status": "ok", "version": VERSION})
+
+    def _handle_auth_status(self, parts):
+        # CARD-0372: read-only view of the rotation window and of which paths
+        # have recently authenticated with which key -- what a rotation runner
+        # polls to know a manual holder has moved. Never returns a key.
+        if not self._authorized(parts):
+            self._respond(401, {"status": "error", "message": "unauthorized"})
+            return
+        seen = {}
+        for (path, kind), ts in _auth_seen.items():
+            seen.setdefault(path, {})[kind] = ts
+        self._respond(200, {
+            "status": "ok",
+            "version": VERSION,
+            "previous_key_configured": bool(API_KEY_PREVIOUS),
+            "previous_key_active": _previous_key_active(),
+            "previous_key_expires": API_KEY_PREVIOUS_EXPIRES.isoformat(timespec="seconds") if API_KEY_PREVIOUS_EXPIRES else None,
+            "last_seen": seen,
+        })
 
     # -- POST -------------------------------------------------------------
 
@@ -851,6 +932,14 @@ def main():
     if not DB_PASSWORD:
         log("FATAL: DB_PASSWORD not set -- refusing to start", err=True)
         sys.exit(1)
+
+    if API_KEY_PREVIOUS:
+        if API_KEY_PREVIOUS_EXPIRES is None:
+            log("WARNING: API_KEY_PREVIOUS is set but API_KEY_PREVIOUS_EXPIRES is missing/unparseable -- previous key IGNORED", err=True)
+        elif not _previous_key_active():
+            log(f"NOTE: API_KEY_PREVIOUS expired at {API_KEY_PREVIOUS_EXPIRES.isoformat(timespec='seconds')} -- ignored; remove it from .env")
+        else:
+            log(f"Previous API key accepted until {API_KEY_PREVIOUS_EXPIRES.isoformat(timespec='seconds')} (CARD-0372 rotation window)")
 
     log(f"Connecting to Postgres at {DB_HOST}...")
     _pool = psycopg2.pool.ThreadedConnectionPool(

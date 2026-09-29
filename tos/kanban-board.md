@@ -54,7 +54,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 |---|---|---|---|
 | 0 | Decide the shared store (decision 0) | -- | it *is* the decision |
 | 1 | Reconcile: record where each secret lives; seed the values-free registry (CARD-0334 Step 0) | -- | no |
-| 2 | Gateway dual-accept + server-side expiry (`API_KEY_PREVIOUS`, `_EXPIRES`, which-key-used log, `VERSION` bump) -- ships standalone | -- | no |
+| 2 | ~~Gateway dual-accept + server-side expiry (`API_KEY_PREVIOUS`, `_EXPIRES`, which-key-used log, `VERSION` bump) -- ships standalone~~ **DONE 2026-09-29 14:28 MST** | -- | no |
 | 3 | The shared store + `sec` helper (`set`, `run`, `has/fingerprint`, `new`, `copy`) with a per-profile `sec init`; lock file for concurrent runs (CARD-0334 Phase 0) | 0 | **yes** |
 | 4 | Guardrails: checked-in `.claude/settings.json` deny rules, `PreToolUse`/`PostToolUse` hooks and the output tripwire (CARD-0334 Phase 1) | 3 | partly -- project-level settings cover both profiles |
 | 5 | Runner skeleton: `rotate --dry-run` / `--verify-only` -- read-only, no values | 1 | SSH keys (both profiles have one) |
@@ -76,6 +76,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 **Done when (draft):** the registry lists every credential in CARD-0334's inventory with holders and recipe; `rotate --dry-run` works for all of them and a real run works for at least the pilot and one credential from another class, each ending in a passing per-holder verify and a recorded `last_rotated`; no run ever prints a value (checked by the CARD-0334 Phase 1 tripwire); overdue credentials surface at Session Start.
 
 **Related:** CARD-0334 (incident record, store, guardrails -- prerequisite), CARD-0370 (pilot), CARD-0371 (removing `?key=`, which should land before the gateway key is rotated), CARD-0332 (plaintext HA token), CARD-0365/CARD-0367 (where this session's exposures came from), CARD-0280 (HA token rotation checklist), `credentials.local.md` §Credential Rotation Cadence.
+
+**Step 2 done and deployed, 2026-09-29 14:28 MST.** Gateway `VERSION 2026-09-29.4` in production (healthy, current key unchanged, no previous key set). `API_KEY_PREVIOUS` + `API_KEY_PREVIOUS_EXPIRES` (ISO 8601 UTC or epoch): the previous key is accepted only inside its window and only if a valid expiry is set; the gateway closes the window itself. New authenticated `GET /auth-status` returns previous-key configured/active/expires and the latest time each path authenticated with `current` vs `previous` (in memory since start; never a key) -- the signal a runner polls to see a manual holder has moved. Both keys are compared in constant time. **Verified:** eight unit cases (active window, expired, no expiry, unparseable expiry, epoch expiry, no previous, wrong key, header/query forms), then a live test on a throwaway second container with fake keys: in-window `new=200 old=200 bad=401`, then after expiry `new=200 old=401` with nothing else running; that container was removed and production's `.env` was never touched. Docs: README (auth paragraph + `/auth-status` route), `.env.example`.
 
 ### CARD-0371 · [enhancement] [data-pipeline] Remove `?key=` query authentication from data-pipeline-api once no caller uses it
 

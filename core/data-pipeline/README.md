@@ -84,6 +84,12 @@ Caddy redacts `key=` from its access log. The URL and key reach callers as
 `DATA_PIPELINE_URL` / `DATA_PIPELINE_KEY` (Node-RED env vars, the orchestrator's `.env`) and
 in GPSLogger's saved URL.
 
+**Key rotation window (CARD-0372).** Set `API_KEY_PREVIOUS` and `API_KEY_PREVIOUS_EXPIRES` (ISO 8601 UTC
+or epoch seconds) in the gateway's `.env` and both keys are accepted until that instant, after which the
+gateway ignores the old one **on its own** — no runner or timer is needed for the window to close. A
+previous key with no valid expiry is ignored outright. Leave both unset normally. Uses of the old key are
+logged (rate-limited, never the key) and visible through `/auth-status`.
+
 ## Gateway routes
 
 | Method | Path | Caller | Notes |
@@ -97,6 +103,7 @@ in GPSLogger's saved URL.
 | POST | `/hike-izer-cost` | orchestrator | One row per generation run. |
 | GET | `/health` | Node-RED probe, orchestrator pre-flight, the container's own healthcheck | Runs a real `SELECT 1`; `500` with the error text on failure. |
 | GET | `/version` | manual deploy check | Returns `VERSION` from `api/app.py`. |
+| GET | `/auth-status` | rotation runner (CARD-0372) | Whether a previous key is configured/active and when it expires, plus the latest time each path authenticated with the `current` and the `previous` key (in memory since start). Never returns a key. |
 
 `scat-detection` has no route — it was unused before the migration and was not ported.
 

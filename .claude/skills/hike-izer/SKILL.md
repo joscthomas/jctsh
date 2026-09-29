@@ -230,7 +230,11 @@ section.
    **Air Quality Monitor sub-table (CARD-0285 follow-up, added 2026-09-28)**
    -- when air-quality-monitor was also carried that hike, add a second
    labeled table in this same section, right after the hiking-monitor one:
-   a `from JCTsh Air Quality Monitor` caption, then a table with PM1.0,
+   a `from JCTsh Air Quality Monitor · <a href="air-quality-glossary.html">what
+   do these mean?</a>` caption (the glossary link, added same day --
+   `components/hike-izer/air-quality-glossary.html`, a static reference
+   page deployed once and never regenerated, explaining PM1.0-10/µg/m³
+   and the VOC/NOx index scale in plain language) -- then a table with PM1.0,
    PM2.5, PM4.0, PM10 (each `"{min:.1f}–{max:.1f} µg/m³"` from
    `stats.aqm_pm1_ug_m3`/`aqm_pm25_ug_m3`/`aqm_pm4_ug_m3`/`aqm_pm10_ug_m3`),
    VOC Index, NOx Index (each `"{min:.0f}–{max:.0f}"`, no unit --

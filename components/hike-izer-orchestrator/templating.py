@@ -1056,6 +1056,13 @@ _HTML_STYLE = """
      original snug look everywhere else. */
   .data-source { color: var(--ink-muted); font-size: 0.78rem; font-style: italic; margin: -0.6rem 0 1rem; }
   table + .data-source { margin-top: 1.25rem; }
+  /* CARD-0285 follow-up: no page-wide link-color rule exists (every other
+     link on this page is a one-off in its own context -- Battery
+     Discharge Rate's label, top-nav arrows on the standalone pages) --
+     the "what do these mean?" glossary link is the first link to ever
+     sit inside a .data-source caption, and un-styled it would render as
+     a jarring default blue against this line's own muted/italic text. */
+  .data-source a { color: var(--accent); }
   /* CARD-0278: same fix as wildlife.html's own table rule -- position:
      sticky on <th> is broken in Chromium under border-collapse: collapse
      (found from a real screenshot on wildlife.html; this table shares the
@@ -1318,7 +1325,7 @@ def render_html(hike_data, date_str, offset_str, photos_manifest=None,
                 for label, value in aqm_summary_rows(hike_data)
             )
             aqm_table = f"""
-    <p class="data-source">from JCTsh Air Quality Monitor</p>
+    <p class="data-source">from JCTsh Air Quality Monitor · <a href="air-quality-glossary.html">what do these mean?</a></p>
     <table><tbody>{aqm_rows_html}</tbody></table>"""
         env_tracking_section = f"""
   <section>

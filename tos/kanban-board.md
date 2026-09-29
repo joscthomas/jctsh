@@ -404,6 +404,8 @@ Cut over: added `DATA_PIPELINE_URL`/`DATA_PIPELINE_KEY` to `/home/pi/.node-red/e
 
 **Done when:** all 8 steps complete and verified live. **Met -- 8 of 8.**
 
+**Follow-on same day, 2026-09-29 (Joseph: "migrate hike-izer-cost too") -- the one component originally scoped out.** New `/hike-izer-cost` route built, replicating the old sheet's exact dedup semantics (not (file_stem, run_type) alone -- a legitimate second run with a genuinely different cost gets its own row; only an exact full-content repeat counts as duplicate, per CARD-0270's own follow-on decision). All 18 existing rows backfilled. Verified live against production: new write, exact-duplicate retry, and the legitimate-different-cost case all behaved correctly; `generation.py`'s `_post_hike_cost` also verified from inside the real orchestrator container, not just via curl. `hike-izer-cost` added to `_RETIRED_COMPONENTS` -- the Apps Script now has **zero** live write paths, only the read-only `doGet` actions stay reachable for historical reference. `SCRIPT_VERSION` bumped to `2026-09-29.2-all-retired`, committed. **Awaiting Joseph's second deploy of the night** (same paste-and-Deploy-New-Version procedure).
+
 **Related:** CARD-0337 (the "three options discussed" origin, built only option 1), CARD-0347 (finding #5, storage single point of failure), CARD-0226 (the 2026-09-25 outage that started this conversation), `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `core/data-pipeline/environmental-data.gs`, `core/data-pipeline/RUNBOOK-sheets-outage.md` (the redeploy procedure Step 8 needs), `components/hiking-monitor/observations-pipeline.md` (Section 3a, the Hiking Observations cutover record).
 
 ---

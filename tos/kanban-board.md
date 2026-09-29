@@ -117,6 +117,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Status:** Backlog
 
+**Priority:** High -- the exposed data-pipeline key (and the retired Apps Script key) are still valid; sequenced after CARD-0371 and the CARD-0372 runner, but the exposure is live. (set 2026-09-29 15:32 MST, triage)
+
 **Raised 2026-09-29 12:34 MST (general session, from CARD-0365 phase 1).** The current `API_KEY` sat in Caddy's access log in full (664 lines/day, persisted) until the redaction went in, and Cloudflare's own logs may hold it; it was also echoed into a session transcript on 2026-09-29 during redaction testing. The retired Apps Script key is in `jctsh.log*` on the Pi from CARD-0367's leak (the endpoint is write-retired, so that one is low-value). Deliberately its own card, sequenced after CARD-0365/CARD-0371, so a rotation isn't tangled with the migration.
 
 **Done when:** a new `API_KEY` is set in the gateway's `.env` and every holder updated together -- Node-RED env (`DATA_PIPELINE_KEY`), the orchestrator's `.env`, GPSLogger's header, Tasker -- and the old key is confirmed rejected (401); the Apps Script key's leftover copies in `jctsh.log*` are either judged harmless or scrubbed. Related: CARD-0365, CARD-0367, CARD-0334 (the broader credential-rotation backlog item).
@@ -482,7 +484,9 @@ Archived to `components/salt-sensor/card-archive.md` on 2026-09-27 (CARD-0193) �
 ### CARD-0340 · [bug] [garage-presence] [homeassistant] `switch.garage_presence_vswitch` never turns on -- HA reports success but state stays `off`, and every SmartThings entity in HA looks frozen since 2026-09-21
 **Status:** Backlog
 
-**Raised 2026-09-25 16:47 MST (Joseph: "open a card for the vswitch finding"), found by accident while live-testing garage-radar's new firmware for CARD-0335. Joseph then said "don't chase the vswitch right now" -- so everything below is what was observed in about ten minutes of read-only inspection, nothing was fixed or tried, and the cause is unknown.** Priority not set (Joseph's call) -- but see "Why it matters."
+**Priority:** Medium -- a garage automation switch that never turns on -- a real fault, but nothing depends on it urgently. (set 2026-09-29 15:32 MST, triage)
+
+**Raised 2026-09-25 16:47 MST (Joseph: "open a card for the vswitch finding"), found by accident while live-testing garage-radar's new firmware for CARD-0335. Joseph then said "don't chase the vswitch right now" -- so everything below is what was observed in about ten minutes of read-only inspection, nothing was fixed or tried, and the cause is unknown.** Priority set to Medium 2026-09-29 15:32 MST (triage) -- see "Why it matters."
 
 **Observed, 2026-09-25 16:41-16:42 MST (read-only, via HA's own in-page state/WebSocket in Joseph's signed-in Chrome; nothing in HA was changed):**
 - Joseph walked in front of the radar. Presence went ON at 16:41:24.7 on MQTT and in HA within the same second; "Garage Presence - Restart timer on activity" ran and started the 900 s timer. **`switch.garage_presence_vswitch` stayed `off`.**
@@ -631,6 +635,8 @@ Archived to `components/front-porch-temp-sensor/card-archive.md` on 2026-09-27 (
 ### CARD-0332 · [bug] [node-red] Home Assistant access token sits in plaintext in a world-readable `flows.json`
 
 **Status:** Backlog
+
+**Priority:** High -- security exposure: a long-lived Home Assistant token sits in plaintext in a world-readable `flows.json`. (set 2026-09-29 15:32 MST, triage)
 
 **Raised 2026-09-23 12:09 MST, found by CARD-0328's drift-check work.** Node-RED's own `global-config` node stores its environment variables in `/home/pi/.node-red/flows.json` in plaintext, including a long-lived Home Assistant access token, and that file is `-rw-r--r--` (readable by any local user on the Pi). Separately, a diagnostic command run during CARD-0328 printed that node in full, so the same token also appeared in a Claude Code session transcript on Joseph's workstation. Essence-only until Planning interviews it -- open questions: whether to rotate the token (at minimum, given the transcript exposure), whether the token should live in `/home/pi/.node-red/environment` only (`watchdog-README.md` already describes it being read from there) rather than also in the flow file's env, and whether `flows.json`'s permissions should be tightened (Node-RED runs as `pi`).
 
@@ -1637,6 +1643,8 @@ Archived to `core/data-pipeline/CLAUDE.md` on 2026-09-10 (CARD-0193) — 10848B,
 ### CARD-0242 · [bug] [hiking-monitor] `Hike-izer Done` Tasker Profile has no Extra filter — Task fires (and misleadingly Flashes "publish triggered") on every GPSLogger event, not just `stopped`
 
 **Status:** Backlog — low priority
+
+**Priority:** Medium -- a Tasker profile that misfires on every GPSLogger event -- misleading, not harmful. (set 2026-09-29 15:32 MST, triage)
 
 **Raised 2026-09-06**, found while exporting/reading the real `Hike-izer Done` Profile XML (CARD-0231's pattern; `components/hike-izer-orchestrator/tasker/Hike-izer-Done.prf.xml`) against `tasker-setup.md`'s own claim that the Profile has an `Extra: gpsloggerevent:stopped` filter. **It doesn't** — the exported Profile's Event condition has empty Extra name/value fields, so the `Hike-izer Webhook` Task fires on every GPSLogger broadcast (`started`/`stopped`/`fileuploaded`), not just the stop event.
 
@@ -2668,6 +2676,8 @@ Archived to `components/front-porch-temp-sensor/CLAUDE.md` on 2026-08-22 (CARD-0
 ### CARD-0164 · [enhancement] [architecture] Samsung ending free SmartThings API access October 2026 — decide pay vs. migrate before then
 **Status:** Planning
 
+**Priority:** High -- a real deadline: Samsung ends free SmartThings API access in October 2026, and this instance has a confirmed blast radius (Auto verify 2026-10-02). (set 2026-09-29 15:32 MST, triage)
+
 **Raised 2026-08-14 08:35 MST**, found while researching CARD-0146's Ring-live-view question (checking whether SmartThings could expose Ring camera entities to HA — it can't, but that research surfaced this instead). Confirmed directly against HA's own official integration docs (`home-assistant.io/integrations/smartthings/`), not a secondhand summary:
 
 > "Samsung has announced that free access to the SmartThings API will be phased out starting in October 2026. After this date, the SmartThings API access will require a paid Personal Plan subscription ($4.99/month)."
@@ -3043,7 +3053,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-08-22 (CARD-0193) — 22500
 
 **Open question, deferred to this card (raised 2026-07-27 while resolving CARD-0093's Search Console question):** both `jctnet.com` and `jctnet.net` currently show zero indexed pages in Search Console, so CARD-0093 doesn't bother re-verifying/maintaining Search Console for the now-dormant `jctnet.com`. But once these 3 pages are actually live again on the M8, whether they should be discoverable/indexed by Google (i.e. set up Search Console for wherever they end up living) is a separate decision — not resolved, not urgent, revisit when this card is picked up.
 
-**Priority:** Backlog, low — not blocking CARD-0093, which proceeds with full jctnet.com teardown (including the Google Sites CNAME/TXT records and the root A/parking records) regardless of when this is picked up. Google Sites keeps serving the content at its native URL in the meantime, so there's no hard deadline to act before CARD-0093 executes.
+**Priority:** Low — not blocking CARD-0093, which proceeds with full jctnet.com teardown (including the Google Sites CNAME/TXT records and the root A/parking records) regardless of when this is picked up. Google Sites keeps serving the content at its native URL in the meantime, so there's no hard deadline to act before CARD-0093 executes.
 
 **Related:** CARD-0093 (the DNS cleanup that prompted this), CARD-0088/CARD-0092 (existing M8 static-hosting precedent via Caddy).
 

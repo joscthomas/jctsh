@@ -9,7 +9,26 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0362 -->
+<!-- next-card-id: CARD-0363 -->
+
+---
+
+### CARD-0362 · [enhancement] [data-pipeline] Operational hardening for the new TimescaleDB gateway -- backups, image pinning, update detection, heartbeat coverage
+
+**Status:** Backlog
+
+**Raised 2026-09-28 (hike-izer cluster session, Joseph: "what kinds of things do we want to do for the new pipeline? backups, new version detection, reboots, etc").** CARD-0349 Phase 1 shipped `data-pipeline-api`/`timescaledb` (`core/data-pipeline/docker-compose.yml`) without the operational surface every other long-running M8 service already has. Found by comparing directly against this project's own established patterns, not assumed:
+
+1. **Local backup -- a real gap, not deferred.** `timescaledb-design.md` section 7 already called for a `pg_dump` via a systemd timer (matching `hike-izer-daily-refresh.timer`'s own pattern) as the Phase 1 minimum -- CARD-0349's Steps 1-7 never built it. Right now a corrupted `pgdata` bind mount has zero recovery path.
+2. **Image pinning.** `docker-compose.yml` pins `timescale/timescaledb:latest-pg16` -- a moving tag, not a specific version. This repo has an explicit precedent against that: `cloudflared` is pinned to `2026.8.3`, not `:latest`, specifically because of a past incident (CARD-0257/CARD-0352).
+3. **Update detection.** `core/maintenance`'s existing "Container image updates" check (the one auto-opening cards like the `immich-redis`/`matter-server` ones already on this board) has no visibility into this new compose project at all -- `timescaledb`/`data-pipeline-api` get no automatic update-available signal.
+4. **Host-level heartbeat.** Unconfirmed whether the M8's existing 30-minute heartbeat script (`photo-server-heartbeat.py`, per `hike-izer-web/README.md`'s own note on riding that same check) auto-covers a new compose project's containers or needs to be told about them explicitly -- not checked yet.
+
+**Not yet scoped:** reboot resilience is already fine (`restart: unless-stopped` on both services, matches every other component here) -- not part of this card's own work, listed above only because Joseph's question named it and it's worth recording as checked-and-clear. Off-host backup is real future work but explicitly out of scope until the local backup above exists first (per `timescaledb-design.md`'s own accepted-limitation framing). Order/priority among items 1-4 not yet decided.
+
+**Done when:** not yet scoped -- a Backlog capture of the gap list above, not yet interviewed for which items to build first or in what order.
+
+**Related:** CARD-0349 (Phase 1 build this hardens), CARD-0347 (finding #5, storage single point of failure -- the same underlying concern this card's backup item addresses), CARD-0257/CARD-0352 (the image-pinning precedent), `core/data-pipeline/timescaledb-design.md` section 7 (the original backup plan), `core/maintenance/` (the update-check pipeline needing to learn about this project).
 
 ---
 

@@ -15,7 +15,7 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ### CARD-0362 · [enhancement] [data-pipeline] Operational hardening for the new TimescaleDB gateway -- backups, image pinning, update detection, heartbeat coverage
 
-**Status:** Planning
+**Status:** Build
 
 **Raised 2026-09-28 (hike-izer cluster session, Joseph: "what kinds of things do we want to do for the new pipeline? backups, new version detection, reboots, etc").** CARD-0349 Phase 1 shipped `data-pipeline-api`/`timescaledb` (`core/data-pipeline/docker-compose.yml`) without the operational surface every other long-running M8 service already has. Found by comparing directly against this project's own established patterns, not assumed:
 
@@ -32,6 +32,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 2. **Local backup (second -- the actual data-loss risk, highest value).** `pg_dump` via a systemd timer on the M8, matching `hike-izer-daily-refresh.timer`'s existing pattern (a `.timer` + oneshot `.service` pair). Writes to a local directory (`~/data-pipeline-app/backups/`, not yet decided further); daily cadence; retention count is a Build detail, not fixed here (`timescaledb-design.md` section 7 already deferred this same way).
 3. **Heartbeat coverage (third -- investigate before building anything).** Check `photo-server-heartbeat.py`'s actual mechanism first: if it enumerates `docker ps` dynamically, this compose project may already be covered with zero code change needed; if it maintains an explicit per-project list, add this one. Don't assume which case it is.
 4. **Update detection (last -- most open-ended, needs its own mini-interview when reached).** `core/maintenance`'s existing check compares a pulled image's tag against upstream for services like `immich-redis`/`matter-server` -- straightforward to extend for `timescaledb` (a pulled image) once item 1's pin gives it a real version string to diff against. `data-pipeline-api` is a locally-built image (this repo's own `Dockerfile`, not a pulled upstream image) -- "update available" doesn't mean the same thing there (more like "a newer `python:3.12-slim`/`psycopg2-binary` exists"), a genuinely different check shape worth scoping separately when this item is actually reached, not decided now.
+
+**Item 1 done, 2026-09-28.** `docker-compose.yml` pinned to `timescale/timescaledb:2.30.1-pg16`. Deployed (only `timescaledb` recreated, `data-pipeline-api` untouched as expected). **Live-verified as a true pin, not a version change:** `docker inspect` confirms the new image tag; `postgres --version` still `16.15`; `SELECT extversion FROM pg_extension` still `2.30.1` -- identical to what was running before. All real data intact (35,106 `environmental_data` rows, 7,642 `gps_track` rows -- grown naturally from live traffic since this morning, nothing lost). End-to-end check via the public gateway (`GET /data/health`) confirms the whole chain still works post-restart.
 
 **Done when:** items 1-4 above are each built, deployed, and verified live in the order stated -- this card stays in Planning/Build until all four are done, updated per-item as each lands (matching CARD-0349's own step-by-step-with-card-updates pattern).
 

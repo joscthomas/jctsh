@@ -9,7 +9,14 @@ name: data-pipeline
 services:
   timescaledb:
     container_name: data-pipeline-timescaledb
-    image: timescale/timescaledb:latest-pg16
+    # CARD-0362: pinned, not :latest-pg16 -- same precedent as cloudflared's
+    # own pin elsewhere in this repo (CARD-0257/CARD-0352), an unpinned tag
+    # can silently pull a newer major/minor version on the next rebuild.
+    # This exact tag is what was already running when pinned (PostgreSQL
+    # 16.15, TimescaleDB extension 2.30.1, confirmed live) -- a
+    # documentation-of-reality change, not an upgrade. Bumping this later
+    # is a deliberate, separate decision, not an accident of a rebuild.
+    image: timescale/timescaledb:2.30.1-pg16
     restart: unless-stopped
     env_file:
       - .env

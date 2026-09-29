@@ -13,9 +13,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0362 · [enhancement] [data-pipeline] Operational hardening for the new TimescaleDB gateway -- backups, image pinning, update detection, heartbeat coverage
+### CARD-0362 · [enhancement] [data-pipeline] Operational hardening for the new TimescaleDB gateway -- backups, image pinning, update detection, heartbeat coverage — RESOLVED 2026-09-28
 
-**Status:** Build
+**Status:** Done
 
 **Raised 2026-09-28 (hike-izer cluster session, Joseph: "what kinds of things do we want to do for the new pipeline? backups, new version detection, reboots, etc").** CARD-0349 Phase 1 shipped `data-pipeline-api`/`timescaledb` (`core/data-pipeline/docker-compose.yml`) without the operational surface every other long-running M8 service already has. Found by comparing directly against this project's own established patterns, not assumed:
 
@@ -44,6 +44,16 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 **Item 3 done, 2026-09-28.** Investigated first, per the card's own plan -- `photo-server-heartbeat.py` (`/usr/local/bin/`, the M8's existing 30-minute heartbeat) uses a **hardcoded `CONTAINERS` list**, not dynamic `docker ps` enumeration -- confirmed by reading it directly, not assumed. Neither `data-pipeline-timescaledb` nor `data-pipeline-api` was in it; both already had their own `HEALTHCHECK` (from CARD-0349's own build), so they were structurally ready to slot into the exact same pattern already used for `hike-izer-web`/`hike-izer-orchestrator`. Added both names, deployed (root-owned system path, `sudo cp`/`chown`/`chmod` to preserve the existing ownership), ran manually -- `status=online`, both containers correctly read as healthy. **Live-verified via `/status.json`** (not the `/data` log buffer, which had already crowded the entry out by the time I checked -- a known limitation, not a real problem here): `photo-server`'s `last_seen` matches the exact time of this manual run.
 
 **Noted, not fixed (out of scope for this item):** the script's own Alert wording is generically "Immich degraded - ..." regardless of which container in the list actually failed -- already slightly inaccurate before this change (`hike-izer-web`/`hike-izer-orchestrator` failures already get reported as "Immich degraded" today), now also slightly inaccurate for a data-pipeline failure. Not fixed here -- a broader wording change would touch an established, working script for every other already-monitored component too, real scope creep for what this item asked for (add coverage, not rename the alert category).
+
+**Item 4 done, 2026-09-28 -- all four items complete.** Investigated `core/maintenance`'s existing update-check mechanism first, per the card's own plan: `container_update_check.py` (shared, generic GitHub-Releases-API logic) plus a thin per-host wrapper (`hosts/m8/container-update-check.py`) defining a `SERVICES` list -- deployed to `/usr/local/bin/` on the M8, run by the already-existing, already-enabled `container-update-check-m8.timer`. No new timer needed, just a new list entry.
+
+Checked live rather than assumed: `data-pipeline-timescaledb` carries **no** `org.opencontainers.image.version`/`.source` label at all (just `maintainer`) -- the existing `"label"` method wouldn't work. Used the `"exec"` method instead (same fallback shape already used for `cloudflared`/`immich-redis`): `psql -t -c "SELECT extversion FROM pg_extension..."` against the running container, diffed against `timescale/timescaledb`'s real GitHub releases -- confirmed live that repo actually has tag-matching releases (`2.30.1`, published 2026-09-17), not a packaging-only repo the way Caddy's/`immich_postgres`'s own source repos turned out to be (the exact same check this project already learned to do the hard way, applied here before assuming).
+
+**`data-pipeline-api` deliberately NOT added -- a locally-built image (this repo's own `Dockerfile`), not a pulled upstream release.** "Update available" would mean a newer `python:3.12-slim` base or a newer `psycopg2-binary` release -- a genuinely different check shape (Docker Hub tag diff / PyPI API) this module doesn't support, same "known gap, not silently skipped" treatment `immich_postgres` already gets in this same file, just a different underlying reason.
+
+**Live-verified, not inferred:** ran the check manually -- `Nothing pending` (correct: `timescaledb` is already at the exact version this same session pinned to a few hours earlier). Confirmed the check genuinely executed, not silently skipped, via the persisted state file (`_last_current["timescaledb"]: "2.30.1"`) and the authenticated dashboard's Pending Update column, which correctly shows nothing for `timescaledb` while still correctly showing a real, unrelated pending `cloudflared` update -- proof the shared "found a pending update" path still works generically, not just the happy path for my one new entry.
+
+**CARD-0362 all four items done.**
 
 **Done when:** items 1-4 above are each built, deployed, and verified live in the order stated -- this card stays in Planning/Build until all four are done, updated per-item as each lands (matching CARD-0349's own step-by-step-with-card-updates pattern).
 

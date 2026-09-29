@@ -47,6 +47,28 @@ SERVICES = [
     # "packaging repo, not a releases repo" gotcha as Caddy above) -- no latest
     # tag exists to diff its composite postgres+vectorchord+pgvector version
     # string against. Known gap, not silently skipped.
+    {"name": "timescaledb", "container": "data-pipeline-timescaledb",
+     # CARD-0362 -- checked live: this image carries no
+     # org.opencontainers.image.version/.source label at all (just
+     # "maintainer"), unlike most services above -- exec TimescaleDB's own
+     # extension version via psql instead, same exec-based fallback shape as
+     # cloudflared/immich-redis above. timescale/timescaledb (the extension's
+     # real source repo) confirmed live to have real tag-matching GitHub
+     # releases (e.g. "2.30.1"), not a packaging-only repo -- the same check
+     # Caddy/immich_postgres already needed here, this one passed it.
+     "source": "timescale/timescaledb", "version_method": "exec",
+     "exec_cmd": ["psql", "-U", "jctsh", "-d", "jctsh", "-t", "-c",
+                  "SELECT extversion FROM pg_extension WHERE extname='timescaledb';"],
+     "version_regex": r"(\d+\.\d+\.\d+)"},
+    # data-pipeline-api deliberately NOT added (CARD-0362): a locally-built
+    # image (this repo's own core/data-pipeline/api/Dockerfile:
+    # python:3.12-slim + psycopg2-binary), not a pulled upstream release the
+    # way every other service in this list is -- "update available" would
+    # mean a newer base image or a newer psycopg2-binary release, a
+    # genuinely different check shape (Docker Hub tag diff / PyPI API) this
+    # module doesn't support. Known gap, not silently skipped -- same
+    # "no clean upstream-releases check fits" treatment immich_postgres
+    # already gets above, just a different underlying reason.
 ]
 
 env = {}

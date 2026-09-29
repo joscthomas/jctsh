@@ -26,6 +26,7 @@ import hmac
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, date, timezone
@@ -38,7 +39,7 @@ import psycopg2.extras
 import psycopg2.pool
 import psycopg2.sql
 
-VERSION = "2026-09-29.2"  # action=version fingerprint, same "confirm a
+VERSION = "2026-09-29.3"  # action=version fingerprint, same "confirm a
 # redeploy actually landed" convention as environmental-data.gs's own
 # SCRIPT_VERSION.
 
@@ -260,13 +261,36 @@ def _row_to_json(row):
     return out
 
 
+_legacy_key_last_logged = {}
+LEGACY_KEY_LOG_INTERVAL_SEC = 300
+
+
+def _note_legacy_key_use(path):
+    now = time.monotonic()
+    if now - _legacy_key_last_logged.get(path, -LEGACY_KEY_LOG_INTERVAL_SEC) >= LEGACY_KEY_LOG_INTERVAL_SEC:
+        _legacy_key_last_logged[path] = now
+        log(f"legacy ?key= auth used on {path} (CARD-0365: move this caller to an Authorization: Bearer header)")
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass  # explicit logging below instead of the default per-request line
 
     def _authorized(self, parts):
+        # CARD-0365: `Authorization: Bearer <key>` is the preferred form -- a
+        # key in the query string lands in every access log between the
+        # caller and here (Caddy's, Cloudflare's). `?key=` is still accepted
+        # until every caller (GPSLogger, Tasker, Node-RED) has moved; each
+        # legacy use is logged (rate-limited, never the key) so the day it
+        # can be removed is visible rather than guessed.
+        header = self.headers.get("Authorization", "")
+        if header.startswith("Bearer "):
+            return bool(API_KEY) and hmac.compare_digest(header[7:].strip().encode(), API_KEY.encode())
         provided_key = parse_qs(parts.query).get("key", [""])[0]
-        return bool(API_KEY) and hmac.compare_digest(provided_key, API_KEY)
+        ok = bool(API_KEY) and hmac.compare_digest(provided_key.encode(), API_KEY.encode())
+        if ok:
+            _note_legacy_key_use(parts.path)
+        return ok
 
     def _respond(self, status, body):
         data = json.dumps(body).encode()

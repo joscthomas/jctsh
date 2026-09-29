@@ -67,9 +67,11 @@ def fetch_table(base_url, api_key, table, start, end):
     stats, chart series, sun-position sampling) already expects
     'timestamp', the old Sheets export's own column name; renaming here
     means none of that code needs to change for this cutover."""
-    params = {'key': api_key, 'table': table, 'start': start, 'end': end}
+    # CARD-0365: key in an Authorization header, not the URL (access logs).
+    params = {'table': table, 'start': start, 'end': end}
     url = base_url.rstrip('/') + '/export?' + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers=_REQUEST_HEADERS)
+    req = urllib.request.Request(
+        url, headers={**_REQUEST_HEADERS, 'Authorization': 'Bearer ' + api_key})
     for attempt in range(1, FETCH_RETRY_ATTEMPTS + 1):
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:

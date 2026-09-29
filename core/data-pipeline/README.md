@@ -76,10 +76,13 @@ checkout there — same pattern as `~/hike-izer-web-app/`). Two containers:
 | `data-pipeline-timescaledb` | `timescale/timescaledb:2.30.1-pg16` (pinned, CARD-0362 — bump deliberately, never by rebuild accident) | `127.0.0.1:5432` only. For DBeaver, tunnel over SSH to the M8; never bound to the LAN. |
 | `data-pipeline-api` | built from `api/` | `127.0.0.1:8091` locally; publicly at **`https://hikes.jctnet.com/data/…`** via the existing Cloudflare Tunnel + Caddy (`components/hike-izer-web/Caddyfile`'s `handle_path /data/*`, which strips the `/data` prefix — the gateway's own routes are `/gps`, not `/data/gps`). |
 
-Every route authenticates with a shared secret, `?key=<API_KEY>`, checked with a
-constant-time compare. The URL and key reach callers as `DATA_PIPELINE_URL` /
-`DATA_PIPELINE_KEY` (Node-RED env vars, the orchestrator's `.env`) and in GPSLogger's saved
-URL.
+Every route authenticates with a shared secret, checked with a constant-time compare:
+**`Authorization: Bearer <API_KEY>` is the form to use** (CARD-0365). `?key=<API_KEY>` is still
+accepted while GPSLogger and Tasker are moved over, but a key in the URL lands in every access
+log on the way here, so the gateway logs each legacy use (rate-limited, never the key) and
+Caddy redacts `key=` from its access log. The URL and key reach callers as
+`DATA_PIPELINE_URL` / `DATA_PIPELINE_KEY` (Node-RED env vars, the orchestrator's `.env`) and
+in GPSLogger's saved URL.
 
 ## Gateway routes
 

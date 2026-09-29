@@ -5,9 +5,22 @@
     # public path at all. `format console` (not Caddy's default JSON) so
     # it reads the same way as `docker logs` on every other container in
     # this stack -- one grep-able line per request, source IP included.
+    #
+    # CARD-0365: `key=` (the data-pipeline gateway's and the webhooks' shared
+    # secret, when a caller still sends it in the URL) is redacted from the
+    # logged URI -- 664 lines in one day carried it in full, persisted by the
+    # journald log driver. Callers are moving to Authorization headers, which
+    # Caddy already redacts by default; this covers the ones that haven't yet.
     log {
         output stdout
-        format console
+        format filter {
+            wrap console
+            fields {
+                request>uri query {
+                    replace key REDACTED
+                }
+            }
+        }
     }
 
     # CARD-0086: webhook receiver, reached at

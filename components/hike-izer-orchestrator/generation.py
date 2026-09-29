@@ -141,10 +141,11 @@ def _post_wildlife_detection(row, file_stem):
         "lat": row.get("lat"),
         "lon": row.get("lon"),
     }
-    url = _env("DATA_PIPELINE_URL") + "/wildlife-detection?key=" + _env("DATA_PIPELINE_KEY")
+    url = _env("DATA_PIPELINE_URL") + "/wildlife-detection"
     req = urllib.request.Request(
         url, method="POST", data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json", "User-Agent": "jctsh-hike-izer/1.0"},
+        headers={"Content-Type": "application/json", "User-Agent": "jctsh-hike-izer/1.0",
+                 "Authorization": "Bearer " + _env("DATA_PIPELINE_KEY")},
     )
     with urllib.request.urlopen(req, timeout=20) as resp:
         result = json.loads(resp.read())
@@ -182,10 +183,11 @@ def _post_hike_cost(file_stem, run_type, tracker):
         "output_tokens": tracker.output_tokens,
         "web_searches": tracker.web_searches,
     }
-    url = _env("DATA_PIPELINE_URL") + "/hike-izer-cost?key=" + _env("DATA_PIPELINE_KEY")
+    url = _env("DATA_PIPELINE_URL") + "/hike-izer-cost"
     req = urllib.request.Request(
         url, method="POST", data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json", "User-Agent": "jctsh-hike-izer/1.0"},
+        headers={"Content-Type": "application/json", "User-Agent": "jctsh-hike-izer/1.0",
+                 "Authorization": "Bearer " + _env("DATA_PIPELINE_KEY")},
     )
     with urllib.request.urlopen(req, timeout=20) as resp:
         result = json.loads(resp.read())

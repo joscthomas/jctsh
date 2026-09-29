@@ -76,7 +76,7 @@ services:
       # against the DB, not a bare "process is up" check) -- reads API_KEY
       # from this container's own environment rather than a second,
       # unauthenticated liveness route nothing else in the design calls for.
-      test: ["CMD", "python3", "-c", "import os,urllib.request; urllib.request.urlopen('http://localhost:8080/health?key=' + os.environ['API_KEY'], timeout=5)"]
+      test: ["CMD", "python3", "-c", "import os,urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:8080/health', headers={'Authorization': 'Bearer ' + os.environ['API_KEY']}), timeout=5)"]
       interval: 30s
       timeout: 8s
       retries: 3

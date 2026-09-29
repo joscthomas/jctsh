@@ -44,9 +44,10 @@ def check(url, key):
         # 'Python-urllib/3.x' User-Agent before the request even reaches
         # data-pipeline-api -- found live via fetch_hike_data.py's own Step
         # 6 cutover, same fix applied here before this was ever deployed.
+        # CARD-0365: key in an Authorization header, not the URL.
         req = urllib.request.Request(
-            url + "?" + urllib.parse.urlencode({"key": key, "action": "health"}),
-            headers={"User-Agent": "jctsh-hike-izer/1.0"},
+            url,
+            headers={"User-Agent": "jctsh-hike-izer/1.0", "Authorization": "Bearer " + key},
         )
         with urllib.request.urlopen(req, timeout=CALL_TIMEOUT_SECONDS) as resp:
             body = json.loads(resp.read().decode("utf-8"))

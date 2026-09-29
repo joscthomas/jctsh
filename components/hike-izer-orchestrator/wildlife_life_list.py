@@ -126,8 +126,9 @@ def rebuild_from_sheets(export_url, export_key, path=LIFE_LIST_PATH):
     that matters. `export_url`/`export_key` are now DATA_PIPELINE_URL/
     DATA_PIPELINE_KEY, not the old APPS_SCRIPT_* pair -- kept as generic
     parameter names since the function signature is otherwise unchanged."""
-    url = export_url + "/export?" + urllib.parse.urlencode({"key": export_key, "table": "wildlife_detections"})
-    req = urllib.request.Request(url, headers={"User-Agent": "jctsh-hike-izer/1.0"})
+    url = export_url + "/export?" + urllib.parse.urlencode({"table": "wildlife_detections"})
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "jctsh-hike-izer/1.0", "Authorization": "Bearer " + export_key})
     with urllib.request.urlopen(req, timeout=60) as resp:
         result = json.loads(resp.read())
     if result.get("status") != "ok":

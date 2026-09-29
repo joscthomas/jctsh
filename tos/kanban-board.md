@@ -9,7 +9,45 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0364 -->
+<!-- next-card-id: CARD-0367 -->
+
+---
+
+### CARD-0366 · [enhancement] [data-pipeline] Rewrite the data-pipeline operational docs for data-pipeline-api -- README/architecture doc still describe the retired Apps Script
+
+**Status:** Backlog
+
+**Raised 2026-09-29 (general session, spun off CARD-0347 item 8 after scanning the board for CARD-0349 follow-on work).** `core/data-pipeline/README.md` and `JCTsh-Environmental-Data-Architecture.md` describe `environmental-data.gs`/Google Sheets as the live system -- schema, ingest routes, the health probe, everything. That system is now fully retired (CARD-0349): every real producer writes to `data-pipeline-api`/TimescaleDB instead, and the Apps Script survives only as a read-only historical reference. The operational reference doc for this whole pipeline is now describing something that no longer runs.
+
+**What exists instead, already current but not the operational reference:** `core/data-pipeline/timescaledb-migration-plan.md` and `timescaledb-design.md` -- written during CARD-0349's own Planning/Design phases, accurate as of the migration, but framed as planning artifacts for a not-yet-built system, not as the living "here's how this pipeline works today" doc `README.md` is supposed to be (`JCTsh-Operating-System.md`'s own README-vs-CLAUDE.md distinction).
+
+**Not yet scoped -- needs an interview when picked up:** likely shape is folding the design doc's real content (schema, routes, the cutover-complete architecture) into `README.md` as the new operational reference, leaving `timescaledb-migration-plan.md`/`timescaledb-design.md` as historical planning artifacts (not deleted -- they're the record of how the decision was made), and updating `JCTsh-Environmental-Data-Architecture.md`'s own payload-schema section to match the new tables. Whether `core/data-pipeline/CLAUDE.md`'s empty-stub gap (also named in CARD-0347 item 7) gets filled in the same pass is a scoping question, not decided here.
+
+**Related:** CARD-0347 (the pipeline review this item was originally found in), CARD-0349 (the migration that made this doc stale), `core/data-pipeline/timescaledb-design.md`/`timescaledb-migration-plan.md` (the current-but-wrongly-framed content this would draw from).
+
+---
+
+### CARD-0365 · [bug] [data-pipeline] API keys travel in the URL query string across the whole data pipeline (old Apps Script and the new gateway alike)
+
+**Status:** Backlog
+
+**Raised 2026-09-29 (general session, spun off CARD-0347 item 6 after scanning the board for CARD-0349 follow-on work).** The 2026-09-26 pipeline review flagged `environmental-data.gs`'s `?key=<API_KEY>` pattern as a real, if minor, exposure -- a request URL carrying a secret ends up in web server access logs, proxy/CDN logs (Cloudflare, fronting `hikes.jctnet.com`), and (for GET requests) browser history on any device that ever hits the URL directly. **Not moot after CARD-0349** -- `data-pipeline-api`'s own routes use the exact same `?key=` pattern (`app.py`'s `_authorized(parts)`, checked against every route), so migrating off the Apps Script carried this design forward unchanged rather than fixing it.
+
+**Not yet scoped -- needs an interview when picked up.** Real questions before this is buildable: does Cloudflare's own access logging (fronting `hikes.jctnet.com`) actually retain full query strings, and for how long -- is this a real, current exposure or a theoretical one? The conventional fix (an `Authorization: Bearer` header instead of a query param) works cleanly for POST routes but GPSLogger's own "custom URL" logging feature (the `/gps` route's real constraint, already documented in `gps-pipeline.md`) may only support templated GET URLs with no custom-header capability -- worth confirming before assuming a uniform fix applies to every route. Low urgency (this is a LAN-adjacent hobby pipeline, not a public multi-tenant service), but a real gap worth a deliberate decision rather than continuing to carry it forward unexamined.
+
+**Related:** CARD-0347 (the pipeline review this item was originally found in), CARD-0349 (the migration that carried this pattern forward into the new gateway), `components/hiking-monitor/gps-pipeline.md` (GPSLogger's own custom-URL constraint, relevant to whether `/gps` can even take a header-based key).
+
+---
+
+### CARD-0364 · [enhancement] [data-pipeline] Wildlife/scat re-processing: decide drop-vs-update instead of preserving the old silent-drop behavior
+
+**Status:** Backlog
+
+**Raised 2026-09-29 (general session, spun off CARD-0347 item 2 after scanning the board for CARD-0349 follow-on work).** The 2026-09-26 pipeline review found that `environmental-data.gs`'s wildlife-detection branch silently drops a re-processed detection instead of updating the existing row -- identity dedup on `(hike_file_stem, scientific_name)` means a legitimately-improved second pass (e.g. a better confidence score, a corrected species ID) never overwrites the first pass's row, it's just discarded as a "duplicate." **CARD-0349's `/wildlife-detection` route deliberately preserved this exact behavior** (same `UNIQUE` constraint, same `ON CONFLICT` semantics) rather than fixing it -- migrating the write path wasn't the moment to also change what "duplicate" means, per that card's own narrow scope.
+
+**Not yet scoped -- needs an interview when picked up.** Real question: is a second pass on the same species ever actually *better* in practice (e.g. `wildlife_life_list.py`'s own re-processing passes), or does the first detection already carry everything needed and a second pass is always redundant? If updates are wanted, the fix is small now that this lives in Postgres -- `INSERT ... ON CONFLICT (hike_file_stem, scientific_name) DO UPDATE` instead of `DO NOTHING` -- but the actual desired semantics (always overwrite? only overwrite if the new confidence is higher? keep both and let a query pick the best?) needs deciding before writing that SQL, not assumed.
+
+**Related:** CARD-0347 (the pipeline review this item was originally found in), CARD-0349 (built the `/wildlife-detection` route this would modify), CARD-0229/CARD-0235/CARD-0276 (the wildlife-detection sheet's own build history and dedup precedent this inherited).
 
 ---
 
@@ -95,9 +133,9 @@ Archived to `tos/card-archive.md` on 2026-09-28 (CARD-0193) — 5953B, over the 
 
 ---
 
-### CARD-0359 · [bug] [data-pipeline] Apps Script POST occasionally answers with `doGet`'s "unknown action" fallback instead of the real write reply — seen from two different producers
+### CARD-0359 · [bug] [data-pipeline] Apps Script POST occasionally answers with `doGet`'s "unknown action" fallback instead of the real write reply — seen from two different producers — RESOLVED 2026-09-29 (superseded, not fixed)
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-28 (general session's routine log scan, Joseph: "yes" to opening a card after the investigation below).**
 
@@ -115,11 +153,11 @@ Both self-recovered on retry with no data loss. **Not the same thing as the 2026
 
 **Not in scope:** no speculative change to the redirect-handling logic without more evidence; no deliberate attempt to reproduce it on demand.
 
-**Done when:** the pattern is written up somewhere durable (this card, and a short addition to `RUNBOOK-sheets-outage.md` if a third occurrence adds real new detail), with a Watch For marker in place so further occurrences accumulate as evidence automatically rather than depending on someone noticing the log line again.
+~~**Done when:** the pattern is written up somewhere durable...**Watch for:** a third occurrence...~~ **Superseded, 2026-09-29 -- CARD-0349's full migration off the Apps Script closes this out structurally, not by finding the actual cause.** Every real write producer (Environmental Data, GPS Track, Hike Start Forecast, Wildlife Detections, Hiking Observations, Hike-izer Costs) has moved to `data-pipeline-api`; the Apps Script now has zero live `doPost` write paths at all (`environmental-data.gs`'s `_RETIRED_COMPONENTS`). The exact mechanism this card was watching for -- a POST's manual redirect-follow-up-GET occasionally landing on the bare `.../exec` endpoint instead of a real content URL -- has no producer left that could ever trigger it again. The root cause (something in Apps Script's own redirect/dispatch behavior) was never identified, and now never will be -- an accepted-limitation close, not a fix, per `JCTsh-Operating-System.md`'s own closure protocol: no further practical investigative path remains once nothing can reproduce the trigger.
 
-**Watch for:** a third occurrence of this exact signature — any POST to `environmental-data.gs` (Environmental Data, `hike-izer-cost`, or any other write branch) answered with `{"status":"error","message":"unknown action",...}` — anywhere in `/mnt/jctsh-logs/jctsh.log*`. If found, record the producer/timestamp/version on this card; once three real instances exist, look for a common trigger (redeploy timing, load, time-of-day) before considering any code change.
+**Done when:** superseded. **Met via CARD-0349, not via this card's own investigation.**
 
-**Related:** CARD-0226 (built the manual-redirect-GET handling this bug lives inside), `core/data-pipeline/RUNBOOK-sheets-outage.md` (the sibling failure-mode doc), CARD-0348 (touches the same POST path), CARD-0347 (the broader pipeline-review card this is a sibling finding to, found independently rather than as part of that review).
+**Related:** CARD-0226 (built the manual-redirect-GET handling this bug lived inside), `core/data-pipeline/RUNBOOK-sheets-outage.md` (the sibling failure-mode doc, still relevant for the retired Apps Script's own history), CARD-0349 (the migration that closes this out).
 
 ---
 
@@ -419,27 +457,25 @@ Archived to `components/hike-izer-orchestrator/card-archive.md` on 2026-09-27 (C
 
 ---
 
-### CARD-0347 · [enhancement] [data-pipeline] Address findings from the 2026-09-26 pipeline review (locking, duplicate re-run overwrite, scan costs, timestamp comparison, storage single point of failure, doc drift)
+### CARD-0347 · [enhancement] [data-pipeline] Address findings from the 2026-09-26 pipeline review (locking, duplicate re-run overwrite, scan costs, timestamp comparison, storage single point of failure, doc drift) — RESOLVED 2026-09-29
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-26 (hike-izer cluster session, findings-only review at Joseph's request).** Full findings in `core/data-pipeline/pipeline-review-2026-09-26.md`. Summary:
-1. ~~GPS writes have no lock~~ **GPS half resolved by CARD-0349 Phase 1, 2026-09-28** — a real `PRIMARY KEY(ts)` in TimescaleDB eliminates this race by construction, no application-level lock needed. **Hiking Observations half still open** — that table stays on the old, still-lock-free Apps Script path until CARD-0349 Phase 2.
-2. Scat/wildlife re-processing is silently dropped instead of updating the existing row. *(Untouched by CARD-0349 — not a Phase 1 table.)*
-3. ~~Per-point full-sheet scans (GPS dup/session-gap checks, `_gpsLookup` full-row reads) get slower as sheets grow; `Correlation Debug` never trimmed.~~ **Resolved by CARD-0349 Phase 1, 2026-09-28** — GPS dedup and `/lookup-gps` are now indexed DB queries, not full-sheet scans; `Correlation Debug` is gone entirely (container logs replace it, `timescaledb-design.md` section 8).
-4. ~~Duplicate check compares timestamps as strings, not numeric time~~ **GPS/Environmental Data half resolved by CARD-0349 Phase 1, 2026-09-28** — native `timestamptz` comparison, not string. **Hiking Observations half still open**, same split as #1.
-5. Storage is a single point of failure: one Google Sheet (already failed once, 2026-09-25), Node-RED's POST queue is in-memory only, sheet keeps growing. **CARD-0349 Phase 1 is the direct response to this finding**, but doesn't fully close it as of 2026-09-28 — it trades one SPOF for another (the M8 itself; local `pg_dump` only, no off-host backup), an explicit accepted limitation in `timescaledb-design.md` section 7, not silently dropped. Closes once the old Sheet/Apps Script is actually retired (CARD-0349 Step 8, not yet done) and, later, once real off-host backup exists (not scoped anywhere yet).
-6. Smaller issues: no GPS coordinate validation, redundant `setNumberFormat` calls, some comments state stale rationale, ms-timestamp handling gap in Hiking Observations, tail-first export safety overstated, keys travel in the URL query string. *(Untouched by CARD-0349 — these are Apps Script/Sheets-specific, most about tables or code paths Phase 1 didn't touch.)*
-7. Maintainability: near-duplicate `doPost` branches, repeated JSON response code, incident history crowding `environmental-data.gs` instead of `card-archive.md`; `core/data-pipeline/CLAUDE.md` still an empty stub. *(Untouched — `environmental-data.gs` itself wasn't touched by CARD-0349; it still handles Hiking Observations/Wildlife/Cost writes.)*
-8. Doc drift: README/architecture doc missing the Scat/Cost sheets, health probe, locking, POST queue, `SPREADSHEET_ID` change, export params; two statements are outright wrong. **Worse, not better, as of 2026-09-28** — `core/data-pipeline/README.md`/`JCTsh-Environmental-Data-Architecture.md` haven't been updated to describe the new gateway at all yet; CARD-0349's own docs (`timescaledb-migration-plan.md`/`timescaledb-design.md`) are current, but the operational reference doc this finding is about isn't.
+1. ~~GPS writes have no lock~~ **Fully resolved by CARD-0349, 2026-09-29** — every table (including Hiking Observations, once Phase 2 shipped) has a real `PRIMARY KEY`/`UNIQUE` constraint in TimescaleDB, eliminating this race by construction, no application-level lock needed anywhere left.
+2. Scat/wildlife re-processing is silently dropped instead of updating the existing row. **Still open — now in the new system, not the old.** CARD-0349's `/wildlife-detection` route deliberately preserved the old identity-dedup behavior (first write wins, a retry is a no-op) rather than fixing it, since fixing the underlying design question wasn't this migration's job. Spun into its own card: CARD-0364.
+3. ~~Per-point full-sheet scans...~~ **Resolved by CARD-0349, 2026-09-28** — GPS dedup and `/lookup-gps` are now indexed DB queries; `Correlation Debug` is gone entirely.
+4. ~~Duplicate check compares timestamps as strings, not numeric time~~ **Fully resolved by CARD-0349, 2026-09-29** — native `timestamptz` everywhere, including Hiking Observations once Phase 2 shipped.
+5. ~~Storage is a single point of failure: one Google Sheet...~~ **Resolved by CARD-0349, 2026-09-29** — the Apps Script/Sheet is fully retired (Step 8 + the hike-izer-cost follow-on both deployed). Trades one SPOF for another (the M8 itself; local `pg_dump` only, no off-host backup) — an explicit, already-accepted limitation (`timescaledb-design.md` section 7), not silently dropped, and not blocking this item's own closure.
+6. Smaller issues, split by fate: coordinate validation/stale comments/`ms`-timestamp gap/tail-first-export-safety were all Apps-Script-specific and are now moot (that code is retired, dead). **"Keys travel in the URL query string" is not moot** — the new gateway has the identical `?key=` pattern. Spun into its own card: CARD-0365.
+7. Maintainability findings (near-duplicate `doPost` branches, repeated JSON code, incident history crowding the file) are now moot — `environmental-data.gs` is retired, no more branches will ever be added to it. **A fresh, smaller version of the same shape exists in the new `app.py`** (5 near-duplicate POST-route handlers) — noted here rather than filed as its own card; small and not urgent, revisit if the route count keeps growing.
+8. Doc drift — **still open, and now a bigger gap, not a smaller one.** `core/data-pipeline/README.md`/`JCTsh-Environmental-Data-Architecture.md` describe a system that no longer exists; CARD-0349's own docs are current but aren't the operational reference. Spun into its own card: CARD-0366.
 
 **Also found by CARD-0349, not itself a review finding -- removed 2026-09-28.** Node-RED's `env-data-gps-throttle` node (built by the now-Done CARD-0279 specifically to protect Sheets from bursty GPS-lookup traffic) was unnecessary against a real indexed Postgres query, per `timescaledb-design.md` section 4's own prediction. Removed via the Admin API (not just a dead-end deletion -- it was also the retry-loop's own re-entry point from `Check GPS lookup response`'s output[1], so both inbound edges were rewired to go straight to `GPS lookup` instead). Verified live twice: the redeploy landed cleanly (`journalctl` clean, all 6 tabs and every other node intact), then a synthetic MQTT reading (`ts=1999-01-01`, no `lat`, obviously fake so it can never pollute a real hike's data) was published through the real broker and exercised the full rewired path end-to-end -- landed in `data-pipeline-api` with the correct home-location fallback coordinates (`32.4612842, -111.1183818`), confirming the lookup call, the response check, and the retry wiring all still work with the throttle gone. Test row deleted after. Flow re-exported to `core/data-pipeline/environmental-data.flow.json`.
 
-The review doc's own "Recommended order" table ranks fixes cheapest/highest-value first — items 1-3 (lock GPS/observation writes, fix update-vs-drop on scat/wildlife re-run, compare timestamps numerically) can ship in one `environmental-data.gs` redeploy. **That ordering predates CARD-0349 and is now stale for items 1/3/4** — those are (partially) done a different way than "one `environmental-data.gs` redeploy" would have done them.
+**Done when:** every finding is either resolved, moot, or has a real, scoped follow-on card. **Met, 2026-09-29** — 1/3/4/5 resolved by CARD-0349; most of 6/7 moot (the Apps Script code they described is retired); the two genuine survivors (2, the URL-key half of 6, and 8) each have their own card now rather than staying bundled in a stale review capture.
 
-**Done when:** not yet scoped — this is a Backlog capture of the review's findings, not yet interviewed for which items to actually build or in what order. Still true for #2/#5 (fully)/#6/#7/#8 and the Hiking Observations halves of #1/#4; #3 and the GPS/Environmental-Data halves of #1/#4 are done, by CARD-0349, not this card.
-
-**Related:** `core/data-pipeline/pipeline-review-2026-09-26.md` (full findings), CARD-0226 (the locking pattern this generalizes), CARD-0337/CARD-0338 (recent pipeline hardening this builds on), CARD-0291 (last README/architecture doc reconciliation, now drifted again), CARD-0349 (Phase 1 resolved/narrowed findings #1/#3/#4/#5 above for the tables it migrated; found the now-likely-unnecessary GPS throttle node).
+**Related:** `core/data-pipeline/pipeline-review-2026-09-26.md` (full findings), CARD-0226 (the locking pattern this generalizes), CARD-0337/CARD-0338 (recent pipeline hardening this builds on), CARD-0291 (last README/architecture doc reconciliation, now drifted again), CARD-0349 (the migration that resolved most of this card), CARD-0364/CARD-0365/CARD-0366 (the 3 real survivors, each now its own card).
 
 ---
 
@@ -2154,6 +2190,11 @@ Archived to `architecture/card-archive.md` on 2026-09-28 (CARD-0193) — 3263B, 
 
 **Not claiming this closes the card.** The 2026-08-29 hike this card is actually about coincided with CARD-0221's confirmed 10-reboot replay loop, which is a real and sufficient cause on its own for that specific hike's 84%. What's new is that "no `lookup_miss` row" no longer implies "the call never ran," so that piece of the reasoning needs re-examining before the working theory is trusted.
 
+**Real, structural update 2026-09-29 (general session, found scanning the board for CARD-0349 follow-on work) -- the mechanism this card's whole 2026-09-22 pivot points at is now gone, not just throttled.** The established pattern this card connected to (Apps Script `404`s under load on `action=lookup`, CARD-0275/0276/0258) required GPS correlation to make a network call to a flaky remote Google service at all. As of CARD-0349 (Phase 1, 2026-09-28), it doesn't: `_gpsLookup()`/`action=lookup` is retired, and Environmental Data's GPS correlation runs through `/lookup-gps` -- a local, indexed Postgres query on the same host, no network round-trip, no Apps Script involved. CARD-0279's throttle node (the mitigation this card was waiting on) was itself found unnecessary against the new query and removed (CARD-0347). If the 2026-09-22 theory (Apps Script flakiness, not a Node-RED bug) was right, this card's failure mode can no longer occur for any hike after the cutover -- same "closes as fixed structurally" logic this card already committed to for CARD-0279, just via a stronger fix.
+
+**Not yet confirmed live -- the two walks since cutover don't count as a clean test.** Both of CARD-0346's 2026-09-28 walks (the AM rehearsal and the short follow-up) were confounded by hiking-monitor's own hardware fault (a connector issue, unrelated to GPS lookup) and produced almost no real field-mode data either way -- neither is evidence one way or the other for this card's specific question.
+
+**Watch for:** the next real hike with genuine field-mode Environmental Data volume from hiking-monitor -- check `readings_missing_gps_coords` vs. `readings_with_gps_coords` in that hike's `hike_data.json`. A low miss rate (comparable to a normal, non-incident hike) confirms this closes as fixed structurally via CARD-0349; a high miss rate matching this card's original 84%/CARD-0226's other recurrences would mean the GPS-correlation failures were never about Apps Script at all, and the device-side reboot loop (CARD-0226, still unresolved, root cause still unconfirmed) is doing all the damage on its own -- worth knowing either way, since CARD-0226 stays open regardless of this card's outcome.
 
 ---
 
@@ -3485,7 +3526,7 @@ Trail elevation makes frost far more likely than at home — the Santa Catalinas
 - A cumulative map of every route hiked, not just one at a time.
 - Sensor/device health over the hiking-monitor's lifetime — battery voltage drift, UV sensor behavior — across many trips, the same "watch a metric over time" instinct this project already applies to container/dependency health elsewhere.
 
-Still technically trivial as originally scoped: Google Sheets is a native Looker Studio data source (GPS Track + Environmental Data sheets), no new infrastructure. Review-after-the-fact use case, no real-time requirement.
+~~Still technically trivial as originally scoped: Google Sheets is a native Looker Studio data source (GPS Track + Environmental Data sheets), no new infrastructure.~~ **Stale as of CARD-0349, 2026-09-29** — GPS Track/Environmental Data now live in TimescaleDB (self-hosted on the M8), not Sheets; the "no new infrastructure" framing no longer holds as written. Real upside, not just a correction: TimescaleDB is exactly the kind of backend Grafana is built to pair with (per CARD-0349's own technology comparison) — arguably a better fit for this card's actual cross-hike/trend goal than Looker Studio ever was, self-hosted like the rest of this project's dashboards rather than a Google Workspace dependency. Whichever tool, this card needs a real rescope (data source, and Looker-vs-Grafana) before anyone picks it up — not decided here, just flagged so the next session doesn't start from the stale premise.
 
 ---
 

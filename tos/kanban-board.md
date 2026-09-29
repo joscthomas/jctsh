@@ -435,9 +435,9 @@ Archived to `components/air-quality-monitor/card-archive.md` on 2026-09-27 (CARD
 
 ---
 
-### CARD-0344 · [enhancement] [maintenance] Extend the update checks to the software they don't cover (Node-RED, ring-mqtt, matter-server, orchestrator deps, Immich sidecars, Tailscale, ESPHome)
+### CARD-0344 · [enhancement] [maintenance] Extend the update checks to the software they don't cover (Node-RED, ring-mqtt, matter-server, orchestrator deps, Immich sidecars, Tailscale, ESPHome) — RESOLVED 2026-09-28 12:58 MST
 
-**Status:** Build
+**Status:** Done
 
 **Raised 2026-09-26 12:45 MST, from auto-opened PR #136** (raw finding: "what software tools are we using and what versions do we want to be on"). Landed in Backlog, then interviewed the same day (Joseph) and moved to Planning. **Planning only: no work started, nothing built or deployed.**
 
@@ -501,7 +501,11 @@ Archived to `components/air-quality-monitor/card-archive.md` on 2026-09-27 (CARD
 
 **Open PRs from this session's real runs, for Joseph's review per `tos/pr-review-checklist.md`:** #139 (immich-redis), #140 (**spurious** -- the matter-server timeout failure from finding #8 above, superseded by #141 once the timeout fix landed), #141 (matter-server, real), #142 (node-red/npm, real).
 
-**Not yet done:** Done-when 5 -- confirm the two new Pi timers' first *unattended* firing (tomorrow, 2026-09-28 10:00/11:00 MST), not just today's manual `systemctl start`. **Auto verify: 2026-09-28 11:15 MST** -- check `sudo journalctl -u node-red-update-check.service -u esphome-check.service --since today --no-pager -o cat` on the Pi for both timers' unattended runs; if clean, this is the last open item and the card can move to Done. Left in Build until then.
+**Done-when 5 met, 2026-09-28 12:58 MST (general session, checked live against the Pi, not assumed).** Both timers' first unattended firing confirmed via `sudo journalctl -u node-red-update-check.service -u esphome-check.service --since today --no-pager -o cat`, real scheduled times, no manual trigger involved: `node-red-update-check.service` fired 10:00:14 MST ("Nothing pending", exit clean); `esphome-check.service` fired shortly after ("All 6/6 reporting devices on pin (2026.4.5)", "Pin-vs-latest already notified, not yet due for a reminder", exit clean). This was the card's last open item — all 8 Done-when criteria now met.
+
+**Reflection.** The one real process lesson from this build: a scheduled check's Done-when shouldn't be satisfied by a manual `systemctl start` test run, even a clean one — only an actual unattended firing at its real scheduled time proves the timer unit itself is wired correctly (enabled, correct `OnCalendar`, survives being left alone). This card's own Auto Verify marker existed for exactly that gap and resolved cleanly on the first check. Also worth carrying forward: `container_update_check.py`'s shared timeout bump (10s -> 20s, finding #8 above) benefited every existing check using that library, not just this card's new entry — a reminder that fixes found incidentally while building one thing are often worth generalizing immediately rather than scoping them narrowly to the card that found them.
+
+**Related:** `core/maintenance/README.md` (the existing checks), `core/maintenance/container_update_check.py`, `tos/open_kanban_pr.py`, CARD-0126 (container update checks), CARD-0095 (OS/firmware check), CARD-0266 (Docker pull hang / Pi Docker pin), CARD-0333, CARD-0335 (ESPHome pin), `SOFTWARE-ENVIRONMENT.md`.
 
 **Related:** `core/maintenance/README.md` (the existing checks), `core/maintenance/container_update_check.py`, `tos/open_kanban_pr.py`, CARD-0126 (container update checks), CARD-0095 (OS/firmware check), CARD-0266 (Docker pull hang / Pi Docker pin), CARD-0333, CARD-0335 (ESPHome pin), `SOFTWARE-ENVIRONMENT.md`.
 ---

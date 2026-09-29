@@ -78,3 +78,7 @@ Historical record of archived Done/Defer kanban cards for this component (CARD-0
 
 ---
 
+### CARD-0357 · [bug] [tos] [air-quality-monitor] [back-patio-temp-sensor] [front-porch-temp-sensor] [garage-radar] [hiking-monitor] [salt-sensor] Find and fix why ESPHome 2026.9.0 breaks the compile -- currently pinned 5 months behind at 2026.4.5
+
+Archived in full to `tos/card-archive.md` on 2026-09-28 (CARD-0193) — 7277B, over the 5000B size threshold. Also tagged here; this is a pointer only, not a duplicate.
+

@@ -1240,3 +1240,71 @@ Real caveats before this becomes the plan (not yet resolved): unofficial/unsuppo
 
 ---
 
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 5953B, over the 5000B size threshold.
+
+### CARD-0360 · [enhancement] [tos] Component-session startup never surfaces workstation-level operating docs, and no script verifies/updates the workstation's real state against them
+
+**Status:** Done
+**Priority:** High — same class of miss (workstation state silently drifting from docs) could recur before this is fixed; CARD-0357 already cost real investigation time once.
+
+**Raised 2026-09-28 06:32 MST (tos session), out of tagging CARD-0357 `[tos]` and asking where its `WORKSTATION-SETUP.md` work fit into session startup.** Two related gaps found:
+
+1. **Component-session startup never surfaces `WORKSTATION-SETUP.md`.** CARD-0357 added a conditional pre-flash/compile step to `tos/JCTsh-Session-Start.md` (general Session Start): read `WORKSTATION-SETUP.md` in full before compiling/flashing any ESPHome device. But `tos/JCTsh-Component-Session-Start.md` — what a component/cluster session (garage cluster, hiking-monitor cluster, porch/patio temp sensors cluster — the three clusters covering CARD-0357's 6 ESPHome devices) actually runs — replaces general Session Start rather than supplementing it, and never mentions this workstation-level doc. Same shape of miss as CARD-0322's `SKILL.md` gap, one level up: a workstation-level operating doc that applies "regardless of which component's device is being flashed" (`WORKSTATION-SETUP.md`'s own words) has no path into a component session's startup at all.
+2. **No script verifies or updates the workstation's actual state against what `WORKSTATION-SETUP.md` documents.** Confirmed live: `core/maintenance/esphome_check.py` exists but explicitly cannot check the workstation itself (its own docstring: "there is no way to check the workstation install itself from a Pi-side script") — it only parses the Pi's log for each device's last-booted ESPHome version against a hardcoded `PINNED_VERSION` constant, and polls GitHub's releases API. Nothing inspects the workstation directly: installed Python versions (`py -0`), the live `esphome` pip version, or working-path length. The Python 3.12 install and the pin itself were both done/kept by hand — `PINNED_VERSION` in `esphome_check.py` has no mechanical link to `WORKSTATION-SETUP.md`'s own pin, or to what's actually installed.
+
+**Planning decision, 2026-09-28 (Joseph deferred tooling shape to Planning when this card was opened): verify-only, not verify+update.** Matches the philosophy already established on CARD-0357 itself (the ESPHome pin gets revisited deliberately per device, never auto-bumped) — installing/upgrading Python or ESPHome is a real, judgment-laden system change, not something a script should do silently. Scope is the two facts CARD-0357 actually found could drift unnoticed (Python versions available, and which ESPHome version the live `esphome` command resolves to vs. the documented pin), plus a MAX_PATH-risk proxy on the working directory. The SSH-client and `C:\Shared` gotchas in `WORKSTATION-SETUP.md` are situational usage rules, not checkable machine state, so deliberately out of scope — same "not covered" discipline `WORKSTATION-SETUP.md` itself already applies to Git/gh/Claude Code/ESP-IDF. Went straight from Planning to Build — no separate Design checkpoint (`JCTsh-Operating-System.md` v1.22 dropped Design as a column/status the same day, after this card's own Planning note was written against the older two-step model).
+
+**Build, 2026-09-28:**
+1. **`workstation-verify.ps1`** (new, repo root) — PowerShell (a `.ps1` can't run in Git Bash anyway, incidentally double-checking that gotcha too). Checks Python 3.11/3.12+ presence via `py -0p`, the live `esphome` command's resolved version against the pin *parsed directly out of `WORKSTATION-SETUP.md`* (never its own hardcoded copy — avoids adding a third hand-synced constant alongside `WORKSTATION-SETUP.md`'s prose and `esphome_check.py`'s `PINNED_VERSION`), and working-directory path length. Verify-only: reports drift, changes nothing, exits non-zero if anything's off.
+2. **`WORKSTATION-SETUP.md`** — added a pointer to the script right after the intro, explaining what it checks and that it doesn't replace reading the gotchas (those explain *why*).
+3. **`tos/JCTsh-Component-Session-Start.md`** — new component-only step 4: before compiling/flashing any covered ESPHome component, read `WORKSTATION-SETUP.md` and run the script. Conditional/action-triggered, same as its general-session counterpart, not part of the unconditional per-resume steps 1–3. Version bumped 1.21 → 1.22, history entry added to `JCTsh-Component-Session-Start-History.md`.
+
+**Verified live, 2026-09-28:** ran `workstation-verify.ps1` from native PowerShell against the real workstation — all three checks passed (Python 3.11.x and 3.12.10 both present; live `esphome` resolves to `Python311\Scripts\esphome.exe` at 2026.4.5, matching the pin `WORKSTATION-SETUP.md` documents; cwd well under MAX_PATH risk). Separately sanity-checked the mismatch-detection branch in isolation (forced a fake pin mismatch, confirmed it reports correctly) since the live run alone can only exercise the all-pass path.
+
+**Reflection:** a workstation-level (not component-level) operating doc is a real, recurring blind spot for component-session startup — this is the second instance of the same shape (after `SKILL.md`/CARD-0322), both times found live rather than anticipated. Worth watching for a third instance before generalizing further; per `JCTsh-Operating-System.md`'s Engineering Discipline, two is not yet a pattern worth abstracting into its own rule.
+
+**Related:** CARD-0357 (root-caused the ESPHome pin, wrote `WORKSTATION-SETUP.md`, added the general-Session-Start conditional step this card found incomplete), CARD-0322 (the analogous `SKILL.md` gap this mirrors), `tos/JCTsh-Component-Session-Start.md`, `tos/JCTsh-Session-Start.md`, `WORKSTATION-SETUP.md`, `workstation-verify.ps1`, `core/maintenance/esphome_check.py`.
+
+---
+
+**Archived from `tos/kanban-board.md` on 2026-09-28 (CARD-0193)** — 7277B, over the 5000B size threshold.
+
+### CARD-0357 · [bug] [tos] [air-quality-monitor] [back-patio-temp-sensor] [front-porch-temp-sensor] [garage-radar] [hiking-monitor] [salt-sensor] Find and fix why ESPHome 2026.9.0 breaks the compile -- currently pinned 5 months behind at 2026.4.5
+
+**Renumbered from CARD-0354, 2026-09-28 (this session's own merge) -- three auto-generated stub cards (immich-redis/matter-server/node-red, below) claimed 354-356 first while this card was mid-write. Later pusher yields, per `JCTsh-Operating-System.md`'s Card ID allocation rule; no content lost, just a number change.** All cross-references to this card elsewhere (`WORKSTATION-SETUP.md`, `tos/JCTsh-Session-Start.md`, root `README.md`) updated to match.
+
+**Status:** Done
+
+**Raised 2026-09-27/28 MST (ops cluster session, from a "do we want to compile with the latest ESPHome version?" exploratory question), Joseph: "finish [CARD-0344], then open a card."** All 6 ESPHome-based field devices are pinned to ESPHome 2026.4.5 because 2026.9.0 broke the compile -- but nobody recorded *why*, just "it broke, pin back." Confirmed live via `gh api` (CARD-0344's own ESPHome check): 2026.9.0 (released 2026-09-16) is still the latest upstream release, so nothing has shipped since to reconsider -- the pin is now ~5 months stale with no re-evaluation.
+
+**Interviewed 2026-09-28 -- two scope decisions:**
+1. **Investigate + fix the compile, but do NOT reflash the live fleet in this card.** If a fix is found and all 6 YAMLs compile clean on 2026.9.0+, that's this card's Done -- actually OTA-reflashing six devices (two of them load-bearing: front-porch drives warm/close-door notifications, garage-radar the workbench presence automation) is a separate, deliberate follow-on decision, not bundled in automatically.
+2. **OK to temporarily switch the workstation's global ESPHome pip install to 2026.9.0** to reproduce the break directly, reverting to 2026.4.5 afterward regardless of outcome -- same reversible-check pattern as everything else in this repo.
+
+**Plan:**
+1. Reproduce: switch the workstation's ESPHome pip package to 2026.9.0, attempt a compile of one device's YAML (whichever is simplest/fastest to compile), capture the actual error.
+2. Cross-reference against ESPHome's own changelog/breaking-changes notes between 2026.4.5 and 2026.9.0 to understand *why*, not just patch around the symptom.
+3. If it's a contained fix (a renamed/deprecated YAML key, a changed default, a removed platform option): apply it, then compile-test **all 6** device YAMLs clean on 2026.9.0 (not just the one that reproduced it -- each device's YAML differs).
+4. If it's a deeper platform/toolchain issue (not a simple YAML fix): stop, document the real blocker, and bring the cost/benefit back to Joseph rather than sinking further time in unprompted.
+5. Restore the workstation's ESPHome pip pin to 2026.4.5 once investigation is complete, regardless of outcome -- the live fleet stays on the proven-working pin until a deliberate reflash decision is made separately.
+
+**Done when:** either (a) all 6 device YAMLs compile clean against 2026.9.0 (or whatever is latest at the time) with the root cause documented, and the workstation's *actual* flashing pin is a separate, deliberate decision left for the follow-on reflash card; or (b) a genuine blocker is found and documented, with a call made (here or by Joseph) on whether to keep investigating, defer, or accept the pin indefinitely.
+
+**Not in scope:** reflashing any live device (separate follow-on once a fix is confirmed); the rest of the workstation tooling (Python, Git, `gh`, Claude Code, ESP-IDF) -- CARD-0344's own scope boundary, unchanged here.
+
+**Root cause found, 2026-09-27/28 -- it was never a YAML/config break at all.** Reproduced directly (isolated venv, nothing touched the live 2026.4.5 install):
+1. **ESPHome 2026.7.0+ requires Python >=3.12** (PyPI's own `Requires-Python`) -- this workstation only had 3.11.1, so `pip install esphome==2026.9.0` couldn't resolve *any* matching distribution. Installed Python 3.12.10 alongside (via `winget`, 3.11 untouched).
+2. **ESP-IDF's toolchain installer refuses to run under Git Bash/MSYS** (`ERROR: MSys/Mingw is not supported`) -- hit this next, from this session's own Bash tool. Already a documented convention ("compile from native PowerShell") but only ever recorded in archived card history, never a live doc.
+3. With both of those addressed, **`garage-radar.yaml` compiled clean on ESPHome 2026.9.0** -- exit 0, real firmware binaries generated (`config_hash=0x8431a21f`), confirmed via native PowerShell. Strong evidence the original CARD-0333/0335 "break" was an environment gap misdiagnosed as a compile failure, not a real ESPHome regression.
+4. **A third, real gotcha found testing `air-quality-monitor.yaml` next:** a `DLL load failed ... filename or extension is too long` inside `aioesphomeapi` (pulled in by ESPHome's `time:` component) -- a genuine Windows `MAX_PATH` hit, at exactly 255 characters, caused by this session's own deeply-nested scratchpad venv path, not anything device-specific. **This is the real, previously-unstated reason for the existing `C:\esphome\<name>\` short-path flashing convention** -- confirmed the mechanism, not just followed the rule.
+
+**Scope descoped, 2026-09-28 (Joseph): stop compile-testing the remaining 5 devices now.** Only `garage-radar` was proven clean; `air-quality-monitor`'s attempt was inconclusive (killed by this session's own long test path, not a real finding) and the other 4 were never attempted. **Joseph's call: the pin gets revisited per-device, at that device's next real flash** -- whoever runs `esphome run <device>.yaml` next should try current-latest ESPHome now that the workstation can actually run it, rather than batch-verifying all 6 ahead of need. This is the card's actual Done for the investigation half; the fleet-wide reflash Done-when above is superseded by this per-device approach.
+
+**Written up in `WORKSTATION-SETUP.md` (new, root-level, CARD-0357)** -- consolidates the Python/ESPHome/PowerShell/path-length findings above plus two more pre-existing gotchas that were also only ever in archived history: the stale-`.esphome`-cache `Access is denied` pattern, and the OTA post-flash 60s-wait rollback behavior. Also carries forward two workstation facts from live `kanban-board.md` history that had no other canonical home: the SSH ACL gotcha (Git Bash's `ssh` works, PowerShell's native OpenSSH doesn't) and the `C:\Shared` junction gotcha. Linked from root `README.md`'s file-tree listing, same tier as `SOFTWARE-ENVIRONMENT.md`/`ENVIRONMENT.md`.
+
+**Cleanup:** the temporary Python 3.12 install and test venv are left in place (3.12 is genuinely useful going forward, not just for this investigation); gitignored `.esphome/` build-cache directories created during testing (`garage-radar`, `air-quality-monitor`) were deleted. The live global `esphome` pip install was never touched -- still `2026.4.5`, confirmed.
+
+**Related:** CARD-0344 (extended the ESPHome check that surfaced this as stale, not just held), CARD-0333/CARD-0335 (where the pin was first established after the original 2026.9.0 break), `WORKSTATION-SETUP.md` (this card's own output), `JCTsh-Build-Standards.md` (ESPHome build/flash conventions).
+
+---
+

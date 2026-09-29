@@ -9,32 +9,37 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0361 -->
+<!-- next-card-id: CARD-0362 -->
+
+---
+
+### CARD-0361 · [bug] [tos] `/kanban` shows a cryptic JSON-parse error instead of the real reason when `/kanban/data` fails, and the board had grown close to the size-risk tier
+
+**Status:** Done
+**Priority:** Medium — real UX bug found live, not urgent (the underlying fetch failure it was masking is intermittent/likely transient), but worth closing before the confusing message recurs.
+
+**Raised 2026-09-28 17:5x MST (tos session), Joseph reported the live `/kanban` page: `Failed to load kanban-board.md: SyntaxError: Unexpected token 'C', "Could not "... is not valid JSON`.**
+
+**Root cause, confirmed live:** `/kanban/data`'s client-side JS (`log_server.py`, `load()`) did `fetch('/kanban/data').then(function (r) { return r.json(); })` with no `r.ok` check. Whenever the Pi's own fetch of `kanban-board.md` from `raw.githubusercontent.com` fails (`_load_kanban_cards()`'s `except (URLError, OSError, UnicodeDecodeError): return None, None`), the server correctly returns a 503 with a **plain-text** body (`Could not fetch <raw URL>`) — but the client blindly tried to `JSON.parse()` that plain text anyway, producing the cryptic `SyntaxError` instead of showing the real reason.
+
+**Investigated whether the `.md` file itself was the problem, per Joseph's steer:** fetched the live raw GitHub URL directly from this session — 926,145 bytes, valid UTF-8, byte-identical to local `HEAD`. No encoding break, no fetch failure reproducible from here. `kanban-board.md` had grown to 926KB, though — 90% of the dashboard's own 1MB "red" size tier (`log_server.py`'s `formatSize()`), and CARD-0193's own archive discipline (Status Done/Defer + 5000B+) hadn't been run in a while. Genuinely eligible cards existed (CARD-0360, CARD-0357, CARD-0344, CARD-0234) at ~4KB–16KB each. A file this size, fetched over the Pi's own network path with `urlopen`'s fixed 10s timeout, is a real plausible source of an intermittent fetch failure — not confirmed as *the* cause (no direct Pi-side log access this session), but a real contributing risk regardless of whether it was the actual trigger this time.
+
+**Fix:**
+1. **`tos/archive_cards.py --apply`** — archived the 4 eligible cards to their component/`tos` `card-archive.md` files. `kanban-board.md`: 926,145 → 897,147 bytes.
+2. **`core/logging/log_server.py`'s `load()`** — now checks `r.ok` first; on failure, reads the response as text and throws that as the error message instead of unconditionally parsing it as JSON. A future fetch failure (of any kind — this one or a different one) now shows its real reason on `/kanban` instead of a JSON-parse red herring.
+
+**Verified:** `py -3.11 -m py_compile core/logging/log_server.py` — compiles clean. **Not yet deployed** — `log_server.py` is running production code on the Pi (`jctsh-logging` systemd service); per `JCTsh-Operating-System.md`'s commit/push rule, that class of change gets a real offer-and-wait even when the surrounding work is authorized. Deploy is `scp core/logging/log_server.py pi@pi1.local:/home/pi/jctsh/core/logging/` + `ssh pi@pi1.local "sudo systemctl restart jctsh-logging"` (`core/logging/README.md`), pending Joseph's go-ahead.
+
+**Done when:** met for the source fix and the board-size mitigation; deploy + live `/kanban` re-check is the remaining step once Joseph confirms.
+
+**Related:** CARD-0193 (archive_cards.py, the size-threshold discipline this card leaned on), CARD-0190 (the original 1MB Contents-API incident this file's size keeps circling back to), `core/logging/log_server.py`, `tos/archive_cards.py`.
 
 ---
 
 ### CARD-0360 · [enhancement] [tos] Component-session startup never surfaces workstation-level operating docs, and no script verifies/updates the workstation's real state against them
-
 **Status:** Done
-**Priority:** High — same class of miss (workstation state silently drifting from docs) could recur before this is fixed; CARD-0357 already cost real investigation time once.
 
-**Raised 2026-09-28 06:32 MST (tos session), out of tagging CARD-0357 `[tos]` and asking where its `WORKSTATION-SETUP.md` work fit into session startup.** Two related gaps found:
-
-1. **Component-session startup never surfaces `WORKSTATION-SETUP.md`.** CARD-0357 added a conditional pre-flash/compile step to `tos/JCTsh-Session-Start.md` (general Session Start): read `WORKSTATION-SETUP.md` in full before compiling/flashing any ESPHome device. But `tos/JCTsh-Component-Session-Start.md` — what a component/cluster session (garage cluster, hiking-monitor cluster, porch/patio temp sensors cluster — the three clusters covering CARD-0357's 6 ESPHome devices) actually runs — replaces general Session Start rather than supplementing it, and never mentions this workstation-level doc. Same shape of miss as CARD-0322's `SKILL.md` gap, one level up: a workstation-level operating doc that applies "regardless of which component's device is being flashed" (`WORKSTATION-SETUP.md`'s own words) has no path into a component session's startup at all.
-2. **No script verifies or updates the workstation's actual state against what `WORKSTATION-SETUP.md` documents.** Confirmed live: `core/maintenance/esphome_check.py` exists but explicitly cannot check the workstation itself (its own docstring: "there is no way to check the workstation install itself from a Pi-side script") — it only parses the Pi's log for each device's last-booted ESPHome version against a hardcoded `PINNED_VERSION` constant, and polls GitHub's releases API. Nothing inspects the workstation directly: installed Python versions (`py -0`), the live `esphome` pip version, or working-path length. The Python 3.12 install and the pin itself were both done/kept by hand — `PINNED_VERSION` in `esphome_check.py` has no mechanical link to `WORKSTATION-SETUP.md`'s own pin, or to what's actually installed.
-
-**Planning decision, 2026-09-28 (Joseph deferred tooling shape to Planning when this card was opened): verify-only, not verify+update.** Matches the philosophy already established on CARD-0357 itself (the ESPHome pin gets revisited deliberately per device, never auto-bumped) — installing/upgrading Python or ESPHome is a real, judgment-laden system change, not something a script should do silently. Scope is the two facts CARD-0357 actually found could drift unnoticed (Python versions available, and which ESPHome version the live `esphome` command resolves to vs. the documented pin), plus a MAX_PATH-risk proxy on the working directory. The SSH-client and `C:\Shared` gotchas in `WORKSTATION-SETUP.md` are situational usage rules, not checkable machine state, so deliberately out of scope — same "not covered" discipline `WORKSTATION-SETUP.md` itself already applies to Git/gh/Claude Code/ESP-IDF. Went straight from Planning to Build — no separate Design checkpoint (`JCTsh-Operating-System.md` v1.22 dropped Design as a column/status the same day, after this card's own Planning note was written against the older two-step model).
-
-**Build, 2026-09-28:**
-1. **`workstation-verify.ps1`** (new, repo root) — PowerShell (a `.ps1` can't run in Git Bash anyway, incidentally double-checking that gotcha too). Checks Python 3.11/3.12+ presence via `py -0p`, the live `esphome` command's resolved version against the pin *parsed directly out of `WORKSTATION-SETUP.md`* (never its own hardcoded copy — avoids adding a third hand-synced constant alongside `WORKSTATION-SETUP.md`'s prose and `esphome_check.py`'s `PINNED_VERSION`), and working-directory path length. Verify-only: reports drift, changes nothing, exits non-zero if anything's off.
-2. **`WORKSTATION-SETUP.md`** — added a pointer to the script right after the intro, explaining what it checks and that it doesn't replace reading the gotchas (those explain *why*).
-3. **`tos/JCTsh-Component-Session-Start.md`** — new component-only step 4: before compiling/flashing any covered ESPHome component, read `WORKSTATION-SETUP.md` and run the script. Conditional/action-triggered, same as its general-session counterpart, not part of the unconditional per-resume steps 1–3. Version bumped 1.21 → 1.22, history entry added to `JCTsh-Component-Session-Start-History.md`.
-
-**Verified live, 2026-09-28:** ran `workstation-verify.ps1` from native PowerShell against the real workstation — all three checks passed (Python 3.11.x and 3.12.10 both present; live `esphome` resolves to `Python311\Scripts\esphome.exe` at 2026.4.5, matching the pin `WORKSTATION-SETUP.md` documents; cwd well under MAX_PATH risk). Separately sanity-checked the mismatch-detection branch in isolation (forced a fake pin mismatch, confirmed it reports correctly) since the live run alone can only exercise the all-pass path.
-
-**Reflection:** a workstation-level (not component-level) operating doc is a real, recurring blind spot for component-session startup — this is the second instance of the same shape (after `SKILL.md`/CARD-0322), both times found live rather than anticipated. Worth watching for a third instance before generalizing further; per `JCTsh-Operating-System.md`'s Engineering Discipline, two is not yet a pattern worth abstracting into its own rule.
-
-**Related:** CARD-0357 (root-caused the ESPHome pin, wrote `WORKSTATION-SETUP.md`, added the general-Session-Start conditional step this card found incomplete), CARD-0322 (the analogous `SKILL.md` gap this mirrors), `tos/JCTsh-Component-Session-Start.md`, `tos/JCTsh-Session-Start.md`, `WORKSTATION-SETUP.md`, `workstation-verify.ps1`, `core/maintenance/esphome_check.py`.
+Archived to `tos/card-archive.md` on 2026-09-28 (CARD-0193) — 5953B, over the 5000B size threshold.
 
 ---
 
@@ -81,41 +86,9 @@ Both self-recovered on retry with no data loss. **Not the same thing as the 2026
 ---
 
 ### CARD-0357 · [bug] [tos] [air-quality-monitor] [back-patio-temp-sensor] [front-porch-temp-sensor] [garage-radar] [hiking-monitor] [salt-sensor] Find and fix why ESPHome 2026.9.0 breaks the compile -- currently pinned 5 months behind at 2026.4.5
-
-**Renumbered from CARD-0354, 2026-09-28 (this session's own merge) -- three auto-generated stub cards (immich-redis/matter-server/node-red, below) claimed 354-356 first while this card was mid-write. Later pusher yields, per `JCTsh-Operating-System.md`'s Card ID allocation rule; no content lost, just a number change.** All cross-references to this card elsewhere (`WORKSTATION-SETUP.md`, `tos/JCTsh-Session-Start.md`, root `README.md`) updated to match.
-
 **Status:** Done
 
-**Raised 2026-09-27/28 MST (ops cluster session, from a "do we want to compile with the latest ESPHome version?" exploratory question), Joseph: "finish [CARD-0344], then open a card."** All 6 ESPHome-based field devices are pinned to ESPHome 2026.4.5 because 2026.9.0 broke the compile -- but nobody recorded *why*, just "it broke, pin back." Confirmed live via `gh api` (CARD-0344's own ESPHome check): 2026.9.0 (released 2026-09-16) is still the latest upstream release, so nothing has shipped since to reconsider -- the pin is now ~5 months stale with no re-evaluation.
-
-**Interviewed 2026-09-28 -- two scope decisions:**
-1. **Investigate + fix the compile, but do NOT reflash the live fleet in this card.** If a fix is found and all 6 YAMLs compile clean on 2026.9.0+, that's this card's Done -- actually OTA-reflashing six devices (two of them load-bearing: front-porch drives warm/close-door notifications, garage-radar the workbench presence automation) is a separate, deliberate follow-on decision, not bundled in automatically.
-2. **OK to temporarily switch the workstation's global ESPHome pip install to 2026.9.0** to reproduce the break directly, reverting to 2026.4.5 afterward regardless of outcome -- same reversible-check pattern as everything else in this repo.
-
-**Plan:**
-1. Reproduce: switch the workstation's ESPHome pip package to 2026.9.0, attempt a compile of one device's YAML (whichever is simplest/fastest to compile), capture the actual error.
-2. Cross-reference against ESPHome's own changelog/breaking-changes notes between 2026.4.5 and 2026.9.0 to understand *why*, not just patch around the symptom.
-3. If it's a contained fix (a renamed/deprecated YAML key, a changed default, a removed platform option): apply it, then compile-test **all 6** device YAMLs clean on 2026.9.0 (not just the one that reproduced it -- each device's YAML differs).
-4. If it's a deeper platform/toolchain issue (not a simple YAML fix): stop, document the real blocker, and bring the cost/benefit back to Joseph rather than sinking further time in unprompted.
-5. Restore the workstation's ESPHome pip pin to 2026.4.5 once investigation is complete, regardless of outcome -- the live fleet stays on the proven-working pin until a deliberate reflash decision is made separately.
-
-**Done when:** either (a) all 6 device YAMLs compile clean against 2026.9.0 (or whatever is latest at the time) with the root cause documented, and the workstation's *actual* flashing pin is a separate, deliberate decision left for the follow-on reflash card; or (b) a genuine blocker is found and documented, with a call made (here or by Joseph) on whether to keep investigating, defer, or accept the pin indefinitely.
-
-**Not in scope:** reflashing any live device (separate follow-on once a fix is confirmed); the rest of the workstation tooling (Python, Git, `gh`, Claude Code, ESP-IDF) -- CARD-0344's own scope boundary, unchanged here.
-
-**Root cause found, 2026-09-27/28 -- it was never a YAML/config break at all.** Reproduced directly (isolated venv, nothing touched the live 2026.4.5 install):
-1. **ESPHome 2026.7.0+ requires Python >=3.12** (PyPI's own `Requires-Python`) -- this workstation only had 3.11.1, so `pip install esphome==2026.9.0` couldn't resolve *any* matching distribution. Installed Python 3.12.10 alongside (via `winget`, 3.11 untouched).
-2. **ESP-IDF's toolchain installer refuses to run under Git Bash/MSYS** (`ERROR: MSys/Mingw is not supported`) -- hit this next, from this session's own Bash tool. Already a documented convention ("compile from native PowerShell") but only ever recorded in archived card history, never a live doc.
-3. With both of those addressed, **`garage-radar.yaml` compiled clean on ESPHome 2026.9.0** -- exit 0, real firmware binaries generated (`config_hash=0x8431a21f`), confirmed via native PowerShell. Strong evidence the original CARD-0333/0335 "break" was an environment gap misdiagnosed as a compile failure, not a real ESPHome regression.
-4. **A third, real gotcha found testing `air-quality-monitor.yaml` next:** a `DLL load failed ... filename or extension is too long` inside `aioesphomeapi` (pulled in by ESPHome's `time:` component) -- a genuine Windows `MAX_PATH` hit, at exactly 255 characters, caused by this session's own deeply-nested scratchpad venv path, not anything device-specific. **This is the real, previously-unstated reason for the existing `C:\esphome\<name>\` short-path flashing convention** -- confirmed the mechanism, not just followed the rule.
-
-**Scope descoped, 2026-09-28 (Joseph): stop compile-testing the remaining 5 devices now.** Only `garage-radar` was proven clean; `air-quality-monitor`'s attempt was inconclusive (killed by this session's own long test path, not a real finding) and the other 4 were never attempted. **Joseph's call: the pin gets revisited per-device, at that device's next real flash** -- whoever runs `esphome run <device>.yaml` next should try current-latest ESPHome now that the workstation can actually run it, rather than batch-verifying all 6 ahead of need. This is the card's actual Done for the investigation half; the fleet-wide reflash Done-when above is superseded by this per-device approach.
-
-**Written up in `WORKSTATION-SETUP.md` (new, root-level, CARD-0357)** -- consolidates the Python/ESPHome/PowerShell/path-length findings above plus two more pre-existing gotchas that were also only ever in archived history: the stale-`.esphome`-cache `Access is denied` pattern, and the OTA post-flash 60s-wait rollback behavior. Also carries forward two workstation facts from live `kanban-board.md` history that had no other canonical home: the SSH ACL gotcha (Git Bash's `ssh` works, PowerShell's native OpenSSH doesn't) and the `C:\Shared` junction gotcha. Linked from root `README.md`'s file-tree listing, same tier as `SOFTWARE-ENVIRONMENT.md`/`ENVIRONMENT.md`.
-
-**Cleanup:** the temporary Python 3.12 install and test venv are left in place (3.12 is genuinely useful going forward, not just for this investigation); gitignored `.esphome/` build-cache directories created during testing (`garage-radar`, `air-quality-monitor`) were deleted. The live global `esphome` pip install was never touched -- still `2026.4.5`, confirmed.
-
-**Related:** CARD-0344 (extended the ESPHome check that surfaced this as stale, not just held), CARD-0333/CARD-0335 (where the pin was first established after the original 2026.9.0 break), `WORKSTATION-SETUP.md` (this card's own output), `JCTsh-Build-Standards.md` (ESPHome build/flash conventions).
+Archived to `tos/card-archive.md` on 2026-09-28 (CARD-0193) — 7277B, over the 5000B size threshold.
 
 ---
 
@@ -448,78 +421,10 @@ Archived to `components/air-quality-monitor/card-archive.md` on 2026-09-27 (CARD
 ---
 
 ### CARD-0344 · [enhancement] [maintenance] Extend the update checks to the software they don't cover (Node-RED, ring-mqtt, matter-server, orchestrator deps, Immich sidecars, Tailscale, ESPHome) — RESOLVED 2026-09-28 12:58 MST
-
 **Status:** Done
 
-**Raised 2026-09-26 12:45 MST, from auto-opened PR #136** (raw finding: "what software tools are we using and what versions do we want to be on"). Landed in Backlog, then interviewed the same day (Joseph) and moved to Planning. **Planning only: no work started, nothing built or deployed.**
+Archived to `core/maintenance/card-archive.md` on 2026-09-28 (CARD-0193) — 16732B, over the 5000B size threshold.
 
-**Interview outcome, 2026-09-26.** Joseph's point: the Pi and M8 software is already covered by daily notify-only update checks that open a kanban PR (`core/maintenance/README.md`: OS/firmware/kernel on both hosts, the Home Assistant, NetAlertX, Caddy and cloudflared containers, Immich via its own version API, plus the config-drift check). So the card is **only the gaps in that coverage (ESPHome added to scope later the same day, below), using the existing notify-only pattern** (`container_update_check.py`'s `check_services()` / `open_kanban_pr.py`), not a new inventory document, not a dashboard, not a pinned-versions table.
-
-**The gaps, verified 2026-09-26 by `docker ps` on both hosts and the repo (not from memory):**
-| Software | Where | Why it's uncovered |
-|---|---|---|
-| Node-RED (v4.1.10, Node 22) and its palette nodes (`node-red-node-*`, `node-red-contrib-*`) | Pi | installed with npm, so the apt check never sees them |
-| `ring-mqtt` (`tsightler/ring-mqtt:latest`) | M8 | not in `hosts/m8/container-update-check.py`'s `SERVICES` |
-| `matter-server` (`python-matter-server:stable`) | Pi | not in `core/homeassistant/container-update-check.py`'s `SERVICES` (HA only) |
-| `hike-izer-orchestrator` (own image) | M8 | `requirements.txt` has `anthropic` and `paho-mqtt` unpinned, so a rebuild takes whatever is newest; base image unchecked |
-| Immich sidecars: `immich_postgres` (vectorchord/pgvectors pinned tag), `immich_redis` (`valkey:9`) | M8 | Immich's own check covers the server version only |
-| Tailscale (1.102.2) | Pi (M8 not checked) | covered by apt only if installed from Tailscale's apt repo; not verified |
-| **ESPHome** (added to scope 2026-09-26, Joseph): the pip package on the Windows workstation, pinned by hand at 2026.4.5, and the version each flashed device runs | workstation + 6 field devices | no check of either. The pin is deliberate (2026.9.0 broke the compile, CARD-0333/CARD-0335) so it never gets revisited unless someone remembers; the per-device versions are recorded nowhere except each device's own boot line |
-
-**Scope decision, 2026-09-26 (Joseph):** the rest of the workstation tooling (Python, Git, `gh`, Claude Code, ESP-IDF) is **out of scope**. **ESPHome is in scope**, because it is the one tool that has already broken a build (2026.9.0). What the log shows today: each device reports its ESPHome version in its "online - ESPHome X" boot line, and all six devices (`air-quality-monitor`, `back-patio-temp-sensor`, `front-porch-temp-sensor`, `garage-radar`, `hiking-monitor`, `salt-sensor`) most recently report 2026.4.5; `back-patio-temp-sensor` has one boot line reporting 2026.9.0 among 19 at 2026.4.5. So the running version is already observable without touching a device.
-
-**A different-shaped gap found 2026-09-27 18:29 MST (CARD-0350, this session) -- not a version-check gap like the table above, so flagged separately rather than added to it.** `core/maintenance/*.py` (`pi-maintenance-check.py`, its M8 sibling, `container_update_check.py`, `open_kanban_pr.py`) is a version-controlled copy deployed by hand-`scp`, the exact same class of risk CARD-0328's drift check covers for `core/mqtt`/`core/node-red`/`core/homeassistant` -- but `core/maintenance` isn't in that check's `MANIFEST`. Caught live: the deployed `pi-maintenance-check.py` had drifted from the repo (one stale docstring path comment, harmless, now redeployed to match) with nothing that would have noticed on its own. **This is "does the deployed copy match the repo," not "is a newer upstream version available"** -- the wrong mechanism for this card's own `container_update_check.py`/`SERVICES` pattern; the natural fix is extending CARD-0328's drift-check `MANIFEST` to include `core/maintenance/*.py`, not adding a row here. Left for Planning to decide whether that's in this card's scope or a fix made directly against CARD-0328's own script.
-**Open questions resolved, 2026-09-27 21:xx MST (ops cluster session, Joseph):**
-1. **ESPHome check scope: both halves.** Alert when a flashed device's reported version diverges from the fleet/pin (the real CARD-0333/0335-class risk), *and* log (informational only, not urgent) when a newer ESPHome release exists upstream than the recorded pin.
-2. **ESPHome check location: Pi-side, no workstation-side check.** The pinned value (`2026.4.5`) is just a constant the script carries -- comparing it against ESPHome's GitHub Releases API needs no access to the actual workstation pip install, so both halves of check 1 run from the Pi like everything else here. No new delivery mechanism (Task Scheduler, etc.) needed.
-3. **`ring-mqtt`: pin first, then check normally.** Same fix shape as CARD-0352's cloudflared pin -- give it an explicit tag in its compose file, then it's just another `SERVICES` entry in `hosts/m8/container-update-check.py`, no new mechanism.
-4. **CARD-0350's `core/maintenance` drift-check gap: out of scope here.** Different mechanism (deployed-copy-vs-repo, not latest-upstream-version) -- fix directly against CARD-0328's `MANIFEST`, not folded into this card's Done-when.
-
-**Mechanism per gap, verified against the actual repo (`components/hike-izer-orchestrator/requirements.txt`, `Dockerfile`, `hosts/m8/container-update-check.py`'s existing `SERVICES` list) before writing this, not assumed:**
-
-| Gap | Mechanism | Notes |
-|---|---|---|
-| Node-RED + palette nodes | New `core/maintenance/node_red_update_check.py`: `npm outdated -g --json` (or `npm list -g --depth=0 --json` + npm registry lookup) on the Pi, reusing `open_kanban_pr.py`'s PR-opening pattern | New script, new mechanism (npm, not apt or `container_update_check.py`) |
-| `ring-mqtt` | Pin `tsightler/ring-mqtt` to its current tag in the M8 compose file (repo-tracked), then add a `SERVICES` entry to `hosts/m8/container-update-check.py` (`source: tsightler/ring-mqtt`) | Existing mechanism once pinned |
-| `matter-server` | Add a `SERVICES` entry to `core/homeassistant/container-update-check.py` alongside HA's own entry | Existing mechanism, same file |
-| `hike-izer-orchestrator` deps | Pin `anthropic`/`paho-mqtt` in `requirements.txt` to their currently-resolved versions (removes the float, matches this repo's pin-don't-float convention). Base image `python:3.12-alpine` is also a floating minor-version tag -- add a `SERVICES` entry to `hosts/m8/container-update-check.py` tracking the `python` image's own release tags so a base-image bump is at least visible, even though the orchestrator's own Dockerfile stays on the `3.12-alpine` floating tag deliberately (matches upstream security-patch convention for base images) | One-time pin (deps) + new `SERVICES` entry (base image visibility only, not a pin) |
-| Immich sidecars (`immich_postgres`, `immich_redis`) | Two new `SERVICES` entries in `hosts/m8/container-update-check.py` | Existing mechanism |
-| Tailscale | Verify via `apt-cache policy tailscale` on the Pi that it's tracked through Tailscale's own apt repo (if so, `pi-maintenance-check.py` already covers it -- no new code, just confirmation). M8 needs the same verification + likely its own check if M8's Tailscale isn't apt-managed | Verification step first; code only if the verification finds a real gap |
-| ESPHome | New `core/maintenance/esphome_check.py` (Pi-side): (a) query `esphome/esphome`'s GitHub Releases API, compare against a recorded `PINNED_VERSION` constant, log informational-only (no urgent PR) when they differ, throttled like CARD-0257's held-update re-notify pattern (long throttle, e.g. 30 days, since the pin is knowingly held); (b) parse each of the 6 field devices' most recent "online - ESPHome X" line (from the Pi's log/dashboard data) and Alert if any device disagrees with the fleet/pin | New script, two distinct checks in one file |
-
-**Scheduling:** each new/extended check needs a slot checked against `network/jctsh-network.md`'s Scheduled Maintenance Windows table for `JCTsh-Build-Standards.md` §9.5's 1-hour clearance rule -- a Build-time step, not re-derived here.
-
-**Done when:**
-1. Each of the 7 gaps above has its mechanism built, deployed, and enabled on the correct host(s).
-2. `ring-mqtt` is pinned to an explicit tag (repo-tracked compose change) before its check is added.
-3. `hike-izer-orchestrator`'s `anthropic`/`paho-mqtt` are pinned in `requirements.txt`.
-4. Tailscale's apt-repo coverage is verified on both hosts; a new check is built only if that verification finds a real gap.
-5. Each new/extended systemd timer respects the 1-hour maintenance-window clearance rule.
-6. `core/maintenance/README.md` documents every new check, matching its existing table format.
-7. Verified live, not synthetically: at least one real run of each new/extended check confirmed via the Pi/M8's own systemd journal or the log dashboard, not just a clean exit code.
-8. CARD-0350's `core/maintenance` `MANIFEST` gap is raised as its own follow-on against CARD-0328 (not built here).
-
-**Built and verified live, 2026-09-27/28 (ops cluster session), all against real running services, not synthetic fixtures:**
-
-1. **`ring-mqtt` pinned to `5.9.3`** (was `:latest`) -- also gave it a real repo home, `components/ring-mqtt/` (it previously had none, `hosts/m8/README.md` said so explicitly). Deployed and recreated on the M8; confirmed running the identical version it already was (`docker logs` banner, `ring-mqtt.js version: 5.9.3`), no HA-integration disruption. Added to `hosts/m8/container-update-check.py`'s `SERVICES` (label method, real `org.opencontainers.image.version` present) -- real run: correctly reports "nothing pending" (latest release is also `5.9.3`).
-2. **`matter-server` added** to `core/homeassistant/container-update-check.py`'s `SERVICES` (exec method -- confirmed live it carries no OCI labels at all, so `pip show python-matter-server` inside the container is the version source). Real run found a genuine pending update: `8.1.2` available, running `8.1.0`; PR opened (#141).
-3. **Immich sidecars: `immich_redis` added** (exec method, `valkey-server --version`) -- real run found `9.1.2` available, running `9.1.0`; PR opened (#139). **`immich_postgres` deliberately NOT added** -- its `org.opencontainers.image.source` label points at `immich-app/base-images`, confirmed live via `gh api` to have **zero GitHub releases** (same "packaging repo, not a releases repo" shape as the existing Caddy caveat) -- no latest tag exists to diff its composite `14-vectorchord0.4.3-pgvector0.8.1-pgvectors0.2.0` version string against. Documented as a known gap in `core/maintenance/README.md`, not silently dropped.
-4. **`hike-izer-orchestrator` deps pinned**: `requirements.txt`'s bare `anthropic`/`paho-mqtt` -> `anthropic==0.120.0`/`paho-mqtt==2.1.0` (the versions actually running, confirmed via `pip show` inside the live container). **Deliberately not rebuilt** -- the pin only changes what the *next* rebuild resolves to; forcing a rebuild now would recreate a container outside this cluster's scope for zero functional gain today. **Base-image visibility (the `python:3.12-alpine` floating tag) dropped from scope** -- simplification from the original plan: no incident motivates it the way ESPHome's pin does, and Python's own base image isn't GitHub-Releases-shaped either. If ever wanted, it's a new card, not a retrofit here.
-5. **Tailscale: verified, no code needed.** Both hosts install it from Tailscale's own apt repo (`pkgs.tailscale.com/stable/...`, confirmed via `apt-cache policy` on both) -- already covered by each host's existing generic apt-upgradable check. Proven live, not just plausible: the M8 had a real pending Tailscale bump (`1.102.3` -> `1.102.4`) sitting in `apt list --upgradable` at the moment of checking, i.e. `hosts/m8/maintenance-check.py`'s routine-count already includes it today.
-6. **Node-RED update check built**: new `core/maintenance/node_red_update_check.py`/`.service`/`.timer`, Pi-only, daily 10:00 AM. `npm outdated --json` against both the global scope (`node-red` itself, `npm install -g`) and `/home/pi/.node-red` (its palette nodes' own `package.json`). Real run found genuine pending updates on the first try: `node-red: 4.1.10 -> 5.0.7` (a real major-version gap), `npm: 10.9.9 -> 12.1.0`; PR opened (#142). Palette nodes themselves are all current right now (`{}` from the local scope), so the mechanism's local-scope path is unexercised by a real finding yet, only confirmed to run cleanly.
-7. **ESPHome check built**: new `core/maintenance/esphome_check.py`/`.service`/`.timer`, Pi-only, daily 11:00 AM, two independent halves per the resolved open questions above. Real run: **all 6/6 field devices confirmed on the pin** (`2026.4.5`) -- correctly picked each device's true *latest* boot line by timestamp, not file order, so `back-patio-temp-sensor`'s one stray historical `2026.9.0` boot noted in this card's own table above did not false-positive. Pin-vs-latest half correctly found `2026.9.0` still the latest upstream release (re-confirmed live via `gh api`, nothing newer has shipped since the break) and logged it informational-only, **no PR opened** -- the deliberate-hold behavior working as designed on its very first run.
-8. **Incidental fix, found live while building #2 above:** `container_update_check.py`'s shared `_current_version()` hit a real 10s timeout against `matter-server` (a re-run 30s later took 4.4s) -- the same intermittent-Pi-I/O-under-load pattern already well-documented elsewhere on this host (CARD-0247's `docker logs` timeouts). Bumped both the label and exec methods' timeout to 20s. Benefits every existing check that uses this shared library, not just the new entry.
-9. **CARD-0350's `MANIFEST` gap (Done-when 8): follow-on note added directly to CARD-0328** (Done, so not reopened) rather than built here -- matches this card's own scope decision above.
-
-**Open PRs from this session's real runs, for Joseph's review per `tos/pr-review-checklist.md`:** #139 (immich-redis), #140 (**spurious** -- the matter-server timeout failure from finding #8 above, superseded by #141 once the timeout fix landed), #141 (matter-server, real), #142 (node-red/npm, real).
-
-**Done-when 5 met, 2026-09-28 12:58 MST (general session, checked live against the Pi, not assumed).** Both timers' first unattended firing confirmed via `sudo journalctl -u node-red-update-check.service -u esphome-check.service --since today --no-pager -o cat`, real scheduled times, no manual trigger involved: `node-red-update-check.service` fired 10:00:14 MST ("Nothing pending", exit clean); `esphome-check.service` fired shortly after ("All 6/6 reporting devices on pin (2026.4.5)", "Pin-vs-latest already notified, not yet due for a reminder", exit clean). This was the card's last open item — all 8 Done-when criteria now met.
-
-**Reflection.** The one real process lesson from this build: a scheduled check's Done-when shouldn't be satisfied by a manual `systemctl start` test run, even a clean one — only an actual unattended firing at its real scheduled time proves the timer unit itself is wired correctly (enabled, correct `OnCalendar`, survives being left alone). This card's own Auto Verify marker existed for exactly that gap and resolved cleanly on the first check. Also worth carrying forward: `container_update_check.py`'s shared timeout bump (10s -> 20s, finding #8 above) benefited every existing check using that library, not just this card's new entry — a reminder that fixes found incidentally while building one thing are often worth generalizing immediately rather than scoping them narrowly to the card that found them.
-
-**Related:** `core/maintenance/README.md` (the existing checks), `core/maintenance/container_update_check.py`, `tos/open_kanban_pr.py`, CARD-0126 (container update checks), CARD-0095 (OS/firmware check), CARD-0266 (Docker pull hang / Pi Docker pin), CARD-0333, CARD-0335 (ESPHome pin), `SOFTWARE-ENVIRONMENT.md`.
-
-**Related:** `core/maintenance/README.md` (the existing checks), `core/maintenance/container_update_check.py`, `tos/open_kanban_pr.py`, CARD-0126 (container update checks), CARD-0095 (OS/firmware check), CARD-0266 (Docker pull hang / Pi Docker pin), CARD-0333, CARD-0335 (ESPHome pin), `SOFTWARE-ENVIRONMENT.md`.
 ---
 
 ### CARD-0343 · [bug] [air-quality-monitor] AQM records nothing in the field after a cold boot -- no valid clock, every reading skipped as `clock_invalid`
@@ -2110,25 +2015,7 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 13601
 ### CARD-0234 · [bug] [hiking-monitor] GPSLogger errors "file didn't exist" on a normal hike start, self-heals on restart — RESOLVED 2026-09-28 17:36 MST
 **Status:** Done
 
-**Raised 2026-08-29 (Joseph), live incident during a hike start.** Starting GPSLogger produced an error saying a file didn't exist. Restarting GPSLogger worked cleanly — the file apparently got created by the failed attempt, since the retry succeeded with no further error. **Confirmed: a normal hike start, nothing unusual beforehand** (no recent phone reboot, no GPSLogger/Android update, no reinstall) — so this isn't tied to a one-off device event, it's either intermittent or has some other trigger not yet identified.
-
-**Screenshot reviewed and original offline-queue theory dropped — real cause narrowed down considerably.** The screenshot Joseph shared (GPSLogger's Simple View mid-session) shows a local CSV log actively in play: session `20260829`, path `/storage/emulated/0/Download`. Confirmed with Joseph: this CSV logging is **deliberate**, enabled for CARD-0208's Mile Announcer feature — not leftover/drifted config, and not something to turn off.
-
-**Much better-grounded theory, from CARD-0208's own build notes.** CARD-0208 fixed the CSV file's Tasker-side path to `Download/%todays_date.csv` (`yyyyMMdd` format) — a fresh file per calendar day. GPSLogger's own `CSVFileLogger.java` (per CARD-0208's source reading) opens the file in append mode on each write. **The very first location write of a new day is the one moment that file genuinely doesn't exist yet** — if GPSLogger's own open/append logic references the file before creating it on that first write, "file does not exist" on the very first fix of the day, self-healing immediately after (file now exists) matches the observed symptom exactly, including "confirmed: normal hike start, nothing unusual" — this would recur on the first GPSLogger start *of any new day*, not tied to a device event.
-
-**Practical guidance for next time it happens:** `gps-pipeline.md`'s own "Test Before Walking" section documents how to see GPSLogger's real log (swipe the bottom bar up) — capturing the exact error text next time would confirm this theory outright. Until then, restarting GPSLogger (as already worked) is a known, low-cost workaround.
-
-**Low urgency, not currently blocking anything:** GPSLogger logs every 30 seconds; a one-time miss on the very first fix of the day costs at most one trackpoint, well within the kind of gap this pipeline already tolerates elsewhere (see CARD-0221's own coverage-gap analysis).
-
-**Fix applied, 2026-08-29 (Joseph) — targets the theorized root cause directly, sidesteps rather than patches GPSLogger internals.** Changed GPSLogger's CSV output from the per-day `%todays_date.csv` name to a fixed custom filename, **`gpslogger`** (`gpslogger.csv`) — the file now only needs to be created once, ever, not fresh each calendar day, removing the specific moment ("first write of a new day") the theory pinned the error to. Updated the Tasker Mile Announcer task's Read File target to match the new fixed filename (was pointed at the old `%todays_date.csv` pattern, per CARD-0208's build notes). **Not yet verified — waiting on the next real hike** to confirm the error doesn't recur.
-
-**Real follow-on risk surfaced by this change, worth watching, not yet a problem:** the file no longer rotates per day — it will now accumulate every hike's rows indefinitely across the file's entire lifetime, not just one day's worth. CARD-0208's own open question ("whether Tasker's read-last-line approach is cheap enough... `gps-pipeline.md`'s own estimate: ~1,200 rows / ~75KB for a *10-hour hike*") was scoped against a single day's file — Mile Announcer's task reads and splits the **entire file** into lines every 2 minutes while running (per CARD-0208's build notes), so this file's size is now unbounded across the device's whole hiking history rather than capped at one day. Likely fine for a long while given typical hike frequency, but worth a real check (file size, Tasker read/split latency) after a few months of accumulated hikes — not blocking this card, but worth a note on CARD-0208 too.
-
-**Done when:** a real hike confirms GPSLogger starts cleanly with no "file does not exist" error using the new fixed filename — not just that the config change was made. **Met, 2026-09-28.** Two real GPSLogger starts today (the rehearsal ~06:57 MST and a short follow-up test walk ~13:00 MST, both CARD-0346), Joseph confirmed directly: no "file didn't exist" error either time.
-
-**File-growth watch, checked 2026-09-28 (the follow-on risk this card's own text flagged at fix time, 2026-08-29).** `Download/gpslogger.csv` on the Pixel is **714KB** after exactly one month of accumulation (~12 hikes over that span, per this card's own history plus `kanban-board.md`'s hike-day entries) — same order of magnitude as CARD-0208's own ~75KB/10-hour-hike estimate would predict for that many shorter real hikes, not a surprise. **Not treated as a problem yet** — no observed Tasker read/split slowdown, no Mile Announcer misbehavior reported. Worth a real re-check (file size trend, actual Tasker read latency) again in another few months, since the file still has no rotation and will keep growing indefinitely by design.
-
-**Related:** `components/hiking-monitor/gps-pipeline.md` (Custom URL Logger config, the in-app log-viewing method), CARD-0208 (Mile Announcer — the reason local CSV logging is enabled at all; its own `%todays_date.csv` naming is now superseded by this card's fixed-filename change, and its file-size/read-cost assumption is now worth re-checking against an unbounded-growth file), CARD-0221 (the coverage-gap tolerance precedent this compares against), CARD-0346 (today's two hike starts that provided this card's real-world confirmation).
+Archived to `components/hiking-monitor/card-archive.md` on 2026-09-28 (CARD-0193) — 5877B, over the 5000B size threshold.
 
 ---
 

@@ -2101,8 +2101,8 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 13601
 
 ---
 
-### CARD-0234 · [bug] [hiking-monitor] GPSLogger errors "file didn't exist" on a normal hike start, self-heals on restart
-**Status:** Build
+### CARD-0234 · [bug] [hiking-monitor] GPSLogger errors "file didn't exist" on a normal hike start, self-heals on restart — RESOLVED 2026-09-28 17:36 MST
+**Status:** Done
 
 **Raised 2026-08-29 (Joseph), live incident during a hike start.** Starting GPSLogger produced an error saying a file didn't exist. Restarting GPSLogger worked cleanly — the file apparently got created by the failed attempt, since the retry succeeded with no further error. **Confirmed: a normal hike start, nothing unusual beforehand** (no recent phone reboot, no GPSLogger/Android update, no reinstall) — so this isn't tied to a one-off device event, it's either intermittent or has some other trigger not yet identified.
 
@@ -2118,9 +2118,11 @@ Archived to `components/hike-izer/CLAUDE.md` on 2026-09-10 (CARD-0193) — 13601
 
 **Real follow-on risk surfaced by this change, worth watching, not yet a problem:** the file no longer rotates per day — it will now accumulate every hike's rows indefinitely across the file's entire lifetime, not just one day's worth. CARD-0208's own open question ("whether Tasker's read-last-line approach is cheap enough... `gps-pipeline.md`'s own estimate: ~1,200 rows / ~75KB for a *10-hour hike*") was scoped against a single day's file — Mile Announcer's task reads and splits the **entire file** into lines every 2 minutes while running (per CARD-0208's build notes), so this file's size is now unbounded across the device's whole hiking history rather than capped at one day. Likely fine for a long while given typical hike frequency, but worth a real check (file size, Tasker read/split latency) after a few months of accumulated hikes — not blocking this card, but worth a note on CARD-0208 too.
 
-**Done when:** a real hike confirms GPSLogger starts cleanly with no "file does not exist" error using the new fixed filename — not just that the config change was made.
+**Done when:** a real hike confirms GPSLogger starts cleanly with no "file does not exist" error using the new fixed filename — not just that the config change was made. **Met, 2026-09-28.** Two real GPSLogger starts today (the rehearsal ~06:57 MST and a short follow-up test walk ~13:00 MST, both CARD-0346), Joseph confirmed directly: no "file didn't exist" error either time.
 
-**Related:** `components/hiking-monitor/gps-pipeline.md` (Custom URL Logger config, the in-app log-viewing method), CARD-0208 (Mile Announcer — the reason local CSV logging is enabled at all; its own `%todays_date.csv` naming is now superseded by this card's fixed-filename change, and its file-size/read-cost assumption is now worth re-checking against an unbounded-growth file), CARD-0221 (the coverage-gap tolerance precedent this compares against).
+**File-growth watch, checked 2026-09-28 (the follow-on risk this card's own text flagged at fix time, 2026-08-29).** `Download/gpslogger.csv` on the Pixel is **714KB** after exactly one month of accumulation (~12 hikes over that span, per this card's own history plus `kanban-board.md`'s hike-day entries) — same order of magnitude as CARD-0208's own ~75KB/10-hour-hike estimate would predict for that many shorter real hikes, not a surprise. **Not treated as a problem yet** — no observed Tasker read/split slowdown, no Mile Announcer misbehavior reported. Worth a real re-check (file size trend, actual Tasker read latency) again in another few months, since the file still has no rotation and will keep growing indefinitely by design.
+
+**Related:** `components/hiking-monitor/gps-pipeline.md` (Custom URL Logger config, the in-app log-viewing method), CARD-0208 (Mile Announcer — the reason local CSV logging is enabled at all; its own `%todays_date.csv` naming is now superseded by this card's fixed-filename change, and its file-size/read-cost assumption is now worth re-checking against an unbounded-growth file), CARD-0221 (the coverage-gap tolerance precedent this compares against), CARD-0346 (today's two hike starts that provided this card's real-world confirmation).
 
 ---
 

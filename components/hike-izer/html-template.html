@@ -528,6 +528,16 @@
 
   .narrative p { margin: 0 0 1rem; font-size: 1.02rem; }
 
+  /* CARD-0194: per-section data-source attribution, right under the h2 it
+     describes. Was missing from this reference copy entirely (found live,
+     CARD-0285) -- templating.py's _HTML_STYLE (the automated pipeline's
+     actual copy, what every real published page uses) had it, this file
+     didn't; ported from there now, including the CARD-0285 table+.data-source
+     fix, so the two stay in sync per this file's own "copy the style block
+     verbatim" role (SKILL.md step 5). */
+  .data-source { color: var(--ink-muted); font-size: 0.78rem; font-style: italic; margin: -0.6rem 0 1rem; }
+  table + .data-source { margin-top: 1.25rem; }
+
   table {
     width: 100%;
     border-collapse: collapse;

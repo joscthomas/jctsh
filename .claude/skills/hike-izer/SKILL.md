@@ -233,18 +233,34 @@ section.
    a `from JCTsh Air Quality Monitor` caption, then a table with PM1.0,
    PM2.5, PM4.0, PM10 (each `"{min:.1f}–{max:.1f} µg/m³"` from
    `stats.aqm_pm1_ug_m3`/`aqm_pm25_ug_m3`/`aqm_pm4_ug_m3`/`aqm_pm10_ug_m3`),
-   and VOC Index, NOx Index (each `"{min:.0f}–{max:.0f}"`, no unit --
+   VOC Index, NOx Index (each `"{min:.0f}–{max:.0f}"`, no unit --
    Sensirion's own dimensionless 1-500 index scale, from
-   `stats.aqm_voc_index`/`aqm_nox_index`). Same "not available" convention
-   as every other row in this section when a given field's range is `None`.
-   Independent omit-when-empty check from the hiking-monitor table above --
-   checked against these six `aqm_*` stats, not against whether the
-   hiking-monitor table itself rendered, so a hike with AQM but (somehow)
-   no hiking-monitor data still shows this table on its own, and vice versa.
-   Exactly mirrors `components/hike-izer-orchestrator/templating.py`'s
+   `stats.aqm_voc_index`/`aqm_nox_index` -- no official low/medium/high
+   banding exists for this scale the way UV Index has a real EPA/WHO
+   standard, checked directly against Sensirion's own documentation before
+   assuming one; 100 is the self-calibrating "typical recent" baseline,
+   above means more than usual right now, not an absolute hazard level),
+   and **Battery Voltage**/**Battery Discharge Rate** (AQM's own separate
+   LiPo, CARD-0012 -- same format/fixed-window convention as the
+   hiking-monitor table's own battery rows above, from
+   `stats.aqm_battery_v`/`aqm_battery_window_crossing_min`, **plain text,
+   never a link** -- `battery-trend.html` only ever plots hiking-monitor's
+   own data, linking this row to it would be wrong). Same "not available"
+   convention as every other row in this section when a given field's
+   range is `None`. Independent omit-when-empty check from the
+   hiking-monitor table above -- checked against these eight `aqm_*`
+   stats, not against whether the hiking-monitor table itself rendered, so
+   a hike with AQM but (somehow) no hiking-monitor data still shows this
+   table on its own, and vice versa. Exactly mirrors
+   `components/hike-izer-orchestrator/templating.py`'s
    `aqm_summary_rows()`/`has_aqm_data` -- the automated pipeline's own
    version of this same table -- so a manually-built page and an
-   automatically-published one read identically.
+   automatically-published one read identically. **The `.data-source`
+   caption CSS (`html-template.html`) needs a `table + .data-source`
+   override, not just the default rule** -- found live, CARD-0285: the
+   existing rule's negative top margin was tuned for sitting directly
+   under an `<h2>` and pulled this second caption up into the
+   hiking-monitor table's bottom border when copied verbatim without it.
 
    **Environmental Data (CARD-0204, renamed from "Environmental Data
    Chart" and moved into `.hike-visuals-col`, stacked with Elevation &

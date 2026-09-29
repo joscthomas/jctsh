@@ -326,6 +326,15 @@ def aqm_summary_rows(hike_data):
         ("PM10", _range_display(stats.get("aqm_pm10_ug_m3"), " µg/m³")),
         ("VOC Index", _range_display(stats.get("aqm_voc_index"), decimals=0)),
         ("NOx Index", _range_display(stats.get("aqm_nox_index"), decimals=0)),
+        # AQM carries its own battery (CARD-0012's EEMB 1100mAh LiPo, not
+        # hiking-monitor's) -- same _battery_discharge_display() helper as
+        # the hiking-monitor table, just against the aqm_* stat. Rendered
+        # through plain _esc() below (not _env_row_label_cell), so this
+        # label never becomes a link -- battery-trend.html only ever
+        # plots hiking-monitor's own data (see its own module docstring),
+        # linking this row to it would be wrong.
+        ("Battery Voltage", _range_display(stats.get("aqm_battery_v"), "V", decimals=2)),
+        ("Battery Discharge Rate", _battery_discharge_display(stats.get("aqm_battery_window_crossing_min"))),
     ]
 
 
@@ -1036,8 +1045,17 @@ _HTML_STYLE = """
   /* CARD-0194: per-section data-source attribution, right under the h2 it
      describes -- deliberately its own line rather than appended to the h2
      text, so it doesn't compete with the uppercase/letter-spaced heading
-     style above. */
+     style above. margin-top: -0.6rem pulls it up snug against the h2
+     above (h2's own margin-bottom: 1rem is more than this line needs).
+     CARD-0285: that negative margin only ever made sense directly under
+     an h2 -- the AQM stats table added a second .data-source right after
+     a <table> instead, where the same negative value pulled the caption
+     up into the first table's bottom border instead of leaving it room.
+     table + .data-source overrides back to a normal positive gap for
+     that specific case; h2 + .data-source (unchanged selector) keeps the
+     original snug look everywhere else. */
   .data-source { color: var(--ink-muted); font-size: 0.78rem; font-style: italic; margin: -0.6rem 0 1rem; }
+  table + .data-source { margin-top: 1.25rem; }
   /* CARD-0278: same fix as wildlife.html's own table rule -- position:
      sticky on <th> is broken in Chromium under border-collapse: collapse
      (found from a real screenshot on wildlife.html; this table shares the

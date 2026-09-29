@@ -359,6 +359,14 @@ def compute_stats(env_rows, gps_rows, aqm_rows=None):
         'aqm_pm10_ug_m3': rng(aqm_rows, 'pm10_ug_m3'),
         'aqm_voc_index': rng(aqm_rows, 'voc_index'),
         'aqm_nox_index': rng(aqm_rows, 'nox_index'),
+        # AQM carries its own battery (CARD-0012's own EEMB 1100mAh LiPo,
+        # not hiking-monitor's) -- same rng()/_battery_window_crossing_min()
+        # helpers as hiking-monitor's battery_v/battery_window_crossing_min
+        # above, just against aqm_rows. The fixed 4.00V->3.70V window is a
+        # LiPo discharge-curve reference point, not hiking-monitor-specific,
+        # so it's an equally valid comparison window for AQM's own LiPo.
+        'aqm_battery_v': rng(aqm_rows, 'battery_v'),
+        'aqm_battery_window_crossing_min': _battery_window_crossing_min(aqm_rows),
     }
 
 

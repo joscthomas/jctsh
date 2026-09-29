@@ -9,9 +9,35 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0367 -->
+<!-- next-card-id: CARD-0370 -->
 
 ---
+
+### CARD-0369 · [bug] [data-pipeline] Node-RED Sheet Health flow still describes/probes the retired Google Sheet -- update to the data-pipeline-api gateway
+
+**Status:** Backlog
+
+**Raised 2026-09-29 11:50 MST (general session, Log Dashboard scan).** `core/data-pipeline/sheet-health.flow.json` was last changed 2026-09-25 (CARD-0338), before CARD-0349's cutover. Its comments still say it probes "the environmental Google Sheet" with `action=version`, and its "GET action=health" HTTP node has a blank URL in the repo export. Overnight 2026-09-29 the dashboard showed six `sheet-health` Alerts worded "the environmental Sheet is failing or slow" -- not established whether those came from this flow or from `sheet_health.py`'s orchestrator use, and the live flow on Node-RED was not inspected.
+
+**Done when:** (1) the live flow's probe target is confirmed (Node-RED editor or `/data` export); (2) it probes `data-pipeline-api`'s `/health`, alert wording says gateway/database not "Sheet", and the repo export matches live; (3) the component name `sheet-health` is either kept deliberately or renamed with dashboard/watchdog references updated. Related: CARD-0338, CARD-0349, CARD-0366.
+
+### CARD-0368 · [enhancement] [hike-izer] Clean up stale Apps Script/"Phase 2, not migrated" wording in `fetch_hike_data.py` and sibling docstrings
+
+**Status:** Backlog
+
+**Raised 2026-09-29 11:50 MST (general session).** `components/hike-izer/fetch_hike_data.py`'s header still says the Apps Script/Sheets path (`fetch_sheet()`) is "Phase 2, not migrated yet" and shows a `--url <APPS_SCRIPT_DEPLOYMENT_URL>` usage line, but `--data-pipeline-url` is now the only required source (Phase 2 landed in `e954bcf`, 2026-09-29 08:23 MST). The stale wording is what a 05:00 backstop alert ran into: the deployed container still passed `--url` and `fetch_hike_data.py` exited with argparse status 2 (fixed by the 09:43 redeploy).
+
+**Done when:** docstring/usage/comment references to the Apps Script path are removed or marked historical, any dead `fetch_sheet()` code and its `--url`/`--key` handling is deleted if unused, and `grep -rni "apps script\|fetch_sheet" components/hike-izer*` returns only deliberate history notes. Related: CARD-0349, CARD-0366.
+
+### CARD-0367 · [bug] [hike-izer] Alert text leaked a live API key onto the dashboard -- subprocess failures embedded full argv in MQTT alerts
+
+**Status:** Build
+
+**Raised 2026-09-29 11:50 MST (general session, Log Dashboard scan).** The 2026-09-29 05:00 backstop alert ("Backstop check itself failed to probe GPS Track data: Command [...]") published `str(CalledProcessError)`, which includes every argv element including `--key <API_KEY>`. It reached MQTT, `jctsh.log` and the dashboard. Same shape earlier on 2026-09-21 (hike summary step 1 alert). Any `subprocess.run(check=True)` failure in the orchestrator that gets published has this problem, now including `--data-pipeline-key`.
+
+**Fix built 2026-09-29 11:50 MST:** `mqtt_log.redact()` scrubs `--key`/`--*-key`/`--token`/`--password` argv values (list-repr and `--key value` forms) and `key=`/`token=` query params, applied inside `mqtt_log.publish_log()` and `ha_notify.send_push()` so no call site has to remember. Unit-checked against both real leak shapes. **Not yet deployed** (needs orchestrator image rebuild on m8) and not committed to a running container.
+
+**Still to do:** deploy; the old Apps Script key that already sits in `jctsh.log*` on the Pi (and any MQTT retention) -- decide whether to rotate it (endpoint is now write-retired) and whether to scrub the log lines; stderr `print()` paths (`docker logs`) still show full argv and were left alone. Related: CARD-0349.
 
 ### CARD-0366 · [enhancement] [data-pipeline] Rewrite the data-pipeline operational docs for data-pipeline-api -- README/architecture doc still describe the retired Apps Script
 

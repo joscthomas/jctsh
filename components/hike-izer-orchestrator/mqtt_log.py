@@ -11,6 +11,7 @@ publish()-then-disconnect() was found to drop QoS-1 messages in production
 
 import json
 import os
+import re
 import sys
 
 import paho.mqtt.client as mqtt
@@ -21,6 +22,21 @@ COMPONENT = "hike-izer-orchestrator"
 TOPIC = "jctsh/hike-izer/publish/log"
 
 
+# Subprocess failures format the whole argv into str(CalledProcessError), which
+# lands in alert text -> MQTT -> jctsh.log/dashboard (and HA pushes). That put a
+# live API key on the dashboard 2026-09-29 (hike-izer backstop alert). Scrub at
+# the publish boundary so no call site has to remember to.
+_ARGV_KEY_RE = re.compile(r"""(['"]--(?:[\w-]+-)?(?:key|token|password)['"]\s*,\s*)(['"])(.*?)\2""")
+_ARGV_KEY_EQ_RE = re.compile(r"(--(?:[\w-]+-)?(?:key|token|password)[= ])(\S+)")
+_QUERY_KEY_RE = re.compile(r"((?:[?&]|\b)(?:key|api_key|token|password)=)[^&\s'\"]+", re.IGNORECASE)
+
+
+def redact(text):
+    text = _ARGV_KEY_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}<redacted>{m.group(2)}", str(text))
+    text = _ARGV_KEY_EQ_RE.sub(r"\1<redacted>", text)
+    return _QUERY_KEY_RE.sub(r"\1<redacted>", text)
+
+
 def publish_log(category, message, component=None):
     """CARD-0225: component defaults to this container's own identity
     (every existing call site) but can be overridden -- the new
@@ -28,6 +44,7 @@ def publish_log(category, message, component=None):
     Hike Start Forecast log lines through this same MQTT connection, and
     those should show up on the dashboard tagged as their own pipeline,
     not lumped under "hike-izer-orchestrator"."""
+    message = redact(message)
     username = os.environ.get("MQTT_USERNAME")
     password = os.environ.get("MQTT_PASSWORD")
     if not username or not password:

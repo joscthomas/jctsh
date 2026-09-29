@@ -16,6 +16,8 @@ import os
 import sys
 import urllib.request
 
+import mqtt_log
+
 NOTIFY_SERVICE = "mobile_app_pixel_10_pro_xl"
 
 
@@ -26,7 +28,7 @@ def send_push(title, message, url=None):
         print(f"[ha_notify] HA_URL/HA_TOKEN not set -- skipping push: {message}", file=sys.stderr, flush=True)
         return
 
-    payload = {"title": title, "message": message}
+    payload = {"title": title, "message": mqtt_log.redact(message)}
     if url:
         # CARD-0183: clickAction is the field the HA companion app reads to
         # make tapping the notification open a link -- without it the URL

@@ -1053,9 +1053,9 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-22 (CARD-0193) —
 
 ---
 
-### CARD-0285 · [enhancement] [hike-izer] Carry air-quality-monitor's sensor data through the pipeline and onto the hike-izer web page
+### CARD-0285 · [enhancement] [hike-izer] Carry air-quality-monitor's sensor data through the pipeline and onto the hike-izer web page — RESOLVED 2026-09-28
 
-**Status:** Build
+**Status:** Done
 
 **Auto-opened from jctsh-core's maintenance check (PR #86).** Raw finding: adjustments to hikizer for air quality monitor.
 
@@ -1094,7 +1094,9 @@ Archived to `components/hike-izer/card-archive.md` on 2026-09-22 (CARD-0193) —
 
 **Built and live-verified same session: a glossary page explaining these measurements, linked from the AQM caption.** `components/hike-izer/air-quality-glossary.html` -- a standalone, static reference page (never regenerated, deployed once like `vendor/leaflet/`) explaining PM1.0-10/µg/m³ and the VOC/NOx index scale in plain language, content grounded directly in `air-quality-monitor/operations.md`'s own verified measurement table plus the Sensirion documentation already checked above (including the "no official banding" caveat, written down for future readers, not just said in chat). Caption in both `templating.py` and the `SKILL.md` manual-flow instructions now reads `from JCTsh Air Quality Monitor · what do these mean?`, linking to it. Needed one more small CSS addition (`.data-source a { color: var(--accent); }`, ported to both `templating.py` and `html-template.html`) since no link had ever sat inside a `.data-source` caption before and would otherwise render as an unstyled default-blue link against the muted italic line. Deployed (the static page once, `templating.py` rebuilt) and verified on the real regenerated page -- caption, link, and the glossary page itself (`HTTP 200`, real content) all live.
 
-**Done when:** a real hike with both devices active shows a `from JCTsh Air Quality Monitor` labeled table in the Environmental Data Tracking section (min/max for all six fields), matching the existing hiking-monitor table's visual pattern, on both the automated (`templating.py`) and manual (`SKILL.md`/`html-template.html`) paths, verified against a real hike's actual page. **Automated path: done, live-verified above. Manual path: docs updated, not separately verified** -- Joseph's call on whether that's good enough to close this card, given the manual flow is the fallback path (SKILL.md: "not the normal path for a recent, already-triggered hike"), not what actually publishes real hikes today.
+**Done when:** a real hike with both devices active shows a `from JCTsh Air Quality Monitor` labeled table in the Environmental Data Tracking section (min/max for all six fields), matching the existing hiking-monitor table's visual pattern, on both the automated (`templating.py`) and manual (`SKILL.md`/`html-template.html`) paths, verified against a real hike's actual page. **Automated path: done, live-verified above. Manual path: docs updated, not separately verified.**
+
+**Closed 2026-09-28 (Joseph: "close it").** Explicit decision, not a default: the manual/interactive flow's own prose was kept current with every change made in this pass (AQM table, battery rows, spacing fix, glossary link) but never separately exercised end-to-end -- accepted as sufficient given that path is the backfill fallback only (`SKILL.md`: "not the normal path for a recent, already-triggered hike"), not what publishes any real hike today. If `SKILL.md`'s own AQM section ever produces a visibly wrong manual page, that's a fresh finding against this closure, not a sign this decision was wrong at the time.
 
 **Related:** CARD-0012 (air-quality-monitor's own build), `components/hike-izer/fetch_hike_data.py` (`compute_stats`, `ENV_CHART_FIELDS`, `AQM_CHART_FIELDS`, `--source` filtering), `components/hike-izer-orchestrator/templating.py` (`data_summary_rows`, `env_tracking_section` -- the automated pipeline's own renderer), `components/hike-izer/build_hike_chart.py` (`ENV_CHART_MODES`), `components/hike-izer/html-template.html` (Environmental Data chart, the manual-flow reference).
 

@@ -114,20 +114,24 @@ def update_from_hike(file_stem, date_str, birdnet_rows, archived_species=None, p
 
 
 def rebuild_from_sheets(export_url, export_key, path=LIFE_LIST_PATH):
-    """CARD-0229: recovery tool, not part of the regular generation flow --
-    reconstructs the local life-list cache from scratch from the "Wildlife
-    Detections" sheet's full history (the sheet is now the durable source
-    of truth; this file is a rebuildable cache of it, per that card's own
-    decision). Replays every hike's rows through update_from_hike() in
-    chronological order, reusing its existing merge/idempotency logic
-    rather than duplicating it -- the only new part here is fetching and
-    grouping the Sheets data. Overwrites `path` unconditionally; caller's
-    job to back it up first if that matters."""
-    url = export_url + "?" + urllib.parse.urlencode({"key": export_key, "action": "export", "sheet": "Wildlife Detections"})
-    with urllib.request.urlopen(url, timeout=60) as resp:
+    """CARD-0229, cut over to data-pipeline-api CARD-0349 Phase 2: recovery
+    tool, not part of the regular generation flow -- reconstructs the local
+    life-list cache from scratch from the wildlife_detections table's full
+    history (the database is now the durable source of truth; this file is
+    a rebuildable cache of it, per that card's own decision). Replays every
+    hike's rows through update_from_hike() in chronological order, reusing
+    its existing merge/idempotency logic rather than duplicating it -- the
+    only new part here is fetching and grouping the gateway's data.
+    Overwrites `path` unconditionally; caller's job to back it up first if
+    that matters. `export_url`/`export_key` are now DATA_PIPELINE_URL/
+    DATA_PIPELINE_KEY, not the old APPS_SCRIPT_* pair -- kept as generic
+    parameter names since the function signature is otherwise unchanged."""
+    url = export_url + "/export?" + urllib.parse.urlencode({"key": export_key, "table": "wildlife_detections"})
+    req = urllib.request.Request(url, headers={"User-Agent": "jctsh-hike-izer/1.0"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
         result = json.loads(resp.read())
     if result.get("status") != "ok":
-        raise RuntimeError(f"Apps Script export failed: {result}")
+        raise RuntimeError(f"data-pipeline-api export failed: {result}")
 
     by_hike = {}
     for row in result.get("rows", []):
@@ -139,7 +143,7 @@ def rebuild_from_sheets(export_url, export_key, path=LIFE_LIST_PATH):
             "scientific_name": row.get("scientific_name"),
             "count": row.get("count"),
             "best_confidence": row.get("best_confidence"),
-            "first_timestamp": row.get("timestamp"),
+            "first_timestamp": row.get("ts"),
         })
 
     if os.path.exists(path):
@@ -156,12 +160,12 @@ if __name__ == "__main__":
     # CARD-0229: manual recovery only -- e.g.
     #   docker exec hike-izer-orchestrator python3 -c "
     #     import wildlife_life_list, os
-    #     wildlife_life_list.rebuild_from_sheets(os.environ['APPS_SCRIPT_URL'], os.environ['APPS_SCRIPT_KEY'])"
-    # or run this file directly with APPS_SCRIPT_URL/APPS_SCRIPT_KEY already in the environment.
-    url = os.environ.get("APPS_SCRIPT_URL")
-    key = os.environ.get("APPS_SCRIPT_KEY")
+    #     wildlife_life_list.rebuild_from_sheets(os.environ['DATA_PIPELINE_URL'], os.environ['DATA_PIPELINE_KEY'])"
+    # or run this file directly with DATA_PIPELINE_URL/DATA_PIPELINE_KEY already in the environment.
+    url = os.environ.get("DATA_PIPELINE_URL")
+    key = os.environ.get("DATA_PIPELINE_KEY")
     if not url or not key:
-        print("APPS_SCRIPT_URL and APPS_SCRIPT_KEY must be set in the environment.", file=sys.stderr)
+        print("DATA_PIPELINE_URL and DATA_PIPELINE_KEY must be set in the environment.", file=sys.stderr)
         raise SystemExit(1)
     n = rebuild_from_sheets(url, key)
-    print(f"Rebuilt {LIFE_LIST_PATH} from {n} hike(s) in the Wildlife Detections sheet.")
+    print(f"Rebuilt {LIFE_LIST_PATH} from {n} hike(s) in the wildlife_detections table.")

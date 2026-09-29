@@ -53,41 +53,12 @@ FETCH_RETRY_ATTEMPTS = 5
 FETCH_RETRY_BACKOFF_SEC = (3, 6, 12, 24)
 
 # CARD-0349: found live -- Cloudflare's Bot Fight Mode (fronting
-# hikes.jctnet.com, the new gateway's own exposure) silently 403s Python
+# hikes.jctnet.com, data-pipeline-api's own exposure) silently 403s Python
 # urllib's default User-Agent ('Python-urllib/3.x', a commonly-blocklisted
-# signature) before the request ever reaches data-pipeline-api. A curl-like
-# or any other identifiable, non-default UA passes -- confirmed both work,
-# used the honest one. Doesn't matter for fetch_sheet() (script.google.com,
-# not behind Cloudflare) but set on both requests for consistency.
+# signature) before the request ever reaches the gateway. A curl-like or
+# any other identifiable, non-default UA passes -- confirmed both work,
+# used the honest one.
 _REQUEST_HEADERS = {'User-Agent': 'jctsh-hike-izer/1.0'}
-
-
-def fetch_sheet(base_url, api_key, sheet, start, end):
-    params = {
-        'key': api_key,
-        'action': 'export',
-        'sheet': sheet,
-        'start': start,
-        'end': end,
-    }
-    url = base_url + '?' + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers=_REQUEST_HEADERS)
-    for attempt in range(1, FETCH_RETRY_ATTEMPTS + 1):
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-            break
-        except (urllib.error.HTTPError, urllib.error.URLError) as e:
-            if attempt == FETCH_RETRY_ATTEMPTS:
-                raise
-            print(
-                f"fetch_sheet: attempt {attempt}/{FETCH_RETRY_ATTEMPTS} failed for sheet={sheet} ({e}) -- retrying",
-                file=sys.stderr,
-            )
-            time.sleep(FETCH_RETRY_BACKOFF_SEC[attempt - 1])
-    if data.get('status') != 'ok':
-        raise RuntimeError(f"Export failed for sheet={sheet}: {data.get('message')}")
-    return data['rows']
 
 
 def fetch_table(base_url, api_key, table, start, end):
@@ -1309,13 +1280,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--start', required=True, help='ISO 8601 UTC start, e.g. 2026-06-15T00:00:00Z')
     ap.add_argument('--end', required=True, help='ISO 8601 UTC end, e.g. 2026-06-29T23:59:59Z')
-    ap.add_argument('--url', required=True,
-                     help='Apps Script deployment URL (ends in /exec) -- still serves Hiking '
-                          'Observations/Hike Start Forecast (CARD-0349 Phase 2, not migrated yet)')
-    ap.add_argument('--key', required=True, help='API_KEY for the Apps Script endpoint')
     ap.add_argument('--data-pipeline-url', required=True,
-                     help='CARD-0349 Phase 1: TimescaleDB gateway base URL (data-pipeline-api), '
-                          'e.g. https://hikes.jctnet.com/data -- serves Environmental Data + GPS Track')
+                     help='CARD-0349: TimescaleDB gateway base URL (data-pipeline-api), '
+                          'e.g. https://hikes.jctnet.com/data -- serves all 5 tables as of '
+                          '2026-09-29 (Environmental Data, GPS Track, Hike Start Forecast, '
+                          'Wildlife Detections, Hiking Observations); the old Apps Script is '
+                          'no longer read from here')
     ap.add_argument('--data-pipeline-key', required=True, help='API_KEY for the TimescaleDB gateway')
     ap.add_argument('--out', required=True, help='Path to write the output JSON')
     ap.add_argument('--sun-sample-every', type=int, default=20,
@@ -1350,7 +1320,7 @@ def main():
           + (f' (also saw: {other_sources})' if other_sources else ''))
 
     print('Fetching Hiking Observations...')
-    obs_rows = fetch_sheet(args.url, args.key, 'Hiking Observations', args.start, args.end)
+    obs_rows = fetch_table(args.data_pipeline_url, args.data_pipeline_key, 'hiking_observations', args.start, args.end)
     print(f'  {len(obs_rows)} rows')
 
     print('Fetching GPS Track...')
@@ -1358,17 +1328,11 @@ def main():
     print(f'  {len(gps_rows)} rows')
 
     print('Fetching Hike Start Forecast...')
-    try:
-        forecast_rows = fetch_sheet(args.url, args.key, 'Hike Start Forecast', args.start, args.end)
-    except RuntimeError as e:
-        # The sheet is self-provisioning (created by environmental-data.gs on
-        # first capture) -- until a forecast has ever been captured, it may
-        # not exist yet. Treat that as "no forecast for this window," not a
-        # hard failure.
-        if 'unknown sheet' in str(e):
-            forecast_rows = []
-        else:
-            raise
+    # CARD-0349: hike_start_forecast is a real table from creation (no
+    # longer the old sheet's self-provisioning-on-first-capture shape), so
+    # the "table doesn't exist yet" fallback this used to need is gone --
+    # an empty window just returns zero rows normally.
+    forecast_rows = fetch_table(args.data_pipeline_url, args.data_pipeline_key, 'hike_start_forecast', args.start, args.end)
     print(f'  {len(forecast_rows)} rows')
 
     coverage = analyze_coverage(env_rows, gps_rows, obs_rows, start_dt, end_dt)

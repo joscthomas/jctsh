@@ -122,14 +122,13 @@ def _env(name):
 
 
 def _post_wildlife_detection(row, file_stem):
-    """CARD-0229: archives one species-per-hike row to the "Wildlife
-    Detections" sheet, via the same Apps Script doPost every other
-    component already posts to. Direct HTTP, not MQTT -- no fan-out
-    need, same fixed one-producer-one-consumer shape GPS Track/Hiking
-    Observations already use. Raises on failure; caller decides how to
-    handle it."""
+    """CARD-0229, cut over to data-pipeline-api CARD-0349 Phase 2: archives
+    one species-per-hike row via the new gateway's explicit /wildlife-detection
+    route (no more hidden "component" key -- Phase 1's own redesign decision,
+    applied here too). Direct HTTP, not MQTT -- no fan-out need, same fixed
+    one-producer-one-consumer shape GPS Track/Hiking Observations already
+    use. Raises on failure; caller decides how to handle it."""
     payload = {
-        "component": "wildlife-detection",
         "ts": row["first_timestamp"],
         "hike_file_stem": file_stem,
         "common_name": row["common_name"],
@@ -142,23 +141,22 @@ def _post_wildlife_detection(row, file_stem):
         "lat": row.get("lat"),
         "lon": row.get("lon"),
     }
-    url = _env("APPS_SCRIPT_URL") + "?key=" + _env("APPS_SCRIPT_KEY")
+    url = _env("DATA_PIPELINE_URL") + "/wildlife-detection?key=" + _env("DATA_PIPELINE_KEY")
     req = urllib.request.Request(
         url, method="POST", data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "User-Agent": "jctsh-hike-izer/1.0"},
     )
     with urllib.request.urlopen(req, timeout=20) as resp:
         result = json.loads(resp.read())
-    # CARD-0276: "duplicate" (the Apps Script's own dedup guard on
+    # CARD-0276: "duplicate" (the gateway's own dedup guard on
     # (hike_file_stem, scientific_name)) counts as success, not failure --
     # this is what makes _archive_new_wildlife_detections' per-row retry
     # actually safe. Without server-side dedup, a client-side retry after
-    # a read timeout (the write can commit before Apps Script's response
-    # makes it back) silently double-posted real rows -- confirmed live
-    # 2026-09-17 (2x Verdin, 3x House Finch on one hike) before this guard
-    # existed.
+    # a read timeout (the write can commit before the response makes it
+    # back) silently double-posted real rows -- confirmed live 2026-09-17
+    # (2x Verdin, 3x House Finch on one hike) before this guard existed.
     if result.get("status") not in ("ok", "duplicate"):
-        raise RuntimeError(f"Apps Script rejected wildlife-detection POST: {result}")
+        raise RuntimeError(f"data-pipeline-api rejected wildlife-detection POST: {result}")
 
 
 def _post_hike_cost(file_stem, run_type, tracker):
@@ -413,7 +411,6 @@ def _detect_session_window(payload, date_str, offset_str):
             [
                 sys.executable, FETCH_DATA_SCRIPT,
                 "--start", day_start_iso, "--end", day_end_iso,
-                "--url", _env("APPS_SCRIPT_URL"), "--key", _env("APPS_SCRIPT_KEY"),
                 "--data-pipeline-url", _env("DATA_PIPELINE_URL"), "--data-pipeline-key", _env("DATA_PIPELINE_KEY"),
                 "--out", probe_path,
             ],
@@ -607,15 +604,15 @@ def _fetch_hike_data(start_iso, end_iso, hike_data_path):
     """CARD-0214/CARD-0348: extracted so every generate() call -- the first
     pass and every later catch-up pass alike -- issues the identical query,
     not one inline subprocess call duplicated across two separate functions. fetch_hike_data.py is a
-    pure, stateless query against the Apps Script/Sheet for a fixed window
-    -- safe and correct to re-run any number of times; a later call just
-    naturally picks up whatever rows have landed in the Sheet since the
-    previous one, no merge logic needed on this side."""
+    pure, stateless query against data-pipeline-api (CARD-0349: all 5
+    tables, as of 2026-09-29) for a fixed window -- safe and correct to
+    re-run any number of times; a later call just naturally picks up
+    whatever rows have landed since the previous one, no merge logic
+    needed on this side."""
     subprocess.run(
         [
             sys.executable, FETCH_DATA_SCRIPT,
             "--start", start_iso, "--end", end_iso,
-            "--url", _env("APPS_SCRIPT_URL"), "--key", _env("APPS_SCRIPT_KEY"),
             "--data-pipeline-url", _env("DATA_PIPELINE_URL"), "--data-pipeline-key", _env("DATA_PIPELINE_KEY"),
             "--out", hike_data_path,
         ],

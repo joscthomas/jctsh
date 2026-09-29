@@ -130,6 +130,20 @@ when you speak, the observation sends right away with no queueing at all.
 
 ---
 
+## Section 3a — Staged cutover to data-pipeline-api (CARD-0349 Phase 2, 2026-09-29)
+
+**Not yet live — this section documents a built-and-verified server-side target, waiting on a phone-side change.** Environmental Data/GPS Track/Hike Start Forecast/Wildlife Detections have already moved off the Apps Script onto `data-pipeline-api` (the TimescaleDB gateway); Hiking Observations is the one remaining table, staged and ready. Server-side work is done and tested (synthetic POST + dedup retry both verified live 2026-09-29); what's left is entirely the Tasker-side URL swap below — the same kind of phone-config-only change GPSLogger's own CARD-0349 cutover needed (`gps-pipeline.md`).
+
+**What changes in Tasker's "Flush Observation Queue" task, Action 8 (HTTP Request):**
+- **URL:** from the old Apps Script deployment URL to `https://hikes.jctnet.com/data/hiking-observations`
+- **Query parameter:** `key=` changes from the old `APPS_SCRIPT_KEY` value to the new `DATA_PIPELINE_KEY` value (`credentials.local.md`, "data-pipeline-api" section)
+- **JSON body:** unchanged -- still `ts`/`observation`/`lat`/`lon`/`categories`/`source`, the new route accepts the exact same payload shape (the server computes categories/GPS itself either way, same as the old script did)
+- **Everything else** (queue/retry/flush logic, failure behavior, auto-flush triggers) is untouched -- this is a URL+key swap only, same class of change as GPSLogger's own cutover.
+
+**Server-side verified 2026-09-29:** a synthetic observation ("Saw a hawk near a saguaro, felt really hot and dusty on the trail") correctly categorized as `{vegetation, wildlife, weather, visibility, air_quality, trail}` -- matches the old script's keyword-scan logic exactly, including the deliberate double-match on "dusty" (present in both the `visibility` and `air_quality` keyword lists). A retried POST of the same `ts` correctly returned `{"status": "duplicate", ...}` rather than a second row.
+
+**Once Joseph makes this change:** the next real observation is the live-verification step (confirm it lands via `GET /export?table=hiking_observations`), then `fetch_hike_data.py` needs its own read-side cutover (still reads the old Apps Script's `action=export&sheet=Hiking Observations` as of this writing) -- a follow-on, not done as part of staging this write path.
+
 ## Section 4 — Known gaps / not yet built
 
 - **Home-screen widget placement** is currently flaky on this device (Tasker

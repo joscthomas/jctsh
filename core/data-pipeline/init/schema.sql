@@ -69,3 +69,54 @@ CREATE TABLE gps_track (
   direction   double precision
 );
 SELECT create_hypertable('gps_track', 'ts');
+
+-- Hike Start Forecast: one row per detected hike session (CARD-0083/CARD-0097/
+-- CARD-0115's session-gap logic, ported from environmental-data.gs's
+-- _maybeCaptureHikeStartForecast -- CARD-0349 Phase 2). Not a hypertable --
+-- CARD-0349's own comparison already judged this table "barely time-series
+-- at all, a handful of rows", unlike environmental_data/gps_track.
+CREATE TABLE hike_start_forecast (
+  ts            timestamptz PRIMARY KEY,
+  date_local    text,
+  lat           double precision,
+  lon           double precision,
+  temp_f        double precision,
+  precip_pct    double precision,
+  wind_mph      double precision,
+  humidity_pct  double precision,
+  uv_index      double precision,
+  provider      text
+);
+
+-- Hiking Observations: one row per Tasker voice note (CARD-0156, ported from
+-- environmental-data.gs's hiking-observations branch -- CARD-0349 Phase 2).
+-- categories is a real array here, not JSON.stringify()'d into a text
+-- column like the old sheet -- nothing downstream (fetch_hike_data.py)
+-- parses it back out, it's carried through raw either way.
+CREATE TABLE hiking_observations (
+  ts           timestamptz PRIMARY KEY,
+  observation  text NOT NULL,
+  categories   text[],
+  source       text,
+  lat          double precision,
+  lon          double precision
+);
+
+-- Wildlife Detections: one row per species per hike (CARD-0229/CARD-0235/
+-- CARD-0276, ported from environmental-data.gs's wildlife-detection branch --
+-- CARD-0349 Phase 2). Dedup key matches the old sheet's own identity guard
+-- (hike_file_stem, scientific_name), not (ts, source) -- identity dedup,
+-- first write wins: a retried POST of an already-committed detection
+-- (CARD-0276's own read-timeout-after-real-commit case) is a no-op
+-- duplicate, never an overwrite of the existing row.
+CREATE TABLE wildlife_detections (
+  ts               timestamptz NOT NULL,
+  hike_file_stem   text NOT NULL,
+  common_name      text,
+  scientific_name  text NOT NULL,
+  count            integer,
+  best_confidence  double precision,
+  lat              double precision,
+  lon              double precision,
+  PRIMARY KEY (hike_file_stem, scientific_name)
+);

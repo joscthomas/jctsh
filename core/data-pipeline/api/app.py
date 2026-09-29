@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """
-data-pipeline-api -- CARD-0349 Phase 1. Replaces
-core/data-pipeline/environmental-data.gs for Environmental Data + GPS Track
-only (Phase 2 covers Hiking Observations/Wildlife Detections/Hike Start
-Forecast, not built yet). Design doc: core/data-pipeline/timescaledb-design.md.
+data-pipeline-api -- CARD-0349 Phase 1 + Phase 2 (Wildlife Detections, Hike
+Start Forecast -- scat-detection deliberately excluded, retired before this
+migration; Hiking Observations still staged pending Tasker's own URL cutover,
+a phone-side change). Replaces core/data-pipeline/environmental-data.gs.
+Design doc: core/data-pipeline/timescaledb-design.md.
 
 Explicit per-purpose routes (not one POST keyed on a hidden `component`
 string, per Joseph's decision to redesign rather than preserve
@@ -23,6 +24,8 @@ import hmac
 import json
 import os
 import sys
+import urllib.error
+import urllib.request
 from datetime import datetime, date, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
@@ -33,7 +36,7 @@ import psycopg2.extras
 import psycopg2.pool
 import psycopg2.sql
 
-VERSION = "2026-09-28.1"  # action=version fingerprint, same "confirm a
+VERSION = "2026-09-29.1"  # action=version fingerprint, same "confirm a
 # redeploy actually landed" convention as environmental-data.gs's own
 # SCRIPT_VERSION.
 
@@ -43,6 +46,14 @@ DB_HOST = os.environ.get("DB_HOST", "timescaledb")
 DB_NAME = os.environ.get("DB_NAME", "jctsh")
 DB_USER = os.environ.get("DB_USER", "jctsh")
 DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
+
+# CARD-0349 Phase 2: this container has no MQTT client of its own (same
+# constraint environmental-data.gs had -- see CLAUDE.md's "MQTT vs Direct
+# HTTP" section), so dashboard visibility for GPS Track/Hike Start Forecast/
+# Wildlife Detections goes through hike-izer-orchestrator's existing
+# /webhook/pipeline-log relay, same as the old Apps Script used.
+PIPELINE_LOG_URL = os.environ.get("PIPELINE_LOG_URL", "https://hikes.jctnet.com/webhook/pipeline-log")
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 
 # Field list matches environmental-data.gs's doPost appendRow column order
 # exactly (core/data-pipeline/environmental-data.gs, ~line 457) and
@@ -58,7 +69,7 @@ ENV_FLOAT_FIELDS = (
 )
 ENV_OPTIONAL_FIELDS = ENV_FLOAT_FIELDS + ENV_INT_FIELDS
 
-EXPORT_TABLES = ("environmental_data", "gps_track")
+EXPORT_TABLES = ("environmental_data", "gps_track", "wildlife_detections", "hike_start_forecast", "hiking_observations")
 
 _pool = None  # set in main(); psycopg2.pool.ThreadedConnectionPool
 
@@ -91,6 +102,145 @@ def _coerce(payload, field):
         return int(value) if field in ENV_INT_FIELDS else float(value)
     except (TypeError, ValueError):
         raise _BadField(field, value)
+
+
+def _relay_log(component, category, message):
+    """Best-effort dashboard visibility via hike-izer-orchestrator's relay --
+    never allowed to break the caller (matches environmental-data.gs's own
+    _relayLog, which likewise never let a log failure break real work)."""
+    if not WEBHOOK_SECRET:
+        return
+    try:
+        body = json.dumps({"component": component, "category": category, "message": message}).encode()
+        # CARD-0349 Step 6/7's own finding, ported here proactively: Cloudflare's
+        # Bot Fight Mode (fronting hikes.jctnet.com) silently 403s urllib's
+        # default User-Agent before the request ever reaches the orchestrator.
+        req = urllib.request.Request(
+            f"{PIPELINE_LOG_URL}?key={WEBHOOK_SECRET}", data=body,
+            headers={"Content-Type": "application/json", "User-Agent": "jctsh-hike-izer/1.0"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10).read()
+    except (urllib.error.URLError, OSError) as e:
+        log(f"_relay_log failed ({component}/{category}): {e}", err=True)
+
+
+# CARD-0349 Phase 2: ported verbatim from environmental-data.gs's own
+# hiking-observations branch -- category keyword scan, all-matching (not
+# first-match), lowercase substring search.
+OBSERVATION_TAXONOMY = {
+    "vegetation": ["saguaro", "bloom", "cactus", "tree", "shrub", "flower", "plant", "grass", "palo verde", "ocotillo"],
+    "wildlife": ["bird", "hawk", "coyote", "snake", "rabbit", "deer", "javelina", "lizard", "butterfly", "insect"],
+    "weather": ["cloud", "rain", "wind", "storm", "thunder", "lightning", "temperature", "hot", "cold", "warm", "cool"],
+    "visibility": ["clear", "hazy", "smoke", "dust", "fog", "smoggy", "murky"],
+    "sky": ["moon", "sun", "stars", "sunrise", "sunset", "rainbow", "shadow"],
+    "air_quality": ["smoky", "dusty", "smell", "odor", "particulate", "ash"],
+    "trail": ["trail", "path", "wash", "ridge", "peak", "summit", "canyon", "rock", "boulder", "erosion"],
+    "subjective": ["feels", "seems", "appears", "noticed", "unusual", "different", "surprising"],
+}
+
+
+def _categorize_observation(text):
+    lower = text.lower()
+    return [cat for cat, keywords in OBSERVATION_TAXONOMY.items() if any(k in lower for k in keywords)]
+
+
+SESSION_GAP_MIN = 10  # CARD-0115: matches fetch_hike_data.py's own
+# session_gap_min=10 convention -- kept in sync deliberately, ported unchanged
+# from environmental-data.gs's own _maybeCaptureHikeStartForecast.
+
+
+def _maybe_capture_hike_start_forecast(conn, ts, lat, lon):
+    """Ported from environmental-data.gs's _maybeCaptureHikeStartForecast
+    (CARD-0083/CARD-0097/CARD-0115) -- CARD-0349 Phase 2. Called after a real
+    (non-duplicate) GPS point is stored. Captures a forecast snapshot at the
+    start of each detected hike *session* (a gap of more than
+    SESSION_GAP_MIN minutes since the previous point ever recorded), not
+    once per calendar day. Never allowed to break the GPS point's own
+    success response -- every failure path here only logs, same as the
+    original's try/catch-and-relay shape."""
+    try:
+        with conn.cursor() as cur:
+            # CARD-0245: the true most-recent-prior point by timestamp, not
+            # whichever row happens to be last -- ts alone is the primary
+            # key here (unlike the old sheet's insertion-order ambiguity),
+            # so this is a straightforward indexed lookup, not a full scan.
+            cur.execute(
+                "SELECT ts FROM gps_track WHERE ts < %s ORDER BY ts DESC LIMIT 1",
+                (ts,),
+            )
+            prior = cur.fetchone()
+        if prior is not None:
+            gap_min = (ts - prior[0]).total_seconds() / 60
+            if gap_min <= SESSION_GAP_MIN:
+                return  # continuing an existing session
+
+        _relay_log("gps-track", "System", "New GPS session started.")
+
+        req = urllib.request.Request(
+            "https://api.open-meteo.com/v1/forecast"
+            f"?latitude={lat}&longitude={lon}"
+            "&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,"
+            "wind_speed_10m,uv_index&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto"
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = json.loads(resp.read())
+        hourly = body.get("hourly") or {}
+        times = hourly.get("time") or []
+        if not times:
+            _relay_log("hike-start-forecast", "Alert", "Forecast capture failed: Open-Meteo response had no hourly data.")
+            return
+
+        offset_sec = body["utc_offset_seconds"]
+        target_ms = ts.timestamp() * 1000
+        date_local = datetime.fromtimestamp(target_ms / 1000 + offset_sec, tz=timezone.utc).date().isoformat()
+
+        idx, best_diff = 0, float("inf")
+        for h, t in enumerate(times):
+            instant_ms = datetime.fromisoformat(t + ":00+00:00").timestamp() * 1000 - offset_sec * 1000
+            diff = abs(instant_ms - target_ms)
+            if diff < best_diff:
+                best_diff, idx = diff, h
+
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO hike_start_forecast "
+                "(ts, date_local, lat, lon, temp_f, precip_pct, wind_mph, humidity_pct, uv_index, provider) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'open-meteo')",
+                (
+                    ts, date_local, body["latitude"], body["longitude"],
+                    hourly["temperature_2m"][idx], hourly["precipitation_probability"][idx],
+                    hourly["wind_speed_10m"][idx], hourly["relative_humidity_2m"][idx],
+                    hourly["uv_index"][idx],
+                ),
+            )
+        conn.commit()
+        _relay_log("hike-start-forecast", "System", f"Captured hike-start forecast for {date_local}.")
+    except psycopg2.errors.UniqueViolation:
+        # Two GPS points from the same new session racing this check --
+        # harmless, the first one already captured it.
+        conn.rollback()
+    except Exception as e:
+        conn.rollback()
+        log(f"Forecast capture failed: {e}", err=True)
+        _relay_log("hike-start-forecast", "Alert", f"Forecast capture failed: {e}")
+
+
+def _gps_lookup(conn, ts):
+    """Same nearest-neighbor-within-5-minutes query as _handle_lookup_gps
+    (design doc section 4 / environmental-data.gs's own _gpsLookup) --
+    a standalone copy, not a refactor of that already-verified live route,
+    used internally by _maybe_capture_hike_start_forecast and
+    _handle_hiking_observations (CARD-0349 Phase 2)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT lat, lon FROM gps_track "
+            "WHERE abs(extract(epoch from (ts - %s))) <= 300 "
+            "ORDER BY abs(extract(epoch from (ts - %s))) LIMIT 1",
+            (ts, ts),
+        )
+        row = cur.fetchone()
+    return (row[0], row[1]) if row else (None, None)
 
 
 def _row_to_json(row):
@@ -217,6 +367,13 @@ class Handler(BaseHTTPRequestHandler):
                     (ts, lat, lon, acc, alt, direction),
                 )
             conn.commit()
+            # CARD-0349 Phase 2: ported from environmental-data.gs's own
+            # action=gps branch, which called _maybeCaptureHikeStartForecast
+            # right after the real (non-duplicate) point was stored. Runs on
+            # the same connection, after the GPS point's own commit -- a
+            # forecast-capture failure must never affect the point already
+            # safely stored.
+            _maybe_capture_hike_start_forecast(conn, ts, lat, lon)
         except psycopg2.errors.UniqueViolation:
             # CARD-0243's dedup case -- GPSLogger retrying a slow/unconfirmed
             # response resubmits the same point. Same {"status": "duplicate"}
@@ -373,7 +530,154 @@ class Handler(BaseHTTPRequestHandler):
         if parts.path == "/environmental-data":
             self._handle_environmental_data(parts)
             return
+        if parts.path == "/wildlife-detection":
+            self._handle_wildlife_detection(parts)
+            return
+        if parts.path == "/hiking-observations":
+            self._handle_hiking_observations(parts)
+            return
         self._respond(404, {"status": "error", "message": "not found"})
+
+    def _handle_hiking_observations(self, parts):
+        """CARD-0349 Phase 2 -- replaces environmental-data.gs's
+        hiking-observations doPost branch. Staged, not yet the live target:
+        Tasker's "Flush Observation Queue" task still POSTs to the old
+        Apps Script until that phone-side URL is switched (a real device
+        config change, not something built here)."""
+        if not self._authorized(parts):
+            log("Rejected hiking-observations POST: missing or incorrect key", err=True)
+            self._respond(401, {"status": "error", "message": "unauthorized"})
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length else b""
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            log(f"Rejected hiking-observations POST: invalid JSON body ({raw!r})", err=True)
+            self._respond(400, {"status": "error", "message": "invalid JSON"})
+            return
+
+        # Tasker's actual payload also carries lat/lon/categories (always
+        # null/[] -- this pipeline has never attached a GPS fix at the
+        # speaking moment, per observations-pipeline.md) and source
+        # ("voice") -- environmental-data.gs's own doPost ignored all of
+        # those client-sent fields and computed categories/GPS server-side;
+        # matched here, not just carried through blindly.
+        obs_text = str(payload.get("observation") or "").strip()
+        ts_raw = payload.get("ts")
+        if not obs_text or not ts_raw:
+            log(f"Rejected hiking-observations POST: missing observation/ts (payload={payload!r})", err=True)
+            self._respond(400, {"status": "error", "message": "observation and ts are required"})
+            return
+
+        # %TIMES (Tasker's own epoch-seconds variable) or an ISO string --
+        # same tolerant parsing as the GPS/environmental-data routes.
+        try:
+            ts_str = str(ts_raw)
+            if ts_str.isdigit():
+                ts = datetime.fromtimestamp(int(ts_str), tz=timezone.utc)
+            else:
+                ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+        except ValueError as e:
+            self._respond(400, {"status": "error", "message": f"unparseable ts: {e}"})
+            return
+
+        categories = _categorize_observation(obs_text)
+        source = payload.get("source") or "voice"
+
+        conn = _pool.getconn()
+        try:
+            lat, lon = _gps_lookup(conn, ts)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO hiking_observations (ts, observation, categories, source, lat, lon) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)",
+                    (ts, obs_text, categories, source, lat, lon),
+                )
+            conn.commit()
+        except psycopg2.errors.UniqueViolation:
+            # CARD-0244's dedup case, ported -- Hiking Observations has
+            # exactly one producer (Tasker's own flush loop), so ts alone
+            # is a sufficient key, same as GPS Track.
+            conn.rollback()
+            self._respond(200, {"status": "duplicate", "ts": ts.isoformat()})
+            return
+        except Exception as e:
+            conn.rollback()
+            log(f"hiking_observations insert failed: {e}", err=True)
+            self._respond(500, {"status": "error", "message": str(e)})
+            return
+        finally:
+            _pool.putconn(conn)
+
+        _relay_log("hiking-observations", "System", "Logged hiking observation.")
+        self._respond(200, {"status": "ok"})
+
+    def _handle_wildlife_detection(self, parts):
+        """CARD-0349 Phase 2 -- replaces environmental-data.gs's
+        wildlife-detection doPost branch. scat-detection deliberately has no
+        equivalent route here -- retired before this migration, not ported."""
+        if not self._authorized(parts):
+            log("Rejected wildlife-detection POST: missing or incorrect key", err=True)
+            self._respond(401, {"status": "error", "message": "unauthorized"})
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length else b""
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            log(f"Rejected wildlife-detection POST: invalid JSON body ({raw!r})", err=True)
+            self._respond(400, {"status": "error", "message": "invalid JSON"})
+            return
+
+        ts_raw = payload.get("ts")
+        hike_file_stem = payload.get("hike_file_stem")
+        scientific_name = payload.get("scientific_name")
+        if not ts_raw or not hike_file_stem or not scientific_name:
+            log(f"Rejected wildlife-detection POST: missing required field (payload={payload!r})", err=True)
+            self._respond(400, {"status": "error", "message": "ts, hike_file_stem, and scientific_name are required"})
+            return
+        try:
+            ts = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+        except ValueError as e:
+            self._respond(400, {"status": "error", "message": f"unparseable ts: {e}"})
+            return
+
+        conn = _pool.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO wildlife_detections "
+                    "(ts, hike_file_stem, common_name, scientific_name, count, best_confidence, lat, lon) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        ts, hike_file_stem, payload.get("common_name"), scientific_name,
+                        payload.get("count"), payload.get("best_confidence"),
+                        payload.get("lat"), payload.get("lon"),
+                    ),
+                )
+            conn.commit()
+        except psycopg2.errors.UniqueViolation:
+            # CARD-0276's own dedup case, ported -- (hike_file_stem,
+            # scientific_name) identity dedup, first write wins. A retried
+            # POST of an already-committed detection is "duplicate", not an
+            # overwrite -- same shape generation.py's caller already treats
+            # as success, no client-side change needed for this part.
+            conn.rollback()
+            self._respond(200, {"status": "duplicate", "hike_file_stem": hike_file_stem, "scientific_name": scientific_name})
+            return
+        except Exception as e:
+            conn.rollback()
+            log(f"wildlife_detections insert failed: {e}", err=True)
+            self._respond(500, {"status": "error", "message": str(e)})
+            return
+        finally:
+            _pool.putconn(conn)
+
+        _relay_log("wildlife-detection", "System", f"Logged wildlife detection for {hike_file_stem}: {payload.get('common_name')}.")
+        self._respond(200, {"status": "ok"})
 
     def _handle_environmental_data(self, parts):
         if not self._authorized(parts):

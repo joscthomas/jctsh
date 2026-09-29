@@ -252,9 +252,9 @@ Archived to `hosts/pi1/card-archive.md` on 2026-09-27 (CARD-0193) — 8625B, ove
 
 ---
 
-### CARD-0349 · [idea] [data-pipeline] Evaluate a time-series database to replace or front Google Sheets as the Environmental Data store
+### CARD-0349 · [idea] [data-pipeline] Evaluate a time-series database to replace or front Google Sheets as the Environmental Data store — RESOLVED 2026-09-29
 
-**Status:** Build
+**Status:** Done
 
 **Moved from Design to Planning, 2026-09-28 (Joseph).** Found live: `kanban-board.md`'s own header (line 5) states its columns as Backlog/Planning/Build/Done/Defer -- no Design -- and the live `/kanban` dashboard's parser (`core/logging/log_server.py`'s `_KANBAN_COLUMNS`) matches that same 5-column list, silently skipping any card whose Status doesn't match one of them. A `Status: Design` card is therefore invisible on `/kanban` even though it's correctly in the file and pushed. `JCTsh-Operating-System.md`'s Board Columns table still lists Design as a real column, so the two docs disagree -- not resolved here, just worked around for this card so it's visible again. Whether to reconcile the header/parser/TOS docs (add Design back, or retire it everywhere) is still open.
 
@@ -400,7 +400,9 @@ Cut over: added `DATA_PIPELINE_URL`/`DATA_PIPELINE_KEY` to `/home/pi/.node-red/e
 
 **Step 8 (retire the old Apps Script) -- code written, verified for syntax, NOT YET DEPLOYED.** `environmental-data.gs`'s now-migrated write paths (`hiking-observations`, `wildlife-detection`, `scat-detection`, and the Environmental Data/`action=gps` fall-through) return an explicit "retired: moved to data-pipeline-api" rejection instead of silently accepting stale writes -- a safety net, not a hard delete of the deployment. **`hike-izer-cost` is deliberately untouched** -- never one of the 5 migrated tables, still the live target, its own `doPost` branch and every `doGet` action (`gps`/`lookup`/`export`/`health`/`version`) left reachable (all read-only, or already unused, no write risk). Old branch bodies deleted rather than commented out (git history is the preserved record; a 100+-line inline block comment risked a stray `*/` silently truncating itself). Brace/paren/bracket balance verified across the whole file (no local JS engine to fully parse-check a `.gs` file). `SCRIPT_VERSION` bumped to `2026-09-29.1-phase2-retired`. **This session cannot deploy an Apps Script change itself** -- needs Joseph to paste the updated file into the Apps Script editor and Deploy -> Manage deployments -> New version, same as every prior deploy of this file (`RUNBOOK-sheets-outage.md`'s own documented procedure). Until that happens, the old write paths remain live (harmless -- nothing points at them anymore) and `?action=version` will keep reading the pre-retirement version string.
 
-**Done when:** all 8 steps are complete and verified live -- **7 of 8 met.** Step 8's code is written and committed; the actual deployment (a manual Apps Script editor action) is the one item left, entirely on Joseph's side.
+**Step 8 deployed and verified live, 2026-09-29 (Joseph: "it worked, deployed fine").** `?action=version` confirms `2026-09-29.1-phase2-retired` live. Both retired paths tested directly against the real deployment (not inferred): `action=gps` (GET) returns the clear retirement message immediately; the `hiking-observations` POST retirement was also confirmed -- the first attempt returned a stale/expired `script.googleusercontent.com` content-key page (an artifact of fetching it too slowly in a separate curl call, the same one-time-content-key mechanism Node-RED's own redirect handling exists to work around correctly, not a bug in the retirement code), a fresh POST+immediate-fetch got the correct `{"status":"error","message":"retired: hiking-observations..."}` response. `hike-izer-cost` confirmed completely unaffected: `action=export&sheet=Hike-izer%20Costs` still returns all 18 real rows.
+
+**Done when:** all 8 steps complete and verified live. **Met -- 8 of 8.**
 
 **Related:** CARD-0337 (the "three options discussed" origin, built only option 1), CARD-0347 (finding #5, storage single point of failure), CARD-0226 (the 2026-09-25 outage that started this conversation), `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`, `core/data-pipeline/environmental-data.gs`, `core/data-pipeline/RUNBOOK-sheets-outage.md` (the redeploy procedure Step 8 needs), `components/hiking-monitor/observations-pipeline.md` (Section 3a, the Hiking Observations cutover record).
 

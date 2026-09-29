@@ -895,7 +895,11 @@ _KANBAN_CARD_RE_SIMPLE = re.compile(
 # line) rather than searched anywhere in the body, so a card's own prose
 # could never accidentally produce a false match.
 _KANBAN_STATUS_RE = re.compile(
-    r"\A\n\*\*Status:\*\*\s*(" + "|".join(_KANBAN_COLUMNS) + r")\s*\n"
+    # CARD-0374: anything after the column name on the status line is tolerated
+    # (`**Status:** Backlog — low priority` used to fail this match and the
+    # card silently vanished from the board). The column name still has to be
+    # a whole word at the start.
+    r"\A\n\*\*Status:\*\*\s*(" + "|".join(_KANBAN_COLUMNS) + r")\b[^\n]*\n"
 )
 
 
@@ -1426,6 +1430,7 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   .card .ctitle { grid-column: 1 / -1; font-size: 0.9rem; font-weight: 600; line-height: 1.35; text-wrap: balance; }
   .card .cmeta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.1rem; }
   .flag { font-family: var(--mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 2px; padding: 0.08rem 0.4rem; border: 1px solid transparent; }
+  .card .cprio { margin-left: 0.45rem; vertical-align: 1px; }
   .flag[data-flag="priority-critical"] { color: var(--danger); border-color: var(--danger); background: color-mix(in srgb, var(--danger) 18%, transparent); font-weight: 600; }
   .flag[data-flag="priority-high"] { color: var(--warning); border-color: var(--warning); background: color-mix(in srgb, var(--warning) 18%, transparent); font-weight: 600; }
   .flag[data-flag="priority-medium"] { opacity: .85; }
@@ -1646,11 +1651,13 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
   var ARCHIVE_NOTE_RE = /Archived to `([^`]+)` on/;
   function cardHtml(card) {
     var flags = '';
-    // CARD-0374: priority badge first, so the ranking the column sort applies is visible.
-    if (card.priority) {
-      flags += '<span class="flag" data-flag="priority-' + escapeHtml(card.priority) + '" title="Priority: ' + escapeHtml(card.priority) + '">' +
-        escapeHtml(card.priority.charAt(0).toUpperCase() + card.priority.slice(1)) + '</span>';
-    }
+    // CARD-0374: the priority badge sits on the card-number line (inside the .cid
+    // cell, so the summary grid's columns don't shift), where the ranking the
+    // column sort applies is visible at a glance.
+    var prioBadge = card.priority
+      ? '<span class="flag cprio" data-flag="priority-' + escapeHtml(card.priority) + '" title="Priority: ' + escapeHtml(card.priority) + '">' +
+        escapeHtml(card.priority.charAt(0).toUpperCase() + card.priority.slice(1)) + '</span>'
+      : '';
     if (card.flag && flagLabels[card.flag]) {
       flags += '<span class="flag" data-flag="' + card.flag + '">' + flagLabels[card.flag] + '</span>';
     }
@@ -1684,7 +1691,7 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
     return (
       '<details class="card" data-type="' + card.type + '" data-id="' + escapeHtml(card.repo) + '-' + card.id + '">' +
         '<summary>' +
-          '<span class="cid">CARD-' + card.id + '</span>' +
+          '<span class="cid">CARD-' + card.id + prioBadge + '</span>' +
           '<span class="ctype">' + card.type + '</span>' +
           '<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>' +
           tagBadge +

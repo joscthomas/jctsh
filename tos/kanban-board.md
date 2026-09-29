@@ -29,6 +29,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Follow-up 2026-09-29 15:38 MST (Joseph: "242 doesn't show up on the board at all; ... show the priority tag at the top of the card").** (1) **CARD-0242 was invisible because its status line read `**Status:** Backlog — low priority`** -- the parser accepted only a bare column name and silently skipped any card whose status line carried anything else. Fixed at the source (the card now reads `**Status:** Backlog`, with the "low priority" moved to a real `**Priority:** Low`), *and* the parser now accepts trailing text after the column name so a stray suffix can no longer make a card vanish. The other six cards the parser skips are the `[retracted]` ones, which is intended (Retracted is not a dashboard column). (2) **The priority badge now sits on the card-number line**, beside `CARD-nnnn`, instead of in the badge row under the title. (3) CARD-0242's priority was first set to Medium in the triage without reading the card -- it says low priority itself; corrected to Low. **Reflection:** a parser that skips what it cannot read must not do it silently -- a count of skipped-but-not-retracted cards would have caught this the day the card was written; worth a check the next time the parser is touched.
 
+**Follow-up 2026-09-29 15:41 MST (Joseph: "let high priority escape the marker sink").** Cards carrying an `Auto verify`/`Watch for` marker used to sink to the bottom of their column regardless of anything else; a **Critical or High card now ignores the marker sink** and sorts among the unmarked cards by priority like any other -- "waiting on an event" should not bury something important (CARD-0226 is the case that prompted it: High, carries a Watch for, and would otherwise have sat at the bottom of Build). Medium, untagged and Low marker cards still sink. **Not changed:** the chat "Listing open cards" convention in `JCTsh-Operating-System.md`, which omits marker-carrying cards from the visible list entirely -- it now differs from the dashboard for High/Critical marker cards (still hidden in chat, shown at the top on the board); decide separately whether to align it. Also set this session: CARD-0346 High, CARD-0226 High, CARD-0342 Medium.
+
 ### CARD-0373 · [enhancement] [data-pipeline] [node-red] Rename the vestigial "Apps Script" nodes in the Environmental Data flow and remove the dead redirect-follow pair
 
 **Status:** Backlog
@@ -394,6 +396,8 @@ Archived to `core/data-pipeline/card-archive.md` on 2026-09-29 (CARD-0193) — 4
 
 **Status:** Build
 
+**Priority:** High -- it tracks whether both devices are ready for the next hike, with an unmet condition as of 2026-09-28; expect it to drop once that hike is done. (set 2026-09-29 15:41 MST, triage)
+
 **Raised 2026-09-26 (Joseph: "goal: the hiking monitor and aqm are ready to go (all known problems addressed) for the next hike").** A tracking card: what went wrong on the 9/26 hike, what is fixed and verified, and what still has to be true before the next one.
 
 **Known problems and status (2026-09-26 ~14:45):**
@@ -455,6 +459,8 @@ Archived to `components/air-quality-monitor/card-archive.md` on 2026-09-27 (CARD
 
 ### CARD-0342 · [enhancement] [salt-sensor] [homeassistant] Audible or push alert when salt goes critical -- today the critical alert only flips a switch and writes a dashboard line
 **Status:** Backlog
+
+**Priority:** Medium -- the critical alert already fires -- what is missing is making it audible or a push, a convenience rather than a fault. (set 2026-09-29 15:41 MST, triage)
 
 **Raised 2026-09-25 20:34 MST (Joseph: "open a card for it, leave in backlog"), from CARD-0341's finding that "nothing played" when `switch.salt_critical_alert` turned on -- which is by design, not a bug.** Backlog only: captured, not scoped, no interview yet, no work started.
 
@@ -1790,6 +1796,8 @@ Archived to `tos/CLAUDE.md` on 2026-09-10 (CARD-0193) — 12511B, over the 5000B
 
 ### CARD-0226 · [bug] [hiking-monitor] Rapid MQTT-attributed reboot loop during hike-data replay -- trigger unconfirmed, replay path not robust to it
 **Status:** Build
+
+**Priority:** High -- a real data-loss risk on hike-data replay; the per-record delivery-tracking fix is decided and ready to build, only the root-cause hunt is blocked on an event. (set 2026-09-29 15:41 MST, triage)
 
 **Moved to Build 2026-09-08 (Joseph's call, after discussion).** Item 1 (root cause identification) is genuinely blocked on the Watch for event below, but item 2 (per-record delivery tracking on the replay path -- QoS 1 with a real broker ack, per the design already specified below) is a decided, ready-to-implement fix that doesn't depend on that event at all. Matches this board's own precedent (CARD-0217/CARD-0196/CARD-0224) -- a card stays in Build with one part noted as blocked-on-event rather than sitting in Planning because of it.
 

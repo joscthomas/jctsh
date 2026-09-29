@@ -1722,6 +1722,10 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       // this page targets), so within each of the two groups the original file order
       // -- which is what every other column already relies on -- is preserved.
       var hasMarker = function (c) { return !!(c.auto_verify || c.watch_for); };
+      // CARD-0374: a Critical or High card escapes the marker sink -- waiting on an
+      // event must not bury something important. Everything else with a marker
+      // still sorts after every card without one.
+      var sinks = function (c) { return hasMarker(c) && c.priority !== 'critical' && c.priority !== 'high'; };
       // CARD-0374: within each marker group, Backlog/Planning/Build order by priority
       // tier (Critical > High > Medium > untagged > Low), then latest activity
       // (newest first), then initiated date (oldest first, card id as fallback).
@@ -1733,7 +1737,7 @@ _KANBAN_TEMPLATE = r"""<!DOCTYPE html>
       var byRecencyOnly = (col.key === 'Done' || col.key === 'Defer');
       var cards = repoVisible.filter(function (c) { return c.column === col.key; })
         .sort(function (a, b) {
-          var am = hasMarker(a) ? 1 : 0, bm = hasMarker(b) ? 1 : 0;
+          var am = sinks(a) ? 1 : 0, bm = sinks(b) ? 1 : 0;
           if (am !== bm) return am - bm;
           if (!byRecencyOnly) {
             var pa = prioRank(a), pb = prioRank(b);

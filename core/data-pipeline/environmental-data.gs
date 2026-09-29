@@ -14,7 +14,37 @@
 // (including the "unknown action" fallback) so a version mismatch is visible from a
 // plain curl call, not just by eyeballing the editor.
 
-var SCRIPT_VERSION = '2026-09-25.5-export-tail-first';
+var SCRIPT_VERSION = '2026-09-29.1-phase2-retired';
+
+// CARD-0349 Phase 1+2, 2026-09-29: Environmental Data, GPS Track (write),
+// Hike Start Forecast, Wildlife Detections, and Hiking Observations have
+// all moved to data-pipeline-api (the TimescaleDB gateway) -- every real
+// producer has been repointed and live-verified. Retired here as an
+// explicit safety net (a clear rejection, not silent data loss) against
+// any straggler client still configured with this script's old URL,
+// rather than leaving the old write paths live and quietly accepting
+// writes nobody reads anymore. hike-izer-cost is the one component NOT
+// migrated (CARD-0349 scoped it out -- not one of the 5 tables) and its
+// doPost branch below is untouched, still the live target. Every doGet
+// action (gps/lookup/export/health/version) is also left untouched --
+// all read-only or, for action=gps, already unused now that GPSLogger's
+// own custom URL points at the new gateway (CARD-0349 Step 5) -- no write
+// risk from leaving them reachable, and action=export/health/version stay
+// useful for hike-izer-cost's own sheet and general diagnostics.
+var _RETIRED_COMPONENTS = {
+  'hiking-observations': true,
+  'wildlife-detection': true,
+  'scat-detection': true  // already unused before this migration -- Joseph, 2026-09-29: "we don't do scat detections, we got rid of that"
+};
+function _retiredComponentResponse(component) {
+  return ContentService
+    .createTextOutput(JSON.stringify({
+      status: 'error',
+      message: 'retired: ' + component + ' now lives in data-pipeline-api (CARD-0349) -- this Apps Script no longer accepts writes for it.',
+      version: SCRIPT_VERSION
+    }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
 
 // 2026-09-25 (CARD-0226 incident): the original spreadsheet became unopenable
 // from Apps Script -- SpreadsheetApp.openById() on it, and on a plain copy of
@@ -80,6 +110,16 @@ function doPost(e) {
     }
 
     var payload = JSON.parse(e.postData.contents);
+
+    // CARD-0349 Phase 1+2 retirement, checked before opening the
+    // spreadsheet at all -- see _RETIRED_COMPONENTS' own comment above.
+    // An unrecognized/missing payload.component falls through to the
+    // else (Environmental Data) branch below, so that retirement check
+    // stays where it already is, inside that branch itself.
+    if (_RETIRED_COMPONENTS[payload.component]) {
+      return _retiredComponentResponse(payload.component);
+    }
+
     var ss = _ss();
 
     if (payload.component === 'hiking-observations') {
@@ -378,114 +418,12 @@ function doPost(e) {
       _relayLog('scat-detection', 'System', 'Logged scat detection for ' + payload.hike_file_stem + ': ' + payload.common_name + '.');
 
     } else {
-      var envSheet = ss.getSheetByName('Environmental Data');
-      var v = function(field) {
-        var val = payload[field];
-        return (val !== undefined && val !== null) ? val : '';
-      };
-
-      // CARD-0215: reject a payload with physically implausible sensor
-      // values before it ever reaches the sheet -- found live 2026-08-25,
-      // a mid-crash MQTT publish during CARD-0211's device reset loop
-      // wrote temp_f=370.6/pressure_hpa=-174.9/uv_index=7294.4 straight
-      // into the sheet, 74 times over via repeated failed replay attempts.
-      // Only checked when the field is actually present -- most sources
-      // legitimately leave most fields blank ('').
-      var rangeChecks = [
-        ['temp_f', -20, 130], ['humidity_pct', 0, 100],
-        ['pressure_hpa', 800, 1100], ['uv_index', 0, 20],
-      ];
-      for (var rc = 0; rc < rangeChecks.length; rc++) {
-        var field = rangeChecks[rc][0], lo = rangeChecks[rc][1], hi = rangeChecks[rc][2];
-        var raw = v(field);
-        if (raw === '') continue;
-        var num = Number(raw);
-        if (isNaN(num) || num < lo || num > hi) {
-          return ContentService
-            .createTextOutput(JSON.stringify({
-              status: 'rejected', reason: 'out_of_range', field: field, value: raw,
-            }))
-            .setMimeType(ContentService.MimeType.JSON);
-        }
-      }
-
-      // CARD-0215: reject an exact (ts, source) duplicate -- the canonical
-      // store should never accept the same reading twice, regardless of
-      // why a duplicate publish happened. CARD-0211's own specific cause
-      // (a task-watchdog reset loop) is already fixed at the firmware
-      // level; this guards the sheet itself against any future cause of
-      // a repeated publish, not just that one.
-      //
-      // CARD-0226 (2026-09-24): this check + appendRow used to run with NO
-      // lock and scanned every row in the sheet (33k+ rows by now). A real
-      // 5-hop test (121-reading replay burst) landed only ~20% of the rows
-      // while ~2/3 of the calls still answered "ok" -- concurrent
-      // executions were overwriting each other's appendRow, and the
-      // full-column scan made every execution slow enough to overlap.
-      // Fixed both: (1) serialize check+append with the same LockService
-      // pattern the other branches already use; (2) only scan the most
-      // recent DEDUP_WINDOW_ROWS rows -- a duplicate is a retry or re-replay
-      // of a *recent* reading, so the scan no longer grows with the sheet
-      // (~350 rows/day from the porch sensors plus each hike's replay, so
-      // 2000 rows is several days of history). A lock timeout throws into
-      // the outer catch below, which returns {status:'error'} -- a real
-      // JSON failure Node-RED's POST queue now retries instead of ignoring.
-      var DEDUP_WINDOW_ROWS = 2000;
-      var tsVal = v('ts');
-      var srcVal = v('source');
-      var envLock = LockService.getScriptLock();
-      envLock.waitLock(30000);
-      try {
-        var envLastRow = envSheet.getLastRow();
-        if (tsVal !== '' && envLastRow > 1) {
-          var scanFrom = Math.max(2, envLastRow - DEDUP_WINDOW_ROWS + 1);
-          var keyCols = envSheet.getRange(scanFrom, 1, envLastRow - scanFrom + 1, 2).getValues();
-          var tsStr = String(tsVal);
-          for (var i = 0; i < keyCols.length; i++) {
-            var existingTs = keyCols[i][0];
-            existingTs = (existingTs instanceof Date) ? existingTs.toISOString() : String(existingTs);
-            if (existingTs === tsStr && String(keyCols[i][1]) === String(srcVal)) {
-              // finally below still runs (and releases the lock) on this
-              // return path -- do not release it here too.
-              return ContentService
-                .createTextOutput(JSON.stringify({status: 'duplicate', ts: tsVal, source: srcVal}))
-                .setMimeType(ContentService.MimeType.JSON);
-            }
-          }
-        }
-
-        envSheet.appendRow([
-          v('ts'),              // A  timestamp
-          v('source'),          // B  source
-          v('lat'),             // C  lat
-          v('lon'),             // D  lon
-          v('temp_f'),          // E  temp_f
-          v('humidity_pct'),    // F  humidity_pct
-          v('pressure_hpa'),    // G  pressure_hpa
-          v('dew_point_f'),     // H  dew_point_f
-          v('heat_index_f'),    // I  heat_index_f
-          v('uv_index'),        // J  uv_index
-          v('irradiance_wm2'),  // K
-          v('wind_speed_mph'),  // L
-          v('wind_dir_deg'),    // M
-          v('rain_tips'),       // N
-          v('rainin'),          // O
-          v('dailyrainin'),     // P
-          v('battery_v'),       // Q
-          v('rssi_dbm'),        // R
-          v('pm1_ug_m3'),       // S
-          v('pm25_ug_m3'),      // T
-          v('pm4_ug_m3'),       // U
-          v('pm10_ug_m3'),      // V
-          v('voc_index'),        // W
-          v('nox_index'),        // X
-          v('illuminance_lx'),  // Y
-          v('solar_v')          // Z
-        ]);
-        SpreadsheetApp.flush();
-      } finally {
-        envLock.releaseLock();
-      }
+      // CARD-0349: Environmental Data itself, the fall-through default for
+      // any payload.component that doesn't match one of the named
+      // branches above -- hike-izer-cost already has its own explicit
+      // branch earlier in this chain, so it can never reach here.
+      // Retired same as the named components above.
+      return _retiredComponentResponse(payload.component || 'environmental-data');
     }
 
     return ContentService
@@ -1271,75 +1209,15 @@ function doGet(e) {
     var action = e.parameter.action;
 
     if (action === 'gps') {
-      var lat     = parseFloat(e.parameter.lat);
-      var lon     = parseFloat(e.parameter.lon);
-      var acc     = parseFloat(e.parameter.acc);
-      var alt     = parseFloat(e.parameter.alt);
-      // CARD-0085: %DIRECTION (GPS bearing, degrees) -- not sent by every
-      // GPSLogger config (older phone-side setups, or before Joseph's own
-      // custom-URL change), so this stays '' rather than parseFloat(undefined)
-      // (NaN) when absent -- same "missing isn't evidence of a bad fix, keep
-      // the row" philosophy fetch_hike_data.py already applies to accuracy_m.
-      var direction = e.parameter.direction !== undefined ? parseFloat(e.parameter.direction) : '';
-      // %TIME from GPSLogger may be a Unix epoch integer (seconds or ms) or an
-      // ISO date string depending on app version. Parse robustly:
-      var tsRaw = e.parameter.ts;
-      var tsDate;
-      if (/^\d+$/.test(tsRaw)) {
-        var n = Number(tsRaw);
-        tsDate = new Date(n.toString().length >= 13 ? n : n * 1000);
-      } else {
-        tsDate = new Date(tsRaw);
-      }
-      var tsISO = tsDate.toISOString();
-
-      var ss = _ss();
-      var gpsSheet = ss.getSheetByName('GPS Track');
-
-      // CARD-0243: reject an exact-timestamp duplicate before it ever
-      // reaches the sheet -- GPS Track has exactly one producer
-      // (GPSLogger's custom-URL POST), so ts alone is a sufficient dedup
-      // key (unlike Environmental Data's (ts, source) key, CARD-0215 --
-      // multiple sensor sources feed that sheet, this one has only one).
-      // Found live 2026-09-06: a real hike's GPS Track data was 29.5%
-      // exact-duplicate rows (one point resubmitted up to 6 times),
-      // almost certainly GPSLogger retrying a slow/unconfirmed Apps
-      // Script response. Reads only column A (not the full row) to keep
-      // this cheap as the sheet grows, same discipline CARD-0215 used.
-      if (gpsSheet.getLastRow() > 1) {
-        var existingTs = gpsSheet.getRange(2, 1, gpsSheet.getLastRow() - 1, 1).getValues();
-        for (var i = 0; i < existingTs.length; i++) {
-          var val = existingTs[i][0];
-          val = (val instanceof Date) ? val.toISOString() : String(val);
-          if (val === tsISO) {
-            return ContentService
-              .createTextOutput(JSON.stringify({status: 'duplicate', ts: tsISO}))
-              .setMimeType(ContentService.MimeType.JSON);
-          }
-        }
-      }
-
-      gpsSheet.appendRow([tsISO, lat, lon, acc, alt, direction]);
-      // CARD-0197: log every GPS point landing, for cross-referencing
-      // against _gpsLookup's 'lookup_miss' rows (see that function).
-      _logCorrelationDebug(ss, 'gps_append', tsISO, null);
-
-      // CARD-0106: capture the weather forecast on the first GPS point of a
-      // new local calendar day -- a live snapshot of what was forecast right
-      // as the hike began, written once and never re-fetched. Moved here
-      // from the first Hiking Observation of the day (CARD-0083) -- a voice
-      // observation is optional and arbitrarily timed relative to when the
-      // hike actually started, where GPS logging is continuous and always
-      // present during a real hike, making it a reliable "hike start" signal
-      // in a way an optional observation never was. lat/lon are already
-      // resolved here (this request's own coordinates), so no _gpsLookup
-      // correlation is needed the way the observations path required.
-      _maybeCaptureHikeStartForecast(ss, tsISO, {lat: lat, lon: lon});
-
-      return ContentService
-        .createTextOutput(JSON.stringify({status: 'ok'}))
-        .setMimeType(ContentService.MimeType.JSON);
-
+      // CARD-0349 Step 5, 2026-09-29: GPSLogger's own custom URL now points
+      // at data-pipeline-api's /gps route -- retired here as a safety net
+      // against a straggler still configured with this old URL, same
+      // reasoning as doPost's _RETIRED_COMPONENTS above. Original write
+      // logic deleted (preserved in git history, not commented out --
+      // JCTsh-Operating-System.md's mark-and-strike convention is for
+      // prose docs, not a risk worth taking here with a stray `*/`
+      // inside 100+ lines of code silently truncating a comment).
+      return _retiredComponentResponse('gps');
     } else if (action === 'lookup') {
       var ts = e.parameter.ts;
       var ss = _ss();

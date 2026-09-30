@@ -2,6 +2,8 @@
 secrets.h
 secrets.yaml
 credentials.local.md
+# Temporary RoboForm data-entry checklist (contains passwords) -- delete when done
+roboform-checklist.local.md
 .env
 !.env.example
 

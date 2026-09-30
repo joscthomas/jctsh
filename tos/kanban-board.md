@@ -9,9 +9,54 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0375 -->
+<!-- next-card-id: CARD-0377 -->
 
 ---
+
+### CARD-0376 · [bug] [hiking-monitor] ESP32 USB-C connector broke off the board -- replacement chip installed, needs first flash
+
+**Status:** Build
+
+**Raised 2026-09-30 (Joseph).** hiking-monitor's ESP32 DevKitC-32's USB-C connector broke off the board -- Joseph's working theory is it was damaged in a fall while hiking a few weeks ago (not yet pinned to a specific date/hike) and only fully let go now. Not repairable at the connector level; a replacement ESP32 DevKitC-32 has already been installed in the perfboard in place of the damaged one.
+
+**Real consequence: the new chip is blank.** Every OTA flash on this device (CARD-0346's fixes included, 2026-09-28) lives on the *old*, now-discarded board -- the replacement has never run any firmware, so this is a first flash, not an update: USB only (no OTA possible until firmware exists), per `WORKSTATION-SETUP.md`'s `C:\esphome\hiking-monitor\` convention, native PowerShell.
+
+**Confirmed connected, 2026-09-30:** `Silicon Labs CP210x USB to UART Bridge (COM7)`, status OK -- matches the component's documented CP2102 chip (`README.md`).
+
+**Scope:** first USB flash of `hiking-monitor.yaml` (current repo copy, includes CARD-0346's stuck-flag backstop fix -- the replacement chip gets that fix from its very first boot, not as a later update) onto the new board, then live verification that the perfboard's existing sensors (BME280, LTR-390), e-ink display, and battery/dock-detect circuitry all still read correctly through the new chip -- the perfboard and every other component are original, only the ESP32 itself changed.
+
+**Done when:** the new ESP32 is flashed, boots clean, and BME280/LTR-390/e-ink/battery-voltage/dock-detect all confirmed working live (not just "flash succeeded") -- same "Don't close until" bar CARD-0009's enclosure build and every other hardware-swap card on this board already use.
+
+**Related:** CARD-0346 (the firmware this first flash carries forward, including its own not-yet-verified backstop fix), `components/hiking-monitor/README.md`, `WORKSTATION-SETUP.md`.
+
+---
+
+### CARD-0375 · [bug] [tos] [security] Live secrets are committed to the PUBLIC repo -- rotate them, scrub the working tree, decide on history
+
+**Status:** Backlog
+
+**Priority:** Critical -- the repository is public, and at least two of these secrets guard endpoints reachable from the internet. (set 2026-09-30 10:43 MST, incident)
+
+**Raised 2026-09-30 10:43 MST (general session, from a full-history scan for the real secret values).** *This card names credentials only -- no values, and deliberately no file paths or commit ids, because this board is itself public.* `gh repo view` reports the repo **PUBLIC**. A scan of the current tracked files and **all history on all branches** for 35 real secret values (taken from the RoboForm checklist, so they are the live values) found six of them committed. Filename checks had said "no secrets files are tracked" -- true, but the secrets were pasted into *other* files: Tasker exports, setup docs, a script, and card text.
+
+**What is exposed, in order of how reachable it is from the internet:**
+1. **`webhook-secret`** -- in several tracked Tasker exports and setup docs, and in history. It guards `hikes.jctnet.com/webhook/*`, **public through the Cloudflare tunnel**: anyone holding it can trigger hike-summary generation (Anthropic API cost), open GitHub PRs (`/webhook/idea`), write staged files and spoof pipeline-log lines. **Rotate first.**
+2. **`mosquitto-accounts--hiking-monitor`** -- in a tracked setup doc and in history. **MQTT port 1883 is forwarded from the internet** (root `CLAUDE.md`) and `mosquitto.conf` has no ACLs, so this password lets anyone on the internet read and write every topic. Needs a broker change plus a hiking-monitor reflash.
+3. **`immich-credentials--api-key-joseph`** -- hard-coded in a tracked maintenance script (still in the current tree) and in history. Reachability depends on whether Immich is exposed; treat as compromised. Fix the script to read it from an env file as part of the rotation.
+4. **`esp32-device-secrets--hiking-monitor-ota`** (the OTA password, same value recorded under two registry names) -- in a tracked card archive and in history across several files. LAN-reachable only, but it lets a LAN attacker flash the device; rotate with the reflash in item 2.
+5. **`apps-script-api-key`** (retired) -- in two tracked Tasker exports and in history. The endpoint is write-retired, so lowest risk; confirm the deployment is actually disabled, and scrub.
+6. **Node-RED: the admin password hash and a weak `credentialSecret`** -- the tracked copy of `settings.js` publishes the bcrypt hash of the Node-RED admin password (offline-crackable if the password is not long and random; treat as exposed, so rotate `node-red-admin-password`) and sets `credentialSecret` to a short, guessable word. The encrypted credentials file itself was never committed, but with a guessable secret its encryption is decorative: anyone who ever obtains it decrypts it. Fix: generate a strong `credentialSecret` (kept out of the repo, e.g. read from the environment), re-encrypt the store, and keep only a placeholder in the tracked copy.
+
+**Not covered by the scan:** only the 35 values that exist in the checklist. The nine entries with no value there (the front-porch, garage-radar and salt-sensor MQTT passwords, whose values live in each device's own `secrets.yaml`; the Node-RED and Home Assistant MQTT passwords; the orchestrator's MQTT password; the Pi login; and the two pointer entries) were **not** scanned, so they are unknown, not clean. Also not scanned: secret shapes that are not in the checklist at all.
+
+**What to do (nothing below has been done yet):**
+- **Rotate, because rotation is the real fix.** Once pushed to a public repo a secret must be treated as compromised however the history is later cleaned (scrapers, forks, caches). Order: webhook-secret, then the hiking-monitor MQTT password and OTA password together (one reflash), then the Immich key, then the retired Apps Script key.
+- **Scrub the current working tree** -- replace each committed value with a named placeholder, and make the Tasker exports follow the `REPLACE_WITH_...` pattern already used for the observations export.
+- **Decide on history.** Rewriting public history (`git filter-repo` + a force-push) removes the values from GitHub's view going forward but not from copies already taken; it also rewrites every commit id. Worth doing only *after* rotation, and only if Joseph wants a clean history.
+- **Prevent a repeat:** a pre-commit check that refuses a commit containing any value from the local secret stores (run as a script that reads the values itself and never prints them) -- this is CARD-0334 Phase 1's tripwire, applied to the commit boundary.
+- **Extend the scan** to the nine unscanned secrets once their values are in hand, and re-run the whole scan after the rotation to show no live value remains.
+
+**Related:** CARD-0334 (the no-print rule and guardrails), CARD-0372 (the rotation mechanism -- webhook-secret becomes the urgent pilot instead of the data-pipeline key), CARD-0367 (an earlier leak of the retired Apps Script key through alert text), CARD-0365 (keys in URLs), CARD-0370 (gateway key rotation).
 
 ### CARD-0374 · [enhancement] [logging] /kanban: sort each column by priority, then latest activity, then age -- and show a priority badge
 

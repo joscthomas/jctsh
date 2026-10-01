@@ -9,7 +9,37 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0377 -->
+<!-- next-card-id: CARD-0378 -->
+
+---
+
+### CARD-0377 · [bug] [air-quality-monitor] Task-watchdog crash mid-replay lost the last ~68 minutes of a real 10-mile hike's environmental data
+
+**Status:** Build
+
+**Raised 2026-10-01 (Joseph), from a real hike.** Plan executed exactly as intended: rebooted AQM ~05:45 MST while still docked (deliberate, to start the day with a synced clock and a clean boot), left Intent off and undocked for the drive to the trailhead, Intent ON at the trailhead, hiked ~10 miles / ~4h10m, Intent OFF at the end, drove home, docked ~12:30 MST.
+
+**What happened, reconstructed from the log dashboard and a direct query against the data-pipeline gateway (CARD-0349 -- the Environmental Data Google Sheet is retired; `fetch_hike_data.py --source air-quality-monitor` against the TimescaleDB gateway is now the authoritative source):**
+- The hike itself was clean: one single continuous boot from ~05:56 through dock at 12:30 (uptime 6h34m confirmed at the first post-dock heartbeat) -- no reboots, no connection drops, the whole ~6.5 hours of drive+hike+drive-home.
+- At dock (12:30:05), `Replaying 125 buffered readings...` started at 12:30:57. 125 matches a ~4h10m hike at 2-min intervals almost exactly.
+- **29 seconds into the replay (12:31:26), the device dropped off MQTT and came back at 12:31:32 with `reset reason: task watchdog`** -- a real ESP-IDF task-watchdog trip, confirmed genuine (not a misreport) because uptime reset to 0h19m by the next heartbeat. No `Buffered-data replay complete.` line ever appeared -- the replay was cut off mid-stream.
+- **Confirmed data loss, queried directly:** 91 of the 125 buffered readings actually reached the data-pipeline gateway, spanning 06:42-09:42 MST with zero gaps inside that window (clean, complete coverage for the first 3 hours). The remaining 34 readings (= 68 minutes, matching 125-91 exactly) -- covering roughly the last hour-plus of the hike -- never arrived. GPS Track (482 points, a separate device/pipeline) was unaffected; this is specifically an AQM environmental-data loss.
+- Device has been fully stable since the crash (healthy battery, normal heartbeats through at least 13:31).
+
+**Why, investigated against the actual replay code (`attempt_aqm_replay`'s callback in `air-quality-monitor.yaml`, `aqm_log_replay_stream` in `aqm_logger.h`) -- a reasoned hypothesis, not yet confirmed via a live capture:**
+Each buffered reading's replay does: cheap string-based timestamp resolution (CARD-0343's logic, no I/O), one `mqtt_client->publish()` call (QoS 0), `App.feed_wdt()`, then `delay(50)` -- the exact same pattern already flagged in this file's own comments as having "already needed watchdog fixes" once before, for a *50ms burst*. `feed_wdt()` is called only **after** `publish()` returns, so it can only protect against *cumulative* slowness across iterations, not a **single** `publish()` call that blocks longer than the watchdog timeout by itself -- once inside that one blocking call, nothing can feed the watchdog until it returns. 125 readings fired back-to-back at nominal 50ms spacing is the largest batch this device has ever replayed in the field (every prior real hike was 10-58 readings); it's plausible that volume was enough to build real TCP/TLS send-buffer backpressure (mTLS framing overhead per publish, home WiFi, not a wired link) until one `publish()` call blocked past the watchdog's timeout -- a scaling limit in the existing per-reading pacing that smaller batches never exercised, not a new regression in CARD-0346's own recent changes (the replay loop itself is unchanged from before that work).
+
+**Not yet confirmed:** no live debug-UART capture was taken during this actual crash (AQM does have UART debug capability per CARD-0205, unlike hiking-monitor) -- the above is the best explanation consistent with the evidence, not a proven root cause. A deliberate bench reproduction (force a 100+ reading backlog, replay it while watching serial) would confirm or rule this out directly.
+
+**Proposed fix, not yet built -- Joseph's call on how far to take this before the next real hike:**
+1. **Cheapest, lowest-risk:** call `App.feed_wdt()` immediately *before* `publish()` as well as after, so the watchdog's timeout window is freshly reset right before the one call most likely to block, maximizing its own time budget without changing behavior otherwise.
+2. **Also cheap:** increase the per-reading `delay(50)` for large backlogs specifically (e.g. scale it up past some count threshold), trading longer total replay time for more breathing room against backpressure -- doesn't fix a single pathologically slow `publish()` call, but reduces how often the TCP buffer gets saturated in the first place.
+3. **More invasive, most robust:** chunk the replay into smaller batches with a real yield (not just `delay()`) between chunks, or move to a non-blocking publish pattern -- bigger change, probably not justified unless (1)/(2) don't hold up.
+4. **Confirms whichever fix is chosen:** a bench reproduction with a forced large backlog (100+ readings) and a live UART capture, watching for the exact call that blocks -- this is also how CARD-0012's SEN55 power-gate issue and CARD-0226's reboot-loop were eventually root-caused on this project, not guessed at.
+
+**Done when:** a fix (at minimum, option 1) is built and verified live against a real or bench-forced large-batch replay with no task-watchdog trip, and the next real hike with a large buffered count (any hike where AQM goes a full session without connecting) confirms zero data loss end to end against the data-pipeline gateway.
+
+**Related:** CARD-0346 (the replay/backstop logic this crash happened inside, built and verified separately from this bug), CARD-0205 (AQM's debug-UART capability, available if a bench reproduction is needed), CARD-0012 (Step 8's original replay-loop design and its own prior watchdog-fix history), CARD-0349 (the Sheet-to-gateway migration that made this card's own data-loss confirmation possible), `components/air-quality-monitor/aqm_logger.h`, `components/air-quality-monitor/air-quality-monitor.yaml`.
 
 ---
 

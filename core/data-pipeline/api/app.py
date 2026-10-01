@@ -29,7 +29,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
 
@@ -39,11 +39,17 @@ import psycopg2.extras
 import psycopg2.pool
 import psycopg2.sql
 
-VERSION = "2026-09-29.4"  # action=version fingerprint, same "confirm a
+VERSION = "2026-10-01.1-env-bulk"  # action=version fingerprint, same "confirm a
 # redeploy actually landed" convention as environmental-data.gs's own
 # SCRIPT_VERSION.
 
-API_KEY = os.environ.get("API_KEY", "")
+# CARD-0377: .strip() every env var read here -- found live that .env's CRLF
+# line endings left a trailing \r on every value (API_KEY included), which
+# curl would send without complaint but which silently desynced the stdlib
+# http.server's header/body parsing on the receiving end. .env has been fixed
+# directly too, but stripping here means a future CRLF-contaminated edit
+# (e.g. saved from a Windows editor again) can't reintroduce the same bug.
+API_KEY = os.environ.get("API_KEY", "").strip()
 
 # CARD-0372: dual-accept window for key rotation. During a rotation the OLD key
 # is moved to API_KEY_PREVIOUS and stays valid until API_KEY_PREVIOUS_EXPIRES
@@ -51,7 +57,7 @@ API_KEY = os.environ.get("API_KEY", "")
 # the window closes on schedule whether or not anything else runs. A previous
 # key with no valid expiry is ignored entirely -- an unbounded second key is
 # exactly what the window exists to avoid.
-API_KEY_PREVIOUS = os.environ.get("API_KEY_PREVIOUS", "")
+API_KEY_PREVIOUS = os.environ.get("API_KEY_PREVIOUS", "").strip()
 
 
 def _parse_expiry(raw):
@@ -74,15 +80,15 @@ PORT = int(os.environ.get("PORT", "8080"))
 DB_HOST = os.environ.get("DB_HOST", "timescaledb")
 DB_NAME = os.environ.get("DB_NAME", "jctsh")
 DB_USER = os.environ.get("DB_USER", "jctsh")
-DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
+DB_PASSWORD = os.environ.get("DB_PASSWORD", "").strip()
 
 # CARD-0349 Phase 2: this container has no MQTT client of its own (same
 # constraint environmental-data.gs had -- see CLAUDE.md's "MQTT vs Direct
 # HTTP" section), so dashboard visibility for GPS Track/Hike Start Forecast/
 # Wildlife Detections goes through hike-izer-orchestrator's existing
 # /webhook/pipeline-log relay, same as the old Apps Script used.
-PIPELINE_LOG_URL = os.environ.get("PIPELINE_LOG_URL", "https://hikes.jctnet.com/webhook/pipeline-log")
-WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
+PIPELINE_LOG_URL = os.environ.get("PIPELINE_LOG_URL", "https://hikes.jctnet.com/webhook/pipeline-log").strip()
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "").strip()
 
 # Field list matches environmental-data.gs's doPost appendRow column order
 # exactly (core/data-pipeline/environmental-data.gs, ~line 457) and
@@ -270,6 +276,39 @@ def _gps_lookup(conn, ts):
         )
         row = cur.fetchone()
     return (row[0], row[1]) if row else (None, None)
+
+
+def _insert_env_row(conn, ts, source, values):
+    """CARD-0377: the actual INSERT, extracted out of _handle_environmental_data
+    so the new bulk handler can reuse the identical dedup/range-check behavior
+    instead of duplicating it. Returns a result dict, never calls _respond --
+    callers decide how/whether to report each row (one HTTP response for the
+    single-row caller, one aggregate response for the bulk caller)."""
+    columns = ["ts", "source"] + list(ENV_OPTIONAL_FIELDS)
+    row_values = [ts, source] + [values[f] for f in ENV_OPTIONAL_FIELDS]
+    try:
+        query = psycopg2.sql.SQL("INSERT INTO environmental_data ({cols}) VALUES ({vals})").format(
+            cols=psycopg2.sql.SQL(", ").join(map(psycopg2.sql.Identifier, columns)),
+            vals=psycopg2.sql.SQL(", ").join([psycopg2.sql.Placeholder()] * len(columns)),
+        )
+        with conn.cursor() as cur:
+            cur.execute(query, row_values)
+        conn.commit()
+        return {"status": "ok"}
+    except psycopg2.errors.UniqueViolation:
+        # CARD-0215's (ts, source) dedup case.
+        conn.rollback()
+        return {"status": "duplicate", "ts": ts.isoformat(), "source": source}
+    except psycopg2.errors.CheckViolation as e:
+        # CARD-0215's physical range-check case -- constraints are named
+        # chk_<field> (init/schema.sql), so the violated field is recoverable
+        # from the constraint name without re-validating in Python too.
+        conn.rollback()
+        field = (e.diag.constraint_name or "").removeprefix("chk_")
+        return {"status": "rejected", "reason": "out_of_range", "field": field, "value": values.get(field)}
+    except Exception as e:
+        conn.rollback()
+        return {"status": "error", "message": str(e)}
 
 
 def _row_to_json(row):
@@ -637,6 +676,9 @@ class Handler(BaseHTTPRequestHandler):
         if parts.path == "/environmental-data":
             self._handle_environmental_data(parts)
             return
+        if parts.path == "/environmental-data-bulk":
+            self._handle_environmental_data_bulk(parts)
+            return
         if parts.path == "/wildlife-detection":
             self._handle_wildlife_detection(parts)
             return
@@ -885,43 +927,122 @@ class Handler(BaseHTTPRequestHandler):
             self._respond(400, {"status": "error", "message": str(e)})
             return
 
-        columns = ["ts", "source"] + list(ENV_OPTIONAL_FIELDS)
-        row_values = [ts, source] + [values[f] for f in ENV_OPTIONAL_FIELDS]
-
         conn = _pool.getconn()
         try:
-            query = psycopg2.sql.SQL("INSERT INTO environmental_data ({cols}) VALUES ({vals})").format(
-                cols=psycopg2.sql.SQL(", ").join(map(psycopg2.sql.Identifier, columns)),
-                vals=psycopg2.sql.SQL(", ").join([psycopg2.sql.Placeholder()] * len(columns)),
-            )
-            with conn.cursor() as cur:
-                cur.execute(query, row_values)
-            conn.commit()
-        except psycopg2.errors.UniqueViolation:
-            # CARD-0215's (ts, source) dedup case. Same {"status":
-            # "duplicate"} shape the old doPost returned, so Node-RED's
-            # existing retry-tolerant handling needs no change.
-            conn.rollback()
-            self._respond(200, {"status": "duplicate", "ts": ts.isoformat(), "source": source})
-            return
-        except psycopg2.errors.CheckViolation as e:
-            # CARD-0215's physical range-check case, now a DB constraint
-            # instead of application code -- constraints are named chk_<field>
-            # (init/schema.sql), so the violated field is recoverable from the
-            # constraint name without re-validating in Python too.
-            conn.rollback()
-            field = (e.diag.constraint_name or "").removeprefix("chk_")
-            self._respond(200, {"status": "rejected", "reason": "out_of_range", "field": field, "value": payload.get(field)})
-            return
-        except Exception as e:
-            conn.rollback()
-            log(f"environmental_data insert failed: {e}", err=True)
-            self._respond(500, {"status": "error", "message": str(e)})
-            return
+            # CARD-0377: fill lat/lon from the GPS track when the caller didn't
+            # supply them, in-process -- the same lookup Node-RED's live flow
+            # already does over its own HTTP round-trip (_handle_lookup_gps),
+            # just called directly here so a caller with no GPS of its own
+            # (e.g. AQM, which always sends null) doesn't need a relay hop.
+            if values.get("lat") is None and values.get("lon") is None:
+                values["lat"], values["lon"] = _gps_lookup(conn, ts)
+            result = _insert_env_row(conn, ts, source, values)
         finally:
             _pool.putconn(conn)
 
-        self._respond(200, {"status": "ok"})
+        if result["status"] == "error":
+            log(f"environmental_data insert failed: {result['message']}", err=True)
+            self._respond(500, result)
+            return
+        self._respond(200, result)
+
+    def _handle_environmental_data_bulk(self, parts):
+        """CARD-0377: AQM's bulk catch-up upload -- one request replaces what
+        used to be N individual MQTT publishes from the device. Also resolves
+        CARD-0343's "ts: null, uptime_s, boot" buffered-reading shape
+        server-side (ported from the ESP32 C++ in air-quality-monitor.yaml's
+        attempt_aqm_replay), since the whole point of this endpoint is to let
+        the device forward its raw log lines unmodified rather than doing
+        per-reading math itself."""
+        if not self._authorized(parts):
+            log("Rejected environmental-data-bulk POST: missing or incorrect key", err=True)
+            self._respond(401, {"status": "error", "message": "unauthorized"})
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length else b""
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            log(f"Rejected environmental-data-bulk POST: invalid JSON body ({raw!r})", err=True)
+            self._respond(400, {"status": "error", "message": "invalid JSON"})
+            return
+
+        readings = payload.get("readings")
+        if not isinstance(readings, list):
+            self._respond(400, {"status": "error", "message": "readings must be a list"})
+            return
+
+        current_time_raw = payload.get("current_time")
+        current_boot = payload.get("current_boot")
+        current_uptime_s = payload.get("current_uptime_s")
+        current_time = None
+        if current_time_raw:
+            try:
+                current_time = datetime.fromisoformat(str(current_time_raw).replace("Z", "+00:00"))
+            except ValueError:
+                current_time = None
+
+        counts = {"inserted": 0, "duplicate": 0, "rejected": 0, "unresolved": 0, "invalid": 0}
+        conn = _pool.getconn()
+        try:
+            for reading in readings:
+                if not isinstance(reading, dict):
+                    counts["invalid"] += 1
+                    continue
+                # Device's own raw log lines use "component", not "source" --
+                # accept either so the device can forward its SPIFFS lines
+                # byte-for-byte, with no field-renaming step of its own.
+                source = reading.get("source") or reading.get("component")
+                ts_raw = reading.get("ts")
+                ts = None
+                if ts_raw:
+                    try:
+                        ts = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+                    except ValueError:
+                        ts = None
+                elif reading.get("uptime_s") is not None and reading.get("boot"):
+                    # CARD-0343's resolution: only solvable if this reading is
+                    # from the SAME boot the device is in right now, and that
+                    # boot has already reached at least as much uptime as the
+                    # reading was taken at.
+                    if (current_time is not None and current_boot and current_uptime_s is not None
+                            and reading["boot"] == current_boot
+                            and current_uptime_s >= reading["uptime_s"]):
+                        ts = current_time - timedelta(seconds=(current_uptime_s - reading["uptime_s"]))
+                if not source:
+                    counts["invalid"] += 1
+                    continue
+                if ts is None:
+                    counts["unresolved"] += 1
+                    log(f"environmental-data-bulk: unresolved reading kept out (source={source}, "
+                        f"boot={reading.get('boot')}, uptime_s={reading.get('uptime_s')})")
+                    continue
+                try:
+                    values = {f: _coerce(reading, f) for f in ENV_OPTIONAL_FIELDS}
+                except _BadField:
+                    counts["invalid"] += 1
+                    continue
+                if values.get("lat") is None and values.get("lon") is None:
+                    values["lat"], values["lon"] = _gps_lookup(conn, ts)
+                result = _insert_env_row(conn, ts, source, values)
+                if result["status"] == "ok":
+                    counts["inserted"] += 1
+                elif result["status"] == "duplicate":
+                    counts["duplicate"] += 1
+                elif result["status"] == "rejected":
+                    counts["rejected"] += 1
+                else:
+                    counts["invalid"] += 1
+        finally:
+            _pool.putconn(conn)
+
+        log(f"environmental-data-bulk: {len(readings)} readings -> {counts}")
+        _relay_log("air-quality-monitor", "System",
+                   f"Bulk upload: {counts['inserted']} inserted, {counts['duplicate']} duplicate, "
+                   f"{counts['rejected']} rejected, {counts['unresolved']} unresolved, {counts['invalid']} invalid "
+                   f"(of {len(readings)} total)")
+        self._respond(200, {"status": "ok", **counts, "total": len(readings)})
 
 
 def main():

@@ -23,15 +23,27 @@
 #                                               -- inject one secret into a child
 #                                                  process's environment only, mask its
 #                                                  exact value in that command's output
+#   secret.ps1 due                            -- scan credential-registry.yaml (values-free,
+#                                                  no vault/Credential Manager touched) for
+#                                                  what needs attention: still-exposed-and-
+#                                                  unrotated, explicitly rotation_requested,
+#                                                  or overdue by tier/interval. The Session
+#                                                  Start check (CARD-0372, see
+#                                                  JCTsh-Session-Start.md) calls this --
+#                                                  deliberately a conversational prompt, not
+#                                                  an auto-opened card (Joseph, 2026-10-02:
+#                                                  this is operational work, like
+#                                                  archive_cards.py's dry-run, not a kanban
+#                                                  card per finding).
 #
 # Not built: `init` per-profile bootstrap beyond the doctor check (placing a Credential
 # Manager entry on a brand-new profile is still a deliberate, by-hand act -- see
 # CARD-0372); the cross-profile lock file; `rotate` (the registry-aware orchestrator
-# that calls this helper).
+# that calls this helper, distinct from `due`'s read-only report).
 
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run')]
+    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'due')]
     [string]$Action,
 
     [Parameter(Position = 1)]
@@ -50,6 +62,7 @@ $ErrorActionPreference = 'Stop'
 $VaultPath = 'C:\Shared\.jctsh-vault\jctsh-vault.kdbx'
 $CredTarget = 'jctsh-vault-keyfile'
 $KeepassCli = 'C:\Program Files\KeePassXC\keepassxc-cli.exe'
+$RegistryPath = 'C:\Shared\jctsh\tos\credential-registry.yaml'
 
 # --- Credential Manager access (same P/Invoke pattern used by hand for both profiles) ---
 
@@ -130,6 +143,105 @@ function Invoke-Keepass {
     finally {
         Remove-Item $keyFile -Force -ErrorAction SilentlyContinue
     }
+}
+
+# --- Registry scan (values-free: only reads tos/credential-registry.yaml, never the
+# vault or Credential Manager) ---
+
+function Get-RegistryDueReport {
+    $lines = Get-Content $RegistryPath
+    $today = Get-Date
+
+    $idRecords = @()
+    $subRecords = @()
+    $cur = $null
+
+    foreach ($line in $lines) {
+        if ($line -match '^  - id:\s*(\S+)\s*$') {
+            if ($cur) { $idRecords += [pscustomobject]$cur }
+            $cur = @{
+                Id = $Matches[1]; Tier = $null; IntervalDays = $null; LastRotated = $null
+                ExposedDates = @(); RotationRequested = $null; Retired = $null
+            }
+            continue
+        }
+        if (-not $cur) { continue }
+
+        if ($line -match '^    tier:\s*(\d+)') { $cur.Tier = [int]$Matches[1]; continue }
+        if ($line -match '^    interval_days:\s*(null|\d+)') {
+            $cur.IntervalDays = if ($Matches[1] -eq 'null') { $null } else { [int]$Matches[1] }
+            continue
+        }
+        if ($line -match '^    last_rotated:\s*(\S+)') { $cur.LastRotated = $Matches[1]; continue }
+        if ($line -match '^    exposed:\s*\[(.*)\]') {
+            $cur.ExposedDates = @([regex]::Matches($Matches[1], '\d{4}-\d{2}-\d{2}') | ForEach-Object { $_.Value })
+            continue
+        }
+        if ($line -match '^    rotation_requested:\s*(null|".*")') {
+            $cur.RotationRequested = if ($Matches[1] -eq 'null') { $null } else { $Matches[1] }
+            continue
+        }
+        if ($line -match '^    retired:\s*(null|".*")') {
+            $cur.Retired = if ($Matches[1] -eq 'null') { $null } else { $Matches[1] }
+            continue
+        }
+        # A nested sub-account, e.g. mosquitto-accounts.accounts.<name>: {holder: ..., rotation_requested: "...", retired: "..."}
+        if ($line -match '^      (\S+):\s*\{(.*)\}\s*$') {
+            $subName = $Matches[1]; $body = $Matches[2]
+            $subRR = $null; $subRetired = $null
+            if ($body -match 'rotation_requested:\s*"([^"]*)"') { $subRR = $Matches[1] }
+            if ($body -match 'retired:\s*"([^"]*)"') { $subRetired = $Matches[1] }
+            if ($subRR -or $subRetired) {
+                $subRecords += [pscustomobject]@{ Id = $cur.Id; SubAccount = $subName; RotationRequested = $subRR; Retired = $subRetired }
+            }
+            continue
+        }
+    }
+    if ($cur) { $idRecords += [pscustomobject]$cur }
+
+    $exposedBucket = @(); $requestedBucket = @(); $overdueBucket = @()
+
+    foreach ($r in $idRecords) {
+        if ($r.Retired) { continue }  # retired = stops existing anywhere; no action to surface
+
+        $mostRecentExposed = $null
+        if ($r.ExposedDates.Count -gt 0) { $mostRecentExposed = ($r.ExposedDates | Sort-Object -Descending | Select-Object -First 1) }
+
+        $rotatedAfterExposure = $false
+        if ($mostRecentExposed -and $r.LastRotated -and $r.LastRotated -ne 'unknown') {
+            try { $rotatedAfterExposure = ([datetime]$r.LastRotated) -ge ([datetime]$mostRecentExposed) } catch { }
+        }
+
+        if ($mostRecentExposed -and -not $rotatedAfterExposure) {
+            $exposedBucket += [pscustomobject]@{ Name = $r.Id; Detail = "exposed $mostRecentExposed, last_rotated $($r.LastRotated)" }
+            continue
+        }
+        if ($r.RotationRequested) {
+            $requestedBucket += [pscustomobject]@{ Name = $r.Id; Detail = $r.RotationRequested }
+            continue
+        }
+        if ($r.IntervalDays) {
+            if (-not $r.LastRotated -or $r.LastRotated -eq 'unknown') {
+                $overdueBucket += [pscustomobject]@{ Name = $r.Id; Detail = "never recorded (tier $($r.Tier), $($r.IntervalDays)d cadence)" }
+            } else {
+                try {
+                    $days = ($today - [datetime]$r.LastRotated).Days
+                    if ($days -gt $r.IntervalDays) {
+                        $overdueBucket += [pscustomobject]@{ Name = $r.Id; Detail = "$days days since last rotation (cadence $($r.IntervalDays)d)" }
+                    }
+                } catch { }
+            }
+        }
+    }
+
+    foreach ($s in $subRecords) {
+        if ($s.Retired) { continue }  # e.g. mosquitto-accounts--air-quality-monitor, CARD-0377
+        if ($s.RotationRequested) {
+            $requestedBucket += [pscustomobject]@{ Name = "$($s.Id)--$($s.SubAccount)"; Detail = $s.RotationRequested }
+        }
+    }
+
+    [pscustomobject]@{ Exposed = $exposedBucket; Requested = $requestedBucket; Overdue = $overdueBucket }
 }
 
 # --- Commands ---
@@ -250,5 +362,30 @@ switch ($Action) {
         if ($stdoutMasked) { Write-Output $stdoutMasked }
         if ($stderrMasked) { Write-Output "STDERR: $stderrMasked" }
         exit $code
+    }
+
+    'due' {
+        $report = Get-RegistryDueReport
+
+        Write-Output "=== EXPOSED, NOT YET ROTATED (surface every session, per JCTsh-Session-Start.md) ==="
+        if ($report.Exposed.Count -gt 0) {
+            $report.Exposed | ForEach-Object { Write-Output "  $($_.Name) -- $($_.Detail)" }
+        } else { Write-Output "  none" }
+
+        Write-Output ""
+        Write-Output "=== ROTATION REQUESTED ==="
+        if ($report.Requested.Count -gt 0) {
+            $report.Requested | ForEach-Object { Write-Output "  $($_.Name) -- $($_.Detail)" }
+        } else { Write-Output "  none" }
+
+        Write-Output ""
+        Write-Output "=== OVERDUE BY CADENCE (periodic nudge -- offer, don't demand) ==="
+        if ($report.Overdue.Count -gt 0) {
+            $report.Overdue | ForEach-Object { Write-Output "  $($_.Name) -- $($_.Detail)" }
+        } else { Write-Output "  none" }
+
+        if ($report.Exposed.Count -gt 0) { exit 2 }
+        elseif ($report.Requested.Count -gt 0 -or $report.Overdue.Count -gt 0) { exit 1 }
+        else { exit 0 }
     }
 }

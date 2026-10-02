@@ -56,10 +56,22 @@ started but not finished, and anything stuck at `roboform_synced: false`.
 3. Explicit `rotation_requested` entries.
 4. Overdue-by-cadence, oldest first.
 
-State which one and why in one or two sentences, then ask whether to proceed
-with it or let Joseph name a different one. **CARD-0372's standing decision:
-no rotation deadlines for the exposed bucket** -- `due` surfacing something
-is information, not itself permission to act. Don't treat silence as a yes.
+**Before recommending, check for a same-device companion rotation.** A
+Mosquitto account and an `esp32-device-secrets` OTA entry for the same ESP32
+device both end in a guided "flash the device" holder -- if both are in the
+`due` output at once, recommend doing them together as one physical
+reflash, not two. Missed live 2026-10-02 (hiking-monitor's MQTT and OTA
+passwords were rotated as two separate sessions, forcing a second
+unnecessary reflash -- Joseph: "why was I instructed to do the MQTT password
+... without the OTA password? now I have to flash it again") -- grep the
+`due` output for the same device name across both `mosquitto-accounts--*`
+and `esp32-device-secrets--*-ota` before finishing either one in isolation.
+
+State which one (or which pair) and why in one or two sentences, then ask
+whether to proceed with it or let Joseph name a different one. **CARD-0372's
+standing decision: no rotation deadlines for the exposed bucket** -- `due`
+surfacing something is information, not itself permission to act. Don't
+treat silence as a yes.
 
 ## 2. Prepare
 

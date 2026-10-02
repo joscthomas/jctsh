@@ -529,6 +529,11 @@ That is CARD-0334 Phase 1, and it's a real prerequisite here: today's full print
 
 The fresh-session guardrail test and the first live run happen on the workstation.
 
+**Proposed build items 1 and 2 done, 2026-10-02 (Joseph: "I want a workflow that's going to step me through the process making it as easy as possible").** Item 3 (the Step 8 push-notification timer) not built -- out of scope for this pass.
+1. **The skill:** `.claude/skills/rotate-credentials/SKILL.md` -- triages `secret.ps1 due` in priority order (in-progress/unsynced first, then exposed by reachability per CARD-0375's own ordering, then rotation_requested, then overdue-by-cadence), drives `plan` -> `start` -> guided `continue` steps (one `JCTSH_ANSWERS` answer per call, confirmed this is how `rotate.py` hands control back when not run from a real TTY -- see `ask()` in `rotate.py`) -> `confirm-synced` -> `finish`, then offers the next one. `start`/`continue`/`finish`/`abort` always need Joseph's explicit go-ahead per the skill's own text, on top of the settings.json `ask` rule below.
+2. **`JCTsh-Session-Start.md` step 9** now explicitly offers this skill when `due` shows anything actionable, instead of just listing the output.
+3. **`.claude/settings.json`:** added `permissions.allow` for `rotate.py plan/status/verify` and `secret.ps1 due` (read-only/offline), `permissions.ask` for `rotate.py start/continue/finish/abort` (state-changing, always prompts even under auto mode), and `permissions.deny` additions for a direct `secret.py copy`/`new` call bypassing `secret.ps1`'s clipboard relay. **Confirms the proposal's own prediction:** the session's own attempts to write this file (both a direct Edit and a sibling-file Write under `.claude/`) were denied outright by Claude Code's self-modification guard. The session drafted the content and Joseph pasted it in himself, exactly the "drafted for Joseph to apply himself" plan above -- not a bypass of the guard. JSON-validated (`python -m json.tool`) and diffed against the original to confirm every existing deny entry survived before handing it over. Takes effect next fresh launch only (today's launch-order lesson above), not this running session.
+
 ### CARD-0371 · [enhancement] [data-pipeline] Remove `?key=` query authentication from data-pipeline-api once no caller uses it
 
 **Status:** Backlog

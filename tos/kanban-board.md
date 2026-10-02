@@ -374,6 +374,15 @@ Each buffered reading's replay does: cheap string-based timestamp resolution (CA
 
 **Helper renamed, 2026-10-02 (Joseph): `sec` -> `secret`.** Every reference on this card and on CARD-0334 renamed (`secret set`, `secret run`, `secret has`/`fingerprint`, `secret new`, `secret copy`, `secret init`, `secret pull`, "the `secret` helper") -- design-only rename, no code exists yet to migrate. `jctsh-vault-keyfile` and `jctsh-vault.kdbx`/`.keyx` filenames are unaffected (they're the vault's own names, not the helper's).
 
+**New-credential workflow, stated explicitly, 2026-10-02 (a real gap this document had -- every workflow note above covered *rotating* an existing credential, none covered a brand-new one appearing).** When a card's work needs a credential that doesn't exist yet:
+1. **Generate the value** -- `secret new <id>` once the helper exists; by hand (a one-off script, clipboard, never printed) until then, same pattern used for `jctsh-vault-keyfile` itself.
+2. **Apply it to wherever it actually needs to live** -- create the account/`.env` var/etc., and verify it live (same discipline as any other Build work, e.g. `components/air-quality-monitor`'s/`back-patio-temp-sensor`'s original Mosquitto-account creation: a real `mosquitto_pub` test, not inferred).
+3. **Add a new `- id:` entry to `tos/credential-registry.yaml` by hand** -- `what`/`class`/`tier`/`holders` are judgment calls (what this is, where it's used, how critical) that no generator can infer; `secret`/`rotate` only ever write back to an *existing* entry's `last_rotated`/`roboform_synced`, never author a new one. Follow the existing entries as the template, per the schema comment at the top of the file.
+4. **Create a matching RoboForm entry**, named to match the `id`, paste the value in.
+5. **Flip that entry's `roboform: yes`** once pasted, and confirm each holder against its `verify` check.
+
+**This is the creation-flavored version of CARD-0377's standing rule, not a separate process** -- steps 3-5 happen *as part of* the card that needed the new credential, inline, without a separate prompt, same as a rotation's or retirement's registry fallout.
+
 ### CARD-0371 · [enhancement] [data-pipeline] Remove `?key=` query authentication from data-pipeline-api once no caller uses it
 
 **Status:** Backlog

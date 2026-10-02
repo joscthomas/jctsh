@@ -448,6 +448,47 @@ Also answered `hotspot-password`'s open question: the AQM joins the hotspot too,
 
 **CARD-0334/CARD-0375 still can't close.** Per Joseph's own instruction, no live rotation happened tonight -- every credential either card names is exactly as rotated as it was before (`last_rotated: unknown` on all of them, per `secret.ps1 due`). What changed is that the mechanism to actually do it now exists and is tested; the next real step is picking one and walking it through live, which is explicitly what Joseph asked to be offered at his next Session Start.
 
+**Rotation runner built, and `secret.py` finished, 2026-10-02 (Joseph: "Build the rotate runner and finish secret.py").** Built and tested in a cloud session. Nothing touched a live holder or rotated anything real -- the standing "no live rotations" boundary holds, and the first real run is still the walkthrough Joseph asked to be offered at Session Start.
+- **`tos/secret.py` (M8):** new `ls`, `reach <host>`, and rotation primitives:
+  - `stage` creates `<name>.next`, generated (40 chars, alphanumeric by default, so it's safe in `.env`/YAML/headers) or typed with `--prompt` for a value a service mints;
+  - `promote`/`unpromote`/`discard-next`/`drop-previous` handle `<name>.next` → `<name>` → `<name>.previous`. Deletes also purge KeePassXC's recycle bin;
+  - `envfile` edits `KEY=VALUE` lines on the M8, or on another host over SSH. Values travel on stdin only, the replace is atomic with mode/owner kept, every write is read back and verified, and an optional restart runs on that host;
+  - `run` takes several `--env VAR=<entry>` bindings and `--stdin`, masking all of them.
+
+  Every vault write now takes an exclusive lock (the Step 3 lock-file item). This closes the M8 half of the "Not built" list above.
+- **`tos/rotate.py` (workstation, next to the registry) replaces `rotate.ps1`'s dry-run skeleton** (`rotate.ps1` is now a shim). Commands: `plan`, `verify`, `start`, `continue`, `status`, `confirm-synced`, `finish`, `abort`. It implements the lifecycle in this card:
+  - stage the new value;
+  - holders in registry order, automatic where the holder has an `apply:` map, guided otherwise (value on the clipboard, wait for "done");
+  - dual-accept holders keep the old value valid until the window closes (default 14 days, decision 6's draft);
+  - cutover sets `roboform_synced: false`;
+  - `finish` is gated on `confirm-synced`, the window closing, or `--force`. It then removes the old value from dual-accept holders, purges `<name>.previous`, and writes `last_rotated`/`rotation_requested: null`.
+
+  `abort` before cutover puts the old value back into every holder already done. Grouped entries rotate one account at a time (`<id>--<account>`), and only that account's line in the registry changes. Values-free run state lives in `tos/.rotation-state/` (gitignored), with a run lock shared by both Windows profiles. The runner never handles a value itself: vault work runs on the M8, and pastes go M8 → clipboard through `secret.ps1 copy`.
+- **Registry:** a holder can now carry `apply:` and `check_cmd:` (schema in the file header), plus an optional entry-level `revoke:` step. Filled in only where the facts are in this repo:
+  - the data-pipeline gateway (dual-accept via `API_KEY_PREVIOUS`/`_EXPIRES`, checked against `127.0.0.1:8091/auth-status`);
+  - the orchestrator's `DATA_PIPELINE_KEY`;
+  - both `WEBHOOK_SECRET` holders;
+  - the log dashboard's Pi env file.
+
+  Everything else is guided.
+- **`secret.ps1 due`** also lists rotations in progress and `roboform_synced: false` credentials. It now reads the registry next to itself instead of a hard-coded `C:\Shared\jctsh` path.
+- **Tested against a real KeePassXC vault** (keepassxc-cli 2.7.6, PowerShell 7.4), with a registry copy pointing `apply:` at scratch files and a fake ssh/sudo. Five scenarios:
+  1. the data-pipeline pilot end to end, stopping at a "later" answer and resuming;
+  2. a grouped account with `--no-current`;
+  3. abort;
+  4. a Pi holder over SSH whose check fails, then `continue` re-checks;
+  5. the lock, and `rotation_requested` being cleared.
+
+  The runner's registry parser matches PyYAML on all 26 entries, 60 holders and 25 accounts, and a CRLF registry is written back without mixed line endings. Across all output, no vault value ever appeared.
+
+**Before the first live rotation (Joseph):**
+1. Deploy the new `secret.py`: `scp tos/secret.py jct@m8.local:/tmp/ && ssh jct@m8.local "sudo install -m 0755 -o root -g root /tmp/secret.py /usr/local/bin/secret.py"`, then `secret.ps1 init`.
+2. Store each credential's current value in the vault first (`secret.ps1 set <name>`). The vault is still empty, and `start` refuses without a current value (`--no-current` only for a value that's lost, like `nodered`).
+3. The log-dashboard holder needs an SSH key from the M8 to `pi@pi1.local`. None is recorded, and `start`'s preflight checks it.
+4. Python 3.7+ on the workstation (`py` or `python`).
+
+**Not yet proven live:** the `apply:` restart commands and the gateway `check_cmd` come from this repo's compose files and READMEs, not a live run, so watch the first pilot closely. **Not built:** Step 8's push notification, Step 9's unattended runs, and scripted recipes for HA tokens, Immich keys or ESP32 reflashes (those run as guided steps).
+
 ### CARD-0371 · [enhancement] [data-pipeline] Remove `?key=` query authentication from data-pipeline-api once no caller uses it
 
 **Status:** Backlog

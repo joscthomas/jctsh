@@ -37,9 +37,9 @@
 #   secret.ps1 due                              -- local-only registry scan (see above),
 #                                                   unchanged by the M8 move
 #
-# Not built: the registry-aware `rotate` orchestrator; a lock file for two SSH sessions
-# racing the same credential (not yet a real problem -- M8 having one owner already
-# removed the Windows two-profile version of this problem).
+# Rotation itself is tos/rotate.py (CARD-0372), which drives secret.py's rotation
+# commands (stage/promote/envfile/drop-previous...) over the same SSH path; secret.py
+# locks the vault for every write, and rotate.py keeps its own run lock.
 
 param(
     [Parameter(Position = 0, Mandatory = $true)]
@@ -61,7 +61,10 @@ $ErrorActionPreference = 'Stop'
 
 $M8Host = 'jct@m8.local'
 $M8Script = '/usr/local/bin/secret.py'
-$RegistryPath = 'C:\Shared\jctsh\tos\credential-registry.yaml'
+# Next to this script (C:\Shared\jctsh\tos on the workstation); JCTSH_REGISTRY overrides it (tests).
+$RegistryPath = if ($env:JCTSH_REGISTRY) { $env:JCTSH_REGISTRY } else { Join-Path $PSScriptRoot 'credential-registry.yaml' }
+# rotate.py's values-free run state (CARD-0372), shown by `due`.
+$RotationStateDir = if ($env:JCTSH_ROTATION_STATE) { $env:JCTSH_ROTATION_STATE } else { Join-Path $PSScriptRoot '.rotation-state' }
 
 # --- SSH relay to the M8 (replaces the old local Credential-Manager/keepassxc-cli calls) ---
 
@@ -129,7 +132,7 @@ function Get-RegistryDueReport {
             if ($cur) { $idRecords += [pscustomobject]$cur }
             $cur = @{
                 Id = $Matches[1]; Tier = $null; IntervalDays = $null; LastRotated = $null
-                ExposedDates = @(); RotationRequested = $null; Retired = $null
+                ExposedDates = @(); RotationRequested = $null; Retired = $null; RoboformPending = $false
             }
             continue
         }
@@ -149,6 +152,7 @@ function Get-RegistryDueReport {
             $cur.RotationRequested = if ($Matches[1] -eq 'null') { $null } else { $Matches[1] }
             continue
         }
+        if ($line -match '^    roboform_synced:\s*false\b') { $cur.RoboformPending = $true; continue }
         if ($line -match '^    retired:\s*(null|".*")') {
             $cur.Retired = if ($Matches[1] -eq 'null') { $null } else { $Matches[1] }
             continue
@@ -170,6 +174,7 @@ function Get-RegistryDueReport {
             $subRecords += [pscustomobject]@{
                 Id = $cur.Id; SubAccount = $subName; RotationRequested = $subRR; Retired = $subRetired
                 LastRotated = $subLast; ExposedDates = $subExposed
+                RoboformPending = ($bare -match 'roboform_synced:\s*false\b')
             }
             continue
         }
@@ -180,6 +185,7 @@ function Get-RegistryDueReport {
     $exposedBucket = [System.Collections.Generic.List[object]]::new()
     $requestedBucket = [System.Collections.Generic.List[object]]::new()
     $overdueBucket = [System.Collections.Generic.List[object]]::new()
+    $roboformBucket = [System.Collections.Generic.List[object]]::new()
 
     # One credential's status, highest-priority bucket only: exposed > requested > overdue.
     function Add-DueStatus($Name, $ExposedDates, $LastRotated, $RotationRequested, $IntervalDays, $Tier) {
@@ -217,6 +223,10 @@ function Get-RegistryDueReport {
         if ($r.Retired) { continue }  # retired = stops existing anywhere; no action to surface
 
         $subs = @($subRecords | Where-Object { $_.Id -eq $r.Id })
+        if ($r.RoboformPending) { $null = $roboformBucket.Add([pscustomobject]@{ Name = $r.Id }) }
+        foreach ($s in $subs) {
+            if ($s.RoboformPending -and -not $s.Retired) { $null = $roboformBucket.Add([pscustomobject]@{ Name = "$($r.Id)--$($s.SubAccount)" }) }
+        }
         if ($subs.Count -eq 0) {
             Add-DueStatus $r.Id $r.ExposedDates $r.LastRotated $r.RotationRequested $r.IntervalDays $r.Tier
             continue
@@ -233,7 +243,22 @@ function Get-RegistryDueReport {
         }
     }
 
-    [pscustomobject]@{ Exposed = $exposedBucket; Requested = $requestedBucket; Overdue = $overdueBucket }
+    # Rotations rotate.py has started and not finished (values-free JSON state files).
+    $inProgress = [System.Collections.Generic.List[object]]::new()
+    if (Test-Path $RotationStateDir) {
+        foreach ($f in Get-ChildItem -Path $RotationStateDir -Filter '*.json' -File) {
+            try {
+                $st = Get-Content $f.FullName -Raw | ConvertFrom-Json
+                $next = if ($st.phase -eq 'applying') { 'continue' } elseif ($st.roboform_synced) { 'finish' } else { 'confirm-synced' }
+                # PowerShell 7's ConvertFrom-Json turns the ISO timestamp into a DateTime; show it as ISO again.
+                $exp = if ($st.expires -is [datetime]) { $st.expires.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") } else { $st.expires }
+                $null = $inProgress.Add([pscustomobject]@{ Name = $st.target; Detail = "phase $($st.phase), window closes $exp -- next: rotate.py $next $($st.target)" })
+            } catch { }
+        }
+    }
+
+    [pscustomobject]@{ Exposed = $exposedBucket; Requested = $requestedBucket; Overdue = $overdueBucket
+                       Roboform = $roboformBucket; InProgress = $inProgress }
 }
 
 # --- Commands ---
@@ -317,13 +342,25 @@ switch ($Action) {
         } else { Write-Output "  none" }
 
         Write-Output ""
+        Write-Output "=== ROTATIONS IN PROGRESS (rotate.py) ==="
+        if ($report.InProgress.Count -gt 0) {
+            $report.InProgress | ForEach-Object { Write-Output "  $($_.Name) -- $($_.Detail)" }
+        } else { Write-Output "  none" }
+
+        Write-Output ""
+        Write-Output "=== ROTATED, NOT YET PASTED INTO ROBOFORM (roboform_synced: false) ==="
+        if ($report.Roboform.Count -gt 0) {
+            $report.Roboform | ForEach-Object { Write-Output "  $($_.Name) -- secret.ps1 copy $($_.Name), paste into RoboForm, then rotate.py confirm-synced (or set roboform_synced: true)" }
+        } else { Write-Output "  none" }
+
+        Write-Output ""
         Write-Output "=== OVERDUE BY CADENCE (periodic nudge -- offer, don't demand) ==="
         if ($report.Overdue.Count -gt 0) {
             $report.Overdue | ForEach-Object { Write-Output "  $($_.Name) -- $($_.Detail)" }
         } else { Write-Output "  none" }
 
         if ($report.Exposed.Count -gt 0) { exit 2 }
-        elseif ($report.Requested.Count -gt 0 -or $report.Overdue.Count -gt 0) { exit 1 }
+        elseif ($report.Requested.Count -gt 0 -or $report.Overdue.Count -gt 0 -or $report.Roboform.Count -gt 0 -or $report.InProgress.Count -gt 0) { exit 1 }
         else { exit 0 }
     }
 }

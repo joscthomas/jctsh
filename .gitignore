@@ -44,3 +44,6 @@ node_modules/
 # review decisions are all runtime-generated on the M8, not source
 components/photo-quality-review/data/
 components/photo-quality-review/bin/
+
+# CARD-0372: rotate.py run state (values-free, per workstation checkout)
+tos/.rotation-state/

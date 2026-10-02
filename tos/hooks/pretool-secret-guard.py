@@ -41,6 +41,31 @@ SECRET_SHAPED_PATTERNS = [
 
 GUARDED_TOOLS = {"Bash", "PowerShell", "Read", "Grep"}
 
+# A command that IS a sanctioned tool invocation (secret.ps1/secret.py/rotate.py) is
+# allowed to name a secret-bearing path -- that's the whole point of those tools
+# (CARD-0372's `secret.ps1 writefile`, 2026-10-02: "build it so I don't have to" paste
+# a value by hand). Only the PATH-based block below is exempted, and only when the
+# entire command is one such invocation with no shell chaining that could smuggle in
+# a second, unsanctioned command after it -- `cat secrets.yaml` must still be blocked
+# even if it runs right after a legitimate secret.ps1 call. Read/Grep get no exemption:
+# there is no sanctioned way to directly Read a secret-bearing file.
+CD_PREFIX = re.compile(r"^\s*cd\s+\S+\s*(?:&&|;)\s*", re.I)
+SCRIPT_INVOCATION = re.compile(
+    r"^(?:\.[\\/]|\.\\|python3?\s+|py\s+)?tos[\\/](?:secret\.ps1|secret\.py|rotate\.py)\b", re.I
+)
+SHELL_CHAIN_CHARS = re.compile(r"[;&|`]|\$\(")
+
+
+def is_sanctioned_command(command):
+    """True only if, after stripping at most one leading 'cd <dir> &&'/';', the WHOLE
+    rest of the command is a single secret.ps1/secret.py/rotate.py invocation with no
+    further shell chaining -- so a smuggled-in `cat secrets.yaml` after it still blocks."""
+    rest = CD_PREFIX.sub("", command, count=1)
+    if not SCRIPT_INVOCATION.match(rest):
+        return False
+    after_match = SCRIPT_INVOCATION.sub("", rest, count=1)
+    return not SHELL_CHAIN_CHARS.search(after_match)
+
 
 def main():
     try:
@@ -57,10 +82,17 @@ def main():
     for key in ("command", "file_path", "path", "pattern"):
         value = tool_input.get(key)
         if isinstance(value, str):
-            haystacks.append(value)
+            haystacks.append((key, value))
 
-    for text in haystacks:
+    for key, text in haystacks:
+        path_exempt = (
+            key == "command"
+            and tool_name in ("Bash", "PowerShell")
+            and is_sanctioned_command(text)
+        )
         for pat in SECRET_PATH_PATTERNS:
+            if path_exempt:
+                break
             if pat.search(text):
                 print(
                     f"Blocked: {tool_name} touches a secret-bearing path "

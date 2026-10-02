@@ -36,14 +36,59 @@
 #                                                   output
 #   secret.ps1 due                              -- local-only registry scan (see above),
 #                                                   unchanged by the M8 move
+#   secret.ps1 writefile <name> -Path <file> -Key <yaml-key>
+#                                                -- edits an EXISTING "key: value" line in a
+#                                                   LOCAL file on this workstation (e.g. an
+#                                                   ESPHome components/<name>/secrets.yaml,
+#                                                   never committed) to <name>'s current vault
+#                                                   value. Same never-print relay as `copy`
+#                                                   (SSH -> a PowerShell variable -> the file,
+#                                                   nulled right after) -- the value is never
+#                                                   written to this script's own output, so a
+#                                                   Claude Code session can run this directly
+#                                                   instead of asking Joseph to paste it by
+#                                                   hand (CARD-0372, 2026-10-02: "build it so I
+#                                                   don't have to"). Refuses if the key is
+#                                                   missing or appears more than once -- it
+#                                                   edits an existing line, never adds one.
+#                                                   Verifies by SHA-256 fingerprint match
+#                                                   against the vault (re-read from disk after
+#                                                   writing), never by comparing raw values.
+#                                                   Only understands a simple "key: value" (or
+#                                                   "key: \"value\"") line shape -- not general
+#                                                   YAML, nested keys, or multi-line values.
+#
+#   secret.ps1 mosquitto-passwd <name> -MqttUser <broker-user>
+#                                                [-MosquittoHost pi@pi1.local] [-PasswdFile /etc/mosquitto/passwd]
+#                                                -- sets a Mosquitto broker account's password on a
+#                                                   remote host (the Pi by default) to <name>'s current
+#                                                   vault value, via mosquitto_passwd's INTERACTIVE
+#                                                   (non -b) form -- the value is piped to its stdin
+#                                                   prompts from a PowerShell variable, never passed as
+#                                                   a command-line argument (which `-b` would do, and
+#                                                   which is exactly the key=/password= literal CARD-0334's
+#                                                   guard exists to block -- confirmed live 2026-10-02 that
+#                                                   mosquitto_passwd 2.0.21 accepts piped, non-tty stdin
+#                                                   fine). Then fixes ownership (`chown root:mosquitto`,
+#                                                   the documented gotcha) and restarts mosquitto, checking
+#                                                   it comes back active. Cannot verify by fingerprint like
+#                                                   `writefile` (the passwd file holds a salted hash, not a
+#                                                   comparable digest of the plaintext) -- verification is
+#                                                   mosquitto_passwd's own exit code plus the post-restart
+#                                                   active check.
 #
 # Rotation itself is tos/rotate.py (CARD-0372), which drives secret.py's rotation
 # commands (stage/promote/envfile/drop-previous...) over the same SSH path; secret.py
-# locks the vault for every write, and rotate.py keeps its own run lock.
+# locks the vault for every write, and rotate.py keeps its own run lock. `writefile` and
+# `mosquitto-passwd` above are not yet wired into rotate.py's own `apply:` holder mechanism
+# (that only knows how to drive secret.py envfile on an SSH-reachable host) -- today
+# they're invoked directly by whoever is driving a rotation (the rotate-credentials skill,
+# or Joseph by hand) for a holder whose registry entry names a local file or a remote
+# passwd-style account of the shape these two commands handle.
 
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'due')]
+    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'due', 'writefile', 'mosquitto-passwd')]
     [string]$Action,
 
     [Parameter(Position = 1)]
@@ -52,6 +97,11 @@ param(
     [int]$Length = 32,
     [int]$Timeout = 60,
     [string]$EnvVar,
+    [string]$Path,
+    [string]$Key,
+    [string]$MqttUser,
+    [string]$MosquittoHost,
+    [string]$PasswdFile,
 
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Rest
@@ -315,6 +365,100 @@ switch ($Action) {
         if (-not $Name) { throw 'Usage: secret.ps1 set <name>  (interactive -- masked prompt over SSH; run this yourself, not from a session)' }
         $r = Invoke-RemoteSecret -RemoteArgs @('set', $Name) -Tty
         exit $r.ExitCode
+    }
+
+    'writefile' {
+        if (-not $Name -or -not $Path -or -not $Key) {
+            throw 'Usage: secret.ps1 writefile <name> -Path <file> -Key <yaml-key>  (edits an EXISTING "key: value" line in place; the value is never printed)'
+        }
+        $resolved = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path
+        $pattern = '^(\s*)' + [regex]::Escape($Key) + '(\s*):(\s*)(.*?)\s*$'
+
+        function Get-YamlEscaped([string]$v) {
+            [regex]::Replace($v, '[\\"]', { param($m) if ($m.Value -eq '\') { '\\' } else { '\"' } })
+        }
+        function Get-YamlUnescaped([string]$v) {
+            [regex]::Replace($v, '\\.', { param($m) if ($m.Value -eq '\\\\') { '\' } elseif ($m.Value -eq '\\"') { '"' } else { $m.Value } })
+        }
+        function Get-Sha256Hex([string]$v) {
+            ([BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($v)))).Replace('-', '').ToLowerInvariant()
+        }
+
+        $lines = [System.IO.File]::ReadAllLines($resolved)
+        $hits = @()
+        for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -match $pattern) { $hits += $i } }
+        if ($hits.Count -eq 0) { throw "'$Key' not found in $resolved -- writefile only edits an existing key, it won't add one." }
+        if ($hits.Count -gt 1) { throw "'$Key' appears $($hits.Count) times in $resolved -- ambiguous, edit it by hand." }
+
+        $r = Invoke-RemoteSecret -RemoteArgs @('copy', $Name) -CaptureOutput
+        if ($r.ExitCode -ne 0) {
+            $r.Output | ForEach-Object { Write-Output $_ }
+            exit $r.ExitCode
+        }
+        $value = ($r.Output -join "`n").Trim()
+        if (-not $value) { throw "no value read back for '$Name'" }
+
+        $i = $hits[0]
+        $m = [regex]::Match($lines[$i], $pattern)
+        $lines[$i] = $m.Groups[1].Value + $Key + $m.Groups[2].Value + ':' + $m.Groups[3].Value + '"' + (Get-YamlEscaped $value) + '"'
+        $value = $null
+
+        $tmp = Join-Path (Split-Path $resolved) (".writefile-$([Guid]::NewGuid().ToString('N')).tmp")
+        [System.IO.File]::WriteAllLines($tmp, $lines, [System.Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $tmp -Destination $resolved -Force
+
+        # Re-read from disk (not from the variable just written) and verify by fingerprint,
+        # never by comparing raw values.
+        $writtenLine = ([System.IO.File]::ReadAllLines($resolved))[$i]
+        $wm = [regex]::Match($writtenLine, $pattern)
+        $writtenValue = Get-YamlUnescaped ($wm.Groups[4].Value.Trim('"'))
+        $localHash = Get-Sha256Hex $writtenValue
+        $writtenValue = $null
+
+        $fp = Invoke-RemoteSecret -RemoteArgs @('fingerprint', $Name) -CaptureOutput
+        $remoteHash = (($fp.Output -join '').Trim()) -replace '^sha256:', ''
+        if ($localHash -ne $remoteHash) {
+            throw "wrote into $resolved but the on-disk value's fingerprint doesn't match the vault's current '$Name' -- investigate before trusting this file (never diff the values directly; compare 'secret.ps1 fingerprint $Name' against a fresh run of this command)."
+        }
+        Write-Output "wrote '$Key' in $resolved from '$Name' (fingerprint-verified; value never shown)."
+    }
+
+    'mosquitto-passwd' {
+        if (-not $Name -or -not $MqttUser) {
+            throw 'Usage: secret.ps1 mosquitto-passwd <name> -MqttUser <broker-user> [-MosquittoHost pi@pi1.local] [-PasswdFile /etc/mosquitto/passwd]'
+        }
+        $h = if ($MosquittoHost) { $MosquittoHost } else { 'pi@pi1.local' }
+        $f = if ($PasswdFile) { $PasswdFile } else { '/etc/mosquitto/passwd' }
+
+        $r = Invoke-RemoteSecret -RemoteArgs @('copy', $Name) -CaptureOutput
+        if ($r.ExitCode -ne 0) {
+            $r.Output | ForEach-Object { Write-Output $_ }
+            exit $r.ExitCode
+        }
+        $value = ($r.Output -join "`n").Trim()
+        if (-not $value) { throw "no value read back for '$Name'" }
+
+        # Interactive (non -b) form: two lines on stdin, never a command-line argument.
+        $stdinPayload = "$value`n$value`n"
+        $value = $null
+        $setOutput = $stdinPayload | & ssh $h "sudo mosquitto_passwd $f $MqttUser" 2>&1
+        $setExit = $LASTEXITCODE
+        $stdinPayload = $null
+        if ($setExit -ne 0) {
+            $setOutput | ForEach-Object { Write-Output $_ }
+            throw "mosquitto_passwd on $h exited $setExit -- the old password is still in $f; nothing else was touched."
+        }
+
+        & ssh $h "sudo chown root:mosquitto $f" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "chown root:mosquitto $f failed on $h -- fix by hand before relying on this account." }
+        & ssh $h "sudo systemctl restart mosquitto" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "systemctl restart mosquitto failed on $h -- check it by hand." }
+        Start-Sleep -Seconds 2
+        $active = (& ssh $h "systemctl is-active mosquitto" 2>&1 | Out-String).Trim()
+        if ($active -ne 'active') {
+            throw "mosquitto is not active on $h after restart (status: $active) -- investigate before trusting this rotation."
+        }
+        Write-Output "set '$MqttUser' on ${h}:${f} from '$Name' (mosquitto_passwd interactive form, value only ever on stdin; verified mosquitto active after restart; value never shown)."
     }
 
     'run' {

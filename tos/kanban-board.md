@@ -9,7 +9,32 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0380 -->
+<!-- next-card-id: CARD-0381 -->
+
+---
+
+### CARD-0380 · [enhancement] [m8] Container image update: netalertx v26.9.0 → v26.10.0 — auto-opened from photo-server
+
+**Status:** Backlog
+
+**Auto-generated 2026-10-01 13:30 UTC from photo-server's maintenance check.** Raw finding: Container image updates: netalertx: v26.10.0 available (running 26.9.0).
+
+**Researched 2026-10-01 (general session).** Confirmed live on the M8: `netalertx` container up 3 days, healthy.
+
+**Real, separate gap found while checking the deployment, not itself the PR's finding:** `components/netalertx/docker-compose.yml` pins `image: ghcr.io/netalertx/netalertx:latest` -- a genuinely floating tag, not matching this project's own established "pin, don't float" convention (CARD-0257/CARD-0352 for cloudflared, CARD-0362 for timescaledb, CARD-0344 for ring-mqtt). This means the container has been silently drifting to whatever `:latest` resolves to on every `docker compose pull`, not deliberately version-controlled the way every other container-image bump this session has handled. Worth fixing as part of applying this update, not a separate card -- the natural moment to pin is exactly when a version is already being deliberately chosen.
+
+**Full release notes read (`gh api repos/jokob-sk/NetAlertX/releases/tags/v26.10.0`) -- a real minor release (new Performance/Storage pages, pagination, several plugin additions), one breaking-change note, checked against actual usage, not assumed:**
+- **"PHASING OUT: old API endpoints"** -- checked this repo's entire NetAlertX integration (`components/netalertx/netalertx.flow.json`, `README.md`): it's a pure outbound-webhook integration (NetAlertX pushes signed events to Node-RED, CARD-0078) -- **nothing here ever calls NetAlertX's REST/GraphQL API directly**, old or new. This breaking-change note doesn't apply.
+- **Likely-beneficial fixes for this project's actual usage:** "MAC case sensitivity causing double detection" (a real false-duplicate-device bug); "devices with eligible network interfaces are now correctly recognized as present, preventing false down/disconnected status" (directly relevant -- this is exactly the kind of false-alarm class the watchdog/dashboard infrastructure elsewhere in this project already works hard to avoid).
+- **No plugin-specific risk:** the new/fixed plugins named (`DOCKERDISC`, `WIFICANARY`, `FRITZBOX`, `FREEBOX`, `ADGUARDIMP`) aren't configured on this deployment (confirmed via `docker-compose.yml`'s plain environment block -- no plugin-specific env vars set).
+
+**Net assessment: a real, substantive release, but nothing in it conflicts with this project's narrow usage (network presence scanning + one outbound webhook) -- two of the fixes are plausibly beneficial (fewer false duplicate/down detections).** Safe to apply. Mechanically: pin the compose file to the exact digest for `v26.10.0` (resolved by pulling the tag live, not guessed, same method CARD-0356 used for immich-redis), recreate, verify `container-update-check.py`'s own `label`-based version read reports `26.10.0` and the real webhook integration still fires (a live network-device state change, or NetAlertX's own test-publish feature).
+
+**Not yet applied -- held for a separate go-ahead.**
+
+**Done when:** `docker-compose.yml` pins an explicit `netalertx` version+digest (not `:latest`), the container reports `v26.10.0` live, and the Node-RED webhook integration confirmed still working after the recreate.
+
+**Related:** CARD-0078 (built the webhook integration this update needs to keep working), CARD-0362/CARD-0356/CARD-0344 (the pin-don't-float precedent this follows), `hosts/m8/container-update-check.py` (the check this finding came from).
 
 ---
 

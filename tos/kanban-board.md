@@ -9,7 +9,31 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0382 -->
+<!-- next-card-id: CARD-0383 -->
+
+---
+
+### CARD-0382 · [maintenance] [pi1] Pi maintenance: 27 routine + 3 review-category updates — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Auto-generated from jctsh-core's maintenance check (CARD-0125/CARD-0128).** Raw finding: Pi maintenance: 27 routine update(s) pending. 3 package(s) need review: docker-ce, docker-ce-cli, docker-ce-rootless-extras.
+
+**Researched 2026-10-01 (general session).** Confirmed live on the Pi via `apt list --upgradable`: 30 packages total. The 3 flagged for review are the Docker engine stack (`core/maintenance/pi-maintenance-check.py`'s `REVIEW_PATTERNS = ("docker", "containerd", "linux-", "libc6")`), `5:29.8.1` → `5:29.8.2`. `containerd.io` itself is not in the list — already at `2.3.6` (the fixed version per CARD-0381's research), so only the engine CLI/daemon packages need the bump.
+
+**Same Docker Engine release this session already researched for CARD-0381 (M8) — relevance re-checked for the Pi specifically, not assumed to transfer automatically:** the security fixes land in the 29.8.1→29.8.2 jump (per docs.docker.com/engine/release-notes/29/), same as the M8's bump. **CVE-2026-92543** (DNS-spoofing bypasses TLS cert verification during registry pulls) is still relevant here even though the Pi never runs `docker pull`/`docker compose pull` directly (CARD-0266/0268/0269's known hang bug on this host) — `pi-image-pull.py` uses `ctr` instead, which still goes through the same engine/containerd registry-client code path, so the vulnerability class applies regardless of which CLI invokes the pull. **CVE-2026-53493** (containerd OCI-index DoS) is already closed here (containerd.io already at the fixed 2.3.6). Swarm CVE and BuildKit CVEs: not applicable (no Swarm, no local image builds on this host — both containers, `homeassistant` and `matter-server`, run pulled images only).
+
+**Routine packages include real security-tagged updates, not just cosmetic bumps** (`apt list` marks them `stable-security`): `openssl`/`libssl3t64` (crypto library), `libpcre2-16-0`/`libpcre2-8-0`, `libwebsockets19t64`, `rsync`. Worth applying as part of the same pass, consistent with how CARD-0381 treated the M8's routine packages (one `apt upgrade`, not a package-by-package split) — these aren't Docker/kernel so they don't carry the daemon-restart risk, no extra caution needed. Remaining routine packages are desktop-environment/display packages (chromium, labwc, wayvnc, rpd-*, wf-panel-pi, pipanel) irrelevant to this Pi's actual headless server role, plus `rpi-eeprom`/`rpi-swap`/`wpasupplicant` — none carry any noted risk.
+
+**No reboot-required mechanism applies here** — confirmed via the script's own header comment: Raspberry Pi OS has no `/var/run/reboot-required` (no `update-notifier-common`), and this Pi (3B+) has no EEPROM bootloader to separately firmware-update (`rpi-eeprom-update` reports none present, already confirmed 2026-07-31). The only restart this upgrade causes is the Docker daemon restart from the `docker-ce` package's postinst, which recreates/restarts the two running containers (`homeassistant`, `matter-server`) — same mechanism just verified safe on the M8 (CARD-0381: "No containers need to be restarted").
+
+**Net assessment: same conclusion as CARD-0381 — a real, relevant security fix, not a deferrable update.** Safe to apply: full `apt upgrade` (all 30 packages, matching the CARD-0381 precedent of not splitting routine from review when nothing distinguishes their risk), verify `docker --version` reads `29.8.2`, both containers back up healthy, and HA's actual integrations unaffected (CARD-0240's post-update entity-availability check, since a Docker daemon restart is the same trigger condition as a container recreate).
+
+**Not yet applied — held for a separate go-ahead.**
+
+**Done when:** `docker --version` reports `29.8.2` live, `homeassistant` and `matter-server` both confirmed running and healthy after the Docker daemon restart, HA's `/api/states` checked for any entities left unavailable post-restart (CARD-0240), and `pi-maintenance-check.py`'s own next run reports 0 review-category packages pending.
+
+**Related:** `core/maintenance/pi-maintenance-check.py` (the check this finding came from), CARD-0125 (built this check), CARD-0381 (sibling card this session, same Docker Engine release researched there first), CARD-0240 (post-update entity-availability check this card's verification leans on), CARD-0266/CARD-0268/CARD-0269 (the Pi's known `docker pull` hang bug — confirmed not triggered by this apt-level upgrade).
 
 ---
 

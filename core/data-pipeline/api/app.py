@@ -278,6 +278,33 @@ def _gps_lookup(conn, ts):
     return (row[0], row[1]) if row else (None, None)
 
 
+def _insert_boot_events(conn, source, boot_events):
+    """CARD-0377 Phase 3: records every boot a device's upload mentions, so a
+    per-session reset count is queryable later (not just visible once in the
+    relay message below). (source, boot_id) is the dedup key -- a retried
+    upload re-sending the same boot_events is a no-op, not a double-count."""
+    inserted = 0
+    for ev in boot_events:
+        if not isinstance(ev, dict):
+            continue
+        boot_id = ev.get("boot")
+        if not boot_id:
+            continue
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO device_boot_events (source, boot_id, reset_reason) "
+                    "VALUES (%s, %s, %s) ON CONFLICT (source, boot_id) DO NOTHING",
+                    (source, boot_id, ev.get("reset_reason")),
+                )
+                inserted += cur.rowcount
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            log(f"device_boot_events insert failed (source={source}, boot={boot_id}): {e}", err=True)
+    return inserted
+
+
 def _insert_env_row(conn, ts, source, values):
     """CARD-0377: the actual INSERT, extracted out of _handle_environmental_data
     so the new bulk handler can reuse the identical dedup/range-check behavior
@@ -972,6 +999,11 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(readings, list):
             self._respond(400, {"status": "error", "message": "readings must be a list"})
             return
+        # CARD-0377 Phase 3: optional -- older firmware/synthetic test batches
+        # won't carry this key at all, which is fine, just no session summary.
+        boot_events = payload.get("boot_events")
+        if not isinstance(boot_events, list):
+            boot_events = []
 
         current_time_raw = payload.get("current_time")
         current_boot = payload.get("current_boot")
@@ -984,6 +1016,7 @@ class Handler(BaseHTTPRequestHandler):
                 current_time = None
 
         counts = {"inserted": 0, "duplicate": 0, "rejected": 0, "unresolved": 0, "invalid": 0}
+        inserted_rows = []  # CARD-0377 Phase 3: (ts, battery_v) for each row actually inserted this request
         conn = _pool.getconn()
         try:
             for reading in readings:
@@ -1028,12 +1061,14 @@ class Handler(BaseHTTPRequestHandler):
                 result = _insert_env_row(conn, ts, source, values)
                 if result["status"] == "ok":
                     counts["inserted"] += 1
+                    inserted_rows.append((ts, values.get("battery_v")))
                 elif result["status"] == "duplicate":
                     counts["duplicate"] += 1
                 elif result["status"] == "rejected":
                     counts["rejected"] += 1
                 else:
                     counts["invalid"] += 1
+            boot_events_inserted = _insert_boot_events(conn, "air-quality-monitor", boot_events)
         finally:
             _pool.putconn(conn)
 
@@ -1042,6 +1077,38 @@ class Handler(BaseHTTPRequestHandler):
                    f"Bulk upload: {counts['inserted']} inserted, {counts['duplicate']} duplicate, "
                    f"{counts['rejected']} rejected, {counts['unresolved']} unresolved, {counts['invalid']} invalid "
                    f"(of {len(readings)} total)")
+
+        # CARD-0377 Phase 3: "did the last session go well" -- the question a
+        # heartbeat used to answer badly (it could only report "reachable
+        # right now", which is never true mid-hike). Computed from the rows
+        # just inserted plus the boot events this same upload carried, not
+        # from any new device-side state.
+        if inserted_rows:
+            inserted_rows.sort(key=lambda r: r[0])
+            session_start = inserted_rows[0][0]
+            session_end = inserted_rows[-1][0]
+            duration_s = (session_end - session_start).total_seconds()
+            # Readings land every 2 min -- the first and last are both real
+            # samples, so a span of N intervals holds N+1 readings.
+            expected = int(duration_s / 120) + 1 if duration_s > 0 else 1
+            actual = len(inserted_rows)
+            pct = int(round(100 * actual / expected)) if expected else 100
+            batt_first = inserted_rows[0][1]
+            batt_last = inserted_rows[-1][1]
+            batt_str = ""
+            if batt_first is not None and batt_last is not None:
+                batt_str = f", battery {batt_first:.2f}V -> {batt_last:.2f}V ({batt_last - batt_first:+.2f}V)"
+            # Reset count from THIS upload's own boot_events list, not the
+            # dedup-aware DB insert count -- a retried upload re-sending the
+            # same boots should still describe the same session the same way.
+            reset_count = max(0, len(boot_events) - 1)
+            h = int(duration_s // 3600)
+            m = int((duration_s % 3600) // 60)
+            _relay_log("air-quality-monitor", "System",
+                       f"Session complete: {h}h{m:02d}m, {actual}/{expected} readings ({pct}%)"
+                       f"{batt_str}, {reset_count} reset{'s' if reset_count != 1 else ''} "
+                       f"({boot_events_inserted} new boot event{'s' if boot_events_inserted != 1 else ''} recorded)")
+
         self._respond(200, {"status": "ok", **counts, "total": len(readings)})
 
 

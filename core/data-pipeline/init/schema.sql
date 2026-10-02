@@ -134,6 +134,24 @@ CREATE TABLE wildlife_detections (
 -- read-timeout-but-actually-committed case) counts as a duplicate. ts is
 -- deliberately NOT part of the unique constraint, matching the old
 -- sheet's own comparison exactly.
+-- Device Boot Events: one row per boot a field device has ever reported
+-- (CARD-0377 Phase 3). Not a hypertable -- same "barely time-series, a
+-- handful of rows" case as hike_start_forecast. (source, boot_id) is the
+-- dedup key so a retried upload can't inflate the reset count: boot_id is
+-- a fresh random value generated once per boot (air-quality-monitor.yaml's
+-- on_boot), so the same boot's event always collides harmlessly on retry.
+-- received_at is when the gateway saw it, not when the boot itself
+-- happened (the device doesn't timestamp these -- SNTP may not even be
+-- synced yet at boot) -- good enough for "how many resets this session",
+-- not meant for precise boot-time queries.
+CREATE TABLE device_boot_events (
+  received_at   timestamptz NOT NULL DEFAULT now(),
+  source        text        NOT NULL,
+  boot_id       text        NOT NULL,
+  reset_reason  text,
+  PRIMARY KEY (source, boot_id)
+);
+
 CREATE TABLE hike_izer_cost (
   ts             timestamptz NOT NULL,
   file_stem      text NOT NULL,

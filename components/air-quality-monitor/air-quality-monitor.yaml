@@ -93,7 +93,7 @@ esphome:
         # else logs, so as much of the boot sequence as possible is captured.
         - lambda: |-
             uart_set_pin(UART_NUM_2, GPIO_NUM_17, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-        # ── CARD-0377 Phase 2: disable WiFi by default at boot ──
+        # ── CARD-0377 Phase 2/3: set WiFi's boot-time default from dock state ──
         # ESPHome's wifi: component tries to associate automatically and
         # unconditionally during its own setup() -- nothing stops it by
         # default (the exact latent gap CARD-0217 found and fixed on
@@ -101,16 +101,23 @@ esphome:
         # which is LOWER than WiFi's fixed setup_priority of 250 -- lower
         # priority numbers run LATER, so WiFi's setup() has *already
         # completed* by the time this block runs, letting it call
-        # wifi.disable() directly within milliseconds of boot. Simplified
-        # from the old eligibility-checking-with-its-own-LED-diagnostics
-        # version: the first 2-min interval tick (which fires "essentially
-        # immediately" after boot, per the duty-cycle block's own comment
-        # below) now owns the entire eligibility check and upload attempt,
-        # including whatever it's eligible to do right away -- on_boot's
-        # only job is to make sure WiFi starts disabled, a safe default,
-        # not to duplicate that logic here too.
-        - wifi.disable:
+        # wifi.disable()/enable() directly within milliseconds of boot.
+        # Phase 3: WiFi now follows dock state (dock_detect's on_press/
+        # on_release, below), not upload-eligibility -- but those only fire
+        # on a state *change*, so a boot that happens to already be docked
+        # (e.g. an OTA-triggered reboot while sitting charging) needs this
+        # explicit check rather than assuming the disabled default.
+        - if:
+            condition:
+              binary_sensor.is_on: dock_detect
+            then:
+              - wifi.enable:
+            else:
+              - wifi.disable:
         - component.update: battery_voltage
+        # CARD-0377 Phase 3: mount SPIFFS early (moved up from the very end of
+        # this block) so the boot-event write below has somewhere to go.
+        - lambda: 'aqm_log_begin();'
         # ── Existing SEN55/reset-reason/self-test sequence (Steps 4-6), unchanged ──
         # Force SEN55 into Idle mode (~2.6mA) — moved ahead of the
         # reset-reason LED block, 2026-08-24, after live testing showed the
@@ -122,12 +129,28 @@ esphome:
         # Reset-reason LED signal — added 2026-08-21. Live serial isn't safe
         # on battery power; MQTT-based reporting only works if the device
         # gets far enough to connect. The LED has no such dependency.
+        # CARD-0377 Phase 3 bug found live (2026-10-02): this used to read
+        # id(reset_reason_text).state (the debug: component's text_sensor)
+        # for both this LED check and the boot-event write below -- but that
+        # text_sensor only gets published in dump_config(), which runs AFTER
+        # every on_boot trigger, so it read an empty string on every boot,
+        # always falling through to "not a brownout" here (confirmed live:
+        # three separate test boots all logged a blank reset_reason to the
+        # boot-events table). A real, previously-undetected gap in this
+        # LED's own brownout detection, not something this redesign
+        # introduced. Both now call esp_reset_reason() directly via
+        # aqm_logger.h's aqm_reset_reason_string()/
+        # aqm_reset_was_brownout_or_glitch() -- synchronous ESP-IDF calls
+        # with no component-lifecycle dependency.
+        - lambda: |-
+            id(boot_id) = esp_random() | 1u;
+            char bbuf[160];
+            snprintf(bbuf, sizeof(bbuf), "{\"boot\":\"%08x\",\"reset_reason\":\"%s\"}",
+                     (unsigned) id(boot_id), aqm_reset_reason_string());
+            aqm_boot_log_write(std::string(bbuf));
         - if:
             condition:
-              lambda: |-
-                std::string reason = id(reset_reason_text).state;
-                return reason.find("rownout") != std::string::npos ||
-                       reason.find("glitch") != std::string::npos;
+              lambda: 'return aqm_reset_was_brownout_or_glitch();'
             then:
               - output.turn_on: rgb_led_red
               - delay: 3s
@@ -214,7 +237,6 @@ esphome:
         # mode now; the 2-min interval below brings it back to Measurement
         # mode briefly each cycle.
         - lambda: 'id(sen55).write_command((uint16_t) 0x0037);'  # SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY
-        - lambda: 'aqm_log_begin();'
 
 esp32:
   board: esp32dev
@@ -248,12 +270,26 @@ globals:
   # or get stuck.
   # CARD-0343 (2026-09-26): identifies this boot in readings buffered while the clock is invalid,
   # so a replay can tell "same boot as the run -- convert uptimes to real times exactly" from
-  # "an earlier boot -- leave the reading tagged". 0 = not yet assigned (set by the first such
-  # reading); never persisted, so every boot gets a fresh one.
+  # "an earlier boot -- leave the reading tagged". CARD-0377 Phase 3: now assigned
+  # unconditionally at on_boot (never 0 after boot) rather than lazily on first
+  # use, so every boot has a stable id for the boot-events log regardless of
+  # whether it ever buffers an unresolved reading. Never persisted, so every
+  # boot gets a fresh one.
   - id: boot_id
     type: uint32_t
     restore_value: false
     initial_value: '0'
+  # CARD-0377 Phase 3: since boot_id is now always nonzero, the upload
+  # script's "wait for clock sync" step needs its OWN signal for "does this
+  # boot actually have an unresolved reading worth waiting on" -- otherwise
+  # every upload would wait up to 5 min for SNTP even when nothing buffered
+  # this boot ever needed boot-id resolution. Set true when the duty cycle
+  # buffers a reading with no valid clock; cleared only when the log is
+  # cleared on a confirmed upload success.
+  - id: had_unresolved_reading
+    type: bool
+    restore_value: false
+    initial_value: 'false'
   # STEP 8 fix (2026-09-09, real bug found on first bench test): a CRC
   # failure on the SEN55 I2C read leaves sensor.state at its last
   # successfully-published value rather than NaN -- an isnan() check alone
@@ -375,7 +411,12 @@ script:
     then:
       - if:
           condition:
-            lambda: 'return !aqm_log_has_data();'
+            # CARD-0377 Phase 3: also check the boot-events log -- a stray
+            # boot event with no readings (e.g. an OTA dev reboot between
+            # real sessions) must still get flushed on its own, not wait to
+            # piggyback on some future session's readings and inflate that
+            # session's reset count.
+            lambda: 'return !aqm_log_has_data() && !aqm_boot_log_has_data();'
           then:
             - lambda: 'return;'  # nothing buffered -- nothing to do
       # CARD-0343 (2026-09-26): give the clock up to 5 min to sync before
@@ -386,7 +427,7 @@ script:
       # upload, it just leaves this boot's unresolved readings unresolved.
       - if:
           condition:
-            lambda: 'return id(boot_id) != 0 && !id(sntp_time).now().is_valid();'
+            lambda: 'return id(had_unresolved_reading) && !id(sntp_time).now().is_valid();'
           then:
             - wait_until:
                 condition:
@@ -429,13 +470,19 @@ script:
               snprintf(boot_hex, sizeof(boot_hex), "%08x", (unsigned) id(boot_id));
               boot_str = std::string(boot_hex);
             }
-            return aqm_log_build_bulk_body(ts_str, boot_str, (uint32_t)(millis() / 1000));
+            // CARD-0377 Phase 3: splice in the boot-events array built from
+            // the SEPARATE boot-event log -- kept out of aqm_log.jsonl itself
+            // (see aqm_logger.h's comment for why mixing the two broke Phase 2).
+            return aqm_log_build_bulk_body(ts_str, boot_str, (uint32_t)(millis() / 1000),
+                                            aqm_boot_log_build_array());
           capture_response: true
           on_response:
             then:
               - lambda: |-
                   if (response->status_code == 200) {
                     aqm_log_clear();
+                    aqm_boot_log_clear();
+                    id(had_unresolved_reading) = false;
                     ESP_LOGW("Upload", "Upload complete (status %d) -- log cleared", response->status_code);
                   } else {
                     ESP_LOGW("Upload", "Upload failed (status %d) -- log kept for retry", response->status_code);
@@ -589,6 +636,20 @@ binary_sensor:
 
   # Dock detect: TP4056 IN+ (or solar) -> 68kΩ -> midpoint -> 100kΩ -> GND;
   # midpoint to GPIO32. HIGH = docked/charging or solar connected.
+  # CARD-0377 Phase 3 (2026-10-02, Joseph: "if it's docked, do we want to
+  # leave wifi connected? why or why not?"): yes -- WiFi now follows dock
+  # state directly, not upload-eligibility. The one-shot enable/disable-per-
+  # upload cycle existed to conserve the LiPo; while docked, the TP4056 (or
+  # solar) supplies the radio's current, not the battery, so there is
+  # nothing left to conserve, and cycling WiFi off between uploads just
+  # closes the only remote-reachability window (OTA, esphome logs) this
+  # device has, at zero actual battery benefit. The field/hotspot-while-
+  # traveling case this must not break is itself a charging scenario (USB
+  # power + a nearby hotspot), not a true battery-only case -- uploads were
+  # already gated on power_connected for exactly that reason (see the
+  # eligibility check below), so "stay connected whenever docked" never
+  # re-opens the genuine battery-only case this architecture still refuses
+  # to risk a WiFi/upload attempt in.
   - platform: gpio
     pin:
       number: GPIO32
@@ -596,42 +657,45 @@ binary_sensor:
     name: "Dock Detect"
     id: dock_detect
     internal: true
+    on_press:
+      - wifi.enable:
+    on_release:
+      - wifi.disable:
 
 # ── Duty-cycle / field logging / upload-eligibility interval ──────────────────
 interval:
   - interval: 2min
     then:
-      # ── CARD-0377 Phase 2: eligibility check (replaces the WiFi-gate state
-      # machine, attempt-window/15min backoff, and wifi/mqtt enable-disable
-      # mirroring entirely) ──
+      # ── CARD-0377 Phase 2/3: eligibility check (replaces the WiFi-gate
+      # state machine, attempt-window/15min backoff, and wifi/mqtt
+      # enable-disable mirroring entirely) ──
       # A one-shot HTTP upload has no persistent connection to manage between
       # attempts, so there's nothing to track across ticks: just ask "is it
       # safe and worth trying right now?" fresh every time. Intent off (not
       # actively hiking), docked/charging (power_connected), and battery
       # above the 3.5V upload-safe threshold -- same three conditions as
       # before, just no longer needing a state machine to act on them.
+      # Phase 3: no longer manages WiFi itself (dock_detect's on_press/
+      # on_release above owns that now) -- this only decides whether to
+      # attempt an upload.
       - lambda: |-
           bool intent_off = !id(intent_switch).state;
           bool power_connected = id(dock_detect).state;
           bool voltage_ok = !isnan(id(battery_voltage).state) && id(battery_voltage).state >= 3.5f;
-          bool eligible = intent_off && power_connected && voltage_ok && aqm_log_has_data();
+          bool has_data = aqm_log_has_data() || aqm_boot_log_has_data();
+          bool eligible = intent_off && power_connected && voltage_ok && has_data;
           ESP_LOGW("UploadState", "eligible=%d intent_off=%d power=%d voltage_ok=%d has_data=%d",
-                   eligible, intent_off, power_connected, voltage_ok, aqm_log_has_data());
+                   eligible, intent_off, power_connected, voltage_ok, has_data);
       - if:
           condition:
             lambda: |-
               bool intent_off = !id(intent_switch).state;
               bool power_connected = id(dock_detect).state;
               bool voltage_ok = !isnan(id(battery_voltage).state) && id(battery_voltage).state >= 3.5f;
-              return intent_off && power_connected && voltage_ok && aqm_log_has_data();
+              bool has_data = aqm_log_has_data() || aqm_boot_log_has_data();
+              return intent_off && power_connected && voltage_ok && has_data;
           then:
             - script.execute: attempt_aqm_upload
-          else:
-            # Nothing eligible to upload right now -- make sure the radio
-            # isn't left on burning idle current (it's only ever turned on
-            # by the upload script itself, and turned back off there too on
-            # a completed attempt; this is just the steady-state default).
-            - wifi.disable:
 
       # ── STEP 8: SEN55 duty-cycle -- warm up, read, drop back to RHT-only ──
       # STEP 8 fix (2026-09-09, real race condition found on first bench
@@ -784,7 +848,9 @@ interval:
                           strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
                           snprintf(ts_field, sizeof(ts_field), "\"ts\":\"%s\"", ts);
                         } else {
-                          if (id(boot_id) == 0) id(boot_id) = esp_random() | 1u;
+                          // CARD-0377 Phase 3: boot_id is now always assigned
+                          // at on_boot (never 0 here) -- no lazy assignment needed.
+                          id(had_unresolved_reading) = true;
                           snprintf(ts_field, sizeof(ts_field), "\"ts\":null,\"uptime_s\":%u,\"boot\":\"%08x\"",
                                    (unsigned)(millis() / 1000), (unsigned)id(boot_id));
                           ESP_LOGW("DutyCycle", "Clock not synced -- buffering uptime-tagged reading (%s)", ts_field);

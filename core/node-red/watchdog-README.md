@@ -10,7 +10,9 @@ as long as it stays silent (CARD-0331).
 
 1. All ESP32 components publish a heartbeat to `jctsh/+/+/heartbeat` — every 30 minutes for
    `garage-radar`, `salt-sensor`, `front-porch-temp-sensor` and `back-patio-temp-sensor`; every 5
-   minutes for `hiking-monitor` and `air-quality-monitor` (`JCTsh-Build-Standards.md` §4.1)
+   minutes for `hiking-monitor` (`JCTsh-Build-Standards.md` §4.1). `air-quality-monitor` no longer
+   heartbeats at all — CARD-0377 dropped MQTT from it entirely (it is unreachable by design while
+   collecting); its health is reported as a per-session summary from `data-pipeline-api` instead
 2. The watchdog MQTT In node subscribes to that wildcard — all components are caught
    automatically, no flow changes needed when new components are added
 3. On each heartbeat receipt, a per-component 35-minute setTimeout is reset, and any
@@ -42,6 +44,14 @@ The 35-minute window is sized for the slowest heartbeat, 30 minutes + a 5-minute
 alerting. A 30-minute-interval device would otherwise trip it on any reboot, since its interval
 counts from boot; those devices therefore also send a heartbeat ~90 s after every boot
 (CARD-0333, CARD-0335), so a reboot no longer raises a false alert.
+
+**Retiring a component's heartbeat (CARD-0377 lesson).** The silence timer and the CARD-0331
+2-hour re-alert live in Node-RED's memory and are only cleared by a heartbeat. A component that
+*stops* heartbeating on purpose therefore keeps re-alerting every 2 hours forever — the device-side
+change alone does not stop it. After retiring a heartbeat, redeploy the watchdog tab
+(`deploy_flow.py core/node-red/watchdog.flow.json tab_watchdog`) or restart Node-RED; that
+clears every in-memory timer, and the retired component is never re-armed because nothing
+publishes its heartbeat any more.
 
 ---
 

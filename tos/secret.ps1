@@ -86,6 +86,33 @@ function Invoke-RemoteSecret {
     }
 }
 
+function Set-ClipboardWithAutoClear {
+    # Fixes the regression from the M8 move: the old local `keepassxc-cli clip` had a
+    # built-in auto-clear timeout; relaying a value over SSH to this clipboard didn't.
+    # Spawns a fully detached background process (survives this script exiting) that
+    # waits, then clears the clipboard ONLY if it still holds this exact value -- so it
+    # never clobbers something else you copied in the meantime. Compares by SHA-256
+    # fingerprint; the clearer process never carries the real value, only the hash.
+    param([string]$Value, [int]$TimeoutSeconds)
+    Set-Clipboard -Value $Value
+    $hash = [BitConverter]::ToString(
+        [System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value))
+    ).Replace('-', '')
+
+    $clearScript = @"
+Start-Sleep -Seconds $TimeoutSeconds
+try {
+    `$cur = Get-Clipboard -Raw -ErrorAction SilentlyContinue
+    if (`$cur) {
+        `$h = [BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes(`$cur))).Replace('-','')
+        if (`$h -eq '$hash') { Set-Clipboard -Value ' ' }
+    }
+} catch {}
+"@
+    $encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($clearScript))
+    Start-Process powershell -ArgumentList @('-NoProfile', '-WindowStyle', 'Hidden', '-EncodedCommand', $encoded) -WindowStyle Hidden | Out-Null
+}
+
 # --- Registry scan (values-free: only reads tos/credential-registry.yaml, never the
 # vault or Credential Manager) ---
 
@@ -217,9 +244,9 @@ switch ($Action) {
             exit $r.ExitCode
         }
         $value = ($r.Output -join "`n").Trim()
-        if ($value) { Set-Clipboard -Value $value }
+        if ($value) { Set-ClipboardWithAutoClear -Value $value -TimeoutSeconds $Timeout }
         $value = $null
-        Write-Output "Created '$Name' (length $Length) on the M8 vault; its value is on the clipboard now. Paste it into RoboForm, then add a registry entry (see CARD-0372's 'New-credential workflow'). Clear your clipboard after -- this path has no auto-clear timeout, unlike the old local keepassxc-cli clip."
+        Write-Output "Created '$Name' (length $Length) on the M8 vault; its value is on the clipboard for $Timeout s (auto-clears, won't clobber anything else you copy first). Paste it into RoboForm, then add a registry entry (see CARD-0372's 'New-credential workflow')."
     }
 
     'copy' {
@@ -230,9 +257,9 @@ switch ($Action) {
             exit $r.ExitCode
         }
         $value = ($r.Output -join "`n").Trim()
-        if ($value) { Set-Clipboard -Value $value }
+        if ($value) { Set-ClipboardWithAutoClear -Value $value -TimeoutSeconds $Timeout }
         $value = $null
-        Write-Output "'$Name' placed on the clipboard. No auto-clear timeout on this path -- clear it yourself after pasting."
+        Write-Output "'$Name' placed on the clipboard for $Timeout s (auto-clears)."
     }
 
     'set' {

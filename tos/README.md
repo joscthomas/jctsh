@@ -33,6 +33,8 @@ here and how the pieces fit together — it doesn't repeat that content.
 | `kanban-pr-selftest.py` + `.service`/`.timer` | Daily self-test of the auto-PR intake pipeline itself (CARD-0192) — opens and closes a real PR against a test component so a broken pipeline is caught before a real finding needs it. |
 | `tasker-setup.md` | The `Log Idea` Tasker build steps — home-screen voice-capture widget feeding `/webhook/idea` (CARD-0241, moved here from `hike-izer-orchestrator`'s README since it's a TOS feature, not a hiking one). |
 | `Log-Idea.tsk.xml` | Exported Tasker Task backing `tasker-setup.md`, committed as diffable ground truth against the prose doc (CARD-0231). |
+| `credential-registry.yaml` | Values-free inventory of every credential this project has — where it lives, tier/cadence, exposure/rotation/retirement history (CARD-0372, seeded by CARD-0334 Step 0). Never a value; schema documented at the top of the file. |
+| `secret.ps1` | The `secret` helper (CARD-0372/CARD-0334) — wraps `keepassxc-cli` against the shared `jctsh-vault.kdbx` so a session can use a credential without seeing it. `init`/`has`/`fingerprint`/`new`/`copy`/`set`/`run`. Not yet a registry-aware `rotate` orchestrator — see CARD-0372. |
 
 ## The auto-PR intake pipeline
 

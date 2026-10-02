@@ -1,25 +1,23 @@
 // aqm_logger.h — Onboard flash logging component for air-quality-monitor
 // Adapted from components/hiking-monitor/hiking_logger.h (Step 8, CARD-0012) — same
-// SPIFFS-backed append/replay mechanism, renamed prefix so both devices' logic can be
+// SPIFFS-backed append mechanism, renamed prefix so both devices' logic can be
 // read side by side without confusing which log file/functions belong to which device.
-// See hiking_logger.h's own header comment for the full design rationale (SPIFFS over
-// LittleFS, streaming replay with no RAM limit).
 //
 // Responsibilities:
-//   aqm_log_begin()          — mount SPIFFS VFS on boot
-//   aqm_log_write()          — append one JSON line when not connected (field mode)
-//   aqm_log_count()          — count stored lines without loading into RAM
-//   aqm_log_replay_stream()  — stream stored lines one at a time via callback
-//   aqm_log_clear()          — truncate log file after successful replay
-//   aqm_log_has_data()       — check whether any stored data exists
+//   aqm_log_begin()            — mount SPIFFS VFS on boot
+//   aqm_log_write()            — append one JSON line when not connected (field mode)
+//   aqm_log_count()            — count stored lines without loading into RAM
+//   aqm_log_build_bulk_body()  — CARD-0377: build the whole log into one JSON
+//                                 body for a single bulk HTTP POST (replaces the
+//                                 old per-line MQTT streaming replay)
+//   aqm_log_clear()            — truncate log file after a confirmed-successful upload
+//   aqm_log_has_data()         — check whether any stored data exists
 //
 // Log file: /spiffs/aqm_log.jsonl (JSON Lines — one JSON object per line)
 // Partition: "spiffs" label — 1.47MB in ESPHome default ESP32 partition table
-// Replay is streaming — no RAM limit regardless of log size.
 
 #pragma once
 #include <esp_spiffs.h>
-#include <functional>
 #include <stdio.h>
 #include <string>
 
@@ -78,17 +76,36 @@ int aqm_log_count() {
   return count;
 }
 
-void aqm_log_replay_stream(std::function<void(const std::string&)> callback) {
-  if (!aqm_spiffs_mounted) return;
+// CARD-0377 Phase 2: replaces aqm_log_replay_stream() (per-line MQTT publish
+// loop, removed along with MQTT entirely) -- builds the ENTIRE buffered log
+// into one JSON body for a single HTTP POST to the data-pipeline gateway's
+// bulk endpoint. Each stored line is already a standalone JSON object
+// (written by aqm_log_write()), so turning them into a JSON array is just
+// string concatenation with commas -- no per-reading parsing or
+// re-serialization needed on-device; the gateway does that work server-side.
+std::string aqm_log_build_bulk_body(const std::string& current_time,
+                                     const std::string& current_boot,
+                                     uint32_t current_uptime_s) {
+  if (!aqm_spiffs_mounted) return "";
   FILE* f = fopen(AQM_LOG_FILE, "r");
-  if (!f) return;
+  if (!f) return "";
+  std::string body = "{\"current_time\":\"" + current_time +
+                      "\",\"current_boot\":\"" + current_boot +
+                      "\",\"current_uptime_s\":" + std::to_string(current_uptime_s) +
+                      ",\"readings\":[";
   char line[512];
+  bool first = true;
   while (fgets(line, sizeof(line), f)) {
     std::string s(line);
     while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
-    if (!s.empty()) callback(s);
+    if (s.empty()) continue;
+    if (!first) body += ",";
+    body += s;
+    first = false;
   }
   fclose(f);
+  body += "]}";
+  return body;
 }
 
 void aqm_log_clear() {

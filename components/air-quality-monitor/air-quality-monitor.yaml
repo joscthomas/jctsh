@@ -20,26 +20,31 @@
 #             wiring.md's "Inline Power Switch" section for the shared-node
 #             topology and why it does NOT isolate TP4056's own charge path)
 #
-# STEP 8 (2026-09-09): field/home mode duty-cycle + WiFi replay firmware.
-# Three independent signals gate any WiFi attempt (JCTsh-Build-Standards.md
-# §2.14 points 11-13) — Intent off AND Power Connected AND battery >= the
-# upload-safe margin (3.5V, revised 2026-09-09 from an original 3.8V --
-# see CARD-0012: CARD-0198's brownout finding came from a deliberate
-# battery-ALONE stress trial, a scenario the other two conditions already
-# prevent; the well-tested docked case (TP4056 supplying the burst current,
-# not the battery) was clean at every voltage tried, so only a small
-# margin above the confirmed-catastrophic 3.4V floor is kept, for the
-# untested weak/solar-charger case). None of these
-# signals ever stand in for another. Field-mode duty-cycle logging (SEN55
-# I2C mode-switching, Measurement <-> RHT/Gas-Only) runs independent of
+# STEP 8 (2026-09-09): field/home mode duty-cycle firmware.
+# CARD-0377 Phase 2 (2026-10-01): MQTT removed entirely. A persistent broker
+# session needed its own attempt-window/backoff/enable-disable state machine
+# to manage; a one-shot upload doesn't. When eligible, the device now just
+# enables WiFi, does ONE HTTP POST of the whole buffered log to the
+# data-pipeline gateway's bulk endpoint, and clears on confirmed success --
+# no flag tracks "was this replayed," so there's nothing left to get stuck
+# (the actual bug CARD-0346 patched twice and this redesign deletes outright).
+# Three independent signals still gate any upload attempt
+# (JCTsh-Build-Standards.md §2.14 points 11-13) — Intent off AND Power
+# Connected AND battery >= the upload-safe margin (3.5V, revised 2026-09-09
+# from an original 3.8V -- see CARD-0012: CARD-0198's brownout finding came
+# from a deliberate battery-ALONE stress trial, a scenario the other two
+# conditions already prevent; the well-tested docked case (TP4056 supplying
+# the burst current, not the battery) was clean at every voltage tried, so
+# only a small margin above the confirmed-catastrophic 3.4V floor is kept,
+# for the untested weak/solar-charger case). None of these signals ever
+# stand in for another. Field-mode duty-cycle logging (SEN55 I2C
+# mode-switching, Measurement <-> RHT/Gas-Only) runs independent of
 # dock-detect state — a deliberate deviation from hiking-monitor's pattern
 # (which stops field logging the instant dock-detect goes HIGH), because
 # solar/field-USB charging can happen mid-collection on this device just as
-# easily as at home. It IS gated on the Intent switch (bug found and fixed
-# live 2026-09-09 — this block previously ran regardless of Intent too,
-# contradicting wiring.md's documented design): Intent ON means "actively
-# collecting field data," matching hiking-monitor's own Intent-switch
-# semantics (see wiring.md's Intent Switch Wiring section).
+# easily as at home. It IS gated on the Intent switch: Intent ON means
+# "actively collecting field data," matching hiking-monitor's own
+# Intent-switch semantics (see wiring.md's Intent Switch Wiring section).
 #
 # STEP 6 DECISION (2026-08-21): no dedicated SEN55 power-gate transistor.
 # Sensirion's own "Reduced Power Operation for SEN5x" doc recommends I2C
@@ -58,11 +63,18 @@
 #   GPIO32  Dock detect (TP4056 IN+ or solar → divider, HIGH = docked/charging)
 #   GPIO34  Battery voltage ADC (100kΩ/100kΩ divider, post-switch node — wiring.md)
 #
-# MQTT topics (prefix: jctsh/components/air-quality-monitor):
-#   .../data       — sensor readings, Environmental Data schema (Step 8)
-#   .../log        — diagnostic messages (JSON, wildcard routed to Python log server)
-#   .../heartbeat  — 5-min heartbeat when MQTT connected (matches hiking-monitor's
-#                    established deviation from the generic 30-min standard, Step 0)
+# CARD-0377 Phase 2: no MQTT at all, so no topics to list here anymore. Data
+# goes to the data-pipeline gateway's bulk-upload endpoint over plain HTTP
+# POST (see secrets.yaml's data_pipeline_bulk_url); dashboard visibility is
+# the gateway's own job (it relays onto MQTT itself via hike-izer-
+# orchestrator's existing /webhook/pipeline-log, same mechanism other tables
+# already use -- this device has no MQTT client to do that itself, same
+# constraint data-pipeline-api's own app.py already documents for itself).
+# No heartbeat either -- it could only ever fire while connected (docked),
+# so on every real field day it only produced false "silent for N hours"
+# watchdog alerts for a device whose whole job is being unreachable for
+# hours at a stretch (confirmed live, CARD-0377: four such alerts fired
+# during one normal 2026-10-01 hike).
 
 esphome:
   name: air-quality-monitor
@@ -81,100 +93,24 @@ esphome:
         # else logs, so as much of the boot sequence as possible is captured.
         - lambda: |-
             uart_set_pin(UART_NUM_2, GPIO_NUM_17, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-        # ── STEP 8: WiFi attempt gate, checked FIRST — before anything else ──
+        # ── CARD-0377 Phase 2: disable WiFi by default at boot ──
         # ESPHome's wifi: component tries to associate automatically and
         # unconditionally during its own setup() -- nothing stops it by
         # default (the exact latent gap CARD-0217 found and fixed on
         # hiking-monitor). This device's on_boot block is priority -100,
         # which is LOWER than WiFi's fixed setup_priority of 250 -- lower
         # priority numbers run LATER, so WiFi's setup() has *already
-        # completed* by the time this block runs (confirmed by checking the
-        # actual ordering, not copied from hiking-monitor blind -- that
-        # device's equivalent block is priority 600, which runs BEFORE
-        # WiFi's setup, forcing it to defer the disable call to the first
-        # interval tick instead). Because of that difference, this device
-        # can call wifi.disable() directly, right here, within milliseconds
-        # of boot -- not after the ~60-80s the SEN55/LED sequence below
-        # would otherwise take if the gate check waited until after it.
-        # CARD-0345 (2026-09-26): powered on with the Intent switch ALREADY ON is a new run
-        # starting, so clear an already-replayed previous log exactly as the switch's on_press
-        # does. on_press alone missed this case in bench tests (earlier runs' lines were
-        # re-replayed on every dock); suspected cause, not yet confirmed: its boot-time firing
-        # happens during setup, before the restore_value flag is restored. Runs at priority -100,
-        # after globals are restored and the switch state is known. Always records an event so
-        # the next replay shows what happened.
-        - lambda: |-
-            if (id(intent_switch).state) {
-              int had = aqm_log_count();
-              bool was_replayed = id(aqm_log_replayed);
-              if (was_replayed) {
-                aqm_log_clear();
-                id(aqm_log_replayed) = false;
-              }
-              char ibuf[112];
-              snprintf(ibuf, sizeof(ibuf),
-                "{\"event\":\"boot_intent_on\",\"had_lines\":%d,\"replayed\":%d,\"cleared\":%d}",
-                had, was_replayed ? 1 : 0, was_replayed ? 1 : 0);
-              aqm_log_write(std::string(ibuf));
-            }
-            // CARD-0346: seed the periodic backstop's baseline from the switch's real
-            // state at boot -- without this, the first interval tick after any reboot
-            // would see intent_last_polled_state's default (false) against a switch
-            // already ON and wrongly treat that as a fresh transition, double-handling
-            // what the block above (or a genuine on_press right after boot) already did.
-            id(intent_last_polled_state) = id(intent_switch).state;
+        # completed* by the time this block runs, letting it call
+        # wifi.disable() directly within milliseconds of boot. Simplified
+        # from the old eligibility-checking-with-its-own-LED-diagnostics
+        # version: the first 2-min interval tick (which fires "essentially
+        # immediately" after boot, per the duty-cycle block's own comment
+        # below) now owns the entire eligibility check and upload attempt,
+        # including whatever it's eligible to do right away -- on_boot's
+        # only job is to make sure WiFi starts disabled, a safe default,
+        # not to duplicate that logic here too.
+        - wifi.disable:
         - component.update: battery_voltage
-        - if:
-            condition:
-              and:
-                - binary_sensor.is_off: intent_switch
-                - binary_sensor.is_on: dock_detect
-            then:
-              # Intent off + Power Connected -- the two conditions that would
-              # otherwise mean "try WiFi." Battery is the deciding factor.
-              - if:
-                  condition:
-                    lambda: 'return isnan(id(battery_voltage).state) || id(battery_voltage).state < 3.5f;'
-                  then:
-                    # Voltage-blocked: the one new LED diagnostic worth the
-                    # cost of a boot-time blink (2026-09-09 design decision)
-                    # -- distinguishes "docked and ready, but deliberately
-                    # not trying" from "no network in range," which look
-                    # identical without this. ~1.8s total.
-                    - repeat:
-                        count: 3
-                        then:
-                          - output.turn_on: rgb_led_blue
-                          - output.turn_on: rgb_led_red
-                          - delay: 300ms
-                          - output.turn_off: rgb_led_blue
-                          - output.turn_off: rgb_led_red
-                          - delay: 300ms
-                    - wifi.disable:
-                    - lambda: |-
-                        id(wifi_attempt_in_progress) = false;
-                        char buf[128];
-                        snprintf(buf, sizeof(buf),
-                          "{\"event\":\"wifi_attempt_blocked\",\"battery_v\":%.2f}",
-                          id(battery_voltage).state);
-                        aqm_log_write(std::string(buf));
-                  else:
-                    # Gate fully true -- WiFi's own already-running boot
-                    # attempt is left alone; adopt it into our own tracking
-                    # rather than calling wifi.enable() again (harmless but
-                    # redundant, since ESPHome's own setup() already started
-                    # it before we could intervene).
-                    - lambda: |-
-                        id(wifi_attempt_in_progress) = true;
-                        id(wifi_attempt_start_ms) = millis();
-                        aqm_log_write("{\"event\":\"wifi_attempt_start\"}");
-            else:
-              # Intent on, or Power not connected -- the common/expected
-              # case (actively out collecting, or just sitting unplugged).
-              # No LED for this one (2026-09-09 decision: low diagnostic
-              # value against a blink on every single boot).
-              - wifi.disable:
-              - lambda: 'id(wifi_attempt_in_progress) = false;'
         # ── Existing SEN55/reset-reason/self-test sequence (Steps 4-6), unchanged ──
         # Force SEN55 into Idle mode (~2.6mA) — moved ahead of the
         # reset-reason LED block, 2026-08-24, after live testing showed the
@@ -234,46 +170,11 @@ esphome:
               - output.turn_off: rgb_led_green
               - delay: 300ms
         - delay: 1s
-        # STEP 8: this bounded wait only runs when a WiFi attempt is
-        # genuinely in progress (gate was true above) -- when the gate is
-        # false, WiFi has already been disabled and will never connect, so
-        # waiting the full 30s here would be pure waste. Also drives the
-        # "actively attempting" LED pattern (slow blue blink) for the same
-        # duration -- starts here, roughly 7-10s after power-on, once the
-        # reset-reason + self-test sequence above has run.
-        - if:
-            condition:
-              lambda: 'return id(wifi_attempt_in_progress);'
-            then:
-              - lambda: 'id(boot_wait_start) = millis();'
-              - while:
-                  condition:
-                    lambda: |-
-                      return !id(mqtt_client).is_connected() &&
-                             (millis() - id(boot_wait_start)) < 30000;
-                  then:
-                    - output.turn_on: rgb_led_blue
-                    - delay: 500ms
-                    - output.turn_off: rgb_led_blue
-                    - delay: 500ms
-              # Window is over -- either connected (on_connect will fire its
-              # own "connected" log/LED separately) or it timed out.
-              - if:
-                  condition:
-                    lambda: 'return !id(mqtt_client).is_connected();'
-                  then:
-                    - repeat:
-                        count: 2
-                        then:
-                          - output.turn_on: rgb_led_blue
-                          - delay: 200ms
-                          - output.turn_off: rgb_led_blue
-                          - delay: 200ms
-                    - wifi.disable:
-                    - lambda: |-
-                        id(wifi_attempt_in_progress) = false;
-                        id(wifi_last_attempt_end_ms) = millis();
-                        aqm_log_write("{\"event\":\"wifi_attempt_timeout\"}");
+        # CARD-0377 Phase 2: the old bounded wait-for-MQTT-connection block
+        # (and its own "attempting" LED pattern) lived here -- removed along
+        # with the attempt-window state machine it was reporting on. The
+        # 2-min interval tick now owns the whole eligibility-check-and-upload
+        # attempt asynchronously; on_boot doesn't block waiting for it.
         # Resume full Measurement mode for one real boot-time reading (proves
         # the sensor works, drives the self-test's "wait for first valid
         # reading" below) -- the ongoing duty-cycle interval takes over from
@@ -331,70 +232,20 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
-  - id: boot_wait_start
-    type: uint32_t
-    restore_value: false
-    initial_value: '0'
   - id: pm25_wait_start
     type: uint32_t
     restore_value: false
     initial_value: '0'
-  # STEP 8: WiFi attempt-window/retry state machine (JCTsh-Build-Standards.md
-  # §2.14 point 13, Step 2). Checked every 2-min interval tick, not a
-  # separate timer -- same precedent as CARD-0224's periodic recheck on
-  # hiking-monitor.
-  - id: wifi_gate_ok
-    type: bool
-    restore_value: false
-    initial_value: 'false'
-  - id: wifi_attempt_in_progress
-    type: bool
-    restore_value: false
-    initial_value: 'false'
-  - id: wifi_attempt_start_ms
-    type: uint32_t
-    restore_value: false
-    initial_value: '0'
-  - id: wifi_last_attempt_end_ms
-    type: uint32_t
-    restore_value: false
-    initial_value: '0'
-  # STEP 8 / CARD-0224 pattern: set when attempt_aqm_replay defers because
-  # battery was below the 3.5V upload-safe threshold, cleared once a replay
-  # actually completes. Lets the periodic interval retry once voltage
-  # recovers while charging, instead of depending on another on_connect
-  # event that may never come if the MQTT link just stays up.
-  - id: replay_deferred_pending
-    type: bool
-    restore_value: false
-    initial_value: 'false'
-  # CARD-0226 carry-over from hiking-monitor (2026-09-24): the SPIFFS log used
-  # to be truncated right after the replay loop with no delivery
-  # confirmation, so a lossy upload was unrecoverable (a real hiking-monitor
-  # hike lost ~80% of its readings downstream and nothing could be
-  # recovered; root cause since fixed in Apps Script/Node-RED). Now the log
-  # survives the replay: this flag records "the current log has been
-  # replayed", gates the connect/interval replay paths, and the log is only
-  # cleared when the next field run starts (Intent switch turning ON), never
-  # on upload. restore_value: true so it survives a reboot between the
-  # replay and the next run.
-  - id: aqm_log_replayed
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  # CARD-0346 (2026-09-28): tracks intent_switch's state as read by the periodic
-  # interval, so that interval can detect an OFF->ON transition itself as a backstop
-  # for the Intent switch's on_press trigger (below) -- found live during the
-  # 2026-09-28 rehearsal that on_press can apparently fail to fire for a real
-  # transition (mqtt disabled right on schedule per the interval's own level read,
-  # but no "intent_on" event was ever logged for it), leaving aqm_log_replayed stuck
-  # true through an entire field session with zero visible error. Not restore_value:
-  # on_boot separately seeds this from the switch's actual state (see on_boot below),
-  # so a reboot can't manufacture a spurious edge on the first tick.
-  - id: intent_last_polled_state
-    type: bool
-    restore_value: false
-    initial_value: 'false'
+  # CARD-0377 Phase 2: the old WiFi attempt-window/backoff state machine
+  # (wifi_gate_ok, wifi_attempt_in_progress, wifi_attempt_start_ms,
+  # wifi_last_attempt_end_ms), the replay-deferred flag, and the whole
+  # aqm_log_replayed/intent_last_polled_state stuck-flag mechanism all lived
+  # here -- deleted along with MQTT. A one-shot upload doesn't need any of
+  # them: eligibility is re-checked fresh every 2-min tick (no backoff
+  # bookkeeping needed, since ESPHome's own wifi: component already retries
+  # sensibly on its own), and the log is cleared only after a confirmed
+  # upload success, so there's no "was this already replayed" state to track
+  # or get stuck.
   # CARD-0343 (2026-09-26): identifies this boot in readings buffered while the clock is invalid,
   # so a replay can tell "same boot as the run -- convert uptimes to real times exactly" from
   # "an earlier boot -- leave the reading tagged". 0 = not yet assigned (set by the first such
@@ -438,11 +289,12 @@ globals:
 
 # ── WiFi ──────────────────────────────────────────────────────────────────────
 # Multi-network (portable component): home WiFi first, Pixel hotspot second.
-# `ap:` fallback included (standard default per JCTsh-Build-Standards.md
-# §2.8) -- the known ESPHome #7222 reboot_timeout/wifi.ap: interaction
-# (CARD-0045) is moot here: this firmware manages WiFi enable/disable itself
-# via the gate/attempt-window state machine above and never relies on
-# ESPHome's own built-in reboot-on-disconnect mechanism.
+# `ap:` fallback included (standard default per JCTsh-Build-Standards.md §2.8).
+# CARD-0377 Phase 2: the old on_connect SSID-based MQTT-broker-hostname switch
+# (LAN-local pi1.local vs. DuckDNS) is gone along with MQTT itself -- the
+# bulk-upload endpoint is one fixed public URL (data_pipeline_bulk_url)
+# reached identically whichever network this lands on, so there's no
+# per-network destination to pick anymore.
 wifi:
   networks:
     - ssid: !secret wifi_ssid
@@ -452,20 +304,6 @@ wifi:
   ap:
     ssid: "air-quality-monitor-fallback"
     password: !secret ap_password
-  # CARD-0253 (2026-09-09): use the LAN-local broker whenever actually on
-  # the home network, DuckDNS only otherwise (field/hotspot) -- avoids
-  # needlessly routing a same-LAN connection out to the internet and back,
-  # which real testing found causes sustained DNS-resolution failures.
-  # Hardcoded "JCTnet1" (not !secret wifi_ssid -- a compile-time secret
-  # can't be referenced inside a lambda string literal) must match the
-  # wifi_ssid secret's actual value.
-  on_connect:
-    - lambda: |-
-        if (id(wifi_ssid_sensor).state == "JCTnet1") {
-          id(mqtt_client).set_broker_address("pi1.local");
-        } else {
-          id(mqtt_client).set_broker_address("jctsh.duckdns.org");
-        }
 
 captive_portal:
 
@@ -493,85 +331,19 @@ time:
       - 0.pool.ntp.org
       - 1.pool.ntp.org
 
-# ── MQTT ──────────────────────────────────────────────────────────────────────
-mqtt:
-  id: mqtt_client
-  broker: !secret mqtt_broker
-  port: 8883
-  certificate_authority: !secret mqtt_ca_cert
-  # CARD-0253 (2026-09-09): TLS stays on for both the home-LAN and field
-  # paths -- ESPHome's MQTT backend only decides TLS-vs-plaintext transport
-  # once, at the client's first initialize_() call (confirmed by reading the
-  # installed esphome package's own mqtt_backend_esp32.cpp source), so
-  # switching that at runtime isn't safely supported. Switching only the
-  # broker *hostname* at runtime (see wifi: on_connect: below) is well-
-  # supported (mqtt_client.cpp's start_connect_() reads credentials_.address
-  # fresh on every connection attempt). Mosquitto's 8883 TLS listener has no
-  # bind-address restriction (confirmed directly in mosquitto.conf), so it's
-  # reachable via pi1.local on the LAN too, not just jctsh.duckdns.org -- but
-  # its cert's CN/SAN only covers jctsh.duckdns.org, so a straight hostname
-  # swap would fail cert validation without this:
-  skip_cert_cn_check: true
-  # Bug found live 2026-09-09: ESPHome's mqtt component has its own built-in
-  # reboot_timeout (default 15min) that force-reboots the device if it can't
-  # connect within that window -- confirmed via mqtt_client.cpp's loop(),
-  # "Can't connect; restarting". This directly fights our own Step 8 bounded-
-  # attempt/15min-backoff state machine (the interval's wifi_gate_ok logic),
-  # which deliberately keeps MQTT disconnected during a backoff -- ESPHome's
-  # own watchdog was rebooting the device right as our backoff neared
-  # completion, since nothing in our design ever calls the MQTT component's
-  # own enable() again to reset its last_connected_ timer. Disabled here
-  # since our own state machine already owns this responsibility.
-  reboot_timeout: 0s
-  idf_send_async: false  # ESPHome-recommended stability setting for MQTT+TLS on esp-idf
-  username: !secret mqtt_username
-  password: !secret mqtt_password
-  topic_prefix: jctsh/components/air-quality-monitor
-  discovery: false  # no Home Assistant integration (Phase 3 decision) — do not leave at ESPHome's true default
-  will_message:
-    topic: jctsh/components/air-quality-monitor/log
-    payload: '{"component":"air-quality-monitor","category":"MQTT","message":"MQTT disconnected"}'
-    retain: false
-    qos: 0
-  on_connect:
-    - delay: 500ms
-    - mqtt.publish:
-        topic: jctsh/components/air-quality-monitor/log
-        payload: !lambda |-
-          char buf[320];
-          snprintf(buf, sizeof(buf),
-            "{\"component\":\"air-quality-monitor\",\"category\":\"System\","
-            "\"message\":\"Air quality monitor online - ESPHome " ESPHOME_VERSION ", IP: %s, reset reason: %s\"}",
-            id(wifi_ip).state.c_str(), id(reset_reason_text).state.c_str());
-          return std::string(buf);
-    - mqtt.publish:
-        topic: jctsh/components/air-quality-monitor/log
-        payload: '{"component":"air-quality-monitor","category":"MQTT","message":"MQTT connected"}'
-    # STEP 8: "connected" LED (solid blue ~1s) -- the one networking-status
-    # state that CAN log live, since MQTT is up by definition at this point.
-    - output.turn_on: rgb_led_blue
-    - delay: 1s
-    - output.turn_off: rgb_led_blue
-    - lambda: |-
-        id(wifi_attempt_in_progress) = false;
-        id(wifi_last_attempt_end_ms) = 0;  // clear backoff -- a real connection succeeded
-    - script.execute: attempt_aqm_replay
-  # CARD-0226: manual re-replay. Publish anything to
-  # jctsh/components/air-quality-monitor/command/replay while the device is
-  # connected (docked, Intent off) to clear the replayed flag and re-send the
-  # retained log -- recovers a lossy upload without a reflash. Safe to repeat
-  # (Apps Script rejects an exact (ts, source) duplicate). A command topic
-  # rather than an HA button because discovery stays off (no HA integration,
-  # Phase 3 decision). No-op when the log is empty (already cleared by a new run).
-  on_message:
-    - topic: jctsh/components/air-quality-monitor/command/replay
-      then:
-        - if:
-            condition:
-              lambda: 'return aqm_log_has_data();'
-            then:
-              - lambda: 'id(aqm_log_replayed) = false;'
-              - script.execute: attempt_aqm_replay
+# ── HTTP (CARD-0377 Phase 2 -- replaces MQTT entirely) ────────────────────────
+# A one-shot bulk POST doesn't need a persistent, TLS-encrypted, always-
+# reconnecting broker session -- it needs one request. verify_ssl: false is a
+# deliberate, explicit choice, not an oversight: hikes.jctnet.com is fronted
+# by Cloudflare's own edge certificate (not a cert this project controls or
+# can easily pin), and the existing mqtt_ca_cert secret is Let's Encrypt's
+# root, which doesn't apply here. The connection is still TLS-encrypted in
+# transit; what's skipped is chain validation. Same pragmatic tier as this
+# file's own prior skip_cert_cn_check: true for MQTT, and the Bearer API key
+# still provides application-level authentication regardless.
+http_request:
+  verify_ssl: false
+  timeout: 15s
 
 # ── I2C ───────────────────────────────────────────────────────────────────────
 i2c:
@@ -591,25 +363,27 @@ output:
     pin: GPIO23
     id: rgb_led_blue
 
-# ── Replay script (STEP 8 / CARD-0224 pattern) ─────────────────────────────────
-# Attempt to replay any buffered field-mode data. Defers (and records
-# replay_deferred_pending) if battery is still below the 3.5V upload-safe
-# threshold -- the same gate that decides whether WiFi is even allowed to try
-# in the first place, checked again here as defense-in-depth since voltage
-# could in principle sag between the gate passing and this actually running.
+# ── Upload script (CARD-0377 Phase 2 -- replaces the old MQTT replay loop) ───
+# One-shot: if there's buffered data, enable WiFi, POST the whole log in a
+# single request to the data-pipeline gateway's bulk endpoint, clear only on
+# a confirmed 200. No persistent-connection bookkeeping (no attempt-window,
+# no backoff, no "was this already replayed" flag) -- a one-shot request has
+# nothing to manage between attempts; eligibility is just re-checked fresh
+# on the next 2-min tick if this one didn't succeed.
 script:
-  - id: attempt_aqm_replay
+  - id: attempt_aqm_upload
     then:
-      # CARD-0343 (2026-09-26, found by the first cold-boot bench test): this script is
-      # triggered by MQTT-connected, ~2 s after Wi-Fi comes up -- before SNTP has synced.
-      # If THIS boot buffered uptime-tagged readings (boot_id assigned), give the clock up to
-      # 5 min to become valid so they can be resolved to real timestamps; without it the
-      # replay ran with no clock and forwarded every reading still tagged. Measured
-      # 2026-09-26: SNTP took more than 60 s to sync after Wi-Fi came up (a 60 s wait timed out
-      # and the whole run replayed unresolved; a manual replay ~3 min later resolved every
-      # reading exactly), hence 5 min. Wi-Fi stays up while docked + Intent off + MQTT
-      # connected, so waiting costs nothing. Times out and replays anyway, so a failed sync
-      # never blocks the upload.
+      - if:
+          condition:
+            lambda: 'return !aqm_log_has_data();'
+          then:
+            - lambda: 'return;'  # nothing buffered -- nothing to do
+      # CARD-0343 (2026-09-26): give the clock up to 5 min to sync before
+      # uploading, so uptime-tagged readings from THIS boot can be resolved
+      # to real timestamps exactly, same reasoning as the old replay script
+      # (SNTP measured taking >60s after WiFi comes up on a cold boot).
+      # Times out and uploads anyway -- a failed sync never blocks the
+      # upload, it just leaves this boot's unresolved readings unresolved.
       - if:
           condition:
             lambda: 'return id(boot_id) != 0 && !id(sntp_time).now().is_valid();'
@@ -618,82 +392,57 @@ script:
                 condition:
                   lambda: 'return id(sntp_time).now().is_valid();'
                 timeout: 300s
+      # CARD-0377 Phase 2 bug found live (2026-10-01, first real OTA test):
+      # this used to call aqm_log_write() for its own "upload_attempt_start"
+      # marker -- but that writes into the SAME file aqm_log_build_bulk_body()
+      # reads to build the next POST's body, so the marker itself got sent
+      # as a fake "reading" and flagged invalid server-side, and a matching
+      # on_response marker below did the same after clear() -- a self-sustaining
+      # 2-line loop that never stopped (confirmed live: every 2-min upload
+      # carried exactly 2 "invalid" entries, forever). aqm_log.jsonl must
+      # hold ONLY real sensor readings; all status logging below is
+      # ESP_LOGW-only (serial, no remote channel exists without MQTT/api:).
       - lambda: |-
-          if (aqm_log_has_data() && !id(aqm_log_replayed)) {
-            int count = aqm_log_count();
-            if (count > 0) {
-              if (!isnan(id(battery_voltage).state) && id(battery_voltage).state < 3.5f) {
-                id(replay_deferred_pending) = true;
-                char skip_buf[176];
-                snprintf(skip_buf, sizeof(skip_buf),
-                  "{\"component\":\"air-quality-monitor\",\"category\":\"Alert\","
-                  "\"message\":\"Replay deferred - battery %.2fV below 3.5V upload threshold, waiting for charge\"}",
-                  id(battery_voltage).state);
-                id(mqtt_client).publish("jctsh/components/air-quality-monitor/log",
-                                        std::string(skip_buf), 0, false);
-              } else {
-                char log_buf[128];
-                snprintf(log_buf, sizeof(log_buf),
-                  "{\"component\":\"air-quality-monitor\",\"category\":\"System\","
-                  "\"message\":\"Replaying %d buffered readings...\"}",
-                  count);
-                id(mqtt_client).publish("jctsh/components/air-quality-monitor/log",
-                                        std::string(log_buf), 0, false);
-                // QoS 0 on purpose (CARD-0226, 2026-09-24): a QoS 1 change tried here
-                // on 2026-09-22 was reverted -- hiking-monitor's identical replay lost
-                // ~80% of its readings, and an end-to-end test traced that to the Apps
-                // Script write path (fixed), not QoS 0. QoS 1 also can't tell the clear
-                // below what actually arrived, and makes the ESP32 hold every unacked
-                // message during a 50 ms burst that already needed watchdog fixes.
-                aqm_log_replay_stream([](const std::string& line) {
-                  std::string out = line;
-                  // CARD-0343: a reading buffered with no valid clock carries "ts":null,
-                  // the seconds since boot, and a per-boot id. If this replay is still the
-                  // SAME boot and the clock is now valid (docked and synced), its real
-                  // time is exact: now - (uptime_now - uptime_at_reading). A reading from
-                  // an EARLIER boot (the device was power-cycled between the run and the
-                  // dock) cannot be resolved here and is forwarded still tagged, for the
-                  // Node-RED router to keep in the log rather than write to the Sheet.
-                  size_t tp = out.find("\"ts\":null");
-                  if (tp != std::string::npos) {
-                    ESPTime rnow = id(sntp_time).now();
-                    size_t up_at = out.find("\"uptime_s\":");
-                    size_t boot_at = out.find("\"boot\":\"");
-                    unsigned up_s = 0;
-                    char cur[9];
-                    snprintf(cur, sizeof(cur), "%08x", (unsigned) id(boot_id));
-                    if (rnow.is_valid() && id(boot_id) != 0 &&
-                        up_at != std::string::npos && boot_at != std::string::npos &&
-                        sscanf(out.c_str() + up_at, "\"uptime_s\":%u", &up_s) == 1 &&
-                        out.compare(boot_at + 8, 8, cur) == 0) {
-                      unsigned up_now = (unsigned)(millis() / 1000);
-                      if (up_now >= up_s) {
-                        time_t epoch = (time_t) rnow.timestamp - (time_t)(up_now - up_s);
-                        struct tm utc_tm;
-                        gmtime_r(&epoch, &utc_tm);
-                        char iso[25];
-                        strftime(iso, sizeof(iso), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
-                        out.replace(tp, 9, std::string("\"ts\":\"") + iso + "\"");
-                      }
-                    }
-                  }
-                  id(mqtt_client).publish("jctsh/components/air-quality-monitor/data",
-                                          out, 0, false);
-                  App.feed_wdt();
-                  delay(50);
-                });
-                id(mqtt_client).publish("jctsh/components/air-quality-monitor/log",
-                  std::string("{\"component\":\"air-quality-monitor\",\"category\":\"System\","
-                             "\"message\":\"Buffered-data replay complete.\"}"), 0, false);
-                // CARD-0226: do NOT clear here -- keep the log until the next field
-                // run starts so a lossy upload can be repeated (see the
-                // command/replay topic below). Re-sending is safe: Apps Script
-                // rejects an exact (ts, source) duplicate.
-                id(aqm_log_replayed) = true;
-                id(replay_deferred_pending) = false;
-              }
+          ESP_LOGW("Upload", "Starting upload of %d buffered readings", aqm_log_count());
+      - wifi.enable:
+      - http_request.post:
+          url: !secret data_pipeline_bulk_url
+          request_headers:
+            Content-Type: application/json
+            Authorization: !secret data_pipeline_auth_header
+          body: !lambda |-
+            // Only pass a real current_time/current_boot pair if the clock is
+            // actually valid -- an empty boot string can never match a real
+            // 8-hex-char boot id, so readings correctly stay "unresolved"
+            // server-side rather than risk resolving against a bogus time.
+            ESPTime rnow = id(sntp_time).now();
+            std::string ts_str = "1970-01-01T00:00:00Z";
+            std::string boot_str = "";
+            if (rnow.is_valid()) {
+              time_t epoch = (time_t) rnow.timestamp;
+              struct tm utc_tm;
+              gmtime_r(&epoch, &utc_tm);
+              char ts[25];
+              strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &utc_tm);
+              ts_str = std::string(ts);
+              char boot_hex[9];
+              snprintf(boot_hex, sizeof(boot_hex), "%08x", (unsigned) id(boot_id));
+              boot_str = std::string(boot_hex);
             }
-          }
+            return aqm_log_build_bulk_body(ts_str, boot_str, (uint32_t)(millis() / 1000));
+          capture_response: true
+          on_response:
+            then:
+              - lambda: |-
+                  if (response->status_code == 200) {
+                    aqm_log_clear();
+                    ESP_LOGW("Upload", "Upload complete (status %d) -- log cleared", response->status_code);
+                  } else {
+                    ESP_LOGW("Upload", "Upload failed (status %d) -- log kept for retry", response->status_code);
+                  }
+          on_error:
+            then:
+              - lambda: 'ESP_LOGW("Upload", "Upload error (no response) -- log kept for retry");'
 
 # ── Sensors ───────────────────────────────────────────────────────────────────
 sensor:
@@ -831,25 +580,12 @@ binary_sensor:
     name: "Intent Switch"
     id: intent_switch
     internal: true
-    # CARD-0226: a new field run is starting -- now (and only now) it is safe
-    # to discard the previous run's log, but only if it was actually
-    # replayed. An unreplayed log (battery-deferred replay, never docked) is
-    # kept and the new run appends to it, so it still gets uploaded on the
-    # next connect instead of destroyed.
-    on_press:
-      - lambda: |-
-          int had = aqm_log_count();
-          bool was_replayed = id(aqm_log_replayed);
-          if (was_replayed) {
-            aqm_log_clear();
-            id(aqm_log_replayed) = false;
-          }
-          // CARD-0345: record that the press fired and what it saw (see the boot-time check).
-          char ibuf[112];
-          snprintf(ibuf, sizeof(ibuf),
-            "{\"event\":\"intent_on\",\"had_lines\":%d,\"replayed\":%d,\"cleared\":%d}",
-            had, was_replayed ? 1 : 0, was_replayed ? 1 : 0);
-          aqm_log_write(std::string(ibuf));
+    # CARD-0377 Phase 2: no on_press handler -- the old one existed only to
+    # clear aqm_log_replayed/discard an already-replayed log the moment a
+    # new field run started. There's no "replayed" flag anymore (a one-shot
+    # upload either clears the log on confirmed success or leaves it
+    # untouched on failure), so there's nothing left for a press trigger to
+    # do; a new run just appends to whatever the log already holds.
 
   # Dock detect: TP4056 IN+ (or solar) -> 68kΩ -> midpoint -> 100kΩ -> GND;
   # midpoint to GPIO32. HIGH = docked/charging or solar connected.
@@ -861,152 +597,41 @@ binary_sensor:
     id: dock_detect
     internal: true
 
-# ── Duty-cycle / field logging / WiFi gate interval ────────────────────────────
+# ── Duty-cycle / field logging / upload-eligibility interval ──────────────────
 interval:
   - interval: 2min
     then:
-      # ── STEP 8: WiFi attempt-gate state machine ──
-      # Ongoing re-check of the three-condition gate, and the bounded-
-      # attempt-window/15min-retry backoff (JCTsh-Build-Standards.md §2.14
-      # point 13, Step 2). Runs every tick regardless of mode, same as
-      # hiking-monitor's own CARD-0224 periodic recheck.
+      # ── CARD-0377 Phase 2: eligibility check (replaces the WiFi-gate state
+      # machine, attempt-window/15min backoff, and wifi/mqtt enable-disable
+      # mirroring entirely) ──
+      # A one-shot HTTP upload has no persistent connection to manage between
+      # attempts, so there's nothing to track across ticks: just ask "is it
+      # safe and worth trying right now?" fresh every time. Intent off (not
+      # actively hiking), docked/charging (power_connected), and battery
+      # above the 3.5V upload-safe threshold -- same three conditions as
+      # before, just no longer needing a state machine to act on them.
       - lambda: |-
-          bool intent_now = id(intent_switch).state;
-          // CARD-0346 (2026-09-28): poll-based backstop for intent_switch's on_press
-          // trigger below -- found live during the rehearsal that on_press can
-          // apparently miss a real OFF->ON transition (this same level read correctly
-          // saw the switch as ON, per the mqtt.disable that fired on schedule, but no
-          // "intent_on" event was ever logged), leaving aqm_log_replayed stuck true
-          // through a whole field session with zero visible error. Mirrors on_press's
-          // own logic exactly, so double-firing (on_press *does* fire, and this also
-          // catches the same edge next tick) is harmless by the same idempotency
-          // (was_replayed guards it; a second pass just logs had=0/replayed=0/cleared=0).
-          // Bounded to at most a 2-minute delay versus on_press's immediate firing.
-          if (intent_now && !id(intent_last_polled_state)) {
-            int had = aqm_log_count();
-            bool was_replayed = id(aqm_log_replayed);
-            if (was_replayed) {
-              aqm_log_clear();
-              id(aqm_log_replayed) = false;
-            }
-            char ibuf[128];
-            snprintf(ibuf, sizeof(ibuf),
-              "{\"event\":\"intent_on_poll_backstop\",\"had_lines\":%d,\"replayed\":%d,\"cleared\":%d}",
-              had, was_replayed ? 1 : 0, was_replayed ? 1 : 0);
-            aqm_log_write(std::string(ibuf));
-          }
-          id(intent_last_polled_state) = intent_now;
-          bool intent_off = !intent_now;
+          bool intent_off = !id(intent_switch).state;
           bool power_connected = id(dock_detect).state;
           bool voltage_ok = !isnan(id(battery_voltage).state) && id(battery_voltage).state >= 3.5f;
-          id(wifi_gate_ok) = intent_off && power_connected && voltage_ok;
-          // Diagnostic logging (2026-09-09) -- added to debug the retry-cycle
-          // state machine, since proven useful for several other findings
-          // this session too (reboot_timeout conflict, hysteresis fix's
-          // boot-interference issue). Kept intentionally for now per Joseph
-          // (2026-09-09) -- candidate for removal once Step 8 has run
-          // unattended long enough that this level of visibility isn't
-          // needed anymore. Fires every 2min at WARN level.
-          ESP_LOGW("WifiState", "gate=%d in_progress=%d connected=%d elapsed_ms=%u batt=%.2f",
-                   id(wifi_gate_ok), id(wifi_attempt_in_progress),
-                   id(mqtt_client).is_connected(),
-                   (unsigned)(millis() - id(wifi_attempt_start_ms)),
-                   id(battery_voltage).state);
-
-          if (!id(wifi_gate_ok)) {
-            id(wifi_attempt_in_progress) = false;
-          } else if (!id(mqtt_client).is_connected()) {
-            if (!id(wifi_attempt_in_progress)) {
-              bool never_attempted = (id(wifi_last_attempt_end_ms) == 0);
-              uint32_t since_last = millis() - id(wifi_last_attempt_end_ms);
-              if (never_attempted || since_last >= (15UL * 60UL * 1000UL)) {
-                id(wifi_attempt_in_progress) = true;
-                id(wifi_attempt_start_ms) = millis();
-                aqm_log_write("{\"event\":\"wifi_attempt_start\"}");
-              }
-            } else if (millis() - id(wifi_attempt_start_ms) >= (2UL * 60UL * 1000UL)) {
-              // Attempt window elapsed with no connection -- give up for now.
-              id(wifi_attempt_in_progress) = false;
-              id(wifi_last_attempt_end_ms) = millis();
-              aqm_log_write("{\"event\":\"wifi_attempt_timeout\"}");
-            }
-          }
-          // Gate true + MQTT already connected: nothing to do here, on_connect owns it.
-          ESP_LOGW("WifiState", "AFTER: in_progress=%d start_ms=%u last_end_ms=%u",
-                   id(wifi_attempt_in_progress), (unsigned)id(wifi_attempt_start_ms),
-                   (unsigned)id(wifi_last_attempt_end_ms));
-      # Bug found live 2026-09-09: the original version here only disabled WiFi
-      # when the gate itself went false, so the 15-min quiet/backoff state
-      # (gate true, attempt just timed out, not yet reconnected) fell through
-      # to the else branch and did nothing -- WiFi stayed enabled and kept
-      # silently retrying the AP forever via ESPHome's own built-in reconnect
-      # logic, defeating the bounded-attempt design entirely. Fixed by also
-      # disabling whenever not actively attempting and not connected.
-      #
-      # Second bug found live 2026-09-09, field-simulation test: a single
-      # momentary ADC sample dipping below the 3.5V voltage_ok threshold
-      # (real LiPo-under-load noise, per JCTsh-Build-Standards.md §2.14 point
-      # 9 -- recovered to a normal reading 40s later) forced wifi_gate_ok
-      # false for one tick, which tore down an already-connected, working
-      # MQTT link (confirmed live: "Disconnected ssid='JCTnet1' ... reason=
-      # 'Association Leave'") even though nothing was actually wrong -- the
-      # device was docked and charging the whole time. The voltage condition
-      # exists to decide whether it's safe to START a new connection attempt
-      # (the upload current spike), not to justify severing one already
-      # established; the existing 3.4V general low-battery cutoff and the
-      # replay-defer check already protect the actually-risky operations.
-      # Fixed: while already connected, only intent/power (a real session-end
-      # or undock, not a voltage blip) forces a disable.
-      #
-      # Third bug found live 2026-09-14 (Step 9 bench session): only
-      # wifi.disable/enable were called here -- ESPHome's mqtt: component
-      # has its own independent reconnect logic that keeps retrying (and
-      # cleanly failing DNS resolution) on its own schedule regardless of
-      # radio state, so a debug-UART capture during battery-only/undocked
-      # operation showed a repeating "Couldn't resolve IP address" /
-      # "Disconnected: WiFi disconnected" cycle even though wifi.disable()
-      # was correctly firing every tick (confirmed: zero [wifi:...] log
-      # lines appeared in the capture, only [mqtt:...] ones -- the radio
-      # was never actually re-enabled). Fixed by mirroring every
-      # wifi.enable/disable call with the matching mqtt.enable/disable, so
-      # the MQTT client stops attempting entirely while the gate is closed
-      # instead of spinning on its own independent retry loop.
+          bool eligible = intent_off && power_connected && voltage_ok && aqm_log_has_data();
+          ESP_LOGW("UploadState", "eligible=%d intent_off=%d power=%d voltage_ok=%d has_data=%d",
+                   eligible, intent_off, power_connected, voltage_ok, aqm_log_has_data());
       - if:
           condition:
             lambda: |-
               bool intent_off = !id(intent_switch).state;
               bool power_connected = id(dock_detect).state;
-              bool hard_stop = !intent_off || !power_connected;
-              if (id(mqtt_client).is_connected()) {
-                return hard_stop;
-              }
-              return !id(wifi_gate_ok) || !id(wifi_attempt_in_progress);
+              bool voltage_ok = !isnan(id(battery_voltage).state) && id(battery_voltage).state >= 3.5f;
+              return intent_off && power_connected && voltage_ok && aqm_log_has_data();
           then:
-            - wifi.disable:
-            - mqtt.disable:
+            - script.execute: attempt_aqm_upload
           else:
-            - if:
-                condition:
-                  and:
-                    - lambda: 'return id(wifi_attempt_in_progress);'
-                    - lambda: 'return !id(mqtt_client).is_connected();'
-                then:
-                  - wifi.enable:
-                  - mqtt.enable:
-      # CARD-0224 pattern: on_connect only fires once per connection event --
-      # if the MQTT link stays persistently up after a replay was deferred
-      # for low battery, nothing else re-triggers a retry once voltage
-      # recovers while charging.
-      - if:
-          condition:
-            lambda: |-
-              return id(mqtt_client).is_connected()
-                  && id(replay_deferred_pending)
-                  && !isnan(id(battery_voltage).state)
-                  && id(battery_voltage).state >= 3.5f
-                  && aqm_log_has_data();
-          then:
-            - script.execute: attempt_aqm_replay
+            # Nothing eligible to upload right now -- make sure the radio
+            # isn't left on burning idle current (it's only ever turned on
+            # by the upload script itself, and turned back off there too on
+            # a completed attempt; this is just the steady-state default).
+            - wifi.disable:
 
       # ── STEP 8: SEN55 duty-cycle -- warm up, read, drop back to RHT-only ──
       # STEP 8 fix (2026-09-09, real race condition found on first bench
@@ -1045,13 +670,13 @@ interval:
                         lambda: 'return !id(critical_battery_alerted);'
                       then:
                         - lambda: |-
+                            // CARD-0377 Phase 2: no longer aqm_log_write() --
+                            // that buffer now holds ONLY real sensor readings
+                            // (see the upload script's comment for why mixing
+                            // status markers into it broke the bulk upload).
                             id(critical_battery_alerted) = true;
-                            char buf[128];
-                            snprintf(buf, sizeof(buf),
-                              "{\"component\":\"air-quality-monitor\",\"category\":\"Alert\","
-                              "\"message\":\"Critical battery %.2fV - Measurement mode suspended until charge recovers\"}",
-                              id(battery_voltage).state);
-                            aqm_log_write(std::string(buf));
+                            ESP_LOGW("DutyCycle", "Critical battery %.2fV - Measurement mode suspended until charge recovers",
+                                     id(battery_voltage).state);
                 else:
                   - lambda: 'id(critical_battery_alerted) = false;'
             - if:
@@ -1146,10 +771,8 @@ interval:
                         // CRC failure) -- pm25/temp/hum below may be
                         // non-NaN but are stale leftovers from an earlier
                         // successful cycle.
-                        aqm_log_write("{\"event\":\"skip\",\"reason\":\"sensor_stale\"}");
                         ESP_LOGW("DutyCycle", "Skipped -- no fresh SEN55 publish this cycle (stale/CRC failure)");
                       } else if (isnan(pm25) || isnan(temp) || isnan(hum)) {
-                        aqm_log_write("{\"event\":\"skip\",\"reason\":\"nan_sensor\"}");
                         ESP_LOGW("DutyCycle", "Skipped -- pm25=%.1f temp=%.1f hum=%.1f (NaN present)", pm25, temp, hum);
                       } else {
                         char ts_field[72];
@@ -1175,7 +798,11 @@ interval:
                         if (isnan(voc))  strcpy(voc_s, "null");  else snprintf(voc_s, sizeof(voc_s), "%.0f", voc);
                         if (isnan(nox))  strcpy(nox_s, "null");  else snprintf(nox_s, sizeof(nox_s), "%.0f", nox);
 
-                        int rssi = id(mqtt_client).is_connected() ? (int)id(wifi_rssi).state : 0;
+                        // CARD-0377 Phase 2: WiFi is normally off between upload
+                        // attempts, so wifi_rssi's last polled value is almost
+                        // always stale/0 here -- informational only, not gated on
+                        // a live connection the way it used to be.
+                        int rssi = isnan(id(wifi_rssi).state) ? 0 : (int)id(wifi_rssi).state;
                         char batt_s[16];
                         if (isnan(batt)) strcpy(batt_s, "null"); else snprintf(batt_s, sizeof(batt_s), "%.2f", batt);
 
@@ -1196,17 +823,13 @@ interval:
                           "\"rssi_dbm\":%d}",
                           ts_field, temp, hum, pm1_s, pm25_s, pm4_s, pm10_s, voc_s, nox_s, batt_s, rssi);
 
-                        // A reading with no valid clock is never published live
-                        // (an unresolved time must not reach the Sheet); it is
-                        // buffered and reconciled at replay.
-                        if (clock_ok && id(mqtt_client).is_connected()) {
-                          id(mqtt_client).publish("jctsh/components/air-quality-monitor/data",
-                                                  std::string(payload), 0, false);
-                          ESP_LOGW("DutyCycle", "Published live: %s", payload);
-                        } else {
-                          aqm_log_write(std::string(payload));
-                          ESP_LOGW("DutyCycle", "Buffered to flash: %s", payload);
-                        }
+                        // CARD-0377 Phase 2: no more live-publish branch -- MQTT
+                        // is gone, and even on a cycle where WiFi happens to be
+                        // up there's no persistent connection to publish over.
+                        // Every reading is buffered and goes out on the next
+                        // eligible tick's one-shot upload, clock-resolved or not.
+                        aqm_log_write(std::string(payload));
+                        ESP_LOGW("DutyCycle", "Buffered to flash: %s", payload);
                       }
                   # Back to RHT/Gas-Only until the next cycle.
                   - lambda: 'id(sen55).write_command((uint16_t) 0x0037);'  # SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY
@@ -1214,53 +837,10 @@ interval:
                       format: "DUTY CYCLE: back to RHT-only mode until next tick"
                       level: WARN
 
-  # 5-minute heartbeat — matches hiking-monitor's established deviation from
-  # the generic 30-min standard. Home mode only (mqtt_client.is_connected()).
-  - interval: 5min
-    then:
-      - if:
-          condition:
-            lambda: 'return id(mqtt_client).is_connected();'
-          then:
-            - mqtt.publish:
-                topic: jctsh/components/air-quality-monitor/log
-                payload: !lambda |-
-                  uint32_t secs = (uint32_t)id(uptime_sec).state;
-                  uint32_t h = secs / 3600;
-                  uint32_t m = (secs % 3600) / 60;
-                  int rssi = (int)id(wifi_rssi).state;
-                  float pm25 = id(sen55_pm25).state;
-                  float voc  = id(sen55_voc).state;
-                  float nox  = id(sen55_nox).state;
-                  float batt = id(battery_voltage).state;
-                  char pm25_str[16], voc_str[16], nox_str[16], batt_str[16];
-                  if (isnan(pm25)) strcpy(pm25_str, "unavailable");
-                  else snprintf(pm25_str, sizeof(pm25_str), "%.1f", pm25);
-                  if (isnan(voc)) strcpy(voc_str, "unavailable");
-                  else snprintf(voc_str, sizeof(voc_str), "%.0f", voc);
-                  if (isnan(nox)) strcpy(nox_str, "unavailable");
-                  else snprintf(nox_str, sizeof(nox_str), "%.0f", nox);
-                  if (isnan(batt)) strcpy(batt_str, "unavailable");
-                  else snprintf(batt_str, sizeof(batt_str), "%.2fV", batt);
-                  char buf[320];
-                  snprintf(buf, sizeof(buf),
-                    "{\"component\":\"air-quality-monitor\",\"category\":\"System\","
-                    "\"message\":\"Heartbeat - uptime: %uh %um, RSSI: %ddBm, PM2.5: %s, VOC: %s, NOx: %s, batt: %s\"}",
-                    h, m, rssi, pm25_str, voc_str, nox_str, batt_str);
-                  return std::string(buf);
-            - mqtt.publish:
-                topic: jctsh/components/air-quality-monitor/heartbeat
-                payload: !lambda |-
-                  uint32_t secs = (uint32_t)id(uptime_sec).state;
-                  uint32_t h = secs / 3600;
-                  uint32_t m = (secs % 3600) / 60;
-                  int rssi = (int)id(wifi_rssi).state;
-                  float batt = id(battery_voltage).state;
-                  char batt_json[16];
-                  if (isnan(batt)) strcpy(batt_json, "null");
-                  else snprintf(batt_json, sizeof(batt_json), "%.2f", batt);
-                  char buf[160];
-                  snprintf(buf, sizeof(buf),
-                    "{\"component\":\"air-quality-monitor\",\"uptime\":\"%uh %um\",\"rssi\":%d,\"battery_v\":%s}",
-                    h, m, rssi, batt_json);
-                  return std::string(buf);
+# CARD-0377 Phase 2: no heartbeat interval -- it could only ever fire while
+# connected (docked + MQTT up), and the 2026-10-01 hike produced four false
+# "silent for N hours" alerts from exactly that gap (heartbeat stops the
+# moment Intent goes on and the device heads out, which looks indistinguishable
+# from a crash until the device docks again). Buffered duty-cycle data moving
+# and a confirmed upload at the next dock is the real liveness signal now;
+# see this file's top-of-file architecture comment for the full rationale.

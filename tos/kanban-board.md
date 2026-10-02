@@ -13,9 +13,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0378 · [enhancement] [data-pipeline] Container image update: timescaledb 2.30.1 → 2.30.2 — auto-opened from photo-server
+### CARD-0378 · [enhancement] [data-pipeline] Container image update: timescaledb 2.30.1 → 2.30.2 — auto-opened from photo-server — RESOLVED 2026-10-01
 
-**Status:** Backlog
+**Status:** Done
 
 **Auto-generated 2026-09-30 13:30 UTC from photo-server's maintenance check.** Raw finding: Container image updates: timescaledb: 2.30.2 available (running 2.30.1).
 
@@ -29,9 +29,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Net assessment: a routine, low-risk bugfix release with zero relevance to how this pipeline actually uses TimescaleDB.** Safe to apply whenever convenient; not urgent, since none of the fixed bugs are things this deployment could be hitting. Mechanically identical to CARD-0362 item 1's own pin-bump precedent: update the compose pin, recreate just the `timescaledb` container (confirmed via `docker-compose.yml`'s service separation that `data-pipeline-api` is unaffected by a `timescaledb`-only recreate, same as every prior container-specific recreate on this host), verify `extversion`/`postgres --version` match and real row counts are intact afterward.
 
-**Not yet applied -- held for a separate go-ahead**, per this session's own `evaluate-then-ask` convention.
+**Applied and verified live, 2026-10-01 (Joseph: "apply it").** Pin bumped, `timescaledb` pulled and recreated. **One real step beyond the recreate itself:** the image update alone didn't bump the installed extension -- `extversion` still read `2.30.1` immediately after, standard Postgres behavior (a new shared library being present isn't the same as the database having run its upgrade script). `ALTER EXTENSION timescaledb UPDATE;` closed that gap; `extversion` confirmed `2.30.2` after. All 6 tables' row counts checked before and after -- intact (`environmental_data` even picked up one real live write during the recreate window, 36844 -> 36845, not data loss). Gateway `/health` confirmed responding normally throughout.
 
-**Done when:** `docker-compose.yml`'s pin updated to `timescale/timescaledb:2.30.2-pg16`, `timescaledb` recreated, `extversion` confirmed `2.30.2` live, and real data (row counts across all 6 tables) confirmed intact post-recreate.
+**Done when:** `docker-compose.yml`'s pin updated to `timescale/timescaledb:2.30.2-pg16`, `timescaledb` recreated, `extversion` confirmed `2.30.2` live, and real data (row counts across all 6 tables) confirmed intact post-recreate. **Met.**
 
 **Related:** CARD-0362 (the original pinning decision and precedent for how this kind of bump gets applied), CARD-0349 (the migration that made this database matter at all).
 

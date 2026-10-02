@@ -9,7 +9,27 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0379 -->
+<!-- next-card-id: CARD-0380 -->
+
+---
+
+### CARD-0379 · [enhancement] [pi1] Node-RED update(s) pending: npm 12.1.0 → 12.2.0 — auto-opened from jctsh-core
+
+**Status:** Backlog
+
+**Auto-generated 2026-09-30 17:00 UTC from jctsh-core's maintenance check.** Raw finding: Node-RED update(s) pending: npm: 12.2.0 available (running 12.1.0).
+
+**Researched 2026-10-01 (general session).** Confirmed live on the Pi: `npm --version` reads `12.1.0`, Node.js unaffected (`v22.23.3`, unchanged either way -- npm and Node version independently).
+
+**Full changelog read (`gh api repos/npm/cli/releases/tags/v12.2.0`) -- two changes, neither relevant here:** one feature (OIDC authentication support for `npm dist-tag`, a *publishing*-workflow feature -- this Pi never publishes packages, only installs Node-RED and its palette nodes) and one doc fix. No bugfixes, no security advisory.
+
+**Net assessment: lower-stakes than the timescaledb bump (CARD-0378) even before considering relevance.** `npm` is a CLI tool, not a persistent service -- updating it is `npm install -g npm@12.2.0`, no container/service recreate, no live traffic, no "downtime" concept at all. The only real verification is that `npm` itself still runs correctly afterward (`npm --version`, and a real `npm outdated -g`/`npm outdated` run inside `/home/pi/.node-red`, since `core/maintenance/node_red_update_check.py` -- the very script that found this -- depends on `npm` working correctly to check Node-RED/palette-node versions).
+
+**Not yet applied -- held for a separate go-ahead.**
+
+**Done when:** `npm` on the Pi reads `12.2.0`, and `node_red_update_check.py`'s own mechanism (the script that surfaced this finding) still runs cleanly afterward -- a real run, not just `npm --version`.
+
+**Related:** CARD-0344 (built `node_red_update_check.py`, the check this finding came from), CARD-0378 (the sibling container-image bump this session just applied, same research discipline).
 
 ---
 

@@ -13,9 +13,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0380 · [enhancement] [m8] Container image update: netalertx v26.9.0 → v26.10.0 — auto-opened from photo-server
+### CARD-0380 · [enhancement] [m8] Container image update: netalertx v26.9.0 → v26.10.0 — auto-opened from photo-server — RESOLVED 2026-10-01
 
-**Status:** Backlog
+**Status:** Done
 
 **Auto-generated 2026-10-01 13:30 UTC from photo-server's maintenance check.** Raw finding: Container image updates: netalertx: v26.10.0 available (running 26.9.0).
 
@@ -30,9 +30,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Net assessment: a real, substantive release, but nothing in it conflicts with this project's narrow usage (network presence scanning + one outbound webhook) -- two of the fixes are plausibly beneficial (fewer false duplicate/down detections).** Safe to apply. Mechanically: pin the compose file to the exact digest for `v26.10.0` (resolved by pulling the tag live, not guessed, same method CARD-0356 used for immich-redis), recreate, verify `container-update-check.py`'s own `label`-based version read reports `26.10.0` and the real webhook integration still fires (a live network-device state change, or NetAlertX's own test-publish feature).
 
-**Not yet applied -- held for a separate go-ahead.**
+**Applied and verified live, 2026-10-01 (Joseph: "apply it").** Pulled `ghcr.io/netalertx/netalertx:26.10.0` live on the M8 to get the real digest (the GitHub release tag `v26.10.0` and the Docker image tag `26.10.0` don't share the `v` prefix -- confirmed by a failed pull before finding the right tag format, not guessed). Pinned the compose file, confirmed the deployed copy had no drift beyond this one line before overwriting, recreated. Verified: OCI label `org.opencontainers.image.version` reads `26.10.0`; `container-update-check.py`'s own real run confirms "now running 26.10.0"; a live heartbeat on the dashboard (`42 online, 0 down`) confirms the Node-RED webhook integration survived the recreate.
 
-**Done when:** `docker-compose.yml` pins an explicit `netalertx` version+digest (not `:latest`), the container reports `v26.10.0` live, and the Node-RED webhook integration confirmed still working after the recreate.
+**Done when:** `docker-compose.yml` pins an explicit `netalertx` version+digest (not `:latest`), the container reports `v26.10.0` live, and the Node-RED webhook integration confirmed still working after the recreate. **Met.**
 
 **Related:** CARD-0078 (built the webhook integration this update needs to keep working), CARD-0362/CARD-0356/CARD-0344 (the pin-don't-float precedent this follows), `hosts/m8/container-update-check.py` (the check this finding came from).
 

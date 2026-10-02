@@ -489,6 +489,40 @@ Also answered `hotspot-password`'s open question: the AQM joins the hotspot too,
 
 **Not yet proven live:** the `apply:` restart commands and the gateway `check_cmd` come from this repo's compose files and READMEs, not a live run, so watch the first pilot closely. **Not built:** Step 8's push notification, Step 9's unattended runs, and scripted recipes for HA tokens, Immich keys or ESP32 reflashes (those run as guided steps).
 
+**FOR JOSEPH'S REVIEW -- proposal: turn the rotation workflow into an agent, 2026-10-02 (Joseph: "How do I make this and the entire workflow in to an agent? ... Save this in the card for my review later").** Nothing below is built or decided yet.
+
+*Most of it already exists.* `rotate.py` was designed for a Claude session to drive: nothing it prints contains a value, exit code 3 means "waiting on a person", `status` shows exactly where a rotation stands, and `JCTSH_ANSWERS` lets something other than a keyboard answer its prompts. "Making it an agent" mostly means writing down the judgment for Claude to follow, and deciding where it runs.
+
+*The agent's job* (the scripts do the work; the agent adds what a script can't):
+1. **Triage:** read `secret.ps1 due` plus the open cards, and propose what to rotate first and why (e.g. `webhook-secret` first, since it's reachable from the internet).
+2. **Prepare:** run `rotate.py plan` and check the prerequisites (current value in the vault, M8->Pi key). Tell Joseph what to have at hand: the phone for GPSLogger/Tasker, a USB cable for an ESP32 reflash.
+3. **Drive:** run `start` and handle the automatic holders without asking. At each guided step it says something like "the new key is on your clipboard; paste it into GPSLogger's Headers field". Joseph replies "done" and it runs `continue` with that answer.
+4. **Diagnose:** when a check fails, read the logs, tell restart vs. file vs. service apart, and suggest `continue` or `abort`.
+5. **Close out:** remind about the RoboForm paste, run `finish`, update the cards (exposure resolved on CARD-0334/0375) and commit the registry.
+
+*How to build it -- a Claude Code skill (recommended).* Add `.claude/skills/rotate-credentials/SKILL.md`, the same pattern as the existing `hike-izer` skill. It holds steps 1-5, the never-print rule, and the rule that `start`/`finish`/`abort` always need Joseph's go-ahead. Session Start step 9 then says "if `due` shows anything, offer the rotate-credentials skill"; Joseph just says "rotate the webhook secret". Pair it with permission rules in `.claude/settings.json`:
+- **allow freely:** `rotate.py plan`/`status`/`verify` and `secret.ps1 due`;
+- **ask every time:** `rotate.py start`/`continue`/`finish`/`abort`;
+- **deny:** direct `secret.py copy`/`new`/`show`, and reading `credentials.local.md`.
+
+That is CARD-0334 Phase 1, and it's a real prerequisite here: today's full print of `credentials.local.md` happened in an agent session, and the deny rules still need the fresh-session retest (OPEN ITEM at the top of this card) before anyone relies on them.
+
+*Where it runs.* The agent needs the home network, so it must run on Joseph's computer, not in a cloud session; the 2026-10-02 cloud session couldn't reach the Pi or M8 at all. Two ways:
+- **Claude Code on the Windows workstation:** the Desktop app, or `claude` in a terminal in `C:\Shared\jctsh`. The normal case.
+- **Driven from the Pixel:** `claude remote-control` in that folder on the workstation, and the session appears in the Claude Code app on the phone. A good fit for rotations, since the guided steps (GPSLogger, Tasker) happen on the phone anyway.
+
+*What shouldn't be an agent:*
+- **Noticing a rotation is due:** a timer on the M8 runs the registry check and sends a push notification (Step 8). Plain code, no LLM.
+- **Fully unattended rotation:** hold off. Every rotation ends with Joseph's RoboForm paste, and all but the log dashboard have a phone or device step, so an unattended agent would just sit waiting. The one fully scripted rotation (log dashboard) doesn't need an LLM either; `rotate.py` already runs it end to end.
+- **A custom agent built on the Agent SDK** (its own tools, running on the M8): possible, but it would rebuild what the skill gets for free from Claude Code. Only worth it if Joseph wants to rotate from somewhere other than Claude Code.
+
+*Proposed build, if approved:*
+1. The skill.
+2. The `.claude/settings.json` rules, drafted for Joseph to apply himself, since a session can't change its own permissions.
+3. The Step 8 timer.
+
+The fresh-session guardrail test and the first live run happen on the workstation.
+
 ### CARD-0371 · [enhancement] [data-pipeline] Remove `?key=` query authentication from data-pipeline-api once no caller uses it
 
 **Status:** Backlog

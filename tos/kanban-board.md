@@ -13,9 +13,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0381 · [maintenance] [m8] M8 maintenance: 21 routine + 6 review-category updates, 1 firmware update — auto-opened from photo-server
+### CARD-0381 · [maintenance] [m8] M8 maintenance: 21 routine + 6 review-category updates, 1 firmware update — auto-opened from photo-server — RESOLVED 2026-10-01
 
-**Status:** Backlog
+**Status:** Done
 
 **Auto-generated from photo-server's maintenance check (CARD-0095/CARD-0128).** Raw finding: M8 maintenance: 21 routine update(s) pending. 6 package(s) need review: containerd.io, docker-buildx-plugin, docker-ce, docker-ce-cli, docker-ce-rootless-extras, docker-compose-plugin; 1 firmware update(s) available: UEFI dbx: UEFI Secure Boot Forbidden Signature Database.
 
@@ -32,11 +32,13 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Net assessment: the Docker engine bump is the opposite of the npm/netalertx precedents (CARD-0379/CARD-0380) — it's a genuine, actively-relevant security fix for this host's actual threat model (internet-facing, routinely pulls third-party images), not an update with no real bearing on usage.** Worth applying deliberately, not deferring to "wait for the next one" (this session's own agreed condition for skipping an update is that nothing in it is relevant to actual usage — that condition isn't met here). The firmware update is low-risk/low-urgency but may as well land in the same maintenance window since both want a reboot-adjacent moment (Docker engine restart for the package bump; the firmware is applied on next reboot).
 
-**Not yet applied — held for a separate go-ahead.**
+**Applied and verified live, 2026-10-01 (Joseph: "apply it").** Baseline captured first: 11 containers running on the M8, all healthy, Docker 29.7.2. Ran `apt-get update && apt-get upgrade -y` (all 27 pending packages, not just the 6 review-category ones -- the routine packages were part of the same finding and apt resolves them together). apt's own "No containers need to be restarted" message confirmed the Docker daemon restart didn't require a manual container recreate; all 11 containers were back up healthy within 35 seconds. Applied the UEFI dbx firmware update via `fwupdmgr update -y`, then rebooted. Post-reboot verification: `docker --version` reads `29.8.2`; all 6 review packages confirmed at their target versions via `dpkg -l`; all 11 containers back up healthy within 39 seconds of boot; `/var/run/reboot-required` gone; `sudo fwupdmgr get-updates` shows `UEFI dbx` at "latest available firmware version", "No updates available"; a live rerun of `maintenance-check.py` itself confirmed the Docker/containerd review items are gone.
 
-**Done when:** `docker --version`/`containerd.io` report the new versions live, every container on the M8 (netalertx, immich, ring-mqtt, hike-izer-web, data-pipeline-api/timescaledb) confirmed still running and healthy after the Docker Engine restart, the UEFI dbx update applied and confirmed via a post-reboot `fwupdmgr get-updates` showing no pending updates, and `maintenance-check.py`'s own next run reports 0 review-category packages pending.
+**New, unrelated finding surfaced live during this work, not folded into this card:** a kernel update (`linux-generic`/`linux-image-generic`/`linux-headers-generic`, 7.0.0-34 → 7.0.0-38) appeared during `apt-get update` -- it wasn't part of PR #151's original finding, and `maintenance-check.py`'s own rerun correctly caught it as a new review-category item (matches `REVIEW_PATTERNS`'s `"linux-"`) and auto-opened its own PR (#154). Left alone deliberately -- a kernel update is its own decision, not something to bundle into an in-progress unrelated card.
 
-**Related:** `hosts/m8/maintenance-check.py` (the check this finding came from, defines `REVIEW_PATTERNS`), CARD-0095 (M8 maintenance-check build, established the internet-exposure risk framing this card leans on), CARD-0379/CARD-0380 (sibling PRs this same batch — contrast case where the update genuinely didn't matter to actual usage).
+**Done when:** `docker --version`/`containerd.io` report the new versions live, every container on the M8 (netalertx, immich, ring-mqtt, hike-izer-web, data-pipeline-api/timescaledb) confirmed still running and healthy after the Docker Engine restart, the UEFI dbx update applied and confirmed via a post-reboot `fwupdmgr get-updates` showing no pending updates, and `maintenance-check.py`'s own next run reports 0 review-category packages pending. **Met** (the one review-category item its rerun does report -- the new kernel -- is the separate, newly-surfaced finding above, not a leftover from this card's own scope).
+
+**Related:** `hosts/m8/maintenance-check.py` (the check this finding came from, defines `REVIEW_PATTERNS`), CARD-0095 (M8 maintenance-check build, established the internet-exposure risk framing this card leans on), CARD-0379/CARD-0380 (sibling PRs this same batch — contrast case where the update genuinely didn't matter to actual usage), PR #154 (the new kernel-update finding this work surfaced, not yet triaged).
 
 ---
 

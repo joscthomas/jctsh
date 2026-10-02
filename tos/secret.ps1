@@ -153,59 +153,83 @@ function Get-RegistryDueReport {
             $cur.Retired = if ($Matches[1] -eq 'null') { $null } else { $Matches[1] }
             continue
         }
-        # A nested sub-account, e.g. mosquitto-accounts.accounts.<name>: {holder: ..., rotation_requested: "...", retired: "..."}
+        # A nested sub-account, e.g. mosquitto-accounts.accounts.<name>: {holder: ..., exposed: [...],
+        # last_rotated: ..., rotation_requested: "...", retired: "..."}. Every account is recorded, not
+        # just flagged ones: an entry with an accounts: map is evaluated per account (CARD-0372, 2026-10-02).
         if ($line -match '^      (\S+):\s*\{(.*)\}\s*$') {
             $subName = $Matches[1]; $body = $Matches[2]
-            $subRR = $null; $subRetired = $null
+            $subRR = $null; $subRetired = $null; $subLast = $null; $subExposed = @()
             if ($body -match 'rotation_requested:\s*"([^"]*)"') { $subRR = $Matches[1] }
             if ($body -match 'retired:\s*"([^"]*)"') { $subRetired = $Matches[1] }
-            if ($subRR -or $subRetired) {
-                $subRecords += [pscustomobject]@{ Id = $cur.Id; SubAccount = $subName; RotationRequested = $subRR; Retired = $subRetired }
+            # Match the unquoted fields only outside quoted strings, so a holder/reason text can't fake one.
+            $bare = $body -replace '"[^"]*"', '""'
+            if ($bare -match 'last_rotated:\s*([^,\s}]+)') { $subLast = $Matches[1] }
+            if ($bare -match 'exposed:\s*\[([^\]]*)\]') {
+                $subExposed = @([regex]::Matches($Matches[1], '\d{4}-\d{2}-\d{2}') | ForEach-Object { $_.Value })
+            }
+            $subRecords += [pscustomobject]@{
+                Id = $cur.Id; SubAccount = $subName; RotationRequested = $subRR; Retired = $subRetired
+                LastRotated = $subLast; ExposedDates = $subExposed
             }
             continue
         }
     }
     if ($cur) { $idRecords += [pscustomobject]$cur }
 
-    $exposedBucket = @(); $requestedBucket = @(); $overdueBucket = @()
+    # Lists, not arrays: the nested function below appends to them through PowerShell's dynamic scope.
+    $exposedBucket = [System.Collections.Generic.List[object]]::new()
+    $requestedBucket = [System.Collections.Generic.List[object]]::new()
+    $overdueBucket = [System.Collections.Generic.List[object]]::new()
 
-    foreach ($r in $idRecords) {
-        if ($r.Retired) { continue }  # retired = stops existing anywhere; no action to surface
-
+    # One credential's status, highest-priority bucket only: exposed > requested > overdue.
+    function Add-DueStatus($Name, $ExposedDates, $LastRotated, $RotationRequested, $IntervalDays, $Tier) {
         $mostRecentExposed = $null
-        if ($r.ExposedDates.Count -gt 0) { $mostRecentExposed = ($r.ExposedDates | Sort-Object -Descending | Select-Object -First 1) }
+        if ($ExposedDates.Count -gt 0) { $mostRecentExposed = ($ExposedDates | Sort-Object -Descending | Select-Object -First 1) }
 
         $rotatedAfterExposure = $false
-        if ($mostRecentExposed -and $r.LastRotated -and $r.LastRotated -ne 'unknown') {
-            try { $rotatedAfterExposure = ([datetime]$r.LastRotated) -ge ([datetime]$mostRecentExposed) } catch { }
+        if ($mostRecentExposed -and $LastRotated -and $LastRotated -ne 'unknown') {
+            try { $rotatedAfterExposure = ([datetime]$LastRotated) -ge ([datetime]$mostRecentExposed) } catch { }
         }
 
         if ($mostRecentExposed -and -not $rotatedAfterExposure) {
-            $exposedBucket += [pscustomobject]@{ Name = $r.Id; Detail = "exposed $mostRecentExposed, last_rotated $($r.LastRotated)" }
-            continue
+            $null = $exposedBucket.Add([pscustomobject]@{ Name = $Name; Detail = "exposed $mostRecentExposed, last_rotated $LastRotated" })
+            return
         }
-        if ($r.RotationRequested) {
-            $requestedBucket += [pscustomobject]@{ Name = $r.Id; Detail = $r.RotationRequested }
-            continue
+        if ($RotationRequested) {
+            $null = $requestedBucket.Add([pscustomobject]@{ Name = $Name; Detail = $RotationRequested })
+            return
         }
-        if ($r.IntervalDays) {
-            if (-not $r.LastRotated -or $r.LastRotated -eq 'unknown') {
-                $overdueBucket += [pscustomobject]@{ Name = $r.Id; Detail = "never recorded (tier $($r.Tier), $($r.IntervalDays)d cadence)" }
+        if ($IntervalDays) {
+            if (-not $LastRotated -or $LastRotated -eq 'unknown') {
+                $null = $overdueBucket.Add([pscustomobject]@{ Name = $Name; Detail = "never recorded (tier $Tier, $($IntervalDays)d cadence)" })
             } else {
                 try {
-                    $days = ($today - [datetime]$r.LastRotated).Days
-                    if ($days -gt $r.IntervalDays) {
-                        $overdueBucket += [pscustomobject]@{ Name = $r.Id; Detail = "$days days since last rotation (cadence $($r.IntervalDays)d)" }
+                    $days = ($today - [datetime]$LastRotated).Days
+                    if ($days -gt $IntervalDays) {
+                        $null = $overdueBucket.Add([pscustomobject]@{ Name = $Name; Detail = "$days days since last rotation (cadence $($IntervalDays)d)" })
                     }
                 } catch { }
             }
         }
     }
 
-    foreach ($s in $subRecords) {
-        if ($s.Retired) { continue }  # e.g. mosquitto-accounts--air-quality-monitor, CARD-0377
-        if ($s.RotationRequested) {
-            $requestedBucket += [pscustomobject]@{ Name = "$($s.Id)--$($s.SubAccount)"; Detail = $s.RotationRequested }
+    foreach ($r in $idRecords) {
+        if ($r.Retired) { continue }  # retired = stops existing anywhere; no action to surface
+
+        $subs = @($subRecords | Where-Object { $_.Id -eq $r.Id })
+        if ($subs.Count -eq 0) {
+            Add-DueStatus $r.Id $r.ExposedDates $r.LastRotated $r.RotationRequested $r.IntervalDays $r.Tier
+            continue
+        }
+
+        # Grouped entry: each account on its own. An entry-level exposure applies to every account; an
+        # account's own last_rotated wins over the entry's fallback, so rotating one account clears only it.
+        foreach ($s in $subs) {
+            if ($s.Retired) { continue }  # e.g. mosquitto-accounts--air-quality-monitor, CARD-0377
+            $exposed = @($r.ExposedDates) + @($s.ExposedDates)
+            $last = if ($s.LastRotated) { $s.LastRotated } else { $r.LastRotated }
+            $rr = if ($s.RotationRequested) { $s.RotationRequested } else { $r.RotationRequested }
+            Add-DueStatus "$($r.Id)--$($s.SubAccount)" $exposed $last $rr $r.IntervalDays $r.Tier
         }
     }
 

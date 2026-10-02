@@ -59,20 +59,58 @@ function Get-Field {
 function Get-Holders {
     param([string[]]$EntryLines)
     $holders = @()
-    $inHolders = $false
+    $section = 'none'   # 'none' | 'holders' | 'accounts'
+
     foreach ($line in $EntryLines) {
-        if ($line -match '^    holders:\s*$') { $inHolders = $true; continue }
-        if ($inHolders) {
-            if ($line -match '^      - \{(.*)\}\s*$') {
-                $body = $Matches[1]
-                $where = $null; $kind = $null; $verify = $null
-                if ($body -match 'where:\s*"([^"]*)"') { $where = $Matches[1] }
+        if ($line -match '^    holders:\s*$') { $section = 'holders'; continue }
+        if ($line -match '^    accounts:\s*$') { $section = 'accounts'; continue }
+
+        $matchedItem = $false
+
+        if ($section -eq 'holders' -and $line -match '^      - \{(.*)\}\s*$') {
+            $body = $Matches[1]
+            $where = $null; $kind = $null; $verify = $null
+            if ($body -match 'where:\s*"([^"]*)"') { $where = $Matches[1] }
+            if ($body -match 'kind:\s*(\w+)') { $kind = $Matches[1] }
+            if ($body -match 'verify:\s*"([^"]*)"') { $verify = $Matches[1] }
+            $holders += [pscustomobject]@{ Where = $where; Kind = $kind; Verify = $verify }
+            $matchedItem = $true
+        }
+
+        if ($section -eq 'accounts' -and $line -match '^      (\S+):\s*\{(.*)\}\s*$') {
+            $subName = $Matches[1]; $body = $Matches[2]
+            $matchedItem = $true
+            if ($body -notmatch 'retired:\s*"') {
+                # retired sub-account (e.g. mosquitto-accounts--air-quality-monitor,
+                # CARD-0377) is deliberately skipped -- nothing left to rotate.
+                $where = $null; $kind = $null
+                if ($body -match '(?:holder|where):\s*"([^"]*)"') { $where = $Matches[1] }
                 if ($body -match 'kind:\s*(\w+)') { $kind = $Matches[1] }
-                if ($body -match 'verify:\s*"([^"]*)"') { $verify = $Matches[1] }
-                $holders += [pscustomobject]@{ Where = $where; Kind = $kind; Verify = $verify }
-            } elseif ($line -notmatch '^      ') {
-                $inHolders = $false
+                $holders += [pscustomobject]@{ Where = "[$subName] $where"; Kind = $kind; Verify = $null }
             }
+        }
+
+        if ($matchedItem) { continue }
+
+        # Not this section's item shape -- if we were in a section, it just ended
+        # (sections are a contiguous indented block; a non-indented line closes it).
+        # Deliberately NOT `continue`-ing here: this same line still needs to be
+        # checked against the broker_holder pattern below (a real bug this fixes --
+        # the old version consumed mosquitto-accounts' broker_holder line as "end of
+        # accounts:" and never actually tested it).
+        if ($section -ne 'none' -and $line -notmatch '^      ') {
+            $section = 'none'
+        }
+
+        # A grouped entry's shared broker/backend holder, e.g. mosquitto-accounts'
+        # broker_holder: {where: "...", kind: scripted, verified: true} -- a top-level
+        # field (4-space indent), not nested under holders: or accounts:.
+        if ($line -match '^    \w+_holder:\s*\{(.*)\}\s*$') {
+            $body = $Matches[1]
+            $where = $null; $kind = $null
+            if ($body -match 'where:\s*"([^"]*)"') { $where = $Matches[1] }
+            if ($body -match 'kind:\s*(\w+)') { $kind = $Matches[1] }
+            $holders += [pscustomobject]@{ Where = "[shared backend] $where"; Kind = $kind; Verify = $null }
         }
     }
     return $holders

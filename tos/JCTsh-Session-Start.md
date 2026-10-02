@@ -97,7 +97,13 @@ table for exactly which steps below get scoped, skipped, or run as-is.
    `last_rotated: unknown` as an emergency (CARD-0372's own seeding pass found 13 of 24 entries
    start that way). **This is operational work, not a kanban card per finding (Joseph, 2026-10-02)**
    — same as archiving the board never gets its own card: a card only enters the picture if Joseph
-   actually decides to act and the work is substantial enough to track.
+   actually decides to act and the work is substantial enough to track. **If `due` shows anything
+   actionable (any bucket, or an in-progress/unsynced rotation), offer the `rotate-credentials`
+   skill** (`.claude/skills/rotate-credentials/SKILL.md`, CARD-0372) rather than just listing the
+   output and moving on -- it triages what to do first and drives the rotation live, one credential
+   at a time. Joseph can just say "rotate the webhook secret" (or similar) to start; the skill
+   still gates every state-changing step on his explicit go-ahead, so offering it is not itself
+   acting on anything.
 10. **Examine the JCTsh Log Dashboard (`http://pi1.local/`, Basic Auth user `jctsh`) for system
    problems or data issues.** Scan recent entries across components for `Alert`-category
    messages, error-shaped `System`/`MQTT` messages, or anything that otherwise looks wrong

@@ -1,0 +1,62 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*rotate.py plan*)",
+      "Bash(*rotate.py status*)",
+      "Bash(*rotate.py verify*)",
+      "Bash(*secret.ps1 due*)",
+      "PowerShell(*rotate.py plan*)",
+      "PowerShell(*rotate.py status*)",
+      "PowerShell(*rotate.py verify*)",
+      "PowerShell(*secret.ps1 due*)"
+    ],
+    "ask": [
+      "Bash(*rotate.py start*)",
+      "Bash(*rotate.py continue*)",
+      "Bash(*rotate.py finish*)",
+      "Bash(*rotate.py abort*)",
+      "PowerShell(*rotate.py start*)",
+      "PowerShell(*rotate.py continue*)",
+      "PowerShell(*rotate.py finish*)",
+      "PowerShell(*rotate.py abort*)"
+    ],
+    "deny": [
+      "Read(./credentials.local.md)",
+      "Read(**/secrets.yaml)",
+      "Read(**/secrets.h)",
+      "Read(**/.env)",
+      "Read(**/.esphome/**)",
+      "Edit(./credentials.local.md)",
+      "Edit(**/secrets.yaml)",
+      "Edit(**/secrets.h)",
+      "Edit(**/.env)",
+      "Bash(cat *credentials.local.md*)",
+      "Bash(cat *secrets.yaml*)",
+      "Bash(cat *secrets.h*)",
+      "Bash(head *credentials.local.md*)",
+      "Bash(tail *credentials.local.md*)",
+      "Bash(less *credentials.local.md*)",
+      "Bash(more *credentials.local.md*)",
+      "Bash(sed * credentials.local.md*)",
+      "PowerShell(Get-Content *credentials.local.md*)",
+      "PowerShell(cat *credentials.local.md*)",
+      "PowerShell(type *credentials.local.md*)",
+      "PowerShell(Get-Content *secrets.yaml*)",
+      "PowerShell(Get-Content *secrets.h*)",
+      "Bash(*secret.py copy*)",
+      "Bash(*secret.py new*)",
+      "PowerShell(*secret.py copy*)",
+      "PowerShell(*secret.py new*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          { "type": "command", "command": "python", "args": ["C:\\Shared\\jctsh\\tos\\hooks\\pretool-secret-guard.py"] }
+        ]
+      }
+    ]
+  }
+}

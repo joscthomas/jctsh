@@ -22,6 +22,22 @@ never through this session. If anything ever surfaces a value anyway, stop
 immediately, say so by credential name (never the value), and treat it as an
 incident (CARD-0334) rather than continuing.
 
+## Workstation gotcha: always invoke via `python`, never bare `.\rotate.py`
+
+Found live 2026-10-02: a bare `.\tos\rotate.py <cmd> <target>` can open the
+file in Sublime Text instead of running it, if Sublime has claimed this
+workstation's `.py` file association (the same class of problem as
+`secret.ps1` opening in Notepad when typed into `cmd.exe` instead of real
+PowerShell -- here it bites even inside a real PowerShell session, because
+`.\file.py` falls back to Windows' file-association "open" verb unless `.py`
+is actually associated with `python.exe`). **Always invoke explicitly:**
+`python tos\rotate.py <cmd> <target>` (confirmed present on this workstation,
+`python --version` -> 3.12.10) -- never relies on file association, so it
+can't be hijacked by whatever editor is currently registered for `.py`.
+`secret.ps1` itself is unaffected (it's genuinely a PowerShell script, and
+`.ps1`'s association issue is the separate cmd-vs-PowerShell one covered
+elsewhere) -- keep invoking it as `.\tos\secret.ps1 <cmd>`.
+
 ## 1. Triage -- what to rotate next
 
 Run `.\tos\secret.ps1 due` (local, read-only, no vault touch -- safe to run
@@ -47,7 +63,7 @@ is information, not itself permission to act. Don't treat silence as a yes.
 
 ## 2. Prepare
 
-`.\tos\rotate.py plan <target>` -- offline, nothing touched, no value read.
+`python tos\rotate.py plan <target>` -- offline, nothing touched, no value read.
 Shows every holder in order, which are automatic (`apply`) vs guided, and
 whether dual-accept covers the guided ones (meaning the old value keeps
 working while Joseph gets to them, vs. switching immediately). Read it and
@@ -68,7 +84,7 @@ Joseph's explicit go-ahead before you run them -- show the exact command,
 say in one line what it's about to do, and wait for him to say go. Don't
 chain them automatically back to back.
 
-- `.\tos\rotate.py start <target>` -- stages the new value, then runs every
+- `python tos\rotate.py start <target>` -- stages the new value, then runs every
   automatic (`apply`) holder and its check without asking per-holder (that's
   what "automatic" means -- the one go-ahead for `start` covers all of
   them), then stops at the first guided holder.
@@ -77,7 +93,7 @@ chain them automatically back to back.
   to say it's done (or that this holder doesn't actually hold the value, or
   that he wants to pause here). Then run:
   ```
-  $env:JCTSH_ANSWERS = "d"; .\tos\rotate.py continue <target>
+  $env:JCTSH_ANSWERS = "d"; python tos\rotate.py continue <target>
   ```
   (`d` = done, `n` = doesn't hold this value, `l` = later/pause, `a` = abort
   from here -- use whichever Joseph actually said). **This consumes exactly
@@ -94,9 +110,9 @@ chain them automatically back to back.
 
 Tell Joseph to paste the new value into the RoboForm entry of the same name
 (`.\tos\secret.ps1 copy <target>` puts it on the clipboard again if he needs
-it there a second time), then run `.\tos\rotate.py confirm-synced <target>`.
+it there a second time), then run `python tos\rotate.py confirm-synced <target>`.
 
-Then `.\tos\rotate.py finish <target>` -- drops the old value from any
+Then `python tos\rotate.py finish <target>` -- drops the old value from any
 dual-accept holders, purges `<target>.previous` from the vault, and writes
 `last_rotated`/clears `rotation_requested` in the registry. If the
 credential's registry entry carries a `revoke:` step, `finish` pauses once

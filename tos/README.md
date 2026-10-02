@@ -36,6 +36,7 @@ here and how the pieces fit together — it doesn't repeat that content.
 | `credential-registry.yaml` | Values-free inventory of every credential this project has — where it lives, tier/cadence, exposure/rotation/retirement history (CARD-0372, seeded by CARD-0334 Step 0). Never a value; schema documented at the top of the file. |
 | `secret.py` | The real `secret` helper (CARD-0372/CARD-0334), M8-hosted (moved off Windows 2026-10-02) — wraps `keepassxc-cli` against `/home/jct/.jctsh-vault/jctsh-vault.kdbx`. Deployed to `/usr/local/bin/secret.py` on the M8, same convention as `maintenance-check.py`. `init`/`has`/`fingerprint`/`new`/`copy`/`set`/`run`. Not yet a registry-aware `rotate` orchestrator — see CARD-0372. |
 | `secret.ps1` | Thin Windows-side SSH wrapper around `secret.py` on the M8 — every vault-touching command relays over `ssh jct@m8.local`, a value crossing back lands straight on the clipboard, never printed. `due` is the exception: a fully local, values-free scan of `credential-registry.yaml` (no M8 round-trip), meant to be run from `JCTsh-Session-Start.md`'s step 9. |
+| `rotate.ps1` | CARD-0372 Step 5's skeleton — reads one registry entry and prints its rotation plan (holders, kind, verify checks). Read-only, dry-run only; the real per-credential recipe (generate/distribute/verify/cutover/revoke) isn't built yet. |
 
 ## The auto-PR intake pipeline
 

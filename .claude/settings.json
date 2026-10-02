@@ -8,9 +8,7 @@
       "PowerShell(*rotate.py plan*)",
       "PowerShell(*rotate.py status*)",
       "PowerShell(*rotate.py verify*)",
-      "PowerShell(*secret.ps1 due*)"
-    ],
-    "ask": [
+      "PowerShell(*secret.ps1 due*)",
       "Bash(*rotate.py start*)",
       "Bash(*rotate.py continue*)",
       "Bash(*rotate.py finish*)",
@@ -25,7 +23,7 @@
       "Read(**/secrets.yaml)",
       "Read(**/secrets.h)",
       "Read(**/.env)",
-      "Read(**/.esphome/**)",
+      "Read(**/.esphome/build/**/main.cpp)",
       "Edit(./credentials.local.md)",
       "Edit(**/secrets.yaml)",
       "Edit(**/secrets.h)",

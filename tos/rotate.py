@@ -295,17 +295,19 @@ def secret(args, tty=False, check=True):
     return r.returncode, out
 
 
-def clip(name, seconds=120):
+def clip(name):
     """Put a vault value on the Windows clipboard via secret.ps1 -- the value goes
-    M8 -> clipboard and never through this process's output."""
+    M8 -> clipboard and never through this process's output. No auto-clear (removed
+    2026-10-02, Joseph: he copies it onward into RoboForm anyway, which doesn't
+    expire) -- it sits on the clipboard until something else overwrites it."""
     if os.environ.get("JCTSH_CLIP") == "none" or os.name != "nt":
         say(f"    (get the value with: secret.ps1 copy {name})")
         return
     ps1 = os.path.join(HERE, "secret.ps1")
     r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1,
-                        "copy", name, "-Timeout", str(seconds)], capture_output=True, text=True)
+                        "copy", name], capture_output=True, text=True)
     if r.returncode == 0:
-        say(f"    value of {name} is on the clipboard for {seconds}s (auto-clears)")
+        say(f"    value of {name} is on the clipboard")
     else:
         say(f"    could not put {name} on the clipboard -- run: secret.ps1 copy {name}")
 

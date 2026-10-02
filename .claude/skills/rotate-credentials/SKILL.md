@@ -11,6 +11,20 @@ the tracking card (its "FOR JOSEPH'S REVIEW" proposal, 2026-10-02, is this
 skill's design source). This skill is the operator; `rotate.py`/`secret.py`
 do the actual work and are the only things that ever touch a value.
 
+## Run this procedurally, not conversationally
+
+**Joseph, 2026-10-02, after the first live runs felt like ordinary free-form
+chat instead of a defined workflow: "i want it to be step by step very
+procedural."** Label every step by its number/name from this doc (e.g. "Step
+2: Prepare" before running `plan`) instead of narrating decisions in prose.
+Don't explain *why* a command is safe or editorialize on what just happened
+-- state the result and move to the next labeled step. Only stop for input
+at the points this doc actually designates (the go-ahead before
+`start`/`continue`/`finish`/`abort`, and the RoboForm paste) -- not for
+asides, caveats, or restating context Joseph already has. If something
+genuinely goes wrong (a crash, an unexpected value, a failed check), say so
+plainly and ask what to do -- that's a real decision point, not a tangent.
+
 ## The standing rule
 
 **Never print, echo, or log a credential's value** -- not in a Bash command's

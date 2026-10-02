@@ -199,6 +199,10 @@ Each buffered reading's replay does: cheap string-based timestamp resolution (CA
 
 **Credential cleanup done, 2026-10-02.** The `mqtt_broker`/`mqtt_username`/`mqtt_password`/`mqtt_ca_cert` secrets were already removed from `secrets.yaml`/`secrets.yaml.template` during Phase 2's own bench verification (replaced with a comment pointing here). What remained was the actual broker-side account: Joseph's framing -- "as part of working a card, when a credential change is needed, do it, then add it to the registry... let the runner do it" (see CARD-0372's new workflow decision) -- so this card's own credential fallout gets closed out here, not left as a separate ask. Deleted the now-unused `air-quality-monitor` account from the Pi's `/etc/mosquitto/passwd` (`mosquitto_passwd -D`) and reloaded Mosquitto live (clean reload, no errors); marked the `mosquitto-accounts--air-quality-monitor` registry entry `retired` (CARD-0372's new field) rather than leaving a stale `holder` line pointing at a credential that no longer exists anywhere. RoboForm's own copy of this sub-account (if any) is unaffected -- that's Joseph's manual step, the registry has no visibility into RoboForm to confirm or force it.
 
+**Watchdog still alerting, found 2026-10-02 (Joseph: getting "air-quality-monitor still silent" pushes on the Pixel).** The heartbeat-drop decision was implemented on the device side only. The Node-RED watchdog's per-component silence timer and CARD-0331's 2-hour re-alert interval sit in memory and are only cleared by a heartbeat, so the AQM's last-ever heartbeat armed a timer that will re-alert every 2 hours forever. No flow-code change needed: the AQM has no MQTT client any more, so it can never re-arm once cleared. **Fix: redeploy the watchdog tab from a LAN/Tailscale machine (`python core/node-red/deploy_flow.py core/node-red/watchdog.flow.json tab_watchdog`) or restart Node-RED.** The cloud session that found this can't reach the Pi. `core/node-red/watchdog-README.md` is updated (it still listed the AQM as a 5-minute heartbeat device) and now covers retiring a heartbeat in general. Watch for: no further AQM watchdog pushes after the redeploy, and the 07:00 daily-check line no longer listing `air-quality-monitor` as silent within 7 days.
+
+**Open item -- a reboot/restart is required to turn these alerts off; nothing else stops them.** Until Node-RED restarts (Pi reboot, `sudo systemctl restart nodered`, or the watchdog-tab redeploy above), the AQM "still silent" push keeps firing every 2 hours indefinitely. The Pi's scheduled Monday 3 AM reboot will clear it on its own if nobody gets to it sooner. Auto verify: 2026-10-05 -- confirm no AQM watchdog push has fired since that morning's reboot. If one has, the reboot didn't happen or didn't restart Node-RED, so restart it manually.
+
 **Not yet done:** a real multi-hour hike confirmation (the actual trigger for this card). Committing this work is still pending Joseph's explicit go-ahead (production firmware).
 
 **Done when:** ~~Phase 1 is live and tested independently~~ **met, 2026-10-01.** ~~Phase 2 (AQM firmware: drop MQTT entirely, collapse the replay loop to one POST, delete the stuck-flag machinery and the dead live-publish branch) is built, bench-verified against a forced large backlog~~ **met, 2026-10-01/02.** ~~Phase 3 (per-dock session summary)~~ **met, 2026-10-02, bench-verified** -- and then confirmed on a real hike with zero data loss end to end against the gateway and a correct dashboard relay (summary included).
@@ -301,6 +305,15 @@ Each buffered reading's replay does: cheap string-based timestamp resolution (CA
 **Real root cause, pinned down precisely (Joseph): `.claude/settings.json` loads based on the directory Claude Code's process was *started* in -- `cd`ing to the project directory *inside* an already-running session doesn't retroactively pick it up.** Every earlier failed test (the Fourth occurrence included) had the launch order backwards -- `started Claude, cd to c:\shared\jctsh` -- so the project directory it needed to find `.claude/settings.json` in was never the one it actually launched from. The one that worked did it in the right order: `cd C:\Shared\jctsh`, *then* `Claude`. Not a caching mystery, not a syntax problem, and not the NTFS junction at `C:\Shared` either (that was a dead-end detour -- ruled out once the same path worked correctly with the launch order fixed). **Going forward: always `cd` into the project directory before launching `claude`, never after.**
 
 **Phase 1b confirmed working, 2026-10-02 MST (Joseph, live-tested).** First attempt was ambiguous -- the test session declined `echo "password=test12345678"` on its own judgment before any Bash call was dispatched, so nothing was actually proven about the hook itself (same "the model catches it, not necessarily the mechanism" ambiguity Phase 1c ran into). Re-run on explicit instruction to actually attempt the call: the Bash tool never executed at all -- `PreToolUse:Bash hook error: [python ...\pretool-secret-guard.py]: Blocked: Bash's command text looks like it contains a key=/password=/token= style assignment.` -- the hook's own stderr, a genuine pre-execution mechanical block, not an inference. **Both Phase 1a and 1b are now verified working**, launch-order caveat (`cd` before `claude`) understood and accounted for.
+
+**OPEN ITEMS from the 2026-10-02 registry review (Joseph: "record the open items in the card").** Detail for each is in the dated notes further down. Decided in that review: **no rotation deadlines for the exposed credentials.** Exposed means "due now" in `secret.ps1 due`; when to rotate stays a session-start decision.
+1. **Which ESP32 values are shared (Joseph).** The registry says some values are shared across garage-radar, salt-sensor, front-porch and back-patio, but not which. If two devices share an OTA or AP password, front-porch/back-patio's 9/24 exposure also hit the other device, and its account in `esp32-device-secrets` needs the same `exposed` date. Confirm with `secret fingerprint` per device, never by reading `secrets.yaml`.
+2. **`C:\esphome` copies for salt-sensor and air-quality-monitor (Joseph).** It's unconfirmed whether either has one. Their `esp32-device-secrets` accounts list only `secrets.yaml` + firmware, and `hotspot-password`'s AQM holder has the same gap.
+3. **Split `immich-credentials` per secret (Joseph to name them).** Same problem `mosquitto-accounts` and `esp32-device-secrets` had: one `exposed`/`last_rotated` for six different secrets, and CARD-0375's exposure hit only Joseph's API key (`--api-key-joseph`). Needs the RoboForm `<id>--<sub-name>` names, which sessions can't see.
+4. **Today's full print of `credentials.local.md` (CARD-0334's fourth occurrence) is not in the registry (Joseph to decide).** Left out deliberately during this review. Until it's recorded, a rotation dated before 10/2 would clear a credential that today's print exposed again. It would also flag about nine credentials that currently show clean (Log Dashboard, router, GitHub PAT, and others).
+5. **`home-wifi-password` details (Joseph).** `in_creds_file` is `unknown`; whether the router runs more than one SSID/band with separate passphrases; and the inventory of non-ESP32 WiFi devices.
+6. **RoboForm flags on the 10/2 additions (Joseph).** `home-wifi-password` and all 12 `esp32-device-secrets` device accounts start at `roboform: no`. Flip each to `yes` once a RoboForm entry exists.
+7. ~~**CARD-0334's rotation list still names the `air-quality-monitor` Mosquitto account.**~~ **Done 2026-10-02:** CARD-0334's list now records it as no rotation needed (retired, account deleted, CARD-0377).
 
 **Raised 2026-09-29 13:46 MST (general session; Joseph: "i want to create an automated key rotation process").** *No secret values in this card -- credentials are named, never quoted.* Essence-only until Planning interviews it; the sketch below is the assistant's proposal, not a decision.
 
@@ -422,7 +435,97 @@ Each buffered reading's replay does: cheap string-based timestamp resolution (CA
 5. **`rotate.ps1` didn't handle grouped entries' `accounts:` map.** FIXED -- parses `mosquitto-accounts`' 12 sub-accounts plus its shared `broker_holder` (a second real bug found and fixed in the same pass: the first fix consumed the `broker_holder` line as "accounts: block ended" and never actually tested it). `immich-credentials`/`esp32-device-secrets`/`provider-keys` turned out to already use the flat `holders:` shape `rotate.ps1` already handled -- `mosquitto-accounts` was the only entry actually affected. Regression-tested against `webhook-secret` and `immich-credentials` to confirm no behavior change there.
 6. **CARD-0334 Phase 1 (guardrails) stays blocked on Joseph** -- confirmed he understands why (Claude Code's own self-modification block, not a soft preference); he'll apply the `.claude/settings.json` content himself once drafted.
 
+**Per-account rotation status for grouped entries, 2026-10-02 (Joseph: "yes").** Comparing the open cards' rotation asks against the registry showed that `mosquitto-accounts` tracked `exposed`/`last_rotated` once for the whole group. So the 9/24 exposure flagged all 12 accounts as one item, including `homeassistant`/`garage-radar`/`salt-sensor`, which were never exposed. Worse, rotating only hiking-monitor and setting the group's `last_rotated` would have silently cleared the exposure flag for seven exposed accounts that weren't rotated. Fixed: an account in an `accounts:` map may now carry its own `exposed: [...]` and `last_rotated:` (schema in the registry header). `secret.ps1 due` evaluates each account separately as `<id>--<account>`. An entry-level exposure still applies to every account, and an account's own `last_rotated` takes precedence over the entry's fallback. `mosquitto-accounts`' exposures were moved down onto the nine accounts they actually hit (the incident text was kept in a new `note:`), and every account starts at `last_rotated: unknown`. Tested under PowerShell 7.4:
+- the old registry gives the same result as before, except that the group exposure now lists every account;
+- marking only hiking-monitor rotated clears only hiking-monitor;
+- a date set at group level clears no account;
+- `rotate.ps1 mosquitto-accounts` output is unchanged apart from the new note line.
+
+**Not done -- needs Joseph:** `esp32-device-secrets` and `immich-credentials` have the same problem (CARD-0375 already names `--hiking-monitor-ota` and `--api-key-joseph` sub-secrets), but they list holders, not accounts. Splitting them needs the real sub-secret names, which follow the RoboForm `<id>--<sub-name>` convention and which sessions can't see. Until then each still reports as a single item.
+
+**`esp32-device-secrets` split per device, plus three registry gaps closed, 2026-10-02 (Joseph).** The entry is now an `accounts:` map with one account per device per secret: `<device>-ota` and `<device>-ap`, for garage-radar, salt-sensor, front-porch, back-patio, hiking-monitor and air-quality-monitor (12 accounts, taken from each device's `!secret` usage). Exposures moved onto the three OTA accounts they hit, and each account starts at `roboform: no`. Device MQTT passwords stay only under `mosquitto-accounts`, so the same value isn't tracked twice. **Gaps found doing it, all fixed:**
+1. `data-pipeline-api-key` was missing a holder: the AQM's firmware (`data_pipeline_auth_header`, since CARD-0377). Rotating the key would have silently broken AQM uploads. Its note says to keep the `API_KEY_PREVIOUS` window open until the AQM has reflashed and uploaded.
+2. `mosquitto-accounts--salt-sensor` still pointed at `secrets.h`; salt-sensor is ESPHome now.
+3. The home WiFi password wasn't in the registry. It is now a new `home-wifi-password` entry (`roboform: no`, `in_creds_file: unknown`), with the router and all six devices as holders.
+
+Also answered `hotspot-password`'s open question: the AQM joins the hotspot too, so it was added as a holder. **Still open (Joseph):** which of the four original devices share a value (confirm with `secret fingerprint`, never by reading the files), and whether salt-sensor and AQM have `C:\esphome` copies. Tested under PowerShell 7.4: `due` lists exactly the three exposed OTA accounts, and `rotate.ps1` lists each device's secrets as its own holder.
+
 **CARD-0334/CARD-0375 still can't close.** Per Joseph's own instruction, no live rotation happened tonight -- every credential either card names is exactly as rotated as it was before (`last_rotated: unknown` on all of them, per `secret.ps1 due`). What changed is that the mechanism to actually do it now exists and is tested; the next real step is picking one and walking it through live, which is explicitly what Joseph asked to be offered at his next Session Start.
+
+**Rotation runner built, and `secret.py` finished, 2026-10-02 (Joseph: "Build the rotate runner and finish secret.py").** Built and tested in a cloud session. Nothing touched a live holder or rotated anything real -- the standing "no live rotations" boundary holds, and the first real run is still the walkthrough Joseph asked to be offered at Session Start.
+- **`tos/secret.py` (M8):** new `ls`, `reach <host>`, and rotation primitives:
+  - `stage` creates `<name>.next`, generated (40 chars, alphanumeric by default, so it's safe in `.env`/YAML/headers) or typed with `--prompt` for a value a service mints;
+  - `promote`/`unpromote`/`discard-next`/`drop-previous` handle `<name>.next` → `<name>` → `<name>.previous`. Deletes also purge KeePassXC's recycle bin;
+  - `envfile` edits `KEY=VALUE` lines on the M8, or on another host over SSH. Values travel on stdin only, the replace is atomic with mode/owner kept, every write is read back and verified, and an optional restart runs on that host;
+  - `run` takes several `--env VAR=<entry>` bindings and `--stdin`, masking all of them.
+
+  Every vault write now takes an exclusive lock (the Step 3 lock-file item). This closes the M8 half of the "Not built" list above.
+- **`tos/rotate.py` (workstation, next to the registry) replaces `rotate.ps1`'s dry-run skeleton** (`rotate.ps1` is now a shim). Commands: `plan`, `verify`, `start`, `continue`, `status`, `confirm-synced`, `finish`, `abort`. It implements the lifecycle in this card:
+  - stage the new value;
+  - holders in registry order, automatic where the holder has an `apply:` map, guided otherwise (value on the clipboard, wait for "done");
+  - dual-accept holders keep the old value valid until the window closes (default 14 days, decision 6's draft);
+  - cutover sets `roboform_synced: false`;
+  - `finish` is gated on `confirm-synced`, the window closing, or `--force`. It then removes the old value from dual-accept holders, purges `<name>.previous`, and writes `last_rotated`/`rotation_requested: null`.
+
+  `abort` before cutover puts the old value back into every holder already done. Grouped entries rotate one account at a time (`<id>--<account>`), and only that account's line in the registry changes. Values-free run state lives in `tos/.rotation-state/` (gitignored), with a run lock shared by both Windows profiles. The runner never handles a value itself: vault work runs on the M8, and pastes go M8 → clipboard through `secret.ps1 copy`.
+- **Registry:** a holder can now carry `apply:` and `check_cmd:` (schema in the file header), plus an optional entry-level `revoke:` step. Filled in only where the facts are in this repo:
+  - the data-pipeline gateway (dual-accept via `API_KEY_PREVIOUS`/`_EXPIRES`, checked against `127.0.0.1:8091/auth-status`);
+  - the orchestrator's `DATA_PIPELINE_KEY`;
+  - both `WEBHOOK_SECRET` holders;
+  - the log dashboard's Pi env file.
+
+  Everything else is guided.
+- **`secret.ps1 due`** also lists rotations in progress and `roboform_synced: false` credentials. It now reads the registry next to itself instead of a hard-coded `C:\Shared\jctsh` path.
+- **Tested against a real KeePassXC vault** (keepassxc-cli 2.7.6, PowerShell 7.4), with a registry copy pointing `apply:` at scratch files and a fake ssh/sudo. Five scenarios:
+  1. the data-pipeline pilot end to end, stopping at a "later" answer and resuming;
+  2. a grouped account with `--no-current`;
+  3. abort;
+  4. a Pi holder over SSH whose check fails, then `continue` re-checks;
+  5. the lock, and `rotation_requested` being cleared.
+
+  The runner's registry parser matches PyYAML on all 26 entries, 60 holders and 25 accounts, and a CRLF registry is written back without mixed line endings. Across all output, no vault value ever appeared.
+
+**Before the first live rotation (Joseph):**
+1. Deploy the new `secret.py`: `scp tos/secret.py jct@m8.local:/tmp/ && ssh jct@m8.local "sudo install -m 0755 -o root -g root /tmp/secret.py /usr/local/bin/secret.py"`, then `secret.ps1 init`.
+2. Store each credential's current value in the vault first (`secret.ps1 set <name>`). The vault is still empty, and `start` refuses without a current value (`--no-current` only for a value that's lost, like `nodered`).
+3. The log-dashboard holder needs an SSH key from the M8 to `pi@pi1.local`. None is recorded, and `start`'s preflight checks it.
+4. Python 3.7+ on the workstation (`py` or `python`).
+
+**Not yet proven live:** the `apply:` restart commands and the gateway `check_cmd` come from this repo's compose files and READMEs, not a live run, so watch the first pilot closely. **Not built:** Step 8's push notification, Step 9's unattended runs, and scripted recipes for HA tokens, Immich keys or ESP32 reflashes (those run as guided steps).
+
+**FOR JOSEPH'S REVIEW -- proposal: turn the rotation workflow into an agent, 2026-10-02 (Joseph: "How do I make this and the entire workflow in to an agent? ... Save this in the card for my review later").** Nothing below is built or decided yet.
+
+*Most of it already exists.* `rotate.py` was designed for a Claude session to drive: nothing it prints contains a value, exit code 3 means "waiting on a person", `status` shows exactly where a rotation stands, and `JCTSH_ANSWERS` lets something other than a keyboard answer its prompts. "Making it an agent" mostly means writing down the judgment for Claude to follow, and deciding where it runs.
+
+*The agent's job* (the scripts do the work; the agent adds what a script can't):
+1. **Triage:** read `secret.ps1 due` plus the open cards, and propose what to rotate first and why (e.g. `webhook-secret` first, since it's reachable from the internet).
+2. **Prepare:** run `rotate.py plan` and check the prerequisites (current value in the vault, M8->Pi key). Tell Joseph what to have at hand: the phone for GPSLogger/Tasker, a USB cable for an ESP32 reflash.
+3. **Drive:** run `start` and handle the automatic holders without asking. At each guided step it says something like "the new key is on your clipboard; paste it into GPSLogger's Headers field". Joseph replies "done" and it runs `continue` with that answer.
+4. **Diagnose:** when a check fails, read the logs, tell restart vs. file vs. service apart, and suggest `continue` or `abort`.
+5. **Close out:** remind about the RoboForm paste, run `finish`, update the cards (exposure resolved on CARD-0334/0375) and commit the registry.
+
+*How to build it -- a Claude Code skill (recommended).* Add `.claude/skills/rotate-credentials/SKILL.md`, the same pattern as the existing `hike-izer` skill. It holds steps 1-5, the never-print rule, and the rule that `start`/`finish`/`abort` always need Joseph's go-ahead. Session Start step 9 then says "if `due` shows anything, offer the rotate-credentials skill"; Joseph just says "rotate the webhook secret". Pair it with permission rules in `.claude/settings.json`:
+- **allow freely:** `rotate.py plan`/`status`/`verify` and `secret.ps1 due`;
+- **ask every time:** `rotate.py start`/`continue`/`finish`/`abort`;
+- **deny:** direct `secret.py copy`/`new`/`show`, and reading `credentials.local.md`.
+
+That is CARD-0334 Phase 1, and it's a real prerequisite here: today's full print of `credentials.local.md` happened in an agent session, and the deny rules still need the fresh-session retest (OPEN ITEM at the top of this card) before anyone relies on them.
+
+*Where it runs.* The agent needs the home network, so it must run on Joseph's computer, not in a cloud session; the 2026-10-02 cloud session couldn't reach the Pi or M8 at all. Two ways:
+- **Claude Code on the Windows workstation:** the Desktop app, or `claude` in a terminal in `C:\Shared\jctsh`. The normal case.
+- **Driven from the Pixel:** `claude remote-control` in that folder on the workstation, and the session appears in the Claude Code app on the phone. A good fit for rotations, since the guided steps (GPSLogger, Tasker) happen on the phone anyway.
+
+*What shouldn't be an agent:*
+- **Noticing a rotation is due:** a timer on the M8 runs the registry check and sends a push notification (Step 8). Plain code, no LLM.
+- **Fully unattended rotation:** hold off. Every rotation ends with Joseph's RoboForm paste, and all but the log dashboard have a phone or device step, so an unattended agent would just sit waiting. The one fully scripted rotation (log dashboard) doesn't need an LLM either; `rotate.py` already runs it end to end.
+- **A custom agent built on the Agent SDK** (its own tools, running on the M8): possible, but it would rebuild what the skill gets for free from Claude Code. Only worth it if Joseph wants to rotate from somewhere other than Claude Code.
+
+*Proposed build, if approved:*
+1. The skill.
+2. The `.claude/settings.json` rules, drafted for Joseph to apply himself, since a session can't change its own permissions.
+3. The Step 8 timer.
+
+The fresh-session guardrail test and the first live run happen on the workstation.
 
 ### CARD-0371 · [enhancement] [data-pipeline] Remove `?key=` query authentication from data-pipeline-api once no caller uses it
 
@@ -936,6 +1039,7 @@ Not exposed: the Log Dashboard password (two attempts to read it were blocked by
 1. **HA long-lived token** — widest (Node-RED, photo-tv-display, hike-izer-orchestrator); use the CARD-0280 rotation checklist, which lists every place it lives.
 2. **Node-RED admin password.**
 3. **Mosquitto accounts** — the six above plus `hike-izer-orchestrator`, `front-porch-temp-sensor`, `back-patio-temp-sensor`. Each needs the broker change *and* the consumer's config; mind the `chown root:mosquitto /etc/mosquitto/passwd` gotcha, and that Home Assistant's own MQTT credentials are UI-only config.
+   - **`air-quality-monitor`: no rotation needed. Decided against, 2026-10-02 (Joseph).** CARD-0377 took MQTT off the device entirely, and the account was deleted from the Pi's `/etc/mosquitto/passwd` the same day. The exposed password no longer unlocks anything. Marked `retired` in `tos/credential-registry.yaml` (`mosquitto-accounts--air-quality-monitor`), so `secret.ps1 due` no longer lists it. The 9/24 exposure stays recorded there as history.
 4. **ESP32 OTA/MQTT secrets** (front-porch, back-patio, hiking-monitor) — need a reflash. Tier 3 in the policy is "incident-driven only", and this is the incident. Check first whether the four components really share values.
 
 **Done when:** (1) every credential listed above is either rotated and verified live, or explicitly decided against with the reason written here; (2) the rule is in a durable place every session reads — root `CLAUDE.md`'s Credentials section — not only in a session's memory; (3) a one-time reconciliation has recorded where each secret lives (RoboForm / runtime file / Credential Manager / not stored), and `credentials.local.md` is a values-free index whose names match Joseph's RoboForm entries, and its rotation table shows last-rotated dates (dates only, never values); (4) the fix plan above is delivered or each phase explicitly deferred by Joseph — at minimum Phase 0 (the minimal store and helper) and then Phase 1's deny rules and hooks, in that order, because a rule that depends on a session remembering it has already failed once; (5) the as-is inventory above is kept current somewhere sessions read (and root `CLAUDE.md`'s inaccurate "off-disk" statement corrected).

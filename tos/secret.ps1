@@ -37,9 +37,9 @@
 #   secret.ps1 due                              -- local-only registry scan (see above),
 #                                                   unchanged by the M8 move
 #
-# Not built: the registry-aware `rotate` orchestrator; a lock file for two SSH sessions
-# racing the same credential (not yet a real problem -- M8 having one owner already
-# removed the Windows two-profile version of this problem).
+# Rotation itself is tos/rotate.py (CARD-0372), which drives secret.py's rotation
+# commands (stage/promote/envfile/drop-previous...) over the same SSH path; secret.py
+# locks the vault for every write, and rotate.py keeps its own run lock.
 
 param(
     [Parameter(Position = 0, Mandatory = $true)]
@@ -61,7 +61,10 @@ $ErrorActionPreference = 'Stop'
 
 $M8Host = 'jct@m8.local'
 $M8Script = '/usr/local/bin/secret.py'
-$RegistryPath = 'C:\Shared\jctsh\tos\credential-registry.yaml'
+# Next to this script (C:\Shared\jctsh\tos on the workstation); JCTSH_REGISTRY overrides it (tests).
+$RegistryPath = if ($env:JCTSH_REGISTRY) { $env:JCTSH_REGISTRY } else { Join-Path $PSScriptRoot 'credential-registry.yaml' }
+# rotate.py's values-free run state (CARD-0372), shown by `due`.
+$RotationStateDir = if ($env:JCTSH_ROTATION_STATE) { $env:JCTSH_ROTATION_STATE } else { Join-Path $PSScriptRoot '.rotation-state' }
 
 # --- SSH relay to the M8 (replaces the old local Credential-Manager/keepassxc-cli calls) ---
 
@@ -129,7 +132,7 @@ function Get-RegistryDueReport {
             if ($cur) { $idRecords += [pscustomobject]$cur }
             $cur = @{
                 Id = $Matches[1]; Tier = $null; IntervalDays = $null; LastRotated = $null
-                ExposedDates = @(); RotationRequested = $null; Retired = $null
+                ExposedDates = @(); RotationRequested = $null; Retired = $null; RoboformPending = $false
             }
             continue
         }
@@ -149,67 +152,113 @@ function Get-RegistryDueReport {
             $cur.RotationRequested = if ($Matches[1] -eq 'null') { $null } else { $Matches[1] }
             continue
         }
+        if ($line -match '^    roboform_synced:\s*false\b') { $cur.RoboformPending = $true; continue }
         if ($line -match '^    retired:\s*(null|".*")') {
             $cur.Retired = if ($Matches[1] -eq 'null') { $null } else { $Matches[1] }
             continue
         }
-        # A nested sub-account, e.g. mosquitto-accounts.accounts.<name>: {holder: ..., rotation_requested: "...", retired: "..."}
+        # A nested sub-account, e.g. mosquitto-accounts.accounts.<name>: {holder: ..., exposed: [...],
+        # last_rotated: ..., rotation_requested: "...", retired: "..."}. Every account is recorded, not
+        # just flagged ones: an entry with an accounts: map is evaluated per account (CARD-0372, 2026-10-02).
         if ($line -match '^      (\S+):\s*\{(.*)\}\s*$') {
             $subName = $Matches[1]; $body = $Matches[2]
-            $subRR = $null; $subRetired = $null
+            $subRR = $null; $subRetired = $null; $subLast = $null; $subExposed = @()
             if ($body -match 'rotation_requested:\s*"([^"]*)"') { $subRR = $Matches[1] }
             if ($body -match 'retired:\s*"([^"]*)"') { $subRetired = $Matches[1] }
-            if ($subRR -or $subRetired) {
-                $subRecords += [pscustomobject]@{ Id = $cur.Id; SubAccount = $subName; RotationRequested = $subRR; Retired = $subRetired }
+            # Match the unquoted fields only outside quoted strings, so a holder/reason text can't fake one.
+            $bare = $body -replace '"[^"]*"', '""'
+            if ($bare -match 'last_rotated:\s*([^,\s}]+)') { $subLast = $Matches[1] }
+            if ($bare -match 'exposed:\s*\[([^\]]*)\]') {
+                $subExposed = @([regex]::Matches($Matches[1], '\d{4}-\d{2}-\d{2}') | ForEach-Object { $_.Value })
+            }
+            $subRecords += [pscustomobject]@{
+                Id = $cur.Id; SubAccount = $subName; RotationRequested = $subRR; Retired = $subRetired
+                LastRotated = $subLast; ExposedDates = $subExposed
+                RoboformPending = ($bare -match 'roboform_synced:\s*false\b')
             }
             continue
         }
     }
     if ($cur) { $idRecords += [pscustomobject]$cur }
 
-    $exposedBucket = @(); $requestedBucket = @(); $overdueBucket = @()
+    # Lists, not arrays: the nested function below appends to them through PowerShell's dynamic scope.
+    $exposedBucket = [System.Collections.Generic.List[object]]::new()
+    $requestedBucket = [System.Collections.Generic.List[object]]::new()
+    $overdueBucket = [System.Collections.Generic.List[object]]::new()
+    $roboformBucket = [System.Collections.Generic.List[object]]::new()
 
-    foreach ($r in $idRecords) {
-        if ($r.Retired) { continue }  # retired = stops existing anywhere; no action to surface
-
+    # One credential's status, highest-priority bucket only: exposed > requested > overdue.
+    function Add-DueStatus($Name, $ExposedDates, $LastRotated, $RotationRequested, $IntervalDays, $Tier) {
         $mostRecentExposed = $null
-        if ($r.ExposedDates.Count -gt 0) { $mostRecentExposed = ($r.ExposedDates | Sort-Object -Descending | Select-Object -First 1) }
+        if ($ExposedDates.Count -gt 0) { $mostRecentExposed = ($ExposedDates | Sort-Object -Descending | Select-Object -First 1) }
 
         $rotatedAfterExposure = $false
-        if ($mostRecentExposed -and $r.LastRotated -and $r.LastRotated -ne 'unknown') {
-            try { $rotatedAfterExposure = ([datetime]$r.LastRotated) -ge ([datetime]$mostRecentExposed) } catch { }
+        if ($mostRecentExposed -and $LastRotated -and $LastRotated -ne 'unknown') {
+            try { $rotatedAfterExposure = ([datetime]$LastRotated) -ge ([datetime]$mostRecentExposed) } catch { }
         }
 
         if ($mostRecentExposed -and -not $rotatedAfterExposure) {
-            $exposedBucket += [pscustomobject]@{ Name = $r.Id; Detail = "exposed $mostRecentExposed, last_rotated $($r.LastRotated)" }
-            continue
+            $null = $exposedBucket.Add([pscustomobject]@{ Name = $Name; Detail = "exposed $mostRecentExposed, last_rotated $LastRotated" })
+            return
         }
-        if ($r.RotationRequested) {
-            $requestedBucket += [pscustomobject]@{ Name = $r.Id; Detail = $r.RotationRequested }
-            continue
+        if ($RotationRequested) {
+            $null = $requestedBucket.Add([pscustomobject]@{ Name = $Name; Detail = $RotationRequested })
+            return
         }
-        if ($r.IntervalDays) {
-            if (-not $r.LastRotated -or $r.LastRotated -eq 'unknown') {
-                $overdueBucket += [pscustomobject]@{ Name = $r.Id; Detail = "never recorded (tier $($r.Tier), $($r.IntervalDays)d cadence)" }
+        if ($IntervalDays) {
+            if (-not $LastRotated -or $LastRotated -eq 'unknown') {
+                $null = $overdueBucket.Add([pscustomobject]@{ Name = $Name; Detail = "never recorded (tier $Tier, $($IntervalDays)d cadence)" })
             } else {
                 try {
-                    $days = ($today - [datetime]$r.LastRotated).Days
-                    if ($days -gt $r.IntervalDays) {
-                        $overdueBucket += [pscustomobject]@{ Name = $r.Id; Detail = "$days days since last rotation (cadence $($r.IntervalDays)d)" }
+                    $days = ($today - [datetime]$LastRotated).Days
+                    if ($days -gt $IntervalDays) {
+                        $null = $overdueBucket.Add([pscustomobject]@{ Name = $Name; Detail = "$days days since last rotation (cadence $($IntervalDays)d)" })
                     }
                 } catch { }
             }
         }
     }
 
-    foreach ($s in $subRecords) {
-        if ($s.Retired) { continue }  # e.g. mosquitto-accounts--air-quality-monitor, CARD-0377
-        if ($s.RotationRequested) {
-            $requestedBucket += [pscustomobject]@{ Name = "$($s.Id)--$($s.SubAccount)"; Detail = $s.RotationRequested }
+    foreach ($r in $idRecords) {
+        if ($r.Retired) { continue }  # retired = stops existing anywhere; no action to surface
+
+        $subs = @($subRecords | Where-Object { $_.Id -eq $r.Id })
+        if ($r.RoboformPending) { $null = $roboformBucket.Add([pscustomobject]@{ Name = $r.Id }) }
+        foreach ($s in $subs) {
+            if ($s.RoboformPending -and -not $s.Retired) { $null = $roboformBucket.Add([pscustomobject]@{ Name = "$($r.Id)--$($s.SubAccount)" }) }
+        }
+        if ($subs.Count -eq 0) {
+            Add-DueStatus $r.Id $r.ExposedDates $r.LastRotated $r.RotationRequested $r.IntervalDays $r.Tier
+            continue
+        }
+
+        # Grouped entry: each account on its own. An entry-level exposure applies to every account; an
+        # account's own last_rotated wins over the entry's fallback, so rotating one account clears only it.
+        foreach ($s in $subs) {
+            if ($s.Retired) { continue }  # e.g. mosquitto-accounts--air-quality-monitor, CARD-0377
+            $exposed = @($r.ExposedDates) + @($s.ExposedDates)
+            $last = if ($s.LastRotated) { $s.LastRotated } else { $r.LastRotated }
+            $rr = if ($s.RotationRequested) { $s.RotationRequested } else { $r.RotationRequested }
+            Add-DueStatus "$($r.Id)--$($s.SubAccount)" $exposed $last $rr $r.IntervalDays $r.Tier
         }
     }
 
-    [pscustomobject]@{ Exposed = $exposedBucket; Requested = $requestedBucket; Overdue = $overdueBucket }
+    # Rotations rotate.py has started and not finished (values-free JSON state files).
+    $inProgress = [System.Collections.Generic.List[object]]::new()
+    if (Test-Path $RotationStateDir) {
+        foreach ($f in Get-ChildItem -Path $RotationStateDir -Filter '*.json' -File) {
+            try {
+                $st = Get-Content $f.FullName -Raw | ConvertFrom-Json
+                $next = if ($st.phase -eq 'applying') { 'continue' } elseif ($st.roboform_synced) { 'finish' } else { 'confirm-synced' }
+                # PowerShell 7's ConvertFrom-Json turns the ISO timestamp into a DateTime; show it as ISO again.
+                $exp = if ($st.expires -is [datetime]) { $st.expires.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") } else { $st.expires }
+                $null = $inProgress.Add([pscustomobject]@{ Name = $st.target; Detail = "phase $($st.phase), window closes $exp -- next: rotate.py $next $($st.target)" })
+            } catch { }
+        }
+    }
+
+    [pscustomobject]@{ Exposed = $exposedBucket; Requested = $requestedBucket; Overdue = $overdueBucket
+                       Roboform = $roboformBucket; InProgress = $inProgress }
 }
 
 # --- Commands ---
@@ -293,13 +342,25 @@ switch ($Action) {
         } else { Write-Output "  none" }
 
         Write-Output ""
+        Write-Output "=== ROTATIONS IN PROGRESS (rotate.py) ==="
+        if ($report.InProgress.Count -gt 0) {
+            $report.InProgress | ForEach-Object { Write-Output "  $($_.Name) -- $($_.Detail)" }
+        } else { Write-Output "  none" }
+
+        Write-Output ""
+        Write-Output "=== ROTATED, NOT YET PASTED INTO ROBOFORM (roboform_synced: false) ==="
+        if ($report.Roboform.Count -gt 0) {
+            $report.Roboform | ForEach-Object { Write-Output "  $($_.Name) -- secret.ps1 copy $($_.Name), paste into RoboForm, then rotate.py confirm-synced (or set roboform_synced: true)" }
+        } else { Write-Output "  none" }
+
+        Write-Output ""
         Write-Output "=== OVERDUE BY CADENCE (periodic nudge -- offer, don't demand) ==="
         if ($report.Overdue.Count -gt 0) {
             $report.Overdue | ForEach-Object { Write-Output "  $($_.Name) -- $($_.Detail)" }
         } else { Write-Output "  none" }
 
         if ($report.Exposed.Count -gt 0) { exit 2 }
-        elseif ($report.Requested.Count -gt 0 -or $report.Overdue.Count -gt 0) { exit 1 }
+        elseif ($report.Requested.Count -gt 0 -or $report.Overdue.Count -gt 0 -or $report.Roboform.Count -gt 0 -or $report.InProgress.Count -gt 0) { exit 1 }
         else { exit 0 }
     }
 }

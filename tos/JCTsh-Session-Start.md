@@ -86,7 +86,11 @@ table for exactly which steps below get scoped, skipped, or run as-is.
    — a read-only scan of `tos/credential-registry.yaml` only, no vault or Credential Manager
    touched, no values. It reports three buckets: still-exposed-and-unrotated, explicitly
    `rotation_requested`, and overdue by tier/interval cadence; a `retired` credential is excluded
-   from all three. **The exposed bucket surfaces every session, unconditionally** — same discipline
+   from all three. A grouped entry with an `accounts:` map (e.g. `mosquitto-accounts`) is reported
+   per account, as `<id>--<account>`, so rotating one account clears only that account. It also
+   lists rotations `rotate.py` has started but not finished, and credentials rotated but not yet
+   pasted into RoboForm (`roboform_synced: false`) -- surface both alongside the exposed bucket,
+   since each is a half-done rotation. **The exposed bucket surfaces every session, unconditionally** — same discipline
    as step 6's Watch For markers, since a live exposure shouldn't wait on a "feels due" judgment
    call. The rotation-requested and overdue-by-cadence buckets are a periodic nudge instead, same
    as step 8's archive check — offer to act on something meaningful, don't treat every

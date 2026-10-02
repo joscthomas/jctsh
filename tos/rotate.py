@@ -324,7 +324,15 @@ def ask(prompt, choices):
     if not sys.stdin.isatty():
         raise Stop("waiting on a person -- run rotate.py continue <target> from a terminal", WAITING)
     while True:
-        a = input(f"{prompt} [{'/'.join(choices)}] ").strip().lower()[:1]
+        try:
+            a = input(f"{prompt} [{'/'.join(choices)}] ").strip().lower()[:1]
+        except EOFError:
+            # isatty() can misreport in some non-interactive environments (confirmed
+            # live 2026-10-02: Claude Code's Bash tool on this Windows/git-bash setup) --
+            # input() then hits EOF instead of ever getting a real answer. Treat that
+            # exactly like "no real terminal" rather than crashing: stop cleanly,
+            # resumable the normal way.
+            raise Stop("waiting on a person -- run rotate.py continue <target> from a terminal", WAITING)
         if a in choices:
             return a
 

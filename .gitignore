@@ -6,11 +6,6 @@ credentials.local.md
 roboform-checklist.local.md
 .env
 !.env.example
-# CARD-0334 Phase 1c: salted hashes of current secrets -- not values, but keep
-# workstation-local anyway (weak/guessable secrets aren't meaningfully protected
-# by a salt the way a long random token is).
-tos/hooks/secret-fingerprints.json
-tos/hooks/.secret-salt
 
 # Arduino build artifacts
 build/

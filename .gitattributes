@@ -1,0 +1,9 @@
+# Scripts deployed to and run on the Pi/M8 (Linux) rely on a working shebang line,
+# which breaks if a CRLF lands after `#!/usr/bin/env python3` -- this workstation's
+# core.autocrlf=true otherwise checks these out with CRLF, silently, since the repo's
+# own committed blobs are clean LF. Hit live 2026-10-02 deploying tos/secret.py to the
+# M8 (CARD-0372): `env: $'python3\r': No such file or directory`. Force LF in the
+# working tree regardless of core.autocrlf so every future scp/deploy of these is safe
+# without a manual fix-up step.
+*.py text eol=lf
+*.sh text eol=lf

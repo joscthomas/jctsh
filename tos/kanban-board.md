@@ -9,7 +9,34 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0381 -->
+<!-- next-card-id: CARD-0382 -->
+
+---
+
+### CARD-0381 · [maintenance] [m8] M8 maintenance: 21 routine + 6 review-category updates, 1 firmware update — auto-opened from photo-server
+
+**Status:** Backlog
+
+**Auto-generated from photo-server's maintenance check (CARD-0095/CARD-0128).** Raw finding: M8 maintenance: 21 routine update(s) pending. 6 package(s) need review: containerd.io, docker-buildx-plugin, docker-ce, docker-ce-cli, docker-ce-rootless-extras, docker-compose-plugin; 1 firmware update(s) available: UEFI dbx: UEFI Secure Boot Forbidden Signature Database.
+
+**Researched 2026-10-01 (general session).** Confirmed live on the M8 via `apt list --upgradable`: 27 packages total. The 6 flagged for review are exactly the Docker engine stack (`hosts/m8/maintenance-check.py`'s `REVIEW_PATTERNS = ("docker", "containerd", "linux-", "libc6")` — no kernel/libc6 this time, purely Docker/containerd), running from `5:29.7.2` → `5:29.8.2`.
+
+**Docker Engine 29.7.2 → 29.8.2 release notes read (docs.docker.com/engine/release-notes/29/) — this is not a routine point release, it's a real security update:**
+- **CVE-2026-92543**: malicious DNS responses can bypass TLS certificate verification during registry pulls, exposing registry credentials or allowing image substitution. **Directly relevant** — the M8 pulls container images routinely (this very PR batch, `pi-image-pull.py`-equivalent flows, `docker compose pull` for netalertx/immich/ring-mqtt/data-pipeline), and is the one host in this project with real internet-facing exposure (`hikes.jctnet.com` via Cloudflare Tunnel, CARD-0095). A spoofed-DNS image-substitution attack is exactly the kind of supply-chain risk that matters on this specific host.
+- **CVE-2026-53493** (containerd): crafted OCI image indexes with deeply nested descriptors can cause unbounded CPU/memory use — a pull-time DoS vector, also relevant given this host pulls third-party images regularly.
+- **CVE-2026-92542** (Swarm overlay networks): not applicable — this project uses plain `docker compose`, no Swarm anywhere.
+- **BuildKit CVEs (CVE-2026-93315 through 93326)**: build-time cache poisoning/policy bypass — relevant in a minor way, since `data-pipeline-api` is built locally via `build: ./api` in `core/data-pipeline/docker-compose.yml` (the only locally-built image on this host; everything else is a pulled image).
+- No breaking changes identified; packaging bumps are internal (BuildKit 0.32.2→0.33.1, containerd 2.2.6→2.3.6, runc 1.4.3→1.5.2, Go 1.25.5→1.26.8).
+
+**Firmware update (UEFI dbx) researched (`sudo fwupdmgr get-upgrades`):** a standard Microsoft-published UEFI Secure Boot Forbidden Signature Database revocation update (20260402 → 20260707), purely additive blocklist of known-compromised bootloader/UEFI binaries. Routine security hygiene, not a functional change — low risk, but requires a reboot to apply (confirmed via `fwupdmgr`'s own device flags).
+
+**Net assessment: the Docker engine bump is the opposite of the npm/netalertx precedents (CARD-0379/CARD-0380) — it's a genuine, actively-relevant security fix for this host's actual threat model (internet-facing, routinely pulls third-party images), not an update with no real bearing on usage.** Worth applying deliberately, not deferring to "wait for the next one" (this session's own agreed condition for skipping an update is that nothing in it is relevant to actual usage — that condition isn't met here). The firmware update is low-risk/low-urgency but may as well land in the same maintenance window since both want a reboot-adjacent moment (Docker engine restart for the package bump; the firmware is applied on next reboot).
+
+**Not yet applied — held for a separate go-ahead.**
+
+**Done when:** `docker --version`/`containerd.io` report the new versions live, every container on the M8 (netalertx, immich, ring-mqtt, hike-izer-web, data-pipeline-api/timescaledb) confirmed still running and healthy after the Docker Engine restart, the UEFI dbx update applied and confirmed via a post-reboot `fwupdmgr get-updates` showing no pending updates, and `maintenance-check.py`'s own next run reports 0 review-category packages pending.
+
+**Related:** `hosts/m8/maintenance-check.py` (the check this finding came from, defines `REVIEW_PATTERNS`), CARD-0095 (M8 maintenance-check build, established the internet-exposure risk framing this card leans on), CARD-0379/CARD-0380 (sibling PRs this same batch — contrast case where the update genuinely didn't matter to actual usage).
 
 ---
 

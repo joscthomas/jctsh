@@ -82,7 +82,19 @@ table for exactly which steps below get scoped, skipped, or run as-is.
    noticeably large/slow to work with, run `python tos/archive_cards.py` (dry run) and offer
    to `--apply` if it finds a meaningful number of eligible cards. Don't run this every single
    session reflexively — it's a periodic check, not a per-session action.
-9. **Examine the JCTsh Log Dashboard (`http://pi1.local/`, Basic Auth user `jctsh`) for system
+9. **Check whether any credential needs rotation (CARD-0372).** Run `powershell tos/secret.ps1 due`
+   — a read-only scan of `tos/credential-registry.yaml` only, no vault or Credential Manager
+   touched, no values. It reports three buckets: still-exposed-and-unrotated, explicitly
+   `rotation_requested`, and overdue by tier/interval cadence; a `retired` credential is excluded
+   from all three. **The exposed bucket surfaces every session, unconditionally** — same discipline
+   as step 6's Watch For markers, since a live exposure shouldn't wait on a "feels due" judgment
+   call. The rotation-requested and overdue-by-cadence buckets are a periodic nudge instead, same
+   as step 8's archive check — offer to act on something meaningful, don't treat every
+   `last_rotated: unknown` as an emergency (CARD-0372's own seeding pass found 13 of 24 entries
+   start that way). **This is operational work, not a kanban card per finding (Joseph, 2026-10-02)**
+   — same as archiving the board never gets its own card: a card only enters the picture if Joseph
+   actually decides to act and the work is substantial enough to track.
+10. **Examine the JCTsh Log Dashboard (`http://pi1.local/`, Basic Auth user `jctsh`) for system
    problems or data issues.** Scan recent entries across components for `Alert`-category
    messages, error-shaped `System`/`MQTT` messages, or anything that otherwise looks wrong
    (missing/gappy data, an unexpected reboot, a component gone silent) that isn't already
@@ -110,7 +122,7 @@ table for exactly which steps below get scoped, skipped, or run as-is.
    A general session scans `/status` across every device; a component session (per
    `JCTsh-Component-Session-Start.md`) scans it for its own covered component(s) only.
 
-**ESPHome/workstation-tooling check — conditional, not one of the 9 routine steps above
+**ESPHome/workstation-tooling check — conditional, not one of the 10 routine steps above
 (added 2026-09-28, CARD-0357).** Before compiling or flashing any ESPHome device
 (`esphome compile`/`esphome run`, or following any component's `flashing.md`), read
 `WORKSTATION-SETUP.md` in full first. It carries real, non-obvious workstation gotchas

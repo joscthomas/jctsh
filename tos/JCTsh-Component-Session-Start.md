@@ -2,8 +2,8 @@
 
 **Author:** Joseph C Thomas (JCT), via Claude
 **Purpose:** The startup steps a persistent component or cluster session (CARD-0284) actually runs instead of the general Session Start (`tos/JCTsh-Session-Start.md`) — some general steps scoped down, some skipped, some run unscoped, plus component-only steps with no general-session equivalent.
-**Version:** 1.22
-**Version description:** Added component-only step 4 (CARD-0360) -- before compiling/flashing any covered ESPHome component, read `WORKSTATION-SETUP.md` and run `workstation-verify.ps1`. Closes a gap this document's own tos-session startup found live: `JCTsh-Session-Start.md` already stated this as a conditional step, but a component session runs this document instead of that one, so the pointer was never actually reachable from a component session.
+**Version:** 1.23
+**Version description:** `JCTsh-Session-Start.md` gained a new general-session step 9 (credential rotation check, CARD-0372's `secret.ps1 due`), pushing its old step 9 (`/status`) to step 10 -- this document's own step-mapping table and its "per step 9" cross-reference updated to match, and the new step added as row 9, Skipped (the registry has no per-component tag to scope by yet).
 **Version history:** `JCTsh-Component-Session-Start-History.md`
 
 ---
@@ -88,9 +88,10 @@ Not yet checked against Joseph's own judgment — these are proposed groupings, 
 | 6 | Watch for markers (event-based) | **Scoped** to this session's own component tag(s). |
 | 7 | Read `tos/JCTsh-Operating-System.md` | **Unscoped** — runs in full, exactly like a general session. Foundational process knowledge (columns, triggers, Engineering Discipline), not a per-component data scan. |
 | 8 | Periodic `archive_cards.py` dry-run check | **Skipped** — whole-board file-size housekeeping, unrelated to any specific component. |
-| 9 | `/status` device-health check (CARD-0282) | **Scoped** to this session's own covered component(s)/device(s), not the whole fleet. The freshness/connection part needs no credential — `/status.json` (CARD-0330) — the fuller Alert/log scan uses `DASHBOARD_PASS` from `credentials.local.md`'s Log Dashboard section (2026-09-27 — ask Joseph directly only if that entry is missing or stale), per `JCTsh-Session-Start.md`'s own step 9. |
+| 9 | Credential rotation check (`secret.ps1 due`, CARD-0372) | **Skipped** — `tos/credential-registry.yaml` has no per-component tag to scope by today (holders name a component in free text, not a structured field), so this stays a general-session-only check until that's real. Revisit if the registry ever supports filtering by component — don't build that scoping ability speculatively before it's needed. |
+| 10 | `/status` device-health check (CARD-0282) | **Scoped** to this session's own covered component(s)/device(s), not the whole fleet. The freshness/connection part needs no credential — `/status.json` (CARD-0330) — the fuller Alert/log scan uses `DASHBOARD_PASS` from `credentials.local.md`'s Log Dashboard section (2026-09-27 — ask Joseph directly only if that entry is missing or stale), per `JCTsh-Session-Start.md`'s own step 10. |
 
-**Any card-related request made mid-session, not just the automated steps above, defaults to this session's own component tag(s)** unless Joseph asks for the whole board explicitly (Real miss, 2026-09-17: a "list the open cards" request during the `tos` component session was answered against the whole board instead, because the prior wording only covered the automatic startup sweep, not requests made later in the session). Same default applies to the `/status` check (row 9) for any ad hoc device-health question asked mid-session.
+**Any card-related request made mid-session, not just the automated steps above, defaults to this session's own component tag(s)** unless Joseph asks for the whole board explicitly (Real miss, 2026-09-17: a "list the open cards" request during the `tos` component session was answered against the whole board instead, because the prior wording only covered the automatic startup sweep, not requests made later in the session). Same default applies to the `/status` check (row 10) for any ad hoc device-health question asked mid-session.
 
 Then, additionally — steps with no general-session equivalent at all, specific to a component session:
 

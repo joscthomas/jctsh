@@ -430,6 +430,13 @@ Each buffered reading's replay does: cheap string-based timestamp resolution (CA
 
 **Not done -- needs Joseph:** `esp32-device-secrets` and `immich-credentials` have the same problem (CARD-0375 already names `--hiking-monitor-ota` and `--api-key-joseph` sub-secrets), but they list holders, not accounts. Splitting them needs the real sub-secret names, which follow the RoboForm `<id>--<sub-name>` convention and which sessions can't see. Until then each still reports as a single item.
 
+**`esp32-device-secrets` split per device, plus three registry gaps closed, 2026-10-02 (Joseph).** The entry is now an `accounts:` map with one account per device per secret: `<device>-ota` and `<device>-ap`, for garage-radar, salt-sensor, front-porch, back-patio, hiking-monitor and air-quality-monitor (12 accounts, taken from each device's `!secret` usage). Exposures moved onto the three OTA accounts they hit, and each account starts at `roboform: no`. Device MQTT passwords stay only under `mosquitto-accounts`, so the same value isn't tracked twice. **Gaps found doing it, all fixed:**
+1. `data-pipeline-api-key` was missing a holder: the AQM's firmware (`data_pipeline_auth_header`, since CARD-0377). Rotating the key would have silently broken AQM uploads. Its note says to keep the `API_KEY_PREVIOUS` window open until the AQM has reflashed and uploaded.
+2. `mosquitto-accounts--salt-sensor` still pointed at `secrets.h`; salt-sensor is ESPHome now.
+3. The home WiFi password wasn't in the registry. It is now a new `home-wifi-password` entry (`roboform: no`, `in_creds_file: unknown`), with the router and all six devices as holders.
+
+Also answered `hotspot-password`'s open question: the AQM joins the hotspot too, so it was added as a holder. **Still open (Joseph):** which of the four original devices share a value (confirm with `secret fingerprint`, never by reading the files), and whether salt-sensor and AQM have `C:\esphome` copies. Tested under PowerShell 7.4: `due` lists exactly the three exposed OTA accounts, and `rotate.ps1` lists each device's secrets as its own holder.
+
 **CARD-0334/CARD-0375 still can't close.** Per Joseph's own instruction, no live rotation happened tonight -- every credential either card names is exactly as rotated as it was before (`last_rotated: unknown` on all of them, per `secret.ps1 due`). What changed is that the mechanism to actually do it now exists and is tested; the next real step is picking one and walking it through live, which is explicitly what Joseph asked to be offered at his next Session Start.
 
 ### CARD-0371 · [enhancement] [data-pipeline] Remove `?key=` query authentication from data-pipeline-api once no caller uses it

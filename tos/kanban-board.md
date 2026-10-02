@@ -239,9 +239,9 @@ Each buffered reading's replay does: cheap string-based timestamp resolution (CA
 
 ---
 
-### CARD-0375 · [bug] [tos] [security] Live secrets are committed to the PUBLIC repo -- rotate them, scrub the working tree, decide on history
+### CARD-0375 · [bug] [tos] [security] Live secrets are committed to the PUBLIC repo -- rotate them, scrub the working tree, decide on history -- RESOLVED 2026-10-02 12:02 MST
 
-**Status:** Backlog
+**Status:** Done
 
 **Priority:** Critical -- the repository is public, and at least two of these secrets guard endpoints reachable from the internet. (set 2026-09-30 10:43 MST, incident)
 
@@ -267,6 +267,8 @@ Each buffered reading's replay does: cheap string-based timestamp resolution (CA
 **Related:** CARD-0334 (the no-print rule and guardrails), CARD-0372 (the rotation mechanism -- webhook-secret becomes the urgent pilot instead of the data-pipeline key), CARD-0367 (an earlier leak of the retired Apps Script key through alert text), CARD-0365 (keys in URLs), CARD-0370 (gateway key rotation).
 
 **Reconciled against CARD-0334, 2026-10-02 (see its own note).** `node-red-admin-password` and hiking-monitor's Mosquitto/OTA secrets are named on both cards -- real overlap, not a duplicate card, since each found it independently with different severity framing (a session leak vs. a public-repo commit). **Rotation status for every credential on this list lives solely in `tos/credential-registry.yaml` (`last_rotated` vs. `exposed`/`rotation_requested`) -- not restated here, so this note can't go stale the way a copied status would.** Check the registry directly for current state; this card and CARD-0334 hold the incident narrative and the decisions, not a second status tracker.
+
+**Closed 2026-10-02 12:02 MST (Joseph) -- superseding this card's own earlier "still can't close" note (recorded on CARD-0372, same day), and closed on a narrower bar than this card's original "What to do" list.** Verified directly against the post-CARD-0372-merge registry: all six exposures this card named are present and correctly tagged `(CARD-0375)` with matching detail -- `webhook-secret` (highest priority, rotate first), `mosquitto-accounts.accounts.hiking-monitor`, `immich-credentials`, `esp32-device-secrets.accounts.hiking-monitor-ota`, `apps-script-api-key` (lowest priority, already write-retired), and both `node-red-admin-password`/`node-red-credential-secret`. **Decision: "accounted for in the registry" is the closing bar for this card, not "rotated."** None of the six have actually been rotated yet (`last_rotated: unknown` on all) -- that work continues as ordinary business through CARD-0372's `secret.ps1 due` process (surfaces every session per `JCTsh-Session-Start.md` step 9), not tracked here. **Not done, and not this card's job going forward:** scrubbing the working tree, deciding on history rewrite, and extending the scan to the nine unscanned secrets (this card's original "What to do" items 2-5) -- these were never re-scoped as part of this closure; raise a new card if they still matter.
 
 ### CARD-0374 · [enhancement] [logging] /kanban: sort each column by priority, then latest activity, then age -- and show a priority badge
 

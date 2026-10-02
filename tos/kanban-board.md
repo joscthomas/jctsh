@@ -9,7 +9,31 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0378 -->
+<!-- next-card-id: CARD-0379 -->
+
+---
+
+### CARD-0378 · [enhancement] [data-pipeline] Container image update: timescaledb 2.30.1 → 2.30.2 — auto-opened from photo-server
+
+**Status:** Backlog
+
+**Auto-generated 2026-09-30 13:30 UTC from photo-server's maintenance check.** Raw finding: Container image updates: timescaledb: 2.30.2 available (running 2.30.1).
+
+**Researched 2026-10-01 (general session).** Confirmed live: `data-pipeline-timescaledb` currently runs TimescaleDB extension `2.30.1` on PostgreSQL 16.15, pinned in `core/data-pipeline/docker-compose.yml` per CARD-0362's own precedent (`timescale/timescaledb:2.30.1-pg16`, not `:latest-pg16`).
+
+**Full changelog read (`gh api repos/timescale/timescaledb/releases/tags/2.30.2`) -- 7 bugfixes, none apply to this deployment's actual usage:**
+- Chunk-merge crash (different column layouts), `DROP SCHEMA CASCADE` orphaning compressed chunks, a `CREATE TABLE AS` crash on a compressed hypertable -- **this deployment uses no compression at all** (checked `init/schema.sql`: no `compress` settings anywhere), so none of these three can fire here.
+- Vectorized text-comparison bug with a non-deterministic collation -- this deployment uses Postgres' default (deterministic) collation throughout; no custom collation configured anywhere.
+- Two continuous-aggregate-refresh fixes (a race condition, a setting rename) -- **no continuous aggregates exist in this schema** (`init/schema.sql` has plain hypertables only, no `CREATE MATERIALIZED VIEW ... WITH (timescaledb.continuous)`).
+- A tenant-tracker memory-leak fix -- an enterprise/multi-tenant feature, not applicable to a single-database, single-tenant deployment like this one.
+
+**Net assessment: a routine, low-risk bugfix release with zero relevance to how this pipeline actually uses TimescaleDB.** Safe to apply whenever convenient; not urgent, since none of the fixed bugs are things this deployment could be hitting. Mechanically identical to CARD-0362 item 1's own pin-bump precedent: update the compose pin, recreate just the `timescaledb` container (confirmed via `docker-compose.yml`'s service separation that `data-pipeline-api` is unaffected by a `timescaledb`-only recreate, same as every prior container-specific recreate on this host), verify `extversion`/`postgres --version` match and real row counts are intact afterward.
+
+**Not yet applied -- held for a separate go-ahead**, per this session's own `evaluate-then-ask` convention.
+
+**Done when:** `docker-compose.yml`'s pin updated to `timescale/timescaledb:2.30.2-pg16`, `timescaledb` recreated, `extversion` confirmed `2.30.2` live, and real data (row counts across all 6 tables) confirmed intact post-recreate.
+
+**Related:** CARD-0362 (the original pinning decision and precedent for how this kind of bump gets applied), CARD-0349 (the migration that made this database matter at all).
 
 ---
 

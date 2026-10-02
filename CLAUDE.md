@@ -230,7 +230,15 @@ DuckDNS + router port forward, since 2026-06-12.
 
 ## Credentials
 
-All credentials are kept off-disk and out of source control.
+**Corrected 2026-10-02 (CARD-0334 Phase 4) — the line this replaced said "off-disk," which was never accurate.** Most credentials sit in plaintext, gitignored files on disk (`credentials.local.md` at the repo root, `components/<name>/secrets.yaml`/`secrets.h`, `.env` files) — never committed, but not off-disk either. A machine-readable, values-free inventory of every credential (what it is, where it lives, rotation/exposure history) lives in `tos/credential-registry.yaml`; the actual values are moving into a KeePassXC vault on the M8 (`/home/jct/.jctsh-vault/`, `tos/secret.py`/`secret.ps1`, CARD-0372) as each one gets migrated — not finished yet, `credentials.local.md` is still the primary source for anything not yet moved.
+
+**The rule (Joseph, 2026-09-24, CARD-0334): never print a password, token, key, or secret -- always REDACT.** Concretely:
+- Never `cat`/`type`/`Get-Content`/`sed`/`grep`/`diff`/`Read` a file that can hold secrets (`credentials.local.md`, `secrets.yaml`, `secrets.h`, `.env` files, `/etc/mosquitto/passwd`, generated `.esphome/build/**/main.cpp`) without masking values first. Prefer checks that can't leak: existence, length, a hash/fingerprint, or a masking filter.
+- Never put a secret literal in a command line -- read it inside the command so it appears in neither the command text nor its output.
+- Anything that surfaces one anyway is an incident: say so immediately, name the credential (never the value), and open or extend a rotation card.
+- Applies to everything a session writes, too: cards, commit messages, docs, chat.
+
+See `tos/kanban-board.md` CARD-0334 for the full incident record and guardrails plan, and CARD-0372 for the registry/vault/`secret` helper this rule is converging toward.
 
 ### MQTT
 Mosquitto requires auth (`allow_anonymous false`). Each component has its own account:

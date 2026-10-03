@@ -132,6 +132,21 @@ chain them automatically back to back.
 - After the last holder, it moves into cutover on its own and tells you to
   paste into RoboForm next.
 
+**Rotating a same-device companion pair (a Mosquitto account + that device's
+OTA password): one reflash, not two.** Joseph, 2026-10-02: "why not flash
+them both at the same time?" -- `start` *both* targets first (each stages its
+own `.next` value independently; staging one doesn't touch the other).
+`writefile` *both* new values into the device's `secrets.yaml` (and its
+`C:\esphome` copy) -- `mqtt_password` for the Mosquitto target, `ota_password`
+for the ESP32 target -- before compiling anything. Then exactly one
+`esphome compile` and one `esphome upload` for that device, covering both
+changes at once. Only then confirm each target's file-write holder (`d`) via
+its own `continue` call -- `rotate.py` still tracks the two rotations
+separately, this just means the physical device action behind both of them
+only happens once. The remaining holders (the Pi's Mosquitto account,
+deleting the build-cache tree) are independent per target and still handled
+one at a time as usual.
+
 ## 4. RoboForm + close out
 
 Tell Joseph to paste the new value into the RoboForm entry of the same name

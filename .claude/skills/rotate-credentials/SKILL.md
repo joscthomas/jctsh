@@ -149,9 +149,12 @@ one at a time as usual.
 
 ## 4. RoboForm + close out
 
-Tell Joseph to paste the new value into the RoboForm entry of the same name
-(`.\tos\secret.ps1 copy <target>` puts it on the clipboard again if he needs
-it there a second time), then run `python tos\rotate.py confirm-synced <target>`.
+Run `.\tos\secret.ps1 copy <target>` yourself to put the value on the
+clipboard (cutover already does this once; re-run it yourself, without being
+asked, if Joseph needs it there again -- `copy` is a sanctioned, never-print
+command exactly like `writefile`/`mosquitto-passwd`, so there's no reason to
+make him type it). Tell him the value's ready to paste into the RoboForm
+entry of the same name, then run `python tos\rotate.py confirm-synced <target>`.
 
 Then `python tos\rotate.py finish <target>` -- drops the old value from any
 dual-accept holders, purges `<target>.previous` from the vault, and writes
@@ -182,6 +185,23 @@ from a bad check apart from an SSH/network problem, and recommend either
 before cutover. After cutover, `abort` itself refuses; the only way back is
 `secret.py unpromote <target>` plus manually restoring every holder by hand,
 exactly as `rotate.py`'s own error message for that case says.
+
+## Default to doing it yourself -- the exceptions are narrow and genuine
+
+Joseph, 2026-10-02, after being asked to run `secret.ps1 copy` himself for a
+second RoboForm paste: "don't ask me to do something you can do." Every
+sanctioned, never-print command in this doc (`copy`, `writefile`,
+`mosquitto-passwd`, build-cache deletes, compiling, flashing) is something
+you run yourself by default -- don't hand Joseph a command to type unless
+it's one of the two genuine exceptions below, where the constraint is real,
+not a habit:
+- **Seeding a value into the vault for the first time** (`secret.ps1 set`) --
+  the value only exists in RoboForm, which you have no access to at all;
+  there's nothing to relay.
+- **Pasting into RoboForm itself** -- no API, Joseph is the only one who can
+  put a value there.
+Everything else -- including getting a value back onto the clipboard a
+second time -- is yours to run without being asked.
 
 ## What this skill never does on its own
 

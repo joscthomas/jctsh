@@ -87,7 +87,7 @@
 
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'due', 'writefile', 'mosquitto-passwd', 'envcopy')]
+    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'due', 'writefile', 'mosquitto-passwd', 'envcopy', 'remoteenvwrite')]
     [string]$Action,
 
     [Parameter(Position = 1)]
@@ -102,6 +102,7 @@ param(
     [string]$MosquittoHost,
     [string]$PasswdFile,
     [string]$RemoteHost,
+    [string]$Restart,
 
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Rest
@@ -461,6 +462,70 @@ switch ($Action) {
         Set-Clipboard -Value $value
         $value = $null
         Write-Output "'$Name' ($Key from ${RemoteHost}:${Path}) placed on the clipboard (stays until you copy something else). Value never shown."
+    }
+
+    'remoteenvwrite' {
+        if (-not $Name -or -not $RemoteHost -or -not $Path -or -not $Key) {
+            throw 'Usage: secret.ps1 remoteenvwrite <name> -RemoteHost <user@host> -Path <remote KEY=VALUE file> -Key <VAR_NAME> [-Restart "<remote restart command>"]  (edits one EXISTING line via piped stdin, never a command-line literal; the value is never shown)'
+        }
+        $r = Invoke-RemoteSecret -RemoteArgs @('copy', $Name) -CaptureOutput
+        if ($r.ExitCode -ne 0) {
+            $r.Output | ForEach-Object { Write-Output $_ }
+            exit $r.ExitCode
+        }
+        $value = ($r.Output -join "`n").Trim()
+        if (-not $value) { throw "no value read back for '$Name'" }
+
+        # Push a small Python script (avoids multi-layer shell/awk quoting entirely --
+        # a one-line awk version didn't survive PowerShell -> ssh.exe argv encoding
+        # intact, found live testing this), then run it with the new value piped via
+        # stdin only -- never interpolated into any command's own text.
+        $pyScript = @"
+import sys, os, tempfile
+newval = sys.stdin.read().rstrip('\n')
+path = r'$Path'
+key = '$Key'
+with open(path) as f:
+    lines = f.readlines()
+hits = [i for i, l in enumerate(lines) if l.startswith(key + '=')]
+if len(hits) != 1:
+    print(f'ERROR: key count {len(hits)}', file=sys.stderr)
+    sys.exit(1)
+lines[hits[0]] = key + '=' + newval + '\n'
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or '.')
+with os.fdopen(fd, 'w') as f:
+    f.writelines(lines)
+os.replace(tmp, path)
+print('updated')
+"@
+        $remoteTmp = "/tmp/.secret-remoteenvwrite-$([Guid]::NewGuid().ToString('N')).py"
+        $pyScript | & ssh $RemoteHost "cat > $remoteTmp" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "could not stage the helper script on $RemoteHost" }
+        $out = $value | & ssh $RemoteHost "python3 $remoteTmp" 2>&1
+        $exit = $LASTEXITCODE
+        $value = $null
+        & ssh $RemoteHost "rm -f $remoteTmp" 2>&1 | Out-Null
+        $outText = ($out -join "`n")
+        if ($exit -ne 0 -or $outText -notmatch 'updated') {
+            throw "remoteenvwrite on ${RemoteHost}:${Path} failed (exit $exit): $outText"
+        }
+
+        if ($Restart) {
+            & ssh $RemoteHost $Restart 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "restart command '$Restart' failed on $RemoteHost" }
+        }
+
+        # Verify by fingerprint -- re-read from disk, never compare raw values.
+        $readBack = & ssh $RemoteHost "grep -E '^$Key=' '$Path' | head -1 | cut -d= -f2-" 2>&1
+        $readValue = ($readBack -join "`n").Trim()
+        $localHash = ([BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($readValue)))).Replace('-', '').ToLowerInvariant()
+        $readValue = $null
+        $fp = Invoke-RemoteSecret -RemoteArgs @('fingerprint', $Name) -CaptureOutput
+        $remoteHash = (($fp.Output -join '').Trim()) -replace '^sha256:', ''
+        if ($localHash -ne $remoteHash) {
+            throw "wrote into ${RemoteHost}:${Path} but the on-disk value's fingerprint doesn't match the vault's current '$Name' -- investigate before trusting this."
+        }
+        Write-Output "wrote '$Key' in ${RemoteHost}:${Path} from '$Name' (fingerprint-verified$(if ($Restart) { "; restarted via '$Restart'" }); value never shown)."
     }
 
     'run' {

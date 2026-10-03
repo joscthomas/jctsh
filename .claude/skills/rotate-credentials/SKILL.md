@@ -208,7 +208,8 @@ exactly as `rotate.py`'s own error message for that case says.
 Joseph, 2026-10-02, after being asked to run `secret.ps1 copy` himself for a
 second RoboForm paste: "don't ask me to do something you can do." Every
 sanctioned, never-print command in this doc (`copy`, `writefile`,
-`mosquitto-passwd`, build-cache deletes, compiling, flashing) is something
+`mosquitto-passwd`, `envcopy`, `remoteenvwrite`, build-cache deletes, compiling,
+flashing) is something
 you run yourself by default -- don't hand Joseph a command to type unless
 it's one of the two genuine exceptions below, where the constraint is real,
 not a habit:

@@ -147,7 +147,24 @@ only happens once. The remaining holders (the Pi's Mosquitto account,
 deleting the build-cache tree) are independent per target and still handled
 one at a time as usual.
 
-## 4. RoboForm + close out
+## 4. Verify
+
+**Joseph, 2026-10-02: "testing is a step is it not?"** -- it is, name it as
+one, every time, not something folded silently into close-out. Before
+RoboForm/`finish`, confirm the rotation actually works against something
+real, not just that `rotate.py`'s own holder checks passed:
+- A device credential (Mosquitto, OTA): check `http://pi1.local/status.json`
+  for that component -- `"connection": "Connected"` and a `last_seen` from
+  after the reflash confirms it actually reconnected with the new value, not
+  just that the file write succeeded.
+- A webhook/API credential: trigger a real, cheap, reversible call through it
+  (an idea submission, a GPS point, whatever's cheapest for that endpoint)
+  and check the result (a PR opened, a 200 in the relevant log) -- not an
+  assumption that pasting it somewhere was enough.
+If no cheap live check exists for a given credential, say so explicitly
+rather than skipping this step silently.
+
+## 5. RoboForm + close out
 
 Run `.\tos\secret.ps1 copy <target>` yourself to put the value on the
 clipboard (cutover already does this once; re-run it yourself, without being
@@ -169,7 +186,7 @@ CLI call that edits the registry itself. If the card this exposure or
 rotation came from (CARD-0334, CARD-0375, or a future one) names this
 credential as part of its own closing bar, note the completion there too.
 
-## 5. Then repeat
+## 6. Then repeat
 
 Re-run `.\tos\secret.ps1 due` and offer the next one, same priority order as
 step 1. Keep going until Joseph says to stop, or nothing meaningful is left

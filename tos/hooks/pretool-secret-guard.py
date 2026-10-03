@@ -41,7 +41,7 @@ SECRET_PATH_PATTERNS = [
 # variable names (`grep -E '^(VAR_A|VAR_B)='`) -- an allowlist can't
 # accidentally include a variable it didn't name; any looser filter can.
 ENV_DUMP_COMMAND = re.compile(
-    r"(?<![.\w])(env|printenv)\b|Get-ChildItem\s+(-Path\s+)?[\"']?[Ee]nv:|gci\s+env:", re.I
+    r"(?<![.\w'\"])(env|printenv)\b(?!['\"])|Get-ChildItem\s+(-Path\s+)?[\"']?[Ee]nv:|gci\s+env:", re.I
 )
 NARROW_ALLOWLIST = re.compile(r"grep\s+-[A-Za-z]*E[A-Za-z]*\s+['\"]?\^\(", re.I)
 

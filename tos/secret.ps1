@@ -164,7 +164,8 @@ function Get-RegistryDueReport {
             if ($cur) { $idRecords += [pscustomobject]$cur }
             $cur = @{
                 Id = $Matches[1]; Tier = $null; IntervalDays = $null; LastRotated = $null
-                ExposedDates = @(); RotationRequested = $null; Retired = $null; RoboformPending = $false
+                ExposedDates = @(); RotationRequested = $null; RotationDeclined = $null
+                Retired = $null; RoboformPending = $false
             }
             continue
         }
@@ -184,6 +185,10 @@ function Get-RegistryDueReport {
             $cur.RotationRequested = if ($Matches[1] -eq 'null') { $null } else { $Matches[1] }
             continue
         }
+        if ($line -match '^    rotation_declined:\s*(null|".*")') {
+            $cur.RotationDeclined = if ($Matches[1] -eq 'null') { $null } else { $Matches[1] }
+            continue
+        }
         if ($line -match '^    roboform_synced:\s*false\b') { $cur.RoboformPending = $true; continue }
         if ($line -match '^    retired:\s*(null|".*")') {
             $cur.Retired = if ($Matches[1] -eq 'null') { $null } else { $Matches[1] }
@@ -194,8 +199,9 @@ function Get-RegistryDueReport {
         # just flagged ones: an entry with an accounts: map is evaluated per account (CARD-0372, 2026-10-02).
         if ($line -match '^      (\S+):\s*\{(.*)\}\s*$') {
             $subName = $Matches[1]; $body = $Matches[2]
-            $subRR = $null; $subRetired = $null; $subLast = $null; $subExposed = @()
+            $subRR = $null; $subRD = $null; $subRetired = $null; $subLast = $null; $subExposed = @()
             if ($body -match 'rotation_requested:\s*"([^"]*)"') { $subRR = $Matches[1] }
+            if ($body -match 'rotation_declined:\s*"([^"]*)"') { $subRD = $Matches[1] }
             if ($body -match 'retired:\s*"([^"]*)"') { $subRetired = $Matches[1] }
             # Match the unquoted fields only outside quoted strings, so a holder/reason text can't fake one.
             $bare = $body -replace '"[^"]*"', '""'
@@ -204,8 +210,8 @@ function Get-RegistryDueReport {
                 $subExposed = @([regex]::Matches($Matches[1], '\d{4}-\d{2}-\d{2}') | ForEach-Object { $_.Value })
             }
             $subRecords += [pscustomobject]@{
-                Id = $cur.Id; SubAccount = $subName; RotationRequested = $subRR; Retired = $subRetired
-                LastRotated = $subLast; ExposedDates = $subExposed
+                Id = $cur.Id; SubAccount = $subName; RotationRequested = $subRR; RotationDeclined = $subRD
+                Retired = $subRetired; LastRotated = $subLast; ExposedDates = $subExposed
                 RoboformPending = ($bare -match 'roboform_synced:\s*false\b')
             }
             continue
@@ -218,6 +224,7 @@ function Get-RegistryDueReport {
     $requestedBucket = [System.Collections.Generic.List[object]]::new()
     $overdueBucket = [System.Collections.Generic.List[object]]::new()
     $roboformBucket = [System.Collections.Generic.List[object]]::new()
+    $declinedBucket = [System.Collections.Generic.List[object]]::new()
 
     # One credential's status, highest-priority bucket only: exposed > requested > overdue.
     function Add-DueStatus($Name, $ExposedDates, $LastRotated, $RotationRequested, $IntervalDays, $Tier) {
@@ -260,6 +267,10 @@ function Get-RegistryDueReport {
             if ($s.RoboformPending -and -not $s.Retired) { $null = $roboformBucket.Add([pscustomobject]@{ Name = "$($r.Id)--$($s.SubAccount)" }) }
         }
         if ($subs.Count -eq 0) {
+            if ($r.RotationDeclined) {
+                $null = $declinedBucket.Add([pscustomobject]@{ Name = $r.Id; Detail = $r.RotationDeclined })
+                continue
+            }
             Add-DueStatus $r.Id $r.ExposedDates $r.LastRotated $r.RotationRequested $r.IntervalDays $r.Tier
             continue
         }
@@ -268,6 +279,10 @@ function Get-RegistryDueReport {
         # account's own last_rotated wins over the entry's fallback, so rotating one account clears only it.
         foreach ($s in $subs) {
             if ($s.Retired) { continue }  # e.g. mosquitto-accounts--air-quality-monitor, CARD-0377
+            if ($s.RotationDeclined) {
+                $null = $declinedBucket.Add([pscustomobject]@{ Name = "$($r.Id)--$($s.SubAccount)"; Detail = $s.RotationDeclined })
+                continue
+            }
             $exposed = @($r.ExposedDates) + @($s.ExposedDates)
             $last = if ($s.LastRotated) { $s.LastRotated } else { $r.LastRotated }
             $rr = if ($s.RotationRequested) { $s.RotationRequested } else { $r.RotationRequested }
@@ -290,7 +305,7 @@ function Get-RegistryDueReport {
     }
 
     [pscustomobject]@{ Exposed = $exposedBucket; Requested = $requestedBucket; Overdue = $overdueBucket
-                       Roboform = $roboformBucket; InProgress = $inProgress }
+                       Roboform = $roboformBucket; InProgress = $inProgress; Declined = $declinedBucket }
 }
 
 # --- Commands ---
@@ -578,6 +593,12 @@ print('updated')
         Write-Output "=== OVERDUE BY CADENCE (periodic nudge -- offer, don't demand) ==="
         if ($report.Overdue.Count -gt 0) {
             $report.Overdue | ForEach-Object { Write-Output "  $($_.Name) -- $($_.Detail)" }
+        } else { Write-Output "  none" }
+
+        Write-Output ""
+        Write-Output "=== DECLINED (explicit decision not to rotate) ==="
+        if ($report.Declined.Count -gt 0) {
+            $report.Declined | ForEach-Object { Write-Output "  $($_.Name) -- $($_.Detail)" }
         } else { Write-Output "  none" }
 
         if ($report.Exposed.Count -gt 0) { exit 2 }

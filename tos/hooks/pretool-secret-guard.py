@@ -30,6 +30,21 @@ SECRET_PATH_PATTERNS = [
     re.compile(r"\.esphome[\\/]", re.I),
 ]
 
+# A command whose whole JOB is to dump environment variables broadly -- `env`,
+# `printenv`, `docker exec ... env`, PowerShell's Env: drive -- is dangerous
+# regardless of any keyword filter layered on top, because the filter only
+# narrows by NAME pattern, not by whether the matched variable happens to hold a
+# secret. Found live 2026-10-02 (CARD-0334 sixth occurrence): `env | grep -i
+# postgres` was meant to find POSTGRES_USER/POSTGRES_DB but also matched
+# POSTGRES_PASSWORD, which shares the same substring. Block the whole shape
+# unless the command already narrows with an explicit ALLOWLIST of exact
+# variable names (`grep -E '^(VAR_A|VAR_B)='`) -- an allowlist can't
+# accidentally include a variable it didn't name; any looser filter can.
+ENV_DUMP_COMMAND = re.compile(
+    r"\b(env|printenv)\b|Get-ChildItem\s+(-Path\s+)?[\"']?[Ee]nv:|gci\s+env:", re.I
+)
+NARROW_ALLOWLIST = re.compile(r"grep\s+-[A-Za-z]*E[A-Za-z]*\s+['\"]?\^\(", re.I)
+
 SECRET_SHAPED_PATTERNS = [
     (re.compile(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"), "a JWT"),
     (re.compile(r"Bearer\s+[A-Za-z0-9._-]{10,}", re.I), "a Bearer token"),
@@ -123,6 +138,26 @@ def main():
                     file=sys.stderr,
                 )
                 sys.exit(2)
+        if (
+            key == "command"
+            and tool_name in ("Bash", "PowerShell")
+            and not path_exempt
+            and ENV_DUMP_COMMAND.search(text)
+            and not NARROW_ALLOWLIST.search(text)
+        ):
+            print(
+                "Blocked: this command dumps environment variables broadly (env/"
+                "printenv/Env:). A keyword filter on top (-i postgres, etc.) only "
+                "narrows by name pattern -- it can still match a PASSWORD/SECRET/"
+                "KEY/TOKEN variable sharing that substring (CARD-0334 sixth "
+                "occurrence: POSTGRES_PASSWORD matched a filter meant for "
+                "POSTGRES_USER/POSTGRES_DB). Use an explicit allowlist instead, "
+                "naming exactly the variables you need: "
+                "grep -E '^(VAR_A|VAR_B)=' -- or read the variable NAMES from "
+                "docker-compose.yml/.env.example instead of the live environment.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
 
     sys.exit(0)
 

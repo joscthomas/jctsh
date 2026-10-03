@@ -87,7 +87,7 @@
 
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'due', 'writefile', 'mosquitto-passwd', 'envcopy', 'remoteenvwrite')]
+    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'due', 'writefile', 'mosquitto-passwd', 'envcopy', 'remoteenvwrite', 'syncfile')]
     [string]$Action,
 
     [Parameter(Position = 1)]
@@ -103,6 +103,7 @@ param(
     [string]$PasswdFile,
     [string]$RemoteHost,
     [string]$Restart,
+    [string]$Dest,
 
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Rest
@@ -462,6 +463,15 @@ switch ($Action) {
         Set-Clipboard -Value $value
         $value = $null
         Write-Output "'$Name' ($Key from ${RemoteHost}:${Path}) placed on the clipboard (stays until you copy something else). Value never shown."
+    }
+
+    'syncfile' {
+        if (-not $Path -or -not $Dest) {
+            throw 'Usage: secret.ps1 syncfile -Path <source> -Dest <destination>  (plain local file copy -- no vault/value involved, just a sanctioned way to touch a device-secrets path, e.g. syncing a repo secrets.yaml over its stale C:\esphome working copy)'
+        }
+        $src = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path
+        Copy-Item -LiteralPath $src -Destination $Dest -Force
+        Write-Output "copied $src -> $Dest"
     }
 
     'remoteenvwrite' {

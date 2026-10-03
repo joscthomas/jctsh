@@ -52,6 +52,29 @@ can't be hijacked by whatever editor is currently registered for `.py`.
 `.ps1`'s association issue is the separate cmd-vs-PowerShell one covered
 elsewhere) -- keep invoking it as `.\tos\secret.ps1 <cmd>`.
 
+## 0. Start the dashboard -- first thing, every time this skill starts
+
+**Joseph, 2026-10-02: "when i start the skill, start the dashboard and
+provide the link to it. don't make me run a python command in a PS
+session."** Before Step 1, every time:
+
+1. Check whether it's already running: a GET to
+   `http://127.0.0.1:8765/api/status` that succeeds means it's already up --
+   don't start a second one, just hand over the link again.
+2. If not running, start `python tos\rotation_dashboard.py --no-browser`
+   yourself as a background process. `--no-browser` matters -- let Joseph
+   open the link himself rather than depending on a background process's
+   browser-launch working silently and correctly.
+3. Give him the link as plain clickable text: `http://127.0.0.1:8765/`. Never
+   hand him a command to run for this -- there's no CLI exception here, same
+   as every other sanctioned tool in this doc.
+
+It's local-only (`127.0.0.1`), reads `tos/.rotation-state/*.json` and
+`secret.ps1 due`, never touches a value. Once it's up, every holder's live
+status, the full plan, and a stalled-guided-step alert are all visible there
+continuously -- you don't need to re-paste that detail into chat on top of
+labeling the step.
+
 ## 1. Triage -- what to rotate next
 
 Run `.\tos\secret.ps1 due` (local, read-only, no vault touch -- safe to run

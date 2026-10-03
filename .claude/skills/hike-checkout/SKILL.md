@@ -128,15 +128,66 @@ Three distinct outcomes, tell them apart:
   AQM holder note already flagged as a real risk, just a different
   credential.
 - **Nothing logged for `hike-end` at all** (exactly 2026-10-03's finding) --
-  the webhook never reached the server. Rule out a credential cause first:
-  if *other* webhook routes on this same container (`/webhook/idea`,
-  `/webhook/step2`) succeeded during the hike window, the shared
-  `webhook-secret` is fine and the gap is phone-side (GPSLogger's `stopped`
-  broadcast, or Tasker's `Hike-izer Done` profile, didn't fire) -- see
-  `components/hike-izer-orchestrator/tasker-setup.md` for exactly what's
-  supposed to happen there. This is NOT something to fix from here (no SSH
-  access to Joseph's phone) -- it's a finding to report, with the one safe
-  recovery action named in step 5.
+  the webhook never reached the server. Work through this in order, each
+  step narrows the cause further -- don't jump straight to "it's phone-side"
+  without the isolation steps, 2026-10-03's own investigation took several
+  wrong turns skipping them:
+  1. **Search with the right log pattern.** The orchestrator logs *every*
+     received event via `log(f"Received gpsloggerevent={event} ...")`, not
+     just "hike-end" or "stopped" literally -- grep for `gpsloggerevent`
+     specifically, not just the words in the webhook's own name, or a
+     `started` event (which IS received and logged, just then ignored) will
+     look identical to one that never arrived at all.
+  2. **Check the historical baseline, not just the current window** -- the
+     orchestrator container's own `docker logs` only covers its current
+     uptime (it restarts periodically), so a 48h grep can miss the real
+     pattern. Check the Pi's *persistent* log instead:
+     ```
+     ssh -o ConnectTimeout=5 pi@pi1.local "grep -i 'webhook received: gpsloggerevent\|idea webhook' /mnt/jctsh-logs/jctsh.log | tail -20"
+     ```
+     This tells you whether the mechanism normally works (a clean
+     started/stopped pair on a recent prior hike) before concluding today's
+     silence is systemic rather than a one-off.
+  3. **Cross-check against a different webhook caller on the same
+     phone/credential** (the "Log Idea" Tasker widget, `/webhook/idea`) --
+     if it fired successfully *during the hike window* with the same shared
+     `webhook-secret`, that rules out a phone-wide outage, a dead Tasker
+     install, and the shared credential all at once, narrowing the cause to
+     something specific to the hike-end Task/Profile itself.
+  4. **Isolate Task-level vs. trigger-level failure directly, in Tasker, on
+     the phone:** tap the `Hike-izer Webhook` Task's own play button
+     (bypasses GPSLogger and the Profile entirely) and check the server logs
+     right after. If this reaches the server -- the Task/URL itself is fine,
+     and the problem is specifically in GPSLogger's broadcast or the
+     `Hike-izer Done` Profile catching it. If it does NOT reach the server
+     either, the Task itself is broken -- **check the HTTP Post action's
+     `Path` field specifically for exactly this failure mode, found live
+     2026-10-03: a credential-rotation paste can overwrite the Path field
+     with JUST the bare key value, silently dropping the
+     `/webhook/hike-end?key=` prefix in front of it** (no Tasker-visible
+     error either way -- Tasker's own Run Log shows the action "succeeded"
+     regardless, since it never validates the destination). GPSLogger itself
+     has no separate "enable broadcast" setting to hunt for in its own
+     settings menu (unlike the point-upload path, which *is* a real,
+     documented toggle) -- don't waste time searching GPSLogger's own UI for
+     one if the Task-level test above already explains the gap.
+  5. **If the Task alone checks out fine, test the real end-to-end chain**
+     (an actual GPSLogger start+stop, not the manual tap) and watch for both
+     the "Hike-izer: publish triggered" flash on the phone AND the matching
+     server log line. **Observed live 2026-10-03: this can fail silently
+     once (flash fires, Tasker's Run Log shows no error, nothing reaches the
+     server) and then succeed cleanly on an immediate retry, with no
+     identified intervening fix.** Treat one silent failure here as
+     inconclusive, not as proof of a standing break -- retry at least once
+     before reporting this as still broken, and say so plainly if the retry
+     succeeds without an explained cause (an honest "intermittent, cause not
+     found" is a real, valid finding -- don't paper over it with a
+     speculative explanation that wasn't actually confirmed, e.g. battery
+     optimization, Background Data restrictions, or anything else on the
+     phone side that hasn't actually been checked and confirmed).
+  This is otherwise NOT something to fix from here (no SSH access to
+  Joseph's phone past what's listed above) -- report the finding, with the
+  one safe recovery action named in step 5/7.
 
 Also check `hike_izer_cost` for a sane entry if generation did run
 (`SELECT * FROM hike_izer_cost WHERE ts > '<date>'` via the same psql
@@ -204,10 +255,15 @@ idempotent recovery is:
 ```
 ssh jct@m8 'set -a; source ~/hike-izer-web-app/.env; set +a; curl -s -X POST "https://hikes.jctnet.com/webhook/hike-end?key=$WEBHOOK_SECRET" -H "Content-Type: application/json" -d "{\"gpsloggerevent\":\"stopped\",\"local_datetime\":\"<hike-end time, local, ISO8601 with UTC offset>\"}"'
 ```
-This triggers a real `generate()` run -- Nominatim/Overpass/Immich calls and
-a billed Anthropic API call for the summary (tracked in `hike_izer_cost`),
-not a free retry. State that cost plainly when asking, same as any other
-real action this project tracks spend for.
+This triggers a real `generate()` run -- Nominatim/Overpass/Immich lookups,
+not a free retry -- so name it as a real action when asking, not a
+no-op. **Correction, confirmed live 2026-10-03: narrative generation (the
+billed Anthropic API call) was retired in CARD-0348** -- a real run today
+cost `$0.0000, 0 API calls` per its own `hike_izer_cost` entry. Don't
+overstate this as "a billed AI call" when asking -- it's a real action
+(external lookups, writes a published page) but not currently a paid one;
+check `hike_izer_cost` after running it to confirm what it actually cost,
+rather than assuming either way.
 
 If a problem instead points at a credential (rotation gone wrong, auth
 failing) -- **don't attempt a fix here.** Report the finding and hand it to

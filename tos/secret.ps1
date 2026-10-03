@@ -87,7 +87,7 @@
 
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'due', 'writefile', 'mosquitto-passwd')]
+    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'due', 'writefile', 'mosquitto-passwd', 'envcopy')]
     [string]$Action,
 
     [Parameter(Position = 1)]
@@ -101,6 +101,7 @@ param(
     [string]$MqttUser,
     [string]$MosquittoHost,
     [string]$PasswdFile,
+    [string]$RemoteHost,
 
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Rest
@@ -438,6 +439,28 @@ switch ($Action) {
             throw "mosquitto is not active on $h after restart (status: $active) -- investigate before trusting this rotation."
         }
         Write-Output "set '$MqttUser' on ${h}:${f} from '$Name' (mosquitto_passwd interactive form, value only ever on stdin; verified mosquitto active after restart; value never shown)."
+    }
+
+    'envcopy' {
+        if (-not $Name -or -not $RemoteHost -or -not $Path -or -not $Key) {
+            throw 'Usage: secret.ps1 envcopy <label> -RemoteHost <user@host> -Path <remote envfile> -Key <VAR_NAME>  (reads one KEY=VALUE line from a remote file over SSH, relays straight to the clipboard, never prints it -- for a credential not yet in the vault)'
+        }
+        # A targeted single-key read, not a dump -- deliberately the opposite shape of
+        # the CARD-0334 sixth-occurrence incident (a broad `env | grep` that matched
+        # more than intended). grep -E '^KEY=' can only ever match that one name.
+        $remoteCmd = "grep -E '^" + $Key + "=' " + $Path + " | head -1 | cut -d= -f2-"
+        $raw = & ssh $RemoteHost $remoteCmd 2>&1
+        $exit = $LASTEXITCODE
+        if ($exit -ne 0 -or -not $raw) {
+            throw "could not read '$Key' from ${RemoteHost}:${Path} (exit $exit) -- confirm the key exists and is spelled exactly right."
+        }
+        $value = ($raw -join "`n").Trim()
+        if ($value.Length -ge 2 -and (($value[0] -eq '"' -and $value[-1] -eq '"') -or ($value[0] -eq "'" -and $value[-1] -eq "'"))) {
+            $value = $value.Substring(1, $value.Length - 2)
+        }
+        Set-Clipboard -Value $value
+        $value = $null
+        Write-Output "'$Name' ($Key from ${RemoteHost}:${Path}) placed on the clipboard (stays until you copy something else). Value never shown."
     }
 
     'run' {

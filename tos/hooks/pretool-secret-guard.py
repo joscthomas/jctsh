@@ -50,21 +50,34 @@ GUARDED_TOOLS = {"Bash", "PowerShell", "Read", "Grep"}
 # even if it runs right after a legitimate secret.ps1 call. Read/Grep get no exemption:
 # there is no sanctioned way to directly Read a secret-bearing file.
 CD_PREFIX = re.compile(r"^\s*cd\s+\S+\s*(?:&&|;)\s*", re.I)
+CD_ONLY = re.compile(r"^\s*cd\s+\S+\s*$", re.I)
 SCRIPT_INVOCATION = re.compile(
     r"^(?:\.[\\/]|\.\\|python3?\s+|py\s+)?tos[\\/](?:secret\.ps1|secret\.py|rotate\.py)\b", re.I
 )
 SHELL_CHAIN_CHARS = re.compile(r"[;&|`]|\$\(")
 
 
-def is_sanctioned_command(command):
-    """True only if, after stripping at most one leading 'cd <dir> &&'/';', the WHOLE
-    rest of the command is a single secret.ps1/secret.py/rotate.py invocation with no
-    further shell chaining -- so a smuggled-in `cat secrets.yaml` after it still blocks."""
-    rest = CD_PREFIX.sub("", command, count=1)
+def _is_sanctioned_line(line):
+    if CD_ONLY.match(line):
+        return True
+    rest = CD_PREFIX.sub("", line, count=1)
     if not SCRIPT_INVOCATION.match(rest):
         return False
     after_match = SCRIPT_INVOCATION.sub("", rest, count=1)
     return not SHELL_CHAIN_CHARS.search(after_match)
+
+
+def is_sanctioned_command(command):
+    """True only if EVERY line of the command is a bare 'cd <dir>' or a single
+    secret.ps1/secret.py/rotate.py invocation (optionally cd-prefixed on that same
+    line) with no further shell chaining -- a batch of several sanctioned calls on
+    separate lines is fine (CARD-0372, 2026-10-02: writing several device-secret
+    values in one multi-line PowerShell block), but a smuggled-in `cat secrets.yaml`,
+    whether joined with ;/&& or just sitting on its own line, still blocks the whole
+    command. Checked per-line, not just once at the start, specifically so a newline
+    can't be used to evade the single-command check the original version only did."""
+    lines = [l for l in command.splitlines() if l.strip()]
+    return bool(lines) and all(_is_sanctioned_line(l) for l in lines)
 
 
 def main():

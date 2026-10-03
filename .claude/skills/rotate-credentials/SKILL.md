@@ -114,6 +114,11 @@ chain them automatically back to back.
   automatic (`apply`) holder and its check without asking per-holder (that's
   what "automatic" means -- the one go-ahead for `start` covers all of
   them), then stops at the first guided holder.
+- **Label every holder as you reach it: `Holder N/M: <name>`**, using the
+  count and names from `plan`'s own numbered list (Joseph, 2026-10-02: "I
+  would like to see the holders more clearly enumerated and identified as
+  you work your way through them"). Don't just paste `rotate.py`'s raw
+  output and move on -- state which holder this is before acting on it.
 - **Each guided holder:** the command puts the new value on the clipboard and
   names where it goes. Relay that instruction verbatim, then wait for Joseph
   to say it's done (or that this holder doesn't actually hold the value, or
@@ -152,7 +157,14 @@ one at a time as usual.
 **Joseph, 2026-10-02: "testing is a step is it not?"** -- it is, name it as
 one, every time, not something folded silently into close-out. Before
 RoboForm/`finish`, confirm the rotation actually works against something
-real, not just that `rotate.py`'s own holder checks passed:
+real, not just that `rotate.py`'s own holder checks passed.
+
+**Identify which holder is being verified and what the test actually is,
+every time** (Joseph, same session: "I want to see each holder clearly
+identified when you do the testing, and identify the testing you're doing
+to prove it works"). Format: `Verifying holder N/M (<name>): <what you're
+about to check>` before running it, then state the actual result -- not
+just a bare pass/fail.
 - A device credential (Mosquitto, OTA): check `http://pi1.local/status.json`
   for that component -- `"connection": "Connected"` and a `last_seen` from
   after the reflash confirms it actually reconnected with the new value, not

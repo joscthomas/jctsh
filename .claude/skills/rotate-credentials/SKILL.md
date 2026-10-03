@@ -176,6 +176,19 @@ just a bare pass/fail.
 If no cheap live check exists for a given credential, say so explicitly
 rather than skipping this step silently.
 
+**Record the outcome in the registry itself, not just in conversation**
+(Joseph, same session: "how do you keep track of the tests for each holder
+that proves it works?" -- two separate facts matter: "one is the test
+that's required to prove the rotation works, and two that the test
+passed"). The existing `verify:` field on each holder is the first fact --
+don't touch it. Add/update `verified_live: <date>` for the second --
+distinct from the holder's `verified: true/false` flag, which only means
+the *recipe* is known-correct, not that *this* rotation's value was
+actually confirmed live. Set `verified_live` to today's date only where you
+have real evidence; leave it `null` with a short `note:` explaining why
+when a holder couldn't be confirmed (an empty queue, a device still
+offline, etc.) -- never set it on an assumption.
+
 ## 5. RoboForm + close out
 
 Run `.\tos\secret.ps1 copy <target>` yourself to put the value on the

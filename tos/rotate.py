@@ -489,6 +489,16 @@ def cmd_plan(args):
     else:
         say("Dual-accept: no -- each holder switches when it's updated; do the guided ones promptly.")
     say(f"Start with:  rotate.py start {args.target}" + ("  --prompt (value minted by the service)" if f.get("class") == "token" else ""))
+    if args.preview:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        preview = {
+            "target": args.target, "planned_at": now_utc().isoformat(),
+            "holders": [{"key": h["key"], "label": h["label"], "mode": "auto" if h["apply"] else "guided",
+                         "desc": describe_apply(h["apply"]) if h["apply"] else (h["verify"] or "")}
+                        for h in hs],
+        }
+        with open(os.path.join(STATE_DIR, "planned.json"), "w", encoding="utf-8") as pf:
+            json.dump(preview, pf, indent=2)
 
 
 def cmd_start(args):
@@ -542,6 +552,14 @@ def cmd_start(args):
         }
         save_state(st)
         say(f"  window closes {st['expires']} (old value stops working there at the latest)")
+        preview_path = os.path.join(STATE_DIR, "planned.json")
+        if os.path.exists(preview_path):
+            try:
+                with open(preview_path, encoding="utf-8") as pf:
+                    if json.load(pf).get("target") == name:
+                        os.remove(preview_path)
+            except Exception:
+                pass
         _continue(st, e, acct)
 
 
@@ -806,6 +824,8 @@ def main():
         sp = sub.add_parser(c)
         sp.add_argument("target")
         sp.add_argument("--break-lock", action="store_true")
+    sub.choices["plan"].add_argument("--preview", action="store_true",
+                                      help="write a values-free preview to .rotation-state/planned.json for the dashboard")
     sub.choices["start"].add_argument("--prompt", action="store_true", help="type a value the service minted")
     sub.choices["start"].add_argument("--window-days", type=int, default=DEFAULT_WINDOW_DAYS)
     sub.choices["start"].add_argument("--no-current", action="store_true")

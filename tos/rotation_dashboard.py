@@ -62,7 +62,7 @@ def read_in_progress():
         return out
     for fn in sorted(os.listdir(STATE_DIR)):
         p = os.path.join(STATE_DIR, fn)
-        if not fn.endswith(".json") or not os.path.isfile(p):
+        if not fn.endswith(".json") or fn == "planned.json" or not os.path.isfile(p):
             continue
         try:
             with open(p, encoding="utf-8") as f:
@@ -158,9 +158,29 @@ def all_targets_and_last_rotated():
     return out
 
 
+def read_planned(in_progress_targets):
+    """rotate.py plan --preview writes this -- a values-free snapshot of what's
+    about to be staged, so the dashboard shows something between 'plan' and
+    'start' instead of a blank panel. Suppressed once the real rotation starts
+    (cmd_start deletes it, but also check here defensively -- a stale file
+    from an interrupted run should never shadow the real in-progress entry)."""
+    p = os.path.join(STATE_DIR, "planned.json")
+    if not os.path.isfile(p):
+        return None
+    try:
+        with open(p, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return None
+    if data.get("target") in in_progress_targets:
+        return None
+    return data
+
+
 def build_status():
     due, err = read_due()
     in_progress = read_in_progress()
+    planned = read_planned({r["target"] for r in in_progress})
     exposed = pick(due, "EXPOSED")
     requested = pick(due, "REQUESTED")
     roboform_pending = pick(due, "ROBOFORM")
@@ -176,6 +196,7 @@ def build_status():
         "generated_at": dt.datetime.now().isoformat(timespec="seconds"),
         "needs_attention": any(r.get("needs_attention") for r in in_progress),
         "in_progress": in_progress,
+        "planned": planned,
         "exposed": exposed,
         "requested": requested,
         "roboform_pending": roboform_pending,
@@ -269,6 +290,12 @@ PAGE_HTML = """<!doctype html>
 
   <div class="attn-banner" id="attn-banner">&#9888; Switch to the Claude Code session &mdash; <span id="attn-why"></span></div>
 
+  <div class="panel" id="planned-panel" style="display:none">
+    <h2>Planned (not started yet)</h2>
+    <div id="planned"></div>
+    <div class="note">Staged by `rotate.py plan --preview`. Nothing has changed yet -- waiting for the go-ahead to run `start`.</div>
+  </div>
+
   <div class="panel">
     <h2>In progress</h2>
     <div id="in-progress"><div class="empty">loading...</div></div>
@@ -345,6 +372,23 @@ function renderDue(data) {
       ${rows.map(r => `<div class="list-row"><span>${r.name}</span><span class="detail">${r.detail}</span></div>`).join('')}
     </div>`).join('');
 }
+function renderPlanned(planned) {
+  const panel = document.getElementById('planned-panel');
+  if (!planned) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  const holders = planned.holders.map(h => `<div class="holder">
+      <div class="holder-row">
+        <span class="check"></span>
+        <span class="label">${h.label}</span>
+        <span class="mode-tag">${h.mode}</span>
+      </div>
+      ${h.desc ? `<div class="desc">${h.desc}</div>` : ''}
+    </div>`).join('');
+  document.getElementById('planned').innerHTML = `<div class="rotation">
+      <div class="rotation-head"><span class="target">${planned.target}</span><span class="phase">planned</span></div>
+      <div class="holders">${holders}</div>
+    </div>`;
+}
 function renderDeclined(rows) {
   const el = document.getElementById('declined');
   if (!rows.length) { el.innerHTML = '<div class="empty">none</div>'; return; }
@@ -402,6 +446,7 @@ async function tick() {
   try {
     const r = await fetch('/api/status');
     const data = await r.json();
+    renderPlanned(data.planned);
     renderInProgress(data.in_progress);
     renderDue(data);
     renderDeclined(data.declined);

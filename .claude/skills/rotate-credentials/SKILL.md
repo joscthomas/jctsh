@@ -112,7 +112,14 @@ treat silence as a yes.
 
 ## 2. Prepare
 
-`python tos\rotate.py plan <target>` -- offline, nothing touched, no value read.
+`python tos\rotate.py plan <target> --preview` -- offline, nothing touched, no
+value read. `--preview` additionally writes a values-free snapshot to
+`.rotation-state/planned.json` that the dashboard shows as "Planned (not
+started yet)" -- Joseph, 2026-10-03: "plan should show that we're staging a
+new value" -- so there's something to look at between Step 1's pick and Step
+3's `start`, not a blank page. It's suppressed automatically once `start`
+actually runs (cmd_start deletes it; the dashboard also never shows a
+"planned" entry for a target that already has a real in-progress one).
 Shows every holder in order, which are automatic (`apply`) vs guided, and
 whether dual-accept covers the guided ones (meaning the old value keeps
 working while Joseph gets to them, vs. switching immediately). Read it and

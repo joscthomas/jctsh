@@ -2,6 +2,9 @@
 secrets.h
 secrets.yaml
 credentials.local.md
+credentials.local*.md
+# ^ wildcard added 2026-10-03 (CARD-0372): covers a renamed retired copy
+# (e.g. credentials.local.RETIRED.md) without needing this file touched again.
 # Temporary RoboForm data-entry checklist (contains passwords) -- delete when done
 roboform-checklist.local.md
 .env

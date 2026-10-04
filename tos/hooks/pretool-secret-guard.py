@@ -23,7 +23,12 @@ import re
 import sys
 
 SECRET_PATH_PATTERNS = [
-    re.compile(r"credentials\.local\.md", re.I),
+    # Broadened 2026-10-03 (CARD-0372) from an exact "credentials.local.md" match --
+    # Joseph is renaming it to a retired/backup copy (credentials.local.RETIRED.md or
+    # similar) and gitignoring both. An exact-filename pattern would have silently
+    # stopped covering it the moment the rename happened; this matches any
+    # credentials.local* variant instead, past or future.
+    re.compile(r"credentials\.local", re.I),
     re.compile(r"secrets\.yaml", re.I),
     re.compile(r"secrets\.h\b", re.I),
     re.compile(r"(^|[\\/])\.env$", re.I),

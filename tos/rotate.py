@@ -9,8 +9,12 @@ pass/fail and short fingerprints only.
 
     rotate.py plan     <target>      the plan, offline -- no M8, nothing changes
     rotate.py verify   <target>      run each holder's check against the CURRENT value
-    rotate.py audit    <target>      who else uses it? repo references + (broker accounts) logins
-    rotate.py start    <target> [--prompt] [--window-days N] [--no-current] [--restage]
+    rotate.py audit    <target>      who else uses it? repo references, each copy's fingerprint vs
+                                     the vault, a sweep of both hosts for the same variable, and
+                                     (broker accounts) who has logged in
+    rotate.py preflight <target>     every precondition `start` needs, read-only -- run it BEFORE any
+                                     step that can't be undone (regenerating a token, say)
+    rotate.py start    <target> [--prompt | --from-clipboard] [--window-days N] [--no-current] [--restage]
     rotate.py continue <target>      resume after a manual step or an interruption
     rotate.py status   [<target>]    rotations in progress
     rotate.py confirm-synced <target>  you pasted the new value into RoboForm
@@ -28,6 +32,9 @@ The lifecycle (CARD-0372's "one fixed lifecycle"):
             runner (secret.py envfile + restart) and checked (`check_cmd`, else you
             confirm its `verify`); any other holder is guided: the new value goes on
             your clipboard and the runner waits for you to say it's done.
+            `apply.via: workstation` makes THIS machine write the file (secret.ps1
+            remoteenvwrite) instead of the M8 -- for hosts the M8 must not hold a key to
+            (the Pi); no dual-accept there.
             A dual-accept holder (apply.previous_var) gets the new value AND keeps
             the old one valid until the window closes -- the server enforces that
             itself, so a phone or device can move later without an outage.
@@ -54,11 +61,14 @@ import json
 import os
 import re
 import shlex
+import shutil
 import socket
 import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+SECRET_PS1 = os.path.join(HERE, "secret.ps1")
+PS_EXE = shutil.which("pwsh") or shutil.which("powershell") or "powershell"
 REGISTRY = os.environ.get("JCTSH_REGISTRY", os.path.join(HERE, "credential-registry.yaml"))
 STATE_DIR = os.environ.get("JCTSH_ROTATION_STATE", os.path.join(HERE, ".rotation-state"))
 M8_HOST = os.environ.get("JCTSH_M8_HOST", "jct@m8.local")
@@ -414,9 +424,40 @@ class RunLock:
 
 # --- holder actions -------------------------------------------------------------------
 
+def ws_ssh(host, remote_cmd, timeout=120):
+    """Non-interactive ssh FROM THIS WORKSTATION (not via the M8). Values never go through here:
+    callers pass names, paths and hashes only."""
+    try:
+        r = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", host, remote_cmd],
+                           capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return 124, "timed out"
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def remote_path(path):
+    """A path as the remote shell should see it: ~ left unquoted so it expands to that user's home."""
+    return path if path.startswith("~") else shlex.quote(path)
+
+
+def workstation_apply(name, a):
+    """An apply holder the WORKSTATION drives (secret.ps1 remoteenvwrite: vault -> stdin -> file,
+    exact bytes, owner/mode kept), for hosts the M8 must not hold a key to -- the Pi's `pi` user has
+    blanket sudo and the M8 is the internet-facing box, so M8 -> Pi would be a root path from a
+    compromised M8."""
+    cmd = [PS_EXE, "-NoProfile", "-File", SECRET_PS1, "remoteenvwrite", f"{name}.next",
+           "-RemoteHost", a["host"], "-Path", a["envfile"], "-Key", a["var"]]
+    if a.get("sudo"):
+        cmd.append("-Sudo")
+    if a.get("restart"):
+        cmd += ["-Restart", a["restart"]]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
 def describe_apply(a):
     where = f"{a['host']}:" if a.get("host") else "M8:"
-    parts = [f"envfile {where}{a['envfile']} {a['var']}=<new>"]
+    parts = [f"envfile {where}{a['envfile']} {a['var']}=<new>" + (" (driven from the workstation)" if a.get("via") == "workstation" else "")]
     if a.get("previous_var"):
         parts.append(f"{a['previous_var']}=<old> until {a.get('expires_var') or '?'}")
     if a.get("restart"):
@@ -451,6 +492,74 @@ def vault_names():
 
 
 # --- commands ---------------------------------------------------------------------------
+
+def preflight(hs):
+    """Everything `start` needs to be true, checked WITHOUT changing anything: [(ok, label, detail)].
+    Run it before any step that can't be undone (regenerating a token in GitHub, say) -- learned
+    live 2026-10-03: three separate preflight failures (a host key, an M8 -> Pi hop, a bad paste)
+    turned a minute of downtime into a long outage because the old token was already dead."""
+    res = []
+
+    def add(ok, label, detail=""):
+        res.append((ok, label, detail))
+
+    rc, out = ws_ssh(M8_HOST, "true")
+    add(rc == 0, f"this workstation -> {M8_HOST} (non-interactive ssh)", out if rc else "")
+    if rc != 0:
+        return res
+    rc, out = secret(["init"], check=False)
+    add(rc == 0, "vault on the M8 is usable", "" if rc == 0 else out.splitlines()[-1] if out else "")
+    for h in hs:
+        a = h["apply"]
+        if not a:
+            continue
+        lbl, host, var = h["label"], a.get("host"), a["var"]
+        via_ws = a.get("via") == "workstation"
+        if via_ws and a.get("previous_var"):
+            add(False, f"{lbl}", "via: workstation can't do dual-accept (previous_var)")
+            continue
+        if via_ws and not host:
+            add(False, f"{lbl}", "via: workstation needs a host")
+            continue
+        if host and not via_ws:
+            rc, out = secret(["reach", host], check=False)
+            add(rc == 0, f"{lbl}: the M8 -> {host} (non-interactive ssh)",
+                "" if rc == 0 else f"{out}  -- the M8 should not hold a key to every host: make this holder "
+                                   f"`via: workstation`, or handle it by hand")
+            continue
+        target = host if via_ws else M8_HOST
+        rc, out = ws_ssh(target, "true")
+        add(rc == 0, f"{lbl}: this workstation -> {target}", out if rc else "")
+        if rc != 0:
+            continue
+        sudo = "sudo -n " if a.get("sudo") else ""
+        if sudo:
+            rc, out = ws_ssh(target, "sudo -n true")
+            add(rc == 0, f"{lbl}: passwordless sudo on {target}", out if rc else "")
+            if rc != 0:
+                continue
+        rc, out = ws_ssh(target, f"{sudo}grep -c '^{var}=' {remote_path(a['envfile'])}")
+        add(rc == 0 and out.strip() == "1", f"{lbl}: {a['envfile']} has exactly one {var}= line",
+            "" if rc == 0 and out.strip() == "1" else f"found {out or 'no file'}")
+    return res
+
+
+def cmd_preflight(args):
+    entries, _ = load_registry()
+    e, acct = resolve(entries, args.target)
+    say(f"=== PREFLIGHT {args.target} (read-only -- nothing changes) ===")
+    res = preflight(holders_for(e, acct))
+    for ok, label, detail in res:
+        say(f"  [{'PASS' if ok else 'FAIL'}] {label}" + (f" -- {detail}" if detail and not ok else ""))
+    bad = [r for r in res if not r[0]]
+    if any(h["apply"] is None for h in holders_for(e, acct)):
+        say("  [note] guided holders have no automatic check; plan lists them")
+    say("")
+    if bad:
+        say(f"{len(bad)} check(s) FAILED -- fix these BEFORE any step that can't be undone.")
+        sys.exit(1)
+    say("All checks passed. Safe to take the no-rollback step (e.g. regenerate the token), then start.")
+
 
 def cmd_plan(args):
     entries, _ = load_registry()
@@ -489,7 +598,8 @@ def cmd_plan(args):
             f"so guided holders can move later without an outage.")
     else:
         say("Dual-accept: no -- each holder switches when it's updated; do the guided ones promptly.")
-    say(f"Start with:  rotate.py start {args.target}" + ("  --prompt (value minted by the service)" if f.get("class") == "token" else ""))
+    say(f"Start with:  rotate.py start {args.target}" + ("  --from-clipboard (value minted by the service; or --prompt)" if f.get("class") == "token" else ""))
+    say(f"Before any step that can't be undone (regenerating a token...): rotate.py preflight {args.target}")
     if args.preview:
         os.makedirs(STATE_DIR, exist_ok=True)
         preview = {
@@ -529,21 +639,43 @@ def cmd_start(args):
             dual = [h["label"] for h in hs if h["apply"] and h["apply"].get("previous_var")]
             if dual:
                 say(f"  note: no current value -- dual-accept holders get the new value only: {', '.join(dual)}")
-        for host in sorted({h["apply"]["host"] for h in hs if h["apply"] and h["apply"].get("host")}):
-            rc, out = secret(["reach", host], check=False)
-            if rc != 0:
-                raise Stop(f"preflight: the M8 can't reach {host} non-interactively -- {out}\n"
-                           f"Set up a key from the M8 to {host} first, or handle that holder by hand.")
-            say(f"  preflight: M8 -> {host} ok")
+        if args.prompt and args.from_clipboard:
+            raise Stop("give --prompt or --from-clipboard, not both.")
+        failed = []
+        for ok, label, detail in preflight(hs):
+            say(f"  preflight: {'ok' if ok else 'FAILED'} -- {label}" + (f" ({detail})" if detail and not ok else ""))
+            if not ok:
+                failed.append(label)
+        if failed:
+            raise Stop(f"preflight failed ({len(failed)}) -- nothing was staged. Fix the above "
+                       f"(rotate.py preflight {name} re-checks without starting).")
         stage = ["stage", name] + (["--replace"] if args.restage else [])
         if args.prompt:
             stage.append("--prompt")
             secret(stage, tty=True)
             _, out = secret(["fingerprint", name + ".next"])
             out = "staged " + name + ".next (" + out[:19] + ")"
+        elif args.from_clipboard:
+            # The value goes clipboard -> ssh stdin -> vault inside ONE PowerShell pipeline; this process
+            # never holds it. The clipboard is overwritten only if staging succeeded.
+            stage_cmd = f"python3 {M8_SECRET} " + " ".join(shlex.quote(s) for s in stage + ["--stdin"])
+            ps = (f"Get-Clipboard -Raw | ssh -T {M8_HOST} {shlex.quote(stage_cmd)}; "
+                  "$c = $LASTEXITCODE; if ($c -eq 0) { Set-Clipboard -Value ' ' }; exit $c")
+            r = subprocess.run([PS_EXE, "-NoProfile", "-Command", ps], capture_output=True, text=True)
+            if r.returncode != 0:
+                raise Stop(f"staging from the clipboard failed -- the clipboard was left as it was.\n"
+                           f"{(r.stdout + r.stderr).strip()}")
+            _, out = secret(["fingerprint", name + ".next"])
+            out = "staged " + name + ".next from the clipboard (" + out[:19] + "); clipboard cleared"
         else:
             _, out = secret(stage)
         say(f"  {out}")
+        if any(h["apply"] for h in hs):
+            rc, chk = secret(["envsafe", name + ".next"], check=False)
+            if rc != 0:
+                secret(["discard-next", name], check=False)
+                raise Stop(f"the staged value can't be written raw into an env file -- {chk}\n"
+                           f"It was discarded. Check what was pasted/copied, then start again.")
         expires = now_utc() + dt.timedelta(days=args.window_days)
         st = {
             "target": name, "phase": "applying", "started": now_utc().isoformat(),
@@ -592,14 +724,17 @@ def _continue(st, e, acct):
             say(f"    note: {h['note']}")
         if h["apply"] and hstate["status"] not in ("applied", "failed-check"):
             a = h["apply"]
-            args = envfile_args(a) + ["--set", f"{a['var']}={name}.next"]
-            if a.get("previous_var") and st["has_current"]:
-                args += ["--set", f"{a['previous_var']}={name}"]
-                if a.get("expires_var"):
-                    args += ["--set-text", f"{a['expires_var']}={st['expires']}"]
-            if a.get("restart"):
-                args += ["--restart", a["restart"]]
-            rc, out = secret(args, check=False)
+            if a.get("via") == "workstation":
+                rc, out = workstation_apply(name, a)
+            else:
+                args = envfile_args(a) + ["--set", f"{a['var']}={name}.next"]
+                if a.get("previous_var") and st["has_current"]:
+                    args += ["--set", f"{a['previous_var']}={name}"]
+                    if a.get("expires_var"):
+                        args += ["--set-text", f"{a['expires_var']}={st['expires']}"]
+                if a.get("restart"):
+                    args += ["--restart", a["restart"]]
+                rc, out = secret(args, check=False)
             for line in out.splitlines():
                 say(f"    {line}")
             if rc != 0:
@@ -795,6 +930,14 @@ def cmd_verify(args):
     sys.exit(1 if bad else 0)
 
 
+def remote_hash(host, path, var, sudo):
+    """sha256 of the exact bytes of VAR's value in a remote KEY=VALUE file (only the final newline
+    dropped -- no trimming, so a stray \\r changes it). Returns the hex digest, or None."""
+    rc, out = ws_ssh(host, f"{sudo}grep -E '^{var}=' {remote_path(path)} | head -1 | cut -d= -f2- "
+                           f"| tr -d '\\n' | sha256sum | cut -d' ' -f1")
+    return out if rc == 0 and re.fullmatch(r"[0-9a-f]{64}", out) else None
+
+
 PI_HOST = "pi@pi1.local"
 MOSQUITTO_LOG = "/var/log/mosquitto/mosquitto.log*"
 # Files that name every credential by design -- a hit there is not a consumer.
@@ -856,6 +999,41 @@ def cmd_audit(args):
         say(f"  log window starts {start.strip() or 'unknown'} -- a job that runs less often than this "
             f"won't show; 127.0.0.1 is the Pi itself")
         say("  -> any host here that isn't a listed holder (or a one-off test) is an unlisted consumer")
+    auto = [h for h in holders_for(e, acct) if h["apply"]]
+    if auto:
+        rc, fp = secret(["fingerprint", args.target], check=False)
+        vault_hash = fp.strip().replace("sha256:", "") if rc == 0 else None
+        declared = {}
+
+        def resolved(target, path):
+            return path.replace("~", "/home/" + target.split("@")[0], 1) if path.startswith("~") else path
+
+        say("")
+        say("Each automatic holder's copy -- exact bytes, hashed on the host -- against the vault's current value:")
+        for h in auto:
+            a = h["apply"]
+            target = a.get("host") or M8_HOST
+            declared.setdefault(target, set()).add(resolved(target, a["envfile"]))
+            got = remote_hash(target, a["envfile"], a["var"], "sudo -n " if a.get("sudo") else "")
+            tag = ("UNREADABLE from this workstation" if got is None
+                   else "MATCHES the vault" if got == vault_hash else "DIFFERS from the vault")
+            say(f"  [{tag}] {target}:{a['envfile']} ({a['var']})")
+        say("  -> DIFFERS means a stale copy, a stray byte (the \\r bug), or a different value in a shared file.")
+        say("")
+        say("Sweep: other files on the Pi and the M8 holding the same variable (names only):")
+        for target in (PI_HOST, M8_HOST):
+            for var in sorted({h["apply"]["var"] for h in auto}):
+                rc, out = ws_ssh(target, "sudo -n grep -rIl --exclude-dir=proc --exclude-dir=sys --exclude-dir=node_modules "
+                                         f"--exclude-dir=.git --exclude-dir=docker '^{var}=' /etc /home /opt /srv /var/lib/jctsh 2>/dev/null",
+                                 timeout=180)
+                files = [ln for ln in out.splitlines() if ln.startswith("/") and ln not in declared.get(target, set())]
+                if not files:
+                    say(f"  {target} {var}=: no other file holds it")
+                for f in files:
+                    got = remote_hash(target, f, var, "sudo -n ")
+                    tag = ("could not hash it" if got is None else "the SAME value -- an UNLISTED HOLDER" if got == vault_hash
+                           else "a DIFFERENT value -- probably a separate credential, check it's registered")
+                    say(f"  {target}:{f} ({var}): {tag}")
     say("")
     say("Still manual: anything run by hand from another machine, and any rarely-run job the log window misses.")
 
@@ -887,13 +1065,15 @@ def cmd_status(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
-    for c in ("plan", "verify", "audit", "continue", "confirm-synced", "finish", "abort", "start"):
+    for c in ("plan", "verify", "audit", "preflight", "continue", "confirm-synced", "finish", "abort", "start"):
         sp = sub.add_parser(c)
         sp.add_argument("target")
         sp.add_argument("--break-lock", action="store_true")
     sub.choices["plan"].add_argument("--preview", action="store_true",
                                       help="write a values-free preview to .rotation-state/planned.json for the dashboard")
     sub.choices["start"].add_argument("--prompt", action="store_true", help="type a value the service minted")
+    sub.choices["start"].add_argument("--from-clipboard", action="store_true",
+                                       help="take the value a service minted from the clipboard (cleared after)")
     sub.choices["start"].add_argument("--window-days", type=int, default=DEFAULT_WINDOW_DAYS)
     sub.choices["start"].add_argument("--no-current", action="store_true")
     sub.choices["start"].add_argument("--restage", action="store_true")
@@ -901,7 +1081,7 @@ def main():
     sp = sub.add_parser("status")
     sp.add_argument("target", nargs="?")
     args = p.parse_args()
-    fn = {"plan": cmd_plan, "verify": cmd_verify, "audit": cmd_audit, "start": cmd_start, "continue": cmd_continue,
+    fn = {"plan": cmd_plan, "verify": cmd_verify, "audit": cmd_audit, "preflight": cmd_preflight, "start": cmd_start, "continue": cmd_continue,
           "status": cmd_status, "confirm-synced": cmd_confirm_synced, "finish": cmd_finish,
           "abort": cmd_abort}[args.cmd]
     try:

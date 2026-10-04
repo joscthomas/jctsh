@@ -36,16 +36,20 @@ is meant for secret.ps1's clipboard relay, never a terminal or a session:
   new <name> [--length N] [--no-special]
                                generate a brand-new entry; value relayed once on stdout
   copy <name>                  value on stdout, for the clipboard relay
-  set <name>                   interactive masked prompt (run with `ssh -t`)
+  set <name> [--stdin]         interactive masked prompt (run with `ssh -t`), or with --stdin
+                               the value piped in (secret.ps1 set-from-clipboard does this)
+  clean <name>                 strip bracketed-paste markers/whitespace from a stored value
+  envsafe <name>               can the stored value go raw into a KEY=VALUE file? (counts only)
   run <name> --env VAR [--env VAR=<entry>]... [--stdin <entry>] -- <command...>
                                run a command on THIS host with values injected; every
                                injected value is masked out of its output
   reach <user@host>            can this host SSH there non-interactively (BatchMode)
   -- rotation (rotate.py drives these; usable by hand too) --
-  stage <name> [--length N] [--special] [--prompt] [--replace]
+  stage <name> [--length N] [--special] [--prompt | --stdin] [--replace]
                                create <name>.next: generated (default 40, alphanumeric --
-                               safe in .env/YAML/headers) or typed at a masked prompt
-                               (--prompt, for values a service mints, e.g. an HA token)
+                               safe in .env/YAML/headers), typed at a masked prompt
+                               (--prompt) or piped in on stdin (--stdin, the clipboard) --
+                               both for values a service mints, e.g. an HA or GitHub token
   promote <name>               cutover: <name> -> <name>.previous, <name>.next -> <name>
   unpromote <name>             undo a promote: <name> discarded, <name>.previous -> <name>
   discard-next <name>          purge a staged <name>.next (abort before cutover)
@@ -242,7 +246,29 @@ def cmd_copy(args):
     print(value)
 
 
+def read_stdin_value():
+    """A value piped in on stdin (the clipboard, relayed by secret.ps1 / rotate.py inside one
+    PowerShell pipeline -- never through a person's or a session's hands). Cleaned the same way as
+    a prompted paste, and refused if it's empty or has whitespace in the middle."""
+    data = sys.stdin.read()
+    value = PASTE_MARKERS.sub("", data).strip()
+    if not value:
+        die("nothing on stdin -- the clipboard was empty.")
+    if re.search(r"\s", value):
+        die("the value has whitespace inside it -- that isn't one token. Check what was on the clipboard.")
+    return value
+
+
 def cmd_set(args):
+    if args.stdin:
+        value = read_stdin_value()
+        with vault_lock(timeout=5):
+            verb = "edit" if args.name in entry_names() else "add"
+            r = kp([verb, VAULT_PATH, args.name, "-p", "-q"], capture=True, input_text=value + "\n")
+            if r.returncode != 0 or read_value(args.name) != value:
+                die(f"could not store '{args.name}': {r.stderr.strip()}")
+        print(f"stored '{args.name}' ({len(value)} characters, {short_fp(value)})")
+        return
     with vault_lock(timeout=5):
         verb = "edit" if args.name in entry_names() else "add"
         print(f"Prompting for '{args.name}'s new value -- masked, read from this terminal only "
@@ -252,6 +278,19 @@ def cmd_set(args):
         removed = clean_pasted(args.name)
         if removed:
             print(f"(removed {removed} stray paste/whitespace characters from the pasted value)", file=sys.stderr)
+
+
+def cmd_envsafe(args):
+    """Can this stored value be written raw into a KEY=VALUE file? Counts only, never characters."""
+    value = read_value(args.name)
+    if value is None:
+        die(f"No value read back for '{args.name}'.")
+    bad = sum(1 for c in value if c not in ENV_SAFE)
+    if bad:
+        print(f"'{args.name}': {bad} of {len(value)} characters can't go raw into an env file "
+              f"(quotes, spaces, $, #, control characters...)")
+        sys.exit(1)
+    print(f"'{args.name}': ok ({len(value)} characters)")
 
 
 def cmd_clean(args):
@@ -328,7 +367,13 @@ def cmd_stage(args):
                 die(f"'{nxt}' already exists -- a rotation is already staged. Finish or abort it, "
                     f"or pass --replace to throw that staged value away.")
             purge(nxt)
-        if args.prompt:
+        if args.stdin:
+            value = read_stdin_value()
+            r = kp(["add", VAULT_PATH, nxt, "-p", "-q"], capture=True, input_text=value + "\n")
+            value = None
+            if r.returncode != 0:
+                die(f"could not create '{nxt}': {r.stderr.strip()}")
+        elif args.prompt:
             if not sys.stdin.isatty():
                 die("--prompt needs a terminal (run through `ssh -t`).")
             print(f"Paste the new value for '{args.name}' (masked):", file=sys.stderr)
@@ -525,8 +570,12 @@ def main():
 
     sub.add_parser("init")
     sub.add_parser("ls")
-    for name in ("has", "fingerprint", "copy", "set", "promote", "unpromote", "discard-next", "drop-previous"):
+    for name in ("has", "fingerprint", "copy", "promote", "unpromote", "discard-next", "drop-previous"):
         sub.add_parser(name).add_argument("name")
+    p_set = sub.add_parser("set")
+    p_set.add_argument("name")
+    p_set.add_argument("--stdin", action="store_true", help="read the value from stdin (the clipboard, piped)")
+    sub.add_parser("envsafe").add_argument("name")
 
     p_new = sub.add_parser("new")
     p_new.add_argument("name")
@@ -538,6 +587,7 @@ def main():
     p_stage.add_argument("--length", type=int, default=STAGE_DEFAULT_LENGTH)
     p_stage.add_argument("--special", action="store_true")
     p_stage.add_argument("--prompt", action="store_true")
+    p_stage.add_argument("--stdin", action="store_true", help="read the value from stdin (the clipboard, piped)")
     p_stage.add_argument("--replace", action="store_true")
 
     p_clean = sub.add_parser("clean")
@@ -583,7 +633,7 @@ def main():
         "new": cmd_new, "copy": cmd_copy, "set": cmd_set, "run": cmd_run, "reach": cmd_reach,
         "stage": cmd_stage, "promote": cmd_promote, "unpromote": cmd_unpromote,
         "discard-next": cmd_discard_next, "drop-previous": cmd_drop_previous,
-        "envfile": cmd_envfile, "clean": cmd_clean,
+        "envfile": cmd_envfile, "clean": cmd_clean, "envsafe": cmd_envsafe,
     }[args.action](args)
 
 

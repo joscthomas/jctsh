@@ -186,8 +186,9 @@ def build_status():
     roboform_pending = pick(due, "ROBOFORM")
     overdue = pick(due, "OVERDUE")
     declined = pick(due, "DECLINED")
+    expiring = pick(due, "EXPIRING")
 
-    flagged = {row["name"] for row in (exposed + requested + roboform_pending + overdue + declined)}
+    flagged = {row["name"] for row in (exposed + requested + roboform_pending + overdue + declined + expiring)}
     flagged |= {r["target"] for r in in_progress}
     good = [{"name": name, "last_rotated": lr} for name, lr in sorted(all_targets_and_last_rotated().items())
             if name not in flagged]
@@ -201,6 +202,7 @@ def build_status():
         "requested": requested,
         "roboform_pending": roboform_pending,
         "overdue": overdue,
+        "expiring": expiring,
         "declined": declined,
         "good": good,
         "due_error": err,
@@ -362,6 +364,7 @@ function renderDue(data) {
     ['Exposed, not yet rotated', data.exposed],
     ['Rotation requested', data.requested],
     ['Rotated, not yet in RoboForm', data.roboform_pending],
+    ['Expiring within 30 days, or expired', data.expiring || []],
     ['Overdue by cadence', data.overdue],
   ];
   const any = sections.some(([, rows]) => rows.length);

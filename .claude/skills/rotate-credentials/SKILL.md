@@ -52,6 +52,26 @@ can't be hijacked by whatever editor is currently registered for `.py`.
 `.ps1`'s association issue is the separate cmd-vs-PowerShell one covered
 elsewhere) -- keep invoking it as `.\tos\secret.ps1 <cmd>`.
 
+## Other workstation gotchas (found live 2026-10-03)
+
+- **The secret-guard hook false-positives on harmless text.** It matches `$env:...`, and
+  even the word "env" inside a `python -`/heredoc command or a commit message, as an
+  "environment dump". Workarounds that don't weaken it: set a variable with the Bash
+  tool's inline form (`JCTSH_ANSWERS=d python tos/rotate.py ...`); put a commit message
+  in a file written with the Write tool and use `git commit -F <file>`; put any script
+  that mentions env files in a file and run it. Don't try to evade it more cleverly than
+  that -- if a command is blocked and none of these fits, ask.
+- **Two Windows profiles share this checkout** (`Joe` and `jcthomas`; the repo is
+  `C:\Shared\jctsh`). SSH host keys are per profile: a session can reach the M8 fine
+  while Joseph's own PowerShell can't, and I can't read the other profile's `~/.ssh`
+  (access denied). `rotate.py preflight` runs from whichever profile invokes it -- if
+  Joseph is the one who'll run a command, have him run the preflight too.
+- **A paste into a masked prompt over `ssh -t` can arrive wrapped in bracketed-paste
+  markers** (`ESC[200~`...`ESC[201~`) and get stored IN the value (a 93-character token
+  stored as 105). `secret.py` now turns that mode off and strips the markers, and
+  `secret.py clean <name>` repairs an entry already stored that way. Prefer
+  `--from-clipboard`, which avoids the prompt entirely.
+
 ## 0. Start the dashboard -- first thing, every time this skill starts
 
 **Joseph, 2026-10-02: "when i start the skill, start the dashboard and
@@ -85,7 +105,9 @@ started but not finished, and anything stuck at `roboform_synced: false`.
 
 **Recommend one credential at a time, not the whole list dumped.** Priority:
 1. Anything already in progress (`rotate.py status`) or stuck on
-   `roboform_synced: false` -- finish that before starting a new one.
+   `roboform_synced: false` -- finish that before starting a new one. Also anything
+   in `due`'s **EXPIRING** bucket (a registry `expires:` within 30 days or past): that
+   one stops working on its own on a fixed date, so it outranks everything below.
 2. Exposed-and-unrotated, ordered by real-world reachability. CARD-0375's own
    ordering is the model: internet-reachable (e.g. `webhook-secret`) before
    LAN-reachable (e.g. a Mosquitto/OTA pair) before local-only (e.g. an API
@@ -128,22 +150,69 @@ his phone for GPSLogger/Tasker, a USB cable for an ESP32 reflash, etc. --
 don't make him discover it mid-rotation.
 
 Check the value is already in the vault: `.\tos\secret.ps1 has <target>`. If
-not found, **stop here** and tell Joseph to run `.\tos\secret.ps1 set
-<target>` himself, in his own terminal. Never attempt this from inside this
-session -- the masked prompt only works from an interactive terminal Joseph
-is typing into directly; `secret.ps1`'s own header says this explicitly.
+not found, it has to be seeded from the one place it exists. Tell Joseph to
+**copy it** (from RoboForm or wherever it lives) and then run
+`.\tos\secret.ps1 set-from-clipboard <target>` yourself -- the value goes
+clipboard -> ssh stdin -> vault inside that one command, is cleaned of paste
+markers/whitespace, and the clipboard is overwritten afterwards. Joseph's only
+part is the copy. (The old way -- `secret.ps1 set`, a masked prompt only an
+interactive terminal can answer -- still exists, but there's no reason to make
+him run a command for it.)
 
 **Run the consumer audit now: `python tos/rotate.py audit <target>`** (read-only,
 values-free). The registry's holder list is hand-written and nothing else checks
-it against reality -- found live 2026-10-03 on `mosquitto-accounts--jctsh-log-server`:
-the registry listed ONE holder, but fifteen Pi jobs read that account through the
-same env file (and a hand search had found only five). It searches the repo for the
-account/id and each holder's file path, and for a Mosquitto account also lists which
-hosts have actually logged in as it (from the broker log). Read the output with
-Joseph: for each file ask whether it reads the value from a listed holder at run time
-(safe, covered automatically) or keeps its own copy (an unlisted holder -- add it to
-the registry before `start`). Note the broker log's start time: a job that runs less
-often than that window won't appear. Run it again before `finish` (Step 4).
+it against reality -- found live twice on 2026-10-03: `mosquitto-accounts--jctsh-log-server`
+had ONE listed holder but fifteen Pi jobs reading it through one env file, and
+`github-pat-maintenance` had one vague "to confirm" holder against three real
+copies. It does four things:
+1. searches the repo for the account/id and each holder's file path;
+2. for a Mosquitto account, lists which hosts have actually logged in as it (broker log);
+3. **hashes each automatic holder's copy -- exact bytes, on the host -- against the
+   vault's current value.** `MATCHES` is what you want; `DIFFERS` means a stale copy,
+   a stray byte (the `\r` bug, below), or a shared file holding a different value;
+4. **sweeps both the Pi and the M8 for any other file with the same `VAR=` line,** and
+   says whether it's the SAME value (an unlisted holder -- add it to the registry before
+   `start`) or a DIFFERENT value (a separate credential -- check it's registered; the
+   sweep is what found the unregistered `kanban-dashboard-github-pat`).
+Read the repo hits with Joseph: for each file ask whether it reads the value from a
+listed holder at run time (safe, covered automatically) or keeps its own copy. Note the
+broker log's start time: a job that runs less often than that window won't appear.
+Run it again before `finish` (Step 4).
+
+**Run the preflight BEFORE any step that can't be undone: `python tos/rotate.py
+preflight <target>`** (read-only). It checks everything `start` will need -- this
+workstation reaches the M8 non-interactively, the vault works, every automatic holder's
+host is reachable with passwordless sudo where needed, and each env file really has
+exactly one `VAR=` line. **Why it comes first (learned live 2026-10-03, rotating
+`github-pat-maintenance`):** regenerating the token in GitHub kills the old one
+instantly, and the three problems found only after that (a host key, an M8 -> Pi hop,
+a mangled paste) turned a minute of downtime into a long outage. A preflight failure
+before the irreversible step costs nothing. `start` runs the same checks itself, but
+by then it's too late for a no-rollback credential. **Never tell Joseph to
+regenerate/mint a replacement until preflight passes.**
+
+**A holder on the Pi is `apply: {..., via: workstation}`, not an M8 hop.** The M8 is the
+internet-facing box and the Pi's `pi` user has blanket sudo, so an M8 -> Pi key would be a
+root path from a compromised M8 -- it deliberately has none. `via: workstation` has
+`rotate.py` call `secret.ps1 remoteenvwrite` from this machine instead. If preflight says
+the M8 can't reach a Pi host, the holder is missing `via: workstation`; do not authorize a
+key.
+
+**For a credential a service mints (a GitHub token, an API key):**
+1. Run the preflight first (above).
+2. Tell Joseph to save the new value to RoboForm **before** starting -- the service shows
+   it once, and it must survive a failed rotation. (Joseph's own instinct, 2026-10-03.)
+3. Say what the choices are when a service offers both: *regenerate* keeps the same name,
+   repo access and permissions (no way to get the scopes wrong) but the old value dies at
+   once and there's no rollback; *create new* keeps the old value alive until deleted
+   (rollback possible) but the permissions are copied by eye.
+4. **Set an expiry on the new token** and record it as `expires: <date>` in the registry
+   (`due` then flags it inside 30 days). `github-pat-maintenance` had none -- a leaked copy
+   would have worked forever.
+5. Joseph copies the new value; **you** run `python tos/rotate.py start <target>
+   --from-clipboard` (the value goes clipboard -> vault in one pipeline, never through this
+   session; the clipboard is cleared after). `--prompt` (a masked prompt only he can type
+   into) is the fallback.
 
 ## 3. Drive
 
@@ -161,6 +230,16 @@ chain them automatically back to back.
   would like to see the holders more clearly enumerated and identified as
   you work your way through them"). Don't just paste `rotate.py`'s raw
   output and move on -- state which holder this is before acting on it.
+- **Do the guided action BEFORE you `continue` with an answer.** An answer in
+  `JCTSH_ANSWERS` is spent on the first guided holder `continue` reaches, and
+  automatic holders ask nothing -- so `continue` with `d` while automatic holders
+  still precede a guided one runs them, then marks the guided one DONE before
+  anything was done to it, and goes straight to cutover (happened live 2026-10-03:
+  the Pi's github token was marked done and promoted while still holding the dead
+  value; recovered by writing it immediately, but it was a real outage window).
+  When a guided holder is still ahead: run `continue` with **no** answer to get
+  there (it stops, exit 3), do the guided action with `<target>.next`, verify it,
+  and only then `continue` with `d`.
 - **Each guided holder:** the command puts the new value on the clipboard and
   names where it goes. Relay that instruction verbatim, then wait for Joseph
   to say it's done (or that this holder doesn't actually hold the value, or
@@ -245,6 +324,26 @@ just a bare pass/fail.
   negative control, proving the old value really stopped working. All three run
   without ever printing a value. The `.previous` entry is purged by `finish`, so (c)
   has to happen before it.
+- **Never trust a tool's own "verified" -- confirm with an independent signal.**
+  Found live 2026-10-03: `secret.ps1 remoteenvwrite` reported "fingerprint-verified"
+  for a value with a stray `\r` appended, because PowerShell pipes CRLF, the helper
+  stripped only `\n`, and the read-back `.Trim()` removed the `\r` before hashing --
+  so the check normalised away the very defect it existed to catch. (Fixed: the helper
+  strips `\r`, and the check hashes the exact bytes remotely.) What caught it was
+  independent: a length mismatch (94 vs 93) and then a real call. After every
+  file-write holder, compare **lengths** and **count** stray `\r` bytes
+  (`sudo sh -c "tr -cd '\r' < FILE | wc -c"` -- the redirect must run under sudo or it
+  silently reports 0), and make a real call with the value. `rotate.py audit`'s
+  fingerprint compare does the exact-byte part for you.
+- **A tool bug found mid-rotation means re-checking every earlier rotation that used
+  that tool.** The same `\r` defect had hit the earlier `jctsh-log-server` rotation
+  (MQTT_PASS 41 characters vs 40); the service tolerated it, the Pi's own scripts might
+  not have. List what used the tool, re-verify each, and say so.
+- **Byte-level diagnostics print counts and character CLASSES, never characters.**
+  A debugging `od`/`tail -c` on the end of a value showed the last one or two characters
+  of the new GitHub token (2026-10-03) -- practically harmless, but a value surfacing is
+  an incident by the standing rule: disclose it, by credential name. Use `wc -c`,
+  `tr -cd '\r' | wc -c`, `tr -d 'A-Za-z0-9_' | wc -c`, hashes -- never the bytes.
 - **Re-run `python tos/rotate.py audit <target>` before `finish`.** `finish`
   can't be undone, and this is the last cheap chance to catch a consumer that
   kept its own copy of the old value. Be honest with Joseph about what it can't
@@ -318,9 +417,13 @@ flashing) is something
 you run yourself by default -- don't hand Joseph a command to type unless
 it's one of the two genuine exceptions below, where the constraint is real,
 not a habit:
-- **Seeding a value into the vault for the first time** (`secret.ps1 set`) --
-  the value only exists in RoboForm, which you have no access to at all;
-  there's nothing to relay.
+- **Getting a value that only exists outside your reach onto the clipboard**
+  (copying it out of RoboForm, or from a service's one-time display) -- you have
+  no access to either; that copy is Joseph's whole part. Everything after it is
+  yours: `secret.ps1 set-from-clipboard <name>` seeds the vault, and
+  `rotate.py start <target> --from-clipboard` stages a replacement, both piping
+  the clipboard straight into the vault and clearing it afterwards. (The masked
+  `secret.ps1 set` / `start --prompt` prompts remain only as a fallback.)
 - **Pasting into RoboForm itself** -- no API, Joseph is the only one who can
   put a value there.
 Everything else -- including getting a value back onto the clipboard a

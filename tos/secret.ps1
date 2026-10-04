@@ -116,7 +116,7 @@
 
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'run-local', 'due', 'writefile', 'mosquitto-passwd', 'envcopy', 'remoteenvwrite', 'syncfile')]
+    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'run-local', 'due', 'writefile', 'mosquitto-passwd', 'envcopy', 'remoteenvwrite', 'syncfile', 'set-from-clipboard')]
     [string]$Action,
 
     [Parameter(Position = 1)]
@@ -196,11 +196,14 @@ function Get-RegistryDueReport {
             $cur = @{
                 Id = $Matches[1]; Tier = $null; IntervalDays = $null; LastRotated = $null
                 ExposedDates = @(); RotationRequested = $null; RotationDeclined = $null
-                Retired = $null; RoboformPending = $false
+                Retired = $null; RoboformPending = $false; Expires = $null
             }
             continue
         }
         if (-not $cur) { continue }
+
+        # A hard external deadline (a token the issuer expires), unlike interval_days' soft cadence.
+        if ($line -match '^    expires:\s*(\d{4}-\d{2}-\d{2})\b') { $cur.Expires = $Matches[1]; continue }
 
         if ($line -match '^    tier:\s*(\d+)') { $cur.Tier = [int]$Matches[1]; continue }
         if ($line -match '^    interval_days:\s*(null|\d+)') {
@@ -256,6 +259,7 @@ function Get-RegistryDueReport {
     $overdueBucket = [System.Collections.Generic.List[object]]::new()
     $roboformBucket = [System.Collections.Generic.List[object]]::new()
     $declinedBucket = [System.Collections.Generic.List[object]]::new()
+    $expiringBucket = [System.Collections.Generic.List[object]]::new()
 
     # One credential's status, highest-priority bucket only: exposed > requested > overdue.
     function Add-DueStatus($Name, $ExposedDates, $LastRotated, $RotationRequested, $IntervalDays, $Tier) {
@@ -291,6 +295,15 @@ function Get-RegistryDueReport {
 
     foreach ($r in $idRecords) {
         if ($r.Retired) { continue }  # retired = stops existing anywhere; no action to surface
+
+        # Independent of the rotation buckets below: an expiring token stops working on its own.
+        if ($r.Expires) {
+            try {
+                $left = ([datetime]$r.Expires - $today.Date).Days
+                if ($left -lt 0) { $null = $expiringBucket.Add([pscustomobject]@{ Name = $r.Id; Detail = "EXPIRED $($r.Expires) ($(-$left) days ago)" }) }
+                elseif ($left -le 30) { $null = $expiringBucket.Add([pscustomobject]@{ Name = $r.Id; Detail = "expires $($r.Expires) (in $left days)" }) }
+            } catch { }
+        }
 
         $subs = @($subRecords | Where-Object { $_.Id -eq $r.Id })
         if ($r.RoboformPending) { $null = $roboformBucket.Add([pscustomobject]@{ Name = $r.Id }) }
@@ -338,7 +351,8 @@ function Get-RegistryDueReport {
     }
 
     [pscustomobject]@{ Exposed = $exposedBucket; Requested = $requestedBucket; Overdue = $overdueBucket
-                       Roboform = $roboformBucket; InProgress = $inProgress; Declined = $declinedBucket }
+                       Roboform = $roboformBucket; InProgress = $inProgress; Declined = $declinedBucket
+                       Expiring = $expiringBucket }
 }
 
 # --- Commands ---
@@ -655,6 +669,23 @@ print('updated')
         exit $exitCode
     }
 
+    'set-from-clipboard' {
+        # First-time seeding (or replacing) a vault entry from whatever is on the clipboard -- the
+        # value goes clipboard -> ssh stdin -> vault inside this one pipeline, never printed and never
+        # through a session, so nobody has to type it into a masked prompt. Cleaned (paste markers,
+        # surrounding whitespace) on the M8. The clipboard is overwritten afterwards on success.
+        if (-not $Name) { throw 'Usage: secret.ps1 set-from-clipboard <name>' }
+        $clip = Get-Clipboard -Raw
+        if (-not $clip -or -not $clip.Trim()) { throw 'the clipboard is empty -- copy the value first.' }
+        $out = $clip | & ssh -T $M8Host "python3 $M8Script set $(ConvertTo-RemoteQuoted $Name) --stdin" 2>&1
+        $exit = $LASTEXITCODE
+        $clip = $null
+        $out | ForEach-Object { Write-Output $_ }
+        if ($exit -ne 0) { throw "set-from-clipboard failed (exit $exit) -- the clipboard was left as it was." }
+        Set-Clipboard -Value ' '
+        Write-Output "(clipboard cleared)"
+    }
+
     'due' {
         $report = Get-RegistryDueReport
 
@@ -682,6 +713,12 @@ print('updated')
         } else { Write-Output "  none" }
 
         Write-Output ""
+        Write-Output "=== EXPIRING WITHIN 30 DAYS, OR EXPIRED (registry 'expires:' -- the issuer stops it on that date) ==="
+        if ($report.Expiring.Count -gt 0) {
+            $report.Expiring | ForEach-Object { Write-Output "  $($_.Name) -- $($_.Detail)" }
+        } else { Write-Output "  none" }
+
+        Write-Output ""
         Write-Output "=== OVERDUE BY CADENCE (periodic nudge -- offer, don't demand) ==="
         if ($report.Overdue.Count -gt 0) {
             $report.Overdue | ForEach-Object { Write-Output "  $($_.Name) -- $($_.Detail)" }
@@ -694,7 +731,7 @@ print('updated')
         } else { Write-Output "  none" }
 
         if ($report.Exposed.Count -gt 0) { exit 2 }
-        elseif ($report.Requested.Count -gt 0 -or $report.Overdue.Count -gt 0 -or $report.Roboform.Count -gt 0 -or $report.InProgress.Count -gt 0) { exit 1 }
+        elseif ($report.Requested.Count -gt 0 -or $report.Expiring.Count -gt 0 -or $report.Overdue.Count -gt 0 -or $report.Roboform.Count -gt 0 -or $report.InProgress.Count -gt 0) { exit 1 }
         else { exit 0 }
     }
 }

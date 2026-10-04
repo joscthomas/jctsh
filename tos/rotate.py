@@ -9,6 +9,7 @@ pass/fail and short fingerprints only.
 
     rotate.py plan     <target>      the plan, offline -- no M8, nothing changes
     rotate.py verify   <target>      run each holder's check against the CURRENT value
+    rotate.py audit    <target>      who else uses it? repo references + (broker accounts) logins
     rotate.py start    <target> [--prompt] [--window-days N] [--no-current] [--restage]
     rotate.py continue <target>      resume after a manual step or an interruption
     rotate.py status   [<target>]    rotations in progress
@@ -794,6 +795,71 @@ def cmd_verify(args):
     sys.exit(1 if bad else 0)
 
 
+PI_HOST = "pi@pi1.local"
+MOSQUITTO_LOG = "/var/log/mosquitto/mosquitto.log*"
+# Files that name every credential by design -- a hit there is not a consumer.
+AUDIT_EXCLUDES = [":!tos/credential-registry.yaml", ":!tos/kanban-board.md", ":!tos/kanban-archive.md",
+                  ":!tos/card-archive.md", ":!*card-archive.md", ":!DEVLOG.md"]
+
+
+def audit_terms(eid, e, acct):
+    """What a stray consumer would mention: the account/id, and every holder file path."""
+    terms = [acct or eid]
+    for h in holders_for(e, acct):
+        if h["apply"]:
+            terms.append(h["apply"]["envfile"])
+        terms += re.findall(r"(/[\w.\-]+(?:/[\w.\-]+)+)", h["label"])
+    seen, out = set(), []
+    for t in terms:
+        if t and t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
+def cmd_audit(args):
+    """Who else uses this credential? Read-only; the registry's holder list is hand-written
+    and nothing else checks it against reality (found live, 2026-10-03: five Pi jobs shared
+    the log-server account through one env file, none listed as holders)."""
+    entries, _ = load_registry()
+    e, acct = resolve(entries, args.target)
+    eid = args.target.partition("--")[0]
+    terms = audit_terms(eid, e, acct)
+    say(f"=== AUDIT {args.target} (read-only; searches for other consumers, shows no value) ===")
+    repo = os.path.dirname(HERE)
+    say("")
+    say("Repo references (excluding the registry, kanban and archives):")
+    for t in terms:
+        r = subprocess.run(["git", "grep", "-c", "-F", "-e", t, "--", "."] + AUDIT_EXCLUDES,
+                           cwd=repo, capture_output=True, text=True)
+        hits = [ln for ln in r.stdout.splitlines() if ln.strip()]
+        say(f"  '{t}': " + (f"{len(hits)} file(s)" if hits else "no references"))
+        for ln in hits[:25]:
+            path, _, n = ln.rpartition(":")
+            say(f"      {path}  ({n})")
+    say("  -> for each file: does it keep its OWN copy of the value, or read it from a listed holder at run time?")
+    if eid == "mosquitto-accounts" and acct:
+        say("")
+        say(f"Broker log: hosts that logged in as '{acct}' ({PI_HOST}:{MOSQUITTO_LOG}):")
+        q = shlex.quote(f"u'{acct}'")
+        cmd = (f"sudo cat {MOSQUITTO_LOG} 2>/dev/null | grep -F {q} | grep -oE 'from [0-9.]+' | sort | uniq -c; "
+               f"echo ---; sudo cat {MOSQUITTO_LOG} 2>/dev/null | head -1 | cut -c1-19")
+        try:
+            r = subprocess.run(["ssh", PI_HOST, cmd], capture_output=True, text=True, timeout=120)
+        except subprocess.TimeoutExpired:
+            say("  broker log read timed out -- retry")
+            return
+        body, _, start = r.stdout.partition("---")
+        rows = [ln.strip() for ln in body.splitlines() if ln.strip()]
+        for ln in rows or ["(no logins recorded)"]:
+            say(f"  {ln}")
+        say(f"  log window starts {start.strip() or 'unknown'} -- a job that runs less often than this "
+            f"won't show; 127.0.0.1 is the Pi itself")
+        say("  -> any host here that isn't a listed holder (or a one-off test) is an unlisted consumer")
+    say("")
+    say("Still manual: anything run by hand from another machine, and any rarely-run job the log window misses.")
+
+
 def cmd_status(args):
     if not os.path.isdir(STATE_DIR):
         say("no rotations in progress")
@@ -821,7 +887,7 @@ def cmd_status(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
-    for c in ("plan", "verify", "continue", "confirm-synced", "finish", "abort", "start"):
+    for c in ("plan", "verify", "audit", "continue", "confirm-synced", "finish", "abort", "start"):
         sp = sub.add_parser(c)
         sp.add_argument("target")
         sp.add_argument("--break-lock", action="store_true")
@@ -835,7 +901,7 @@ def main():
     sp = sub.add_parser("status")
     sp.add_argument("target", nargs="?")
     args = p.parse_args()
-    fn = {"plan": cmd_plan, "verify": cmd_verify, "start": cmd_start, "continue": cmd_continue,
+    fn = {"plan": cmd_plan, "verify": cmd_verify, "audit": cmd_audit, "start": cmd_start, "continue": cmd_continue,
           "status": cmd_status, "confirm-synced": cmd_confirm_synced, "finish": cmd_finish,
           "abort": cmd_abort}[args.cmd]
     try:

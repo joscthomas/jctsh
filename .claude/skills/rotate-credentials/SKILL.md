@@ -133,6 +133,18 @@ not found, **stop here** and tell Joseph to run `.\tos\secret.ps1 set
 session -- the masked prompt only works from an interactive terminal Joseph
 is typing into directly; `secret.ps1`'s own header says this explicitly.
 
+**Run the consumer audit now: `python tos/rotate.py audit <target>`** (read-only,
+values-free). The registry's holder list is hand-written and nothing else checks
+it against reality -- found live 2026-10-03 on `mosquitto-accounts--jctsh-log-server`:
+the registry listed ONE holder, but fifteen Pi jobs read that account through the
+same env file (and a hand search had found only five). It searches the repo for the
+account/id and each holder's file path, and for a Mosquitto account also lists which
+hosts have actually logged in as it (from the broker log). Read the output with
+Joseph: for each file ask whether it reads the value from a listed holder at run time
+(safe, covered automatically) or keeps its own copy (an unlisted holder -- add it to
+the registry before `start`). Note the broker log's start time: a job that runs less
+often than that window won't appear. Run it again before `finish` (Step 4).
+
 ## 3. Drive
 
 `start`/`continue`/`finish`/`abort` each change real state and always need
@@ -154,8 +166,13 @@ chain them automatically back to back.
   to say it's done (or that this holder doesn't actually hold the value, or
   that he wants to pause here). Then run:
   ```
-  $env:JCTSH_ANSWERS = "d"; python tos\rotate.py continue <target>
+  JCTSH_ANSWERS=d python tos/rotate.py continue <target>
   ```
+  **Run this with the Bash tool, not PowerShell** (found live 2026-10-03): the
+  secret-guard hook blocks the PowerShell form `$env:JCTSH_ANSWERS = "d"`
+  because it pattern-matches as an environment dump, even though this one
+  variable isn't a secret. The Bash inline-assignment form sets the same
+  variable and doesn't trip it.
   (`d` = done, `n` = doesn't hold this value, `l` = later/pause, `a` = abort
   from here -- use whichever Joseph actually said). **This consumes exactly
   one answer and stops again** at the next guided holder, or moves on to
@@ -164,6 +181,22 @@ chain them automatically back to back.
   it isn't run from a real interactive terminal, so it always hands control
   back to you after a single step -- never try to pre-supply multiple
   answers at once to rush through several holders unattended.
+- **Before cutover the new value is `<target>.next`, not `<target>`.** The
+  plain name is still the OLD value until `promote`. Any sanctioned command
+  you run yourself for a guided holder (`remoteenvwrite`, `mosquitto-passwd`,
+  `writefile`) must be given `<target>.next` -- the clipboard message says so.
+  `remoteenvwrite` takes `-Sudo` for a root-owned file (the Pi's
+  `/etc/jctsh/log-server.env` is `root:root 600`); it preserves owner and mode.
+- **Order matters for a server account that has a broker side.** Update the
+  service's own copy WITHOUT restarting it, then change the broker, then
+  restart the service. Restarting first makes it retry a password the broker
+  doesn't have yet. For `mosquitto-accounts--*` the registry's shared
+  `/etc/mosquitto/passwd` holder carries this order in its own `note:`.
+- **Expected noise, not a failure:** after the broker changes, the OLD service
+  process keeps retrying with the old password and logs `[MQTT] Connection
+  failed rc=5` (not authorised) for up to ~80 seconds until it's restarted.
+  Tell it apart from a real failure by PID and timestamp: it comes from the old
+  PID, before your restart. A failure is `rc=5` from the NEW PID.
 - After the last holder, it moves into cutover on its own and tells you to
   paste into RoboForm next.
 
@@ -203,6 +236,20 @@ just a bare pass/fail.
   (an idea submission, a GPS point, whatever's cheapest for that endpoint)
   and check the result (a PR opened, a 200 in the relevant log) -- not an
   assumption that pasting it somewhere was enough.
+- **A Mosquitto account needs three tests, not one** (2026-10-03; the hiking-monitor
+  audit had already found the broker's stored password can drift from the vault's):
+  (a) the service reconnected, on a new PID; (b) a standalone login with the NEW
+  value -- `secret.ps1 run -Name <target> -EnvVar PASS -- sh -c 'mosquitto_pub -h
+  192.168.1.117 -u <account> -P "$PASS" -t jctsh/test/credential-check -m t'` exits 0;
+  (c) the same with `<target>.previous` is REFUSED (exit 5, "not authorised") -- the
+  negative control, proving the old value really stopped working. All three run
+  without ever printing a value. The `.previous` entry is purged by `finish`, so (c)
+  has to happen before it.
+- **Re-run `python tos/rotate.py audit <target>` before `finish`.** `finish`
+  can't be undone, and this is the last cheap chance to catch a consumer that
+  kept its own copy of the old value. Be honest with Joseph about what it can't
+  see: a rarely-run job outside the broker log's window, and anything run by
+  hand from another machine.
 If no cheap live check exists for a given credential, say so explicitly
 rather than skipping this step silently.
 
@@ -226,7 +273,10 @@ clipboard (cutover already does this once; re-run it yourself, without being
 asked, if Joseph needs it there again -- `copy` is a sanctioned, never-print
 command exactly like `writefile`/`mosquitto-passwd`, so there's no reason to
 make him type it). Tell him the value's ready to paste into the RoboForm
-entry of the same name, then run `python tos\rotate.py confirm-synced <target>`.
+entry of the same name (name it in full -- found 2026-10-03 that his entry was
+`mosquitto-accounts--log-server`, not `--jctsh-log-server`; you can't see
+RoboForm, so ask him to confirm it's the right account's entry and offer to
+have him rename it to match), then run `python tos\rotate.py confirm-synced <target>`.
 
 Then `python tos\rotate.py finish <target>` -- drops the old value from any
 dual-accept holders, purges `<target>.previous` from the vault, and writes

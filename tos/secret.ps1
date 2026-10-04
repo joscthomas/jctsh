@@ -133,6 +133,7 @@ param(
     [string]$PasswdFile,
     [string]$RemoteHost,
     [string]$Restart,
+    [switch]$Sudo,
     [string]$Dest,
 
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -535,7 +536,7 @@ switch ($Action) {
 
     'remoteenvwrite' {
         if (-not $Name -or -not $RemoteHost -or -not $Path -or -not $Key) {
-            throw 'Usage: secret.ps1 remoteenvwrite <name> -RemoteHost <user@host> -Path <remote KEY=VALUE file> -Key <VAR_NAME> [-Restart "<remote restart command>"]  (edits one EXISTING line via piped stdin, never a command-line literal; the value is never shown)'
+            throw 'Usage: secret.ps1 remoteenvwrite <name> -RemoteHost <user@host> -Path <remote KEY=VALUE file> -Key <VAR_NAME> [-Restart "<remote restart command>"] [-Sudo]  (edits one EXISTING line via piped stdin, never a command-line literal; the value is never shown)'
         }
         $r = Invoke-RemoteSecret -RemoteArgs @('copy', $Name) -CaptureOutput
         if ($r.ExitCode -ne 0) {
@@ -561,16 +562,20 @@ if len(hits) != 1:
     print(f'ERROR: key count {len(hits)}', file=sys.stderr)
     sys.exit(1)
 lines[hits[0]] = key + '=' + newval + '\n'
+st = os.stat(path)
 fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or '.')
 with os.fdopen(fd, 'w') as f:
     f.writelines(lines)
+os.chmod(tmp, st.st_mode & 0o7777)
+os.chown(tmp, st.st_uid, st.st_gid)
 os.replace(tmp, path)
 print('updated')
 "@
         $remoteTmp = "/tmp/.secret-remoteenvwrite-$([Guid]::NewGuid().ToString('N')).py"
         $pyScript | & ssh $RemoteHost "cat > $remoteTmp" 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "could not stage the helper script on $RemoteHost" }
-        $out = $value | & ssh $RemoteHost "python3 $remoteTmp" 2>&1
+        $sudoPrefix = if ($Sudo) { 'sudo ' } else { '' }
+        $out = $value | & ssh $RemoteHost "${sudoPrefix}python3 $remoteTmp" 2>&1
         $exit = $LASTEXITCODE
         $value = $null
         & ssh $RemoteHost "rm -f $remoteTmp" 2>&1 | Out-Null
@@ -585,7 +590,7 @@ print('updated')
         }
 
         # Verify by fingerprint -- re-read from disk, never compare raw values.
-        $readBack = & ssh $RemoteHost "grep -E '^$Key=' '$Path' | head -1 | cut -d= -f2-" 2>&1
+        $readBack = & ssh $RemoteHost "${sudoPrefix}grep -E '^$Key=' '$Path' | head -1 | cut -d= -f2-" 2>&1
         $readValue = ($readBack -join "`n").Trim()
         $localHash = ([BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($readValue)))).Replace('-', '').ToLowerInvariant()
         $readValue = $null

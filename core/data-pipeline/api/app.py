@@ -18,8 +18,8 @@ supports templated GET URLs, a real device constraint, not a design choice.
 Handler shape matches components/hike-izer-orchestrator/app.py's existing
 convention (investigate existing patterns first, don't invent a new house
 style for one more Python HTTP service on this same host): stdlib
-http.server, a shared _authorized(parts) check against ?key=, a
-_respond(status, dict) helper.
+http.server, a shared _authorized(parts) check against an Authorization:
+Bearer header, a _respond(status, dict) helper.
 """
 
 import hmac
@@ -39,7 +39,7 @@ import psycopg2.extras
 import psycopg2.pool
 import psycopg2.sql
 
-VERSION = "2026-10-01.1-env-bulk"  # action=version fingerprint, same "confirm a
+VERSION = "2026-10-03.1-bearer-only"  # action=version fingerprint, same "confirm a
 # redeploy actually landed" convention as environmental-data.gs's own
 # SCRIPT_VERSION.
 
@@ -380,19 +380,17 @@ _auth_last_logged = {}
 _auth_seen = {}
 
 
-def _note_auth(path, form, kind):
+def _note_auth(path, kind):
     _auth_seen[(path, kind)] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    # Only the two things worth a log line: a key in the query string (CARD-0365)
-    # and the old key still in use (CARD-0372). Current key + header is the goal.
-    if form == "query" or kind == "previous":
+    # CARD-0371: the query-string case (CARD-0365) is gone -- header is the
+    # only form accepted now. Only the old key still in use (CARD-0372) is
+    # still worth a log line.
+    if kind == "previous":
         now = time.monotonic()
-        k = (path, form, kind)
+        k = (path, kind)
         if now - _auth_last_logged.get(k, -AUTH_LOG_INTERVAL_SEC) >= AUTH_LOG_INTERVAL_SEC:
             _auth_last_logged[k] = now
-            if kind == "previous":
-                log(f"previous API key used on {path} via {form} (CARD-0372: this caller has not moved to the new key)")
-            else:
-                log(f"legacy ?key= auth used on {path} (CARD-0365: move this caller to an Authorization: Bearer header)")
+            log(f"previous API key used on {path} (CARD-0372: this caller has not moved to the new key)")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -400,21 +398,19 @@ class Handler(BaseHTTPRequestHandler):
         pass  # explicit logging below instead of the default per-request line
 
     def _authorized(self, parts):
-        # CARD-0365: `Authorization: Bearer <key>` is the preferred form -- a
-        # key in the query string lands in every access log between the
-        # caller and here (Caddy's, Cloudflare's). `?key=` is still accepted
-        # until every caller (GPSLogger, Tasker, Node-RED) has moved; each
-        # legacy use is logged (rate-limited, never the key) so the day it
-        # can be removed is visible rather than guessed.
+        # CARD-0371: header-only. `?key=` (CARD-0365's interim compatibility
+        # form) is removed now that every caller (Node-RED, the orchestrator,
+        # GPSLogger, Tasker) is confirmed on Authorization: Bearer and the
+        # gateway's legacy-auth log stayed quiet across real hikes after the
+        # switch (2026-09-29 onward).
         header = self.headers.get("Authorization", "")
-        if header.startswith("Bearer "):
-            form, provided = "header", header[7:].strip()
-        else:
-            form, provided = "query", parse_qs(parts.query).get("key", [""])[0]
+        if not header.startswith("Bearer "):
+            return False
+        provided = header[7:].strip()
         kind = _key_kind(provided)
         if kind is None:
             return False
-        _note_auth(parts.path, form, kind)
+        _note_auth(parts.path, kind)
         return True
 
     def _respond(self, status, body):

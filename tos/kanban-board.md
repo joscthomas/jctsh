@@ -13,9 +13,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0383 · [enhancement] [data-pipeline] [node-red] Rename the "Sheet Health" Node-RED tab/flow -- stale name read as cruft, not a real alert
+### CARD-0383 · [enhancement] [data-pipeline] [node-red] Rename the "Sheet Health" Node-RED tab/flow -- stale name read as cruft, not a real alert -- RESOLVED 2026-10-03
 
-**Status:** Build
+**Status:** Done
 
 **Raised 2026-10-03 (Joseph), while investigating the Node-RED `data-pipeline-api-key` holder incident (CARD-0372).** The repeating "Sheet health: still bad after N min" phone notifications Joseph was getting turned out to be a real, load-bearing alert (Node-RED's own `DATA_PIPELINE_KEY` was genuinely stale) -- but the name made it look like unrelated legacy cruft firing, which delayed recognizing it as a real problem. Joseph: "i don't like the name holdover, it made me think that some cruft was firing those messages."
 
@@ -25,13 +25,15 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 **Done 2026-10-03 (repo side):** flow JSON edited (node ids left untouched -- only tab label/info, node names, and the embedded JS strings changed, so `deploy_flow.py`'s node-by-node diff stays minimal and reviewable), file renamed `sheet-health.flow.json` -> `data-pipeline-health.flow.json`, `README.md`'s three references updated to match.
 
-**Still needed -- Joseph, from his own terminal (the Admin API deploy needs the Node-RED admin password, which a Claude Code session isn't allowed to read, per `core/node-red/README.md`):**
-```
-python core/node-red/deploy_flow.py core/data-pipeline/data-pipeline-health.flow.json b2a86771d1f90aaf
-```
-Then a live check that a probe cycle lands under the new `data-pipeline-health` component name in the log dashboard (next cycle is every 5 min) before this is committed -- per `core/node-red/README.md`'s own rule, commit the flow file to `main` only *after* deploying, or the daily drift check (CARD-0328) flags repo != live.
+**Deployed 2026-10-03, Joseph's own terminal (first run, interactive password) -- `PUT /flow/b2a86771d1f90aaf -> HTTP 200`, verified all 7 nodes present and every function node's code matching the repo.**
 
-**Done when:** deployed, a real probe cycle logs under `data-pipeline-health` (not `sheet-health`), and the repo file is committed post-deploy. Related: CARD-0372 (the incident that surfaced this), CARD-0373 (same "stale name causes real confusion" pattern, same fix shape, same live-flow deploy caveat), CARD-0349 (the actual cutover this name should have followed at the time).
+**Real gap found immediately after, confirming it live: the tab's own display name hadn't actually changed.** `deploy_flow.py` only diffs/replaces nodes with `z == tab_id` -- a tab node has no `z` of its own (it's the container, not a member), so it was never compared or included in the PUT body. Every child node deployed and verified correctly, but the live Node-RED editor still showed "Sheet Health" as the tab's name after a "successful, verified" deploy -- the exact kind of silent gap this card exists to fix in the first place, and one that would have hit CARD-0373's rename too. Fixed in `deploy_flow.py` itself: now diffs and applies `label`/`info`/`disabled` on the tab alongside its nodes, and the post-deploy verification checks them too. Re-deployed -- caught the stale label/info, applied them, confirmed live (`Tab 'Data Pipeline Health'` now reported directly from the Admin API), and a third run confirms fully idempotent.
+
+**Also built along the way (Joseph: "i thought that was the purpose of the vault," after asking why a session couldn't just read the admin password out of the vault instead of needing him at a terminal each time): `secret.ps1 run-local`** -- same idea as the existing M8-only `run`, but executes the given command on the workstation itself (needed here since `deploy_flow.py` calls the Pi's Admin API over Tailscale/LAN, which the M8 has no route to). `deploy_flow.py` now checks `$NODE_RED_ADMIN_PASSWORD` before falling back to its interactive prompt. The interactive-only restriction had predated the vault entirely -- a blunt guardrail from when this exact password was leaked into session transcripts twice (2026-09-24, 2026-09-28), never revisited once the vault existed to relay a value in-process without a session ever seeing it (the identical pattern already proven safe for this credential back on 2026-09-29). Every subsequent redeploy and the tab-rename fix above ran this way, fully unattended, value never printed.
+
+**Not done, deliberately:** an actual *fired* test alert under the new name. The flow's own `sh_test` inject hook only arms a flag consumed on the next 5-minute tick; the two follow-up redeploys (for the tab-label fix) reset the flow's in-memory context and wiped it before a tick ever consumed it. Re-arming and waiting ~10 minutes would also mean sending Joseph a real test push notification just to prove the rename -- judged unnecessary given `deploy_flow.py`'s own structural verification already confirms the exact live function code (every `data-pipeline-health` string) and the tab's own label. Joseph: "call it done."
+
+**Done when:** deployed (done), the live tab's label and every node verified matching the repo (done), and the repo file committed (done, `cc0e66f`/`ea7f222`/`374f876`). Related: CARD-0372 (the incident that surfaced this, and the vault-access policy correction), CARD-0373 (same "stale name causes real confusion" pattern -- note deploy_flow.py's tab-label gap applies there too if/when it's picked up), CARD-0349 (the actual cutover this name should have followed at the time).
 
 ### CARD-0382 · [maintenance] [pi1] Pi maintenance: 27 routine + 3 review-category updates — auto-opened from jctsh-core
 
@@ -573,13 +575,15 @@ The fresh-session guardrail test and the first live run happen on the workstatio
 4. **Rolling this into an `apply:` holder still needs Joseph's go-ahead per holder** (same standing rule as every other automation step in this card) -- "capture everything required" is a documentation/design task now, not a license to wire up unattended device reflashing without a decision point first.
 5. **A second, independent incident the same day, same root failure class: "a bare value gets manually reconstructed into a template by a person."** Checking `webhook-secret`'s long-open "enumerate the Tasker callers" TODO (closed 2026-10-03, see above) surfaced that the real cause of that day's GPS-trigger silence was Joseph pasting the correct key value into the "Hike-izer Done" Tasker Profile without the surrounding `/webhook/hike-end?key=` prefix -- a copy/paste error, not a stale credential. Joseph: "that's the problem with copy/paste." Same shape as the AQM `-Prefix` bug (item 3) but one level more general: that fix handles a fixed prefix on a value a *script* writes into a *file*; this one is a value a *person* pastes into a *URL* by hand, with no tooling involved at all, nothing to add a `-Prefix` flag to. The real fix for this class is giving a guided holder a **fully-formed string to paste** (the whole URL/header, value already embedded) instead of a bare value plus instructions to reconstruct the wrapper from memory -- e.g. `secret.ps1 copy` taking an optional template (`-Prefix`/`-Template "https://.../webhook/hike-end?key={}"`) so the clipboard already contains the complete, correct string for holders shaped like this one. Not built; captured here as the next concrete automation requirement, same spirit as items 1-3.
 
-### CARD-0371 · [enhancement] [data-pipeline] Remove `?key=` query authentication from data-pipeline-api once no caller uses it
+### CARD-0371 · [enhancement] [data-pipeline] Remove `?key=` query authentication from data-pipeline-api once no caller uses it — RESOLVED 2026-10-03
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-09-29 12:34 MST (general session, from CARD-0365 phase 1).** The gateway still accepts `?key=` beside `Authorization: Bearer` so GPSLogger and Tasker can be moved without breaking capture. That leaves the exposure CARD-0365 exists to close only half closed.
 
 **Done when:** the gateway's `legacy ?key=` log line has stayed quiet across at least one real hike (GPS Track is the slow one -- it only fires on a hike), `_authorized()` accepts the header only, `VERSION` is bumped and deployed, and `README.md`/`gps-pipeline.md` no longer mention the query form. **Unblocked as of 2026-09-29 13:10 MST:** GPSLogger and Tasker are both on the Bearer header (CARD-0365); what remains is the quiet-across-a-real-hike wait on the gateway's legacy log. Related: CARD-0365, CARD-0370.
+
+**RESOLVED 2026-10-03 (hike-izer cluster session).** Checked `docker logs data-pipeline-api` since the 2026-09-29 13:10 MST switch: zero `legacy ?key=` lines, across two real (`hike_confirmed: true`) hikes since (2026-10-01, 2026-10-03) -- the done-when's quiet-across-a-real-hike condition is met. Removed the `?key=` fallback from `_authorized()` (header-only now; `_note_auth`/`_auth_last_logged` simplified to match, the `previous`-key CARD-0372 logging path kept as-is), bumped `VERSION` to `2026-10-03.1-bearer-only`, deployed (`docker compose up -d --build data-pipeline-api` on the M8), and confirmed live: the new version string appears in the container's own startup log, and a real request through `hike-izer-orchestrator`'s own `Authorization: Bearer` header (using its already-configured env, never typing the key into a command) returned `{"status": "ok", "version": "2026-10-03.1-bearer-only"}`. `README.md` updated to drop the query-form mention and its `/version` curl example switched to the header; `gps-pipeline.md`'s current-state section already said "no `key=` in it" (CARD-0365) and needed no change -- its remaining `?key=` mentions are in sections already marked RETIRED (the old Apps Script endpoint), not this gateway. Related: CARD-0365, CARD-0370 (key rotation, still open, deliberately separate).
 
 ### CARD-0370 · [enhancement] [data-pipeline] Rotate the data-pipeline API key (and the old Apps Script key) after the callers are on Bearer
 
@@ -2581,6 +2585,8 @@ Archived to `architecture/card-archive.md` on 2026-09-28 (CARD-0193) — 3263B, 
 **Not yet confirmed live -- the two walks since cutover don't count as a clean test.** Both of CARD-0346's 2026-09-28 walks (the AM rehearsal and the short follow-up) were confounded by hiking-monitor's own hardware fault (a connector issue, unrelated to GPS lookup) and produced almost no real field-mode data either way -- neither is evidence one way or the other for this card's specific question.
 
 **Watch for:** the next real hike with genuine field-mode Environmental Data volume from hiking-monitor -- check `readings_missing_gps_coords` vs. `readings_with_gps_coords` in that hike's `hike_data.json`. A low miss rate (comparable to a normal, non-incident hike) confirms this closes as fixed structurally via CARD-0349; a high miss rate matching this card's original 84%/CARD-0226's other recurrences would mean the GPS-correlation failures were never about Apps Script at all, and the device-side reboot loop (CARD-0226, still unresolved, root cause still unconfirmed) is doing all the damage on its own -- worth knowing either way, since CARD-0226 stays open regardless of this card's outcome.
+
+**Checked 2026-10-03 (hike-izer cluster session), still not testable.** Queried the gateway's `/export?table=environmental_data` for the 2026-10-01 hike's confirmed session window (`13:30:58Z`-`17:59:30Z`): zero `hiking-monitor` rows at all (198 rows total, all `air-quality-monitor`/`back-patio-temp-sensor`/`front-porch-temp-sensor`). Not a correlation failure -- hiking-monitor published nothing that day because it's physically down: CARD-0376 (ESP32 USB-C connector broke off, replacement chip installed, still in Build, not yet confirmed working live). This Watch for stays open until a real hike actually carries a working hiking-monitor again -- CARD-0376 is the blocker, not this card.
 
 ---
 

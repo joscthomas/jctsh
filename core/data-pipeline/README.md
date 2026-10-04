@@ -77,12 +77,12 @@ checkout there — same pattern as `~/hike-izer-web-app/`). Two containers:
 | `data-pipeline-api` | built from `api/` | `127.0.0.1:8091` locally; publicly at **`https://hikes.jctnet.com/data/…`** via the existing Cloudflare Tunnel + Caddy (`components/hike-izer-web/Caddyfile`'s `handle_path /data/*`, which strips the `/data` prefix — the gateway's own routes are `/gps`, not `/data/gps`). |
 
 Every route authenticates with a shared secret, checked with a constant-time compare:
-**`Authorization: Bearer <API_KEY>` is the form to use** (CARD-0365). `?key=<API_KEY>` is still
-accepted while GPSLogger and Tasker are moved over, but a key in the URL lands in every access
-log on the way here, so the gateway logs each legacy use (rate-limited, never the key) and
-Caddy redacts `key=` from its access log. The URL and key reach callers as
-`DATA_PIPELINE_URL` / `DATA_PIPELINE_KEY` (Node-RED env vars, the orchestrator's `.env`) and
-in GPSLogger's saved URL.
+**`Authorization: Bearer <API_KEY>` is the only form accepted** (CARD-0365 moved every caller
+to it; CARD-0371 removed the interim `?key=` query form once the gateway's legacy-auth log
+stayed quiet across real hikes after the switch). A key in the URL lands in every access log
+on the way here, which is exactly why the query form existed only as a transition and is gone
+now. The URL and key reach callers as `DATA_PIPELINE_URL` / `DATA_PIPELINE_KEY` (Node-RED env
+vars, the orchestrator's `.env`) and as GPSLogger's saved Headers entry.
 
 **Key rotation window (CARD-0372).** Set `API_KEY_PREVIOUS` and `API_KEY_PREVIOUS_EXPIRES` (ISO 8601 UTC
 or epoch seconds) in the gateway's `.env` and both keys are accepted until that instant, after which the
@@ -171,7 +171,7 @@ On the M8, from a checkout on the workstation:
 ```bash
 scp -r core/data-pipeline/{docker-compose.yml,api,init,pg-backup.sh} jct@m8.local:~/data-pipeline-app/
 ssh jct@m8.local "cd ~/data-pipeline-app && docker compose up -d --build data-pipeline-api"
-curl -s "https://hikes.jctnet.com/data/version?key=$DATA_PIPELINE_KEY"   # confirm the new VERSION is serving
+curl -s -H "Authorization: Bearer $DATA_PIPELINE_KEY" "https://hikes.jctnet.com/data/version"   # confirm the new VERSION is serving
 ```
 
 Bump `VERSION` in `api/app.py` on every gateway change — it is the only way to tell a

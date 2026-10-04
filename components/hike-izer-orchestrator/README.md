@@ -84,9 +84,9 @@ ssh jct@m8.local "cd ~/hike-izer-web-app && docker compose up -d --build orchest
 **Required `.env` keys** (`~/hike-izer-web-app/.env`, shared with `web`) —
 see `components/hike-izer-web/.env.example` for the full list and
 `credentials.local.md` for real values: `WEBHOOK_SECRET`,
-`ANTHROPIC_API_KEY`, `APPS_SCRIPT_URL`, `APPS_SCRIPT_KEY` (Hiking Observations/
-Hike Start Forecast only, CARD-0349 Phase 2), `DATA_PIPELINE_URL`,
-`DATA_PIPELINE_KEY` (CARD-0349 Phase 1 -- Environmental Data + GPS Track),
+`ANTHROPIC_API_KEY`, `DATA_PIPELINE_URL`, `DATA_PIPELINE_KEY` (CARD-0349 --
+the TimescaleDB gateway, serving all five tables since Phase 2 cut over
+2026-09-28/29; the old `APPS_SCRIPT_URL`/`APPS_SCRIPT_KEY` pair is retired),
 `IMMICH_URL`,
 `IMMICH_KEY`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `THUNDERFOREST_API_KEY`
 (CARD-0134 — the Route Map's basemap tiles; a missing/empty value just
@@ -136,7 +136,7 @@ are logged and ignored. Wrong/missing `key` gets a 401. `local_datetime`
 (parseable via Python's `datetime.fromisoformat`) is what `generate()` uses
 to determine "today" for the hike and to render every timestamp in the
 output as explicit local time, rather than hardcoding `America/Phoenix` the
-way the stationary-sensor pipeline (`environmental-data.gs`) does.
+way the retired `environmental-data.gs` used to.
 
 `POST https://hikes.jctnet.com/webhook/idea?key=<WEBHOOK_SECRET>`
 

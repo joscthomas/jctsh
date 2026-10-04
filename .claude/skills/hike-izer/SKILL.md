@@ -134,26 +134,28 @@ section.
    camping/travel with no GPS sessions.
 
 2. **Get credentials.** Read `credentials.local.md` (gitignored, repo root) for the
-   Apps Script `Deployment URL` and `API_KEY` under "Google Apps Script --
-   Environmental Data Pipeline" (still needed for Hiking Observations/Hike Start
-   Forecast, CARD-0349 Phase 2 -- not migrated yet), and the TimescaleDB gateway's
-   URL/`API_KEY` under "data-pipeline-api" (CARD-0349 Phase 1 -- Environmental Data
-   + GPS Track). Never hardcode these in this skill file, in the
-   helper script, or in the generated summary -- they're gitignored for a reason.
+   TimescaleDB gateway's URL/`API_KEY` under "data-pipeline-api" -- as of CARD-0349
+   Phase 2 (cut over 2026-09-28/29) this is the only credential this step needs; the
+   gateway serves all five tables (Environmental Data, GPS Track, Hike Start
+   Forecast, Wildlife Detections, Hiking Observations). The old Apps Script
+   `Deployment URL`/`API_KEY` are retired -- `environmental-data.gs` is kept only as
+   historical reference, nothing reads from it any more. Never hardcode the
+   gateway credential in this skill file, in the helper script, or in the
+   generated summary -- it's gitignored for a reason.
 
 3. **Fetch and analyze the data.** Run the helper script (lives in `components/hike-izer/`, not this skill's own directory -- code and generated output are kept separate: code under `components/hike-izer/`, results under the top-level `hike-izer/summaries/`):
 
    ```
    python components/hike-izer/fetch_hike_data.py \
      --start <ISO8601 start> --end <ISO8601 end> \
-     --url <Deployment URL> --key <API_KEY> \
      --data-pipeline-url <TimescaleDB gateway URL, e.g. https://hikes.jctnet.com/data> \
      --data-pipeline-key <its API_KEY> \
      --out <scratch path>/hike_data.json
    ```
 
-   This fetches all four sheets (Environmental Data, Hiking Observations, GPS
-   Track, and Hike Start Forecast) via the `action=export` endpoint, computes
+   This fetches all five tables (Environmental Data, Hiking Observations, GPS
+   Track, Hike Start Forecast, and Wildlife Detections) via the gateway's `/export`
+   route, computes
    expected-vs-actual data coverage, computes the `stats` block (temp/humidity/
    pressure/UV/battery ranges, and altitude range **in feet** -- `stats.altitude_ft`,
    already converted, don't reconvert `altitude_m` by hand), and computes sun
@@ -522,12 +524,19 @@ section.
   section since a high miss rate might indicate a real pipeline issue.
 - `rssi_dbm == 0` means the reading was taken while the device had no WiFi (normal
   "field mode" while hiking, not an error).
-- `hike_start_forecast` (CARD-0083) is captured server-side by
-  `environmental-data.gs` on the first Hiking Observation of each Arizona-local
-  day, provider Open-Meteo (no API key needed). It will normally be a 0- or
-  1-entry list for a single-day query. `lat`/`lon` on that entry are the actual
-  grid point Open-Meteo used (from its response, not the input coordinates) --
-  see `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`'s "Hike
+- `hike_start_forecast` (CARD-0083) is captured server-side by the gateway
+  (`data-pipeline-api`'s `_maybe_capture_hike_start_forecast()`, CARD-0349 Phase 2)
+  on the first real GPS point of each new session (a gap of more than 10 minutes
+  since the previous GPS point ever recorded) -- no longer tied to the first
+  Hiking Observation or to Arizona-local calendar days, provider Open-Meteo (no
+  API key needed). It will normally be a 0- or 1-entry list for a single-day
+  query. `lat`/`lon` on that entry are the actual grid point Open-Meteo used
+  (from its response, not the input coordinates) -- see
+  `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md`'s "Hike
   Start Forecast Architecture" section for the full schema/trigger design.
-- Full Environmental Data schema (A-Z) and the `action=export` API reference:
-  `components/hiking-monitor/data-pipeline.md`.
+- Full Environmental Data schema and the gateway's `/export` API reference:
+  `core/data-pipeline/README.md` (operational reference) and
+  `core/data-pipeline/JCTsh-Environmental-Data-Architecture.md` (the standard) --
+  `components/hiking-monitor/data-pipeline.md` still describes the retired
+  Google Sheets/Apps Script architecture (CARD-0349 superseded it; not fixed
+  here since it's owned by the hiking-monitor cluster, not this one).

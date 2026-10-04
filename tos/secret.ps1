@@ -552,7 +552,7 @@ switch ($Action) {
         # stdin only -- never interpolated into any command's own text.
         $pyScript = @"
 import sys, os, tempfile
-newval = sys.stdin.read().rstrip('\n')
+newval = sys.stdin.read().rstrip('\r\n')   # PowerShell pipes CRLF; a kept \r lands IN the value (2026-10-03)
 path = r'$Path'
 key = '$Key'
 with open(path) as f:
@@ -590,10 +590,10 @@ print('updated')
         }
 
         # Verify by fingerprint -- re-read from disk, never compare raw values.
-        $readBack = & ssh $RemoteHost "${sudoPrefix}grep -E '^$Key=' '$Path' | head -1 | cut -d= -f2-" 2>&1
-        $readValue = ($readBack -join "`n").Trim()
-        $localHash = ([BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($readValue)))).Replace('-', '').ToLowerInvariant()
-        $readValue = $null
+        # Hash the EXACT bytes on the remote side (only the final \n dropped). Do NOT read the value back
+        # into PowerShell and .Trim() it: that strips a stray \r before hashing and reported a value with a
+        # trailing carriage return as "fingerprint-verified" (found live 2026-10-03, github-pat-maintenance).
+        $localHash = ((& ssh $RemoteHost "${sudoPrefix}grep -E '^$Key=' '$Path' | head -1 | cut -d= -f2- | tr -d '\n' | sha256sum | cut -d' ' -f1" 2>&1) | Out-String).Trim()
         $fp = Invoke-RemoteSecret -RemoteArgs @('fingerprint', $Name) -CaptureOutput
         $remoteHash = (($fp.Output -join '').Trim()) -replace '^sha256:', ''
         if ($localHash -ne $remoteHash) {

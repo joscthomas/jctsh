@@ -67,6 +67,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -132,6 +133,36 @@ def read_value(name):
 
 def short_fp(value):
     return "sha256:" + hashlib.sha256(value.encode()).hexdigest()[:12]
+
+
+# A paste into keepassxc-cli's masked prompt, over `ssh -t` from Windows Terminal, can arrive
+# wrapped in bracketed-paste markers (ESC[200~ ... ESC[201~) -- the prompt reads the terminal
+# raw, so they end up IN the stored value (found live 2026-10-03: a 93-char GitHub token
+# stored as 105). Stop the terminal sending them, then strip any that still got in.
+PASTE_MARKERS = re.compile(r"\x1b\[20[01]~")
+
+
+def disable_bracketed_paste():
+    if sys.stderr.isatty():
+        sys.stderr.write("\x1b[?2004l")
+        sys.stderr.flush()
+
+
+def clean_pasted(name):
+    """Strip paste markers and stray surrounding whitespace from a stored value, in place.
+    Returns how many characters were removed (0 = it was already clean). Never prints a value."""
+    value = read_value(name)
+    if not value:
+        return 0
+    cleaned = PASTE_MARKERS.sub("", value).strip()
+    if cleaned == value:
+        return 0
+    if not cleaned:
+        die(f"'{name}' is empty once the paste markers are removed -- nothing to keep.")
+    r = kp(["edit", VAULT_PATH, name, "-p", "-q"], capture=True, input_text=cleaned + "\n")
+    if r.returncode != 0 or read_value(name) != cleaned:
+        die(f"could not rewrite '{name}' with the cleaned value -- left unchanged.")
+    return len(value) - len(cleaned)
 
 
 def rename(old, new):
@@ -216,7 +247,21 @@ def cmd_set(args):
         verb = "edit" if args.name in entry_names() else "add"
         print(f"Prompting for '{args.name}'s new value -- masked, read from this terminal only "
               f"(run with `ssh -t` so the prompt actually works).", file=sys.stderr)
+        disable_bracketed_paste()
         subprocess.run([CLI, verb, VAULT_PATH, args.name, "-k", KEY_PATH, "--no-password", "-p"])
+        removed = clean_pasted(args.name)
+        if removed:
+            print(f"(removed {removed} stray paste/whitespace characters from the pasted value)", file=sys.stderr)
+
+
+def cmd_clean(args):
+    with vault_lock():
+        removed = clean_pasted(args.name)
+        value = read_value(args.name)
+    if value is None:
+        die(f"No value read back for '{args.name}'.")
+    print(f"'{args.name}': " + (f"removed {removed} stray characters" if removed else "already clean")
+          + f" -- now {len(value)} characters, {short_fp(value)}")
 
 
 def parse_bindings(name, env_specs):
@@ -287,9 +332,13 @@ def cmd_stage(args):
             if not sys.stdin.isatty():
                 die("--prompt needs a terminal (run through `ssh -t`).")
             print(f"Paste the new value for '{args.name}' (masked):", file=sys.stderr)
+            disable_bracketed_paste()
             r = subprocess.run([CLI, "add", VAULT_PATH, nxt, "-k", KEY_PATH, "--no-password", "-p"])
             if r.returncode != 0:
                 die(f"could not create '{nxt}'")
+            removed = clean_pasted(nxt)
+            if removed:
+                print(f"(removed {removed} stray paste/whitespace characters from the pasted value)", file=sys.stderr)
         else:
             gen = ["-g", "-L", str(args.length), "-l", "-U", "-n"] + (["-s"] if args.special else [])
             r = kp(["add", VAULT_PATH, nxt, "-q"] + gen, capture=True)
@@ -491,6 +540,9 @@ def main():
     p_stage.add_argument("--prompt", action="store_true")
     p_stage.add_argument("--replace", action="store_true")
 
+    p_clean = sub.add_parser("clean")
+    p_clean.add_argument("name")
+
     p_reach = sub.add_parser("reach")
     p_reach.add_argument("host")
 
@@ -531,7 +583,7 @@ def main():
         "new": cmd_new, "copy": cmd_copy, "set": cmd_set, "run": cmd_run, "reach": cmd_reach,
         "stage": cmd_stage, "promote": cmd_promote, "unpromote": cmd_unpromote,
         "discard-next": cmd_discard_next, "drop-previous": cmd_drop_previous,
-        "envfile": cmd_envfile,
+        "envfile": cmd_envfile, "clean": cmd_clean,
     }[args.action](args)
 
 

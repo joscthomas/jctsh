@@ -93,18 +93,29 @@ def main():
     added = sorted(set(repo_by_id) - set(live_by_id))
     removed = sorted(set(live_by_id) - set(repo_by_id))
     changed = sorted(i for i in set(repo_by_id) & set(live_by_id) if _differs(repo_by_id[i], live_by_id[i]))
+    # The tab node itself (type "tab") has no "z" -- it's the container, not a member
+    # of repo_nodes -- so its own label/info/disabled need a separate comparison, or a
+    # rename like CARD-0383's never actually reaches the live editor even though every
+    # child node deploys fine (found live 2026-10-03: deployed, verified, and the tab
+    # still showed its old name on the next run).
+    repo_tab = tab_nodes[0]
+    tab_changed = [k for k in ("label", "info", "disabled") if repo_tab.get(k) != live.get(k)]
     print(f"\nTab '{live.get('label')}' on {a.host}:")
     print(f"  add    : {added or '-'}")
     print(f"  change : {changed or '-'}")
     print(f"  remove : {removed or '-'}")
+    print(f"  tab itself : {tab_changed or '-'}")
 
-    if not (added or changed or removed):
+    if not (added or changed or removed or tab_changed):
         print("Live already matches the repo -- nothing to deploy.")
     else:
         if not a.yes and input("\nDeploy this tab now? [y/N] ").strip().lower() != "y":
             sys.exit("Aborted, nothing changed.")
         body = dict(live)
         body["nodes"] = repo_nodes
+        for k in ("label", "info", "disabled"):
+            if k in repo_tab:
+                body[k] = repo_tab[k]
         status, _ = call(a.host, "PUT", f"/flow/{a.tab_id}", token, body=body)
         print(f"PUT /flow/{a.tab_id} -> HTTP {status}")
 
@@ -113,9 +124,10 @@ def main():
         bad = [i for i, n in repo_by_id.items()
                if n["type"] == "function" and after_by_id.get(i, {}).get("func") != n["func"]]
         missing = sorted(set(repo_by_id) - set(after_by_id))
-        if bad or missing:
-            sys.exit(f"VERIFY FAILED -- function code differs: {bad}, missing nodes: {missing}")
-        print(f"Verified: all {len(repo_by_id)} nodes present, every function node's code matches the repo.")
+        tab_bad = [k for k in ("label", "info", "disabled") if k in repo_tab and after.get(k) != repo_tab[k]]
+        if bad or missing or tab_bad:
+            sys.exit(f"VERIFY FAILED -- function code differs: {bad}, missing nodes: {missing}, tab fields not applied: {tab_bad}")
+        print(f"Verified: all {len(repo_by_id)} nodes present, every function node's code matches the repo, tab label/info match.")
 
     if a.trigger:
         status, _ = call(a.host, "POST", f"/inject/{a.trigger}", token)

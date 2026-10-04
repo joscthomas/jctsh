@@ -9,7 +9,21 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0384 -->
+<!-- next-card-id: CARD-0385 -->
+
+---
+
+### CARD-0384 · [enhancement] [hike-izer] Show coordinates in the Route Map's hover tooltip
+
+**Status:** Backlog
+
+**Raised 2026-10-03 (Joseph).** Hovering a point on the hike-summary page's Route Map (CARD-0082) already shows that point's local time and elevation/speed (`build_hike_map.py`'s `showIndex()`/`tt-time`/`tt-metric` spans) -- missing is the point's own lat/lon, so there's no way to tell exactly where on the ground a hovered point actually is.
+
+**Interviewed same session:** coordinates render as decimal degrees, 5 decimal places (e.g. `32.22260, -110.97470`) -- matches the precision already used elsewhere (GPS accuracy is in meters; 5 places is ~1 m resolution) and is easy to copy into a maps app. Map-only, deliberate non-goal: the Elevation & Speed chart's own hover tooltip (hover-synced with the map, CARD-0110) is unchanged -- coordinates are a map-specific thing (hovering a location), not a chart metric.
+
+**Done when:** hovering any point on the Route Map's track shows that point's coordinates (decimal degrees, 5 places) in the map's existing hover tooltip, alongside the time/elevation/speed already there, on both a manually-run (`fetch_hike_data.py`/Skill) and an automatically-published (`hike-izer-orchestrator`) page -- `templating.py` calls the same `build_hike_map.build_map_html()` this lives in, so one fix covers both paths.
+
+**Related:** CARD-0082 (Route Map), CARD-0110 (Elevation & Speed chart + the hover-sync this deliberately doesn't touch), `components/hike-izer/build_hike_map.py`.
 
 ---
 

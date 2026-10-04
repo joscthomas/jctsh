@@ -402,17 +402,22 @@
   }
   .map-modal-container { flex: 1 1 auto; min-height: 0; }
   /* CARD-0147 fix: this modal markup is nested *inside* the Route Map's own
-     <section> (inside .hike-visuals), so even once JS relocates the map div
+     <section> (inside .hike-visuals), so even once JS relocates the map card
      into the modal, it's still a genuine DOM descendant of .hike-visuals,
      position:fixed notwithstanding (CSS descendant selectors match by DOM
      ancestry, not visual/layout escape). .hike-visuals .hike-map's own
      responsive rule (height: 15rem, below) has the same specificity as a
      plain 2-class selector and is declared later in the stylesheet, so it
      would otherwise win the specificity tie and clamp the map to 15rem
-     regardless of the modal's own real size. This 3-class selector is
-     unambiguously higher specificity, so it always wins regardless of
-     source order. */
-  .map-modal-backdrop .map-modal-container .hike-map { height: 100%; }
+     regardless of the modal's own real size. These selectors are
+     unambiguously higher specificity, so they always win regardless of
+     source order.
+     CARD-0384 bugfix: it's .map-card that gets relocated now (tooltip slot +
+     map together, not just the bare Leaflet div -- see build_hike_map.py's
+     own comment on mapContainer), same two-child flex-column treatment
+     .chart-card already uses above for the identical tooltip+content shape. */
+  .map-modal-backdrop .map-modal-container .map-card { height: 100%; display: flex; flex-direction: column; }
+  .map-modal-backdrop .map-modal-container .map-card .hike-map { flex: 1 1 auto; min-height: 0; height: auto; }
   .map-modal-close {
     position: absolute; top: -0.9rem; right: -0.9rem; z-index: 21;
     width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--line);

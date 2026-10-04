@@ -666,7 +666,16 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
   // so simply preserving the current center (invalidateSize()'s own
   // default) would leave the route off-center or partly cropped at the
   // new size instead of nicely reframed.
-  var mapContainer = document.getElementById("{map_id}");
+  // CARD-0384 bugfix: move the whole .map-card (tooltip slot + map), not just
+  // the bare Leaflet div -- the tooltip slot is a *sibling* of #{map_id}, not
+  // a descendant, so moving only #{map_id} (the original CARD-0147 behavior)
+  // left the tooltip behind in the now-hidden inline card, making every
+  // hover in the modal (time/elevation/speed, and now coordinates) silently
+  // invisible. Mirrors build_hike_chart.py's own working pattern exactly
+  // (`chartCard = svg.closest(".chart-card")` moves its tooltip slot right
+  // along with the chart) -- found live, Joseph: "it works on the embedded
+  // map, but when i click the enlarge map, there's no time/points data."
+  var mapContainer = document.getElementById("{map_id}").closest(".map-card");
   var mapOriginalParent = mapContainer.parentNode;
   var modalBackdrop = document.getElementById("{map_id}-modal-backdrop");
   var modalContainer = document.getElementById("{map_id}-modal-container");

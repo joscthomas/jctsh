@@ -914,8 +914,12 @@ _HTML_STYLE = """
      map to 15rem regardless of the modal's own real size. Fixed with a
      3-class selector, unambiguously higher specificity, so this rule always
      wins regardless of source order or which other responsive rule happens
-     to also match. */
-  .map-modal-backdrop .map-modal-container .hike-map { height: 100%; }
+     to also match.
+     CARD-0384 bugfix: it's .map-card that gets relocated now (tooltip slot +
+     map together, not just the bare Leaflet div), same two-child flex-column
+     treatment .chart-card already uses above. */
+  .map-modal-backdrop .map-modal-container .map-card { height: 100%; display: flex; flex-direction: column; }
+  .map-modal-backdrop .map-modal-container .map-card .hike-map { flex: 1 1 auto; min-height: 0; height: auto; }
   .map-modal-close {
     position: absolute; top: -0.9rem; right: -0.9rem; z-index: 21;
     width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--line);

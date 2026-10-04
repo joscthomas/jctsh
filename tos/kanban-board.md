@@ -13,9 +13,9 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 
 ---
 
-### CARD-0384 · [enhancement] [hike-izer] Show coordinates in the Route Map's hover tooltip
+### CARD-0384 · [enhancement] [hike-izer] Show coordinates in the Route Map's hover tooltip — RESOLVED 2026-10-03
 
-**Status:** Backlog
+**Status:** Done
 
 **Raised 2026-10-03 (Joseph).** Hovering a point on the hike-summary page's Route Map (CARD-0082) already shows that point's local time and elevation/speed (`build_hike_map.py`'s `showIndex()`/`tt-time`/`tt-metric` spans) -- missing is the point's own lat/lon, so there's no way to tell exactly where on the ground a hovered point actually is.
 
@@ -24,6 +24,8 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 **Done when:** hovering any point on the Route Map's track shows that point's coordinates (decimal degrees, 5 places) in the map's existing hover tooltip, alongside the time/elevation/speed already there, on both a manually-run (`fetch_hike_data.py`/Skill) and an automatically-published (`hike-izer-orchestrator`) page -- `templating.py` calls the same `build_hike_map.build_map_html()` this lives in, so one fix covers both paths.
 
 **Related:** CARD-0082 (Route Map), CARD-0110 (Elevation & Speed chart + the hover-sync this deliberately doesn't touch), `components/hike-izer/build_hike_map.py`.
+
+**RESOLVED 2026-10-03 (hike-izer cluster session).** `showIndex()` now builds a `<span class="tt-coords">` from `p.lat.toFixed(5) + ', ' + p.lon.toFixed(5)` (both already full-precision in the JS `points` array), placed between the existing time and elevation/speed spans. Matching `.tt-coords` CSS added in both `html-template.html` and its verbatim-ported copy in `templating.py`'s `_HTML_STYLE` (confirmed these two are a real, manually-synced duplication, not DRY -- noted for awareness, not fixed here). Deployed `templating.py`/`build_hike_map.py` to the M8 and regenerated the 2026-10-01 hike page live (`generation.py --step2 2026-10-01`) to pick it up -- `templating.py` calls this same `build_hike_map.build_map_html()`, so the fix covers both the manual Skill path and the automated pipeline in one change. **Verified via the served page's raw HTML** (real lat/lon values present in the `points` array, the `tt-coords` span/CSS/JS all live) -- **not visually hover-tested in a browser**, since the Chrome extension wasn't connected in this session. Worth a quick visual check on the actual page before considering this fully proven live.
 
 ---
 

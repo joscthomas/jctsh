@@ -436,7 +436,11 @@ def build_map_html(chart_series, thunderforest_api_key, map_id='hikeMap',
     var p = points[i];
     highlight.setLatLng([p.lat, p.lon]);
     highlight.setStyle({{opacity: 1, fillOpacity: 1}});
+    // CARD-0384: decimal degrees, 5 places (~1 m resolution) -- matches the
+    // precision already used elsewhere for GPS coordinates.
+    var coords = p.lat.toFixed(5) + ', ' + p.lon.toFixed(5);
     var parts = ['<span class="tt-time">' + p.time + '</span>',
+      '<span class="tt-coords">' + coords + '</span>',
       '<span class="tt-metric elevation">' + p.elevFt + ' ft</span>'];
     if (p.speedMph !== null) {{
       parts.push('<span class="tt-metric speed">' + p.speedMph + ' mph</span>');

@@ -802,6 +802,7 @@ _HTML_STYLE = """
   .chart-tooltip-slot { height: 2.5rem; display: flex; align-items: center; font-family: var(--mono); font-size: 0.82rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line); margin-bottom: 0.5rem; transition: color 0.1s ease; }
   .chart-tooltip-slot.is-active { color: var(--ink); }
   .chart-tooltip-slot .tt-time { color: var(--ink-muted); margin-right: 0.9rem; }
+  .chart-tooltip-slot .tt-coords { color: var(--ink-muted); margin-right: 0.9rem; }
   .chart-tooltip-slot .tt-metric { font-weight: 700; }
   .chart-tooltip-slot .tt-metric.elevation { color: var(--chart-elevation); }
   .chart-tooltip-slot .tt-metric.speed { color: var(--chart-speed); }

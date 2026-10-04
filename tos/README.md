@@ -114,8 +114,10 @@ one — CARD-0190's original fix only redeployed the Docker copy and missed
 both `/usr/local/bin/` copies, which stayed broken until CARD-0191 caught it.
 
 `land_pr_card.py` is never deployed — it's run locally from this repo
-checkout by Claude, using `credentials.local.md` (gitignored, repo root) for
-the GitHub PAT.
+checkout by Claude. GitHub PAT: `secret.ps1 run-local -Name github-pat-maintenance
+-EnvVar GITHUB_PAT -- python tos/land_pr_card.py ...` (CARD-0372, 2026-10-03) is the
+preferred way to invoke it now — falls back to `credentials.local.md` (gitignored,
+repo root) unchanged if `$GITHUB_PAT` isn't set.
 
 `email-idea-check.py` deploys to the Pi as `/usr/local/bin/email-idea-check.py`,
 managed by `email-idea-check.service`/`.timer` (`systemctl daemon-reload` after

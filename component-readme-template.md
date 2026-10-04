@@ -53,8 +53,10 @@ and SmartThings devices as appropriate.]
 [Minimum steps to go from nothing to a working component. Reference dedicated docs
 files — never repeat their content here.]
 
-1. Copy `secrets.yaml.template` → `secrets.yaml` and fill in credentials from
-   `credentials.local.md`
+1. Copy `secrets.yaml.template` → `secrets.yaml` and fill in credentials -- check
+   `tos/credential-registry.yaml` for where each one currently lives (the shared
+   vault via `secret.ps1 copy <name>`, once migrated; the legacy local notes file
+   for anything not yet moved, per CARD-0372)
 2. See [flashing.md](flashing.md) for first flash procedure
 3. See [integration.md](integration.md) for HA and Node-RED setup
 4. See [testing.md](testing.md) to verify end-to-end operation

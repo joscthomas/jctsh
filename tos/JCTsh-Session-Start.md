@@ -119,17 +119,20 @@ table for exactly which steps below get scoped, skipped, or run as-is.
    **The freshness/connection check itself needs no credential (CARD-0330) — `/status.json`
    is a separate, unauthenticated endpoint returning just per-component `freshness`/
    `connection`/`last_seen`, no log content.** The rest of this step (scanning for `Alert`
-   messages and anything else that looks wrong) still needs the authenticated `/status`/`/log`
-   dashboard — `DASHBOARD_PASS` isn't something a session can pull non-interactively from the
-   Pi itself (Claude Code's own credential-materialization guard blocks reading it from the
-   Pi's env file or curling the authenticated endpoints directly). **Instead, use the copy
-   already recorded in `credentials.local.md`'s Log Dashboard section (Joseph authorized this
-   read for exactly this purpose, 2026-09-27)** — gitignored, never committed, the same
-   established local credential-reuse store other cards already point to (e.g. `HA_TOKEN`).
-   Only prompt Joseph directly if that file has no entry for it, or the recorded password
-   fails at login (rotated since last written down) — a blocked attempt is still something to
-   surface, not silently retry, but the default path no longer requires asking first.
-   A general session scans `/status` across every device; a component session (per
+   messages and anything else that looks wrong) still needs the authenticated dashboard --
+   use `/data` (structured JSON: `component`/`category`/`message`/`ts` per entry), not raw
+   `/log` or `/status`'s HTML; much easier to scan programmatically. **CARD-0372, 2026-10-03:
+   pull `DASHBOARD_PASS` from the vault, not the legacy local notes file** -- `log-dashboard-password`
+   is seeded there (if `secret.ps1 has log-dashboard-password` ever says no, seed it yourself
+   first, same as any other vault entry):
+   ```
+   secret.ps1 run -Name log-dashboard-password -EnvVar PASS -- sh -c 'curl -s -u jctsh:$PASS http://pi1.local/data'
+   ```
+   runs on the M8 (which can reach the Pi over the LAN), value never printed. Only prompt
+   Joseph directly if the vault entry doesn't exist yet and he'd rather seed it than type a
+   password himself, or if the call fails outright (rotated since last recorded) -- a blocked
+   attempt is still something to surface, not silently retry.
+   A general session scans `/status`/`/data` across every device; a component session (per
    `JCTsh-Component-Session-Start.md`) scans it for its own covered component(s) only.
 
 **ESPHome/workstation-tooling check — conditional, not one of the 10 routine steps above

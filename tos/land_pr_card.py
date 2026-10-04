@@ -48,6 +48,7 @@ landed -- this script does not ask him anything itself.
 import argparse
 import base64
 import json
+import os
 import re
 import time
 import urllib.error
@@ -61,6 +62,14 @@ CREDS_FILE = Path(__file__).resolve().parents[1] / "credentials.local.md"
 
 
 def _load_token():
+    """CARD-0372, 2026-10-03: prefer the vault over credentials.local.md.
+    $GITHUB_PAT is how secret.ps1 run-local injects github-pat-maintenance's
+    current value (never printed, never written to disk) -- the same pattern
+    deploy_flow.py uses for the Node-RED admin password. Falls back to the
+    file for any caller that still has it that way."""
+    env_token = os.environ.get("GITHUB_PAT")
+    if env_token:
+        return env_token
     text = CREDS_FILE.read_text(encoding="utf-8")
     m = re.search(r"GitHub PAT.*?\| Token \| `([^`]+)` \|", text, re.DOTALL)
     if not m:

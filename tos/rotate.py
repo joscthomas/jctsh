@@ -798,7 +798,8 @@ def cmd_status(args):
     if not os.path.isdir(STATE_DIR):
         say("no rotations in progress")
         return
-    files = sorted(f for f in os.listdir(STATE_DIR) if f.endswith(".json"))
+    # planned.json is `plan --preview`'s dashboard snapshot, not a started rotation.
+    files = sorted(f for f in os.listdir(STATE_DIR) if f.endswith(".json") and f != "planned.json")
     if args.target:
         files = [f for f in files if f == f"{args.target}.json"]
     if not files:

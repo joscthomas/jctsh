@@ -324,6 +324,8 @@ function Get-RegistryDueReport {
     $inProgress = [System.Collections.Generic.List[object]]::new()
     if (Test-Path $RotationStateDir) {
         foreach ($f in Get-ChildItem -Path $RotationStateDir -Filter '*.json' -File) {
+            # planned.json is `rotate.py plan --preview`'s dashboard snapshot, not a started rotation.
+            if ($f.Name -eq 'planned.json') { continue }
             try {
                 $st = Get-Content $f.FullName -Raw | ConvertFrom-Json
                 $next = if ($st.phase -eq 'applying') { 'continue' } elseif ($st.roboform_synced) { 'finish' } else { 'confirm-synced' }

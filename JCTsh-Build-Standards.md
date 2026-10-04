@@ -1157,7 +1157,7 @@ Default UPnP to disabled — before enabling it for any device, confirm nothing 
 
 ### 10.8 Router admin password and firmware currency
 
-Router admin password must be a strong unique password (16+ characters), stored only in `credentials.local.md` (never in a versioned/harvested doc like this one). Prefer enabling automatic firmware updates over relying on periodic manual checks, where the router supports it — removes the recurring audit burden.
+Router admin password must be a strong unique password (16+ characters), stored only in the vault (`secret.ps1`/RoboForm) or the legacy local notes file for anything not yet migrated (CARD-0372) — never in a versioned/harvested doc like this one. Prefer enabling automatic firmware updates over relying on periodic manual checks, where the router supports it — removes the recurring audit burden.
 
 ### 10.9 SSH private key Windows file permissions
 

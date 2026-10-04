@@ -33,9 +33,26 @@
 #                                                   environment only; M8 masks its exact
 #                                                   value before this script ever sees the
 #                                                   output
+#   secret.ps1 run-local -Name <name> -EnvVar <VAR> -- <command...>
+#                                                -- same idea as `run`, but the command
+#                                                   executes HERE (this workstation), not
+#                                                   the M8 -- for a consumer that needs
+#                                                   Tailscale/LAN reach the M8 doesn't have
+#                                                   (e.g. core/node-red/deploy_flow.py
+#                                                   calling the Pi's Admin API). The value
+#                                                   is relayed once over SSH into a local
+#                                                   variable, injected into the child
+#                                                   process's environment only, and
+#                                                   redacted from its captured output as a
+#                                                   defense-in-depth backstop (added
+#                                                   2026-10-03, CARD-0372 -- closing the
+#                                                   "a Claude Code session isn't allowed to
+#                                                   read that credential" gap that predated
+#                                                   this vault for the Node-RED admin
+#                                                   password specifically).
 #   secret.ps1 due                              -- local-only registry scan (see above),
 #                                                   unchanged by the M8 move
-#   secret.ps1 writefile <name> -Path <file> -Key <yaml-key>
+#   secret.ps1 writefile <name> -Path <file> -Key <yaml-key> [-Prefix "Bearer "]
 #                                                -- edits an EXISTING "key: value" line in a
 #                                                   LOCAL file on this workstation (e.g. an
 #                                                   ESPHome components/<name>/secrets.yaml,
@@ -50,6 +67,18 @@
 #                                                   don't have to"). Refuses if the key is
 #                                                   missing or appears more than once -- it
 #                                                   edits an existing line, never adds one.
+#                                                   -Prefix (added 2026-10-03, CARD-0377's AQM
+#                                                   incident -- air-quality-monitor stores this
+#                                                   holder's value as a complete header, "Bearer
+#                                                   <key>", not the bare key every other holder
+#                                                   builds that into itself) prepends a fixed
+#                                                   string before writing; verification strips
+#                                                   the same prefix back off before comparing the
+#                                                   fingerprint, since the vault only ever holds
+#                                                   and fingerprints the bare value. A holder
+#                                                   needing this should say so in its registry
+#                                                   note -- this flag existing doesn't mean every
+#                                                   holder's format is self-evident from the file.
 #                                                   Verifies by SHA-256 fingerprint match
 #                                                   against the vault (re-read from disk after
 #                                                   writing), never by comparing raw values.
@@ -87,7 +116,7 @@
 
 param(
     [Parameter(Position = 0, Mandatory = $true)]
-    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'due', 'writefile', 'mosquitto-passwd', 'envcopy', 'remoteenvwrite', 'syncfile')]
+    [ValidateSet('init', 'has', 'fingerprint', 'new', 'copy', 'set', 'run', 'run-local', 'due', 'writefile', 'mosquitto-passwd', 'envcopy', 'remoteenvwrite', 'syncfile')]
     [string]$Action,
 
     [Parameter(Position = 1)]
@@ -98,6 +127,7 @@ param(
     [string]$EnvVar,
     [string]$Path,
     [string]$Key,
+    [string]$Prefix = '',
     [string]$MqttUser,
     [string]$MosquittoHost,
     [string]$PasswdFile,
@@ -395,20 +425,31 @@ switch ($Action) {
         $value = ($r.Output -join "`n").Trim()
         if (-not $value) { throw "no value read back for '$Name'" }
 
+        $combined = $Prefix + $value
+        $value = $null
+
         $i = $hits[0]
         $m = [regex]::Match($lines[$i], $pattern)
-        $lines[$i] = $m.Groups[1].Value + $Key + $m.Groups[2].Value + ':' + $m.Groups[3].Value + '"' + (Get-YamlEscaped $value) + '"'
-        $value = $null
+        $lines[$i] = $m.Groups[1].Value + $Key + $m.Groups[2].Value + ':' + $m.Groups[3].Value + '"' + (Get-YamlEscaped $combined) + '"'
+        $combined = $null
 
         $tmp = Join-Path (Split-Path $resolved) (".writefile-$([Guid]::NewGuid().ToString('N')).tmp")
         [System.IO.File]::WriteAllLines($tmp, $lines, [System.Text.UTF8Encoding]::new($false))
         Move-Item -LiteralPath $tmp -Destination $resolved -Force
 
         # Re-read from disk (not from the variable just written) and verify by fingerprint,
-        # never by comparing raw values.
+        # never by comparing raw values. With -Prefix, the vault only ever fingerprints the
+        # BARE value -- strip the known prefix back off the written text before hashing, so
+        # the comparison is still apples-to-apples; if it doesn't start with Prefix at all,
+        # that's a real write bug, not a fingerprint mismatch to paper over.
         $writtenLine = ([System.IO.File]::ReadAllLines($resolved))[$i]
         $wm = [regex]::Match($writtenLine, $pattern)
         $writtenValue = Get-YamlUnescaped ($wm.Groups[4].Value.Trim('"'))
+        if ($Prefix -and -not $writtenValue.StartsWith($Prefix)) {
+            $writtenValue = $null
+            throw "wrote into $resolved but the on-disk value doesn't start with the expected prefix -- investigate before trusting this file."
+        }
+        if ($Prefix) { $writtenValue = $writtenValue.Substring($Prefix.Length) }
         $localHash = Get-Sha256Hex $writtenValue
         $writtenValue = $null
 
@@ -417,7 +458,8 @@ switch ($Action) {
         if ($localHash -ne $remoteHash) {
             throw "wrote into $resolved but the on-disk value's fingerprint doesn't match the vault's current '$Name' -- investigate before trusting this file (never diff the values directly; compare 'secret.ps1 fingerprint $Name' against a fresh run of this command)."
         }
-        Write-Output "wrote '$Key' in $resolved from '$Name' (fingerprint-verified; value never shown)."
+        $prefixNote = if ($Prefix) { " with prefix '$Prefix' prepended" } else { "" }
+        Write-Output "wrote '$Key' in $resolved from '$Name'$prefixNote (fingerprint-verified; value never shown)."
     }
 
     'mosquitto-passwd' {
@@ -561,6 +603,49 @@ print('updated')
         $r = Invoke-RemoteSecret -RemoteArgs $remoteArgs -CaptureOutput
         $r.Output | ForEach-Object { Write-Output $_ }
         exit $r.ExitCode
+    }
+
+    'run-local' {
+        if (-not $Name -or -not $EnvVar -or -not $Rest) {
+            throw 'Usage: secret.ps1 run-local -Name <entry> -EnvVar <VARNAME> -- <command> [args...]  (command executes on THIS machine -- value injected into its environment only, for a consumer that must run here, e.g. deploy_flow.py, which needs Tailscale/LAN reach to Node-RED that the M8-only `run` cannot provide)'
+        }
+        $r = Invoke-RemoteSecret -RemoteArgs @('copy', $Name) -CaptureOutput
+        if ($r.ExitCode -ne 0) {
+            $r.Output | ForEach-Object { Write-Output $_ }
+            exit $r.ExitCode
+        }
+        $value = ($r.Output -join "`n").Trim()
+        if (-not $value) { throw "no value read back for '$Name'" }
+
+        $exeArgs = if ($Rest.Count -gt 1) { $Rest[1..($Rest.Count - 1)] } else { @() }
+        $psi = [System.Diagnostics.ProcessStartInfo]::new()
+        $psi.FileName = $Rest[0]
+        foreach ($a in $exeArgs) { $psi.ArgumentList.Add($a) }
+        $psi.EnvironmentVariables[$EnvVar] = $value
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.UseShellExecute = $false
+
+        $proc = [System.Diagnostics.Process]::new()
+        $proc.StartInfo = $psi
+        $null = $proc.Start()
+        $out = $proc.StandardOutput.ReadToEnd()
+        $errOut = $proc.StandardError.ReadToEnd()
+        $proc.WaitForExit()
+        $exitCode = $proc.ExitCode
+
+        # Defense in depth, same spirit as secret.py's own `run` -- the child should
+        # never echo the value (injecting it via environment rather than an argument
+        # is the whole point), but redact any literal occurrence anyway before this
+        # reaches the session's own output.
+        $pattern = [regex]::Escape($value)
+        $out = $out -replace $pattern, '[REDACTED]'
+        $errOut = $errOut -replace $pattern, '[REDACTED]'
+        $value = $null
+
+        if ($out) { Write-Output $out }
+        if ($errOut) { Write-Output $errOut }
+        exit $exitCode
     }
 
     'due' {

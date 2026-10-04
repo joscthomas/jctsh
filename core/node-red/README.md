@@ -33,14 +33,21 @@ proper live in the separate encrypted `flows_cred.json`. Nothing that reads `flo
 ## Deploying a flow change
 
 `deploy_flow.py` pushes one tab from a repo flow file to the live instance through Node-RED's Admin API
-(what CARD-0331 did by hand), from **your own terminal** — it prompts for the admin password and never
-writes it anywhere, since a Claude Code session isn't allowed to read that credential:
+(what CARD-0331 did by hand). Password: `$NODE_RED_ADMIN_PASSWORD` if set, else an interactive masked
+prompt in your own terminal, never written anywhere. **CARD-0372, 2026-10-03:** the interactive-only
+restriction predated the credential vault (`tos/secret.ps1`) and was a guardrail against this specific
+password's repeat leaks (2026-09-24, 2026-09-28) -- now that the vault can relay a value into a
+process's own environment without a session ever seeing it, a Claude Code session can run this too,
+via `secret.ps1 run-local` (seed the vault once yourself first: `secret.ps1 set node-red-admin-password`):
 
 ```
 python core/node-red/deploy_flow.py core/node-red/watchdog.flow.json tab_watchdog [--trigger <inject-id>]
+# or, non-interactively (a session can run this):
+secret.ps1 run-local -Name node-red-admin-password -EnvVar NODE_RED_ADMIN_PASSWORD -- `
+    python core/node-red/deploy_flow.py core/node-red/watchdog.flow.json tab_watchdog --yes [--trigger <inject-id>]
 ```
 
-It shows which node ids would be added/changed/removed, asks to confirm, replaces only that tab, then
+It shows which node ids would be added/changed/removed, asks to confirm (skip with `--yes`), replaces only that tab, then
 re-fetches and verifies every function node's code matches the repo. Replacing a tab restarts that flow,
 so in-memory state (the watchdog's silence timers) resets. Commit the flow file to `main` only *after*
 deploying, or the daily drift check flags repo != live.

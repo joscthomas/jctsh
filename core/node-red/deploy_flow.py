@@ -2,22 +2,33 @@
 """Deploy one flow tab from a repo *.flow.json to the live Node-RED via its Admin API.
 
 Why this exists (CARD-0324): flows were being pushed by hand-rolled one-off calls
-(CARD-0331). The Admin API needs the admin login, which a Claude Code session
-must not read out of credentials.local.md -- so this asks for it interactively,
-in *your* terminal, and never writes it anywhere.
+(CARD-0331). The Admin API needs the admin login.
 
     python core/node-red/deploy_flow.py core/node-red/watchdog.flow.json tab_watchdog
     python core/node-red/deploy_flow.py core/node-red/watchdog.flow.json tab_watchdog --trigger inject_daily_check
 
+Password: reads $NODE_RED_ADMIN_PASSWORD if set, else prompts interactively (in
+*your* terminal, never written anywhere). CARD-0372, 2026-10-03: the password used
+to come ONLY from the interactive prompt -- a deliberate guardrail from before the
+vault existed (this credential had been leaked into session transcripts twice,
+2026-09-24 and 2026-09-28). Now that the vault can relay a value into a process's
+environment without a session ever seeing it (the same pattern already proven safe
+for this exact credential on 2026-09-29 -- "read in-process by a deploy script, used
+for the admin API, never echoed"), the env var is the normal path:
+
+    secret.ps1 run-local -Name node-red-admin-password -EnvVar NODE_RED_ADMIN_PASSWORD -- ^
+        python core/node-red/deploy_flow.py <flow_file> <tab_id> --yes [--trigger <id>]
+
 Steps: authenticate -> fetch the live tab -> show which node ids would be
-added/changed/removed -> ask to confirm -> PUT /flow/<tab> -> re-fetch and verify
-every function node's code is what is now running. Only the named tab is
-replaced; Node-RED restarts just that flow (its in-memory timers reset -- for the
-watchdog that means each component's silence timer re-arms on its next heartbeat).
+added/changed/removed -> ask to confirm (skippable with --yes) -> PUT /flow/<tab> ->
+re-fetch and verify every function node's code is what is now running. Only the
+named tab is replaced; Node-RED restarts just that flow (its in-memory timers
+reset -- for the watchdog that means each component's silence timer re-arms on its
+next heartbeat).
 
 Stdlib only. Default host is the Pi's Tailscale IP; --host to override.
 """
-import argparse, getpass, json, sys, urllib.error, urllib.parse, urllib.request
+import argparse, getpass, json, os, sys, urllib.error, urllib.parse, urllib.request
 
 # Load-time defaults Node-RED adds to a node; not a difference worth reporting.
 _DEFAULTS = (0, "", False, None, [], {})
@@ -66,7 +77,7 @@ def main():
     if not repo_nodes or not tab_nodes:
         sys.exit(f"{a.flow_file} has no tab '{a.tab_id}' with nodes in it.")
 
-    pw = getpass.getpass(f"Node-RED password for {a.user}@{a.host}: ")
+    pw = os.environ.get("NODE_RED_ADMIN_PASSWORD") or getpass.getpass(f"Node-RED password for {a.user}@{a.host}: ")
     try:
         _, tok = call(a.host, "POST", "/auth/token", form={
             "client_id": "node-red-admin", "grant_type": "password", "scope": "*",

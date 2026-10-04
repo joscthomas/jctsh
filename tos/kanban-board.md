@@ -9,9 +9,29 @@ Lightweight kanban. Each card has a **type** (idea | enhancement | bug) and a un
 - **Done** — complete
 - **Defer** — a deliberate decision not to pursue for now (not abandoned, not forgotten — just consciously parked); can move here from any other column
 
-<!-- next-card-id: CARD-0383 -->
+<!-- next-card-id: CARD-0384 -->
 
 ---
+
+### CARD-0383 · [enhancement] [data-pipeline] [node-red] Rename the "Sheet Health" Node-RED tab/flow -- stale name read as cruft, not a real alert
+
+**Status:** Build
+
+**Raised 2026-10-03 (Joseph), while investigating the Node-RED `data-pipeline-api-key` holder incident (CARD-0372).** The repeating "Sheet health: still bad after N min" phone notifications Joseph was getting turned out to be a real, load-bearing alert (Node-RED's own `DATA_PIPELINE_KEY` was genuinely stale) -- but the name made it look like unrelated legacy cruft firing, which delayed recognizing it as a real problem. Joseph: "i don't like the name holdover, it made me think that some cruft was firing those messages."
+
+**Scope, confirmed by reading every reference before touching anything:** `core/data-pipeline/sheet-health.flow.json` (Node-RED tab + its `sh_probe`/`sh_fn_log_ha` function nodes -- tab label, node names, the `component: 'sheet-health'` tag, and the user-facing "Sheet health: ..." push/log text) and its three references in `core/data-pipeline/README.md`. **Deliberately out of scope:** `components/hike-izer-orchestrator/sheet_health.py` (the Python orchestrator's own health-check helper) -- it doesn't cause the confusing phone alerts at all; its callers (`backstop_check.py`/`generation.py`) post under the default `hike-izer-orchestrator` component, not a `sheet-health` tag (confirmed by reading `mqtt_log.publish_log`'s default). Renaming it too is a reasonable future follow-up for naming consistency, not required to fix what Joseph actually ran into.
+
+**New name: `data-pipeline-health`** (tab, component tag, file name) -- matches the existing `data-pipeline-*` naming convention and says what it actually checks (CARD-0349 already repointed the probe itself from Google Sheets' `action=health` to the gateway's own `/health` route; only the name lagged).
+
+**Done 2026-10-03 (repo side):** flow JSON edited (node ids left untouched -- only tab label/info, node names, and the embedded JS strings changed, so `deploy_flow.py`'s node-by-node diff stays minimal and reviewable), file renamed `sheet-health.flow.json` -> `data-pipeline-health.flow.json`, `README.md`'s three references updated to match.
+
+**Still needed -- Joseph, from his own terminal (the Admin API deploy needs the Node-RED admin password, which a Claude Code session isn't allowed to read, per `core/node-red/README.md`):**
+```
+python core/node-red/deploy_flow.py core/data-pipeline/data-pipeline-health.flow.json b2a86771d1f90aaf
+```
+Then a live check that a probe cycle lands under the new `data-pipeline-health` component name in the log dashboard (next cycle is every 5 min) before this is committed -- per `core/node-red/README.md`'s own rule, commit the flow file to `main` only *after* deploying, or the daily drift check (CARD-0328) flags repo != live.
+
+**Done when:** deployed, a real probe cycle logs under `data-pipeline-health` (not `sheet-health`), and the repo file is committed post-deploy. Related: CARD-0372 (the incident that surfaced this), CARD-0373 (same "stale name causes real confusion" pattern, same fix shape, same live-flow deploy caveat), CARD-0349 (the actual cutover this name should have followed at the time).
 
 ### CARD-0382 · [maintenance] [pi1] Pi maintenance: 27 routine + 3 review-category updates — auto-opened from jctsh-core
 

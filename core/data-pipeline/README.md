@@ -31,7 +31,7 @@ Table definitions live in `init/schema.sql`, which is the source of truth for co
 | `init/schema.sql` | Table definitions. Runs once, only against an empty `pgdata` volume — a schema change after go-live needs a real migration, not an edit here. |
 | `.env.example` | Names the secrets `.env` must carry. Real values live in `credentials.local.md`. |
 | `environmental-data.flow.json` | The Node-RED handler tab (`jctsh/components/+/data` → derived fields → GPS lookup → POST to the gateway). Import into Node-RED on the Pi. |
-| `sheet-health.flow.json` | The Node-RED "Sheet Health" tab — a 5-minute probe of the gateway's `/health`. The name is historical; it now probes the database. |
+| `data-pipeline-health.flow.json` | The Node-RED "Data Pipeline Health" tab — a 5-minute probe of the gateway's `/health`. Renamed from `sheet-health.flow.json` (CARD-0383); it stopped probing Google Sheets back in CARD-0349 but kept the old name, which read as stale cruft. |
 | `pg-backup.sh`, `pg-backup.service`, `pg-backup.timer` | Daily 04:00 `pg_dump` on the M8 (CARD-0362). |
 | `migrate_to_timescale.py` | One-time Sheets → TimescaleDB backfill script. Historical; not part of the running system. |
 | `timescaledb-design.md`, `timescaledb-migration-plan.md` | CARD-0349's Planning and Design artifacts — the record of how the decision was made. Written before the build; where they differ from `init/schema.sql` or `api/app.py`, the code is right. |
@@ -149,8 +149,8 @@ Rain accumulators (rolling 60-minute buffer, daily total reset at midnight
 
 ## Health, backup, and what to do when it's down
 
-- **Probe:** the Node-RED "Sheet Health" tab calls `/health` every 5 minutes and pushes to
-  the Pixel and logs under component `sheet-health` after two consecutive bad or >10 s
+- **Probe:** the Node-RED "Data Pipeline Health" tab calls `/health` every 5 minutes and pushes to
+  the Pixel and logs under component `data-pipeline-health` after two consecutive bad or >10 s
   checks. The orchestrator's daily refresh and backstop also pre-flight `/health` and skip
   themselves while it's bad — a skipped daily refresh is re-run by hand:
   `docker exec hike-izer-orchestrator python3 generation.py --daily-refresh`.
@@ -178,7 +178,7 @@ Bump `VERSION` in `api/app.py` on every gateway change — it is the only way to
 landed deploy from a stale one. `init/schema.sql` does **not** re-run; a schema change needs
 a hand-written `ALTER` against the live database and a matching edit to `schema.sql`.
 
-`environmental-data.flow.json` and `sheet-health.flow.json`: import into Node-RED on the Pi
+`environmental-data.flow.json` and `data-pipeline-health.flow.json`: import into Node-RED on the Pi
 (`pi1.local:1880`); import `core/node-red/core.flow.json` first if the MQTT broker node isn't
 there. **The live Node-RED file (`/home/pi/.node-red/flows.json`) is what runs** — after any
 edit in the editor, re-export the tab back into this directory, or the repo copy goes stale
